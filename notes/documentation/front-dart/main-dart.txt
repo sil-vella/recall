@@ -1,0 +1,100 @@
+Imports
+
+flutter/material.dart: This is the main package for building a Flutter application with Material Design.
+provider/provider.dart: This package is used for state management. It provides a simple way to manage and listen to application state changes.
+pregame/pregame_main.dart: Presumably contains the main widget for the pre-game state.
+active_game_room/active_game_room_main.dart: Presumably contains the main widget for the active game room state.
+game_state.dart: This file likely contains the GameState class which extends ChangeNotifier and is used to manage the state of the game.
+services/setup_pre_game_socket_handlers.dart: This file contains functions to set up and clean up pre-game socket handlers, which are imported with the alias preGameHandlers.
+
+void main() {
+  runApp(const MyApp());
+}
+
+    This is the entry point of the Flutter application. It runs the MyApp widget.
+
+
+MyApp Stateful Widget
+
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+    MyApp is a stateful widget. Stateful widgets are used when the UI can change dynamically.
+    const MyApp({super.key}): The constructor for MyApp. The super.key is used to pass a key to the parent class.
+
+_MyAppState
+
+class _MyAppState extends State<MyApp> {
+  String gameState = 'preGame'; // Initial state
+
+    String gameState = 'preGame';: The initial state of the game is set to 'preGame'.
+
+initState Method
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensure the GameState provider is available before setting up socket handlers
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      preGameHandlers.setupPreGameSocketHandlers(context); // Initialize Pre-Game Handlers
+    });
+  }
+
+    initState: This method is called when the stateful widget is created.
+    WidgetsBinding.instance.addPostFrameCallback((_) { ... }): This ensures that the code inside the callback is run after the first frame is drawn. This is necessary to ensure that the GameState provider is available.
+    preGameHandlers.setupPreGameSocketHandlers(context): Sets up the socket handlers for the pre-game state.
+
+dispose Method
+
+  @override
+  void dispose() {
+    preGameHandlers.cleanupPreGameSocketHandlers(); // Clean up Pre-Game Handlers
+    super.dispose();
+  }
+
+    dispose: This method is called when the widget is removed from the widget tree. It is used to clean up resources.
+    preGameHandlers.cleanupPreGameSocketHandlers(): Cleans up the socket handlers for the pre-game state.
+
+build Method
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => GameState()),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: gameState == 'preGame'
+                ? const PreGameMain()
+                : gameState == 'activeGameRoom'
+                    ? const ActiveGameRoomMain()
+                    : Container(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+    build: This method builds the widget tree.
+    MultiProvider: A widget that provides multiple providers. In this case, it provides a ChangeNotifierProvider for GameState.
+        ChangeNotifierProvider(create: (_) => GameState()): Creates an instance of GameState and makes it available to the widget tree.
+    MaterialApp: The main app widget.
+    Scaffold: Provides a basic material design visual layout structure.
+    Center: Centers its child widget.
+    gameState == 'preGame' ? const PreGameMain() : gameState == 'activeGameRoom' ? const ActiveGameRoomMain() : Container(): This conditional expression renders different widgets based on the value of gameState. If gameState is 'preGame', it renders PreGameMain. If gameState is 'activeGameRoom', it renders ActiveGameRoomMain. Otherwise, it renders an empty Container.
+
+Summary
+
+    The app uses provider for state management.
+    MyApp initializes with the 'preGame' state and sets up pre-game socket handlers after the first frame is drawn.
+    It cleans up the socket handlers when the widget is disposed of.
+    The build method uses a MultiProvider to provide the GameState and conditionally renders different widgets based on the gameState.
+
+This setup allows for dynamic changes between the pre-game and active game room states, facilitated by the socket handlers and the GameState provider.

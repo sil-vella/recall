@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<h2>Enter your username to join the game</h2>
+
+<form id="joinGameForm">
+    <input type="text" id="multi-username" name="multi-username" placeholder="Username" required>
+    <input type="hidden" id="gameId" name="gameId" value="{{ game_id }}"> <!-- Assuming game_id is passed to the template -->
+    <button type="button" id="join-game">Join Game</button>
+</form>
+{% endblock %}

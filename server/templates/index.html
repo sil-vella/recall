@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<section id="pre-game">
+    <div id="left" style="width: 50%; float: left">
+    <form id="game-mode-form">
+        {% if game_id %}
+        <p>You are invited to join game room: {{ game_id }}</p>
+        {% else %}
+        <input type="radio" id="solo" name="game_mode" value="solo">
+        <label for="solo">Solo Play</label><br>
+        <input type="radio" id="multiplayer" name="game_mode" value="multiplayer">
+        <label for="multiplayer">Multiplayer</label><br>
+        <!-- Hidden dropdown for selecting number of opponents -->
+        <div id="num-opponents-container" style="display: none;">
+            <label for="num_opponents">Select number of opponents:</label>
+            <select id="num_opponents">
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+            </select>
+        </div>
+        <div id="create-multi-Game-container" style="display: none;">
+                <div id="game-rooms">
+                </div>
+                <div id="join-multiplayer-outer">
+                </div>
+                {% endif %}
+                <div id="join-game-container">
+                    {% if game_id %}
+                    <input type="text" id="join-multi-username" name="join-multi-username" required>
+                    <input type="hidden" id="join-gameId" name="join-gameId" value="{{ game_id }}">
+                    <label for="join-multi-username">Create Username</label><br>
+                    <button type="button" id="join-game-button">Join Game</button>
+                    {% else %}
+                    <input type="hidden" id="join-multi-username" name="join-multi-username" required>
+                    <input type="hidden" id="join-gameId" name="join-gameId">
+                </div>
+            
+                <div id="create-game-container">
+                    <input type="text" id="multi-creator-username" name="multi-creator-username">
+                    <label for="multi-username">Create Username</label><br>
+                    <button type="button" id="create-game">Create New Game</button>
+                </div>
+                <button type="button" id="join-game-button" disabled>Join Game</button>
+                {% endif %}
+                
+            
+        </div>
+
+    </form>
+    <br />
+    <section id="users-hand"></section>
+    <section id="msg-board"></section>
+    <div id="computer-players"></div>
+    <br />
+    <div id="user-player-info"></div>
+    <br />
+    <form id="draw-pile-selection"></form>
+    <input type="radio" id="face-down" name="draw-pile" value="face-down">
+    <label for="face-down">Face Down Pile</label><br>
+    <input type="radio" id="face-up" name="draw-pile" value="face-up">
+    <label for="face-up">Face Up Pile</label><br>
+    <button type="button" id="draw-card"></button>
+    </form>
+
+    <br />
+    <p>face down deck</p>
+    <div id="face-down-deck"></div>
+    <p>face up deck</p>
+    <div id="face-up-deck"></div>
+    <p>current player</p>
+    <div id="current-player"></div>
+    </div>
+</section> <!-- /pre game-->
+<section id="game-table">
+    <section id="game-chat"></section>
+    <section id="room-msg-board"></section>
+    <section id="room-players"></section>
+    <section id="game-play"></section>
+    <section id="self-player-section"></section>
+ </section>
+</section>
+{% endblock %}

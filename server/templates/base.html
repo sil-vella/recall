@@ -1,0 +1,32 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<title>{% block title %}{% endblock %} - Card Game</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+	</head>
+	<body class="is-preload">
+		<header>
+			<nav>
+				<ul>
+					<button id="disconnect-btn">Disconnect and Start New</button>
+				</ul>
+			</nav>
+		</header>
+		<!-- Wrapper -->
+			<div id="wrapper">
+
+				<!-- Main -->
+					<div id="main">
+                        {% block content %}{% endblock %}
+					</div> <!-- /Main -->
+
+			</div>
+		<div id="messageDiv"></div>
+		<!-- Include Socket.IO client -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js" integrity="sha512-tE1z+95+lMCGwy+9PnKgUSIeHhvioC9lMlI7rLWU0Ps3XTdjRygLcy4mLuL0JAoK4TLdQEyP0yOl/9dMOqpH/Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+		<!-- Include your external JS script -->
+		<script src="{{ url_for('static', filename='js/game_functions.js') }}"></script>
+		<script src="{{ url_for('static', filename='js/socketio.js') }}"></script>
+	</body>
+</html>

@@ -1,0 +1,439 @@
+[2024-04-09 10:53:34] - root - DEBUG - jack_special_play (custom_logging.py:47)
+[2024-04-09 10:53:34] - root - DEBUG - {
+    "specialRank": "jack",
+    "cards": [
+        {
+            "id": 21,
+            "rank": "6",
+            "suit": "Hearts",
+            "color": "Red"
+        },
+        {
+            "id": 53,
+            "rank": "Joker",
+            "suit": "Colored",
+            "color": "Red"
+        }
+    ],
+    "playerIds": [
+        "esdC0SmYYY2qci7uAAAF",
+        "esdC0SmYYY2qci7uAAAF"
+    ],
+    "activeGameData": {
+        "game_id": "ht-esdC0SmYYY2qci7uAAAF",
+        "players": {
+            "esdC0SmYYY2qci7uAAAF": {
+                "name": "ht",
+                "id": "esdC0SmYYY2qci7uAAAF",
+                "player_type": "user",
+                "hand": [
+                    {
+                        "id": 21,
+                        "rank": "6",
+                        "suit": "Hearts",
+                        "color": "Red"
+                    },
+                    {
+                        "id": 36,
+                        "rank": "9",
+                        "suit": "Spades",
+                        "color": "Black"
+                    },
+                    {
+                        "id": 53,
+                        "rank": "Joker",
+                        "suit": "Colored",
+                        "color": "Red"
+                    },
+                    {
+                        "id": 18,
+                        "rank": "5",
+                        "suit": "Diamonds",
+                        "color": "Red"
+                    }
+                ],
+                "score": 20,
+                "known_cards": [],
+                "unknown_cards": [
+                    {
+                        "id": 41,
+                        "rank": "Jack",
+                        "suit": "Hearts",
+                        "color": "Red"
+                    },
+                    {
+                        "id": 36,
+                        "rank": "9",
+                        "suit": "Spades",
+                        "color": "Black"
+                    },
+                    {
+                        "id": 53,
+                        "rank": "Joker",
+                        "suit": "Colored",
+                        "color": "Red"
+                    },
+                    {
+                        "id": 18,
+                        "rank": "5",
+                        "suit": "Diamonds",
+                        "color": "Red"
+                    }
+                ],
+                "known_from_others": [],
+                "active_card": null
+            },
+            "KWaYpvuzjLKF8Jh9AAAH": {
+                "name": "two",
+                "id": "KWaYpvuzjLKF8Jh9AAAH",
+                "player_type": "user",
+                "hand": [
+                    {
+                        "id": 28,
+                        "rank": "7",
+                        "suit": "Spades",
+                        "color": "Black"
+                    },
+                    {
+                        "id": 33,
+                        "rank": "9",
+                        "suit": "Hearts",
+                        "color": "Red"
+                    },
+                    {
+                        "id": 26,
+                        "rank": "7",
+                        "suit": "Diamonds",
+                        "color": "Red"
+                    }
+                ],
+                "score": 23,
+                "known_cards": [],
+                "unknown_cards": [
+                    {
+                        "id": 28,
+                        "rank": "7",
+                        "suit": "Spades",
+                        "color": "Black"
+                    },
+                    {
+                        "id": 37,
+                        "rank": "10",
+                        "suit": "Hearts",
+                        "color": "Red"
+                    },
+                    {
+                        "id": 33,
+                        "rank": "9",
+                        "suit": "Hearts",
+                        "color": "Red"
+                    },
+                    {
+                        "id": 26,
+                        "rank": "7",
+                        "suit": "Diamonds",
+                        "color": "Red"
+                    }
+                ],
+                "known_from_others": [],
+                "active_card": null
+            }
+        },
+        "current_player": "esdC0SmYYY2qci7uAAAF",
+        "special_cards_queue": [],
+        "face_down_cards": [
+            {
+                "id": 1,
+                "rank": "Ace",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 2,
+                "rank": "Ace",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 3,
+                "rank": "Ace",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 4,
+                "rank": "Ace",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 5,
+                "rank": "2",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 6,
+                "rank": "2",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 7,
+                "rank": "2",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 8,
+                "rank": "2",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 9,
+                "rank": "3",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 10,
+                "rank": "3",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 11,
+                "rank": "3",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 12,
+                "rank": "3",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 13,
+                "rank": "4",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 14,
+                "rank": "4",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 15,
+                "rank": "4",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 16,
+                "rank": "4",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 17,
+                "rank": "5",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 19,
+                "rank": "5",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 20,
+                "rank": "5",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 22,
+                "rank": "6",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 23,
+                "rank": "6",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 24,
+                "rank": "6",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 25,
+                "rank": "7",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 27,
+                "rank": "7",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 29,
+                "rank": "8",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 30,
+                "rank": "8",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 31,
+                "rank": "8",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 32,
+                "rank": "8",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 34,
+                "rank": "9",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 35,
+                "rank": "9",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 38,
+                "rank": "10",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 40,
+                "rank": "10",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 42,
+                "rank": "Jack",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 43,
+                "rank": "Jack",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 44,
+                "rank": "Jack",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 45,
+                "rank": "Queen",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 46,
+                "rank": "Queen",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 47,
+                "rank": "Queen",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 48,
+                "rank": "Queen",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 49,
+                "rank": "King",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 50,
+                "rank": "King",
+                "suit": "Diamonds",
+                "color": "Red"
+            },
+            {
+                "id": 51,
+                "rank": "King",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 52,
+                "rank": "King",
+                "suit": "Spades",
+                "color": "Black"
+            },
+            {
+                "id": 54,
+                "rank": "Joker",
+                "suit": "Black",
+                "color": "Black"
+            }
+        ],
+        "face_up_cards": [
+            {
+                "id": 41,
+                "rank": "Jack",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 39,
+                "rank": "10",
+                "suit": "Clubs",
+                "color": "Black"
+            },
+            {
+                "id": 37,
+                "rank": "10",
+                "suit": "Hearts",
+                "color": "Red"
+            },
+            {
+                "id": 41,
+                "rank": "Jack",
+                "suit": "Hearts",
+                "color": "Red"
+            }
+        ],
+        "game_over": false,
+        "state": "ACTIVE"
+    }
+} (custom_logging.py:47)

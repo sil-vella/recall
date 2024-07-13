@@ -1,0 +1,64 @@
+echo "
+# Flutter/Dart/Pub related
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+
+# Fuchsia
+.ffx/
+
+# IntelliJ related
+*.iml
+.idea/
+.idea_modules/
+*.ipr
+*.iws
+.idea/ .idea/
+.idea_modules/
+*.iml
+*.ipr
+*.iws
+.idea/modules.xml
+.idea/*.name
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.idea/libraries
+.idea/shelf/
+.idea/modules.xml
+.idea/misc.xml
+.idea/dictionaries
+.idea/workspace.xml
+
+# VSCode related
+.vscode/
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+.vscode/*.code-workspace
+.history/
+
+# Mac/Linux related
+.DS_Store
+.AppleDouble
+.LSOverride
+.iconset/
+._*
+
+# Windows related
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+" > .gitignore

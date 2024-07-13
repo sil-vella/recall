@@ -1,0 +1,180 @@
+Imports
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'pregame/pregame_main.dart';
+import 'active_game_room/active_game_room_main.dart';
+import 'game_state.dart';
+import 'services/setup_pre_game_socket_handlers.dart' as preGameHandlers;
+
+    import 'package:flutter/material.dart';
+        This line imports the Flutter Material Design library. This library provides a wide range of widgets (UI components) that follow Material Design guidelines, which is a design language created by Google.
+
+    import 'package:provider/provider.dart';
+        This imports the provider package, which is used for state management in Flutter apps. State management means keeping track of changes in the app's data and updating the UI accordingly.
+
+    import 'pregame/pregame_main.dart';
+        This imports a Dart file that likely contains the main screen widget for the pre-game state.
+
+    import 'active_game_room/active_game_room_main.dart';
+        This imports another Dart file that likely contains the main screen widget for the active game room state.
+
+    import 'game_state.dart';
+        This imports the file containing the GameState class, which is used to manage and track the state of the game.
+
+    import 'services/setup_pre_game_socket_handlers.dart' as preGameHandlers;
+        This imports functions for setting up and cleaning up pre-game socket handlers. The as preGameHandlers part gives an alias to this import for easier reference.
+
+Main Function
+
+void main() {
+  runApp(const MyApp());
+}
+
+    void main() { ... }
+        This is the entry point of the Flutter application. When the app is started, the code inside the main function is executed.
+
+    runApp(const MyApp());
+        runApp is a function that takes a widget and makes it the root of the widget tree (the hierarchical structure of all the widgets in the app).
+        const MyApp() creates an instance of the MyApp widget, which is defined next.
+
+MyApp Stateful Widget
+
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+    class MyApp extends StatefulWidget { ... }
+        MyApp is a stateful widget. A stateful widget can change dynamically when the app is running.
+        StatefulWidget is a base class provided by Flutter for widgets that need to manage some state.
+
+    const MyApp({super.key});
+        This is the constructor for MyApp. The super.key part passes a key to the parent class StatefulWidget, which helps Flutter identify the widget when it needs to update or rebuild it.
+
+    @override
+        This annotation indicates that the method overrides a method in the superclass (in this case, StatefulWidget).
+
+    _MyAppState createState() => _MyAppState();
+        This method creates the state for the MyApp widget. The _MyAppState class, defined next, holds the state and logic for the widget.
+
+_MyAppState
+
+class _MyAppState extends State<MyApp> {
+  String gameState = 'preGame'; // Initial state
+
+    class _MyAppState extends State<MyApp> { ... }
+        _MyAppState is the state class for the MyApp widget. It extends State<MyApp>, meaning it manages the state for MyApp.
+        The underscore _ makes the class private, meaning it can only be used within this file.
+
+    String gameState = 'preGame';
+        This line declares a variable gameState of type String and initializes it with the value 'preGame'.
+        This variable keeps track of the current state of the game. Initially, it is set to 'preGame'.
+
+initState Method
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensure the GameState provider is available before setting up socket handlers
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      preGameHandlers.setupPreGameSocketHandlers(context); // Initialize Pre-Game Handlers
+    });
+  }
+
+    @override void initState() { ... }
+        initState is a lifecycle method called when the stateful widget is first created.
+        @override indicates that this method overrides the initState method in the State class.
+
+    super.initState();
+        This calls the initState method of the parent class (State), ensuring that any initialization logic in the parent class is also executed.
+
+    WidgetsBinding.instance.addPostFrameCallback((_) { ... });
+        This schedules a callback to be executed after the first frame is rendered.
+        This is necessary to ensure that the GameState provider is available before setting up the socket handlers.
+
+    preGameHandlers.setupPreGameSocketHandlers(context);
+        This calls a function to set up socket handlers for the pre-game state.
+        context is passed to allow the handlers to interact with the widget tree.
+
+dispose Method
+
+  @override
+  void dispose() {
+    preGameHandlers.cleanupPreGameSocketHandlers(); // Clean up Pre-Game Handlers
+    super.dispose();
+  }
+
+    @override void dispose() { ... }
+        dispose is another lifecycle method called when the widget is removed from the widget tree.
+        It is used to clean up resources, such as closing streams or disconnecting from sockets.
+
+    preGameHandlers.cleanupPreGameSocketHandlers();
+        This calls a function to clean up the pre-game socket handlers.
+
+    super.dispose();
+        This calls the dispose method of the parent class (State), ensuring proper cleanup.
+
+build Method
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => GameState()),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: gameState == 'preGame'
+                ? const PreGameMain()
+                : gameState == 'activeGameRoom'
+                    ? const ActiveGameRoomMain()
+                    : Container(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+    @override Widget build(BuildContext context) { ... }
+        build is a method that constructs the widget tree.
+        It is called every time the widget needs to be rendered or re-rendered.
+
+    return MultiProvider(...);
+        MultiProvider is a widget that provides multiple providers to the widget tree. Providers are a way to manage and access state throughout the app.
+
+    providers: [ChangeNotifierProvider(create: (_) => GameState())]
+        This list contains a ChangeNotifierProvider, which creates and provides an instance of GameState to the widget tree.
+        ChangeNotifierProvider is a type of provider that listens to changes in the state and updates the UI accordingly.
+
+    child: MaterialApp(...)
+        MaterialApp is the root widget of the application and provides material design visual styling.
+        It sets up themes, navigation, and more.
+
+    home: Scaffold(...)
+        Scaffold provides a basic visual layout structure for the app, including an app bar, body, drawer, etc.
+
+    body: Center(...)
+        Center centers its child widget within itself.
+
+    child: gameState == 'preGame' ? const PreGameMain() : gameState == 'activeGameRoom' ? const ActiveGameRoomMain() : Container()
+        This line conditionally renders different widgets based on the value of gameState.
+        If gameState is 'preGame', it renders PreGameMain.
+        If gameState is 'activeGameRoom', it renders ActiveGameRoomMain.
+        If gameState is neither, it renders an empty Container.
+
+Summary
+
+    Imports: Bring in necessary libraries and files.
+    Main Function: Starts the app with MyApp as the root widget.
+    MyApp Stateful Widget: Manages the dynamic state of the app.
+    _MyAppState: Holds the state and logic for MyApp.
+        initState: Initializes resources, including setting up socket handlers.
+        dispose: Cleans up resources when the widget is removed.
+        build: Constructs the widget tree, using MultiProvider for state management and conditionally rendering different screens based on gameState.
+
+This structure allows for dynamic changes between different game states, facilitated by socket handlers and state management. The use of the provider package ensures that state changes are efficiently propagated throughout the widget tree.

@@ -1,0 +1,100 @@
+Front End Development Environment Setup: macOS Ventura
+System Requirements for Flutter Frontend Development
+
+    Flutter: Version 3.22.2 (latest as of now)
+    Dart: Version 3.4 (latest as of now)
+    Android Studio: Use command-line tools only
+    Git: Ensure Git is installed
+    VSCode: Install with the Flutter extension
+
+Installation Instructions
+1. Install Flutter Extension in VSCode
+
+Open VSCode and search for the Flutter extension in the marketplace, then install it.
+2. Configure PATH for Flutter
+
+Open the terminal and edit your .zshrc file:
+
+bash
+
+nano ~/.zshrc
+
+Add the following to set up Flutter:
+
+bash
+
+# Add Flutter to PATH
+export PATH="/Users/sil/development/flutter/bin:$PATH"
+
+Save and exit the file (Ctrl+X, confirm with Y to save changes).
+
+Apply changes:
+
+bash
+
+source ~/.zshrc
+
+3. Install Android Studio
+
+    Download Android Studio:
+        Go to the Android Studio download page and download the installer for macOS.
+
+    Install Android Studio:
+        Open the downloaded DMG file and drag Android Studio to the Applications folder.
+
+    Open Android Studio:
+        Launch Android Studio from your Applications folder.
+
+    Follow the Setup Wizard:
+        During the installation process, the setup wizard will prompt you to install the Android SDK and other necessary components. Ensure that you select all recommended options.
+
+4. Configure PATH for Android SDK
+
+Add the following to your .zshrc file to set up the Android SDK paths:
+
+bash
+
+# Set Android SDK Root
+export ANDROID_SDK_ROOT=$HOME/Library/Android/sdk
+
+# Update PATH for Android development
+export PATH="$PATH:$ANDROID_SDK_ROOT/emulator"
+export PATH="$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin"
+export PATH="$PATH:$ANDROID_SDK_ROOT/platform-tools"
+export PATH="$PATH:$ANDROID_SDK_ROOT/tools"
+export PATH="$PATH:$ANDROID_SDK_ROOT/tools/bin"
+
+Save and exit the file (Ctrl+X, confirm with Y to save changes).
+
+Apply changes:
+
+bash
+
+source ~/.zshrc
+
+5. Create a New Flutter Project
+
+Navigate to your project directory:
+
+bash
+
+cd path/to/project/dir
+
+Create a new Flutter project:
+
+bash
+
+flutter create client
+
+Note: "client" is the folder/project name, which can be replaced with any name you prefer.
+6. Manage Flutter Dependencies
+
+To update the dependencies in pubspec.yaml after making changes, run:
+
+bash
+
+flutter pub upgrade
+
+Summary
+
+This setup guide outlines the necessary steps to configure a robust Flutter development environment on macOS Ventura, ensuring all tools and dependencies are correctly installed and configured. By following these steps, you will be ready to develop and manage Flutter applications efficiently.

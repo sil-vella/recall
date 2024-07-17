@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV "/Users/sil/Documents/work/reignofplay/Recall/dev/venv"
+set -gx VIRTUAL_ENV "/Users/sil/Documents/Work/reignofplay/Recall/dev/venv"
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/bin" $PATH

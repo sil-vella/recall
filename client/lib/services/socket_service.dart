@@ -6,12 +6,14 @@ class SocketService {
 
   static IO.Socket? getSocket() {
     if (_socket == null) {
-      _socket = IO.io('http://localhost:5000', <String, dynamic>{
+      print('Initializing socket connection...');
+      _socket = IO.io('http://192.168.178.80:5000', <String, dynamic>{
         'transports': ['websocket'],
         'autoConnect': false,
       });
 
       _socket?.on('connect', (_) {
+        print('Socket connected');
         _setupEventHandlers();
       });
 
@@ -47,6 +49,7 @@ class SocketService {
         print('Socket failed to reconnect');
       });
 
+      print('Connecting socket...');
       _socket?.connect();
     }
     return _socket;
@@ -54,10 +57,13 @@ class SocketService {
 
   static void _setupEventHandlers() {
     if (_eventHandlers != null && _socket != null) {
+      print('Setting up event handlers...');
       for (var eventHandler in _eventHandlers!) {
         final event = eventHandler['event'] as String;
         final handler = eventHandler['handler'] as dynamic Function(dynamic);
+        print('Listening to event: $event');
         _socket?.on(event, (data) {
+          print('Event received: $event, Data: $data');
           handler(data);
         });
       }
@@ -65,6 +71,7 @@ class SocketService {
   }
 
   static void setEventHandlers(List<Map<String, dynamic>> eventHandlers) {
+    print('Setting event handlers...');
     _eventHandlers = eventHandlers;
     _setupEventHandlers();
   }
@@ -72,14 +79,23 @@ class SocketService {
   static void emitEvent(String eventName, dynamic data) {
     final socket = getSocket();
     if (socket != null) {
+      print('Emitting event: $eventName, Data: $data');
       socket.emit(eventName, data);
+    } else {
+      print('Socket is not connected, unable to emit event: $eventName');
     }
   }
 
   static void disconnect() {
-    _socket?.disconnect();
-    _socket?.close();
-    _socket = null;
-    _eventHandlers = null;
+    if (_socket != null) {
+      print('Disconnecting socket...');
+      _socket?.disconnect();
+      _socket?.close();
+      _socket = null;
+      _eventHandlers = null;
+      print('Socket disconnected and closed');
+    } else {
+      print('Socket is already disconnected');
+    }
   }
 }

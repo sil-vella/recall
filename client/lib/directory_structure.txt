@@ -1,0 +1,35 @@
+|____pregame
+| |____pregame_main.dart
+| |____solo_game_setup.dart
+| |____multi_game_setup.dart
+| |____invited_user.dart
+|____home.dart
+|____.DS_Store
+|____state
+| |____game_state.dart
+| |____game_bloc.dart
+| |____game_event.dart
+| |____simple_bloc_observer.dart
+|____active_game_room
+| |____active_game_room_main.dart
+| |____user_section
+| | |____user_section_actions.dart
+| | |____user_section_main.dart
+| | |____user_section_hand.dart
+| |____game_play
+| | |____msg_board.dart
+| | |____game_play_main.dart
+| | |____room_table.dart
+| |____ui_animations_main.dart
+|____main.dart
+|____utilities
+| |____user_input.dart
+| |____game_setup.dart
+| |____utility.dart
+| |____start_end_game.dart
+| |____msg_list.dart
+|____directory_structure.txt
+|____services
+| |____socket_service.dart
+| |____setup_active_game_socket_handlers.dart
+| |____setup_pre_game_socket_handlers.dart

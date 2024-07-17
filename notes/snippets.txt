@@ -1,4 +1,8 @@
-create a txt file with directory tree excluding node modules:
+create a txt file with directory tree excluding node modules: No files included.
 
 find . -mindepth 1 -maxdepth 3 -type d | sed -e 's;[^/]*/;|____;g;s;____|; |;g' > directory_structure.txt
 _______
+
+This snippet includes files also
+
+find . -mindepth 1 -maxdepth 3 | sed -e 's;[^/]*/;|____;g;s;____|; |;g' > directory_structure.txt

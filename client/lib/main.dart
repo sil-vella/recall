@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'home.dart';
-import 'game_state.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:client/screens/home.dart';
+import 'package:client/blocs/game/game_bloc.dart';
+import 'package:client/blocs/game/game_event.dart';
+import 'package:client/blocs/game/game_state.dart';
+import 'package:client/simple_bloc_observer.dart';
 
 void main() {
+  Bloc.observer = SimpleBlocObserver();
   runApp(
-    MultiProvider(
+    MultiBlocProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => GameState()),
+        BlocProvider<GameBloc>(
+          create: (context) => GameBloc()..add(InitializeGameEvent()),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -19,11 +25,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(
-        body: const Home(),
-      ),
+    return MaterialApp(
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const Home(),
+        // Add other routes here
+      },
     );
   }
 }
-//

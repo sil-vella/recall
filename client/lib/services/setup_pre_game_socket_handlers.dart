@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../game_state.dart';
-import 'socket_service.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:client/blocs/game/game_bloc.dart';
+import 'package:client/blocs/game/game_event.dart';
+import 'package:client/services/socket_service.dart';
 
 void setupPreGameSocketHandlers(BuildContext context) {
   void updateStateHandler(Map<String, dynamic> updates) {
-    Provider.of<GameState>(context, listen: false)
-        .updateSection('preGameState', updates['preGameState'] ?? {});
+    final gameBloc = context.read<GameBloc>();
+
+    if (updates.containsKey('preGameState')) {
+      gameBloc.add(UpdateStatePart('preGameState', updates['preGameState'] ?? {}));
+    }
     if (updates.containsKey('gameId')) {
-      Provider.of<GameState>(context, listen: false)
-          .setGameId(updates['gameId']);
+      gameBloc.add(SetGameId(updates['gameId']));
     }
   }
 

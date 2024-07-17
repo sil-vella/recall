@@ -1,29 +1,27 @@
-import 'package:provider/provider.dart';
-import '../game_state.dart';
-import 'package:flutter/widgets.dart';
-import 'socket_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:client/blocs/game/game_bloc.dart';
+import 'package:client/blocs/game/game_event.dart';
+import 'package:client/services/socket_service.dart';
 
 void setupActiveGameSocketHandlers(BuildContext context) {
   void updateStateHandler(Map<String, dynamic> updates) {
+    final gameBloc = context.read<GameBloc>();
+
     if (updates.containsKey('gameId')) {
-      Provider.of<GameState>(context, listen: false)
-          .setGameId(updates['gameId']);
+      gameBloc.add(SetGameId(updates['gameId']));
     }
     if (updates.containsKey('activeGamePlayState')) {
-      Provider.of<GameState>(context, listen: false)
-          .updateSection('activeGamePlayState', updates['activeGamePlayState']);
+      gameBloc.add(UpdateStatePart('activeGamePlayState', updates['activeGamePlayState']));
     }
     if (updates.containsKey('userSection')) {
-      Provider.of<GameState>(context, listen: false)
-          .updateSection('userSection', updates['userSection']);
+      gameBloc.add(UpdateStatePart('userSection', updates['userSection']));
     }
     if (updates.containsKey('messageAnimation')) {
-      Provider.of<GameState>(context, listen: false)
-          .setMessageAnimation(updates['messageAnimation']);
+      gameBloc.add(SetMessageAnimation(updates['messageAnimation']));
     }
     if (updates.containsKey('callWindow')) {
-      Provider.of<GameState>(context, listen: false)
-          .updateSection('callWindow', updates['callWindow']);
+      gameBloc.add(UpdateStatePart('callWindow', updates['callWindow']));
     }
   }
 
@@ -42,8 +40,7 @@ void setupActiveGameSocketHandlers(BuildContext context) {
     },
     {
       'event': 'gameWinner',
-      'handler': (data) => updateStateHandler(
-          {'gameId': data}), // Assuming GAME_WINNER updates gameId
+      'handler': (data) => updateStateHandler({'gameId': data}), // Assuming GAME_WINNER updates gameId
     },
     {
       'event': 'player_data',

@@ -1,0 +1,195 @@
+---
+- name: Deploy Redis using Helm Template
+  hosts: "{{ vm_name }}_private"
+  become: yes
+  vars:
+    flask_namespace: "flask-app"
+    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
+    
+    # Helm Configuration
+    redis_chart: "bitnami/redis"
+    redis_release_name: "redis-master"
+    redis_values_file: "../../k8s/redis/values.yaml"
+    
+    # Output directory for rendered manifests
+    manifest_output_dir: "/tmp/redis-manifests"
+
+  tasks:
+    - name: Ensure namespace exists
+      shell: kubectl get namespace {{ flask_namespace }} || kubectl create namespace {{ flask_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: false
+
+    - name: Add Bitnami Helm repository
+      shell: |
+        helm repo add bitnami https://charts.bitnami.com/bitnami
+        helm repo update
+      changed_when: true
+
+    - name: Create manifest output directory
+      file:
+        path: "{{ manifest_output_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy values file to server
+      copy:
+        src: "{{ redis_values_file }}"
+        dest: "/tmp/redis-values.yaml"
+        mode: '0644'
+
+    - name: Generate Redis manifests using Helm template
+      shell: |
+        helm template {{ redis_release_name }} {{ redis_chart }} \
+          --namespace {{ flask_namespace }} \
+          --values /tmp/redis-values.yaml \
+          --output-dir {{ manifest_output_dir }}
+      changed_when: true
+
+    - name: Apply Redis manifests
+      shell: |
+        # Apply secrets first (required by other resources)
+        kubectl apply -f {{ manifest_output_dir }}/redis/templates/secret.yaml -n {{ flask_namespace }} || echo "No secret file found"
+        
+        # Apply other common templates
+        kubectl apply -f {{ manifest_output_dir }}/redis/templates/serviceaccount.yaml -n {{ flask_namespace }} || true
+        kubectl apply -f {{ manifest_output_dir }}/redis/templates/configmap.yaml -n {{ flask_namespace }} || true
+        kubectl apply -f {{ manifest_output_dir }}/redis/templates/networkpolicy.yaml -n {{ flask_namespace }} || true
+        
+        # Apply remaining templates
+        for file in {{ manifest_output_dir }}/redis/templates/*.yaml; do
+          case "$(basename "$file")" in
+            secret.yaml|serviceaccount.yaml|configmap.yaml|networkpolicy.yaml)
+              # Already applied above
+              ;;
+            *)
+              kubectl apply -f "$file" -n {{ flask_namespace }} || true
+              ;;
+          esac
+        done
+        
+        # Apply any subdirectory templates (standalone, master, etc.)
+        find {{ manifest_output_dir }}/redis/templates/ -type d -mindepth 1 -exec kubectl apply -f {} -n {{ flask_namespace }} \; || true
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
+
+    - name: Wait for Redis statefulset to be ready
+      shell: kubectl rollout status statefulset/{{ redis_release_name }}-master -n {{ flask_namespace }} --timeout=300s
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: redis_rollout
+      changed_when: redis_rollout.rc == 0
+
+    - name: Wait for Redis pod to be ready
+      shell: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=redis -n {{ flask_namespace }} --timeout=300s
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: redis_ready
+      changed_when: redis_ready.rc == 0
+
+    - name: Test Redis connection
+      shell: |
+        # Wait a bit more for Redis to be fully ready
+        sleep 10
+        
+        # Test connection
+        kubectl exec -n {{ flask_namespace }} statefulset/{{ redis_release_name }}-master -- redis-cli \
+          -a "7cNfJTOcyDxdhK5NZubMoE7KS" \
+          --no-auth-warning \
+          ping
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: redis_test
+      changed_when: false
+      retries: 5
+      delay: 5
+
+    - name: Test Redis operations
+      shell: |
+        # Test basic Redis operations
+        kubectl exec -n {{ flask_namespace }} statefulset/{{ redis_release_name }}-master -- redis-cli \
+          -a "7cNfJTOcyDxdhK5NZubMoE7KS" \
+          --no-auth-warning \
+          --eval "
+            redis.call('SET', 'test:deployment', 'helm-template-success');
+            local result = redis.call('GET', 'test:deployment');
+            return result;
+          " 0
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: redis_operation_test
+      changed_when: false
+      retries: 3
+      delay: 5
+
+    - name: Display Redis deployment status
+      shell: |
+        echo "=== REDIS STATEFULSET STATUS ==="
+        kubectl get statefulsets -n {{ flask_namespace }} {{ redis_release_name }}-master
+        echo ""
+        echo "=== POD STATUS ==="
+        kubectl get pods -n {{ flask_namespace }} -l app.kubernetes.io/name=redis
+        echo ""
+        echo "=== SERVICE STATUS ==="
+        kubectl get services -n {{ flask_namespace }} {{ redis_release_name }}-master
+        echo ""
+        echo "=== PERSISTENT VOLUME STATUS ==="
+        kubectl get pvc -n {{ flask_namespace }}
+        echo ""
+        echo "=== STORAGE USAGE ==="
+        kubectl exec -n {{ flask_namespace }} statefulset/{{ redis_release_name }}-master -- df -h /bitnami/redis/data || echo "Storage check failed"
+        echo ""
+        echo "=== REDIS INFO ==="
+        kubectl exec -n {{ flask_namespace }} statefulset/{{ redis_release_name }}-master -- redis-cli \
+          -a "7cNfJTOcyDxdhK5NZubMoE7KS" --no-auth-warning info server | head -10 || echo "Redis info failed"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: redis_status
+      changed_when: false
+
+    - name: Clean up temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/redis-values.yaml"
+        - "{{ manifest_output_dir }}"
+
+    - name: Display Redis deployment summary
+      debug:
+        msg: |
+          🚀 Redis Deployment Complete (using Helm template)!
+          
+          Configuration:
+          - Chart: {{ redis_chart }}
+          - Release: {{ redis_release_name }}
+          - Redis Password: 7cNfJTOcyDxdhK5NZubMoE7KS
+          - Database: 0
+          - Storage: 5Gi (local-path)
+          - Namespace: {{ flask_namespace }}
+          
+          Status:
+          {{ redis_status.stdout }}
+          
+          {% if redis_test.stdout == "PONG" %}
+          ✅ Redis connection test: PASSED
+          {% else %}
+          ⚠️  Redis connection test: FAILED
+          {% endif %}
+          
+          {% if redis_operation_test.stdout == "helm-template-success" %}
+          ✅ Redis operations test: PASSED
+          {% else %}
+          ⚠️  Redis operations test: FAILED ({{ redis_operation_test.stdout }})
+          {% endif %}
+          
+          🔗 Connection Details for Manual Vault Population:
+          - Host: {{ redis_release_name }}-master.{{ flask_namespace }}.svc.cluster.local
+          - Port: 6379
+          - Password: 7cNfJTOcyDxdhK5NZubMoE7KS
+          - Database: 0
+          - Connection String: redis://:7cNfJTOcyDxdhK5NZubMoE7KS@{{ redis_release_name }}-master.{{ flask_namespace }}.svc.cluster.local:6379/0
+          
+          ✅ Redis is ready with Bitnami Helm chart best practices! 

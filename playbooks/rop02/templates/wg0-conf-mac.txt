@@ -1,0 +1,17 @@
+[Interface]
+PrivateKey = OFjSg3uaSHrazqeTLLdhgIexOxMWACP1hNsfWC8RjUM=
+Address = 10.0.0.2/24
+
+# rop01
+[Peer]
+PublicKey = O2mPlnFOr5/IRg+tGD6rte7x+j960WCMVsBP89MHYEg=
+Endpoint = 217.154.24.75:51820
+AllowedIPs = 10.0.0.0/24
+PersistentKeepalive = 25 
+
+# rop02
+[Peer]
+PublicKey = R9UGBkd3FyQOJe/afRR11x551L+ZpIceEwmNbpyCDws=
+Endpoint = 66.179.210.11:51820
+AllowedIPs = 10.0.0.3/32
+PersistentKeepalive = 25 

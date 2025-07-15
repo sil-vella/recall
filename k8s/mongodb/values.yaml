@@ -1,0 +1,106 @@
+# MongoDB Helm Chart Values Override
+# Chart: bitnami/mongodb
+# Purpose: Credit System MongoDB with persistent storage and hardcoded credentials
+
+# Global configuration
+global:
+  storageClass: "standard"
+
+# Authentication
+auth:
+  enabled: true
+  rootUser: "mongodb_admin"
+  rootPassword: "MongoAdmin123!@#SecurePass"
+  usernames: 
+    - "credit_app_user"
+  passwords:
+    - "6R3jjsvVhIRP20zMiHdkBzNKx"
+  databases:
+    - "credit_system"
+
+# Logging configuration
+logLevel: 0
+systemLog:
+  verbosity: 0
+  destination: file
+  path: /opt/bitnami/mongodb/logs/mongodb.log
+
+# Architecture
+architecture: standalone
+
+# Persistence
+persistence:
+  enabled: false
+  # storageClass: "standard"
+  # size: 10Gi
+  # accessModes:
+  #   - ReadWriteOnce
+
+# Resources
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "200m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+# Service configuration
+service:
+  type: ClusterIP
+  ports:
+    mongodb: 27017
+
+# Security Context
+podSecurityContext:
+  enabled: true
+  fsGroup: 1001
+  runAsUser: 1001
+
+# Container Security Context
+containerSecurityContext:
+  enabled: true
+  runAsUser: 1001
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# Metrics (disabled for simplicity)
+metrics:
+  enabled: false
+
+# Readiness and Liveness Probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 20
+  failureThreshold: 6
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 20
+  failureThreshold: 6
+
+# Init container settings
+clusterDomain: cluster.local
+
+# Replica Set (disabled for standalone)
+replicaSet:
+  enabled: false
+
+# Arbiter (disabled for standalone)  
+arbiter:
+  enabled: false
+
+# Hidden (disabled for standalone)
+hidden:
+  enabled: false
+
+# External access (disabled)
+externalAccess:
+  enabled: false 

@@ -1,0 +1,118 @@
+# Redis Helm Chart Values Override
+# Chart: bitnami/redis
+# Purpose: Credit System Redis with persistent storage and hardcoded credentials
+
+# Global configuration
+global:
+  storageClass: "standard"
+  redis:
+    password: "7cNfJTOcyDxdhK5NZubMoE7KS"
+
+# Architecture
+architecture: standalone
+
+# Authentication
+auth:
+  enabled: true
+  password: "7cNfJTOcyDxdhK5NZubMoE7KS"
+
+# Master configuration
+master:
+  count: 1
+  
+  # Persistence
+  persistence:
+    enabled: false
+    # storageClass: "standard"
+    # size: 5Gi
+    # accessModes:
+    #   - ReadWriteOnce
+  
+  # Resources
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  
+  # Service
+  service:
+    type: ClusterIP
+    ports:
+      redis: 6379
+  
+  # Security Context
+  podSecurityContext:
+    enabled: true
+    fsGroup: 999
+    runAsUser: 999
+  
+  containerSecurityContext:
+    enabled: true
+    runAsUser: 999
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  
+  # Probes
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 20
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 5
+  
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 20
+    periodSeconds: 5
+    timeoutSeconds: 1
+    failureThreshold: 5
+
+# Replica configuration (disabled for standalone)
+replica:
+  replicaCount: 0
+
+# Sentinel (disabled)
+sentinel:
+  enabled: false
+
+# Redis configuration
+redis:
+  # Custom Redis configuration
+  configmap: |
+    # Redis Configuration
+    maxmemory 256mb
+    maxmemory-policy allkeys-lru
+    save 900 1
+    save 300 10
+    save 60 10000
+    appendonly yes
+    appendfsync everysec
+    tcp-keepalive 60
+    timeout 300
+
+# Metrics (disabled for simplicity)
+metrics:
+  enabled: false
+
+# External access (disabled)
+externalAccess:
+  enabled: false
+
+# Network Policy (disabled)
+networkPolicy:
+  enabled: false
+
+# Pod Disruption Budget (disabled for single replica)
+podDisruptionBudget:
+  enabled: false
+
+# Service Account
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false 

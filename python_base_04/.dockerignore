@@ -1,0 +1,34 @@
+# Exclude large/unnecessary directories
+grafana/
+redis_data/
+static/
+venv/
+libs/
+secrets/
+Documentation/
+.vscode/
+
+# Exclude system files
+.DS_Store
+.git/
+.gitignore
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache/
+.mypy_cache/
+
+# Exclude config files that shouldn't be in container
+redis.conf
+nginx.conf
+*.log
+*.pid
+
+# Exclude backup files
+*.bak
+*.swp
+*.tmp 

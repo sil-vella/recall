@@ -1,0 +1,111 @@
+---
+- name: Setup Vault AppRole Credentials for Flask Application
+  hosts: "{{ vm_name }}_private"
+  become: true
+  vars:
+    new_user: "{{ vm_name }}_user"
+    flask_namespace: flask-app
+    kubeconfig_path: "/home/{{ new_user }}/.kube/config"
+    vault_creds_file: "{{ playbook_dir }}/../rop01/vault_creds/flask-approle-creds.txt"
+  tasks:
+    - name: Check if AppRole credentials file exists
+      stat:
+        path: "{{ vault_creds_file }}"
+      register: creds_file
+      delegate_to: localhost
+      become: false
+
+    - name: Display instructions if credentials file not found
+      debug:
+        msg: |
+          ⚠️  AppRole credentials file not found at: {{ vault_creds_file }}
+          
+          Please run the following on rop01 first:
+          1. cd playbooks/rop01
+          2. ansible-playbook -i inventory.ini 12_configure_flask_vault_access.yml -e vm_name=rop01
+          
+          This will generate the credentials file at: ../rop01/vault_creds/flask-approle-creds.txt
+          
+          Or manually create the file with:
+          VAULT_ROLE_ID=your_role_id_here
+          VAULT_SECRET_ID=your_secret_id_here
+      when: not creds_file.stat.exists
+
+    - name: Read AppRole credentials file
+      slurp:
+        src: "{{ vault_creds_file }}"
+      register: vault_creds
+      delegate_to: localhost
+      become: false
+      when: creds_file.stat.exists
+
+    - name: Extract credentials from file
+      set_fact:
+        role_id: "{{ vault_creds.content | b64decode | regex_search('VAULT_ROLE_ID=([^\\n]+)', '\\1') | first }}"
+        secret_id: "{{ vault_creds.content | b64decode | regex_search('VAULT_SECRET_ID=([^\\n]+)', '\\1') | first }}"
+      when: creds_file.stat.exists
+
+    - name: Create AppRole credentials secret
+      shell: |
+        # Delete existing secret if it exists
+        kubectl delete secret vault-approle-creds -n {{ flask_namespace }} --ignore-not-found=true
+        
+        # Create new secret with actual credentials
+        kubectl create secret generic vault-approle-creds \
+          --from-literal=role_id="{{ role_id }}" \
+          --from-literal=secret_id="{{ secret_id }}" \
+          -n {{ flask_namespace }}
+        
+        echo "✅ AppRole credentials secret created successfully!"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      when: creds_file.stat.exists
+      changed_when: true
+
+    - name: Verify secret was created
+      shell: kubectl get secret vault-approle-creds -n {{ flask_namespace }} -o yaml
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: secret_status
+      when: creds_file.stat.exists
+      changed_when: false
+
+    - name: Display setup status
+      debug:
+        msg: |
+          {% if creds_file.stat.exists %}
+          ✅ AppRole credentials setup completed!
+          
+          Secret 'vault-approle-creds' created in namespace '{{ flask_namespace }}'
+          Role ID: {{ role_id[:10] }}... (truncated)
+          Secret ID: {{ secret_id[:10] }}... (truncated)
+          
+          Your Flask application can now authenticate to Vault using AppRole!
+          {% else %}
+          ❌ AppRole credentials setup failed!
+          
+          Please ensure the credentials file exists at: {{ vault_creds_file }}
+          Run the rop01 playbook first to generate the credentials.
+          {% endif %}
+
+    - name: Test Vault connectivity through proxy
+      shell: |
+        # Test if vault-proxy is reachable
+        kubectl exec -n {{ flask_namespace }} deployment/vault-proxy -- wget -qO- http://vault-proxy:8200/v1/sys/health 2>/dev/null || echo "Vault proxy test failed"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: vault_proxy_test
+      ignore_errors: yes
+      changed_when: false
+      when: creds_file.stat.exists
+
+    - name: Display connectivity test results
+      debug:
+        msg: |
+          {% if vault_proxy_test.rc == 0 %}
+          ✅ Vault proxy connectivity: SUCCESS
+          {% else %}
+          ⚠️  Vault proxy connectivity: FAILED
+          Make sure vault-proxy is deployed and running
+          {% endif %}
+      when: creds_file.stat.exists and vault_proxy_test is defined 

@@ -1,0 +1,15 @@
+[Interface]
+Address = 10.0.0.1/24
+SaveConfig = false
+ListenPort = 51820
+PrivateKey = EGIDSw/GqyLPfeBgEfF1FXLPORpHT+ZDF4RUHRKeRUM=
+
+# macbook
+[Peer]
+PublicKey = tLWzCr62OQ6LCbcvJq9j6ENsomLlmHrSaWCgYxYS/1A=
+AllowedIPs = 10.0.0.2/32 
+
+# rop02
+[Peer]
+PublicKey = aCq3ck6/Ld7qg9/7Pk18UWX+N0jH46o2tNukun/2Hj4=
+AllowedIPs = 10.0.0.3/32

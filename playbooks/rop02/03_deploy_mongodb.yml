@@ -1,0 +1,134 @@
+---
+- name: Deploy MongoDB using Helm Template
+  hosts: "{{ vm_name }}_private"
+  become: yes
+  vars:
+    flask_namespace: "flask-app"
+    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
+    
+    # Helm Configuration
+    mongodb_chart: "bitnami/mongodb"
+    mongodb_release_name: "mongodb"
+    mongodb_values_file: "../../k8s/mongodb/values.yaml"
+    
+    # Output directory for rendered manifests
+    manifest_output_dir: "/tmp/mongodb-manifests"
+
+  tasks:
+    - name: Ensure namespace exists
+      shell: kubectl get namespace {{ flask_namespace }} || kubectl create namespace {{ flask_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: false
+
+    - name: Add Bitnami Helm repository
+      shell: |
+        helm repo add bitnami https://charts.bitnami.com/bitnami
+        helm repo update
+      changed_when: true
+
+    - name: Create manifest output directory
+      file:
+        path: "{{ manifest_output_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy values file to server
+      copy:
+        src: "{{ mongodb_values_file }}"
+        dest: "/tmp/mongodb-values.yaml"
+        mode: '0644'
+
+    - name: Generate MongoDB manifests using Helm template
+      shell: |
+        helm template {{ mongodb_release_name }} {{ mongodb_chart }} \
+          --namespace {{ flask_namespace }} \
+          --values /tmp/mongodb-values.yaml \
+          --output-dir {{ manifest_output_dir }}
+      changed_when: true
+
+    - name: Apply MongoDB manifests
+      shell: |
+        # Apply secrets first (required by other resources)
+        kubectl apply -f {{ manifest_output_dir }}/mongodb/templates/secrets.yaml -n {{ flask_namespace }}
+        
+        # Apply other common templates
+        kubectl apply -f {{ manifest_output_dir }}/mongodb/templates/serviceaccount.yaml -n {{ flask_namespace }} || true
+        kubectl apply -f {{ manifest_output_dir }}/mongodb/templates/common-scripts-cm.yaml -n {{ flask_namespace }} || true
+        kubectl apply -f {{ manifest_output_dir }}/mongodb/templates/networkpolicy.yaml -n {{ flask_namespace }} || true
+        
+        # Apply standalone specific templates
+        kubectl apply -f {{ manifest_output_dir }}/mongodb/templates/standalone/ -n {{ flask_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
+
+    - name: Wait for MongoDB deployment to be ready
+      shell: kubectl rollout status deployment/{{ mongodb_release_name }} -n {{ flask_namespace }} --timeout=300s
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: mongodb_rollout
+      changed_when: mongodb_rollout.rc == 0
+
+    - name: Wait for MongoDB pod to be ready
+      shell: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=mongodb -n {{ flask_namespace }} --timeout=300s
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: mongodb_ready
+      changed_when: mongodb_ready.rc == 0
+
+    - name: Display MongoDB deployment status
+      shell: |
+        echo "=== MONGODB DEPLOYMENT STATUS ==="
+        kubectl get deployments -n {{ flask_namespace }} {{ mongodb_release_name }}
+        echo ""
+        echo "=== POD STATUS ==="
+        kubectl get pods -n {{ flask_namespace }} -l app.kubernetes.io/name=mongodb
+        echo ""
+        echo "=== SERVICE STATUS ==="
+        kubectl get services -n {{ flask_namespace }} {{ mongodb_release_name }}
+        echo ""
+        echo "=== PERSISTENT VOLUME STATUS ==="
+        kubectl get pvc -n {{ flask_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: mongodb_status
+      changed_when: false
+
+    - name: Clean up temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/mongodb-values.yaml"
+        - "{{ manifest_output_dir }}"
+
+    - name: Display MongoDB deployment summary
+      debug:
+        msg: |
+          🗄️ MongoDB Deployment Complete (using Helm template)!
+          
+          Configuration:
+          - Chart: {{ mongodb_chart }}
+          - Release: {{ mongodb_release_name }}
+          - Database: credit_system
+          - Application User: credit_app_user
+          - Application Password: CreditApp456$%^SecurePass
+          - Storage: 10Gi (local-path)
+          - Namespace: {{ flask_namespace }}
+          
+          Status:
+          {{ mongodb_status.stdout }}
+          
+          🔗 Connection Details for Manual Vault Population:
+          - Host: {{ mongodb_release_name }}.{{ flask_namespace }}.svc.cluster.local
+          - Port: 27017
+          - Database: credit_system
+          - User: credit_app_user
+          - Password: CreditApp456$%^SecurePass
+          - Auth Source: credit_system
+          - Connection String: mongodb://credit_app_user:CreditApp456$%^SecurePass@{{ mongodb_release_name }}.{{ flask_namespace }}.svc.cluster.local:27017/credit_system?authSource=credit_system
+          
+          ✅ MongoDB is ready with Bitnami Helm chart best practices!
+          
+          Note: Database initialization (users, collections, indexes) will be handled by the Flask application on first connection. 

@@ -1,0 +1,109 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vault-approle-refresh
+  namespace: vault-system
+spec:
+  # Run daily at 3 AM
+  schedule: "0 3 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: vault-approle-refresher
+          containers:
+          - name: approle-refresher
+            image: vault:1.19.0
+            env:
+            - name: VAULT_ADDR
+              value: "http://vault:8200"
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vault-root-token
+                  key: token
+            - name: APPROLE_ROLE_ID
+              value: "b272c720-2106-78c5-b872-4a095860d703"
+            - name: ROP02_HOST
+              value: "10.0.0.3"
+            - name: ROP02_USER
+              value: "rop02_user"
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "=== $(date) Starting AppRole secret refresh ==="
+              
+              # Generate new secret ID
+              echo "Generating new secret ID..."
+              NEW_SECRET_ID=$(vault write -field=secret_id \
+                auth/approle/role/flask-app-approle/secret-id)
+              
+              if [ -z "$NEW_SECRET_ID" ]; then
+                echo "ERROR: Failed to generate new secret ID"
+                exit 1
+              fi
+              
+              echo "New secret ID generated: ${NEW_SECRET_ID:0:15}..."
+              
+              # Update secret on rop02 via SSH
+              echo "Updating secret on rop02..."
+              ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                ${ROP02_USER}@${ROP02_HOST} "
+                kubectl delete secret vault-approle-creds -n flask-app --ignore-not-found=true
+                kubectl create secret generic vault-approle-creds \
+                  --from-literal=role_id='${APPROLE_ROLE_ID}' \
+                  --from-literal=secret_id='${NEW_SECRET_ID}' \
+                  -n flask-app
+                echo 'Secret updated successfully on rop02'
+              "
+              
+              # Restart Flask deployment to pick up new secret
+              echo "Restarting Flask deployment..."
+              ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                ${ROP02_USER}@${ROP02_HOST} "
+                kubectl rollout restart deployment/flask-app -n flask-app
+              "
+              
+              echo "=== $(date) AppRole secret refresh completed ==="
+            volumeMounts:
+            - name: ssh-key
+              mountPath: /root/.ssh
+              readOnly: true
+          volumes:
+          - name: ssh-key
+            secret:
+              secretName: rop02-ssh-key
+              defaultMode: 0600
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-approle-refresher
+  namespace: vault-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-approle-refresher
+  namespace: vault-system
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-approle-refresher
+  namespace: vault-system
+subjects:
+- kind: ServiceAccount
+  name: vault-approle-refresher
+  namespace: vault-system
+roleRef:
+  kind: Role
+  name: vault-approle-refresher
+  apiGroup: rbac.authorization.k8s.io 

@@ -1,0 +1,132 @@
+version: '3.8'
+
+services:
+  # MongoDB Service (for credit system)
+  mongodb:
+    image: bitnami/mongodb:7.0
+    container_name: credit_system_mongodb
+    environment:
+      - MONGODB_ROOT_USER=mongodb_admin
+      - MONGODB_ROOT_PASSWORD=MongoAdmin123!@#SecurePass
+      - MONGODB_DATABASE=credit_system
+      - MONGODB_USERNAME=credit_app_user
+      - MONGODB_PASSWORD=6R3jjsvVhIRP20zMiHdkBzNKx
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/bitnami/mongodb
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Redis Service (for credit system)
+  redis:
+    image: bitnami/redis:7.2
+    container_name: credit_system_redis
+    environment:
+      - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/bitnami/redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Flask Application (Credit System)
+  flask-app:
+    build:
+      context: ./python_base_04_credit_sys
+      dockerfile: Dockerfile
+    container_name: credit_system_flask
+    ports:
+      - "8080:5001"
+    volumes:
+      - ./python_base_04_credit_sys:/app
+      - ./python_base_04_credit_sys/tools/logger:/app/tools/logger
+      - ./python_base_04_credit_sys/secrets:/app/secrets
+    environment:
+      - MONGODB_SERVICE_NAME=mongodb
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
+      - RATE_LIMIT_ENABLED=false
+      - RATE_LIMIT_IP_REQUESTS=1000
+      - RATE_LIMIT_IP_WINDOW=60
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # MongoDB Service (for external app)
+  mongodb-external:
+    image: bitnami/mongodb:7.0
+    container_name: external_app_mongodb
+    environment:
+      - MONGODB_ROOT_USER=mongodb_admin
+      - MONGODB_ROOT_PASSWORD=MongoAdmin123!@#SecurePass
+      - MONGODB_DATABASE=external_system
+      - MONGODB_USERNAME=external_app_user
+      - MONGODB_PASSWORD=6R3jjsvVhIRP20zMiHdkBzNKx
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_external_data:/bitnami/mongodb
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Redis Service (for external app)
+  redis-external:
+    image: bitnami/redis:7.2
+    container_name: external_app_redis
+    environment:
+      - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_external_data:/bitnami/redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # External Flask Application
+  flask-external:
+    build:
+      context: ./python_base_04_external
+      dockerfile: Dockerfile
+    container_name: external_app_flask
+    ports:
+      - "8081:5001"
+    volumes:
+      - ./python_base_04_external:/app
+      - ./python_base_04_external/tools/logger:/app/tools/logger
+      - ./python_base_04_external/secrets:/app/secrets
+    environment:
+      - MONGODB_SERVICE_NAME=mongodb-external
+      - REDIS_HOST=redis-external
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
+      - RATE_LIMIT_ENABLED=false
+      - RATE_LIMIT_IP_REQUESTS=1000
+      - RATE_LIMIT_IP_WINDOW=60
+      - CREDIT_SYSTEM_URL=http://flask-app:5001
+    depends_on:
+      - mongodb-external
+      - redis-external
+      - flask-app
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  redis_data:
+  mongodb_external_data:
+  redis_external_data:
+
+networks:
+  app-network:
+    driver: bridge 

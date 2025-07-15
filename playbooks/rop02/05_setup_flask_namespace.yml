@@ -1,0 +1,93 @@
+---
+- name: Set up Flask application namespace and resources
+  hosts: "{{ vm_name }}_private"
+  become: true
+  vars:
+    new_user: "{{ vm_name }}_user"
+    flask_namespace: flask-app
+    kubeconfig_path: "/home/{{ new_user }}/.kube/config"
+  tasks:
+    - name: Create Flask application namespace
+      shell: kubectl create namespace {{ flask_namespace }} --dry-run=client -o yaml | kubectl apply -f -
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
+
+    - name: Label Flask namespace for Vault network policies
+      shell: kubectl label namespace {{ flask_namespace }} name={{ flask_namespace }} --overwrite
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
+
+    - name: Create Service Account for Flask application
+      shell: |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: flask-app-sa
+          namespace: {{ flask_namespace }}
+        EOF
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
+
+    - name: Create Role for Vault authentication
+      shell: |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: Role
+        metadata:
+          name: vault-auth-role
+          namespace: {{ flask_namespace }}
+        rules:
+        - apiGroups: [""]
+          resources: ["serviceaccounts"]
+          verbs: ["get"]
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs: ["get"]
+        EOF
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
+
+    - name: Create RoleBinding for Vault authentication
+      shell: |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: vault-auth-rolebinding
+          namespace: {{ flask_namespace }}
+        subjects:
+        - kind: ServiceAccount
+          name: flask-app-sa
+          namespace: {{ flask_namespace }}
+        roleRef:
+          kind: Role
+          name: vault-auth-role
+          apiGroup: rbac.authorization.k8s.io
+        EOF
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      changed_when: true
+
+    - name: Verify namespace and resources
+      shell: kubectl get all -n {{ flask_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: namespace_status
+      changed_when: false
+
+    - name: Display namespace setup status
+      debug:
+        msg: |
+          Flask application namespace setup completed!
+          Namespace: {{ flask_namespace }}
+          Service Account: flask-app-sa
+          Role: vault-auth-role
+          RoleBinding: vault-auth-rolebinding
+          
+          Namespace resources:
+          {{ namespace_status.stdout }} 

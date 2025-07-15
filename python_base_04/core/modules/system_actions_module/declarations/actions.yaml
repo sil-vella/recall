@@ -1,0 +1,93 @@
+# System Actions Configuration
+# This file defines declarative actions for the SystemActionsModule
+# Actions are discovered by the ActionDiscoveryManager
+
+actions:
+  get_system_info:
+    description: "Get detailed system information"
+    type: "function"
+    function: "get_system_info"
+    url_pattern: ""  # No URL args needed
+    required_params: []
+    optional_params: ["include_details", "include_metrics"]
+    parameter_types:
+      include_details: "bool"
+      include_metrics: "bool"
+    examples:
+      - description: "Get basic system info"
+        url: "/actions/get_system_info"
+        request: "{}"
+      - description: "Get detailed system info"
+        url: "/actions/get_system_info?include_details=true"
+        request: '{"include_details": true}'
+      - description: "Get detailed system info with metrics"
+        url: "/actions/get_system_info?include_details=true&include_metrics=true"
+        request: '{"include_details": true, "include_metrics": true}'
+
+  log_system_event:
+    description: "Log a system event for monitoring"
+    type: "function"
+    function: "log_system_event"
+    url_pattern: "event_type/message"  # URL: /actions/log_system_event/startup/System initialized
+    required_params: ["event_type", "message"]
+    optional_params: ["severity", "metadata"]
+    parameter_types:
+      event_type: "string"
+      message: "string"
+      severity: "string"
+    examples:
+      - description: "Log a system startup event"
+        url: "/actions/log_system_event/startup/System initialized successfully"
+        request: '{"severity": "info"}'
+      - description: "Log an error event"
+        url: "/actions/log_system_event/error/Database connection failed"
+        request: '{"severity": "error", "metadata": {"retry_count": 3}}'
+
+  validate_system_permissions:
+    description: "Validate system-level permissions"
+    type: "function"
+    function: "validate_system_permissions"
+    url_pattern: "permission/resource"  # URL: /actions/validate_system_permissions/admin/system_config
+    required_params: ["permission", "resource"]
+    optional_params: ["user_id"]
+    parameter_types:
+      permission: "string"
+      resource: "string"
+      user_id: "string"
+    examples:
+      - description: "Check admin permission"
+        url: "/actions/validate_system_permissions/admin/system_config"
+        request: '{}'
+      - description: "Check read permission for specific user"
+        url: "/actions/validate_system_permissions/read/user_data"
+        request: '{"user_id": "user_123"}'
+
+  get_module_status:
+    description: "Get status of a specific module"
+    type: "function"
+    function: "get_module_status"
+    url_pattern: "module_name"  # URL: /actions/get_module_status/wallet
+    required_params: ["module_name"]
+    optional_params: ["include_details"]
+    parameter_types:
+      module_name: "string"
+      include_details: "bool"
+    examples:
+      - description: "Get wallet module status"
+        url: "/actions/get_module_status/wallet"
+        request: '{}'
+      - description: "Get detailed wallet module status"
+        url: "/actions/get_module_status/wallet?include_details=true"
+        request: '{"include_details": true}'
+
+# Global configuration for the module
+config:
+  default_timeout: 30
+  max_retries: 3
+  cache_enabled: true
+  cache_ttl: 300
+  url_patterns:
+    - "action_name"  # Basic pattern
+    - "action_name/param1"  # Single parameter
+    - "action_name/param1/param2"  # Multiple parameters
+    - "action_name?query_param=value"  # Query parameters 

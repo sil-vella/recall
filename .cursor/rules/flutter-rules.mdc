@@ -1,0 +1,612 @@
+---
+description:
+globs: **/*.dart
+alwaysApply: true
+---
+
+# Flutter Base 05 - AI Development Rules
+
+## Overview
+
+This document defines the rules and guidelines for AI-assisted development in the Flutter Base 05 project. All AI interactions must follow these architectural patterns, coding standards, and development practices.
+
+## Core Architecture Principles
+
+### 1. Manager-Based Architecture
+
+**RULE**: Always use the established manager pattern for new functionality.
+
+**PATTERN**: 
+- Each domain of functionality must have a dedicated manager
+- Managers extend `ChangeNotifier` for state management
+- Managers are registered with `ServicesManager`
+- Managers follow the single responsibility principle
+
+**EXISTING MANAGERS**:
+- `StateManager` - Global state management
+- `AuthManager` - Authentication and session management  
+- `ModuleManager` - Module lifecycle coordination
+- `ServicesManager` - Service registration and management
+- `NavigationManager` - Routing and navigation
+- `AppManager` - Application lifecycle management
+- `HooksManager` - Event hooks and callbacks
+- `EventBus` - Event communication system
+
+**REQUIREMENT**: Before creating a new manager, ask the user for approval and explain why it's needed.
+
+### 2. Module System
+
+**RULE**: All features must be organized into modules that extend `ModuleBase`.
+
+**PATTERN**:
+```dart
+class NewFeatureModule extends ModuleBase {
+  NewFeatureModule() : super("new_feature_module", dependencies: ["required_module"]);
+  
+  @override
+  void initialize(BuildContext context, ModuleManager moduleManager) {
+    // Module initialization
+  }
+  
+  @override
+  void dispose() {
+    // Cleanup resources
+  }
+  
+  @override
+  Map<String, dynamic> healthCheck() {
+    return {
+      'module': moduleKey,
+      'status': isInitialized ? 'healthy' : 'not_initialized',
+      'details': 'Module description'
+    };
+  }
+}
+```
+
+**REQUIREMENT**: Before creating a new module, ask the user for approval and explain the module's purpose and dependencies.
+
+### 3. Service Layer
+
+**RULE**: Core functionality must be implemented as services that extend `ServicesBase`.
+
+**PATTERN**:
+```dart
+class NewService extends ServicesBase {
+  @override
+  void initialize() {
+    // Service initialization
+  }
+  
+  @override
+  void dispose() {
+    // Service cleanup
+  }
+}
+```
+
+**REQUIREMENT**: Before creating a new service, ask the user for approval and explain the service's purpose.
+
+## State Management Rules
+
+### 1. StateManager Usage
+
+**RULE**: Always use `StateManager` for state management, never use other state management solutions.
+
+**PATTERN**:
+```dart
+// Register module state
+StateManager().registerModuleState("module_key", {
+  "isLoading": false,
+  "data": null,
+  "error": null,
+});
+
+// Update state
+StateManager().updateModuleState("module_key", {
+  "data": newData,
+  "isLoading": false,
+});
+
+// Retrieve state
+final data = StateManager().getModuleState<Map<String, dynamic>>("module_key");
+```
+
+### 2. State Structure
+
+**RULE**: Module states must follow consistent structure:
+- `isLoading`: Boolean for loading states
+- `data`: Main data payload
+- `error`: Error information
+- `timestamp`: Last update timestamp
+
+## Authentication Rules
+
+### 1. AuthManager Integration
+
+**RULE**: All authentication-related functionality must use `AuthManager`.
+
+**PATTERN**:
+```dart
+// Token management
+await AuthManager().storeTokens(accessToken: token, refreshToken: refreshToken);
+final token = await AuthManager().getCurrentValidToken();
+
+// Session validation
+final status = await AuthManager().validateSessionOnStartup();
+AuthManager().handleAuthState(context, status);
+```
+
+### 2. API Authentication
+
+**RULE**: All API requests must automatically include JWT tokens through `ConnectionsApiModule`.
+
+**PATTERN**: Use the existing API module with automatic token injection:
+```dart
+final response = await ConnectionsApiModule().sendPostRequest('/endpoint', data);
+```
+
+## Module Development Rules
+
+### 1. Module Structure
+
+**RULE**: All modules must follow the established structure:
+
+```
+modules/
+├── module_name/
+│   ├── module_name_module.dart      # Main module class
+│   ├── models/                      # Module-specific models
+│   ├── services/                    # Module-specific services
+│   ├── screens/                     # Module screens
+│   ├── widgets/                     # Module widgets
+│   └── utils/                       # Module utilities
+```
+
+### 2. Module Registration
+
+**RULE**: All modules must be registered in `ModuleRegistry`.
+
+**PATTERN**:
+```dart
+// In ModuleRegistry
+moduleManager.registerModule(NewFeatureModule());
+```
+
+### 3. Module Dependencies
+
+**RULE**: Modules must declare their dependencies explicitly.
+
+**PATTERN**:
+```dart
+class NewModule extends ModuleBase {
+  NewModule() : super("new_module", dependencies: ["auth_module", "api_module"]);
+}
+```
+
+## API Development Rules
+
+### 1. API Module Usage
+
+**RULE**: All HTTP communication must go through `ConnectionsApiModule`.
+
+**PATTERN**:
+```dart
+// GET request
+final response = await ConnectionsApiModule().sendGetRequest('/endpoint');
+
+// POST request
+final response = await ConnectionsApiModule().sendPostRequest('/endpoint', data);
+
+// PUT request
+final response = await ConnectionsApiModule().sendPutRequest('/endpoint', data);
+
+// DELETE request
+final response = await ConnectionsApiModule().sendDeleteRequest('/endpoint');
+```
+
+### 2. Error Handling
+
+**RULE**: All API calls must include proper error handling.
+
+**PATTERN**:
+```dart
+try {
+  final response = await ConnectionsApiModule().sendGetRequest('/endpoint');
+  if (response['success']) {
+    // Handle success
+  } else {
+    // Handle API error
+  }
+} catch (e) {
+  // Handle network/connection error
+  Logger().logError('API Error: $e');
+}
+```
+
+## Navigation Rules
+
+### 1. NavigationManager Usage
+
+**RULE**: All navigation must use `NavigationManager` or `go_router`.
+
+**PATTERN**:
+```dart
+// Navigate to screen
+NavigationManager().navigateTo('/screen_path');
+
+// Navigate with parameters
+NavigationManager().navigateTo('/screen_path', parameters: {'id': '123'});
+```
+
+## File Organization Rules
+
+### 1. Directory Structure
+
+**RULE**: Follow the established directory structure:
+
+```
+lib/
+├── core/                           # Core application components
+│   ├── managers/                   # All managers
+│   ├── services/                   # Core services
+│   ├── models/                     # Core models
+│   └── 00_base/                   # Base classes
+├── modules/                        # Feature modules
+│   ├── module_name/                # Individual modules
+│   └── ...
+├── screens/                        # Shared screens
+├── models/                         # Shared models
+├── services/                       # Shared services
+├── tools/                          # Utility tools
+├── utils/                          # Utility functions
+└── main.dart                       # Application entry point
+```
+
+### 2. File Naming
+
+**RULE**: Follow consistent naming conventions:
+- Files: `snake_case.dart`
+- Classes: `PascalCase`
+- Variables/Functions: `camelCase`
+- Constants: `SCREAMING_SNAKE_CASE`
+
+## Code Quality Rules
+
+### 1. Error Handling
+
+**RULE**: All functions must include proper error handling.
+
+**PATTERN**:
+```dart
+try {
+  // Function logic
+} catch (e) {
+  Logger().logError('Error in function: $e');
+  // Handle error appropriately
+}
+```
+
+### 2. Logging
+
+**RULE**: Use the built-in Logger for all logging.
+
+**PATTERN**:
+```dart
+Logger().logInfo('Information message');
+Logger().logWarning('Warning message');
+Logger().logError('Error message');
+Logger().logDebug('Debug message');
+```
+
+### 3. Documentation
+
+**RULE**: All public APIs must include documentation.
+
+**PATTERN**:
+```dart
+/// Brief description of the function
+/// 
+/// [param1] Description of parameter 1
+/// [param2] Description of parameter 2
+/// 
+/// Returns a description of the return value
+/// 
+/// Example:
+/// ```dart
+/// final result = functionName(param1, param2);
+/// ```
+Future<void> functionName(String param1, int param2) async {
+  // Implementation
+}
+```
+
+## Security Rules
+
+### 1. Sensitive Data
+
+**RULE**: All sensitive data must be stored using `flutter_secure_storage`.
+
+**PATTERN**:
+```dart
+// Store sensitive data
+await SecureStorage().write(key: 'sensitive_key', value: 'sensitive_value');
+
+// Retrieve sensitive data
+final value = await SecureStorage().read(key: 'sensitive_key');
+```
+
+### 2. API Security
+
+**RULE**: All API endpoints must be validated and sanitized.
+
+**PATTERN**:
+```dart
+// Validate input
+if (input == null || input.isEmpty) {
+  throw ArgumentError('Input cannot be null or empty');
+}
+
+// Sanitize data before sending
+final sanitizedData = sanitizeInput(data);
+```
+
+## Testing Rules
+
+### 1. Test Structure
+
+**RULE**: All new features must include tests.
+
+**PATTERN**:
+```
+test/
+├── unit/                          # Unit tests
+├── widget/                        # Widget tests
+└── integration/                   # Integration tests
+```
+
+### 2. Test Naming
+
+**RULE**: Test files must be named `*_test.dart` and follow naming conventions.
+
+**PATTERN**:
+```dart
+// test/unit/manager_test.dart
+group('StateManager Tests', () {
+  test('should register module state', () {
+    // Test implementation
+  });
+});
+```
+
+## Performance Rules
+
+### 1. Memory Management
+
+**RULE**: All managers and modules must properly dispose of resources.
+
+**PATTERN**:
+```dart
+@override
+void dispose() {
+  // Dispose of streams, controllers, etc.
+  _streamController?.close();
+  _timer?.cancel();
+  super.dispose();
+}
+```
+
+### 2. State Updates
+
+**RULE**: Minimize unnecessary state updates and rebuilds.
+
+**PATTERN**:
+```dart
+// Only update state when necessary
+if (newData != currentData) {
+  StateManager().updateModuleState("module_key", {"data": newData});
+}
+```
+
+## Configuration Rules
+
+### 1. Environment Configuration
+
+**RULE**: Use the existing configuration system for environment-specific settings.
+
+**PATTERN**:
+```dart
+// Use Config class for configuration
+final apiUrl = Config.apiUrl;
+final appName = Config.appName;
+```
+
+### 2. Feature Flags
+
+**RULE**: Use the existing feature flag system for conditional features.
+
+**PATTERN**:
+```dart
+if (Config.featureFlags['new_feature'] == true) {
+  // Enable new feature
+}
+```
+
+## AI Interaction Rules
+
+### 1. Approval Process
+
+**RULE**: Before creating any new manager, module, or service, ask the user for approval.
+
+**PROCESS**:
+1. Explain why the new component is needed
+2. Describe its responsibilities and dependencies
+3. Show how it fits into the existing architecture
+4. Wait for user approval before implementation
+
+### 2. Architecture Compliance
+
+**RULE**: All code must follow the established architecture patterns.
+
+**CHECKLIST**:
+- [ ] Uses appropriate manager for functionality
+- [ ] Follows module structure if applicable
+- [ ] Uses StateManager for state management
+- [ ] Includes proper error handling
+- [ ] Uses built-in logging
+- [ ] Follows naming conventions
+- [ ] Includes documentation
+
+### 3. Code Generation
+
+**RULE**: When generating code, always include:
+- Proper imports
+- Error handling
+- Logging statements
+- Documentation comments
+- Type safety
+
+### 4. File Organization
+
+**RULE**: When creating new files, place them in the appropriate directory:
+- Managers → `lib/core/managers/`
+- Modules → `lib/modules/`
+- Services → `lib/core/services/` or `lib/services/`
+- Models → `lib/core/models/` or `lib/models/`
+- Screens → `lib/screens/`
+- Widgets → `lib/widgets/` or module-specific `widgets/`
+
+## Globs and Patterns
+
+### 1. File Matching Patterns
+
+**RULE**: Use these glob patterns for file operations:
+
+```
+# All Dart files
+**/*.dart
+
+# All manager files
+lib/core/managers/*.dart
+
+# All module files
+lib/modules/**/*.dart
+
+# All test files
+test/**/*_test.dart
+
+# All configuration files
+**/*.yaml
+**/*.json
+**/*.xml
+**/*.plist
+**/*.gradle
+```
+
+### 2. Search Patterns
+
+**RULE**: Use these patterns for searching specific components:
+
+```
+# Find all managers
+class *Manager extends ChangeNotifier
+
+# Find all modules
+class *Module extends ModuleBase
+
+# Find all services
+class *Service extends ServicesBase
+
+# Find all API calls
+ConnectionsApiModule().send*Request
+
+# Find all state updates
+StateManager().updateModuleState
+```
+
+## Exception Handling
+
+### 1. Custom Exceptions
+
+**RULE**: Create custom exceptions for specific error cases.
+
+**PATTERN**:
+```dart
+class ModuleException implements Exception {
+  final String message;
+  final String moduleKey;
+  
+  ModuleException(this.message, this.moduleKey);
+  
+  @override
+  String toString() => 'ModuleException in $moduleKey: $message';
+}
+```
+
+### 2. Exception Propagation
+
+**RULE**: Properly propagate exceptions with context.
+
+**PATTERN**:
+```dart
+try {
+  // Operation
+} catch (e) {
+  Logger().logError('Operation failed: $e');
+  rethrow; // Re-throw with context
+}
+```
+
+## Documentation Requirements
+
+### 1. Code Documentation
+
+**RULE**: All public APIs must be documented.
+
+**REQUIRED ELEMENTS**:
+- Function/class purpose
+- Parameter descriptions
+- Return value descriptions
+- Usage examples
+- Error conditions
+
+### 2. Architecture Documentation
+
+**RULE**: New architectural components must be documented in the appropriate documentation files.
+
+**FILES TO UPDATE**:
+- `Documentation/flutter_base_05/ARCHITECTURE.md`
+- `Documentation/flutter_base_05/MANAGERS.md`
+- `Documentation/flutter_base_05/API_REFERENCE.md`
+
+## Compliance Checklist
+
+Before submitting any code, ensure compliance with:
+
+- [ ] Manager-based architecture
+- [ ] Module system usage
+- [ ] StateManager for state management
+- [ ] AuthManager for authentication
+- [ ] Proper error handling
+- [ ] Logging implementation
+- [ ] Documentation included
+- [ ] Tests written
+- [ ] Security considerations
+- [ ] Performance optimization
+- [ ] File organization
+- [ ] Naming conventions
+
+## Summary
+
+This MDC file defines the comprehensive rules for AI-assisted development in the Flutter Base 05 project. All AI interactions must follow these patterns, ask for approval before creating new architectural components, and maintain the established code quality and security standards.
+
+The key principles are:
+1. **Manager-based architecture** for all functionality
+2. **Module system** for feature organization
+3. **StateManager** for state management
+4. **Proper error handling and logging**
+5. **Security-first approach**
+6. **Comprehensive documentation**
+7. **Approval process for new components**
+
+Follow these rules to maintain code quality, consistency, and architectural integrity.

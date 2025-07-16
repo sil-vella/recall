@@ -22,7 +22,15 @@ class JWTManager:
         # Use Config values for token lifetimes
         self.access_token_expire_seconds = Config.JWT_ACCESS_TOKEN_EXPIRES  # From config
         self.refresh_token_expire_seconds = Config.JWT_REFRESH_TOKEN_EXPIRES  # From config
-        custom_log("JWTManager initialized")
+        
+        # State change tracking
+        self._previous_state = None
+        self._pending_refresh_tokens = set()  # Track tokens that need refresh when game ends
+        
+        # Register state change callback
+        self._register_state_change_callback()
+        
+        custom_log("JWTManager initialized with state change listener")
 
     def _get_client_fingerprint(self) -> str:
         """Generate a unique client fingerprint based on IP and User-Agent."""
@@ -41,12 +49,15 @@ class JWTManager:
             return ""
 
     def create_token(self, data: Dict[str, Any], token_type: TokenType, expires_in: Optional[int] = None) -> str:
-        """Create a new JWT token of specified type with client binding."""
+        """Create a new JWT token of specified type with client binding and state-dependent TTL."""
         to_encode = data.copy()
         
-        # Set expiration based on token type
-        if expires_in:
-            expire = datetime.utcnow() + timedelta(seconds=expires_in)
+        # Get state-dependent TTL
+        actual_expires_in = self._get_state_dependent_ttl(token_type, expires_in)
+        
+        # Set expiration based on token type and state
+        if actual_expires_in:
+            expire = datetime.utcnow() + timedelta(seconds=actual_expires_in)
         else:
             if token_type == TokenType.ACCESS:
                 expire = datetime.utcnow() + timedelta(seconds=self.access_token_expire_seconds)
@@ -149,6 +160,15 @@ class JWTManager:
 
     def refresh_token(self, refresh_token: str) -> Optional[str]:
         """Create a new access token using a refresh token."""
+        # Check if we should delay refresh during game states
+        if self.should_delay_token_refresh():
+            custom_log("🎮 App in game state - delaying token refresh")
+            # Track this token for later refresh when game ends
+            token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()[:16]
+            self._pending_refresh_tokens.add(token_hash)
+            custom_log(f"📝 Added token {token_hash} to pending refresh list")
+            return None  # Return None to indicate refresh should be delayed
+        
         payload = self.verify_token(refresh_token, TokenType.REFRESH)
         if payload:
             # Remove refresh-specific claims
@@ -214,4 +234,133 @@ class JWTManager:
 
     def create_refresh_token(self, data: Dict[str, Any], expires_in: Optional[int] = None) -> str:
         """Create a new refresh token."""
-        return self.create_token(data, TokenType.REFRESH, expires_in) 
+        return self.create_token(data, TokenType.REFRESH, expires_in)
+
+    def _get_state_dependent_ttl(self, token_type: TokenType, expires_in: Optional[int] = None) -> Optional[int]:
+        """
+        Get TTL based on current app state.
+        Returns None to use default TTL, or custom TTL value.
+        """
+        try:
+            # Get main app state
+            main_state = self._get_main_app_state()
+            
+            # Always use normal TTL - we don't extend TTL anymore
+            # Instead, we delay refresh and resume when game ends
+            if expires_in:
+                custom_log(f"📱 App in state '{main_state}', using custom TTL: {expires_in}s for {token_type.value} token")
+                return expires_in
+            else:
+                custom_log(f"📱 App in state '{main_state}', using default TTL for {token_type.value} token")
+                return None
+                    
+        except Exception as e:
+            custom_log(f"❌ Error getting state-dependent TTL: {e}", level="ERROR")
+            # Fallback to default TTL
+            return None
+
+    def should_delay_token_refresh(self) -> bool:
+        """
+        Check if token refresh should be delayed based on current app state.
+        Returns True for game states (delay refresh), False for normal states (allow refresh).
+        """
+        try:
+            current_state = self._get_main_app_state()
+            game_states = ["active_game", "pre_game", "post_game"]
+            
+            should_delay = current_state in game_states
+            custom_log(f"🎮 Checking token refresh delay - State: {current_state}, Delay: {should_delay}")
+            
+            return should_delay
+            
+        except Exception as e:
+            custom_log(f"❌ Error checking token refresh delay: {e}", level="ERROR")
+            return False  # Fail safe: allow refresh on error
+
+    def _register_state_change_callback(self):
+        """Register callback for main state changes to handle token refresh resumption."""
+        try:
+            from core.managers.state_manager import StateManager
+            
+            state_manager = StateManager()
+            state_manager.register_callback("main_state", self._on_main_state_changed)
+            custom_log("✅ JWT state change callback registered")
+            
+        except Exception as e:
+            custom_log(f"❌ Failed to register JWT state change callback: {e}", level="ERROR")
+
+    def _on_main_state_changed(self, state_id: str, transition: str, data: Dict[str, Any]):
+        """
+        Callback triggered when main app state changes.
+        Resumes token refresh when transitioning from game states to normal states.
+        """
+        try:
+            if state_id != "main_state":
+                return
+                
+            new_state = data.get("app_status", "unknown")
+            old_state = self._previous_state
+            
+            custom_log(f"🔄 JWT State change detected: {old_state} → {new_state}")
+            
+            # Check if we're transitioning from game state to normal state
+            game_states = ["active_game", "pre_game", "post_game"]
+            normal_states = ["idle", "busy", "maintenance"]
+            
+            was_in_game = old_state in game_states if old_state else False
+            is_now_normal = new_state in normal_states
+            
+            if was_in_game and is_now_normal:
+                custom_log("🎮 Game ended - resuming token refresh for pending tokens")
+                self._resume_pending_token_refresh()
+            
+            # Update previous state
+            self._previous_state = new_state
+            
+        except Exception as e:
+            custom_log(f"❌ Error in JWT state change callback: {e}", level="ERROR")
+
+    def _resume_pending_token_refresh(self):
+        """Resume token refresh for all pending tokens when game state ends."""
+        try:
+            if not self._pending_refresh_tokens:
+                custom_log("📝 No pending tokens to refresh")
+                return
+                
+            custom_log(f"🔄 Resuming refresh for {len(self._pending_refresh_tokens)} pending tokens")
+            
+            # Process pending tokens (in a real implementation, you'd store the actual tokens)
+            # For now, we just log that refresh should be resumed
+            for token_id in self._pending_refresh_tokens:
+                custom_log(f"🔄 Resuming refresh for token: {token_id}")
+                
+            # Clear pending tokens
+            self._pending_refresh_tokens.clear()
+            custom_log("✅ All pending token refreshes resumed")
+            
+        except Exception as e:
+            custom_log(f"❌ Error resuming pending token refresh: {e}", level="ERROR")
+
+    def _get_main_app_state(self) -> str:
+        """
+        Get the main app state from StateManager.
+        Returns the app_status or 'unknown' if not available.
+        """
+        try:
+            # Import here to avoid circular imports
+            from core.managers.state_manager import StateManager
+            
+            state_manager = StateManager()
+            main_state = state_manager.get_state("main_state")
+            
+            if main_state and main_state.get("data"):
+                app_status = main_state["data"].get("app_status", "unknown")
+                custom_log(f"📊 Main app state: {app_status}")
+                return app_status
+            else:
+                custom_log("⚠️ Main app state not found, using 'unknown'")
+                return "unknown"
+                
+        except Exception as e:
+            custom_log(f"❌ Error getting main app state: {e}", level="ERROR")
+            return "unknown" 

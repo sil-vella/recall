@@ -81,6 +81,9 @@ class StateManager:
         # Mark as initialized
         StateManager._initialized = True
         
+        # Initialize main app state
+        self._initialize_main_app_state()
+        
         custom_log("✅ StateManager singleton initialized")
     
     @classmethod
@@ -464,6 +467,50 @@ class StateManager:
                 )
         except Exception as e:
             self.logger.warning(f"Failed to mark state {state_id} as deleted in database: {e}")
+
+    def _initialize_main_app_state(self):
+        """Initialize the main application state."""
+        try:
+            # Check if main state already exists
+            existing_state = self.get_state("main_state")
+            if existing_state:
+                custom_log("✅ Main app state already exists")
+                return
+            
+            # Create main app state
+            main_state_data = {
+                "app_status": "idle",
+                "startup_time": datetime.utcnow().isoformat(),
+                "version": "1.0.0",
+                "environment": "production",
+                "features": {
+                    "jwt_auth": True,
+                    "api_keys": True,
+                    "websockets": True,
+                    "state_management": True
+                },
+                "metrics": {
+                    "active_users": 0,
+                    "active_sessions": 0,
+                    "total_requests": 0
+                }
+            }
+            
+            # Register main state
+            success = self.register_state(
+                state_id="main_state",
+                state_type=StateType.SYSTEM,
+                initial_data=main_state_data,
+                allowed_transitions=["update", "activate", "deactivate"]
+            )
+            
+            if success:
+                custom_log("✅ Main app state initialized with status: idle")
+            else:
+                custom_log("❌ Failed to initialize main app state")
+                
+        except Exception as e:
+            custom_log(f"❌ Error initializing main app state: {e}", level="ERROR")
 
     def health_check(self) -> Dict[str, Any]:
         """Perform health check on the state manager."""

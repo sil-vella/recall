@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MongoDB Service (for external app)
   mongodb-external:
@@ -36,15 +34,13 @@ services:
   # External Flask Application
   flask-external:
     build:
-      context: ./python_base_04_external
+      context: ./python_base_04
       dockerfile: Dockerfile
     container_name: external_app_flask
     ports:
       - "8081:5001"
     volumes:
-      - ./python_base_04_external:/app
-      - ./python_base_04_external/tools/logger:/app/tools/logger
-      - ./python_base_04_external/secrets:/app/secrets
+      - ./python_base_04:/app
     environment:
       - MONGODB_SERVICE_NAME=mongodb-external
       - REDIS_HOST=redis-external
@@ -57,7 +53,6 @@ services:
     depends_on:
       - mongodb-external
       - redis-external
-      - flask-app
     networks:
       - app-network
     restart: unless-stopped

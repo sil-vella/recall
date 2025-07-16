@@ -1,14 +1,5 @@
 // lib/config/config.dart
 
-/// class Config - Provides core functionality
-///
-/// Provides core functionality
-///
-/// Example:
-/// ```dart
-/// final config = Config();
-/// ```
-///
 class Config {
 
   static const bool loggerOn = true;

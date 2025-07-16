@@ -20,15 +20,6 @@ class ModuleState {
   }
 }
 
-/// class StateManager - Manages application state and operations
-///
-/// Manages application state and operations
-///
-/// Example:
-/// ```dart
-/// final statemanager = StateManager();
-/// ```
-///
 class StateManager with ChangeNotifier {
   static final Logger _log = Logger(); // ✅ Use a static logger for static methods
   static StateManager? _instance;

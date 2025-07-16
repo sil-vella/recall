@@ -3,15 +3,6 @@ import 'package:flutter/scheduler.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../00_base/service_base.dart';
 
-/// class TickerTimer - Provides core functionality
-///
-/// Provides core functionality
-///
-/// Example:
-/// ```dart
-/// final tickertimer = TickerTimer();
-/// ```
-///
 class TickerTimer extends ServicesBase with ChangeNotifier {
   static final Logger _log = Logger();
 

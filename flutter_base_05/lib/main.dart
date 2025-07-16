@@ -46,82 +46,21 @@ void main() async {
   );
 }
 
-/// widget MyApp - Flutter widget for UI components
-///
-/// A Flutter widget that provides UI functionality
-///
-/// Example:
-/// ```dart
-/// MyApp()
-/// ```
-///
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-/// widget _MyAppState - Flutter widget for UI components
-///
-/// A Flutter widget that provides UI functionality
-///
-/// Example:
-/// ```dart
-/// _MyAppState()
-/// ```
-///
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  final AppManager _appManager = AppManager();
-  final StateManager _stateManager = StateManager();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    
-    // Update app lifecycle state (separate from main app state)
-    switch (state) {
-      case AppLifecycleState.resumed:
-        _stateManager.updateMainAppState("app_state", "resumed");
-        break;
-      case AppLifecycleState.inactive:
-        _stateManager.updateMainAppState("app_state", "inactive");
-        break;
-      case AppLifecycleState.paused:
-        _stateManager.updateMainAppState("app_state", "paused");
-        break;
-      case AppLifecycleState.detached:
-        _stateManager.updateMainAppState("app_state", "detached");
-        break;
-      case AppLifecycleState.hidden:
-        _stateManager.updateMainAppState("app_state", "hidden");
-        break;
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final appManager = Provider.of<AppManager>(context);
     final navigationManager = Provider.of<NavigationManager>(context, listen: false);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_appManager.isInitialized) {
-        _appManager.initializeApp(context);
+      if (!appManager.isInitialized) {
+        appManager.initializeApp(context);
       }
     });
 
-    if (!_appManager.isInitialized) {
+    if (!appManager.isInitialized) {
       return const MaterialApp(
         home: Scaffold(body: Center(child: CircularProgressIndicator())),
       );

@@ -2,15 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter/material.dart';
 
-/// class AppColors - Provides core functionality
-///
-/// Provides core functionality
-///
-/// Example:
-/// ```dart
-/// final appcolors = AppColors();
-/// ```
-///
 class AppColors {
   static const Color primaryColor = Color(0xFF41282F);
   static const Color accentColor = Color.fromARGB(255, 120, 67, 82);
@@ -22,15 +13,6 @@ class AppColors {
   static const Color redAccent = Colors.redAccent;
 }
 
-/// class AppBackgrounds - Provides core functionality
-///
-/// Provides core functionality
-///
-/// Example:
-/// ```dart
-/// final appbackgrounds = AppBackgrounds();
-/// ```
-///
 class AppBackgrounds {
   static const String _path = 'assets/images/backgrounds/';
 
@@ -39,15 +21,6 @@ class AppBackgrounds {
   ];
 }
 
-/// class AppTextStyles - Flutter text widget
-///
-/// Provides core functionality
-///
-/// Example:
-/// ```dart
-/// final apptextstyles = AppTextStyles();
-/// ```
-///
 class AppTextStyles {
   // ✅ Heading Styles with Custom Color
   static TextStyle headingLarge({Color color = AppColors.accentColor}) {
@@ -93,29 +66,11 @@ class AppTextStyles {
   );
 }
 
-/// class AppPadding - Provides core functionality
-///
-/// Provides core functionality
-///
-/// Example:
-/// ```dart
-/// final apppadding = AppPadding();
-/// ```
-///
 class AppPadding {
   static const EdgeInsets defaultPadding = EdgeInsets.all(16.0);
   static const EdgeInsets cardPadding = EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0);
 }
 
-/// class AppTheme - Provides core functionality
-///
-/// Provides core functionality
-///
-/// Example:
-/// ```dart
-/// final apptheme = AppTheme();
-/// ```
-///
 class AppTheme {
   static ThemeData get darkTheme {
     return ThemeData.dark().copyWith(

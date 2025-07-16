@@ -9,15 +9,6 @@ import '../../tools/logging/logger.dart';
 import '../../core/managers/state_manager.dart';
 import '../../core/managers/auth_manager.dart';
 
-/// widget LoginModule - Provides business logic and functionality
-///
-/// A Flutter widget that provides UI functionality
-///
-/// Example:
-/// ```dart
-/// LoginModule()
-/// ```
-///
 class LoginModule extends ModuleBase {
   static final Logger _log = Logger();
 

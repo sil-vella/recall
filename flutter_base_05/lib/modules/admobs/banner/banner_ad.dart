@@ -4,15 +4,6 @@ import '../../../../core/00_base/module_base.dart';
 import '../../../../core/managers/module_manager.dart';
 import '../../../../tools/logging/logger.dart';
 
-/// widget BannerAdModule - Provides business logic and functionality
-///
-/// A Flutter widget that provides UI functionality
-///
-/// Example:
-/// ```dart
-/// BannerAdModule()
-/// ```
-///
 class BannerAdModule extends ModuleBase {
   static final Logger _log = Logger();
   final Map<String, BannerAd> _banners = {};

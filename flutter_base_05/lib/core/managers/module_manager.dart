@@ -2,15 +2,6 @@ import 'package:flutter/material.dart';
 import '../../tools/logging/logger.dart';
 import '../00_base/module_base.dart';
 
-/// class ModuleManager - Manages application state and operations
-///
-/// Manages application state and operations
-///
-/// Example:
-/// ```dart
-/// final modulemanager = ModuleManager();
-/// ```
-///
 class ModuleManager extends ChangeNotifier {
   static final Logger _log = Logger();
   static final ModuleManager _instance = ModuleManager._internal();

@@ -3,15 +3,6 @@ import '../../tools/logging/logger.dart';
 import '../00_base/service_base.dart';
 import '../services/shared_preferences.dart';
 
-/// class ServicesManager - Manages application state and operations
-///
-/// Manages application state and operations
-///
-/// Example:
-/// ```dart
-/// final servicesmanager = ServicesManager();
-/// ```
-///
 class ServicesManager extends ChangeNotifier {
   static final Logger _log = Logger();
   static final ServicesManager _instance = ServicesManager._internal();

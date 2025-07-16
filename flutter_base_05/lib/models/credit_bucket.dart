@@ -1,12 +1,3 @@
-/// class CreditBucket - Provides core functionality
-///
-/// Provides core functionality
-///
-/// Example:
-/// ```dart
-/// final creditbucket = CreditBucket();
-/// ```
-///
 class CreditBucket {
   final String id;
   final String userId;

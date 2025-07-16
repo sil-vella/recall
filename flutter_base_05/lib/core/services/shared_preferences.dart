@@ -4,15 +4,6 @@ import '../../../../../tools/logging/logger.dart';
 import '../00_base/service_base.dart';
 import '../managers/services_manager.dart'; // Import ServicesManager
 
-/// class SharedPrefManager - Manages application state and operations
-///
-/// Manages application state and operations
-///
-/// Example:
-/// ```dart
-/// final sharedprefmanager = SharedPrefManager();
-/// ```
-///
 class SharedPrefManager extends ServicesBase {
   static final Logger _log = Logger(); // ✅ Use a static logger for static methods
   static final SharedPrefManager _instance = SharedPrefManager._internal();

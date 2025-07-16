@@ -4,15 +4,6 @@ import 'package:provider/provider.dart';
 import '../../utils/consts/theme_consts.dart';
 import '../managers/navigation_manager.dart';
 
-/// widget CustomDrawer - Flutter widget for UI components
-///
-/// A Flutter widget that provides UI functionality
-///
-/// Example:
-/// ```dart
-/// CustomDrawer()
-/// ```
-///
 class CustomDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

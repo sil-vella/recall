@@ -1,14 +1,5 @@
 import 'imports.dart';
 //Stream setup
-/// class StreamSocket - Handles WebSocket connections
-///
-/// Handles WebSocket connections
-///
-/// Example:
-/// ```dart
-/// final streamsocket = StreamSocket();
-/// ```
-///
 class StreamSocket{
   // stream controller
 

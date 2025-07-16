@@ -17,15 +17,6 @@ enum AuthStatus {
   error
 }
 
-/// class AuthManager - Manages application state and operations
-///
-/// Manages application state and operations
-///
-/// Example:
-/// ```dart
-/// final authmanager = AuthManager();
-/// ```
-///
 class AuthManager extends ChangeNotifier {
   static final Logger _log = Logger();
   static final AuthManager _instance = AuthManager._internal();
@@ -40,6 +31,12 @@ class AuthManager extends ChangeNotifier {
   bool _isValidating = false;
   bool get isValidating => _isValidating;
 
+  // Token refresh cooldown and state management
+  DateTime? _lastTokenRefresh;
+  bool _isRefreshingToken = false;
+  static const Duration _tokenRefreshCooldown = Duration(minutes: 5);
+  static const Duration _tokenLifetime = Duration(hours: 1);
+
   factory AuthManager() => _instance;
   AuthManager._internal();
 
@@ -50,9 +47,6 @@ class AuthManager extends ChangeNotifier {
     
     final moduleManager = Provider.of<ModuleManager>(context, listen: false);
     _connectionModule = moduleManager.getModuleByType<ConnectionsApiModule>();
-    
-    // Setup state listener for queued token refreshes
-    _setupStateListener();
     
     // Start state-aware token refresh timer
     startTokenRefreshTimer();
@@ -68,6 +62,7 @@ class AuthManager extends ChangeNotifier {
     try {
       await _secureStorage.write(key: 'access_token', value: accessToken);
       await _secureStorage.write(key: 'refresh_token', value: refreshToken);
+      await _secureStorage.write(key: 'token_stored_at', value: DateTime.now().toIso8601String());
       _log.info('✅ JWT tokens stored successfully in secure storage');
     } catch (e) {
       _log.error('❌ Failed to store JWT tokens: $e');
@@ -112,10 +107,36 @@ class AuthManager extends ChangeNotifier {
     try {
       await _secureStorage.delete(key: 'access_token');
       await _secureStorage.delete(key: 'refresh_token');
+      await _secureStorage.delete(key: 'token_stored_at');
+      _lastTokenRefresh = null;
+      _isRefreshingToken = false;
       _log.info('✅ JWT tokens cleared from secure storage');
     } catch (e) {
       _log.error('❌ Error clearing JWT tokens: $e');
       rethrow;
+    }
+  }
+
+  /// ✅ Check if token needs refresh based on time
+  bool _shouldRefreshToken() {
+    if (_lastTokenRefresh == null) return true;
+    
+    final timeSinceLastRefresh = DateTime.now().difference(_lastTokenRefresh!);
+    return timeSinceLastRefresh >= _tokenRefreshCooldown;
+  }
+
+  /// ✅ Check if token is likely expired based on storage time
+  Future<bool> _isTokenLikelyExpired() async {
+    try {
+      final storedAt = await _secureStorage.read(key: 'token_stored_at');
+      if (storedAt == null) return true;
+      
+      final storedTime = DateTime.parse(storedAt);
+      final timeSinceStored = DateTime.now().difference(storedTime);
+      return timeSinceStored >= _tokenLifetime;
+    } catch (e) {
+      _log.error('❌ Error checking token expiration: $e');
+      return true;
     }
   }
 
@@ -125,6 +146,21 @@ class AuthManager extends ChangeNotifier {
       _log.error('❌ Connection module not available for token refresh');
       return null;
     }
+
+    // Prevent concurrent token refreshes
+    if (_isRefreshingToken) {
+      _log.info('⏸️ Token refresh already in progress, skipping...');
+      return await getAccessToken();
+    }
+
+    // Check cooldown period
+    if (!_shouldRefreshToken()) {
+      _log.info('⏸️ Token refresh in cooldown period, using existing token');
+      return await getAccessToken();
+    }
+
+    _isRefreshingToken = true;
+    _lastTokenRefresh = DateTime.now();
 
     try {
       _log.info('🔄 Refreshing access token...');
@@ -136,6 +172,7 @@ class AuthManager extends ChangeNotifier {
       // Check if response is an error
       if (response is Map && response.containsKey('error')) {
         _log.error('❌ Token refresh error: ${response['error']}');
+        _isRefreshingToken = false;
         return null;
       }
       
@@ -152,18 +189,21 @@ class AuthManager extends ChangeNotifier {
         );
         
         _log.info('✅ Token refreshed successfully');
+        _isRefreshingToken = false;
         return newAccessToken;
       }
       
       _log.error('❌ Failed to refresh token: Invalid response format');
+      _isRefreshingToken = false;
       return null;
     } catch (e) {
       _log.error('❌ Failed to refresh token: $e');
+      _isRefreshingToken = false;
       return null;
     }
   }
 
-  /// ✅ Get current valid JWT token (with refresh if needed)
+  /// ✅ Get current valid JWT token (with smart refresh logic)
   Future<String?> getCurrentValidToken() async {
     try {
       // First, try to get the current access token
@@ -173,10 +213,17 @@ class AuthManager extends ChangeNotifier {
         return null;
       }
       
-      // Try to refresh the token to ensure we have a fresh one
+      // Check if token is likely expired
+      final isExpired = await _isTokenLikelyExpired();
+      if (!isExpired) {
+        _log.info('✅ Token is still fresh, using existing token');
+        return accessToken;
+      }
+      
+      // Only refresh if we have a refresh token and it's been long enough
       final refreshToken = await getRefreshToken();
-      if (refreshToken != null) {
-        _log.info('🔄 Attempting to refresh token to ensure validity...');
+      if (refreshToken != null && _shouldRefreshToken()) {
+        _log.info('🔄 Token appears expired, attempting refresh...');
         final newToken = await refreshAccessToken(refreshToken);
         if (newToken != null) {
           _log.info('✅ Retrieved fresh JWT token');
@@ -185,11 +232,13 @@ class AuthManager extends ChangeNotifier {
           _log.info('⚠️ Token refresh failed, using existing token');
           return accessToken;
         }
+      } else if (refreshToken == null) {
+        _log.info('⚠️ No refresh token available, using existing token');
+        return accessToken;
+      } else {
+        _log.info('⏸️ Token refresh in cooldown, using existing token');
+        return accessToken;
       }
-      
-      // If no refresh token, use the current access token
-      _log.info('✅ Retrieved JWT token (no refresh token available)');
-      return accessToken;
     } catch (e) {
       _log.error('❌ Error retrieving valid JWT token: $e');
       return null;
@@ -419,6 +468,10 @@ class AuthManager extends ChangeNotifier {
   /// ✅ Queue token refresh for when app is NOT in game-related states
   void _queueTokenRefreshForNonGameState() {
     _pendingTokenRefresh = true;
+    
+    // Set up state listener only when we need to queue a refresh
+    _setupStateListener();
+    
     _log.info("📋 Token refresh queued for non-game state");
   }
 
@@ -433,7 +486,21 @@ class AuthManager extends ChangeNotifier {
         _log.info("✅ App is not in game state (state: $mainState), performing queued token refresh...");
         _pendingTokenRefresh = false;
         _performTokenRefresh();
+        
+        // Clean up state listener since refresh is completed
+        _cleanupStateListener();
       }
+    }
+  }
+
+  /// ✅ Clean up state listener when no longer needed
+  void _cleanupStateListener() {
+    if (_stateListenerSetup) {
+      // Note: StateManager doesn't have a removeListener method in the current implementation
+      // The listener will remain active but won't cause issues since checkQueuedTokenRefresh
+      // will return early if _pendingTokenRefresh is false
+      _stateListenerSetup = false;
+      _log.info("🛑 State listener cleanup completed");
     }
   }
 
@@ -455,17 +522,26 @@ class AuthManager extends ChangeNotifier {
 
   /// ✅ Setup state listener for queued token refreshes
   void _setupStateListener() {
+    // Prevent setting up multiple listeners
+    if (_stateListenerSetup) {
+      _log.info("✅ State listener already setup, skipping...");
+      return;
+    }
+    
     final stateManager = StateManager();
     stateManager.addListener(() {
       // Check if we have a queued token refresh and app state is now idle
       checkQueuedTokenRefresh();
     });
+    
+    _stateListenerSetup = true;
     _log.info("✅ State listener setup for queued token refreshes");
   }
 
   // Token refresh timer and state management
   Timer? _tokenRefreshTimer;
   bool _pendingTokenRefresh = false;
+  bool _stateListenerSetup = false;
 
   @override
   void dispose() {

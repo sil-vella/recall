@@ -6,15 +6,6 @@ import '../../core/managers/state_manager.dart';
 import '../../modules/login_module/login_module.dart';
 import '../../tools/logging/logger.dart';
 
-/// widget AccountScreen - Flutter widget for UI components
-///
-/// A Flutter widget that provides UI functionality
-///
-/// Example:
-/// ```dart
-/// AccountScreen()
-/// ```
-///
 class AccountScreen extends BaseScreen {
   const AccountScreen({Key? key}) : super(key: key);
 
@@ -25,15 +16,6 @@ class AccountScreen extends BaseScreen {
   String computeTitle(BuildContext context) => 'Account';
 }
 
-/// widget _AccountScreenState - Flutter widget for UI components
-///
-/// A Flutter widget that provides UI functionality
-///
-/// Example:
-/// ```dart
-/// _AccountScreenState()
-/// ```
-///
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
   static final Logger _log = Logger();
   

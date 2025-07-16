@@ -2,15 +2,6 @@ import '../../tools/logging/logger.dart';
 
 typedef HookCallback = void Function();
 
-/// class HooksManager - Manages application state and operations
-///
-/// Manages application state and operations
-///
-/// Example:
-/// ```dart
-/// final hooksmanager = HooksManager();
-/// ```
-///
 class HooksManager {
   static final Logger _log = Logger(); // ✅ Use a static logger for static methods
 

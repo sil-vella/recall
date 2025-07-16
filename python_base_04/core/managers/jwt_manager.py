@@ -234,7 +234,7 @@ class JWTManager:
 
     def create_refresh_token(self, data: Dict[str, Any], expires_in: Optional[int] = None) -> str:
         """Create a new refresh token."""
-        return self.create_token(data, TokenType.REFRESH, expires_in)
+        return self.create_token(data, TokenType.REFRESH, expires_in) 
 
     def _get_state_dependent_ttl(self, token_type: TokenType, expires_in: Optional[int] = None) -> Optional[int]:
         """

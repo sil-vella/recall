@@ -7,15 +7,6 @@ import 'module_manager.dart';
 import 'auth_manager.dart';
 import '../00_base/module_base.dart';
 
-/// class AppManager - Manages application state and operations
-///
-/// Manages application state and operations
-///
-/// Example:
-/// ```dart
-/// final appmanager = AppManager();
-/// ```
-///
 class AppManager extends ChangeNotifier {
   static final Logger _log = Logger();
   static final AppManager _instance = AppManager._internal();

@@ -2,17 +2,9 @@ import 'package:http_interceptor/http_interceptor.dart';
 import 'package:http/http.dart';
 import '../../core/managers/auth_manager.dart';
 
-/// class AuthInterceptor - Handles authentication and authorization
-///
-/// Handles authentication and authorization
-///
-/// Example:
-/// ```dart
-/// final authinterceptor = AuthInterceptor();
-/// ```
-///
 class AuthInterceptor implements InterceptorContract {
   AuthManager? _authManager;
+  bool _isRefreshing = false;
 
   /// ✅ Initialize AuthManager
   void initialize() {
@@ -32,6 +24,11 @@ class AuthInterceptor implements InterceptorContract {
   Future<BaseRequest> interceptRequest({required BaseRequest request}) async {
     if (_authManager == null) {
       _authManager = AuthManager();
+    }
+    
+    // Skip token addition for token refresh endpoints to prevent infinite loops
+    if (request.url.path.contains('/public/refresh')) {
+      return request;
     }
     
     // Use AuthManager to get current valid token

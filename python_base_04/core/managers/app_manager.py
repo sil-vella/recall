@@ -357,6 +357,18 @@ class AppManager:
             if request.method == 'OPTIONS':
                 return None
             
+            # Add security headers to all responses
+            @self.flask_app.after_request
+            def add_security_headers(response):
+                """Add security headers to all responses."""
+                response.headers['X-Content-Type-Options'] = 'nosniff'
+                response.headers['X-Frame-Options'] = 'DENY'
+                response.headers['X-XSS-Protection'] = '1; mode=block'
+                response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+                response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+                response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+                return response
+            
             # Determine authentication requirements based on route prefix
             auth_required = None
             
@@ -440,7 +452,7 @@ class AppManager:
                 custom_log(f"✅ API key authenticated for app: {request.app_name} ({request.app_id})")
                 return None
 
-        custom_log("✅ Clean authentication middleware configured (Route-based only)")
+        custom_log("✅ Clean authentication middleware configured with security headers")
 
     @log_function_call
     def register_hook(self, hook_name):

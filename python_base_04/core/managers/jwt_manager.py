@@ -12,6 +12,7 @@ from flask import request
 class TokenType(Enum):
     ACCESS = "access"
     REFRESH = "refresh"
+    WEBSOCKET = "websocket"
 
 class JWTManager:
     def __init__(self, redis_manager=None):
@@ -119,6 +120,10 @@ class JWTManager:
                     custom_log(f"Invalid token type. Expected: {expected_type.value}, Got: {token_type}")
                     return None
             
+            # Comprehensive claims validation
+            if not self._validate_token_claims(payload):
+                return None
+            
             return payload
             
         except ExpiredSignatureError:
@@ -136,6 +141,129 @@ class JWTManager:
         except Exception as e:
             custom_log(f"Token verification failed: {str(e)}")
             return None
+
+    def _validate_token_claims(self, payload: Dict[str, Any]) -> bool:
+        """Validate JWT token claims comprehensively."""
+        try:
+            # Check required claims
+            required_claims = ['exp', 'iat', 'type']
+            for claim in required_claims:
+                if claim not in payload:
+                    custom_log(f"Missing required claim: {claim}")
+                    return False
+            
+            # Validate expiration (exp)
+            exp = payload.get('exp')
+            if exp:
+                try:
+                    exp_timestamp = int(exp)
+                    current_timestamp = int(datetime.utcnow().timestamp())
+                    if exp_timestamp <= current_timestamp:
+                        custom_log("Token has expired")
+                        return False
+                except (ValueError, TypeError):
+                    custom_log("Invalid expiration claim format")
+                    return False
+            
+            # Validate issued at (iat)
+            iat = payload.get('iat')
+            if iat:
+                try:
+                    iat_timestamp = int(iat)
+                    current_timestamp = int(datetime.utcnow().timestamp())
+                    # Token should not be issued in the future (with 5 minute tolerance)
+                    if iat_timestamp > (current_timestamp + 300):
+                        custom_log("Token issued in the future")
+                        return False
+                except (ValueError, TypeError):
+                    custom_log("Invalid issued at claim format")
+                    return False
+            
+            # Validate not before (nbf) if present
+            nbf = payload.get('nbf')
+            if nbf:
+                try:
+                    nbf_timestamp = int(nbf)
+                    current_timestamp = int(datetime.utcnow().timestamp())
+                    if nbf_timestamp > current_timestamp:
+                        custom_log("Token not yet valid")
+                        return False
+                except (ValueError, TypeError):
+                    custom_log("Invalid not before claim format")
+                    return False
+            
+            # Validate audience (aud) if present
+            aud = payload.get('aud')
+            if aud:
+                # Add your audience validation logic here
+                # For now, we'll just log it
+                custom_log(f"Token audience: {aud}")
+            
+            # Validate issuer (iss) if present
+            iss = payload.get('iss')
+            if iss:
+                # Add your issuer validation logic here
+                # For now, we'll just log it
+                custom_log(f"Token issuer: {iss}")
+            
+            # Validate custom claims
+            if not self._validate_custom_claims(payload):
+                return False
+            
+            return True
+            
+        except Exception as e:
+            custom_log(f"Error validating token claims: {str(e)}")
+            return False
+
+    def _validate_custom_claims(self, payload: Dict[str, Any]) -> bool:
+        """Validate custom JWT claims."""
+        try:
+            # Validate user_id if present
+            user_id = payload.get('user_id')
+            if user_id:
+                if not isinstance(user_id, (str, int)):
+                    custom_log("Invalid user_id claim format")
+                    return False
+            
+            # Validate username if present
+            username = payload.get('username')
+            if username:
+                if not isinstance(username, str):
+                    custom_log("Invalid username claim format")
+                    return False
+            
+            # Validate email if present
+            email = payload.get('email')
+            if email:
+                if not isinstance(email, str):
+                    custom_log("Invalid email claim format")
+                    return False
+                # Basic email format validation
+                if '@' not in email or '.' not in email:
+                    custom_log("Invalid email format in token")
+                    return False
+            
+            # Validate roles if present
+            roles = payload.get('roles')
+            if roles:
+                if not isinstance(roles, (list, set)):
+                    custom_log("Invalid roles claim format")
+                    return False
+                for role in roles:
+                    if not isinstance(role, str):
+                        custom_log("Invalid role format in token")
+                        return False
+            
+            return True
+            
+        except Exception as e:
+            custom_log(f"Error validating custom claims: {str(e)}")
+            return False
+
+    def validate_token(self, token: str, expected_type: Optional[TokenType] = None) -> Optional[Dict[str, Any]]:
+        """Alias for verify_token to maintain compatibility with existing code."""
+        return self.verify_token(token, expected_type)
 
     def revoke_token(self, token: str) -> bool:
         """Revoke a token by removing it from Redis."""

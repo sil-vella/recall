@@ -61,15 +61,35 @@ class RateLimiterManager:
 
     def _get_user_id(self) -> Optional[str]:
         """Get the user ID from the request context or JWT token."""
-        # This will be implemented based on your authentication system
-        # For now, we'll get it from the Authorization header
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            # TODO: Decode JWT and extract user_id
-            # For now, return None
+        try:
+            auth_header = request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+                
+                # Import JWT manager and decode token
+                from core.managers.jwt_manager import JWTManager, TokenType
+                jwt_manager = JWTManager()
+                
+                # Verify token and extract user_id
+                payload = jwt_manager.verify_token(token, TokenType.ACCESS)
+                if payload:
+                    user_id = payload.get('user_id')
+                    if user_id:
+                        custom_log(f"Extracted user_id {user_id} from JWT token for rate limiting")
+                        return str(user_id)
+                    else:
+                        custom_log("JWT token valid but no user_id found")
+                        return None
+                else:
+                    custom_log("Invalid JWT token in rate limiting check")
+                    return None
+            else:
+                custom_log("No Authorization header found for rate limiting")
+                return None
+                
+        except Exception as e:
+            custom_log(f"Error extracting user_id from JWT token: {str(e)}", level="ERROR")
             return None
-        return None
 
     def _get_api_key(self) -> Optional[str]:
         """Get the API key from the request headers."""

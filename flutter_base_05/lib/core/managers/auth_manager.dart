@@ -49,8 +49,8 @@ class AuthManager extends ChangeNotifier {
     final moduleManager = Provider.of<ModuleManager>(context, listen: false);
     _connectionModule = moduleManager.getModuleByType<ConnectionsApiModule>();
     
-    // Start state-aware token refresh timer
-    startTokenRefreshTimer();
+    // Initialize state-aware token refresh system
+    initializeStateAwareRefresh();
     
     _log.info('✅ AuthManager initialized');
   }
@@ -255,7 +255,7 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
-  /// ✅ Get current valid JWT token (with smart refresh logic)
+  /// ✅ Get current valid JWT token (with state-aware refresh logic)
   Future<String?> getCurrentValidToken() async {
     try {
       // First, try to get the current access token
@@ -272,27 +272,46 @@ class AuthManager extends ChangeNotifier {
         return accessToken;
       }
       
-      // Only refresh if we have a refresh token and it's been long enough
-      final refreshToken = await getRefreshToken();
-      if (refreshToken != null && _shouldRefreshToken()) {
-        _log.info('🔄 Token appears expired, attempting refresh...');
-        final newToken = await refreshAccessToken(refreshToken);
-        if (newToken != null) {
-          _log.info('✅ Retrieved fresh JWT token');
-          return newToken;
-        } else {
-          _log.info('❌ Token refresh failed, token is invalid');
-          return null; // Return null instead of expired token
-        }
-      } else if (refreshToken == null) {
-        _log.info('⚠️ No refresh token available, token is invalid');
-        return null; // Return null instead of expired token
-      } else {
-        _log.info('⏸️ Token refresh in cooldown, but token is expired');
-        return null; // Return null instead of expired token
-      }
+      // ✅ SINGLE STATE-AWARE REFRESH LOGIC
+      return await _performStateAwareTokenRefresh(accessToken);
     } catch (e) {
       _log.error('❌ Error retrieving valid JWT token: $e');
+      return null;
+    }
+  }
+
+  /// ✅ Single state-aware token refresh method
+  Future<String?> _performStateAwareTokenRefresh(String currentToken) async {
+    final stateManager = StateManager();
+    final mainState = stateManager.getMainAppState<String>("main_state") ?? "unknown";
+    
+    // Don't refresh during game-related states
+    if (mainState == "active_game" || mainState == "pre_game" || mainState == "post_game") {
+      _log.info('⏸️ App is in game state (state: $mainState), queuing refresh for later...');
+      _queueTokenRefreshForNonGameState();
+      // Return existing token to avoid breaking gameplay
+      return currentToken;
+    }
+    
+    // ✅ Perform refresh when not in game state
+    _log.info('🔄 App is not in game state (state: $mainState), proceeding with token refresh...');
+    
+    final refreshToken = await getRefreshToken();
+    if (refreshToken != null && _shouldRefreshToken()) {
+      _log.info('🔄 Token appears expired, attempting refresh...');
+      final newToken = await refreshAccessToken(refreshToken);
+      if (newToken != null) {
+        _log.info('✅ Retrieved fresh JWT token');
+        return newToken;
+      } else {
+        _log.info('❌ Token refresh failed, token is invalid');
+        return null;
+      }
+    } else if (refreshToken == null) {
+      _log.info('⚠️ No refresh token available, token is invalid');
+      return null;
+    } else {
+      _log.info('⏸️ Token refresh in cooldown, but token is expired');
       return null;
     }
   }
@@ -476,57 +495,9 @@ class AuthManager extends ChangeNotifier {
     return _sharedPref?.getBool('is_logged_in') ?? false;
   }
 
-  /// ✅ Start state-aware token refresh timer
-  void startTokenRefreshTimer() {
-    _stopTokenRefreshTimer();
-    // Refresh token based on configurable interval
-    // Only refresh when NOT in game-related states to avoid interrupting gameplay
-    _tokenRefreshTimer = Timer.periodic(Duration(seconds: Config.jwtTokenRefreshInterval), (timer) async {
-      _log.info("🔄 Token refresh timer triggered...");
-      
-      // Check main app state before attempting refresh
-      final stateManager = StateManager();
-      final mainState = stateManager.getMainAppState<String>("main_state") ?? "unknown";
-      
-      // Don't refresh during game-related states
-      if (mainState == "active_game" || mainState == "pre_game" || mainState == "post_game") {
-        _log.info("⏸️ App is in game state (state: $mainState), queuing refresh for later...");
-        _queueTokenRefreshForNonGameState();
-      } else {
-        _log.info("✅ App is not in game state (state: $mainState), proceeding with token refresh...");
-        await _performTokenRefresh();
-      }
-    });
-    _log.info("✅ State-aware token refresh timer started");
-  }
-
-  /// ✅ Stop token refresh timer
-  void _stopTokenRefreshTimer() {
-    _tokenRefreshTimer?.cancel();
-    _tokenRefreshTimer = null;
-    _log.info("🛑 Token refresh timer stopped");
-  }
-
-  /// ✅ Perform actual token refresh
-  Future<void> _performTokenRefresh() async {
-    try {
-      final hasValidJWT = await hasValidToken();
-      if (!hasValidJWT) {
-        _log.error("❌ Token refresh failed, stopping timer");
-        _stopTokenRefreshTimer();
-      } else {
-        _log.info("✅ Token refresh completed successfully");
-      }
-    } catch (e) {
-      _log.error("❌ Error during token refresh: $e");
-    }
-  }
-
-  /// ✅ Queue token refresh for when app becomes backgrounded
-  void _queueTokenRefreshForBackground() {
-    // Set a flag to refresh when state changes to backgrounded
-    _pendingTokenRefresh = true;
-    _log.info("📋 Token refresh queued for background state");
+  /// ✅ Initialize state-aware token refresh system
+  void initializeStateAwareRefresh() {
+    _log.info("✅ State-aware token refresh system initialized");
   }
 
   /// ✅ Queue token refresh for when app is NOT in game-related states
@@ -549,7 +520,9 @@ class AuthManager extends ChangeNotifier {
       if (mainState != "active_game" && mainState != "pre_game" && mainState != "post_game") {
         _log.info("✅ App is not in game state (state: $mainState), performing queued token refresh...");
         _pendingTokenRefresh = false;
-        _performTokenRefresh();
+        
+        // Perform the actual refresh
+        _performQueuedTokenRefresh();
         
         // Clean up state listener since refresh is completed
         _cleanupStateListener();
@@ -557,12 +530,26 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
+  /// ✅ Perform the actual queued token refresh
+  Future<void> _performQueuedTokenRefresh() async {
+    try {
+      final currentToken = await getAccessToken();
+      if (currentToken != null) {
+        final newToken = await _performStateAwareTokenRefresh(currentToken);
+        if (newToken != null) {
+          _log.info("✅ Queued token refresh completed successfully");
+        } else {
+          _log.error("❌ Queued token refresh failed");
+        }
+      }
+    } catch (e) {
+      _log.error("❌ Error during queued token refresh: $e");
+    }
+  }
+
   /// ✅ Clean up state listener when no longer needed
   void _cleanupStateListener() {
     if (_stateListenerSetup) {
-      // Note: StateManager doesn't have a removeListener method in the current implementation
-      // The listener will remain active but won't cause issues since checkQueuedTokenRefresh
-      // will return early if _pendingTokenRefresh is false
       _stateListenerSetup = false;
       _log.info("🛑 State listener cleanup completed");
     }
@@ -604,6 +591,7 @@ class AuthManager extends ChangeNotifier {
 
   // Token refresh timer and state management
   Timer? _tokenRefreshTimer;
+  // State management for queued refreshes
   bool _pendingTokenRefresh = false;
   bool _stateListenerSetup = false;
 

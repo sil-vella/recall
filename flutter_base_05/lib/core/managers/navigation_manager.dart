@@ -5,6 +5,7 @@ import '../../modules/home_module/home_screen.dart';
 import '../../screens/websocket_screen.dart';
 import '../../screens/account_screen/account_screen.dart';
 import '../../screens/room_management_screen.dart';
+import '../../screens/auth_test_screen/auth_test_screen.dart';
 import '../00_base/module_base.dart';
 
 class RegisteredRoute {
@@ -74,6 +75,15 @@ class NavigationManager extends ChangeNotifier {
       drawerTitle: 'Room Management',
       drawerIcon: Icons.room,
       drawerPosition: 4,
+    );
+    
+    // Register Auth Test screen
+    registerRoute(
+      path: '/auth-test',
+      screen: (context) => const AuthTestScreen(),
+      drawerTitle: 'Auth Test',
+      drawerIcon: Icons.security,
+      drawerPosition: 5,
     );
   }
 

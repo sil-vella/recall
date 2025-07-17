@@ -251,30 +251,110 @@ class AuthInterceptor implements InterceptorContract {
 
 ### NavigationManager
 
-The NavigationManager handles routing and navigation:
+The NavigationManager handles routing and navigation with a sophisticated route registration system:
 
 #### Features
 
-- **Route Management**: Centralized route definitions
-- **Deep Linking**: Support for app deep links
-- **Navigation State**: Track navigation state
-- **Route Guards**: Authentication-based route protection
+- **Dynamic Route Registration**: Routes can be registered programmatically
+- **Drawer Navigation**: Automatic drawer generation with positioning
+- **Route Filtering**: Smart filtering for drawer vs non-drawer routes
+- **Position-Based Sorting**: Drawer items sorted by position
+- **Duplicate Prevention**: Automatic prevention of duplicate routes
 
-#### Route Configuration
+#### Route Registration System
 
 ```dart
-final router = GoRouter(
-  routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const HomeScreen(),
-    ),
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => const LoginScreen(),
-    ),
-  ],
-);
+class RegisteredRoute {
+  final String path;
+  final Widget Function(BuildContext) screen;
+  final String? drawerTitle;
+  final IconData? drawerIcon;
+  final int drawerPosition;
+
+  RegisteredRoute({
+    required this.path,
+    required this.screen,
+    this.drawerTitle,
+    this.drawerIcon,
+    this.drawerPosition = 999,
+  });
+}
+```
+
+#### Route Registration Process
+
+```dart
+void registerRoute({
+  required String path,
+  required Widget Function(BuildContext) screen,
+  String? drawerTitle,
+  IconData? drawerIcon,
+  int drawerPosition = 999,
+}) {
+  if (_routes.any((r) => r.path == path)) return; // Prevent duplicates
+  
+  final newRoute = RegisteredRoute(
+    path: path,
+    screen: screen,
+    drawerTitle: drawerTitle,
+    drawerIcon: drawerIcon,
+    drawerPosition: drawerPosition,
+  );
+  
+  _routes.add(newRoute);
+  notifyListeners();
+}
+```
+
+#### Drawer Navigation Logic
+
+The system automatically generates drawer navigation based on registered routes:
+
+```dart
+List<RegisteredRoute> get drawerRoutes {
+  final filteredRoutes = _routes.where((r) => r.shouldAppearInDrawer).toList();
+  
+  // Sort drawer items based on drawerPosition
+  filteredRoutes.sort((a, b) => a.drawerPosition.compareTo(b.drawerPosition));
+  
+  return filteredRoutes;
+}
+
+bool get shouldAppearInDrawer {
+  return drawerTitle != null && drawerIcon != null;
+}
+```
+
+#### Router Configuration
+
+```dart
+GoRouter get router {
+  return GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+      ...routes, // Include dynamically registered routes
+    ],
+  );
+}
+```
+
+#### Navigation Flow
+
+```
+Route Registration
+    ↓
+NavigationManager.registerRoute()
+    ↓
+RegisteredRoute Creation
+    ↓
+Route Storage & Notification
+    ↓
+Drawer Generation (if applicable)
+    ↓
+Router Update
+    ↓
+UI Navigation
 ```
 
 ## Logging Architecture

@@ -431,7 +431,8 @@ class UserManagementModule(BaseModule):
                     "access_token": access_token,
                     "refresh_token": refresh_token,
                     "token_type": "Bearer",
-                    "expires_in": Config.JWT_ACCESS_TOKEN_EXPIRES  # From config
+                    "expires_in": Config.JWT_ACCESS_TOKEN_EXPIRES,  # Access token TTL
+                    "refresh_expires_in": Config.JWT_REFRESH_TOKEN_EXPIRES  # Refresh token TTL
                 }
             }), 200
             
@@ -530,12 +531,22 @@ class UserManagementModule(BaseModule):
                 'type': 'access'
             }
             
+            # Create new refresh token (token rotation for security)
+            refresh_token_payload = {
+                'user_id': str(user['_id']),
+                'type': 'refresh'
+            }
+            
             new_access_token = jwt_manager.create_token(access_token_payload, TokenType.ACCESS)
+            new_refresh_token = jwt_manager.create_token(refresh_token_payload, TokenType.REFRESH)
+            
+            # Revoke the old refresh token for security
+            jwt_manager.revoke_token(refresh_token)
             
             # Remove password from response
             user.pop('password', None)
             
-            custom_log(f"✅ Token refreshed successfully for user: {user['username']}")
+            custom_log(f"✅ Token refreshed successfully for user: {user['username']} (with rotation)")
             
             return jsonify({
                 "success": True,
@@ -543,8 +554,10 @@ class UserManagementModule(BaseModule):
                 "data": {
                     "user": user,
                     "access_token": new_access_token,
+                    "refresh_token": new_refresh_token,  # ✅ NEW REFRESH TOKEN
                     "token_type": "Bearer",
-                    "expires_in": Config.JWT_ACCESS_TOKEN_EXPIRES  # From config
+                    "expires_in": Config.JWT_ACCESS_TOKEN_EXPIRES,  # Access token TTL
+                    "refresh_expires_in": Config.JWT_REFRESH_TOKEN_EXPIRES  # Refresh token TTL
                 }
             }), 200
             

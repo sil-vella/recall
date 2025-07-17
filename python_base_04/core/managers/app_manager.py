@@ -350,24 +350,24 @@ class AppManager:
         from core.managers.api_key_manager import APIKeyManager
         self.api_key_manager = APIKeyManager(self.redis_manager)
 
+        # Register security headers at application level
+        @self.flask_app.after_request
+        def add_security_headers(response):
+            """Add security headers to all responses."""
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            response.headers['X-Frame-Options'] = 'DENY'
+            response.headers['X-XSS-Protection'] = '1; mode=block'
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+            response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+            response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+            return response
+
         @self.flask_app.before_request
         def authenticate_request():
             """Clean authentication middleware based on route prefixes."""
             # Skip authentication for OPTIONS requests (CORS preflight)
             if request.method == 'OPTIONS':
                 return None
-            
-            # Add security headers to all responses
-            @self.flask_app.after_request
-            def add_security_headers(response):
-                """Add security headers to all responses."""
-                response.headers['X-Content-Type-Options'] = 'nosniff'
-                response.headers['X-Frame-Options'] = 'DENY'
-                response.headers['X-XSS-Protection'] = '1; mode=block'
-                response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-                response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-                response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
-                return response
             
             # Determine authentication requirements based on route prefix
             auth_required = None

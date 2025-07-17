@@ -355,6 +355,28 @@ class JWTManager:
         except Exception as e:
             custom_log(f"Error during token cleanup: {str(e)}")
 
+    def schedule_token_cleanup(self, interval_minutes: int = 60):
+        """Schedule periodic token cleanup (optional enhancement)."""
+        try:
+            import threading
+            import time
+            
+            def cleanup_worker():
+                while True:
+                    try:
+                        time.sleep(interval_minutes * 60)  # Convert to seconds
+                        self.cleanup_expired_tokens()
+                    except Exception as e:
+                        custom_log(f"Error in token cleanup worker: {str(e)}")
+            
+            # Start cleanup thread
+            cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
+            cleanup_thread.start()
+            custom_log(f"✅ Token cleanup scheduled (every {interval_minutes} minutes)")
+            
+        except Exception as e:
+            custom_log(f"Error scheduling token cleanup: {str(e)}")
+
     # Convenience methods for specific use cases
     def create_access_token(self, data: Dict[str, Any], expires_in: Optional[int] = None) -> str:
         """Create a new access token."""

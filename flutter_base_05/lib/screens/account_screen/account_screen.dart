@@ -97,6 +97,98 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     });
   }
   
+  // State Management Methods
+  String _getCurrentAppState() {
+    final stateManager = StateManager();
+    final mainState = stateManager.getMainAppState<String>("main_state");
+    return mainState ?? "unknown";
+  }
+  
+  void _showStateSelectionDialog() {
+    final List<String> availableStates = [
+      'active_game',
+      'pre_game', 
+      'post_game',
+      'idle'
+    ];
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select App State'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: availableStates.map((state) {
+              final isCurrentState = state == _getCurrentAppState();
+              return ListTile(
+                leading: Icon(
+                  isCurrentState ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  color: isCurrentState ? Theme.of(context).primaryColor : Colors.grey,
+                ),
+                title: Text(
+                  state.replaceAll('_', ' ').toUpperCase(),
+                  style: TextStyle(
+                    fontWeight: isCurrentState ? FontWeight.bold : FontWeight.normal,
+                    color: isCurrentState ? Theme.of(context).primaryColor : Colors.black,
+                  ),
+                ),
+                subtitle: Text(
+                  _getStateDescription(state),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _updateAppState(state);
+                },
+              );
+            }).toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  String _getStateDescription(String state) {
+    switch (state) {
+      case 'active_game':
+        return 'Game is currently in progress';
+      case 'pre_game':
+        return 'Game is about to start';
+      case 'post_game':
+        return 'Game has just ended';
+      case 'idle':
+        return 'App is in idle state';
+      default:
+        return 'Unknown state';
+    }
+  }
+  
+  void _updateAppState(String newState) {
+    final stateManager = StateManager();
+    stateManager.updateMainAppState("main_state", newState);
+    
+    _log.info('📱 App state updated to: $newState');
+    
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('App state changed to: ${newState.replaceAll('_', ' ').toUpperCase()}'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+  
   Future<void> _handleLogin() async {
     if (!_loginFormKey.currentState!.validate()) {
       return;
@@ -328,6 +420,51 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                         _buildInfoRow('Email', email),
                         const SizedBox(height: 8),
                         _buildInfoRow('User ID', loginState?["userId"] ?? ""),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // State Management Section
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'App State Management',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildInfoRow('Current State', _getCurrentAppState()),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: _showStateSelectionDialog,
+                          icon: const Icon(Icons.settings),
+                          label: const Text('Change App State'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),

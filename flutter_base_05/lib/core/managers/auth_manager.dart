@@ -7,6 +7,7 @@ import '../managers/services_manager.dart';
 import '../managers/state_manager.dart';
 import '../managers/module_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
+import '../../utils/consts/config.dart';
 import 'dart:async'; // Added for Timer
 
 enum AuthStatus {
@@ -34,8 +35,8 @@ class AuthManager extends ChangeNotifier {
   // Token refresh cooldown and state management
   DateTime? _lastTokenRefresh;
   bool _isRefreshingToken = false;
-  static const Duration _tokenRefreshCooldown = Duration(minutes: 5);
-  static const Duration _tokenLifetime = Duration(hours: 1);
+  static Duration get _tokenRefreshCooldown => Duration(seconds: Config.jwtTokenRefreshCooldown);
+  static Duration get _tokenLifetime => Duration(seconds: Config.jwtAccessTokenExpires);
 
   factory AuthManager() => _instance;
   AuthManager._internal();
@@ -117,15 +118,66 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
-  /// ✅ Check if token needs refresh based on time
+  /// ✅ Check if token needs refresh based on configurable cooldown time
   bool _shouldRefreshToken() {
     if (_lastTokenRefresh == null) return true;
     
     final timeSinceLastRefresh = DateTime.now().difference(_lastTokenRefresh!);
     return timeSinceLastRefresh >= _tokenRefreshCooldown;
   }
+  
+  /// ✅ Force refresh token (bypasses cooldown)
+  Future<String?> forceRefreshToken() async {
+    final refreshToken = await getRefreshToken();
+    if (refreshToken == null) {
+      _log.error('❌ No refresh token available for force refresh');
+      return null;
+    }
+    
+    _log.info('🔄 Force refreshing token (bypassing cooldown)...');
+    _lastTokenRefresh = null; // Reset cooldown
+    return await refreshAccessToken(refreshToken);
+  }
 
-  /// ✅ Check if token is likely expired based on storage time
+  /// ✅ Check token consistency (ensures tokens exist if user data exists)
+  Future<bool> _checkTokenConsistency() async {
+    try {
+      // Check if user data exists
+      final hasUserData = _sharedPref!.getBool('is_logged_in') == true &&
+                          _sharedPref!.getString('user_id') != null &&
+                          _sharedPref!.getString('username') != null;
+      
+      // Check if tokens exist
+      final accessToken = await getAccessToken();
+      final refreshToken = await getRefreshToken();
+      final hasTokens = accessToken != null && refreshToken != null;
+      
+      // Log consistency check
+      _log.info('🔍 Token consistency check:');
+      _log.info('  - Has user data: $hasUserData');
+      _log.info('  - Has tokens: $hasTokens');
+      
+      // If user data exists but tokens don't, that's inconsistent
+      if (hasUserData && !hasTokens) {
+        _log.info('⚠️ Inconsistent state: User data exists but tokens are missing');
+        return false;
+      }
+      
+      // If tokens exist but no user data, that's also inconsistent
+      if (hasTokens && !hasUserData) {
+        _log.info('⚠️ Inconsistent state: Tokens exist but user data is missing');
+        return false;
+      }
+      
+      _log.info('✅ Token consistency check passed');
+      return true;
+    } catch (e) {
+      _log.error('❌ Error checking token consistency: $e');
+      return false;
+    }
+  }
+
+  /// ✅ Check if token is likely expired based on configurable lifetime
   Future<bool> _isTokenLikelyExpired() async {
     try {
       final storedAt = await _secureStorage.read(key: 'token_stored_at');
@@ -229,15 +281,15 @@ class AuthManager extends ChangeNotifier {
           _log.info('✅ Retrieved fresh JWT token');
           return newToken;
         } else {
-          _log.info('⚠️ Token refresh failed, using existing token');
-          return accessToken;
+          _log.info('❌ Token refresh failed, token is invalid');
+          return null; // Return null instead of expired token
         }
       } else if (refreshToken == null) {
-        _log.info('⚠️ No refresh token available, using existing token');
-        return accessToken;
+        _log.info('⚠️ No refresh token available, token is invalid');
+        return null; // Return null instead of expired token
       } else {
-        _log.info('⏸️ Token refresh in cooldown, using existing token');
-        return accessToken;
+        _log.info('⏸️ Token refresh in cooldown, but token is expired');
+        return null; // Return null instead of expired token
       }
     } catch (e) {
       _log.error('❌ Error retrieving valid JWT token: $e');
@@ -282,12 +334,24 @@ class AuthManager extends ChangeNotifier {
       // Step 2: Check if JWT token exists and is valid
       final hasValidJWT = await hasValidToken();
       if (!hasValidJWT) {
-        _log.info('⚠️ No valid JWT token found, clearing stored data');
-        await _clearStoredData();
-        _currentStatus = AuthStatus.tokenExpired;
-        _isValidating = false;
-        notifyListeners();
-        return AuthStatus.tokenExpired;
+        _log.info('⚠️ No valid JWT token found, attempting force refresh...');
+        
+        // Try force refresh on startup if token is invalid
+        final forceRefreshedToken = await forceRefreshToken();
+        if (forceRefreshedToken != null) {
+          _log.info('✅ Force refresh successful on startup');
+          _currentStatus = AuthStatus.loggedIn;
+          _isValidating = false;
+          notifyListeners();
+          return AuthStatus.loggedIn;
+        } else {
+          _log.info('❌ Force refresh failed, clearing stored data');
+          await _clearStoredData();
+          _currentStatus = AuthStatus.tokenExpired;
+          _isValidating = false;
+          notifyListeners();
+          return AuthStatus.tokenExpired;
+        }
       }
 
       // Step 3: Check session age (optional)
@@ -415,9 +479,9 @@ class AuthManager extends ChangeNotifier {
   /// ✅ Start state-aware token refresh timer
   void startTokenRefreshTimer() {
     _stopTokenRefreshTimer();
-    // Refresh token every 1 hour for configurable token lifetime
+    // Refresh token based on configurable interval
     // Only refresh when NOT in game-related states to avoid interrupting gameplay
-    _tokenRefreshTimer = Timer.periodic(const Duration(hours: 1), (timer) async {
+    _tokenRefreshTimer = Timer.periodic(Duration(seconds: Config.jwtTokenRefreshInterval), (timer) async {
       _log.info("🔄 Token refresh timer triggered...");
       
       // Check main app state before attempting refresh

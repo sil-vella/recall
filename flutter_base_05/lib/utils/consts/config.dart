@@ -24,6 +24,27 @@ class Config {
     defaultValue: 'ws://10.0.2.2:8081',
   );
 
+  // JWT Configuration
+  static const int jwtAccessTokenExpires = int.fromEnvironment(
+    'JWT_ACCESS_TOKEN_EXPIRES',
+    defaultValue: 3600, // 1 hour in seconds
+  );
+
+  static const int jwtRefreshTokenExpires = int.fromEnvironment(
+    'JWT_REFRESH_TOKEN_EXPIRES',
+    defaultValue: 604800, // 7 days in seconds
+  );
+
+  static const int jwtTokenRefreshCooldown = int.fromEnvironment(
+    'JWT_TOKEN_REFRESH_COOLDOWN',
+    defaultValue: 300, // 5 minutes in seconds
+  );
+
+  static const int jwtTokenRefreshInterval = int.fromEnvironment(
+    'JWT_TOKEN_REFRESH_INTERVAL',
+    defaultValue: 3600, // 1 hour in seconds
+  );
+
   // Stripe Publishable Key
   static const String stripePublishableKey = String.fromEnvironment(
     'STRIPE_PUBLISHABLE_KEY',

@@ -89,7 +89,7 @@ class RateLimiterManager:
                 
         except Exception as e:
             custom_log(f"Error extracting user_id from JWT token: {str(e)}", level="ERROR")
-            return None
+        return None
 
     def _get_api_key(self) -> Optional[str]:
         """Get the API key from the request headers."""

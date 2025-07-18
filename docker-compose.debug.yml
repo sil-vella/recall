@@ -31,18 +31,18 @@ services:
       - app-network
     restart: unless-stopped
 
-  # External Flask Application
+  # External Flask Application (DEBUG MODE)
   flask-external:
     build:
       context: ./python_base_04
       dockerfile: Dockerfile
-    container_name: external_app_flask
+    container_name: external_app_flask_debug
     ports:
       - "8081:5001"
       - "5678:5678"  # Debugpy port for VS Code debugging
     volumes:
       - ./python_base_04:/app  # ✅ Live code changes
-    command: ["gunicorn", "--bind", "0.0.0.0:5001", "--worker-class", "gevent", "--workers", "1", "--timeout", "120", "--keep-alive", "5", "app:app"]  # ✅ Production WSGI server with WebSocket support
+    command: ["python", "debug_startup.py"]  # 🔧 DEBUG MODE ONLY
     environment:
       - DEBUG_MODE=true  # Set to 'true' to enable debug mode
       - MONGODB_SERVICE_NAME=mongodb-external

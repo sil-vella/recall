@@ -7,7 +7,7 @@ from utils.config.config import Config
 from core.managers.redis_manager import RedisManager
 from enum import Enum
 import hashlib
-from flask import request
+from flask import request, jsonify
 
 class TokenType(Enum):
     ACCESS = "access"
@@ -30,6 +30,9 @@ class JWTManager:
         
         # Register state change callback
         self._register_state_change_callback()
+        
+        # Flask app reference for route registration
+        self.app = None
         
         custom_log("JWTManager initialized with state change listener")
 
@@ -122,7 +125,7 @@ class JWTManager:
             
             # Comprehensive claims validation
             if not self._validate_token_claims(payload):
-                return None
+                    return None
             
             return payload
             
@@ -236,13 +239,16 @@ class JWTManager:
             # Validate email if present
             email = payload.get('email')
             if email:
+                custom_log(f"DEBUG: Validating email claim: {email} (type: {type(email)})")
                 if not isinstance(email, str):
                     custom_log("Invalid email claim format")
                     return False
                 # Basic email format validation
                 if '@' not in email or '.' not in email:
-                    custom_log("Invalid email format in token")
+                    custom_log(f"Invalid email format in token: '{email}'")
                     return False
+            else:
+                custom_log("DEBUG: No email claim found in token")
             
             # Validate roles if present
             roles = payload.get('roles')

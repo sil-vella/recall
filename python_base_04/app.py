@@ -219,16 +219,17 @@ def list_authenticated_actions():
         custom_log(f"❌ Error listing authenticated actions: {e}", level="ERROR")
         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
 
-if __name__ == "__main__":
-    # Use environment variables for host and port
-    host = os.getenv('FLASK_HOST', '0.0.0.0')
-    port = int(os.getenv('FLASK_PORT', 5001))
-    
-    # WebSocket functionality is now handled by app_manager
-    if app_manager.websocket_manager:
-        custom_log("🚀 Starting Flask app with WebSocket support")
-        app_manager.websocket_manager.run(app, host=host, port=port)
-    else:
-        custom_log("🚀 Starting Flask app without WebSocket support")
-        app_manager.run(app, host=host, port=port)
-# Test comment from watcher - Wed Jul  2 18:40:27 CEST 2025
+# Production mode: Let gunicorn handle the app
+# Development mode: Uncomment below for Flask development server
+# if __name__ == "__main__":
+#     # Use environment variables for host and port
+#     host = os.getenv('FLASK_HOST', '0.0.0.0')
+#     port = int(os.getenv('FLASK_PORT', 5001))
+#     
+#     # WebSocket functionality is now handled by app_manager
+#     if app_manager.websocket_manager:
+#         custom_log("🚀 Starting Flask app with WebSocket support")
+#         app_manager.websocket_manager.run(app, host=host, port=port)
+#     else:
+#         custom_log("🚀 Starting Flask app without WebSocket support")
+#         app_manager.run(app, host=host, port=port)

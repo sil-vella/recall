@@ -524,7 +524,7 @@ class WebSocketManager {
       // Wait for connection with timeout
       try {
         final result = await completer.future.timeout(
-          const Duration(seconds: 5),
+          Duration(seconds: Config.websocketTimeout),
           onTimeout: () {
             _log.error("❌ WebSocket connection timeout");
             _isConnecting = false; // Reset connecting state on timeout
@@ -619,7 +619,7 @@ class WebSocketManager {
       // Wait for the room_joined event with a timeout
       try {
         final result = await completer.future.timeout(
-          const Duration(seconds: 5),
+          Duration(seconds: Config.websocketTimeout),
           onTimeout: () {
             return {"error": "Timeout waiting for room creation confirmation"};
           },
@@ -698,7 +698,7 @@ class WebSocketManager {
       // Wait for the join_room_success event with a timeout
       try {
         final result = await completer.future.timeout(
-          const Duration(seconds: 5),
+          Duration(seconds: Config.websocketTimeout),
           onTimeout: () {
             return {"error": "Timeout waiting for room join confirmation"};
           },

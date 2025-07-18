@@ -82,6 +82,9 @@ class CommunicationsModule(BaseModule):
         self._register_route_helper("/api-keys/stored", self.api_key_manager.list_stored_api_keys_endpoint, methods=["GET"])
         self._register_route_helper("/api-keys/request-from-credit-system", self.api_key_manager.request_api_key_from_credit_system_endpoint, methods=["POST"])
         
+        # Register JWT test route
+        self._register_route_helper("/test-jwt", self.test_jwt, methods=["POST"])
+        
         custom_log(f"CommunicationsModule registered {len(self.registered_routes)} routes")
 
     def initialize_database(self):
@@ -125,6 +128,112 @@ class CommunicationsModule(BaseModule):
         except Exception as e:
             custom_log(f"❌ Error in get_all_database_data endpoint: {e}", level="ERROR")
             return {"error": f"Failed to retrieve database data: {str(e)}"}, 500
+
+    def test_jwt(self):
+        """Test JWT token validation and return token information."""
+        try:
+            # Get JWT manager from app_manager
+            jwt_manager = self.app_manager.jwt_manager
+            
+            # Get the Authorization header
+            auth_header = request.headers.get('Authorization')
+            
+            if not auth_header:
+                return jsonify({
+                    "success": False,
+                    "message": "No Authorization header provided",
+                    "error": "Missing JWT token"
+                }), 401
+            
+            # Extract token from Authorization header
+            if auth_header.startswith('Bearer '):
+                token = auth_header[7:]  # Remove 'Bearer ' prefix
+            else:
+                token = auth_header
+            
+            # Verify the token
+            payload = jwt_manager.verify_token(token, TokenType.ACCESS)
+            
+            if not payload:
+                return jsonify({
+                    "success": False,
+                    "message": "Invalid or expired JWT token",
+                    "error": "Token validation failed"
+                }), 401
+            
+            # Return token information (excluding sensitive data)
+            token_info = {
+                "success": True,
+                "message": "JWT token is valid",
+                "token_info": {
+                    "user_id": payload.get("user_id"),
+                    "type": payload.get("type"),
+                    "issued_at": payload.get("iat"),
+                    "expires_at": payload.get("exp"),
+                    "fingerprint": payload.get("fingerprint", "")[:16] + "..." if payload.get("fingerprint") else None
+                },
+                "ttl_info": {
+                    "access_token_expires": Config.JWT_ACCESS_TOKEN_EXPIRES,
+                    "refresh_token_expires": Config.JWT_REFRESH_TOKEN_EXPIRES
+                }
+            }
+            
+            custom_log(f"JWT test successful for user: {payload.get('user_id')}")
+            return jsonify(token_info), 200
+            
+        except Exception as e:
+            custom_log(f"JWT test failed: {str(e)}", level="ERROR")
+            return jsonify({
+                "success": False,
+                "message": "JWT test failed",
+                "error": str(e)
+            }), 500
+
+    def health_check(self) -> Dict[str, Any]:
+        """Perform health check for CommunicationsModule."""
+        health_status = super().health_check()
+        health_status['dependencies'] = self.dependencies
+        # Add database queue status
+        try:
+            queue_status = self.admin_db.get_queue_status()
+            health_status['details'] = {
+                'database_queue': {
+                    'queue_size': queue_status['queue_size'],
+                    'worker_alive': queue_status['worker_alive'],
+                    'queue_enabled': queue_status['queue_enabled'],
+                    'pending_results': queue_status['pending_results']
+                },
+                'api_key_manager': {
+                    'status': 'operational',
+                    'external_app_key_configured': bool(self.api_key_manager.load_credit_system_api_key())
+                }
+            }
+        except Exception as e:
+            health_status['details'] = {
+                'database_queue': f'error: {str(e)}',
+                'token_info': {
+                    'user_id': payload.get('user_id'),
+                    'type': payload.get('type'),
+                    'issued_at': payload.get('iat'),
+                    'expires_at': payload.get('exp'),
+                    'fingerprint': payload.get('fingerprint', '')[:16] + '...' if payload.get('fingerprint') else None
+                },
+                'ttl_info': {
+                    'access_token_expires': Config.JWT_ACCESS_TOKEN_EXPIRES,
+                    'refresh_token_expires': Config.JWT_REFRESH_TOKEN_EXPIRES
+                }
+            }
+            
+            custom_log(f"JWT test successful for user: {payload.get('user_id')}")
+            return jsonify(token_info), 200
+            
+        except Exception as e:
+            custom_log(f"JWT test failed: {str(e)}", level="ERROR")
+            return jsonify({
+                "success": False,
+                "message": "JWT test failed",
+                "error": str(e)
+            }), 500
 
     def health_check(self) -> Dict[str, Any]:
         """Perform health check for CommunicationsModule."""

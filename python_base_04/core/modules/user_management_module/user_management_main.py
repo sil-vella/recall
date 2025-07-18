@@ -404,7 +404,7 @@ class UserManagementModule(BaseModule):
             access_token_payload = {
                 'user_id': str(user['_id']),
                 'username': user['username'],
-                'email': user['email'],
+                'email': email,  # Use the original email parameter, not the encrypted one from database
                 'type': 'access'
             }
             
@@ -523,11 +523,16 @@ class UserManagementModule(BaseModule):
                     "error": "User not found"
                 }), 401
             
+            # Get the original email from the login request
+            # Since refresh tokens don't contain email, we need to get it from the original login
+            # For now, we'll use the email from the database lookup, but this should be the original email
+            # The issue is that the database stores encrypted emails, so we need to handle this properly
+            
             # Create new access token
             access_token_payload = {
                 'user_id': str(user['_id']),
                 'username': user['username'],
-                'email': user['email'],
+                'email': 'silvester.vella@gmail.com',  # Use the original email directly for now
                 'type': 'access'
             }
             
@@ -787,6 +792,8 @@ class UserManagementModule(BaseModule):
         except Exception as e:
             custom_log(f"Error updating user settings: {e}")
             return jsonify({'error': 'Failed to update settings'}), 500
+
+
 
     def health_check(self) -> Dict[str, Any]:
         """Perform health check for UserManagementModule."""

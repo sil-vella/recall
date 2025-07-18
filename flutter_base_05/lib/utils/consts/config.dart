@@ -24,15 +24,33 @@ class Config {
     defaultValue: 'ws://10.0.2.2:8081',
   );
 
-  // JWT Configuration
-  static const int jwtAccessTokenExpires = int.fromEnvironment(
-    'JWT_ACCESS_TOKEN_EXPIRES',
-    defaultValue: 3600, // 1 hour in seconds
+  // HTTP Request Timeout Configuration
+  static const int httpRequestTimeout = int.fromEnvironment(
+    'HTTP_REQUEST_TIMEOUT',
+    defaultValue: 600, // 10 minutes in seconds (for debugging)
   );
 
-  static const int jwtRefreshTokenExpires = int.fromEnvironment(
+  // WebSocket Timeout Configuration
+  static const int websocketTimeout = int.fromEnvironment(
+    'WEBSOCKET_TIMEOUT',
+    defaultValue: 5, // 5 seconds
+  );
+
+  // Token Refresh Wait Timeout Configuration
+  static const int tokenRefreshWaitTimeout = int.fromEnvironment(
+    'TOKEN_REFRESH_WAIT_TIMEOUT',
+    defaultValue: 1, // 1 second
+  );
+
+  // JWT Configuration - Fallback values (will be overridden by backend TTL)
+  static const int jwtAccessTokenExpiresFallback = int.fromEnvironment(
+    'JWT_ACCESS_TOKEN_EXPIRES',
+    defaultValue: 3600, // 1 hour in seconds - fallback only
+  );
+
+  static const int jwtRefreshTokenExpiresFallback = int.fromEnvironment(
     'JWT_REFRESH_TOKEN_EXPIRES',
-    defaultValue: 604800, // 7 days in seconds
+    defaultValue: 604800, // 7 days in seconds - fallback only
   );
 
   static const int jwtTokenRefreshCooldown = int.fromEnvironment(

@@ -17,7 +17,7 @@ class AppBackgrounds {
   static const String _path = 'assets/images/backgrounds/';
 
   static const List<String> backgrounds = [
-    '${_path}gamescreen_background_01.jpg',
+    // Background images temporarily removed
   ];
 }
 

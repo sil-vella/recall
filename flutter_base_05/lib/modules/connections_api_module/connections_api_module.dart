@@ -10,6 +10,7 @@ import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/auth_manager.dart';
 import '../../tools/logging/logger.dart';
+import '../../utils/consts/config.dart';
 import 'interceptor.dart';
 
 class ConnectionsApiModule extends ModuleBase {
@@ -20,7 +21,7 @@ class ConnectionsApiModule extends ModuleBase {
   /// ✅ Use InterceptedClient instead of normal `http`
   final InterceptedClient client = InterceptedClient.build(
     interceptors: [AuthInterceptor()],
-    requestTimeout: const Duration(seconds: 10),
+    requestTimeout: Duration(seconds: Config.httpRequestTimeout),
   );
 
   /// ✅ Constructor with module key and dependencies

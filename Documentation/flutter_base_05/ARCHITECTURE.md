@@ -331,7 +331,7 @@ bool get shouldAppearInDrawer {
 GoRouter get router {
   return GoRouter(
     initialLocation: '/',
-    routes: [
+  routes: [
       GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
       ...routes, // Include dynamically registered routes
     ],

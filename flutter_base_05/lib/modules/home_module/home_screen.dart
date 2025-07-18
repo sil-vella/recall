@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../core/00_base/screen_base.dart';
+import '../../core/managers/app_manager.dart';
 import '../../utils/consts/theme_consts.dart';
 
 class HomeScreen extends BaseScreen {
@@ -15,45 +16,27 @@ class HomeScreen extends BaseScreen {
 
 class _HomeScreenState extends BaseScreenState<HomeScreen> {
   @override
+  void initState() {
+    super.initState();
+    // Trigger home screen main hook
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appManager = Provider.of<AppManager>(context, listen: false);
+      appManager.triggerHomeScreenMainHook(context);
+    });
+  }
+
+  @override
   Widget buildContent(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Logo at top
-          Padding(
-            padding: const EdgeInsets.only(top: 40.0),
-            child: Image.asset(
-              'assets/images/logo.png',
-              height: 120,
-              width: 120,
-            ),
-          ),
-          
-          const SizedBox(height: 100), // Space between logo and button
-
-          // Create Voucher button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: ElevatedButton(
-              onPressed: () {
-                context.push('/voucher');
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accentColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Create Voucher',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+          // Welcome text with app title
+          const Text(
+            'Welcome to Recall',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],

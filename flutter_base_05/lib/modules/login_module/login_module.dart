@@ -220,10 +220,18 @@ class LoginModule extends ModuleBase {
           return {"error": "Login successful but no access token received"};
         }
         
-        // Store JWT tokens using AuthManager
+        // Extract TTL values from backend response
+        final expiresIn = response?["data"]?["expires_in"];
+        final refreshExpiresIn = response?["data"]?["refresh_expires_in"];
+        final accessTokenTtl = expiresIn is int ? expiresIn : null;
+        final refreshTokenTtl = refreshExpiresIn is int ? refreshExpiresIn : null;
+        
+        // Store JWT tokens using AuthManager with TTL values
         await _authManager!.storeTokens(
           accessToken: accessToken,
           refreshToken: refreshToken ?? '',
+          accessTokenTtl: accessTokenTtl,
+          refreshTokenTtl: refreshTokenTtl,
         );
         
         // Store user data in SharedPreferences

@@ -36,7 +36,10 @@ class AuthManager extends ChangeNotifier {
   DateTime? _lastTokenRefresh;
   bool _isRefreshingToken = false;
   static Duration get _tokenRefreshCooldown => Duration(seconds: Config.jwtTokenRefreshCooldown);
-  static Duration get _tokenLifetime => Duration(seconds: Config.jwtAccessTokenExpires);
+  
+  // TTL values from backend (stored in secure storage)
+  int? _accessTokenTtl;
+  int? _refreshTokenTtl;
 
   factory AuthManager() => _instance;
   AuthManager._internal();
@@ -49,21 +52,33 @@ class AuthManager extends ChangeNotifier {
     final moduleManager = Provider.of<ModuleManager>(context, listen: false);
     _connectionModule = moduleManager.getModuleByType<ConnectionsApiModule>();
     
-    // Initialize state-aware token refresh system
-    initializeStateAwareRefresh();
-    
-    _log.info('✅ AuthManager initialized');
   }
 
   /// ✅ Store JWT tokens in secure storage
   Future<void> storeTokens({
     required String accessToken,
     required String refreshToken,
+    int? accessTokenTtl,
+    int? refreshTokenTtl,
   }) async {
     try {
       await _secureStorage.write(key: 'access_token', value: accessToken);
       await _secureStorage.write(key: 'refresh_token', value: refreshToken);
       await _secureStorage.write(key: 'token_stored_at', value: DateTime.now().toIso8601String());
+      
+      // Store TTL values from backend if provided
+      if (accessTokenTtl != null) {
+        await _secureStorage.write(key: 'access_token_ttl', value: accessTokenTtl.toString());
+        _accessTokenTtl = accessTokenTtl;
+        _log.info('✅ Access token TTL stored: ${accessTokenTtl}s');
+      }
+      
+      if (refreshTokenTtl != null) {
+        await _secureStorage.write(key: 'refresh_token_ttl', value: refreshTokenTtl.toString());
+        _refreshTokenTtl = refreshTokenTtl;
+        _log.info('✅ Refresh token TTL stored: ${refreshTokenTtl}s');
+      }
+      
       _log.info('✅ JWT tokens stored successfully in secure storage');
     } catch (e) {
       _log.error('❌ Failed to store JWT tokens: $e');
@@ -103,15 +118,76 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
+  /// ✅ Get access token TTL (from backend or fallback)
+  Future<int> getAccessTokenTtl() async {
+    try {
+      _log.info('🔍 getAccessTokenTtl: Starting...');
+      
+      // Try to get TTL from secure storage (from backend)
+      final storedTtl = await _secureStorage.read(key: 'access_token_ttl');
+      _log.info('🔍 getAccessTokenTtl: Stored TTL: $storedTtl');
+      
+      if (storedTtl != null) {
+        final ttl = int.tryParse(storedTtl);
+        if (ttl != null) {
+          _accessTokenTtl = ttl;
+          _log.info('🔍 getAccessTokenTtl: Using stored TTL: ${ttl}s');
+          return ttl;
+        }
+      }
+      
+      // Fallback to config value
+      _log.info('⚠️ Using fallback access token TTL: ${Config.jwtAccessTokenExpiresFallback}s');
+      return Config.jwtAccessTokenExpiresFallback;
+    } catch (e) {
+      _log.error('❌ Error getting access token TTL: $e');
+      return Config.jwtAccessTokenExpiresFallback;
+    }
+  }
+
+  /// ✅ Get refresh token TTL (from backend or fallback)
+  Future<int> getRefreshTokenTtl() async {
+    try {
+      // Try to get TTL from secure storage (from backend)
+      final storedTtl = await _secureStorage.read(key: 'refresh_token_ttl');
+      if (storedTtl != null) {
+        final ttl = int.tryParse(storedTtl);
+        if (ttl != null) {
+          _refreshTokenTtl = ttl;
+          return ttl;
+        }
+      }
+      
+      // Fallback to config value
+      _log.info('⚠️ Using fallback refresh token TTL: ${Config.jwtRefreshTokenExpiresFallback}s');
+      return Config.jwtRefreshTokenExpiresFallback;
+    } catch (e) {
+      _log.error('❌ Error getting refresh token TTL: $e');
+      return Config.jwtRefreshTokenExpiresFallback;
+    }
+  }
+
+  /// ✅ Get token lifetime duration
+  Future<Duration> getTokenLifetime() async {
+    _log.info('🔍 getTokenLifetime: Starting...');
+    final ttl = await getAccessTokenTtl();
+    _log.info('🔍 getTokenLifetime: TTL: ${ttl}s');
+    return Duration(seconds: ttl);
+  }
+
   /// ✅ Clear all JWT tokens from secure storage
   Future<void> clearTokens() async {
     try {
       await _secureStorage.delete(key: 'access_token');
       await _secureStorage.delete(key: 'refresh_token');
       await _secureStorage.delete(key: 'token_stored_at');
+      await _secureStorage.delete(key: 'access_token_ttl');
+      await _secureStorage.delete(key: 'refresh_token_ttl');
       _lastTokenRefresh = null;
       _isRefreshingToken = false;
-      _log.info('✅ JWT tokens cleared from secure storage');
+      _accessTokenTtl = null;
+      _refreshTokenTtl = null;
+      _log.info('✅ JWT tokens and TTL values cleared from secure storage');
     } catch (e) {
       _log.error('❌ Error clearing JWT tokens: $e');
       rethrow;
@@ -125,7 +201,7 @@ class AuthManager extends ChangeNotifier {
     final timeSinceLastRefresh = DateTime.now().difference(_lastTokenRefresh!);
     return timeSinceLastRefresh >= _tokenRefreshCooldown;
   }
-  
+
   /// ✅ Force refresh token (bypasses cooldown)
   Future<String?> forceRefreshToken() async {
     final refreshToken = await getRefreshToken();
@@ -180,12 +256,27 @@ class AuthManager extends ChangeNotifier {
   /// ✅ Check if token is likely expired based on configurable lifetime
   Future<bool> _isTokenLikelyExpired() async {
     try {
+      _log.info('🔍 _isTokenLikelyExpired: Starting...');
+      
       final storedAt = await _secureStorage.read(key: 'token_stored_at');
-      if (storedAt == null) return true;
+      _log.info('🔍 _isTokenLikelyExpired: Stored at: $storedAt');
+      
+      if (storedAt == null) {
+        _log.info('🔍 _isTokenLikelyExpired: No stored timestamp, token expired');
+        return true;
+      }
       
       final storedTime = DateTime.parse(storedAt);
       final timeSinceStored = DateTime.now().difference(storedTime);
-      return timeSinceStored >= _tokenLifetime;
+      _log.info('🔍 _isTokenLikelyExpired: Time since stored: ${timeSinceStored.inSeconds}s');
+      
+      final tokenLifetime = await getTokenLifetime();
+      _log.info('🔍 _isTokenLikelyExpired: Token lifetime: ${tokenLifetime.inSeconds}s');
+      
+      final isExpired = timeSinceStored >= tokenLifetime;
+      _log.info('🔍 _isTokenLikelyExpired: Is expired: $isExpired');
+      
+      return isExpired;
     } catch (e) {
       _log.error('❌ Error checking token expiration: $e');
       return true;
@@ -234,10 +325,18 @@ class AuthManager extends ChangeNotifier {
         final newAccessToken = data['access_token'];
         final newRefreshToken = data['refresh_token'] ?? refreshToken;
         
-        // Store the new tokens
+        // Extract TTL values from refresh response
+        final expiresIn = data['expires_in'];
+        final refreshExpiresIn = data['refresh_expires_in'];
+        final accessTokenTtl = expiresIn is int ? expiresIn : null;
+        final refreshTokenTtl = refreshExpiresIn is int ? refreshExpiresIn : null;
+        
+        // Store the new tokens with TTL values
         await storeTokens(
           accessToken: newAccessToken,
           refreshToken: newRefreshToken,
+          accessTokenTtl: accessTokenTtl,
+          refreshTokenTtl: refreshTokenTtl,
         );
         
         _log.info('✅ Token refreshed successfully');
@@ -258,21 +357,30 @@ class AuthManager extends ChangeNotifier {
   /// ✅ Get current valid JWT token (with state-aware refresh logic)
   Future<String?> getCurrentValidToken() async {
     try {
+      _log.info('🔍 getCurrentValidToken: Starting...');
+      
       // First, try to get the current access token
+      _log.info('🔍 getCurrentValidToken: Getting access token...');
       final accessToken = await getAccessToken();
+      _log.info('🔍 getCurrentValidToken: Access token result: ${accessToken != null ? "found" : "null"}');
+      
       if (accessToken == null) {
         _log.info('⚠️ No access token available');
         return null;
       }
       
       // Check if token is likely expired
+      _log.info('🔍 getCurrentValidToken: Checking if token is expired...');
       final isExpired = await _isTokenLikelyExpired();
+      _log.info('🔍 getCurrentValidToken: Token expired: $isExpired');
+      
       if (!isExpired) {
         _log.info('✅ Token is still fresh, using existing token');
         return accessToken;
       }
       
       // ✅ SINGLE STATE-AWARE REFRESH LOGIC
+      _log.info('🔍 getCurrentValidToken: Token expired, performing state-aware refresh...');
       return await _performStateAwareTokenRefresh(accessToken);
     } catch (e) {
       _log.error('❌ Error retrieving valid JWT token: $e');
@@ -289,28 +397,29 @@ class AuthManager extends ChangeNotifier {
     if (mainState == "active_game" || mainState == "pre_game" || mainState == "post_game") {
       _log.info('⏸️ App is in game state (state: $mainState), queuing refresh for later...');
       _queueTokenRefreshForNonGameState();
-      // Return existing token to avoid breaking gameplay
+      // Return existing token to avoid breaking gameplay (expired tokens accepted in game state)
+      _log.info('⚠️ Using expired token in game state - refresh will occur when game ends');
       return currentToken;
     }
     
     // ✅ Perform refresh when not in game state
     _log.info('🔄 App is not in game state (state: $mainState), proceeding with token refresh...');
     
-    final refreshToken = await getRefreshToken();
-    if (refreshToken != null && _shouldRefreshToken()) {
-      _log.info('🔄 Token appears expired, attempting refresh...');
-      final newToken = await refreshAccessToken(refreshToken);
-      if (newToken != null) {
-        _log.info('✅ Retrieved fresh JWT token');
-        return newToken;
-      } else {
+      final refreshToken = await getRefreshToken();
+      if (refreshToken != null && _shouldRefreshToken()) {
+        _log.info('🔄 Token appears expired, attempting refresh...');
+        final newToken = await refreshAccessToken(refreshToken);
+        if (newToken != null) {
+          _log.info('✅ Retrieved fresh JWT token');
+          return newToken;
+        } else {
         _log.info('❌ Token refresh failed, token is invalid');
         return null;
-      }
-    } else if (refreshToken == null) {
+        }
+      } else if (refreshToken == null) {
       _log.info('⚠️ No refresh token available, token is invalid');
       return null;
-    } else {
+      } else {
       _log.info('⏸️ Token refresh in cooldown, but token is expired');
       return null;
     }
@@ -319,7 +428,9 @@ class AuthManager extends ChangeNotifier {
   /// ✅ Check if user has valid JWT token
   Future<bool> hasValidToken() async {
     try {
+      _log.info('🔍 hasValidToken: Starting token validation...');
       final token = await getCurrentValidToken();
+      _log.info('🔍 hasValidToken: Token result: ${token != null ? "valid" : "null"}');
       return token != null;
     } catch (e) {
       _log.error('❌ Error checking token validity: $e');
@@ -341,7 +452,10 @@ class AuthManager extends ChangeNotifier {
       _log.info('🔍 Validating session on startup...');
 
       // Step 1: Check if user thinks they're logged in
+      _log.info('🔍 Step 1: Checking if user thinks they\'re logged in...');
       final isLoggedIn = _sharedPref!.getBool('is_logged_in') ?? false;
+      _log.info('🔍 User logged in status: $isLoggedIn');
+      
       if (!isLoggedIn) {
         _log.info('ℹ️ User not logged in');
         _currentStatus = AuthStatus.loggedOut;
@@ -351,12 +465,18 @@ class AuthManager extends ChangeNotifier {
       }
 
       // Step 2: Check if JWT token exists and is valid
+      _log.info('🔍 Step 2: Checking if JWT token exists and is valid...');
       final hasValidJWT = await hasValidToken();
+      _log.info('🔍 Has valid JWT: $hasValidJWT');
+      
       if (!hasValidJWT) {
         _log.info('⚠️ No valid JWT token found, attempting force refresh...');
         
         // Try force refresh on startup if token is invalid
+        _log.info('🔍 Attempting force refresh...');
         final forceRefreshedToken = await forceRefreshToken();
+        _log.info('🔍 Force refresh result: ${forceRefreshedToken != null ? "success" : "failed"}');
+        
         if (forceRefreshedToken != null) {
           _log.info('✅ Force refresh successful on startup');
           _currentStatus = AuthStatus.loggedIn;
@@ -365,19 +485,24 @@ class AuthManager extends ChangeNotifier {
           return AuthStatus.loggedIn;
         } else {
           _log.info('❌ Force refresh failed, clearing stored data');
-          await _clearStoredData();
-          _currentStatus = AuthStatus.tokenExpired;
-          _isValidating = false;
-          notifyListeners();
-          return AuthStatus.tokenExpired;
+        await _clearStoredData();
+        _currentStatus = AuthStatus.tokenExpired;
+        _isValidating = false;
+        notifyListeners();
+        return AuthStatus.tokenExpired;
         }
       }
 
       // Step 3: Check session age (optional)
+      _log.info('🔍 Step 3: Checking session age...');
       final lastLogin = _sharedPref!.getString('last_login_timestamp');
+      _log.info('🔍 Last login timestamp: $lastLogin');
+      
       if (lastLogin != null) {
         final lastLoginTime = DateTime.parse(lastLogin);
         final daysSinceLogin = DateTime.now().difference(lastLoginTime).inDays;
+        _log.info('🔍 Days since login: $daysSinceLogin');
+        
         if (daysSinceLogin > 30) { // Configurable
           _log.info('⚠️ Session expired (${daysSinceLogin} days old)');
           await _clearStoredData();
@@ -495,11 +620,6 @@ class AuthManager extends ChangeNotifier {
     return _sharedPref?.getBool('is_logged_in') ?? false;
   }
 
-  /// ✅ Initialize state-aware token refresh system
-  void initializeStateAwareRefresh() {
-    _log.info("✅ State-aware token refresh system initialized");
-  }
-
   /// ✅ Queue token refresh for when app is NOT in game-related states
   void _queueTokenRefreshForNonGameState() {
     _pendingTokenRefresh = true;
@@ -599,5 +719,63 @@ class AuthManager extends ChangeNotifier {
   void dispose() {
     super.dispose();
     _log.info('🛑 AuthManager disposed');
+  }
+
+  /// ✅ TEST METHOD: Manually set access token TTL for testing
+  Future<void> setTestAccessTokenTtl(int ttlSeconds) async {
+    try {
+      await _secureStorage.write(key: 'access_token_ttl', value: ttlSeconds.toString());
+      _accessTokenTtl = ttlSeconds;
+      _log.info('🧪 TEST: Set access token TTL to ${ttlSeconds}s for testing');
+    } catch (e) {
+      _log.error('❌ Error setting test TTL: $e');
+    }
+  }
+
+  /// ✅ TEST METHOD: Manually set token stored timestamp for testing
+  Future<void> setTestTokenStoredAt(DateTime storedTime) async {
+    try {
+      await _secureStorage.write(key: 'token_stored_at', value: storedTime.toIso8601String());
+      _log.info('🧪 TEST: Set token stored at ${storedTime.toIso8601String()} for testing');
+    } catch (e) {
+      _log.error('❌ Error setting test timestamp: $e');
+    }
+  }
+
+  /// ✅ TEST METHOD: Set TTL to 10 seconds for testing
+  Future<void> setTtlTo10Seconds() async {
+    try {
+      await setTestAccessTokenTtl(10);
+      _log.info('🧪 TEST: Set TTL to 10 seconds for testing');
+    } catch (e) {
+      _log.error('❌ Error setting TTL to 10 seconds: $e');
+    }
+  }
+
+  /// ✅ Wait for queued token refresh to complete
+  Future<void> waitForQueuedRefresh() async {
+    if (!_pendingTokenRefresh) {
+      _log.info('✅ No queued refresh to wait for');
+      return;
+    }
+    
+    _log.info('⏳ Waiting for queued token refresh to complete...');
+    
+    // Wait for the refresh to complete (max 30 seconds)
+    int attempts = 0;
+    const maxAttempts = 30; // 30 seconds max wait
+    
+    while (_pendingTokenRefresh && attempts < maxAttempts) {
+      await Future.delayed(Duration(seconds: Config.tokenRefreshWaitTimeout));
+      attempts++;
+      _log.debug('⏳ Still waiting for refresh... (attempt $attempts/$maxAttempts)');
+    }
+    
+    if (_pendingTokenRefresh) {
+      _log.error('❌ Timeout waiting for queued token refresh');
+      throw Exception('Token refresh timeout');
+    } else {
+      _log.info('✅ Queued token refresh completed');
+    }
   }
 } 

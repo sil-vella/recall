@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/00_base/module_base.dart';
 import '../../../../core/managers/module_manager.dart';
+import '../../../../core/managers/hooks_manager.dart';
+import '../../../../core/managers/app_manager.dart';
 import '../../../../tools/logging/logger.dart';
+import '../../../../utils/consts/config.dart';
 
 class BannerAdModule extends ModuleBase {
   static final Logger _log = Logger();
   final Map<String, BannerAd> _banners = {};
   final Map<String, bool> _adLoaded = {};
+  late HooksManager _hooksManager;
 
   /// ✅ Constructor with module key and dependencies
   BannerAdModule() : super("admobs_banner_ad_module", dependencies: []);
@@ -15,7 +20,36 @@ class BannerAdModule extends ModuleBase {
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
+    
+    // Get HooksManager from AppManager
+    final appManager = Provider.of<AppManager>(context, listen: false);
+    _hooksManager = appManager.hooksManager;
+    
     _log.info('📢 BannerAdModule initialized with context.');
+    
+    // Register callbacks to global hooks
+    _registerBannerCallbacks();
+  }
+
+  /// ✅ Register callbacks to global hooks
+  void _registerBannerCallbacks() {
+    _log.info('🔗 Registering banner ad callbacks to global hooks...');
+    
+    // Register callback for top banner bar hook
+    _hooksManager.registerHookWithData('top_banner_bar_loaded', (data) {
+      _log.info('📢 Top banner bar callback triggered');
+      // Load the top banner ad when global hook is triggered
+      loadBannerAd(Config.admobsTopBanner);
+    }, priority: 10); // Lower priority so it runs after the global hook
+    
+    // Register callback for bottom banner bar hook
+    _hooksManager.registerHookWithData('bottom_banner_bar_loaded', (data) {
+      _log.info('📢 Bottom banner bar callback triggered');
+      // Load the bottom banner ad when global hook is triggered
+      loadBannerAd(Config.admobsBottomBanner);
+    }, priority: 10); // Lower priority so it runs after the global hook
+    
+    _log.info('✅ Banner ad callbacks registered to global hooks successfully');
   }
 
   /// ✅ Loads the banner ad with a specified ad unit ID
@@ -81,6 +115,16 @@ class BannerAdModule extends ModuleBase {
       height: bannerAd.size.height.toDouble(),
       child: AdWidget(ad: bannerAd),
     );
+  }
+
+  /// ✅ Get top banner widget (hook callback)
+  Widget getTopBannerWidget(BuildContext context) {
+    return getBannerWidget(context, Config.admobsTopBanner);
+  }
+
+  /// ✅ Get bottom banner widget (hook callback)
+  Widget getBottomBannerWidget(BuildContext context) {
+    return getBannerWidget(context, Config.admobsBottomBanner);
   }
 
   /// ✅ Dispose a specific banner ad

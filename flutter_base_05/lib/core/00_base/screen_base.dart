@@ -5,7 +5,6 @@ import '../../tools/logging/logger.dart';
 import '../managers/app_manager.dart';
 import '../managers/module_manager.dart';
 import '../managers/navigation_manager.dart';
-import '../../utils/consts/config.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
 
@@ -295,12 +294,15 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     appManager = Provider.of<AppManager>(context, listen: false);
     bannerAdModule = _moduleManager.getModuleByType<BannerAdModule>();
 
-    if (bannerAdModule != null) {
-      bannerAdModule!.loadBannerAd(Config.admobsTopBanner);
-      bannerAdModule!.loadBannerAd(Config.admobsBottomBanner);
-      log.info('✅ Banner Ads preloaded.');
-    } else {
+    if (bannerAdModule == null) {
       log.error("❌ BannerAdModule not found.");
+    } else {
+      // Trigger hooks after the widget is built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        appManager.triggerTopBannerBarHook(context);
+        appManager.triggerBottomBannerBarHook(context);
+        log.info('✅ Global banner bar hooks triggered.');
+      });
     }
   }
 
@@ -326,16 +328,26 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
       body: SafeArea(
         child: Container(
-          decoration: widget.getBackground(context) ?? BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage(AppBackgrounds.backgrounds[0]),
-              fit: BoxFit.cover,
-              colorFilter: ColorFilter.mode(
-                AppColors.primaryColor.withOpacity(0.7),
-                BlendMode.darken,
-              ),
+          decoration: widget.getBackground(context) ??
+            // Temporarily disabled background image
+            BoxDecoration(
+              color: AppColors.primaryColor,
             ),
-          ),
+            // (AppBackgrounds.backgrounds.isNotEmpty
+            //   ? BoxDecoration(
+            //       image: DecorationImage(
+            //         image: AssetImage(AppBackgrounds.backgrounds[0]),
+            //         fit: BoxFit.cover,
+            //         colorFilter: ColorFilter.mode(
+            //           AppColors.primaryColor.withOpacity(0.7),
+            //           BlendMode.darken,
+            //         ),
+            //       ),
+            //     )
+            //   : BoxDecoration(
+            //       color: AppColors.primaryColor,
+            //     )
+            // ),
           child: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
@@ -353,7 +365,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                         SizedBox(
                           height: 50,
                           child: Center(
-                            child: bannerAdModule!.getBannerWidget(context, Config.admobsTopBanner),
+                            child: bannerAdModule!.getTopBannerWidget(context),
                           ),
                         ),
 
@@ -373,7 +385,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                         SizedBox(
                           height: 50,
                           child: Center(
-                            child: bannerAdModule!.getBannerWidget(context, Config.admobsBottomBanner),
+                            child: bannerAdModule!.getBottomBannerWidget(context),
                           ),
                         ),
                     ],

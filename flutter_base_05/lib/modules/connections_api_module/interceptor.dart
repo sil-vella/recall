@@ -1,8 +1,10 @@
 import 'package:http_interceptor/http_interceptor.dart';
 import 'package:http/http.dart';
 import '../../core/managers/auth_manager.dart';
+import '../../tools/logging/logger.dart';
 
 class AuthInterceptor implements InterceptorContract {
+  static final Logger _log = Logger();
   AuthManager? _authManager;
   bool _isRefreshing = false;
 
@@ -43,11 +45,13 @@ class AuthInterceptor implements InterceptorContract {
   @override
   Future<BaseResponse> interceptResponse({required BaseResponse response}) async {
     if (response is Response && response.statusCode == 401) {
-      // ✅ Handle Unauthorized using AuthManager
+      // ✅ Handle Unauthorized using AuthManager - but don't clear tokens here
+      // Let AuthManager handle token clearing through its own logic
       if (_authManager == null) {
         _authManager = AuthManager();
       }
-      await _authManager!.clearTokens();
+      // Don't clear tokens here - let AuthManager handle it
+      _log.info('⚠️ 401 Unauthorized detected in interceptor');
     }
     return response;
   }

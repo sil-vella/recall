@@ -8,6 +8,8 @@ import 'core/managers/services_manager.dart';
 import 'core/managers/state_manager.dart';
 import 'core/managers/navigation_manager.dart';
 import 'core/managers/auth_manager.dart';
+import 'core/managers/hooks_manager.dart';
+import 'tools/logging/logger.dart';
 
 import 'utils/consts/config.dart';
 
@@ -47,6 +49,8 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
+  static final Logger _log = Logger();
+  
   const MyApp({super.key});
 
   @override
@@ -55,6 +59,22 @@ class MyApp extends StatelessWidget {
     final navigationManager = Provider.of<NavigationManager>(context, listen: false);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Set up navigation callback first
+      navigationManager.setNavigationCallback((route) {
+        final router = navigationManager.router;
+        _log.info('🧭 Navigation callback executing for route: $route');
+        _log.info('🧭 Router instance: $router');
+        router.go(route);
+        _log.info('🧭 Router.go() called for route: $route');
+      });
+      
+      // Mark router as initialized after MaterialApp is built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        navigationManager.markRouterInitialized();
+        // Hook is already triggered by markRouterInitialized()
+      });
+      
+      // Then initialize the app
       if (!appManager.isInitialized) {
         appManager.initializeApp(context);
       }
@@ -66,10 +86,16 @@ class MyApp extends StatelessWidget {
       );
     }
 
+    final router = navigationManager.router;
+    _log.info('🧭 MaterialApp.router using router: $router');
+    
+    // Set the router instance in NavigationManager
+    navigationManager.setRouterInstance(router);
+    
     return MaterialApp.router(
       title: "recall App",
       theme: ThemeData.dark(),
-      routerConfig: navigationManager.router,
+      routerConfig: router,
     );
   }
 }

@@ -44,6 +44,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   @override
   void initState() {
     super.initState();
+    _log.info('🔍 AccountScreen initState called');
     _initializeModules();
   }
   
@@ -340,6 +341,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   
   @override
   Widget buildContent(BuildContext context) {
+    _log.info('🔍 AccountScreen buildContent called');
     // Use AnimatedBuilder to listen to StateManager changes
     return AnimatedBuilder(
       animation: StateManager(),
@@ -350,6 +352,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         final isLoggedIn = loginState?["isLoggedIn"] ?? false;
         final username = loginState?["username"] ?? "";
         final email = loginState?["email"] ?? "";
+        
+        _log.info('🔍 AccountScreen - isLoggedIn: $isLoggedIn, username: $username');
         
         // If user is logged in, show user profile
         if (isLoggedIn) {

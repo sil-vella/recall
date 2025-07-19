@@ -131,9 +131,8 @@ class ConnectionsApiModule extends ModuleBase {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body);
     } else if (response.statusCode == 401) {
-      _log.error('⚠️ Unauthorized: Clearing token...');
-      // Use AuthManager to clear tokens
-      _authManager?.clearTokens();
+      _log.error('⚠️ Unauthorized: Letting AuthManager handle token clearing...');
+      // Don't clear tokens here - let AuthManager handle it through its own logic
       return {"message": "Session expired. Please log in again.", "error": "Unauthorized"};
     } else {
       _log.error('⚠️ Server Error: ${response.statusCode}');

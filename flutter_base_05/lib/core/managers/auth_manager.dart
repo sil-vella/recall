@@ -6,6 +6,8 @@ import '../services/shared_preferences.dart';
 import '../managers/services_manager.dart';
 import '../managers/state_manager.dart';
 import '../managers/module_manager.dart';
+import '../managers/hooks_manager.dart';
+import '../managers/navigation_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../utils/consts/config.dart';
 import 'dart:async'; // Added for Timer
@@ -32,14 +34,17 @@ class AuthManager extends ChangeNotifier {
   bool _isValidating = false;
   bool get isValidating => _isValidating;
 
-  // Token refresh cooldown and state management
-  DateTime? _lastTokenRefresh;
+  // Token refresh state management (no cooldown)
   bool _isRefreshingToken = false;
-  static Duration get _tokenRefreshCooldown => Duration(seconds: Config.jwtTokenRefreshCooldown);
   
   // TTL values from backend (stored in secure storage)
   int? _accessTokenTtl;
   int? _refreshTokenTtl;
+  
+  // Flag to prevent duplicate hook triggers during validation
+  bool _hasTriggeredAuthHook = false;
+  
+
 
   factory AuthManager() => _instance;
   AuthManager._internal();
@@ -52,6 +57,46 @@ class AuthManager extends ChangeNotifier {
     final moduleManager = Provider.of<ModuleManager>(context, listen: false);
     _connectionModule = moduleManager.getModuleByType<ConnectionsApiModule>();
     
+    // Register authentication navigation callbacks
+    _registerAuthNavigationCallbacks();
+  }
+
+  /// ✅ Register navigation callbacks for authentication events
+  void _registerAuthNavigationCallbacks() {
+    final hooksManager = HooksManager();
+    final navigationManager = NavigationManager();
+    
+    _log.info('🔧 Registering authentication navigation callbacks');
+    
+    // Register callback for when authentication is required
+    hooksManager.registerHookWithData('auth_required', (data) {
+      _log.info('🔔 Auth required navigation callback triggered: $data');
+      // Navigation handled by LoginModule
+    });
+    
+    // Register callback for when token refresh fails
+    hooksManager.registerHookWithData('auth_token_refresh_failed', (data) {
+      _log.info('🔔 Token refresh failed navigation callback triggered: $data');
+      // Navigation handled by LoginModule
+    });
+    
+    // Register callback for authentication errors
+    hooksManager.registerHookWithData('auth_error', (data) {
+      _log.info('🔔 Auth error navigation callback triggered: $data');
+      // Navigation handled by LoginModule
+    });
+    
+    // Register callback for refresh token expiration
+    hooksManager.registerHookWithData('refresh_token_expired', (data) {
+      _log.info('🔔 Refresh token expired navigation callback triggered: $data');
+      // Navigation handled by LoginModule
+    });
+    
+    // Register callback for router initialization
+    hooksManager.registerHook('router_initialized', () {
+      _log.info('🔔 Router initialized hook triggered');
+      // Router is now ready for navigation
+    });
   }
 
   /// ✅ Store JWT tokens in secure storage
@@ -183,7 +228,6 @@ class AuthManager extends ChangeNotifier {
       await _secureStorage.delete(key: 'token_stored_at');
       await _secureStorage.delete(key: 'access_token_ttl');
       await _secureStorage.delete(key: 'refresh_token_ttl');
-      _lastTokenRefresh = null;
       _isRefreshingToken = false;
       _accessTokenTtl = null;
       _refreshTokenTtl = null;
@@ -194,24 +238,15 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
-  /// ✅ Check if token needs refresh based on configurable cooldown time
-  bool _shouldRefreshToken() {
-    if (_lastTokenRefresh == null) return true;
-    
-    final timeSinceLastRefresh = DateTime.now().difference(_lastTokenRefresh!);
-    return timeSinceLastRefresh >= _tokenRefreshCooldown;
-  }
-
-  /// ✅ Force refresh token (bypasses cooldown)
-  Future<String?> forceRefreshToken() async {
+  /// ✅ Refresh token (no cooldown)
+  Future<String?> refreshToken() async {
     final refreshToken = await getRefreshToken();
     if (refreshToken == null) {
-      _log.error('❌ No refresh token available for force refresh');
+      _log.error('❌ No refresh token available for refresh');
       return null;
     }
     
-    _log.info('🔄 Force refreshing token (bypassing cooldown)...');
-    _lastTokenRefresh = null; // Reset cooldown
+    _log.info('🔄 Refreshing token...');
     return await refreshAccessToken(refreshToken);
   }
 
@@ -283,6 +318,36 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
+  /// ✅ Check if refresh token is likely expired
+  Future<bool> _isRefreshTokenLikelyExpired() async {
+    try {
+      _log.info('🔍 _isRefreshTokenLikelyExpired: Starting...');
+      
+      final storedAt = await _secureStorage.read(key: 'token_stored_at');
+      _log.info('🔍 _isRefreshTokenLikelyExpired: Stored at: $storedAt');
+      
+      if (storedAt == null) {
+        _log.info('🔍 _isRefreshTokenLikelyExpired: No stored timestamp, refresh token expired');
+        return true;
+      }
+      
+      final storedTime = DateTime.parse(storedAt);
+      final timeSinceStored = DateTime.now().difference(storedTime);
+      _log.info('🔍 _isRefreshTokenLikelyExpired: Time since stored: ${timeSinceStored.inSeconds}s');
+      
+      final refreshTokenLifetime = await getRefreshTokenTtl();
+      _log.info('🔍 _isRefreshTokenLikelyExpired: Refresh token lifetime: ${refreshTokenLifetime}s');
+      
+      final isExpired = timeSinceStored.inSeconds >= refreshTokenLifetime;
+      _log.info('🔍 _isRefreshTokenLikelyExpired: Is expired: $isExpired');
+      
+      return isExpired;
+    } catch (e) {
+      _log.error('❌ Error checking refresh token expiration: $e');
+      return true;
+    }
+  }
+
   /// ✅ Refresh access token using refresh token
   Future<String?> refreshAccessToken(String refreshToken) async {
     if (_connectionModule == null) {
@@ -296,14 +361,7 @@ class AuthManager extends ChangeNotifier {
       return await getAccessToken();
     }
 
-    // Check cooldown period
-    if (!_shouldRefreshToken()) {
-      _log.info('⏸️ Token refresh in cooldown period, using existing token');
-      return await getAccessToken();
-    }
-
     _isRefreshingToken = true;
-    _lastTokenRefresh = DateTime.now();
 
     try {
       _log.info('🔄 Refreshing access token...');
@@ -365,8 +423,9 @@ class AuthManager extends ChangeNotifier {
       _log.info('🔍 getCurrentValidToken: Access token result: ${accessToken != null ? "found" : "null"}');
       
       if (accessToken == null) {
-        _log.info('⚠️ No access token available');
-        return null;
+        _log.info('⚠️ No access token available, attempting refresh...');
+        // Try to refresh even without access token
+        return await _performStateAwareTokenRefresh(null);
       }
       
       // Check if token is likely expired
@@ -379,7 +438,7 @@ class AuthManager extends ChangeNotifier {
         return accessToken;
       }
       
-      // ✅ SINGLE STATE-AWARE REFRESH LOGIC
+      // ✅ STATE-AWARE REFRESH LOGIC
       _log.info('🔍 getCurrentValidToken: Token expired, performing state-aware refresh...');
       return await _performStateAwareTokenRefresh(accessToken);
     } catch (e) {
@@ -388,8 +447,8 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
-  /// ✅ Single state-aware token refresh method
-  Future<String?> _performStateAwareTokenRefresh(String currentToken) async {
+  /// ✅ State-aware token refresh method
+  Future<String?> _performStateAwareTokenRefresh(String? currentToken) async {
     final stateManager = StateManager();
     final mainState = stateManager.getMainAppState<String>("main_state") ?? "unknown";
     
@@ -402,25 +461,83 @@ class AuthManager extends ChangeNotifier {
       return currentToken;
     }
     
+    // If no current token, we can't use it in game state
+    if (currentToken == null) {
+      _log.info('⚠️ No current token available, proceeding with refresh...');
+    }
+    
     // ✅ Perform refresh when not in game state
     _log.info('🔄 App is not in game state (state: $mainState), proceeding with token refresh...');
     
-      final refreshToken = await getRefreshToken();
-      if (refreshToken != null && _shouldRefreshToken()) {
-        _log.info('🔄 Token appears expired, attempting refresh...');
-        final newToken = await refreshAccessToken(refreshToken);
-        if (newToken != null) {
-          _log.info('✅ Retrieved fresh JWT token');
-          return newToken;
+    final refreshToken = await getRefreshToken();
+    if (refreshToken != null) {
+      // ✅ Check if refresh token is expired before using it
+      _log.info('🔍 Checking if refresh token is expired...');
+      final isRefreshTokenExpired = await _isRefreshTokenLikelyExpired();
+      _log.info('🔍 Refresh token expired: $isRefreshTokenExpired');
+      
+      if (isRefreshTokenExpired) {
+        _log.error('❌ Refresh token is expired, cannot refresh access token');
+        
+        // Clear stored data since both tokens are expired
+        await _clearStoredData();
+        
+        // Trigger refresh token expired hook (LoginModule will handle navigation)
+        if (!_hasTriggeredAuthHook) {
+          _hasTriggeredAuthHook = true;
+          final hooksManager = HooksManager();
+          hooksManager.triggerHookWithData('refresh_token_expired', {
+            'status': 'refresh_token_expired',
+            'reason': 'refresh_token_expired',
+            'message': 'Refresh token has expired. Please log in again.',
+          });
         } else {
-        _log.info('❌ Token refresh failed, token is invalid');
-        return null;
+          _log.info('⏸️ Skipping duplicate auth hook trigger');
         }
-      } else if (refreshToken == null) {
-      _log.info('⚠️ No refresh token available, token is invalid');
-      return null;
+        return null;
+      }
+      
+      _log.info('🔄 Token appears expired, attempting refresh...');
+      final newToken = await refreshAccessToken(refreshToken);
+      if (newToken != null) {
+        _log.info('✅ Retrieved fresh JWT token');
+        return newToken;
       } else {
-      _log.info('⏸️ Token refresh in cooldown, but token is expired');
+        _log.info('❌ Token refresh failed, token is invalid');
+        
+        // Clear stored data since refresh failed
+        await _clearStoredData();
+        
+        // Trigger token refresh failed hook for actual refresh failure
+        if (!_hasTriggeredAuthHook) {
+          _hasTriggeredAuthHook = true;
+          final hooksManager = HooksManager();
+          hooksManager.triggerHookWithData('auth_token_refresh_failed', {
+            'status': 'token_refresh_failed',
+            'reason': 'refresh_attempt_failed',
+            'message': 'Token refresh failed. Please log in again.',
+          });
+        } else {
+          _log.info('⏸️ Skipping duplicate auth hook trigger');
+        }
+        return null;
+      }
+    } else {
+      _log.info('⚠️ No refresh token available, token is invalid');
+      
+      // Trigger auth required hook when no tokens are available
+      if (!_hasTriggeredAuthHook) {
+        _hasTriggeredAuthHook = true;
+        final hooksManager = HooksManager();
+        hooksManager.triggerHookWithData('auth_required', {
+          'status': 'auth_required',
+          'reason': 'no_tokens_available',
+          'message': 'No authentication tokens available. Please log in.',
+        });
+        _log.info('🔔 Triggered auth_required hook for no tokens available');
+      } else {
+        _log.info('⏸️ Skipping duplicate auth hook trigger');
+      }
       return null;
     }
   }
@@ -445,6 +562,7 @@ class AuthManager extends ChangeNotifier {
       return AuthStatus.error;
     }
 
+    _hasTriggeredAuthHook = false;
     _isValidating = true;
     notifyListeners();
 
@@ -470,27 +588,19 @@ class AuthManager extends ChangeNotifier {
       _log.info('🔍 Has valid JWT: $hasValidJWT');
       
       if (!hasValidJWT) {
-        _log.info('⚠️ No valid JWT token found, attempting force refresh...');
+        _log.info('⚠️ No valid JWT token found - token validation already attempted refresh');
         
-        // Try force refresh on startup if token is invalid
-        _log.info('🔍 Attempting force refresh...');
-        final forceRefreshedToken = await forceRefreshToken();
-        _log.info('🔍 Force refresh result: ${forceRefreshedToken != null ? "success" : "failed"}');
-        
-        if (forceRefreshedToken != null) {
-          _log.info('✅ Force refresh successful on startup');
-          _currentStatus = AuthStatus.loggedIn;
-          _isValidating = false;
-          notifyListeners();
-          return AuthStatus.loggedIn;
-        } else {
-          _log.info('❌ Force refresh failed, clearing stored data');
+        // hasValidToken() already attempted token refresh, so we know it failed
+        _log.info('❌ Token refresh failed during validation, clearing stored data');
         await _clearStoredData();
         _currentStatus = AuthStatus.tokenExpired;
         _isValidating = false;
         notifyListeners();
+        
+        // No need to trigger auth_required hook - refresh_token_expired hook already handled it
+        _log.info('⏸️ Skipping auth_required hook - refresh_token_expired already handled logout and navigation');
+        
         return AuthStatus.tokenExpired;
-        }
       }
 
       // Step 3: Check session age (optional)
@@ -532,6 +642,7 @@ class AuthManager extends ChangeNotifier {
   /// ✅ Handle authentication state changes
   Future<void> handleAuthState(BuildContext context, AuthStatus status) async {
     final stateManager = StateManager();
+    final hooksManager = HooksManager();
     
     switch (status) {
       case AuthStatus.loggedIn:
@@ -545,6 +656,12 @@ class AuthManager extends ChangeNotifier {
         
         stateManager.updateModuleState("login", userData);
         _log.info('✅ User logged in: ${userData['username']}');
+        
+        // Trigger login success hook
+        hooksManager.triggerHookWithData('auth_login_success', {
+          'status': 'logged_in',
+          'userData': userData,
+        });
         break;
         
       case AuthStatus.loggedOut:
@@ -559,13 +676,19 @@ class AuthManager extends ChangeNotifier {
         });
         
         String message = "Please log in";
+        String reason = "logged_out";
         if (status == AuthStatus.tokenExpired) {
           message = "Session expired. Please log in again.";
+          reason = "token_expired";
         } else if (status == AuthStatus.sessionExpired) {
           message = "Session expired due to inactivity. Please log in again.";
+          reason = "session_expired";
         }
         
         _log.info('ℹ️ User needs to log in: $message');
+        
+        // Navigation handled by LoginModule hooks - no need to navigate here
+        _log.info('⏸️ Skipping navigation - LoginModule hooks will handle navigation');
         break;
         
       case AuthStatus.error:
@@ -578,28 +701,34 @@ class AuthManager extends ChangeNotifier {
           "error": "Authentication error occurred"
         });
         _log.error('❌ Authentication error occurred');
+        
+        // Trigger authentication error hook
+        hooksManager.triggerHookWithData('auth_error', {
+          'status': 'error',
+          'message': 'Authentication error occurred',
+        });
         break;
     }
   }
 
-  /// ✅ Clear all stored authentication data
+  /// ✅ Clear all stored authentication data (minimal version - logout handled by LoginModule)
   Future<void> _clearStoredData() async {
+    // Prevent duplicate token clearing
+    if (_isClearingTokens) {
+      _log.info('⏸️ Token clearing already in progress, skipping...');
+      return;
+    }
+    
+    _isClearingTokens = true;
+    
     try {
-      // Clear JWT tokens from secure storage
+      // Only clear tokens - logout and navigation handled by LoginModule hooks
       await clearTokens();
-      
-      // Clear shared preferences
-      if (_sharedPref != null) {
-        await _sharedPref!.setBool('is_logged_in', false);
-        await _sharedPref!.remove('user_id');
-        await _sharedPref!.remove('username');
-        await _sharedPref!.remove('email');
-        await _sharedPref!.remove('last_login_timestamp');
-      }
-      
-      _log.info('🗑️ Cleared all stored authentication data');
+      _log.info('🗑️ Cleared JWT tokens (logout handled by LoginModule)');
     } catch (e) {
-      _log.error('❌ Error clearing stored data: $e');
+      _log.error('❌ Error clearing tokens: $e');
+    } finally {
+      _isClearingTokens = false;
     }
   }
 
@@ -691,6 +820,8 @@ class AuthManager extends ChangeNotifier {
     return stateManager.getMainAppState<String>("main_state") ?? "unknown";
   }
 
+  // Navigation methods removed - handled by LoginModule
+
   /// ✅ Setup state listener for queued token refreshes
   void _setupStateListener() {
     // Prevent setting up multiple listeners
@@ -709,11 +840,10 @@ class AuthManager extends ChangeNotifier {
     _log.info("✅ State listener setup for queued token refreshes");
   }
 
-  // Token refresh timer and state management
-  Timer? _tokenRefreshTimer;
-  // State management for queued refreshes
+  // State management for queued refreshes (no cooldown)
   bool _pendingTokenRefresh = false;
   bool _stateListenerSetup = false;
+  bool _isClearingTokens = false; // Prevent duplicate token clearing
 
   @override
   void dispose() {
@@ -746,9 +876,20 @@ class AuthManager extends ChangeNotifier {
   Future<void> setTtlTo10Seconds() async {
     try {
       await setTestAccessTokenTtl(10);
-      _log.info('🧪 TEST: Set TTL to 10 seconds for testing');
+      _log.info('🧪 TEST: Set access token TTL to 10 seconds for testing');
     } catch (e) {
       _log.error('❌ Error setting TTL to 10 seconds: $e');
+    }
+  }
+
+  /// ✅ TEST METHOD: Set refresh token TTL to 10 seconds for testing
+  Future<void> setRefreshTtlTo10Seconds() async {
+    try {
+      await _secureStorage.write(key: 'refresh_token_ttl', value: '10');
+      _refreshTokenTtl = 10;
+      _log.info('🧪 TEST: Set refresh token TTL to 10 seconds for testing');
+    } catch (e) {
+      _log.error('❌ Error setting refresh TTL to 10 seconds: $e');
     }
   }
 

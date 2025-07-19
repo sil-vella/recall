@@ -8,6 +8,8 @@ import '../../core/services/shared_preferences.dart';
 import '../../tools/logging/logger.dart';
 import '../../core/managers/state_manager.dart';
 import '../../core/managers/auth_manager.dart';
+import '../../core/managers/hooks_manager.dart';
+import '../../core/managers/navigation_manager.dart';
 
 class LoginModule extends ModuleBase {
   static final Logger _log = Logger();
@@ -27,6 +29,7 @@ class LoginModule extends ModuleBase {
     super.initialize(context, moduleManager);
     _localModuleManager = moduleManager;
     _initDependencies(context);
+    _registerAuthHooks();
     _log.info('✅ LoginModule initialized with context.');
   }
 
@@ -48,6 +51,171 @@ class LoginModule extends ModuleBase {
         "email": _sharedPref?.getString('email'),
         "error": null
       });
+    });
+  }
+
+  /// ✅ Register authentication hooks for logout handling
+  void _registerAuthHooks() {
+    final hooksManager = HooksManager();
+    
+    // Register hook for auth required
+    hooksManager.registerHookWithData('auth_required', (data) {
+      _log.info('🔔 Auth required hook triggered in LoginModule: $data');
+      _handleAuthRequired(data);
+    });
+    
+    // Register hook for refresh token expiration
+    hooksManager.registerHookWithData('refresh_token_expired', (data) {
+      _log.info('🔔 Refresh token expired hook triggered in LoginModule: $data');
+      _handleRefreshTokenExpired();
+    });
+    
+    // Register hook for token refresh failure
+    hooksManager.registerHookWithData('auth_token_refresh_failed', (data) {
+      _log.info('🔔 Token refresh failed hook triggered in LoginModule: $data');
+      _handleTokenRefreshFailed();
+    });
+    
+    // Register hook for general auth errors
+    hooksManager.registerHookWithData('auth_error', (data) {
+      _log.info('🔔 Auth error hook triggered in LoginModule: $data');
+      _handleAuthError();
+    });
+    
+
+    
+    _log.info('✅ LoginModule registered auth hooks for logout handling');
+  }
+
+  /// ✅ Handle refresh token expiration
+  void _handleRefreshTokenExpired() {
+    _log.info('🔓 Handling refresh token expiration in LoginModule');
+    if (_currentContext != null) {
+      // Only logout and navigate if not already logged out
+      final stateManager = StateManager();
+      final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
+      final isLoggedIn = loginState?["isLoggedIn"] ?? false;
+      
+      if (isLoggedIn) {
+        _log.info('🔓 User still logged in, performing logout');
+        _performSynchronousLogout();
+        _navigateToAccountScreen('refresh_token_expired', 'Refresh token has expired. Please log in again.');
+      } else {
+        _log.info('⏸️ User already logged out, skipping duplicate logout');
+        // Still navigate to account screen even if already logged out
+        _navigateToAccountScreen('refresh_token_expired', 'Refresh token has expired. Please log in again.');
+      }
+    }
+  }
+
+  /// ✅ Perform synchronous logout (for hook callbacks)
+  void _performSynchronousLogout() {
+    _log.info('🔓 Performing synchronous logout');
+    
+    try {
+      // Clear JWT tokens using AuthManager
+      _authManager?.clearTokens();
+      
+      // Clear stored user data
+      _sharedPref?.setBool('is_logged_in', false);
+      _sharedPref?.remove('user_id');
+      _sharedPref?.remove('username');
+      _sharedPref?.remove('email');
+      
+      // Update state manager
+      final stateManager = StateManager();
+      stateManager.updateModuleState("login", {
+        "isLoggedIn": false,
+        "userId": null,
+        "username": null,
+        "email": null,
+        "error": null
+      });
+      
+      _log.info("✅ Synchronous logout completed");
+    } catch (e) {
+      _log.error("❌ Synchronous logout error: $e");
+    }
+  }
+
+  /// ✅ Handle token refresh failure
+  void _handleTokenRefreshFailed() {
+    _log.info('🔓 Handling token refresh failure in LoginModule');
+    if (_currentContext != null) {
+      // Only logout and navigate if not already logged out
+      final stateManager = StateManager();
+      final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
+      final isLoggedIn = loginState?["isLoggedIn"] ?? false;
+      
+      if (isLoggedIn) {
+        _log.info('🔓 User still logged in, performing logout');
+        _performSynchronousLogout();
+        _navigateToAccountScreen('token_refresh_failed', 'Token refresh failed. Please log in again.');
+      } else {
+        _log.info('⏸️ User already logged out, skipping duplicate logout');
+        // Still navigate to account screen even if already logged out
+        _navigateToAccountScreen('token_refresh_failed', 'Token refresh failed. Please log in again.');
+      }
+    }
+  }
+
+  /// ✅ Handle auth required (user needs to log in)
+  void _handleAuthRequired(Map<String, dynamic> data) {
+    _log.info('🔓 Handling auth required in LoginModule');
+    final reason = data['reason'] ?? 'unknown';
+    final message = data['message'] ?? 'Authentication required';
+    
+    if (_currentContext != null) {
+      // Only logout and navigate if not already logged out
+      final stateManager = StateManager();
+      final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
+      final isLoggedIn = loginState?["isLoggedIn"] ?? false;
+      
+      if (isLoggedIn) {
+        _log.info('🔓 User still logged in, performing logout');
+        _performSynchronousLogout();
+        _navigateToAccountScreen(reason, message);
+      } else {
+        _log.info('⏸️ User already logged out, skipping duplicate logout');
+        // Still navigate to account screen even if already logged out
+        _navigateToAccountScreen(reason, message);
+      }
+    }
+  }
+
+  /// ✅ Handle general auth error
+  void _handleAuthError() {
+    _log.info('🔓 Handling auth error in LoginModule');
+    if (_currentContext != null) {
+      // Only logout and navigate if not already logged out
+      final stateManager = StateManager();
+      final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
+      final isLoggedIn = loginState?["isLoggedIn"] ?? false;
+      
+      if (isLoggedIn) {
+        _log.info('🔓 User still logged in, performing logout');
+        _performSynchronousLogout();
+        _navigateToAccountScreen('auth_error', 'Authentication error occurred. Please log in again.');
+      } else {
+        _log.info('⏸️ User already logged out, skipping duplicate logout');
+        // Still navigate to account screen even if already logged out
+        _navigateToAccountScreen('auth_error', 'Authentication error occurred. Please log in again.');
+      }
+    }
+  }
+
+
+
+  /// ✅ Navigate to account screen with auth parameters
+  void _navigateToAccountScreen(String reason, String message) {
+    final navigationManager = NavigationManager();
+    _log.info('🧭 LoginModule navigating to account screen: $reason');
+    _log.info('🧭 Message: $message');
+    
+    // Use NavigationManager's queuing system to ensure router is ready
+    navigationManager.navigateToWithDelay('/account', parameters: {
+      'auth_reason': reason,
+      'auth_message': message,
     });
   }
 

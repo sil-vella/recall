@@ -55,7 +55,7 @@ class DatabaseManager:
         # Queue configuration
         self.max_queue_size = 1000
         self.worker_timeout = 1  # seconds
-        self.result_timeout = 30  # seconds for result retrieval
+        self.result_timeout = 60  # seconds for result retrieval (increased for encryption overhead)
         
         # Try to setup MongoDB connection gracefully
         try:
@@ -365,21 +365,11 @@ class DatabaseManager:
         encrypted_query = self._encrypt_sensitive_fields(converted_query)
         
         custom_log(f"[DEBUG] _execute_find_one - Collection: {collection}, Original query: {query}, Converted query: {converted_query}, Encrypted query: {encrypted_query}")
-        custom_log(f"[DEBUG] _execute_find_one - Database: {self.db.name}, Collection: {collection}")
-        custom_log(f"[DEBUG] _execute_find_one - Available collections: {list(self.db.list_collection_names())}")
         
-        # Check if collection exists and has documents
-        collection_obj = self.db[collection]
-        doc_count = collection_obj.count_documents({})
-        custom_log(f"[DEBUG] _execute_find_one - Collection {collection} has {doc_count} documents")
-        
-        # Test query to see what emails are in the database
-        if collection == "users":
-            all_users = list(collection_obj.find({}, {"email": 1}))
-            custom_log(f"[DEBUG] _execute_find_one - All user emails: {[user.get('email') for user in all_users]}")
-        
+        # Execute the query directly without expensive operations
         result = self.db[collection].find_one(encrypted_query)
         custom_log(f"[DEBUG] _execute_find_one - Result found: {result is not None}")
+        
         if result:
             decrypted_result = self._decrypt_sensitive_fields(result)
             final_result = self._convert_objectid_to_string(decrypted_result)

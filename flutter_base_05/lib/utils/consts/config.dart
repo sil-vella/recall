@@ -53,10 +53,7 @@ class Config {
     defaultValue: 604800, // 7 days in seconds - fallback only
   );
 
-  static const int jwtTokenRefreshCooldown = int.fromEnvironment(
-    'JWT_TOKEN_REFRESH_COOLDOWN',
-    defaultValue: 300, // 5 minutes in seconds
-  );
+  // Removed JWT token refresh cooldown - no longer needed
 
   static const int jwtTokenRefreshInterval = int.fromEnvironment(
     'JWT_TOKEN_REFRESH_INTERVAL',

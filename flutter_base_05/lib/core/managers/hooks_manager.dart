@@ -12,6 +12,10 @@ class HooksManager {
 
   HooksManager._internal();
 
+  // App initialization state
+  bool _isAppInitialized = false;
+  final List<Map<String, dynamic>> _pendingHooks = [];
+
   // Map of hooks with a list of (priority, callback) pairs
   final Map<String, List<MapEntry<int, HookCallback>>> _hooks = {};
   
@@ -49,6 +53,16 @@ class HooksManager {
   void triggerHook(String hookName) {
     _hooks.putIfAbsent(hookName, () => []); // ✅ Ensure the hook exists
 
+    if (!_isAppInitialized) {
+      _log.info('⏸️ App not initialized, queuing hook: $hookName');
+      _pendingHooks.add({
+        'type': 'simple',
+        'hookName': hookName,
+        'data': null,
+      });
+      return;
+    }
+
     if (_hooks[hookName]!.isNotEmpty) {
       _log.info('Triggering hook: $hookName with ${_hooks[hookName]!.length} callbacks');
       for (final entry in _hooks[hookName]!) {
@@ -62,6 +76,16 @@ class HooksManager {
 
   void triggerHookWithData(String hookName, Map<String, dynamic> data) {
     _hooksWithData.putIfAbsent(hookName, () => []); // ✅ Ensure the hook exists
+
+    if (!_isAppInitialized) {
+      _log.info('⏸️ App not initialized, queuing hook with data: $hookName');
+      _pendingHooks.add({
+        'type': 'with_data',
+        'hookName': hookName,
+        'data': data,
+      });
+      return;
+    }
 
     if (_hooksWithData[hookName]!.isNotEmpty) {
       _log.info('Triggering hook with data: $hookName with ${_hooksWithData[hookName]!.length} callbacks');
@@ -98,4 +122,33 @@ class HooksManager {
     }
     _log.info('Deregistered a callback with data for hook: $hookName');
   }
+
+  /// ✅ Mark app as initialized and process pending hooks
+  void markAppInitialized() {
+    _log.info('🚀 App marked as initialized, processing pending hooks...');
+    _isAppInitialized = true;
+    
+    if (_pendingHooks.isNotEmpty) {
+      _log.info('📋 Processing ${_pendingHooks.length} pending hooks');
+      
+      for (final pendingHook in _pendingHooks) {
+        if (pendingHook['type'] == 'simple') {
+          triggerHook(pendingHook['hookName']);
+        } else if (pendingHook['type'] == 'with_data') {
+          triggerHookWithData(pendingHook['hookName'], pendingHook['data']);
+        }
+      }
+      
+      _pendingHooks.clear();
+      _log.info('✅ All pending hooks processed');
+    } else {
+      _log.info('ℹ️ No pending hooks to process');
+    }
+  }
+
+  /// ✅ Check if app is initialized
+  bool get isAppInitialized => _isAppInitialized;
+
+  /// ✅ Get pending hooks count
+  int get pendingHooksCount => _pendingHooks.length;
 }

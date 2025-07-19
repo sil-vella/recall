@@ -54,6 +54,9 @@ class AppManager extends ChangeNotifier {
       _isInitialized = true;
       notifyListeners();
       
+      // Mark app as initialized in HooksManager to process pending hooks
+      _hooksManager.markAppInitialized();
+      
       _log.info('✅ App initialization complete with auth status: $authStatus');
     }
   }

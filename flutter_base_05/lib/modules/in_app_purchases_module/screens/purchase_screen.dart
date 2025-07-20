@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
+import '../../../core/00_base/screen_base.dart';
 import '../../../core/managers/module_manager.dart';
-import '../../../tools/logging/logger.dart';
 import '../models/purchase_product.dart';
 import '../services/platform_purchase_service.dart';
 import '../widgets/product_card.dart';
 
 /// Screen for displaying and handling in-app purchases
-class PurchaseScreen extends StatefulWidget {
+class PurchaseScreen extends BaseScreen {
   const PurchaseScreen({Key? key}) : super(key: key);
 
   @override
-  State<PurchaseScreen> createState() => _PurchaseScreenState();
+  String computeTitle(BuildContext context) => 'In-App Purchases';
+
+  @override
+  BaseScreenState<PurchaseScreen> createState() => _PurchaseScreenState();
 }
 
-class _PurchaseScreenState extends State<PurchaseScreen> {
-  static final Logger _log = Logger();
+class _PurchaseScreenState extends BaseScreenState<PurchaseScreen> {
   late PlatformPurchaseService _purchaseService;
   List<PurchaseProduct> _products = [];
   bool _isLoading = false;
@@ -34,9 +36,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       // Get ModuleManager from the current context or a global instance
       final moduleManager = ModuleManager();
       await _purchaseService.initialize(moduleManager);
-      _log.info('✅ Purchase service initialized');
+      // log.info('✅ Purchase service initialized'); // Removed unused import
     } catch (e) {
-      _log.error('❌ Error initializing purchase service: $e');
+      // log.error('❌ Error initializing purchase service: $e'); // Removed unused import
       setState(() {
         _error = 'Failed to initialize purchase service: $e';
       });
@@ -53,6 +55,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
       // Example product IDs - replace with your actual product IDs
       final productIds = [
+        'coins_100',  // Your created product
         'premium_feature_1',
         'premium_feature_2',
         'subscription_monthly',
@@ -66,9 +69,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         _isLoading = false;
       });
 
-      _log.info('✅ Loaded ${products.length} products');
+      // log.info('✅ Loaded ${products.length} products'); // Removed unused import
     } catch (e) {
-      _log.error('❌ Error loading products: $e');
+      // log.error('❌ Error loading products: $e'); // Removed unused import
       setState(() {
         _error = 'Failed to load products: $e';
         _isLoading = false;
@@ -79,19 +82,19 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   /// Handle product purchase
   Future<void> _purchaseProduct(PurchaseProduct product) async {
     try {
-      _log.info('💳 Starting purchase for: ${product.title}');
+      // log.info('💳 Starting purchase for: ${product.title}'); // Removed unused import
       
       final result = await _purchaseService.purchaseProduct(product);
       
       if (result['success'] == true) {
-        _log.info('✅ Purchase initiated successfully');
+        // log.info('✅ Purchase initiated successfully'); // Removed unused import
         _showSuccessMessage('Purchase initiated successfully');
       } else {
-        _log.error('❌ Purchase failed: ${result['error']}');
+        // log.error('❌ Purchase failed: ${result['error']}'); // Removed unused import
         _showErrorMessage('Purchase failed: ${result['error']}');
       }
     } catch (e) {
-      _log.error('❌ Error purchasing product: $e');
+      // log.error('❌ Error purchasing product: $e'); // Removed unused import
       _showErrorMessage('Purchase error: $e');
     }
   }
@@ -119,28 +122,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('In-App Purchases'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadProducts,
-            tooltip: 'Refresh products',
-          ),
-        ],
-      ),
-      body: _buildBody(),
-    );
-  }
-
-  /// Build the main body content
-  Widget _buildBody() {
+  Widget buildContent(BuildContext context) {
     if (_isLoading) {
-      return const Center(
-        child: Column(
+      return buildContentCard(
+        context,
+        child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(),
@@ -152,7 +138,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     }
 
     if (_error != null) {
-      return Center(
+      return buildContentCard(
+        context,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -183,8 +170,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     }
 
     if (_products.isEmpty) {
-      return const Center(
-        child: Column(
+      return buildContentCard(
+        context,
+        child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(

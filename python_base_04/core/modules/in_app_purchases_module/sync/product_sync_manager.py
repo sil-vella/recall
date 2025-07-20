@@ -9,7 +9,7 @@ import time
 import json
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
-from utils.logging_utils import custom_log
+from tools.logger.custom_logging import custom_log
 
 
 class ProductSyncManager:

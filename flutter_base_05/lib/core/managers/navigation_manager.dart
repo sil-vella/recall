@@ -6,6 +6,8 @@ import '../../screens/websocket_screen.dart';
 import '../../screens/account_screen/account_screen.dart';
 import '../../screens/room_management_screen.dart';
 import '../../screens/auth_test_screen/auth_test_screen.dart';
+import '../../modules/in_app_purchases_module/screens/purchase_screen.dart';
+import '../../modules/in_app_purchases_module/screens/subscription_screen.dart';
 import '../00_base/module_base.dart';
 import '../../tools/logging/logger.dart';
 import 'hooks_manager.dart';
@@ -96,6 +98,24 @@ class NavigationManager extends ChangeNotifier {
       drawerTitle: 'Auth Test',
       drawerIcon: Icons.security,
       drawerPosition: 5,
+    );
+
+    // Register In-App Purchases screen
+    registerRoute(
+      path: '/in-app-purchases',
+      screen: (context) => const PurchaseScreen(),
+      drawerTitle: 'In-App Purchases',
+      drawerIcon: Icons.shopping_cart,
+      drawerPosition: 6,
+    );
+    
+    // Register Subscriptions screen
+    registerRoute(
+      path: '/subscriptions',
+      screen: (context) => const SubscriptionScreen(),
+      drawerTitle: 'Subscriptions',
+      drawerIcon: Icons.subscriptions,
+      drawerPosition: 7,
     );
   }
 

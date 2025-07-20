@@ -8,8 +8,13 @@ from flask import Blueprint, request, jsonify
 from typing import Dict, Any, Optional
 from ..base_module import BaseModule
 from core.managers.app_manager import AppManager
-from utils.logging_utils import custom_log
+from tools.logger.custom_logging import custom_log
 from datetime import datetime
+
+# Import the actual verifiers
+from .verifiers.google_play_verifier import GooglePlayVerifier
+from .verifiers.app_store_verifier import AppStoreVerifier
+from .sync.product_sync_manager import ProductSyncManager
 
 
 class InAppPurchasesModule(BaseModule):
@@ -527,10 +532,4 @@ class InAppPurchasesModule(BaseModule):
             "module": self.module_name,
             "status": "healthy" if self.app_manager else "not_initialized",
             "details": "In-app purchases module with Google Play and App Store verification"
-        }
-
-
-# Import the actual verifiers
-from .verifiers.google_play_verifier import GooglePlayVerifier
-from .verifiers.app_store_verifier import AppStoreVerifier
-from .sync.product_sync_manager import ProductSyncManager 
+        } 

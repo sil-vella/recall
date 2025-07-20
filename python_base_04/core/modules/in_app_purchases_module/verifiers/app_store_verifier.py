@@ -1,15 +1,14 @@
 """
-App Store Purchase Verifier
+App Store Verifier
 
-Handles verification of App Store in-app purchases.
-Uses Apple's receipt validation endpoint for server-side verification.
+Handles receipt verification for App Store purchases.
 """
 
 import json
 import time
-import base64
 from typing import Dict, Any, Optional
-from utils.logging_utils import custom_log
+from datetime import datetime, timedelta
+from tools.logger.custom_logging import custom_log
 
 
 class AppStoreVerifier:
@@ -213,11 +212,11 @@ class AppStoreVerifier:
     def _get_fallback_product_info(self, product_id: str) -> Optional[Dict[str, Any]]:
         """Fallback product info if database is not available."""
         fallback_products = {
+            "coins_100": {"price": 4.99, "currency": "USD"},  # Your actual product price
             "premium_feature_1": {"price": 0.99, "currency": "USD"},
             "premium_feature_2": {"price": 1.99, "currency": "USD"},
             "subscription_monthly": {"price": 4.99, "currency": "USD"},
             "subscription_yearly": {"price": 49.99, "currency": "USD"},
-            "coins_100": {"price": 0.99, "currency": "USD"},
             "coins_500": {"price": 3.99, "currency": "USD"},
         }
         return fallback_products.get(product_id)

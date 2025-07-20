@@ -34,6 +34,11 @@ dependencies:
   permission_handler: ^11.3.0
   image: ^4.1.7
 
+  # In-App Purchase Dependencies
+  in_app_purchase: ^3.1.13
+  in_app_purchase_android: ^0.3.6+1
+  in_app_purchase_storekit: ^0.3.6+1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

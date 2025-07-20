@@ -11,6 +11,7 @@ import '../../modules/connections_api_module/connections_api_module.dart';
 // WebSocket module removed - now using WebSocketManager directly
 import '../../modules/audio_module/audio_module.dart';
 import '../../modules/animations_module/animations_module.dart';
+import '../../modules/in_app_purchases_module/in_app_purchases_module.dart';
 import '../../modules/admobs/banner/banner_ad.dart';
 import '../../modules/admobs/interstitial/interstitial_ad.dart';
 import '../../modules/admobs/rewarded/rewarded_ad.dart';
@@ -114,6 +115,8 @@ class ModuleRegistry {
     registerModule('audio', () => AudioModule());
     
     registerModule('animations', () => AnimationsModule());
+    
+    registerModule('in_app_purchases', () => InAppPurchasesModule());
     
     // Ad modules temporarily disabled - will be converted to hooks
     // registerModule('admobs_banner_ad_module', () => BannerAdModule());

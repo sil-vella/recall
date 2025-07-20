@@ -23,6 +23,9 @@ class Logger {
   /// Log an informational message
   void info(String message) => log(message, level: 800);
 
+  /// Log a warning message
+  void warning(String message) => log(message, level: 900);
+
   /// Log a debug message
   void debug(String message) => log(message, level: 500);
 

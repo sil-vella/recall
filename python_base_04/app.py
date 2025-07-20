@@ -218,6 +218,7 @@ def list_authenticated_actions():
     except Exception as e:
         custom_log(f"❌ Error listing authenticated actions: {e}", level="ERROR")
         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
+    
 
 # Production mode: Let gunicorn handle the app
 # Development mode: Uncomment below for Flask development server

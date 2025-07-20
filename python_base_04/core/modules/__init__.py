@@ -9,4 +9,5 @@ __all__ = [
     'WalletModule', 
     'TransactionsModule',
     'UserManagementModule',
+    'InAppPurchasesModule',
 ] 

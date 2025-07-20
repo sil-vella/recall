@@ -89,6 +89,7 @@ class ModuleRegistry:
             "user_management": ["communications"],  # Needs API infrastructure
             "wallet": ["communications", "user_management"],  # Needs API and users
             "transactions": ["communications", "user_management", "wallet"],  # Needs API, users, and wallet
+            "in_app_purchases": ["user_management"],  # Needs user management for purchase verification
         }
         
         custom_log(f"Module dependencies defined: {dependencies}")
@@ -113,17 +114,11 @@ class ModuleRegistry:
                 "health_check_enabled": True,
                 "session_timeout": 3600,
             },
-            "wallet": {
+            "in_app_purchases": {
                 "enabled": True,
-                "priority": 5,
+                "priority": 3,
                 "health_check_enabled": True,
-                "cache_enabled": True,
-            },
-            "transactions": {
-                "enabled": True,
-                "priority": 6,  
-                "health_check_enabled": True,
-                "async_processing": False,
+                "verification_timeout": 30,
             },
         }
     

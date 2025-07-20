@@ -14,7 +14,7 @@ import logging
 from flask import request, jsonify
 from typing import Dict, Any
 from core.modules.base_module import BaseModule
-
+import debugpy
 
 class CommunicationsModule(BaseModule):
     def __init__(self, app_manager=None):
@@ -130,6 +130,7 @@ class CommunicationsModule(BaseModule):
             return {"error": f"Failed to retrieve database data: {str(e)}"}, 500
 
     def test_jwt(self):
+        debugpy.breakpoint()
         """Test JWT token validation and return token information."""
         try:
             # Get JWT manager from app_manager

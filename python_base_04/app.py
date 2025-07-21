@@ -1,10 +1,10 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from core.managers.app_manager import AppManager
+from system.managers.app_manager import AppManager
 import sys
 import os
 import importlib
-from core.metrics import init_metrics
+from system.metrics import init_metrics
 from utils.config.config import Config
 from tools.logger.custom_logging import custom_log
 
@@ -84,140 +84,140 @@ def health_check():
     except Exception as e:
         return {'status': 'unhealthy', 'reason': str(e)}, 503
 
-@app.route('/actions/<action_name>/<path:args>', methods=['GET', 'POST'])
-def execute_internal_action(action_name, args):
-    """Internal actions route - no authentication required."""
-    try:
-        # Get request data (JSON body for POST, query params for GET)
-        if request.method == 'POST':
-            request_data = request.get_json() or {}
-        else:
-            request_data = dict(request.args)
+# @app.route('/actions/<action_name>/<path:args>', methods=['GET', 'POST'])
+# def execute_internal_action(action_name, args):
+#     """Internal actions route - no authentication required."""
+#     try:
+#         # Get request data (JSON body for POST, query params for GET)
+#         if request.method == 'POST':
+#             request_data = request.get_json() or {}
+#         else:
+#             request_data = dict(request.args)
         
-        # Parse URL arguments
-        parsed_args = app_manager.action_discovery_manager.parse_url_args(args)
+#         # Parse URL arguments
+#         parsed_args = app_manager.action_discovery_manager.parse_url_args(args)
         
-        # Merge URL args with request data
-        all_args = {**parsed_args, **request_data}
+#         # Merge URL args with request data
+#         all_args = {**parsed_args, **request_data}
         
-        # Search for action in YAML registry
-        action_info = app_manager.action_discovery_manager.find_action(action_name)
-        if not action_info:
-            return jsonify({
-                'error': f'Action "{action_name}" not found',
-                'available_actions': list(app_manager.action_discovery_manager.actions_registry.keys())
-            }), 404
+#         # Search for action in YAML registry
+#         action_info = app_manager.action_discovery_manager.find_action(action_name)
+#         if not action_info:
+#             return jsonify({
+#                 'error': f'Action "{action_name}" not found',
+#                 'available_actions': list(app_manager.action_discovery_manager.actions_registry.keys())
+#             }), 404
         
-        # Validate arguments against YAML declaration
-        validation_result = app_manager.action_discovery_manager.validate_action_args(action_info, all_args)
-        if not validation_result['valid']:
-            return jsonify({
-                'error': 'Invalid arguments',
-                'details': validation_result['errors'],
-                'required_params': validation_result['required_params'],
-                'optional_params': validation_result['optional_params']
-            }), 400
+#         # Validate arguments against YAML declaration
+#         validation_result = app_manager.action_discovery_manager.validate_action_args(action_info, all_args)
+#         if not validation_result['valid']:
+#             return jsonify({
+#                 'error': 'Invalid arguments',
+#                 'details': validation_result['errors'],
+#                 'required_params': validation_result['required_params'],
+#                 'optional_params': validation_result['optional_params']
+#             }), 400
         
-        # Execute action
-        result = app_manager.action_discovery_manager.execute_action_logic(action_info, all_args)
+#         # Execute action
+#         result = app_manager.action_discovery_manager.execute_action_logic(action_info, all_args)
         
-        return jsonify({
-            'success': True,
-            'action': action_name,
-            'module': action_info['module'],
-            'result': result
-        }), 200
+#         return jsonify({
+#             'success': True,
+#             'action': action_name,
+#             'module': action_info['module'],
+#             'result': result
+#         }), 200
         
-    except Exception as e:
-        custom_log(f"❌ Error executing internal action {action_name}: {e}", level="ERROR")
-        return jsonify({'error': f'Action execution failed: {str(e)}'}), 500
+#     except Exception as e:
+#         custom_log(f"❌ Error executing internal action {action_name}: {e}", level="ERROR")
+#         return jsonify({'error': f'Action execution failed: {str(e)}'}), 500
 
-@app.route('/api-auth/actions/<action_name>/<path:args>', methods=['GET', 'POST'])
-def execute_authenticated_action(action_name, args):
-    """Authenticated actions route - requires API key and forwards to credit system."""
-    try:
-        # Get request data (JSON body for POST, query params for GET)
-        if request.method == 'POST':
-            request_data = request.get_json() or {}
-        else:
-            request_data = dict(request.args)
+# @app.route('/api-auth/actions/<action_name>/<path:args>', methods=['GET', 'POST'])
+# def execute_authenticated_action(action_name, args):
+#     """Authenticated actions route - requires API key and forwards to credit system."""
+#     try:
+#         # Get request data (JSON body for POST, query params for GET)
+#         if request.method == 'POST':
+#             request_data = request.get_json() or {}
+#         else:
+#             request_data = dict(request.args)
         
-        # Parse URL arguments
-        parsed_args = app_manager.action_discovery_manager.parse_url_args(args)
+#         # Parse URL arguments
+#         parsed_args = app_manager.action_discovery_manager.parse_url_args(args)
         
-        # Merge URL args with request data
-        all_args = {**parsed_args, **request_data}
+#         # Merge URL args with request data
+#         all_args = {**parsed_args, **request_data}
         
-        # Search for action in YAML registry
-        action_info = app_manager.action_discovery_manager.find_action(action_name)
-        if not action_info:
-            return jsonify({
-                'error': f'Action "{action_name}" not found',
-                'available_actions': list(app_manager.action_discovery_manager.actions_registry.keys())
-            }), 404
+#         # Search for action in YAML registry
+#         action_info = app_manager.action_discovery_manager.find_action(action_name)
+#         if not action_info:
+#             return jsonify({
+#                 'error': f'Action "{action_name}" not found',
+#                 'available_actions': list(app_manager.action_discovery_manager.actions_registry.keys())
+#             }), 404
         
-        # Validate arguments against YAML declaration
-        validation_result = app_manager.action_discovery_manager.validate_action_args(action_info, all_args)
-        if not validation_result['valid']:
-            return jsonify({
-                'error': 'Invalid arguments',
-                'details': validation_result['errors'],
-                'required_params': validation_result['required_params'],
-                'optional_params': validation_result['optional_params']
-            }), 400
+#         # Validate arguments against YAML declaration
+#         validation_result = app_manager.action_discovery_manager.validate_action_args(action_info, all_args)
+#         if not validation_result['valid']:
+#             return jsonify({
+#                 'error': 'Invalid arguments',
+#                 'details': validation_result['errors'],
+#                 'required_params': validation_result['required_params'],
+#                 'optional_params': validation_result['optional_params']
+#             }), 400
         
-        # Forward to credit system with API key
-        credit_system_url = app_manager.action_discovery_manager.app_manager.services_manager.get_credit_system_url()
-        api_key = app_manager.action_discovery_manager.app_manager.services_manager.get_credit_system_api_key()
+#         # Forward to credit system with API key
+#         credit_system_url = app_manager.action_discovery_manager.app_manager.services_manager.get_credit_system_url()
+#         api_key = app_manager.action_discovery_manager.app_manager.services_manager.get_credit_system_api_key()
         
-        if not credit_system_url or not api_key:
-            return jsonify({'error': 'Credit system not configured'}), 500
+#         if not credit_system_url or not api_key:
+#             return jsonify({'error': 'Credit system not configured'}), 500
         
-        # Prepare request to credit system
-        forward_url = f"{credit_system_url}/actions/{action_name}/{args}"
-        headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json'
-        }
+#         # Prepare request to credit system
+#         forward_url = f"{credit_system_url}/actions/{action_name}/{args}"
+#         headers = {
+#             'Authorization': f'Bearer {api_key}',
+#             'Content-Type': 'application/json'
+#         }
         
-        # Forward the request
-        import requests
-        if request.method == 'POST':
-            response = requests.post(forward_url, json=all_args, headers=headers)
-        else:
-            response = requests.get(forward_url, params=all_args, headers=headers)
+#         # Forward the request
+#         import requests
+#         if request.method == 'POST':
+#             response = requests.post(forward_url, json=all_args, headers=headers)
+#         else:
+#             response = requests.get(forward_url, params=all_args, headers=headers)
         
-        return jsonify(response.json()), response.status_code
+#         return jsonify(response.json()), response.status_code
         
-    except Exception as e:
-        custom_log(f"❌ Error executing authenticated action {action_name}: {e}", level="ERROR")
-        return jsonify({'error': f'Action execution failed: {str(e)}'}), 500
+#     except Exception as e:
+#         custom_log(f"❌ Error executing authenticated action {action_name}: {e}", level="ERROR")
+#         return jsonify({'error': f'Action execution failed: {str(e)}'}), 500
 
-@app.route('/actions', methods=['GET'])
-def list_internal_actions():
-    """List all discovered internal actions (no auth required)."""
-    try:
-        result = app_manager.action_discovery_manager.list_all_actions()
-        if result.get('success'):
-            return jsonify(result), 200
-        else:
-            return jsonify(result), 500
-    except Exception as e:
-        custom_log(f"❌ Error listing internal actions: {e}", level="ERROR")
-        return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
+# @app.route('/actions', methods=['GET'])
+# def list_internal_actions():
+#     """List all discovered internal actions (no auth required)."""
+#     try:
+#         result = app_manager.action_discovery_manager.list_all_actions()
+#         if result.get('success'):
+#             return jsonify(result), 200
+#         else:
+#             return jsonify(result), 500
+#     except Exception as e:
+#         custom_log(f"❌ Error listing internal actions: {e}", level="ERROR")
+#         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
 
-@app.route('/api-auth/actions', methods=['GET'])
-def list_authenticated_actions():
-    """List all discovered authenticated actions (requires API key)."""
-    try:
-        result = app_manager.action_discovery_manager.list_all_actions()
-        if result.get('success'):
-            return jsonify(result), 200
-        else:
-            return jsonify(result), 500
-    except Exception as e:
-        custom_log(f"❌ Error listing authenticated actions: {e}", level="ERROR")
-        return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
+# @app.route('/api-auth/actions', methods=['GET'])
+# def list_authenticated_actions():
+#     """List all discovered authenticated actions (requires API key)."""
+#     try:
+#         result = app_manager.action_discovery_manager.list_all_actions()
+#         if result.get('success'):
+#             return jsonify(result), 200
+#         else:
+#             return jsonify(result), 500
+#     except Exception as e:
+#         custom_log(f"❌ Error listing authenticated actions: {e}", level="ERROR")
+#         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
     
 
 # Production mode: Let gunicorn handle the app

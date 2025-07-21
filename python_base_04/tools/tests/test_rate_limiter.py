@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock, Mock
-from core.managers.rate_limiter_manager import RateLimiterManager
+from system.managers.rate_limiter_manager import RateLimiterManager
 from utils.config.config import Config
 import time
 from redis.exceptions import RedisError

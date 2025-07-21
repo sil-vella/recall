@@ -12,7 +12,7 @@ from datetime import datetime
 # Add the project root to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from core.managers.state_manager import StateManager, StateType, StateTransition
+from system.managers.state_manager import StateManager, StateType, StateTransition
 from tools.logger.custom_logging import custom_log
 
 

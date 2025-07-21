@@ -15,8 +15,8 @@ from datetime import datetime, timedelta
 # Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.managers.jwt_manager import JWTManager
-from core.managers.state_manager import StateManager, StateType, StateTransition
+from system.managers.jwt_manager import JWTManager
+from system.managers.state_manager import StateManager, StateType, StateTransition
 from tools.logger.custom_logging import custom_log
 
 def test_state_change_listener():

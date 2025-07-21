@@ -553,7 +553,7 @@ tests/
 ```python
 # tests/unit/test_manager.py
 import unittest
-from core.managers.state_manager import StateManager
+from system.managers.state_manager import StateManager
 
 class TestStateManager(unittest.TestCase):
     def test_register_state(self):

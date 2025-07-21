@@ -47,7 +47,7 @@ This troubleshooting guide provides solutions for common issues encountered when
    pip install -r requirements.txt
    
    # Verify imports work
-   python -c "from core.managers.app_manager import AppManager; print('Import successful')"
+   python -c "from system.managers.app_manager import AppManager; print('Import successful')"
    ```
 
 3. **Check Configuration**:

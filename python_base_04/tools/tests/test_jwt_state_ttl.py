@@ -12,8 +12,8 @@ from datetime import datetime, timedelta
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.managers.state_manager import StateManager, StateType, StateTransition
-from core.managers.jwt_manager import JWTManager, TokenType
+from system.managers.state_manager import StateManager, StateType, StateTransition
+from system.managers.jwt_manager import JWTManager, TokenType
 from tools.logger.custom_logging import custom_log
 
 

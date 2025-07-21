@@ -190,7 +190,7 @@ class VaultManager:
 ### 🚀 **Usage Example**:
 
 ```python
-from core.managers import VaultManager
+from system.managers import VaultManager
 
 # Initialize (auto-authenticates)
 vault = VaultManager()
@@ -251,7 +251,7 @@ JWT_SECRET_KEY = get_config_value(
 ```python
 # After app startup, refresh with Vault values
 from utils.config.config import Config
-from core.managers import VaultManager
+from system.managers import VaultManager
 
 vault = VaultManager()
 mongodb_secrets = vault.get_mongodb_secrets()
@@ -506,7 +506,7 @@ spec:
 5. **Vault connectivity validation**
    ```bash
    kubectl exec -n flask-app deployment/flask-app -- python3 -c "
-   from core.managers import VaultManager
+   from system.managers import VaultManager
    vault = VaultManager()
    print(f'Vault health: {vault.health_check()}')
    "
@@ -516,7 +516,7 @@ spec:
    ```bash
    kubectl exec -n flask-app deployment/flask-app -- python3 -c "
    from utils.config.config import Config
-   from core.managers import VaultManager
+   from system.managers import VaultManager
    vault = VaultManager()
    # Update config with Vault secrets
    mongodb_secrets = vault.get_mongodb_secrets()
@@ -545,7 +545,7 @@ ssh rop02 "kubectl delete pod -n flask-app -l app=flask-app"
 
 # 4. Verify Vault integration
 ssh rop02 "kubectl exec -n flask-app deployment/flask-app -- python3 -c '
-from core.managers import VaultManager
+from system.managers import VaultManager
 vault = VaultManager()
 print(f\"Vault status: {vault.health_check()}\")
 '"
@@ -578,14 +578,14 @@ ssh rop02 "kubectl create job --from=cronjob/vault-approle-refresh manual-rotati
 ```bash
 # Test VaultManager initialization
 kubectl exec -n flask-app deployment/flask-app -- python3 -c "
-from core.managers import VaultManager
+from system.managers import VaultManager
 vault = VaultManager()
 print(f'✅ VaultManager initialized: {vault.client_token is not None}')
 "
 
 # Test secret retrieval
 kubectl exec -n flask-app deployment/flask-app -- python3 -c "
-from core.managers import VaultManager
+from system.managers import VaultManager
 vault = VaultManager()
 mongodb_secrets = vault.get_mongodb_secrets()
 print(f'✅ MongoDB secrets: {list(mongodb_secrets.keys()) if mongodb_secrets else \"None\"}')
@@ -594,7 +594,7 @@ print(f'✅ MongoDB secrets: {list(mongodb_secrets.keys()) if mongodb_secrets el
 # Test config integration
 kubectl exec -n flask-app deployment/flask-app -- python3 -c "
 from utils.config.config import Config
-from core.managers import VaultManager
+from system.managers import VaultManager
 
 print(f'Config before Vault: JWT={Config.JWT_SECRET_KEY[:10]}...')
 
@@ -612,7 +612,7 @@ print('✅ Config successfully enhanced with Vault secrets')
 ```bash
 # Test MongoDB connection using Vault credentials
 kubectl exec -n flask-app deployment/flask-app -- python3 -c "
-from core.managers import VaultManager
+from system.managers import VaultManager
 from pymongo import MongoClient
 
 vault = VaultManager()
@@ -637,7 +637,7 @@ kubectl exec -n flask-app deployment/vault-proxy -- curl -s http://10.0.0.1:8200
 
 # Check AppRole authentication
 kubectl exec -n flask-app deployment/flask-app -- python3 -c "
-from core.managers import VaultManager
+from system.managers import VaultManager
 vault = VaultManager()
 info = vault.get_connection_info()
 print(f'Vault Address: {info[\"vault_addr\"]}')
@@ -688,7 +688,7 @@ print(f'Role ID: {info[\"role_id\"]}')
 ```bash
 # Check Vault token lease time remaining
 kubectl exec -n flask-app deployment/flask-app -- python3 -c "
-from core.managers import VaultManager
+from system.managers import VaultManager
 from datetime import datetime
 vault = VaultManager()
 if vault.token_expiry:
@@ -699,7 +699,7 @@ if vault.token_expiry:
 # Monitor secret retrieval performance
 kubectl exec -n flask-app deployment/flask-app -- python3 -c "
 import time
-from core.managers import VaultManager
+from system.managers import VaultManager
 vault = VaultManager()
 
 start_time = time.time()
@@ -808,7 +808,7 @@ vault policy read flask-app-policy'
 ```bash
 # Check VaultManager status
 kubectl exec -n flask-app deployment/flask-app -- python3 -c "
-from core.managers import VaultManager
+from system.managers import VaultManager
 vault = VaultManager()
 status = vault.get_connection_info()
 for key, value in status.items():
@@ -825,7 +825,7 @@ print(f'Vault integration status: {vault_status}')
 # Test secret update flow
 kubectl exec -n flask-app deployment/flask-app -- python3 -c "
 from utils.config.config import Config
-from core.managers import VaultManager
+from system.managers import VaultManager
 
 print(f'Before: {Config.JWT_SECRET_KEY[:10]}...')
 vault = VaultManager()

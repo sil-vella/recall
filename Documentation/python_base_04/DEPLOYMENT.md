@@ -795,7 +795,7 @@ DB_STATEMENT_TIMEOUT = 30000
    ```bash
    # Check database connectivity
    kubectl exec -it <pod-name> -- python -c "
-   from core.managers.database_manager import DatabaseManager
+   from system.managers.database_manager import DatabaseManager
    db = DatabaseManager()
    print(db.check_connection())
    "
@@ -805,7 +805,7 @@ DB_STATEMENT_TIMEOUT = 30000
    ```bash
    # Check Redis connectivity
    kubectl exec -it <pod-name> -- python -c "
-   from core.managers.redis_manager import RedisManager
+   from system.managers.redis_manager import RedisManager
    redis = RedisManager()
    print(redis.ping())
    "

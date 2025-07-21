@@ -9,7 +9,7 @@ def get_vault_manager():
     global _vault_manager
     if _vault_manager is None:
         try:
-            from core.managers.vault_manager import VaultManager
+            from system.managers.vault_manager import VaultManager
             _vault_manager = VaultManager()
             custom_log("✅ VaultManager initialized successfully for config")
         except Exception as e:
@@ -590,7 +590,7 @@ class Config:
         """Get the credit system API key, generate if empty."""
         if not cls.CREDIT_SYSTEM_API_KEY or cls.CREDIT_SYSTEM_API_KEY == "":
             # Try to generate API key automatically using unified APIKeyManager
-            from core.managers.api_key_manager import APIKeyManager
+            from system.managers.api_key_manager import APIKeyManager
             api_key_manager = APIKeyManager()
             api_key = api_key_manager.generate_api_key_from_credit_system()
             if api_key:

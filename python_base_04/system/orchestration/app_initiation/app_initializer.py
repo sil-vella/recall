@@ -1,7 +1,7 @@
 """
 Main Application Manager
 
-This module contains the core AppManager class that orchestrates the entire application.
+This module contains the core AppInitializer class that orchestrates the entire application.
 It delegates specific responsibilities to specialized classes for better separation of concerns.
 """
 
@@ -18,7 +18,7 @@ from .middleware_setup import MiddlewareSetup
 from .health_checker import HealthChecker
 
 
-class AppManager:
+class AppInitializer:
     """
     Main application orchestrator that manages the Flask application lifecycle.
     
@@ -27,7 +27,7 @@ class AppManager:
     """
     
     def __init__(self):
-        """Initialize the AppManager with all required components."""
+        """Initialize the AppInitializer with all required components."""
         # Core managers
         self.services_manager = ServicesManager()
         self.hooks_manager = HooksManager()
@@ -43,10 +43,10 @@ class AppManager:
         self.middleware_setup = MiddlewareSetup(self)
         self.health_checker = HealthChecker(self)
         
-        custom_log("AppManager instance created with modular components.")
+        custom_log("AppInitializer instance created with modular components.")
 
     def is_initialized(self) -> bool:
-        """Check if the AppManager is properly initialized."""
+        """Check if the AppInitializer is properly initialized."""
         return self._initialized
 
     @log_function_call
@@ -58,10 +58,10 @@ class AppManager:
             app: Flask application instance
         """
         if not hasattr(app, "add_url_rule"):
-            raise RuntimeError("AppManager requires a valid Flask app instance.")
+            raise RuntimeError("AppInitializer requires a valid Flask app instance.")
 
         self.flask_app = app
-        custom_log(f"AppManager initialized with Flask app: {self.flask_app}")
+        custom_log(f"AppInitializer initialized with Flask app: {self.flask_app}")
 
         # Initialize scheduler
         self.scheduler = BackgroundScheduler()
@@ -86,7 +86,7 @@ class AppManager:
         # Mark as initialized
         self._initialized = True
         
-        custom_log("✅ AppManager initialization completed successfully")
+        custom_log("✅ AppInitializer initialization completed successfully")
 
     def run(self, app: Flask, **kwargs):
         """Run the Flask application."""
@@ -116,7 +116,7 @@ class AppManager:
             hook_name: The name of the hook
         """
         self.hooks_manager.register_hook(hook_name)
-        custom_log(f"Hook '{hook_name}' registered via AppManager.")
+        custom_log(f"Hook '{hook_name}' registered via AppInitializer.")
 
     @log_function_call
     def register_hook_callback(self, hook_name: str, callback, priority: int = 10, context: str = None):

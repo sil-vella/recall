@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from system.managers.app_manager import AppManager
+from system.orchestration.app_initiation.app_initializer import AppInitializer
 import sys
 import os
 import importlib
@@ -14,8 +14,8 @@ importlib.invalidate_caches()
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 
-# Initialize the AppManager
-app_manager = AppManager()
+# Initialize the AppInitializer
+app_initializer = AppInitializer()
 
 # Initialize the Flask app
 app = Flask(__name__)
@@ -26,11 +26,11 @@ CORS(app)
 # Initialize metrics
 metrics = init_metrics(app)
 
-# Initialize the AppManager and pass the app for plugin registration
-app_manager.initialize(app)
+# Initialize the AppInitializer and pass the app for plugin registration
+app_initializer.initialize(app)
 
-# WebSocket functionality is now handled by app_manager
-if app_manager.websocket_manager:
+# WebSocket functionality is now handled by app_initializer
+if app_initializer.websocket_manager:
     custom_log("✅ WebSocket manager initialized and ready")
 else:
     custom_log("⚠️ WebSocket manager not available")
@@ -44,24 +44,24 @@ def health_check():
     custom_log("Health check endpoint called")
     try:
         # Check if the application is properly initialized
-        if not app_manager.is_initialized():
-            return {'status': 'unhealthy', 'reason': 'App manager not initialized'}, 503
+        if not app_initializer.is_initialized():
+            return {'status': 'unhealthy', 'reason': 'App initializer not initialized'}, 503
             
         # Check database connection
-        if not app_manager.check_database_connection():
+        if not app_initializer.check_database_connection():
             return {'status': 'unhealthy', 'reason': 'Database connection failed'}, 503
             
         # Check Redis connection
-        if not app_manager.check_redis_connection():
+        if not app_initializer.check_redis_connection():
             return {'status': 'unhealthy', 'reason': 'Redis connection failed'}, 503
         
         # Check state manager status
-        state_manager_health = app_manager.state_manager.health_check()
+        state_manager_health = app_initializer.state_manager.health_check()
         if state_manager_health.get('status') != 'healthy':
             return {'status': 'unhealthy', 'reason': 'State manager unhealthy'}, 503
         
         # Check module status
-        module_status = app_manager.module_manager.get_module_status()
+        module_status = app_initializer.module_manager.get_module_status()
         unhealthy_modules = []
         
         for module_key, module_info in module_status.get('modules', {}).items():
@@ -95,21 +95,21 @@ def health_check():
 #             request_data = dict(request.args)
         
 #         # Parse URL arguments
-#         parsed_args = app_manager.action_discovery_manager.parse_url_args(args)
+#         parsed_args = app_initializer.action_discovery_manager.parse_url_args(args)
         
 #         # Merge URL args with request data
 #         all_args = {**parsed_args, **request_data}
         
 #         # Search for action in YAML registry
-#         action_info = app_manager.action_discovery_manager.find_action(action_name)
+#         action_info = app_initializer.action_discovery_manager.find_action(action_name)
 #         if not action_info:
 #             return jsonify({
 #                 'error': f'Action "{action_name}" not found',
-#                 'available_actions': list(app_manager.action_discovery_manager.actions_registry.keys())
+#                 'available_actions': list(app_initializer.action_discovery_manager.actions_registry.keys())
 #             }), 404
         
 #         # Validate arguments against YAML declaration
-#         validation_result = app_manager.action_discovery_manager.validate_action_args(action_info, all_args)
+#         validation_result = app_initializer.action_discovery_manager.validate_action_args(action_info, all_args)
 #         if not validation_result['valid']:
 #             return jsonify({
 #                 'error': 'Invalid arguments',
@@ -119,7 +119,7 @@ def health_check():
 #             }), 400
         
 #         # Execute action
-#         result = app_manager.action_discovery_manager.execute_action_logic(action_info, all_args)
+#         result = app_initializer.action_discovery_manager.execute_action_logic(action_info, all_args)
         
 #         return jsonify({
 #             'success': True,
@@ -143,21 +143,21 @@ def health_check():
 #             request_data = dict(request.args)
         
 #         # Parse URL arguments
-#         parsed_args = app_manager.action_discovery_manager.parse_url_args(args)
+#         parsed_args = app_initializer.action_discovery_manager.parse_url_args(args)
         
 #         # Merge URL args with request data
 #         all_args = {**parsed_args, **request_data}
         
 #         # Search for action in YAML registry
-#         action_info = app_manager.action_discovery_manager.find_action(action_name)
+#         action_info = app_initializer.action_discovery_manager.find_action(action_name)
 #         if not action_info:
 #             return jsonify({
 #                 'error': f'Action "{action_name}" not found',
-#                 'available_actions': list(app_manager.action_discovery_manager.actions_registry.keys())
+#                 'available_actions': list(app_initializer.action_discovery_manager.actions_registry.keys())
 #             }), 404
         
 #         # Validate arguments against YAML declaration
-#         validation_result = app_manager.action_discovery_manager.validate_action_args(action_info, all_args)
+#         validation_result = app_initializer.action_discovery_manager.validate_action_args(action_info, all_args)
 #         if not validation_result['valid']:
 #             return jsonify({
 #                 'error': 'Invalid arguments',
@@ -167,8 +167,8 @@ def health_check():
 #             }), 400
         
 #         # Forward to credit system with API key
-#         credit_system_url = app_manager.action_discovery_manager.app_manager.services_manager.get_credit_system_url()
-#         api_key = app_manager.action_discovery_manager.app_manager.services_manager.get_credit_system_api_key()
+#         credit_system_url = app_initializer.action_discovery_manager.app_manager.services_manager.get_credit_system_url()
+#         api_key = app_initializer.action_discovery_manager.app_manager.services_manager.get_credit_system_api_key()
         
 #         if not credit_system_url or not api_key:
 #             return jsonify({'error': 'Credit system not configured'}), 500
@@ -197,7 +197,7 @@ def health_check():
 # def list_internal_actions():
 #     """List all discovered internal actions (no auth required)."""
 #     try:
-#         result = app_manager.action_discovery_manager.list_all_actions()
+#         result = app_initializer.action_discovery_manager.list_all_actions()
 #         if result.get('success'):
 #             return jsonify(result), 200
 #         else:
@@ -210,7 +210,7 @@ def health_check():
 # def list_authenticated_actions():
 #     """List all discovered authenticated actions (requires API key)."""
 #     try:
-#         result = app_manager.action_discovery_manager.list_all_actions()
+#         result = app_initializer.action_discovery_manager.list_all_actions()
 #         if result.get('success'):
 #             return jsonify(result), 200
 #         else:
@@ -227,10 +227,10 @@ def health_check():
 #     host = os.getenv('FLASK_HOST', '0.0.0.0')
 #     port = int(os.getenv('FLASK_PORT', 5001))
 #     
-#     # WebSocket functionality is now handled by app_manager
-#     if app_manager.websocket_manager:
+#     # WebSocket functionality is now handled by app_initializer
+#     if app_initializer.websocket_manager:
 #         custom_log("🚀 Starting Flask app with WebSocket support")
-#         app_manager.websocket_manager.run(app, host=host, port=port)
+#         app_initializer.websocket_manager.run(app, host=host, port=port)
 #     else:
 #         custom_log("🚀 Starting Flask app without WebSocket support")
-#         app_manager.run(app, host=host, port=port)
+#         app_initializer.run(app, host=host, port=port)

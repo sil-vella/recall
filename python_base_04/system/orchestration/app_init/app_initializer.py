@@ -10,7 +10,7 @@ from tools.logger.custom_logging import custom_log, log_function_call
 from apscheduler.schedulers.background import BackgroundScheduler
 from system.managers.service_manager import ServicesManager
 from system.managers.hooks_manager import HooksManager
-from system.managers.module_manager import ModuleManager
+
 from system.managers.rate_limiter_manager import RateLimiterManager
 
 from .manager_initializer import ManagerInitializer
@@ -31,7 +31,6 @@ class AppInitializer:
         # Core managers
         self.services_manager = ServicesManager()
         self.hooks_manager = HooksManager()
-        self.module_manager = ModuleManager()
         
         # Flask app reference
         self.flask_app = None
@@ -73,9 +72,8 @@ class AppInitializer:
         # Initialize services
         self.services_manager.initialize_services()
 
-        # Initialize modules
-        custom_log("Initializing modules...")
-        self.module_manager.initialize_modules(self)
+        # Initialize modules (now handled by individual managers via hooks)
+        custom_log("Initializing modules via hook system...")
 
         # Set up all middleware through the specialized setup class
         self.middleware_setup.setup_all_middleware()
@@ -83,7 +81,9 @@ class AppInitializer:
         # Mark as initialized
         self._initialized = True
 
-        self.hooks_manager.trigger_hook("register_routes")
+        # Trigger route registration hook within Flask application context
+        with app.app_context():
+            self.hooks_manager.trigger_hook("register_routes")
         
         custom_log("✅ AppInitializer initialization completed successfully")
 

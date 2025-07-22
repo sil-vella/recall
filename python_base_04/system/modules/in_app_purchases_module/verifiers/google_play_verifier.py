@@ -14,8 +14,8 @@ from tools.logger.custom_logging import custom_log
 class GooglePlayVerifier:
     """Verifies Google Play in-app purchases using Google Play Developer API."""
     
-    def __init__(self, app_manager):
-        self.app_manager = app_manager
+    def __init__(self, db_manager):
+        self.db_manager = db_manager
         self.package_name = "com.yourcompany.yourapp"  # TODO: Configure from config
         self.api_credentials = None  # TODO: Load from Vault or config
         

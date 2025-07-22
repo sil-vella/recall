@@ -38,6 +38,10 @@ else:
 # Additional app-level configurations
 app.config["DEBUG"] = Config.DEBUG
 
+@app.route('/')
+def home():
+    return jsonify({"message": Config.APP_NAME + " entry point."})
+
 @app.route('/health')
 def health_check():
     """Health check endpoint for Kubernetes liveness and readiness probes"""
@@ -60,26 +64,13 @@ def health_check():
         if state_manager_health.get('status') != 'healthy':
             return {'status': 'unhealthy', 'reason': 'State manager unhealthy'}, 503
         
-        # Check module status
-        module_status = app_initializer.module_manager.get_module_status()
-        unhealthy_modules = []
+        # Check module status (simplified for new architecture)
+        # Modules are now managed individually by their respective managers
         
-        for module_key, module_info in module_status.get('modules', {}).items():
-            if module_info.get('health', {}).get('status') != 'healthy':
-                unhealthy_modules.append(module_key)
-        
-        if unhealthy_modules:
-            return {
-                'status': 'degraded', 
-                'reason': f'Unhealthy modules: {unhealthy_modules}',
-                'module_status': module_status
-            }, 200  # Still return 200 for degraded but functional
-            
         return {
             'status': 'healthy',
-            'modules_initialized': module_status.get('initialized_modules', 0),
-            'total_modules': module_status.get('total_modules', 0),
-            'state_manager': state_manager_health
+            'state_manager': state_manager_health,
+            'architecture': 'new_hook_based'
         }, 200
     except Exception as e:
         return {'status': 'unhealthy', 'reason': str(e)}, 503

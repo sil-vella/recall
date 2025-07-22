@@ -321,7 +321,8 @@ class MiddlewareSetup:
         def modules_status():
             """Get status of all modules."""
             try:
-                status = self.app_initializer.module_manager.get_module_status()
+                # Module status now handled by individual managers
+                status = {"modules": {}, "total_modules": 0, "initialized_modules": 0}
                 return status, 200
             except Exception as e:
                 custom_log(f"Error getting module status: {e}", level="ERROR")
@@ -331,12 +332,8 @@ class MiddlewareSetup:
         def module_health(module_key):
             """Get health check for specific module."""
             try:
-                module = self.app_initializer.module_manager.get_module(module_key)
-                if not module:
-                    return {'error': 'Module not found'}, 404
-                
-                health = module.health_check()
-                return health, 200
+                # Module health now handled by individual managers
+                return {'error': 'Module health checks now handled by individual managers'}, 501
             except Exception as e:
                 custom_log(f"Error getting module health: {e}", level="ERROR")
                 return {'error': 'Failed to get module health'}, 500

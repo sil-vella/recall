@@ -13,10 +13,11 @@ from utils.config.config import Config
 
 
 class CreditSystemModule:
-    def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager, jwt_manager: JWTManager):
+    def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager, jwt_manager: JWTManager, hooks_manager=None):
         self.db_manager = db_manager
         self.redis_manager = redis_manager
         self.jwt_manager = jwt_manager
+        self.hooks_manager = hooks_manager
         custom_log("CreditSystemModule created with explicit dependencies")
 
     def initialize(self):
@@ -25,9 +26,9 @@ class CreditSystemModule:
 
     def _register_hooks(self):
         """Register hooks for user-related events."""
-        if self.app_manager:
+        if self.hooks_manager:
             # Register callback for user creation
-            self.app_manager.register_hook_callback(
+            self.hooks_manager.register_hook_callback(
                 "user_created", 
                 self._on_user_created, 
                 priority=15, 

@@ -15,9 +15,8 @@ from tools.logger.custom_logging import custom_log
 class ProductSyncManager:
     """Manages automatic synchronization of products from app stores."""
     
-    def __init__(self, app_manager):
-        self.app_manager = app_manager
-        self.db_manager = app_manager.get_db_manager(role="read_write")
+    def __init__(self, db_manager):
+        self.db_manager = db_manager
         
         # Sync configuration
         self.sync_interval_hours = 24  # Sync every 24 hours

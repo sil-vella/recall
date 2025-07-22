@@ -10,7 +10,7 @@ from .redis_manager import RedisManager
 from .jwt_manager import JWTManager
 from .service_manager import ServicesManager
 from .rate_limiter_manager import RateLimiterManager
-from .module_manager import ModuleManager
+
 from .hooks_manager import HooksManager
 from .encryption_manager import EncryptionManager
 from .vault_manager import VaultManager
@@ -21,7 +21,7 @@ __all__ = [
     'JWTManager',
     'ServicesManager',
     'RateLimiterManager',
-    'ModuleManager',
+
     'HooksManager',
     'EncryptionManager',
     'VaultManager',

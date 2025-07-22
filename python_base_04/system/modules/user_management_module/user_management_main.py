@@ -12,10 +12,11 @@ import re
 
 
 class UserManagementModule:
-    def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager, jwt_manager: JWTManager):
+    def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager, jwt_manager: JWTManager, hooks_manager=None):
         self.db_manager = db_manager
         self.redis_manager = redis_manager
         self.jwt_manager = jwt_manager
+        self.hooks_manager = hooks_manager
         custom_log("UserManagementModule created with explicit dependencies")
 
     def initialize(self):
@@ -189,7 +190,7 @@ class UserManagementModule:
             user_data['_id'] = user_id
             
             # Trigger user_created hook for other modules to listen to
-            if self.app_manager:
+            if self.hooks_manager:
                 # Import config to get app identification
                 from utils.config.config import Config
                 
@@ -203,7 +204,7 @@ class UserManagementModule:
                     'app_name': Config.APP_NAME,
                     'source': 'external_app'
                 }
-                self.app_manager.trigger_hook("user_created", hook_data)
+                self.hooks_manager.trigger_hook("user_created", hook_data)
                 custom_log(f"🎣 Triggered user_created hook for user: {username} ({email})")
                 custom_log(f"   - App: {Config.APP_NAME} ({Config.APP_ID})")
                 custom_log(f"   - User ID: {user_id}")
@@ -393,8 +394,8 @@ class UserManagementModule:
                 'type': 'refresh'
             }
             
-            # Get JWT manager from app_manager
-            jwt_manager = self.app_manager.jwt_manager
+            # Use the JWT manager passed to the constructor
+            jwt_manager = self.jwt_manager
             access_token = jwt_manager.create_token(access_token_payload, TokenType.ACCESS)
             refresh_token = jwt_manager.create_token(refresh_token_payload, TokenType.REFRESH)
             
@@ -436,8 +437,8 @@ class UserManagementModule:
             
             token = auth_header.split(' ')[1]
             
-            # Get JWT manager from app_manager
-            jwt_manager = self.app_manager.jwt_manager
+            # Use the JWT manager passed to the constructor
+            jwt_manager = self.jwt_manager
             
             # Verify token
             payload = jwt_manager.verify_token(token, TokenType.ACCESS)
@@ -482,8 +483,8 @@ class UserManagementModule:
             
             refresh_token = data.get("refresh_token")
             
-            # Get JWT manager from app_manager
-            jwt_manager = self.app_manager.jwt_manager
+            # Use the JWT manager passed to the constructor
+            jwt_manager = self.jwt_manager
             
             # Verify refresh token
             payload = jwt_manager.verify_token(refresh_token, TokenType.REFRESH)
@@ -566,8 +567,8 @@ class UserManagementModule:
             
             token = auth_header.split(' ')[1]
             
-            # Get JWT manager from app_manager
-            jwt_manager = self.app_manager.jwt_manager
+            # Use the JWT manager passed to the constructor
+            jwt_manager = self.jwt_manager
             
             # Verify token
             payload = jwt_manager.verify_token(token, TokenType.ACCESS)

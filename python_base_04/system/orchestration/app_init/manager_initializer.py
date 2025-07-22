@@ -157,7 +157,7 @@ class ManagerInitializer:
 
     def _initialize_action_discovery_manager(self):
         """Initialize action discovery manager."""
-        self.action_discovery_manager = ActionDiscoveryManager(self.app_initializer)
+        self.action_discovery_manager = ActionDiscoveryManager()
         self.action_discovery_manager.discover_all_actions()
         
         # Set the action discovery manager in the app manager

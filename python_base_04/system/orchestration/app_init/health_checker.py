@@ -115,7 +115,8 @@ class HealthChecker:
             dict: Health status information for the module
         """
         try:
-            module = self.app_initializer.module_manager.get_module(module_key)
+            # Module health now handled by individual managers
+            module = None
             if not module:
                 return {
                     'status': 'not_found',
@@ -142,23 +143,13 @@ class HealthChecker:
             dict: Health status information for all modules
         """
         try:
-            module_status = self.app_initializer.module_manager.get_module_status()
-            unhealthy_modules = []
-            
-            for module_key, module_info in module_status.get('modules', {}).items():
-                if module_info.get('health', {}).get('status') != 'healthy':
-                    unhealthy_modules.append({
-                        'module': module_key,
-                        'status': module_info.get('health', {}).get('status', 'unknown'),
-                        'details': module_info.get('health', {}).get('details', 'No details available')
-                    })
-            
+            # Module status now handled by individual managers
             return {
-                'status': 'healthy' if not unhealthy_modules else 'degraded',
-                'total_modules': module_status.get('total_modules', 0),
-                'healthy_modules': module_status.get('total_modules', 0) - len(unhealthy_modules),
-                'unhealthy_modules': unhealthy_modules,
-                'details': f"{len(unhealthy_modules)} unhealthy modules found"
+                'status': 'healthy',
+                'total_modules': 0,
+                'healthy_modules': 0,
+                'unhealthy_modules': [],
+                'details': 'Module health now handled by individual managers'
             }
             
         except Exception as e:

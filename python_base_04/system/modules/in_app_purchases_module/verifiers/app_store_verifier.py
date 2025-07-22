@@ -14,8 +14,8 @@ from tools.logger.custom_logging import custom_log
 class AppStoreVerifier:
     """Verifies App Store in-app purchases using Apple's receipt validation."""
     
-    def __init__(self, app_manager):
-        self.app_manager = app_manager
+    def __init__(self, db_manager):
+        self.db_manager = db_manager
         self.bundle_id = "com.yourcompany.yourapp"  # TODO: Configure from config
         self.shared_secret = None  # TODO: Load from Vault or config
         

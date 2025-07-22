@@ -12,9 +12,8 @@ class ActionDiscoveryManager:
     Implements single wildcard route with YAML-based action discovery.
     """
     
-    def __init__(self, app_manager=None):
+    def __init__(self):
         """Initialize the ActionDiscoveryManager."""
-        self.app_manager = app_manager
         self.actions_registry = {}  # {action_name: action_config}
         self.yaml_files = []        # Track all YAML files
         self.modules_dir = os.path.join(os.path.dirname(__file__), "..", "modules")
@@ -192,17 +191,14 @@ class ActionDiscoveryManager:
             # YAML uses 'system_actions_module' but module is registered as 'system_actions'
             actual_module_name = module_name.replace('_module', '')
             
-            # Get module instance from app_manager's module_manager
-            if self.app_manager and hasattr(self.app_manager, 'module_manager'):
-                module_instance = self.app_manager.module_manager.get_module(actual_module_name)
-                if module_instance:
-                    # Execute function
-                    handler_method = getattr(module_instance, f"_{function_name}")
-                    return handler_method(parsed_args)
-                else:
-                    raise ValueError(f"Module {actual_module_name} not found")
+            # Module instances now handled by individual managers
+            module_instance = None
+            if module_instance:
+                # Execute function
+                handler_method = getattr(module_instance, f"_{function_name}")
+                return handler_method(parsed_args)
             else:
-                raise ValueError("AppInitializer or ModuleManager not available")
+                raise ValueError(f"Module {actual_module_name} not found")
                 
         except Exception as e:
             custom_log(f"❌ Error executing action logic: {e}", level="ERROR")

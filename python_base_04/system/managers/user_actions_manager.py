@@ -4,7 +4,7 @@ import json
 from typing import Dict, Any, List, Optional, Callable
 from flask import request, jsonify
 from tools.logger.custom_logging import custom_log
-from system.modules.base_module import BaseModule
+
 from datetime import datetime
 
 
@@ -368,38 +368,4 @@ class UserActionsManager:
         return None
 
 
-# Add helper methods to BaseModule for easy action registration
-def register_module_actions(self, actions_config: Dict[str, Any], handlers: Dict[str, Callable] = None):
-    """
-    Register actions for this module with the UserActionsManager.
-    
-    :param actions_config: Dictionary of action configurations
-    :param handlers: Dictionary of handler functions for the actions
-    """
-    if hasattr(self, 'app_manager') and self.app_manager:
-        # Get UserActionsManager from app_manager
-        user_actions_manager = getattr(self.app_manager, 'user_actions_manager', None)
-        if user_actions_manager:
-            user_actions_manager.register_module_actions(self.module_name, actions_config, handlers)
-        else:
-            custom_log(f"⚠️ UserActionsManager not available in app_manager for module {self.module_name}")
-    else:
-        custom_log(f"⚠️ AppInitializer not available for module {self.module_name}")
-
-
-def load_module_declarations(self) -> Dict[str, Any]:
-    """
-    Load action declarations for this module.
-    
-    :return: Dictionary of action configurations
-    """
-    if hasattr(self, 'app_manager') and self.app_manager:
-        user_actions_manager = getattr(self.app_manager, 'user_actions_manager', None)
-        if user_actions_manager:
-            return user_actions_manager.load_module_declarations(self.module_name)
-    return {}
-
-
-# Add these methods to BaseModule
-BaseModule.register_module_actions = register_module_actions
-BaseModule.load_module_declarations = load_module_declarations 
+ 

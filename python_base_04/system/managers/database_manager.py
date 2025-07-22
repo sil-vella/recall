@@ -598,4 +598,29 @@ class DatabaseManager:
             custom_log(f"❌ Error retrieving all database data: {e}", level="ERROR")
             return {"error": f"Failed to retrieve database data: {str(e)}"}
 
+    def initialize_database(self):
+        """Verify database connection without creating collections or indexes."""
+        custom_log("⚙️ Verifying database connection...")
+        if self._verify_database_connection():
+            custom_log("✅ Database connection verified.")
+        else:
+            custom_log("⚠️ Database connection unavailable - running with limited functionality")
+
+    def _verify_database_connection(self) -> bool:
+        """Verify database connection without creating anything."""
+        try:
+            # Check if database is available
+            if not self.available:
+                custom_log("⚠️ Database unavailable - connection verification skipped")
+                return False
+                
+            # Simple connection test - just ping the database
+            self.db.command('ping')
+            custom_log("✅ Database connection verified successfully")
+            return True
+        except Exception as e:
+            custom_log(f"⚠️ Database connection verification failed: {e}")
+            custom_log("⚠️ Database operations will be limited - suitable for local development")
+            return False
+
 # ... existing code ... 

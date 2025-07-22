@@ -14,6 +14,7 @@ from system.managers.jwt_manager import JWTManager
 from system.managers.user_actions_manager import UserActionsManager
 from system.managers.action_discovery_manager import ActionDiscoveryManager
 from system.managers.websockets.websocket_manager import WebSocketManager
+from system.managers.api_key_manager import APIKeyManager
 
 
 class ManagerInitializer:
@@ -44,6 +45,7 @@ class ManagerInitializer:
         self.user_actions_manager = None
         self.action_discovery_manager = None
         self.websocket_manager = None
+        self.api_key_manager = None
         
         custom_log("ManagerInitializer created")
 
@@ -76,6 +78,9 @@ class ManagerInitializer:
         
         # Initialize action discovery manager
         self._initialize_action_discovery_manager()
+        
+        # Initialize API key manager
+        self._initialize_api_key_manager()
         
         # Initialize WebSocket manager
         self._initialize_websocket_manager(app)
@@ -130,8 +135,11 @@ class ManagerInitializer:
         custom_log("✅ State manager initialized")
 
     def _initialize_jwt_manager(self):
-        """Initialize JWT manager."""
-        self.jwt_manager = JWTManager(redis_manager=self.redis_manager)
+        """Initialize JWT manager with hooks manager."""
+        self.jwt_manager = JWTManager(
+            redis_manager=self.redis_manager,
+            hooks_manager=self.app_initializer.hooks_manager
+        )
         
         # Set the JWT manager in the app manager
         self.app_initializer.jwt_manager = self.jwt_manager
@@ -156,6 +164,18 @@ class ManagerInitializer:
         self.app_initializer.action_discovery_manager = self.action_discovery_manager
         
         custom_log("✅ Action discovery manager initialized")
+
+    def _initialize_api_key_manager(self):
+        """Initialize API key manager with hooks manager."""
+        self.api_key_manager = APIKeyManager(
+            redis_manager=self.redis_manager,
+            hooks_manager=self.app_initializer.hooks_manager
+        )
+        
+        # Set the API key manager in the app initializer
+        self.app_initializer.api_key_manager = self.api_key_manager
+        
+        custom_log("✅ API key manager initialized")
 
     def _initialize_websocket_manager(self, app: Flask):
         """Initialize WebSocket manager."""

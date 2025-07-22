@@ -15,9 +15,10 @@ class TokenType(Enum):
     WEBSOCKET = "websocket"
 
 class JWTManager:
-    def __init__(self, redis_manager=None):
+    def __init__(self, redis_manager=None, hooks_manager=None):
         # Use provided redis_manager or create a new one
         self.redis_manager = redis_manager if redis_manager else RedisManager()
+        self.hooks_manager = hooks_manager
         self.secret_key = Config.JWT_SECRET_KEY
         self.algorithm = Config.JWT_ALGORITHM
         # Use Config values for token lifetimes
@@ -30,6 +31,16 @@ class JWTManager:
         
         # Register state change callback
         self._register_state_change_callback()
+        
+        # Register route callback if hooks manager is provided
+        if self.hooks_manager:
+            self.hooks_manager.register_hook_callback(
+                "register_routes",
+                self.register_routes_callback,
+                priority=10,
+                context="jwt_manager"
+            )
+            custom_log("✅ JWTManager registered route callback with hooks manager")
         
         # Flask app reference for route registration
         self.app = None
@@ -519,4 +530,79 @@ class JWTManager:
                 
         except Exception as e:
             custom_log(f"❌ Error getting main app state: {e}", level="ERROR")
-            return "unknown" 
+            return "unknown"
+
+    def test_jwt_endpoint(self):
+        """Test JWT token validation and return token information."""
+        try:
+            # Get the Authorization header
+            auth_header = request.headers.get('Authorization')
+            
+            if not auth_header:
+                return jsonify({
+                    "success": False,
+                    "message": "No Authorization header provided",
+                    "error": "Missing JWT token"
+                }), 401
+            
+            # Extract token from Authorization header
+            if auth_header.startswith('Bearer '):
+                token = auth_header[7:]  # Remove 'Bearer ' prefix
+            else:
+                token = auth_header
+            
+            # Verify the token
+            payload = self.verify_token(token, TokenType.ACCESS)
+            
+            if not payload:
+                return jsonify({
+                    "success": False,
+                    "message": "Invalid or expired JWT token",
+                    "error": "Token validation failed"
+                }), 401
+            
+            # Return token information (excluding sensitive data)
+            token_info = {
+                "success": True,
+                "message": "JWT token is valid",
+                "token_info": {
+                    "user_id": payload.get("user_id"),
+                    "type": payload.get("type"),
+                    "issued_at": payload.get("iat"),
+                    "expires_at": payload.get("exp"),
+                    "fingerprint": payload.get("fingerprint", "")[:16] + "..." if payload.get("fingerprint") else None
+                },
+                "ttl_info": {
+                    "access_token_expires": Config.JWT_ACCESS_TOKEN_EXPIRES,
+                    "refresh_token_expires": Config.JWT_REFRESH_TOKEN_EXPIRES
+                }
+            }
+            
+            custom_log(f"JWT test successful for user: {payload.get('user_id')}")
+            return jsonify(token_info), 200
+            
+        except Exception as e:
+            custom_log(f"JWT test failed: {str(e)}", level="ERROR")
+            return jsonify({
+                "success": False,
+                "message": "JWT test failed",
+                "error": str(e)
+            }), 500
+
+    def register_routes_callback(self, data=None):
+        """Register JWT test route when the register_routes hook is triggered."""
+        try:
+            from flask import current_app
+            
+            # Register JWT test route directly with Flask
+            current_app.add_url_rule(
+                "/test-jwt", 
+                "test_jwt", 
+                self.test_jwt_endpoint, 
+                methods=["POST"]
+            )
+            
+            custom_log("✅ JWT test route registered via hook callback")
+            
+        except Exception as e:
+            custom_log(f"❌ Error registering JWT test route via hook: {e}", level="ERROR") 

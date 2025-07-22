@@ -11,9 +11,10 @@ from flask import request, jsonify
 
 
 class APIKeyManager:
-    def __init__(self, redis_manager=None):
+    def __init__(self, redis_manager=None, hooks_manager=None):
         """Initialize the unified API Key Manager."""
         self.redis_manager = redis_manager if redis_manager else RedisManager()
+        self.hooks_manager = hooks_manager
         self.secret_key = Config.ENCRYPTION_KEY
         self.secrets_dir = "/app/secrets"
         self.credit_system_url = Config.CREDIT_SYSTEM_URL
@@ -32,6 +33,17 @@ class APIKeyManager:
             'app_metadata': 'app_metadata:{app_id}',
             'cred_sys_key': 'cred_sys_key'
         }
+        
+        # Register route callback if hooks manager is provided
+        if self.hooks_manager:
+            self.hooks_manager.register_hook_callback(
+                "register_routes",
+                self.register_routes_callback,
+                priority=10,
+                context="api_key_manager"
+            )
+            custom_log("✅ APIKeyManager registered route callback with hooks manager")
+        
         custom_log("Unified APIKeyManager initialized with generation and management capabilities")
 
     def _get_secret_file_path(self, app_id: str, app_name: str = None) -> str:
@@ -701,4 +713,43 @@ class APIKeyManager:
             
         except Exception as e:
             custom_log(f"❌ Error generating external app API key: {e}")
-            return None 
+            return None
+
+    def register_routes_callback(self, data=None):
+        """Register API key management routes when the register_routes hook is triggered."""
+        try:
+            from flask import current_app
+            
+            # Register API key management routes directly with Flask
+            current_app.add_url_rule(
+                "/api-keys/validate", 
+                "validate_api_key", 
+                self.validate_api_key_endpoint, 
+                methods=["POST"]
+            )
+            
+            current_app.add_url_rule(
+                "/api-keys/revoke", 
+                "revoke_api_key", 
+                self.revoke_api_key_endpoint, 
+                methods=["POST"]
+            )
+            
+            current_app.add_url_rule(
+                "/api-keys/stored", 
+                "list_stored_api_keys", 
+                self.list_stored_api_keys_endpoint, 
+                methods=["GET"]
+            )
+            
+            current_app.add_url_rule(
+                "/api-keys/request-from-credit-system", 
+                "request_api_key_from_credit_system", 
+                self.request_api_key_from_credit_system_endpoint, 
+                methods=["POST"]
+            )
+            
+            custom_log("✅ API key management routes registered via hook callback")
+            
+        except Exception as e:
+            custom_log(f"❌ Error registering API key routes via hook: {e}", level="ERROR") 

@@ -1,4 +1,3 @@
-from system.modules.base_module import BaseModule
 from system.managers.database_manager import DatabaseManager
 from system.managers.jwt_manager import JWTManager, TokenType
 from system.managers.redis_manager import RedisManager
@@ -13,44 +12,16 @@ import requests
 from utils.config.config import Config
 
 
-class CreditSystemModule(BaseModule):
-    def __init__(self, app_manager=None):
-        """Initialize the CreditSystemModule."""
-        super().__init__(app_manager)
-        
-        # Set dependencies
-        self.dependencies = ["communications_module"]
-        
-        # Use centralized managers from app_manager instead of creating new instances
-        if app_manager:
-            self.db_manager = app_manager.get_db_manager(role="read_write")
-            self.analytics_db = app_manager.get_db_manager(role="read_only")
-            self.redis_manager = app_manager.get_redis_manager()
-        else:
-            # Fallback for testing or when app_manager is not provided
-            self.db_manager = DatabaseManager(role="read_write")
-            self.analytics_db = DatabaseManager(role="read_only")
-            self.redis_manager = RedisManager()
-        
-        # Credit system configuration
-        self.credit_system_url = Config.CREDIT_SYSTEM_URL
-        # Use dynamic API key getter that generates if empty
-        self.api_key = Config.get_credit_system_api_key()
-        
-        custom_log("CreditSystemModule created with shared managers")
+class CreditSystemModule:
+    def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager, jwt_manager: JWTManager):
+        self.db_manager = db_manager
+        self.redis_manager = redis_manager
+        self.jwt_manager = jwt_manager
+        custom_log("CreditSystemModule created with explicit dependencies")
 
-    def initialize(self, app_manager):
-        """Initialize the CreditSystemModule with AppInitializer."""
-        self.app_manager = app_manager
-        self.app = app_manager.flask_app
-        self.initialize_database()
-        self.register_routes()
-        
-        # Register hooks for user events
-        self._register_hooks()
-        
-        self._initialized = True
-        custom_log("CreditSystemModule initialized")
+    def initialize(self):
+        # Initialization logic if needed
+        pass
 
     def _register_hooks(self):
         """Register hooks for user-related events."""

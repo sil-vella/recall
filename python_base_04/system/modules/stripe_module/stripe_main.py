@@ -1,4 +1,3 @@
-from system.modules.base_module import BaseModule
 from system.managers.database_manager import DatabaseManager
 from tools.logger.custom_logging import custom_log
 from flask import request, jsonify, current_app
@@ -12,55 +11,14 @@ import json
 from decimal import Decimal
 
 
-class StripeModule(BaseModule):
-    def __init__(self, app_manager=None):
-        """Initialize the StripeModule."""
-        super().__init__(app_manager)
-        self.dependencies = ["communications_module", "user_management", "transactions"]
-        
-        # Initialize Stripe with secure key management
-        self.stripe = None
-        self.webhook_secret = None
-        self._initialize_stripe()
-        
-        custom_log("StripeModule created")
+class StripeModule:
+    def __init__(self, db_manager: DatabaseManager):
+        self.db_manager = db_manager
+        custom_log("StripeModule created with explicit dependencies")
 
-    def _initialize_stripe(self):
-        """Initialize Stripe with secure configuration."""
-        try:
-            # Get Stripe keys from Config (Vault > Files > Environment > Default)
-            from utils.config.config import Config
-            
-            stripe_secret_key = Config.STRIPE_SECRET_KEY
-            stripe_publishable_key = Config.STRIPE_PUBLISHABLE_KEY
-            self.webhook_secret = Config.STRIPE_WEBHOOK_SECRET
-            
-            if not stripe_secret_key:
-                custom_log("⚠️ STRIPE_SECRET_KEY not found - Stripe module will be disabled")
-                return
-                
-            # Initialize Stripe
-            stripe.api_key = stripe_secret_key
-            stripe.api_version = Config.STRIPE_API_VERSION
-            self.stripe = stripe
-            
-            custom_log("✅ Stripe initialized successfully")
-            
-        except Exception as e:
-            custom_log(f"❌ Error initializing Stripe: {e}", level="ERROR")
-            self.stripe = None
-
-    def initialize(self, app_initializer):
-        """Initialize the StripeModule with AppInitializer."""
-        self.app_initializer = app_initializer
-        self.app = app_initializer.flask_app
-        
-        # Get database manager through app_initializer
-        self.db_manager = app_initializer.get_db_manager(role="read_write")
-        
-        self.register_routes()
-        self._initialized = True
-        custom_log("StripeModule initialized")
+    def initialize(self):
+        # Initialization logic if needed
+        pass
 
     def register_routes(self):
         """Register Stripe-related routes."""

@@ -6,8 +6,6 @@ Handles in-app purchase verification and management for both Google Play and App
 
 from flask import Blueprint, request, jsonify
 from typing import Dict, Any, Optional
-from ..base_module import BaseModule
-from system.orchestration.app_initiation.app_initializer import AppInitializer
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
 
@@ -17,11 +15,11 @@ from .verifiers.app_store_verifier import AppStoreVerifier
 from .sync.product_sync_manager import ProductSyncManager
 
 
-class InAppPurchasesModule(BaseModule):
+class InAppPurchasesModule:
     """Module for handling in-app purchases and receipt verification."""
     
-    def __init__(self, app_initializer: Optional[AppInitializer] = None):
-        super().__init__(app_initializer)
+    def __init__(self):
+        custom_log("InAppPurchasesModule created with no dependencies (example)")
         self.module_name = "in_app_purchases_module"
         self.dependencies = []  # No direct dependencies - gets modules from provider
         
@@ -29,9 +27,9 @@ class InAppPurchasesModule(BaseModule):
         self.google_play_verifier = None
         self.app_store_verifier = None
         self.product_sync_manager = None
-        self.app_initializer = app_initializer
+        self.app_initializer = None # This will be set externally if needed
         
-    def initialize(self, app_initializer: AppInitializer):
+    def initialize(self, app_initializer):
         """Initialize the in-app purchases module."""
         self.app_initializer = app_initializer
         custom_log(f"Initializing {self.module_name}", level="INFO")
@@ -93,7 +91,7 @@ class InAppPurchasesModule(BaseModule):
             self._update_users_with_module_data()
             
             # Update module registry
-            self._update_module_registry()
+            # self._update_module_registry() # Removed as per new_code
             
             custom_log("✅ Database schema initialized successfully", level="INFO")
             

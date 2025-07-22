@@ -1,4 +1,3 @@
-from system.modules.base_module import BaseModule
 from system.managers.database_manager import DatabaseManager
 from tools.logger.custom_logging import custom_log
 from flask import request, jsonify
@@ -6,27 +5,14 @@ from datetime import datetime
 from typing import Dict, Any
 
 
-class TransactionsModule(BaseModule):
-    def __init__(self, app_initializer=None):
-        """Initialize the TransactionsModule."""
-        super().__init__(app_initializer)
-        self.dependencies = ["communications_module", "user_management", "wallet", "stripe"]
-        
-        # Use centralized managers from app_manager
-        if app_initializer:
-            self.db_manager = app_initializer.get_db_manager(role="read_write")
-        else:
-            self.db_manager = DatabaseManager(role="read_write")
-            
-        custom_log("TransactionsModule created with database manager")
+class TransactionsModule:
+    def __init__(self, db_manager: DatabaseManager):
+        self.db_manager = db_manager
+        custom_log("TransactionsModule created with explicit dependencies")
 
-    def initialize(self, app_initializer):
-        """Initialize the TransactionsModule with AppInitializer."""
-        self.app_initializer = app_initializer
-        self.app = app_initializer.flask_app
-        self.register_routes()
-        self._initialized = True
-        custom_log("TransactionsModule initialized")
+    def initialize(self):
+        # Initialization logic if needed
+        pass
 
     def register_routes(self):
         """Register transaction-related routes."""
@@ -256,8 +242,7 @@ class TransactionsModule(BaseModule):
 
     def health_check(self) -> Dict[str, Any]:
         """Perform health check for TransactionsModule."""
-        health_status = super().health_check()
-        health_status['dependencies'] = self.dependencies
+        health_status = {}
         
         # Add database queue status
         try:

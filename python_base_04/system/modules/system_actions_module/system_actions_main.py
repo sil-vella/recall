@@ -1,31 +1,18 @@
-from system.modules.base_module import BaseModule
 from tools.logger.custom_logging import custom_log
 from typing import Dict, Any
 from flask import request, jsonify
 from datetime import datetime
 
 
-class SystemActionsModule(BaseModule):
-    def __init__(self, app_initializer=None):
+class SystemActionsModule:
+    def __init__(self):
         """Initialize the SystemActionsModule."""
-        super().__init__(app_initializer)
-        
-        # Set dependencies
-        self.dependencies = []
-        
-        custom_log("SystemActionsModule created")
+        custom_log("SystemActionsModule created with no dependencies (example)")
 
-    def initialize(self, app_initializer):
+    def initialize(self):
         """Initialize the SystemActionsModule with AppInitializer."""
-        self.app_initializer = app_initializer
-        self.app = app_initializer.flask_app
-        self.register_routes()
-        
-        # Register module actions with UserActionsManager
-        self._register_module_actions()
-        
-        self._initialized = True
-        custom_log("SystemActionsModule initialized")
+        # Initialization logic if needed
+        pass
 
     def register_routes(self):
         """Register system actions routes."""

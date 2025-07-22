@@ -73,9 +73,6 @@ class AppInitializer:
         # Initialize services
         self.services_manager.initialize_services()
 
-        # Register common hooks before module initialization
-        self._register_common_hooks()
-
         # Initialize modules
         custom_log("Initializing modules...")
         self.module_manager.initialize_modules(self)
@@ -85,66 +82,14 @@ class AppInitializer:
         
         # Mark as initialized
         self._initialized = True
+
+        self.hooks_manager.trigger_hook("register_routes")
         
         custom_log("✅ AppInitializer initialization completed successfully")
 
     def run(self, app: Flask, **kwargs):
         """Run the Flask application."""
         app.run(**kwargs)
-
-    def _register_common_hooks(self):
-        """Register common hooks that modules can use."""
-        try:
-            # Register user_created hook
-            self.register_hook("user_created")
-            custom_log("✅ Registered common hook: user_created")
-            
-            # Add more common hooks here as needed
-            # self.register_hook("payment_processed")
-            # self.register_hook("user_login")
-            # self.register_hook("user_logout")
-            
-        except Exception as e:
-            custom_log(f"❌ Error registering common hooks: {e}", level="ERROR")
-
-    @log_function_call
-    def register_hook(self, hook_name: str):
-        """
-        Register a new hook by delegating to the HooksManager.
-        
-        Args:
-            hook_name: The name of the hook
-        """
-        self.hooks_manager.register_hook(hook_name)
-        custom_log(f"Hook '{hook_name}' registered via AppInitializer.")
-
-    @log_function_call
-    def register_hook_callback(self, hook_name: str, callback, priority: int = 10, context: str = None):
-        """
-        Register a callback for a specific hook by delegating to the HooksManager.
-        
-        Args:
-            hook_name: The name of the hook
-            callback: The callback function
-            priority: Priority of the callback (lower number = higher priority)
-            context: Optional context for the callback
-        """
-        self.hooks_manager.register_hook_callback(hook_name, callback, priority, context)
-        callback_name = callback.__name__ if hasattr(callback, "__name__") else str(callback)
-        custom_log(f"Callback '{callback_name}' registered for hook '{hook_name}' (priority: {priority}, context: {context}).")
-
-    @log_function_call
-    def trigger_hook(self, hook_name: str, data=None, context: str = None):
-        """
-        Trigger a specific hook by delegating to the HooksManager.
-        
-        Args:
-            hook_name: The name of the hook to trigger
-            data: Data to pass to the callback
-            context: Optional context to filter callbacks
-        """
-        custom_log(f"Triggering hook '{hook_name}' with data: {data} and context: {context}.")
-        self.hooks_manager.trigger_hook(hook_name, data, context)
 
     # Delegate health checking to specialized class
     def check_database_connection(self) -> bool:
@@ -170,4 +115,4 @@ class AppInitializer:
 
     def get_websocket_manager(self):
         """Get the WebSocket manager instance."""
-        return self.manager_initializer.get_websocket_manager() 
+        return self.manager_initializer.get_websocket_manager()

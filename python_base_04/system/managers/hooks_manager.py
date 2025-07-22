@@ -4,7 +4,8 @@ class HooksManager:
     def __init__(self):
         # A dictionary to hold hooks and their callbacks with priorities and optional context
         self.hooks = {
-            "app_startup": [],  # Predefined default hook
+            "app_startup": [],
+            "register_routes": [],  # Predefined default hook
         }
         custom_log("HooksManager instance created.")
 

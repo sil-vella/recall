@@ -1,4 +1,3 @@
-from system.modules.base_module import BaseModule
 from system.managers.database_manager import DatabaseManager
 from system.managers.jwt_manager import JWTManager, TokenType
 from system.managers.redis_manager import RedisManager
@@ -12,35 +11,16 @@ import bcrypt
 import re
 
 
-class UserManagementModule(BaseModule):
-    def __init__(self, app_manager=None):
-        """Initialize the UserManagementModule."""
-        super().__init__(app_manager)
-        
-        # Set dependencies
-        self.dependencies = ["communications_module"]
-        
-        # Use centralized managers from app_manager instead of creating new instances
-        if app_manager:
-            self.db_manager = app_manager.get_db_manager(role="read_write")
-            self.analytics_db = app_manager.get_db_manager(role="read_only")
-            self.redis_manager = app_manager.get_redis_manager()
-        else:
-            # Fallback for testing or when app_manager is not provided
-            self.db_manager = DatabaseManager(role="read_write")
-            self.analytics_db = DatabaseManager(role="read_only")
-            self.redis_manager = RedisManager()
-        
-        custom_log("UserManagementModule created with shared managers")
+class UserManagementModule:
+    def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager, jwt_manager: JWTManager):
+        self.db_manager = db_manager
+        self.redis_manager = redis_manager
+        self.jwt_manager = jwt_manager
+        custom_log("UserManagementModule created with explicit dependencies")
 
-    def initialize(self, app_manager):
-        """Initialize the UserManagementModule with AppInitializer."""
-        self.app_manager = app_manager
-        self.app = app_manager.flask_app
-        self.initialize_database()
-        self.register_routes()
-        self._initialized = True
-        custom_log("UserManagementModule initialized")
+    def initialize(self):
+        # Initialization logic if needed
+        pass
 
     def register_routes(self):
         """Register user management routes with clean authentication-aware system."""
@@ -68,12 +48,12 @@ class UserManagementModule(BaseModule):
         """Verify database connection for user operations."""
         try:
             # Check if database is available
-            if not self.analytics_db.available:
+            if not self.db_manager.available:
                 custom_log("⚠️ Database unavailable for user operations - running with limited functionality")
                 return
                 
             # Simple connection test
-            self.analytics_db.db.command('ping')
+            self.db_manager.db.command('ping')
             custom_log("✅ User database connection verified")
         except Exception as e:
             custom_log(f"⚠️ User database connection verification failed: {e}")
@@ -248,7 +228,7 @@ class UserManagementModule(BaseModule):
     def get_user(self, user_id):
         """Get user by ID with queued operation."""
         try:
-            user = self.analytics_db.find_one("users", {"_id": user_id})
+            user = self.db_manager.find_one("users", {"_id": user_id})
             if not user:
                 return jsonify({'error': 'User not found'}), 404
             
@@ -321,7 +301,7 @@ class UserManagementModule(BaseModule):
                 query['status'] = data['status']
             
             # Search users using queue system
-            users = self.analytics_db.find("users", query)
+            users = self.db_manager.find("users", query)
             
             # Remove passwords from response
             for user in users:
@@ -691,7 +671,7 @@ class UserManagementModule(BaseModule):
                 return jsonify({'error': 'User not authenticated'}), 401
             
             # Get user profile from database
-            user = self.analytics_db.find_one("users", {"_id": user_id})
+            user = self.db_manager.find_one("users", {"_id": user_id})
             if not user:
                 return jsonify({'error': 'User not found'}), 404
             
@@ -748,7 +728,7 @@ class UserManagementModule(BaseModule):
             if not user_id:
                 return jsonify({'error': 'User not authenticated'}), 401
             
-            user = self.analytics_db.find_one("users", {"_id": user_id})
+            user = self.db_manager.find_one("users", {"_id": user_id})
             if not user:
                 return jsonify({'error': 'User not found'}), 404
             

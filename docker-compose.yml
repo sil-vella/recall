@@ -36,6 +36,8 @@ services:
     build:
       context: ./python_base_04
       dockerfile: Dockerfile
+      args:
+        - CLEAN_PYCACHE=true
     container_name: external_app_flask
     ports:
       - "8081:5001"

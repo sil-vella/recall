@@ -40,7 +40,7 @@ class CreditSystemModule(BaseModule):
         custom_log("CreditSystemModule created with shared managers")
 
     def initialize(self, app_manager):
-        """Initialize the CreditSystemModule with AppManager."""
+        """Initialize the CreditSystemModule with AppInitializer."""
         self.app_manager = app_manager
         self.app = app_manager.flask_app
         self.initialize_database()

@@ -384,7 +384,7 @@ def register_module_actions(self, actions_config: Dict[str, Any], handlers: Dict
         else:
             custom_log(f"⚠️ UserActionsManager not available in app_manager for module {self.module_name}")
     else:
-        custom_log(f"⚠️ AppManager not available for module {self.module_name}")
+        custom_log(f"⚠️ AppInitializer not available for module {self.module_name}")
 
 
 def load_module_declarations(self) -> Dict[str, Any]:

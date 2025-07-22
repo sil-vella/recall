@@ -24,14 +24,14 @@ class ManagerInitializer:
     used throughout the application, ensuring proper dependencies and connections.
     """
     
-    def __init__(self, app_manager):
+    def __init__(self, app_initializer):
         """
         Initialize the ManagerInitializer.
         
         Args:
-            app_manager: Reference to the main AppManager instance
+            app_initializer: Reference to the main AppInitializer instance
         """
-        self.app_manager = app_manager
+        self.app_initializer = app_initializer
         
         # Manager instances
         self.db_manager = None
@@ -90,9 +90,9 @@ class ManagerInitializer:
         self.admin_db = self.db_manager
         
         # Set the database manager in the app manager
-        self.app_manager.db_manager = self.db_manager
-        self.app_manager.analytics_db = self.analytics_db
-        self.app_manager.admin_db = self.admin_db
+        self.app_initializer.db_manager = self.db_manager
+        self.app_initializer.analytics_db = self.analytics_db
+        self.app_initializer.admin_db = self.admin_db
         
         custom_log("✅ Database managers initialized")
 
@@ -101,7 +101,7 @@ class ManagerInitializer:
         self.redis_manager = RedisManager()
         
         # Set the Redis manager in the app manager
-        self.app_manager.redis_manager = self.redis_manager
+        self.app_initializer.redis_manager = self.redis_manager
         
         custom_log("✅ Redis manager initialized")
 
@@ -113,7 +113,7 @@ class ManagerInitializer:
         self.rate_limiter_manager.set_redis_manager(self.redis_manager)
         
         # Set the rate limiter manager in the app manager
-        self.app_manager.rate_limiter_manager = self.rate_limiter_manager
+        self.app_initializer.rate_limiter_manager = self.rate_limiter_manager
         
         custom_log("✅ Rate limiter manager initialized")
 
@@ -125,7 +125,7 @@ class ManagerInitializer:
         )
         
         # Set the state manager in the app manager
-        self.app_manager.state_manager = self.state_manager
+        self.app_initializer.state_manager = self.state_manager
         
         custom_log("✅ State manager initialized")
 
@@ -134,7 +134,7 @@ class ManagerInitializer:
         self.jwt_manager = JWTManager(redis_manager=self.redis_manager)
         
         # Set the JWT manager in the app manager
-        self.app_manager.jwt_manager = self.jwt_manager
+        self.app_initializer.jwt_manager = self.jwt_manager
         
         custom_log("✅ JWT manager initialized")
 
@@ -143,17 +143,17 @@ class ManagerInitializer:
         self.user_actions_manager = UserActionsManager()
         
         # Set the user actions manager in the app manager
-        self.app_manager.user_actions_manager = self.user_actions_manager
+        self.app_initializer.user_actions_manager = self.user_actions_manager
         
         custom_log("✅ User actions manager initialized")
 
     def _initialize_action_discovery_manager(self):
         """Initialize action discovery manager."""
-        self.action_discovery_manager = ActionDiscoveryManager(self.app_manager)
+        self.action_discovery_manager = ActionDiscoveryManager(self.app_initializer)
         self.action_discovery_manager.discover_all_actions()
         
         # Set the action discovery manager in the app manager
-        self.app_manager.action_discovery_manager = self.action_discovery_manager
+        self.app_initializer.action_discovery_manager = self.action_discovery_manager
         
         custom_log("✅ Action discovery manager initialized")
 
@@ -167,7 +167,7 @@ class ManagerInitializer:
         self.websocket_manager.initialize(app, use_builtin_handlers=True)
         
         # Set the WebSocket manager in the app manager
-        self.app_manager.websocket_manager = self.websocket_manager
+        self.app_initializer.websocket_manager = self.websocket_manager
         
         custom_log("✅ WebSocket manager initialized")
 

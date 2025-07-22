@@ -6,19 +6,19 @@ from datetime import datetime
 
 
 class SystemActionsModule(BaseModule):
-    def __init__(self, app_manager=None):
+    def __init__(self, app_initializer=None):
         """Initialize the SystemActionsModule."""
-        super().__init__(app_manager)
+        super().__init__(app_initializer)
         
         # Set dependencies
         self.dependencies = []
         
         custom_log("SystemActionsModule created")
 
-    def initialize(self, app_manager):
-        """Initialize the SystemActionsModule with AppManager."""
-        self.app_manager = app_manager
-        self.app = app_manager.flask_app
+    def initialize(self, app_initializer):
+        """Initialize the SystemActionsModule with AppInitializer."""
+        self.app_initializer = app_initializer
+        self.app = app_initializer.flask_app
         self.register_routes()
         
         # Register module actions with UserActionsManager
@@ -164,9 +164,9 @@ class SystemActionsModule(BaseModule):
             if not module_name:
                 return {"error": "module_name is required"}
             
-            # Get module from app_manager
-            if self.app_manager:
-                module_instance = self.app_manager.get_module(module_name)
+            # Get module from app_initializer
+            if self.app_initializer:
+                module_instance = self.app_initializer.get_module(module_name)
                 if module_instance:
                     status = {
                         "module": module_name,
@@ -189,7 +189,7 @@ class SystemActionsModule(BaseModule):
                         "error": f"Module '{module_name}' not found"
                     }
             else:
-                return {"error": "AppManager not available"}
+                return {"error": "AppInitializer not available"}
                 
         except Exception as e:
             custom_log(f"❌ Error getting module status: {e}", level="ERROR")
@@ -202,8 +202,8 @@ class SystemActionsModule(BaseModule):
         
         # Add UserActionsManager status
         try:
-            if self.app_manager and self.app_manager.user_actions_manager:
-                actions_count = len(self.app_manager.user_actions_manager.module_actions.get("system_actions", []))
+            if self.app_initializer and self.app_initializer.user_actions_manager:
+                actions_count = len(self.app_initializer.user_actions_manager.module_actions.get("system_actions", []))
                 health_status['details'] = {
                     'registered_actions': actions_count,
                     'user_actions_manager_available': True

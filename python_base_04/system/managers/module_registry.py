@@ -39,7 +39,7 @@ class ModuleRegistry:
                 if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, '__init__.py')):
                     try:
                         # Import the module package
-                        module_package = f"core.modules.{item}"
+                        module_package = f"system.modules.{item}"
                         module_module = importlib.import_module(module_package)
                         
                         # Look for the main module class in __all__ or inspect the module

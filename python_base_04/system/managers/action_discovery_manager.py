@@ -202,7 +202,7 @@ class ActionDiscoveryManager:
                 else:
                     raise ValueError(f"Module {actual_module_name} not found")
             else:
-                raise ValueError("AppManager or ModuleManager not available")
+                raise ValueError("AppInitializer or ModuleManager not available")
                 
         except Exception as e:
             custom_log(f"❌ Error executing action logic: {e}", level="ERROR")

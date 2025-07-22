@@ -10,13 +10,13 @@ class BaseModule(ABC):
     Provides a standardized interface and common functionality.
     """
     
-    def __init__(self, app_manager=None):
+    def __init__(self, app_initializer=None):
         """
         Initialize the base module.
         
-        :param app_manager: Reference to the main AppManager instance
+        :param app_initializer: Reference to the main AppInitializer instance
         """
-        self.app_manager = app_manager
+        self.app_initializer = app_initializer
         self.app = None  # Flask app reference
         self.registered_routes = []
         self.dependencies = []
@@ -27,12 +27,12 @@ class BaseModule(ABC):
         custom_log(f"Module {self.module_name} created")
     
     @abstractmethod
-    def initialize(self, app_manager):
+    def initialize(self, app_initializer):
         """
-        Initialize the module with the AppManager.
+        Initialize the module with the AppInitializer.
         This method must be implemented by all modules.
         
-        :param app_manager: AppManager instance
+        :param app_initializer: AppInitializer instance
         """
         pass
     

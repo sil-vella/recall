@@ -1,5 +1,8 @@
 FROM python:3.9-slim
 
+# Add build argument for cleaning pycache
+ARG CLEAN_PYCACHE=false
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
@@ -18,10 +21,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code (excluding unnecessary directories)
 COPY app.py .
 COPY __init__.py .
-COPY core/ ./core/
+COPY system/ ./system/
 COPY utils/ ./utils/
 # COPY plugins/ ./plugins/  # REMOVED: Plugin system deprecated
 COPY tools/ ./tools/
+
+# Clean pycache if requested
+RUN if [ "$CLEAN_PYCACHE" = "true" ]; then \
+        find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true; \
+        find . -name "*.pyc" -type f -delete 2>/dev/null || true; \
+        find . -name "*.pyo" -type f -delete 2>/dev/null || true; \
+        echo "🧹 Python cache cleaned during build"; \
+    fi
 
 # Set environment variables
 ENV PYTHONPATH="/app:$PYTHONPATH"

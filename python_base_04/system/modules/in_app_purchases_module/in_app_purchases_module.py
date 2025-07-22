@@ -7,7 +7,7 @@ Handles in-app purchase verification and management for both Google Play and App
 from flask import Blueprint, request, jsonify
 from typing import Dict, Any, Optional
 from ..base_module import BaseModule
-from system.managers.app_manager import AppManager
+from system.orchestration.app_initiation.app_initializer import AppInitializer
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
 
@@ -20,8 +20,8 @@ from .sync.product_sync_manager import ProductSyncManager
 class InAppPurchasesModule(BaseModule):
     """Module for handling in-app purchases and receipt verification."""
     
-    def __init__(self, app_manager: Optional[AppManager] = None):
-        super().__init__(app_manager)
+    def __init__(self, app_initializer: Optional[AppInitializer] = None):
+        super().__init__(app_initializer)
         self.module_name = "in_app_purchases_module"
         self.dependencies = []  # No direct dependencies - gets modules from provider
         
@@ -29,10 +29,11 @@ class InAppPurchasesModule(BaseModule):
         self.google_play_verifier = None
         self.app_store_verifier = None
         self.product_sync_manager = None
+        self.app_initializer = app_initializer
         
-    def initialize(self, app_manager: AppManager):
+    def initialize(self, app_initializer: AppInitializer):
         """Initialize the in-app purchases module."""
-        self.app_manager = app_manager
+        self.app_initializer = app_initializer
         custom_log(f"Initializing {self.module_name}", level="INFO")
         
         # Initialize verifiers
@@ -54,7 +55,7 @@ class InAppPurchasesModule(BaseModule):
             custom_log("🗄️ Initializing in-app purchases database schema...", level="INFO")
             
             # Get database manager
-            db_manager = self.app_manager.get_db_manager(role="read_write")
+            db_manager = self.app_initializer.get_db_manager(role="read_write")
             
             # Check if collections exist, if not create them
             collections = db_manager.db.list_collection_names()
@@ -102,7 +103,7 @@ class InAppPurchasesModule(BaseModule):
     def _update_users_with_module_data(self):
         """Update existing users with in-app purchases module data."""
         try:
-            db_manager = self.app_manager.get_db_manager(role="read_write")
+            db_manager = self.app_initializer.get_db_manager(role="read_write")
             
             # Update all users to include in-app purchases module
             update_result = db_manager.update(
@@ -129,7 +130,7 @@ class InAppPurchasesModule(BaseModule):
     def _update_module_registry(self):
         """Update module registry with in-app purchases module."""
         try:
-            db_manager = self.app_manager.get_db_manager(role="read_write")
+            db_manager = self.app_initializer.get_db_manager(role="read_write")
             
             # Check if module already exists
             existing_module = db_manager.find_one(
@@ -170,14 +171,14 @@ class InAppPurchasesModule(BaseModule):
         """Initialize platform-specific verifiers and sync manager."""
         try:
             # Initialize product sync manager
-            self.product_sync_manager = ProductSyncManager(self.app_manager)
+            self.product_sync_manager = ProductSyncManager(self.app_initializer)
             
             # Initialize Google Play verifier
-            self.google_play_verifier = GooglePlayVerifier(self.app_manager)
+            self.google_play_verifier = GooglePlayVerifier(self.app_initializer)
             self.google_play_verifier.product_sync_manager = self.product_sync_manager
             
             # Initialize App Store verifier  
-            self.app_store_verifier = AppStoreVerifier(self.app_manager)
+            self.app_store_verifier = AppStoreVerifier(self.app_initializer)
             self.app_store_verifier.product_sync_manager = self.product_sync_manager
             
             custom_log("Purchase verifiers and sync manager initialized", level="INFO")
@@ -200,7 +201,7 @@ class InAppPurchasesModule(BaseModule):
             self.blueprint.route('/clear-mock-data', methods=['POST'])(self.clear_mock_data)
             
             # Register blueprint with app
-            self.app_manager.app.register_blueprint(self.blueprint, url_prefix='/api/in-app-purchases')
+            self.app_initializer.app.register_blueprint(self.blueprint, url_prefix='/api/in-app-purchases')
             
             custom_log(f"✅ {self.module_name} routes registered", level="INFO")
             
@@ -286,7 +287,7 @@ class InAppPurchasesModule(BaseModule):
         """Extract user ID from JWT token."""
         try:
             # Get JWT manager
-            jwt_manager = self.app_manager.jwt_manager
+            jwt_manager = self.app_initializer.jwt_manager
             
             # Get token from request headers
             auth_header = request.headers.get('Authorization')
@@ -307,7 +308,7 @@ class InAppPurchasesModule(BaseModule):
         """Update user's purchase record."""
         try:
             # Get database manager
-            db_manager = self.app_manager.get_db_manager(role="read_write")
+            db_manager = self.app_initializer.get_db_manager(role="read_write")
             
             # Insert purchase record
             purchase_data = {
@@ -340,7 +341,7 @@ class InAppPurchasesModule(BaseModule):
     def _update_user_module_data(self, user_id: str, product_id: str, verification_result: Dict[str, Any]):
         """Update user's in-app purchases module data."""
         try:
-            db_manager = self.app_manager.get_db_manager(role="read_write")
+            db_manager = self.app_initializer.get_db_manager(role="read_write")
             
             # Get current user data
             user = db_manager.find_one("users", {"_id": user_id})
@@ -382,7 +383,7 @@ class InAppPurchasesModule(BaseModule):
     def _get_user_purchase_history(self, user_id: str) -> list:
         """Get user's purchase history from database."""
         try:
-            db_manager = self.app_manager.get_db_manager(role="read_only")
+            db_manager = self.app_initializer.get_db_manager(role="read_only")
             
             result = db_manager.find(
                 "user_purchases",
@@ -498,7 +499,7 @@ class InAppPurchasesModule(BaseModule):
             custom_log("🗑️ Clearing mock data from database...", level="INFO")
             
             # Get database manager
-            db_manager = self.app_manager.get_db_manager(role="read_write")
+            db_manager = self.app_initializer.get_db_manager(role="read_write")
             
             # Clear store_products collection
             result = db_manager.db.store_products.delete_many({})
@@ -539,6 +540,6 @@ class InAppPurchasesModule(BaseModule):
         """Module health check."""
         return {
             "module": self.module_name,
-            "status": "healthy" if self.app_manager else "not_initialized",
+            "status": "healthy" if self.app_initializer else "not_initialized",
             "details": "In-app purchases module with Google Play and App Store verification"
         } 

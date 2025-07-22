@@ -7,23 +7,23 @@ from typing import Dict, Any
 
 
 class TransactionsModule(BaseModule):
-    def __init__(self, app_manager=None):
+    def __init__(self, app_initializer=None):
         """Initialize the TransactionsModule."""
-        super().__init__(app_manager)
+        super().__init__(app_initializer)
         self.dependencies = ["communications_module", "user_management", "wallet", "stripe"]
         
         # Use centralized managers from app_manager
-        if app_manager:
-            self.db_manager = app_manager.get_db_manager(role="read_write")
+        if app_initializer:
+            self.db_manager = app_initializer.get_db_manager(role="read_write")
         else:
             self.db_manager = DatabaseManager(role="read_write")
             
         custom_log("TransactionsModule created with database manager")
 
-    def initialize(self, app_manager):
-        """Initialize the TransactionsModule with AppManager."""
-        self.app_manager = app_manager
-        self.app = app_manager.flask_app
+    def initialize(self, app_initializer):
+        """Initialize the TransactionsModule with AppInitializer."""
+        self.app_initializer = app_initializer
+        self.app = app_initializer.flask_app
         self.register_routes()
         self._initialized = True
         custom_log("TransactionsModule initialized")

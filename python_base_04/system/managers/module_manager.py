@@ -12,21 +12,21 @@ class ModuleManager:
         custom_log("ModuleManager instance created - now serving as primary orchestrator")
 
     @log_function_call
-    def register_module(self, module_key, module_class, app_manager=None, *args, **kwargs):
+    def register_module(self, module_key, module_class, app_initializer=None, *args, **kwargs):
         """
         Register and initialize a module.
         :param module_key: str - The unique key for the module.
         :param module_class: type - The class of the module to initialize.
-        :param app_manager: AppManager - The central application manager to pass to modules.
+        :param app_initializer: AppInitializer - The central application initializer to pass to modules.
         :param args: list - Positional arguments for the module class.
         :param kwargs: dict - Keyword arguments for the module class.
         """
         if module_key in self.modules:
             raise ValueError(f"Module with key '{module_key}' is already registered.")
         
-        # Pass the app_manager as a keyword argument if provided
-        if app_manager:
-            kwargs['app_manager'] = app_manager
+        # Pass the app_initializer as a keyword argument if provided
+        if app_initializer:
+            kwargs['app_initializer'] = app_initializer
 
         # Instantiate the module
         module_instance = module_class(*args, **kwargs)
@@ -37,11 +37,11 @@ class ModuleManager:
         if hasattr(module_instance, 'initialize'):
             custom_log(f"🔄 Initializing module '{module_key}'...")
             try:
-                if app_manager:
-                    module_instance.initialize(app_manager)
+                if app_initializer:
+                    module_instance.initialize(app_initializer)
                     custom_log(f"✅ Module '{module_key}' initialized successfully")
                 else:
-                    custom_log(f"❌ Cannot initialize module '{module_key}': Missing required app_manager")
+                    custom_log(f"❌ Cannot initialize module '{module_key}': Missing required app_initializer")
             except Exception as e:
                 custom_log(f"❌ Error initializing module '{module_key}': {str(e)}")
                 raise
@@ -113,12 +113,12 @@ class ModuleManager:
             return []
     
     @log_function_call
-    def initialize_modules(self, app_manager):
+    def initialize_modules(self, app_initializer):
         """
         Initialize all modules in dependency order.
         This is the main entry point for module initialization.
         
-        :param app_manager: AppManager instance
+        :param app_initializer: AppInitializer instance
         """
         custom_log("🚀 Starting module initialization process...")
         
@@ -146,7 +146,7 @@ class ModuleManager:
             try:
                 if module_key in modules:
                     module_class = modules[module_key]
-                    self.register_and_initialize_module(module_key, module_class, app_manager)
+                    self.register_and_initialize_module(module_key, module_class, app_initializer)
                 else:
                     custom_log(f"❌ Module {module_key} in load order but not in discovered modules")
             except Exception as e:
@@ -163,13 +163,13 @@ class ModuleManager:
             custom_log(f"⚠️ Initialization errors: {self.initialization_errors}")
     
     @log_function_call
-    def register_and_initialize_module(self, module_key: str, module_class: Type[BaseModule], app_manager):
+    def register_and_initialize_module(self, module_key: str, module_class: Type[BaseModule], app_initializer):
         """
         Register and initialize a single module.
         
         :param module_key: Unique identifier for the module
         :param module_class: Module class to instantiate
-        :param app_manager: AppManager instance
+        :param app_initializer: AppInitializer instance
         """
         try:
             # Check if module is already registered
@@ -179,7 +179,7 @@ class ModuleManager:
             
             # Instantiate the module
             custom_log(f"📦 Creating module instance: {module_key}")
-            module_instance = module_class(app_manager=app_manager)
+            module_instance = module_class(app_initializer=app_initializer)
             
             # Register the module
             self.modules[module_key] = module_instance
@@ -188,7 +188,7 @@ class ModuleManager:
             # Initialize the module
             if hasattr(module_instance, 'initialize'):
                 custom_log(f"🔄 Initializing module: {module_key}")
-                module_instance.initialize(app_manager)
+                module_instance.initialize(app_initializer)
                 
                 # Mark as initialized
                 module_instance._initialized = True

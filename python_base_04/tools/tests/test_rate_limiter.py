@@ -23,7 +23,7 @@ class TestRateLimiterManager(unittest.TestCase):
         rate_limiter2 = RateLimiterManager()
         self.assertIs(self.rate_limiter, rate_limiter2)
 
-    @patch('core.managers.redis_manager.RedisManager')
+    @patch('system.managers.redis_manager.RedisManager')
     def test_check_rate_limit_first_request(self, mock_redis):
         """Test rate limit check for first request."""
         mock_redis.get.return_value = None
@@ -36,7 +36,7 @@ class TestRateLimiterManager(unittest.TestCase):
         self.assertEqual(len(result['banned_types']), 0)
         mock_redis.set.assert_called_once()
 
-    @patch('core.managers.redis_manager.RedisManager')
+    @patch('system.managers.redis_manager.RedisManager')
     def test_check_rate_limit_exceeded(self, mock_redis):
         """Test rate limit check when limit is exceeded."""
         mock_redis.get.return_value = str(Config.RATE_LIMIT_IP_REQUESTS)
@@ -48,7 +48,7 @@ class TestRateLimiterManager(unittest.TestCase):
         self.assertEqual(len(result['banned_types']), 0)
         mock_redis.incr.assert_not_called()
 
-    @patch('core.managers.redis_manager.RedisManager')
+    @patch('system.managers.redis_manager.RedisManager')
     def test_check_rate_limit_redis_error(self, mock_redis):
         """Test rate limit check when Redis error occurs."""
         mock_redis.get.side_effect = RedisError("Connection error")
@@ -58,7 +58,7 @@ class TestRateLimiterManager(unittest.TestCase):
         self.assertEqual(result['exceeded_types'], [])
         self.assertEqual(len(result['banned_types']), 0)
 
-    @patch('core.managers.redis_manager.RedisManager')
+    @patch('system.managers.redis_manager.RedisManager')
     def test_check_multiple_rate_limits(self, mock_redis):
         """Test checking multiple rate limits simultaneously."""
         # Mock different values for different limit types
@@ -83,7 +83,7 @@ class TestRateLimiterManager(unittest.TestCase):
         self.assertNotIn('api_key', result['exceeded_types'])
         self.assertEqual(len(result['banned_types']), 0)
 
-    @patch('core.managers.redis_manager.RedisManager')
+    @patch('system.managers.redis_manager.RedisManager')
     def test_check_rate_limit_with_missing_identifier(self, mock_redis):
         """Test rate limit check when some identifiers are missing."""
         mock_redis.get.return_value = None
@@ -98,7 +98,7 @@ class TestRateLimiterManager(unittest.TestCase):
         self.assertEqual(len(result['exceeded_types']), 0)
         self.assertEqual(len(result['banned_types']), 0)
 
-    @patch('core.managers.redis_manager.RedisManager')
+    @patch('system.managers.redis_manager.RedisManager')
     def test_get_rate_limit_status(self, mock_redis):
         """Test getting rate limit status for an identifier."""
         mock_redis.get.return_value = "5"
@@ -110,7 +110,7 @@ class TestRateLimiterManager(unittest.TestCase):
         self.assertGreater(status['reset_time'], int(time.time()))
         self.assertFalse(status['banned'])
 
-    @patch('core.managers.redis_manager.RedisManager')
+    @patch('system.managers.redis_manager.RedisManager')
     def test_reset_rate_limit(self, mock_redis):
         """Test resetting rate limit for an identifier."""
         mock_redis.delete.return_value = True

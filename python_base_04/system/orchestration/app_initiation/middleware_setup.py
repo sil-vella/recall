@@ -21,25 +21,25 @@ class MiddlewareSetup:
     monitoring, and other middleware components for the Flask application.
     """
     
-    def __init__(self, app_manager):
+    def __init__(self, app_initializer):
         """
         Initialize the MiddlewareSetup.
         
         Args:
-            app_manager: Reference to the main AppManager instance
+            app_initializer: Reference to the main AppInitializer instance
         """
-        self.app_manager = app_manager
+        self.app_initializer = app_initializer
         self.flask_app = None
         
         custom_log("MiddlewareSetup created")
 
     def setup_all_middleware(self):
         """Set up all middleware components for the Flask application."""
-        if not self.app_manager.flask_app:
+        if not self.app_initializer.flask_app:
             custom_log("⚠️ No Flask app available for middleware setup")
             return
             
-        self.flask_app = self.app_manager.flask_app
+        self.flask_app = self.app_initializer.flask_app
         custom_log("Setting up all middleware components...")
         
         # Set up rate limiting middleware
@@ -75,12 +75,12 @@ class MiddlewareSetup:
             try:
                 # Check all enabled rate limits
                 limit_types = ['ip']  # Always check IP
-                if self.app_manager.rate_limiter_manager.config['user']['enabled']:
+                if self.app_initializer.rate_limiter_manager.config['user']['enabled']:
                     limit_types.append('user')
-                if self.app_manager.rate_limiter_manager.config['api_key']['enabled']:
+                if self.app_initializer.rate_limiter_manager.config['api_key']['enabled']:
                     limit_types.append('api_key')
 
-                result = self.app_manager.rate_limiter_manager.check_rate_limit(limit_types)
+                result = self.app_initializer.rate_limiter_manager.check_rate_limit(limit_types)
                 
                 if not result['allowed']:
                     # Log rate limit hit with details
@@ -88,8 +88,8 @@ class MiddlewareSetup:
                     custom_log(
                         f"Rate limit exceeded for types: {exceeded_types}. "
                         f"IP: {request.remote_addr}, "
-                        f"User: {self.app_manager.rate_limiter_manager._get_user_id()}, "
-                        f"API Key: {self.app_manager.rate_limiter_manager._get_api_key()}",
+                        f"User: {self.app_initializer.rate_limiter_manager._get_user_id()}, "
+                        f"API Key: {self.app_initializer.rate_limiter_manager._get_api_key()}",
                         level="WARNING"
                     )
                     
@@ -114,7 +114,7 @@ class MiddlewareSetup:
                         for limit_type in limit_types:
                             if limit_type in result['remaining']:
                                 prefix = limit_type.upper()
-                                response.headers[f'X-RateLimit-{prefix}-Limit'] = str(self.app_manager.rate_limiter_manager.config[limit_type]['requests'])
+                                response.headers[f'X-RateLimit-{prefix}-Limit'] = str(self.app_initializer.rate_limiter_manager.config[limit_type]['requests'])
                                 response.headers[f'X-RateLimit-{prefix}-Remaining'] = str(result['remaining'][limit_type])
                                 response.headers[f'X-RateLimit-{prefix}-Reset'] = str(result['reset_time'][limit_type])
                     
@@ -152,15 +152,15 @@ class MiddlewareSetup:
                 if Config.RATE_LIMIT_HEADERS_ENABLED and hasattr(request, 'rate_limit_result'):
                     result = request.rate_limit_result
                     limit_types = ['ip']
-                    if self.app_manager.rate_limiter_manager.config['user']['enabled']:
+                    if self.app_initializer.rate_limiter_manager.config['user']['enabled']:
                         limit_types.append('user')
-                    if self.app_manager.rate_limiter_manager.config['api_key']['enabled']:
+                    if self.app_initializer.rate_limiter_manager.config['api_key']['enabled']:
                         limit_types.append('api_key')
                     
                     for limit_type in limit_types:
                         if limit_type in result['remaining']:
                             prefix = limit_type.upper()
-                            response.headers[f'X-RateLimit-{prefix}-Limit'] = str(self.app_manager.rate_limiter_manager.config[limit_type]['requests'])
+                            response.headers[f'X-RateLimit-{prefix}-Limit'] = str(self.app_initializer.rate_limiter_manager.config[limit_type]['requests'])
                             response.headers[f'X-RateLimit-{prefix}-Remaining'] = str(result['remaining'][limit_type])
                             response.headers[f'X-RateLimit-{prefix}-Reset'] = str(result['reset_time'][limit_type])
             except Exception as e:
@@ -174,7 +174,7 @@ class MiddlewareSetup:
 
         # Initialize API Key Manager
         from system.managers.api_key_manager import APIKeyManager
-        self.app_manager.api_key_manager = APIKeyManager(self.app_manager.redis_manager)
+        self.app_initializer.api_key_manager = APIKeyManager(self.app_initializer.redis_manager)
 
         # Register security headers at application level
         @self.flask_app.after_request
@@ -227,7 +227,7 @@ class MiddlewareSetup:
                 token = auth_header.split(' ')[1]
                 try:
                     from system.managers.jwt_manager import TokenType
-                    payload = self.app_manager.jwt_manager.verify_token(token, TokenType.ACCESS)
+                    payload = self.app_initializer.jwt_manager.verify_token(token, TokenType.ACCESS)
                     if not payload:
                         return jsonify({
                             'error': 'Invalid or expired token',
@@ -261,7 +261,7 @@ class MiddlewareSetup:
                     }), 401
                 
                 # Validate API key
-                api_key_data = self.app_manager.api_key_manager.validate_api_key(api_key)
+                api_key_data = self.app_initializer.api_key_manager.validate_api_key(api_key)
                 if not api_key_data:
                     return jsonify({
                         'error': 'Invalid or expired API key',
@@ -321,7 +321,7 @@ class MiddlewareSetup:
         def modules_status():
             """Get status of all modules."""
             try:
-                status = self.app_manager.module_manager.get_module_status()
+                status = self.app_initializer.module_manager.get_module_status()
                 return status, 200
             except Exception as e:
                 custom_log(f"Error getting module status: {e}", level="ERROR")
@@ -331,7 +331,7 @@ class MiddlewareSetup:
         def module_health(module_key):
             """Get health check for specific module."""
             try:
-                module = self.app_manager.module_manager.get_module(module_key)
+                module = self.app_initializer.module_manager.get_module(module_key)
                 if not module:
                     return {'error': 'Module not found'}, 404
                 
@@ -348,22 +348,22 @@ class MiddlewareSetup:
         def update_system_metrics():
             try:
                 # Update MongoDB connections
-                if hasattr(self.app_manager, 'db_manager'):
+                if hasattr(self.app_initializer, 'db_manager'):
                     metrics_collector.update_mongodb_connections(
-                        self.app_manager.db_manager.get_connection_count()
+                        self.app_initializer.db_manager.get_connection_count()
                     )
                 
                 # Update Redis connections
-                if hasattr(self.app_manager, 'redis_manager'):
+                if hasattr(self.app_initializer, 'redis_manager'):
                     metrics_collector.update_redis_connections(
-                        self.app_manager.redis_manager.get_connection_count()
+                        self.app_initializer.redis_manager.get_connection_count()
                     )
             except Exception as e:
                 custom_log(f"Error updating system metrics: {e}", level="ERROR")
         
         # Schedule periodic updates
-        if self.app_manager.scheduler:
-            self.app_manager.scheduler.add_job(
+        if self.app_initializer.scheduler:
+            self.app_initializer.scheduler.add_job(
                 update_system_metrics,
                 'interval',
                 seconds=15,

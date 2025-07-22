@@ -50,13 +50,13 @@ class StripeModule(BaseModule):
             custom_log(f"❌ Error initializing Stripe: {e}", level="ERROR")
             self.stripe = None
 
-    def initialize(self, app_manager):
-        """Initialize the StripeModule with AppManager."""
-        self.app_manager = app_manager
-        self.app = app_manager.flask_app
+    def initialize(self, app_initializer):
+        """Initialize the StripeModule with AppInitializer."""
+        self.app_initializer = app_initializer
+        self.app = app_initializer.flask_app
         
-        # Get database manager through app_manager
-        self.db_manager = app_manager.get_db_manager(role="read_write")
+        # Get database manager through app_initializer
+        self.db_manager = app_initializer.get_db_manager(role="read_write")
         
         self.register_routes()
         self._initialized = True

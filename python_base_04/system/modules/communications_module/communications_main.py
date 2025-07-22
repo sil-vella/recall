@@ -41,10 +41,10 @@ class CommunicationsModule(BaseModule):
         custom_log(f"CommunicationsModule module created with shared managers")
 
     def initialize(self, app_manager):
-        """Initialize the CommunicationsModule with AppManager."""
+        """Initialize the CommunicationsModule with AppInitializer."""
         self.app_manager = app_manager
         self.app = app_manager.flask_app
-        custom_log(f"CommunicationsModule initialized with AppManager")
+        custom_log(f"CommunicationsModule initialized with AppInitializer")
         
         # Ensure collections exist in the database
         self.initialize_database()
@@ -176,52 +176,6 @@ class CommunicationsModule(BaseModule):
                 "ttl_info": {
                     "access_token_expires": Config.JWT_ACCESS_TOKEN_EXPIRES,
                     "refresh_token_expires": Config.JWT_REFRESH_TOKEN_EXPIRES
-                }
-            }
-            
-            custom_log(f"JWT test successful for user: {payload.get('user_id')}")
-            return jsonify(token_info), 200
-            
-        except Exception as e:
-            custom_log(f"JWT test failed: {str(e)}", level="ERROR")
-            return jsonify({
-                "success": False,
-                "message": "JWT test failed",
-                "error": str(e)
-            }), 500
-
-    def health_check(self) -> Dict[str, Any]:
-        """Perform health check for CommunicationsModule."""
-        health_status = super().health_check()
-        health_status['dependencies'] = self.dependencies
-        # Add database queue status
-        try:
-            queue_status = self.admin_db.get_queue_status()
-            health_status['details'] = {
-                'database_queue': {
-                    'queue_size': queue_status['queue_size'],
-                    'worker_alive': queue_status['worker_alive'],
-                    'queue_enabled': queue_status['queue_enabled'],
-                    'pending_results': queue_status['pending_results']
-                },
-                'api_key_manager': {
-                    'status': 'operational',
-                    'external_app_key_configured': bool(self.api_key_manager.load_credit_system_api_key())
-                }
-            }
-        except Exception as e:
-            health_status['details'] = {
-                'database_queue': f'error: {str(e)}',
-                'token_info': {
-                    'user_id': payload.get('user_id'),
-                    'type': payload.get('type'),
-                    'issued_at': payload.get('iat'),
-                    'expires_at': payload.get('exp'),
-                    'fingerprint': payload.get('fingerprint', '')[:16] + '...' if payload.get('fingerprint') else None
-                },
-                'ttl_info': {
-                    'access_token_expires': Config.JWT_ACCESS_TOKEN_EXPIRES,
-                    'refresh_token_expires': Config.JWT_REFRESH_TOKEN_EXPIRES
                 }
             }
             

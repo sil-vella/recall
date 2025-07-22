@@ -16,14 +16,14 @@ class HealthChecker:
     Redis connections, and other critical system components.
     """
     
-    def __init__(self, app_manager):
+    def __init__(self, app_initializer):
         """
         Initialize the HealthChecker.
         
         Args:
-            app_manager: Reference to the main AppManager instance
+            app_initializer: Reference to the main AppInitializer instance
         """
-        self.app_manager = app_manager
+        self.app_initializer = app_initializer
         custom_log("HealthChecker created")
 
     def check_database_connection(self) -> bool:
@@ -34,12 +34,12 @@ class HealthChecker:
             bool: True if database connection is healthy, False otherwise
         """
         try:
-            if not self.app_manager.db_manager:
+            if not self.app_initializer.db_manager:
                 custom_log("Database manager not available", level="WARNING")
                 return False
                 
             # Try to execute a simple query to check connection
-            is_healthy = self.app_manager.db_manager.check_connection()
+            is_healthy = self.app_initializer.db_manager.check_connection()
             
             if is_healthy:
                 custom_log("✅ Database connection is healthy")
@@ -60,12 +60,12 @@ class HealthChecker:
             bool: True if Redis connection is healthy, False otherwise
         """
         try:
-            if not self.app_manager.redis_manager:
+            if not self.app_initializer.redis_manager:
                 custom_log("Redis manager not available", level="WARNING")
                 return False
                 
             # Try to execute a PING command
-            is_healthy = self.app_manager.redis_manager.ping()
+            is_healthy = self.app_initializer.redis_manager.ping()
             
             if is_healthy:
                 custom_log("✅ Redis connection is healthy")
@@ -86,14 +86,14 @@ class HealthChecker:
             dict: Health status information
         """
         try:
-            if not self.app_manager.state_manager:
+            if not self.app_initializer.state_manager:
                 return {
                     'status': 'unhealthy',
                     'reason': 'State manager not available',
                     'details': 'State manager has not been initialized'
                 }
             
-            health_info = self.app_manager.state_manager.health_check()
+            health_info = self.app_initializer.state_manager.health_check()
             return health_info
             
         except Exception as e:
@@ -115,7 +115,7 @@ class HealthChecker:
             dict: Health status information for the module
         """
         try:
-            module = self.app_manager.module_manager.get_module(module_key)
+            module = self.app_initializer.module_manager.get_module(module_key)
             if not module:
                 return {
                     'status': 'not_found',
@@ -142,7 +142,7 @@ class HealthChecker:
             dict: Health status information for all modules
         """
         try:
-            module_status = self.app_manager.module_manager.get_module_status()
+            module_status = self.app_initializer.module_manager.get_module_status()
             unhealthy_modules = []
             
             for module_key, module_info in module_status.get('modules', {}).items():

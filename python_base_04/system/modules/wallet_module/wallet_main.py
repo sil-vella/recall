@@ -5,16 +5,16 @@ from typing import Dict, Any
 
 
 class WalletModule(BaseModule):
-    def __init__(self, app_manager=None):
+    def __init__(self, app_initializer=None):
         """Initialize the WalletModule."""
-        super().__init__(app_manager)
+        super().__init__(app_initializer)
         self.dependencies = ["communications_module", "user_management"]
         custom_log("WalletModule created")
 
-    def initialize(self, app_manager):
-        """Initialize the WalletModule with AppManager."""
-        self.app_manager = app_manager
-        self.app = app_manager.flask_app
+    def initialize(self, app_initializer):
+        """Initialize the WalletModule with AppInitializer."""
+        self.app_initializer = app_initializer
+        self.app = app_initializer.flask_app
         self.register_routes()
         
         # Register hooks for user events
@@ -25,7 +25,7 @@ class WalletModule(BaseModule):
 
     def _register_hooks(self):
         """Register hooks for user-related events."""
-        if self.app_manager:
+        if self.app_initializer:
             # Note: Wallet data is now embedded directly in user document during creation
             # No need for separate wallet hook callback
             custom_log("🎣 WalletModule: Wallet data embedded in user document - no hook callback needed")

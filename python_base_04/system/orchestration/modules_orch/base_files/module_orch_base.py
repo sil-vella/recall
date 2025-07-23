@@ -65,6 +65,13 @@ class ModuleOrchestratorBase:
             # If the orchestrator does not exist yet, skip
             pass
 
+        try:
+            from system.orchestration.modules_orch.stripe_orch.stripe_orchestrator import StripeOrchestrator
+            self.orchestrators['stripe'] = StripeOrchestrator(self.manager_initializer)
+        except ImportError:
+            # If the orchestrator does not exist yet, skip
+            pass
+
         # Call initialize on each orchestrator
         for orch in self.orchestrators.values():
             if hasattr(orch, 'initialize'):

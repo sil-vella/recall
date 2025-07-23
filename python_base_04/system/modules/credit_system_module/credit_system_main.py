@@ -1,217 +1,230 @@
-from system.managers.database_manager import DatabaseManager
-from system.managers.jwt_manager import JWTManager, TokenType
-from system.managers.redis_manager import RedisManager
 from tools.logger.custom_logging import custom_log
-from flask import request, jsonify
 from datetime import datetime
-from typing import Dict, Any
-from bson import ObjectId
-import bcrypt
-import re
+from typing import Dict, Any, Optional, List
 import requests
-from utils.config.config import Config
+import os
 
 
 class CreditSystemModule:
-    def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager, jwt_manager: JWTManager, hooks_manager=None):
-        self.db_manager = db_manager
-        self.redis_manager = redis_manager
-        self.jwt_manager = jwt_manager
-        self.hooks_manager = hooks_manager
-        custom_log("CreditSystemModule created with explicit dependencies")
+    """
+    Pure business logic module for credit system operations.
+    Completely decoupled from global config - uses only module-specific secrets.
+    """
+    
+    def __init__(self):
+        """
+        Initialize CreditSystemModule with completely independent secret access.
+        No dependencies on global config class.
+        """
+        self.module_name = "credit_system_module"
+        # Secrets directory is inside the module directory
+        self.secrets_dir = f"system/modules/{self.module_name}/secrets"
+        custom_log(f"CreditSystemModule created with independent secrets: {self.secrets_dir}")
 
     def initialize(self):
-        # Initialization logic if needed
-        pass
+        """Initialize the module."""
+        custom_log(f"CreditSystemModule initialized with independent secrets from {self.secrets_dir}")
 
-    def _register_hooks(self):
-        """Register hooks for user-related events."""
-        if self.hooks_manager:
-            # Register callback for user creation
-            self.hooks_manager.register_hook_callback(
-                "user_created", 
-                self._on_user_created, 
-                priority=15, 
-                context="credit_system"
-            )
-            custom_log("🎣 CreditSystemModule registered user_created hook callback")
+    def _read_module_secret(self, secret_name: str) -> Optional[str]:
+        """
+        Read secret from module-specific directory with fallback to global secrets.
+        Completely independent of config class.
+        
+        Args:
+            secret_name: Name of the secret file
+            
+        Returns:
+            Secret value or None if not found
+        """
+        # Module-specific secret paths (priority order)
+        secret_paths = [
+            f"{self.secrets_dir}/{secret_name}",           # Module-specific secrets
+            f"secrets/{secret_name}",                      # Global secrets (fallback)
+            f"/run/secrets/{secret_name}",                 # Kubernetes secrets
+            f"/app/secrets/{secret_name}",                 # Local development secrets
+        ]
+        
+        for path in secret_paths:
+            try:
+                if os.path.exists(path):
+                    with open(path, 'r') as f:
+                        content = f.read().strip()
+                        if content:
+                            custom_log(f"✅ Found module secret '{secret_name}' in {path}")
+                            return content
+            except Exception:
+                continue
+        
+        custom_log(f"🔍 Module secret '{secret_name}' not found in any location")
+        return None
 
-    def _on_user_created(self, hook_data):
-        """Handle user creation event - forward to credit system."""
+    def _get_environment_variable(self, env_name: str) -> Optional[str]:
+        """
+        Get environment variable value.
+        
+        Args:
+            env_name: Environment variable name
+            
+        Returns:
+            Environment variable value or None if not found
+        """
+        return os.getenv(env_name)
+
+    def _get_credit_system_url(self) -> str:
+        """
+        Get credit system URL with module-specific secrets first, then environment, then default.
+        Completely independent of config class.
+        """
+        # Try module-specific secret first
+        module_secret = self._read_module_secret("credit_system_url")
+        if module_secret:
+            return module_secret
+        
+        # Try environment variable
+        env_value = self._get_environment_variable("CREDIT_SYSTEM_URL")
+        if env_value:
+            return env_value
+        
+        # Default fallback
+        return "http://localhost:8000"
+
+    def _get_api_key(self) -> str:
+        """
+        Get API key with module-specific secrets first, then environment, then default.
+        Completely independent of config class.
+        """
+        # Try module-specific secret first
+        module_secret = self._read_module_secret("api_key")
+        if module_secret:
+            return module_secret
+        
+        # Try environment variable
+        env_value = self._get_environment_variable("CREDIT_SYSTEM_API_KEY")
+        if env_value:
+            return env_value
+        
+        # Default fallback
+        return ""
+
+    def get_secret_sources(self) -> Dict[str, Any]:
+        """
+        Get information about where secrets are being read from.
+        
+        Returns:
+            Dict with secret source information
+        """
+        url_secret = self._read_module_secret("credit_system_url")
+        api_key_secret = self._read_module_secret("api_key")
+        url_env = self._get_environment_variable("CREDIT_SYSTEM_URL")
+        api_key_env = self._get_environment_variable("CREDIT_SYSTEM_API_KEY")
+        
+        return {
+            'credit_system_url': {
+                'module_secret': bool(url_secret),
+                'module_secret_path': f"{self.secrets_dir}/credit_system_url" if url_secret else None,
+                'environment_variable': bool(url_env),
+                'environment_name': 'CREDIT_SYSTEM_URL' if url_env else None,
+                'fallback_used': not bool(url_secret or url_env),
+                'value': url_secret or url_env or self._get_credit_system_url()
+            },
+            'api_key': {
+                'module_secret': bool(api_key_secret),
+                'module_secret_path': f"{self.secrets_dir}/api_key" if api_key_secret else None,
+                'environment_variable': bool(api_key_env),
+                'environment_name': 'CREDIT_SYSTEM_API_KEY' if api_key_env else None,
+                'fallback_used': not bool(api_key_secret or api_key_env),
+                'configured': bool(api_key_secret or api_key_env or self._get_api_key())
+            }
+        }
+
+    def process_user_creation(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process user creation event.
+        
+        Args:
+            user_data: User data dictionary
+            
+        Returns:
+            Dict with success status and response data
+        """
         try:
-            user_id = hook_data.get('user_id')
-            username = hook_data.get('username')
-            email = hook_data.get('email')  # Raw email from request (non-encrypted)
-            user_data = hook_data.get('user_data', {})
-            app_id = hook_data.get('app_id')
-            app_name = hook_data.get('app_name')
-            source = hook_data.get('source', 'external_app')
+            user_id = user_data.get('user_id')
+            username = user_data.get('username')
+            email = user_data.get('email')
+            app_id = user_data.get('app_id')
+            app_name = user_data.get('app_name')
+            source = user_data.get('source', 'external_app')
             
-            custom_log(f"🎣 CreditSystemModule: Processing user creation for {username} ({email})")
-            custom_log(f"   - Source App: {app_name} ({app_id})")
-            custom_log(f"   - User ID: {user_id}")
+            custom_log(f"Processing user creation for {username} ({email})")
             
-            # Prepare data for credit system with multi-tenant structure
+            # Prepare data for credit system
             credit_system_user_data = {
-                # Core user fields
-                'email': email,  # Raw email from request
+                'email': email,
                 'username': username,
-                'password': 'temporary_password_123',  # Credit system will generate proper password
+                'password': 'temporary_password_123',
                 'status': 'active',
-                
-                # Profile data from external app
-                'first_name': user_data.get('profile', {}).get('first_name', ''),
-                'last_name': user_data.get('profile', {}).get('last_name', ''),
-                'phone': user_data.get('profile', {}).get('phone', ''),
-                'timezone': user_data.get('profile', {}).get('timezone', 'UTC'),
-                'language': user_data.get('profile', {}).get('language', 'en'),
-                
-                # App-specific data for multi-tenant structure
                 'app_id': app_id,
                 'app_name': app_name,
-                'app_version': '1.0.0',
-                'app_username': username,  # App-specific username
-                'app_display_name': f"{user_data.get('profile', {}).get('first_name', '')} {user_data.get('profile', {}).get('last_name', '')}".strip() or username,
-                'nickname': username[:2].upper(),
-                'avatar_url': '',
-                'theme': 'auto',
-                'notifications_enabled': True,
-                'custom_fields': {
-                    'source': source,
-                    'external_user_id': str(user_id),
-                    'created_via': 'external_app'
-                },
-                
-                # App connection settings
-                'permissions': ['read', 'write', 'wallet_access'],
-                'sync_frequency': 'realtime',
-                'wallet_updates': True,
-                'profile_updates': True,
-                'transaction_history': True,
-                'requests_per_minute': 100,
-                'requests_per_hour': 1000
+                'source': source,
+                'created_via': 'external_app'
             }
             
-            # Forward user creation to credit system
-            try:
-                headers = {
-                    'X-API-Key': self.api_key,
-                    'Content-Type': 'application/json'
-                }
-                
-                target_url = f"{self.credit_system_url}/users/create"
-                
-                custom_log(f"🔄 Forwarding user creation to credit system: {target_url}")
-                custom_log(f"🔄 User data: {credit_system_user_data}")
-                
-                response = requests.post(
-                    url=target_url,
-                    headers=headers,
-                    json=credit_system_user_data,
-                    timeout=30
-                )
-                
-                if response.status_code == 200 or response.status_code == 201:
-                    response_data = response.json()
-                    custom_log(f"✅ CreditSystemModule: User {username} synced to credit system successfully")
-                    custom_log(f"   - Credit system response: {response_data}")
-                    
-                    # Create welcome notification in external app
-                    self._create_welcome_notification(user_id, username, email, app_name)
-                    
-                else:
-                    custom_log(f"⚠️ CreditSystemModule: User {username} sync failed - status {response.status_code}")
-                    custom_log(f"   - Response: {response.text}")
-                    
-            except requests.exceptions.RequestException as e:
-                custom_log(f"❌ CreditSystemModule: Failed to sync user {username} to credit system: {e}")
-            except Exception as e:
-                custom_log(f"❌ CreditSystemModule: Unexpected error syncing user {username}: {e}")
-                
-        except Exception as e:
-            custom_log(f"❌ CreditSystemModule: Error processing user creation hook: {e}")
-
-    def _create_welcome_notification(self, user_id, username, email, app_name):
-        """Create welcome notification for new user."""
-        try:
-            notification_data = {
-                'user_id': user_id,
-                'type': 'welcome',
-                'title': f'Welcome to {app_name}!',
-                'message': f'Hello {username}! Your account has been successfully created and synced with the credit system.',
-                'priority': 'normal',
-                'status': 'unread',
-                'created_at': datetime.utcnow().isoformat(),
-                'metadata': {
-                    'source': 'credit_system_module',
-                    'app_name': app_name,
-                    'email': email
-                }
-            }
-            
-            # Insert notification using database manager
-            notification_id = self.db_manager.insert("notifications", notification_data)
-            
-            if notification_id:
-                custom_log(f"✅ Welcome notification created for {username}: {notification_id}")
-            else:
-                custom_log(f"⚠️ Failed to create welcome notification for {username}")
-                
-        except Exception as e:
-            custom_log(f"❌ Error creating welcome notification for {username}: {e}")
-
-
-
-    def forward_user_request(self, subpath=None):
-        """Forward user management requests to credit system with API key."""
-        try:
-            # Get the current request path and method
-            path = request.path
-            method = request.method
-            
-            # Build the target path on credit system
-            # Use subpath parameter when available (for wildcard routes), otherwise use full path
-            if subpath is not None:
-                # For wildcard routes like /users/<path:subpath>
-                # Reconstruct the full path to determine the target
-                if path.startswith('/users/'):
-                    target_path = f"/users/{subpath}"
-                elif path.startswith('/auth/users/'):
-                    target_path = f"/auth/{subpath}"
-                else:
-                    target_path = path  # Fallback
-            else:
-                # For base routes like /users (no subpath)
-                target_path = self._build_credit_system_path(path)
-            
-            # Prepare headers with API key
+            # Forward to credit system
             headers = {
-                'X-API-Key': self.api_key,
+                'X-API-Key': self._get_api_key(),
                 'Content-Type': 'application/json'
             }
             
-            # Forward any existing Authorization header (JWT tokens)
-            auth_header = request.headers.get('Authorization')
-            if auth_header:
-                headers['Authorization'] = auth_header
+            target_url = f"{self._get_credit_system_url()}/users/create"
             
-            # Prepare request data
-            data = None
-            if method in ['POST', 'PUT']:
-                data = request.get_json()
+            response = requests.post(
+                url=target_url,
+                headers=headers,
+                json=credit_system_user_data,
+                timeout=30
+            )
             
-            # Build target URL
-            target_url = f"{self.credit_system_url}{target_path}"
+            if response.status_code in [200, 201]:
+                return {
+                    'success': True,
+                    'message': f'User {username} synced to credit system',
+                    'data': response.json()
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': f'Sync failed - status {response.status_code}',
+                    'data': response.text
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Error processing user creation: {str(e)}'
+            }
+
+    def forward_request(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Forward a request to the credit system.
+        
+        Args:
+            request_data: Dictionary with method, path, headers, data
             
-            custom_log(f"🔄 Forwarding {method} request to credit system: {target_url}")
-            custom_log(f"🔄 Original path: {path}")
-            custom_log(f"🔄 Target path: {target_path}")
-            custom_log(f"🔄 Subpath parameter: {subpath}")
-            custom_log(f"🔄 Headers: {headers}")
-            if data:
-                custom_log(f"🔄 Data: {data}")
+        Returns:
+            Dict with response status and data
+        """
+        try:
+            method = request_data.get('method', 'GET')
+            path = request_data.get('path', '')
+            headers = request_data.get('headers', {})
+            data = request_data.get('data')
             
-            # Make request to credit system
+            # Add API key to headers
+            headers['X-API-Key'] = self._get_api_key()
+            headers['Content-Type'] = 'application/json'
+            
+            target_url = f"{self._get_credit_system_url()}{path}"
+            
             response = requests.request(
                 method=method,
                 url=target_url,
@@ -220,134 +233,120 @@ class CreditSystemModule:
                 timeout=30
             )
             
-            # Forward the response back to the client
-            response_data = response.json() if response.content else {}
-            status_code = response.status_code
-            
-            custom_log(f"✅ Credit system response: {status_code} - {response_data}")
-            
-            return jsonify(response_data), status_code
-            
-        except requests.exceptions.RequestException as e:
-            custom_log(f"❌ Error forwarding request to credit system: {e}")
-            return jsonify({
-                "success": False,
-                "error": "Credit system unavailable",
-                "message": "Unable to connect to credit system"
-            }), 503
+            return {
+                'success': True,
+                'status_code': response.status_code,
+                'data': response.json() if response.content else {},
+                'headers': dict(response.headers)
+            }
             
         except Exception as e:
-            custom_log(f"❌ Unexpected error in forward_user_request: {e}")
-            return jsonify({
-                "success": False,
-                "error": "Internal server error",
-                "message": "Failed to process request"
-            }), 500
-
-    def _build_credit_system_path(self, external_path):
-        """Build the target path for credit system based on external app path."""
-        # Remove leading slash and split path
-        path_parts = external_path.strip('/').split('/')
-        
-        if len(path_parts) < 1:
-            return external_path  # Return as-is if invalid path
-        
-        # Handle /users/* paths
-        if path_parts[0] == 'users':
-            # Forward /users to /users (let credit system handle it)
-            # Forward /users/create to /users/create
-            # Forward /users/123 to /users/123
-            # Forward /users/123/profile to /users/123/profile
-            return f"/{'/'.join(path_parts)}"
-        
-        # Handle /auth/users/* paths
-        elif path_parts[0] == 'auth' and len(path_parts) > 1 and path_parts[1] == 'users':
-            # Forward /auth/users/login to /auth/login
-            # Forward /auth/users/logout to /auth/logout
-            # Forward /auth/users/123 to /auth/123
-            # Forward /auth/users/me to /auth/me
-            if len(path_parts) == 3:
-                # /auth/users/login -> /auth/login
-                return f"/auth/{path_parts[2]}"
-            elif len(path_parts) == 4:
-                # /auth/users/123/profile -> /auth/123/profile
-                return f"/auth/{path_parts[2]}/{path_parts[3]}"
-            else:
-                # Fallback for complex paths
-                return f"/auth/{'/'.join(path_parts[2:])}"
-        
-        # Return original path if no mapping found
-        return external_path
-
-    def initialize_database(self):
-        """Verify database connection for user operations."""
-        try:
-            # Check if database is available
-            if not self.analytics_db.available:
-                custom_log("⚠️ Database unavailable for user operations - running with limited functionality")
-                return
-                
-            # Simple connection test
-            self.analytics_db.db.command('ping')
-            custom_log("✅ User database connection verified")
-        except Exception as e:
-            custom_log(f"⚠️ User database connection verification failed: {e}")
-            custom_log("⚠️ User operations will be limited - suitable for local development")
-
-    def test_debug(self):
-        """Test endpoint to verify debug logging works."""
-        print("[DEBUG] Test endpoint called!")
-        print(f"[DEBUG] Database manager: {self.db_manager}")
-        print(f"[DEBUG] Analytics DB: {self.analytics_db}")
-        print(f"[DEBUG] Credit system URL: {self.credit_system_url}")
-        print(f"[DEBUG] API key configured: {'Yes' if self.api_key else 'No'}")
-        return jsonify({
-            "message": "Debug test successful",
-            "credit_system_url": self.credit_system_url,
-            "api_key_configured": bool(self.api_key)
-        }), 200
+            return {
+                'success': False,
+                'error': f'Error forwarding request: {str(e)}'
+            }
 
     def health_check(self) -> Dict[str, Any]:
-        """Perform health check for CreditSystemModule."""
-        health_status = super().health_check()
-        health_status['dependencies'] = self.dependencies
+        """
+        Perform health check on credit system.
         
-        # Add credit system connection status
+        Returns:
+            Dict with health status
+        """
         try:
-            # Test connection to credit system
             response = requests.get(
-                f"{self.credit_system_url}/health",
-                headers={'X-API-Key': self.api_key},
+                f"{self._get_credit_system_url()}/health",
+                headers={'X-API-Key': self._get_api_key()},
                 timeout=5
             )
-            credit_system_status = "healthy" if response.status_code == 200 else "unhealthy"
-        except Exception as e:
-            credit_system_status = f"error: {str(e)}"
-        
-        # Add database queue status
-        try:
-            queue_status = self.db_manager.get_queue_status()
-            health_status['details'] = {
-                'database_queue': {
-                    'queue_size': queue_status['queue_size'],
-                    'worker_alive': queue_status['worker_alive'],
-                    'queue_enabled': queue_status['queue_enabled'],
-                    'pending_results': queue_status['pending_results']
-                },
-                'credit_system_connection': {
-                    'status': credit_system_status,
-                    'url': self.credit_system_url,
-                    'api_key_configured': bool(self.api_key)
-                }
+            
+            return {
+                'status': 'healthy' if response.status_code == 200 else 'unhealthy',
+                'url': self._get_credit_system_url(),
+                'api_key_configured': bool(self._get_api_key()),
+                'response_code': response.status_code,
+                'secret_sources': self.get_secret_sources()
             }
+            
         except Exception as e:
-            health_status['details'] = {
-                'database_queue': f'error: {str(e)}',
-                'credit_system_connection': {
-                    'status': credit_system_status,
-                    'url': self.credit_system_url,
-                    'api_key_configured': bool(self.api_key)
-                }
+            return {
+                'status': 'unhealthy',
+                'error': str(e),
+                'url': self._get_credit_system_url(),
+                'api_key_configured': bool(self._get_api_key()),
+                'secret_sources': self.get_secret_sources()
             }
+
+    def get_config(self) -> Dict[str, Any]:
+        """Get module configuration with secret source information."""
+        return {
+            'credit_system_url': self._get_credit_system_url(),
+            'api_key_configured': bool(self._get_api_key()),
+            'secret_sources': self.get_secret_sources(),
+            'module_secrets_dir': self.secrets_dir,
+            'completely_decoupled': True
+        }
+
+    def get_config_requirements(self) -> List[Dict[str, Any]]:
+        """
+        Declare all configuration requirements for this module.
+        Returns list of config requirements for the orchestrator to provide.
+        """
+        return [
+            {
+                'key': 'credit_system_url',
+                'description': 'External credit system API URL',
+                'required': True,
+                'default': 'http://localhost:8000',
+                'type': 'string',
+                'module_secret_file': f'{self.secrets_dir}/credit_system_url',
+                'global_secret_file': 'credit_system_url',
+                'env_var': 'CREDIT_SYSTEM_URL',
+                'decoupled': True
+            },
+            {
+                'key': 'api_key',
+                'description': 'API key for credit system authentication',
+                'required': True,
+                'default': '',
+                'type': 'string',
+                'sensitive': True,
+                'module_secret_file': f'{self.secrets_dir}/api_key',
+                'global_secret_file': 'credit_system_api_key',
+                'env_var': 'CREDIT_SYSTEM_API_KEY',
+                'decoupled': True
+            }
+        ]
+
+    def get_hooks_needed(self) -> List[Dict[str, Any]]:
+        """
+        Declare what hooks this module needs.
+        Returns list of hook requirements for the orchestrator to register.
+        """
+        return [
+            {
+                'event': 'user_created',
+                'priority': 15,
+                'context': 'credit_system',
+                'description': 'Process user creation in credit system'
+            }
+        ]
+
+    def process_hook_event(self, event_name: str, event_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process a hook event from the system.
         
-        return health_status 
+        Args:
+            event_name: Name of the hook event
+            event_data: Data passed with the hook
+            
+        Returns:
+            Dict with processing result
+        """
+        if event_name == 'user_created':
+            return self.process_user_creation(event_data)
+        else:
+            return {
+                'success': False,
+                'error': f'Unknown hook event: {event_name}'
+            } 

@@ -85,6 +85,10 @@ class AppInitializer:
         # Initialize module orchestrator base before route registration hook
         self.module_orch_base = ModuleOrchestratorBase(self.manager_initializer)
         custom_log("ModuleOrchestratorBase initialized in AppInitializer.")
+        
+        # Initialize all module orchestrators
+        self.module_orch_base.initialize_orchestrators()
+        custom_log("All module orchestrators initialized.")
 
         # Trigger route registration hook within Flask application context
         with app.app_context():

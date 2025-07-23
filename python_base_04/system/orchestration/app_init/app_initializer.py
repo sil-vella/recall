@@ -12,6 +12,7 @@ from system.managers.service_manager import ServicesManager
 from system.managers.hooks_manager import HooksManager
 
 from system.managers.rate_limiter_manager import RateLimiterManager
+from system.orchestration.modules_orch.base_files.module_orch_base import ModuleOrchestratorBase
 
 from .manager_initializer import ManagerInitializer
 from .middleware_setup import MiddlewareSetup
@@ -80,6 +81,10 @@ class AppInitializer:
         
         # Mark as initialized
         self._initialized = True
+
+        # Initialize module orchestrator base before route registration hook
+        self.module_orch_base = ModuleOrchestratorBase(self.manager_initializer)
+        custom_log("ModuleOrchestratorBase initialized in AppInitializer.")
 
         # Trigger route registration hook within Flask application context
         with app.app_context():

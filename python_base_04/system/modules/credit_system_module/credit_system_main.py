@@ -160,10 +160,7 @@ class CreditSystemModule:
         except Exception as e:
             custom_log(f"❌ Error creating welcome notification for {username}: {e}")
 
-    def register_routes(self):
-        """Register wildcard routes that capture all user-related requests."""
-        
-        custom_log(f"CreditSystemModule 0 routes for user forwarding")
+
 
     def forward_user_request(self, subpath=None):
         """Forward user management requests to credit system with API key."""

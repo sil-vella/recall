@@ -350,9 +350,15 @@ class DatabaseManager:
         converted_query = self._convert_string_to_objectid(query)
         # Encrypt sensitive fields in the query to match encrypted data in database
         encrypted_query = self._encrypt_sensitive_fields(converted_query)
+        
+        custom_log(f"[DEBUG] _execute_find - Collection: {collection}, Original query: {query}, Converted query: {converted_query}, Encrypted query: {encrypted_query}")
+        
         results = list(self.db[collection].find(encrypted_query))
+        custom_log(f"[DEBUG] _execute_find - Results found: {len(results)}")
+        
         decrypted_results = [self._decrypt_sensitive_fields(doc) for doc in results]
-        return [self._convert_objectid_to_string(doc) for doc in decrypted_results]
+        final_results = [self._convert_objectid_to_string(doc) for doc in decrypted_results]
+        return final_results
 
     def _execute_find_one(self, collection: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Execute find_one operation directly (for queue worker)."""

@@ -472,7 +472,6 @@ class Config:
     ENCRYPTION_KEY = get_sensitive_config_value("flask-app/app", "encryption_key", "encryption_key", "ENCRYPTION_KEY", "development-encryption-key-change-in-production")
     ENCRYPTION_SALT = get_sensitive_config_value("flask-app/app", "encryption_salt", "encryption_salt", "ENCRYPTION_SALT", "default_salt_123")
     SENSITIVE_FIELDS = [
-        "user_id",
         "email",
         "phone",
         "address",

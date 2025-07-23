@@ -58,6 +58,13 @@ class ModuleOrchestratorBase:
             # If the orchestrator does not exist yet, skip
             pass
 
+        try:
+            from system.orchestration.modules_orch.in_app_purchases_orch.in_app_purchases_orchestrator import InAppPurchasesOrchestrator
+            self.orchestrators['in_app_purchases'] = InAppPurchasesOrchestrator(self.manager_initializer)
+        except ImportError:
+            # If the orchestrator does not exist yet, skip
+            pass
+
         # Call initialize on each orchestrator
         for orch in self.orchestrators.values():
             if hasattr(orch, 'initialize'):

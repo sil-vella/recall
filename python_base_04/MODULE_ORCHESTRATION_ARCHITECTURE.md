@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document details the new module orchestration architecture that provides complete decoupling between business logic modules and system integration, while maintaining a clean separation of concerns through the hook system and orchestrator pattern.
+This document details the module orchestration architecture that provides complete decoupling between business logic modules and system integration, while maintaining a clean separation of concerns through the hook system and orchestrator pattern.
 
 ## Core Architecture Principles
 
@@ -42,6 +42,24 @@ Module (Business Logic) ←→ Orchestrator (System Integration) ←→ System M
 - **Orchestrator**: System integration, lifecycle management, request forwarding
 - **System Managers**: Database, Redis, JWT, etc.
 
+### 3. Manager Storage Pattern
+
+**Pattern**: Orchestrators store commonly used managers as instance variables during initialization for consistent access.
+
+```python
+class ModuleOrchestratorBase:
+    def __init__(self, manager_initializer):
+        self.manager_initializer = manager_initializer
+        self._store_common_managers()
+    
+    def _store_common_managers(self):
+        """Store commonly used managers as instance variables."""
+        self.db_manager = self.manager_initializer.get_manager('db_manager')
+        self.jwt_manager = self.manager_initializer.get_manager('jwt_manager')
+        self.hooks_manager = self.manager_initializer.get_manager('hooks_manager')
+        # Add other managers as needed
+```
+
 ## Hook System Architecture
 
 ### 1. Hook Registration Pattern
@@ -67,11 +85,10 @@ def get_hooks_needed(self) -> List[Dict[str, Any]]:
 
 # Orchestrator registers hooks
 def _register_hooks(self):
-    hooks_manager = self.manager_initializer.get_manager('hooks_manager')
     hooks_needed = self.module.get_hooks_needed()
     
     for hook_info in hooks_needed:
-        hooks_manager.register_hook(
+        self.hooks_manager.register_hook(
             event=hook_info['event'],
             callback=self._handle_hook_event,
             priority=hook_info.get('priority', 10),
@@ -85,9 +102,8 @@ def _register_hooks(self):
 
 ```python
 # Orchestrator registers callback
-def _register_hook_callback(self):
-    hooks_manager = self.manager_initializer.get_manager('hooks_manager')
-    hooks_manager.register_hook_callback(
+def _register_route_callback(self):
+    self.hooks_manager.register_hook_callback(
         "register_routes",
         self.register_routes_callback,
         priority=10,
@@ -157,7 +173,7 @@ def register_routes_callback(self, data=None):
 
 **Pattern**: Orchestrators contain Flask route handlers that:
 1. Validate requests
-2. Get system managers (Database, JWT, etc.)
+2. Use stored manager instances for system operations
 3. Delegate business logic to module
 4. Return Flask responses
 
@@ -174,22 +190,80 @@ def create_user(self):
         if not result['success']:
             return jsonify({"success": False, "error": result['error']}), 400
         
-        # Get database manager for persistence
-        db_manager = self.manager_initializer.get_manager('db_manager')
-        
-        # Check if user exists
-        existing_user = db_manager.find_one("users", {"email": data.get("email")})
+        # Use stored database manager for persistence
+        existing_user = self.db_manager.find_one("users", {"email": data.get("email")})
         if existing_user:
             return jsonify({"success": False, "error": "User already exists"}), 409
         
         # Insert user
         user_document = result['user_document']
-        inserted_id = db_manager.insert("users", user_document)
+        inserted_id = self.db_manager.insert("users", user_document)
         
         return jsonify({"success": True, "user_id": str(inserted_id)}), 201
         
     except Exception as e:
         return jsonify({"success": False, "error": "Internal server error"}), 500
+```
+
+## JWT Token Management Architecture
+
+### 1. Token Creation Pattern
+
+**Pattern**: JWT tokens are created with proper data dictionaries containing user information.
+
+```python
+# Correct JWT token creation
+def login_user(self):
+    # ... user validation ...
+    
+    # Generate JWT tokens with original email from login request
+    access_token = self.jwt_manager.create_access_token(
+        data={"user_id": str(user["_id"]), "email": data.get("email"), "username": user["username"]}
+    )
+    refresh_token = self.jwt_manager.create_refresh_token(
+        data={"user_id": str(user["_id"]), "email": data.get("email"), "username": user["username"]}
+    )
+```
+
+### 2. Token Validation Pattern
+
+**Pattern**: JWT tokens contain original email addresses for proper validation.
+
+```python
+# JWT validation expects valid email format
+def _validate_custom_claims(self, payload: Dict[str, Any]) -> bool:
+    email = payload.get('email')
+    if email:
+        # Basic email format validation
+        if '@' not in email or '.' not in email:
+            return False
+    return True
+```
+
+### 3. Refresh Token Pattern
+
+**Pattern**: Refresh tokens return new access tokens as strings.
+
+```python
+# JWT manager returns string for refresh
+def refresh_token(self, refresh_token: str) -> Optional[str]:
+    payload = self.verify_token(refresh_token, TokenType.REFRESH)
+    if payload:
+        new_payload = {k: v for k, v in payload.items() 
+                     if k not in ['exp', 'iat', 'type']}
+        return self.create_token(new_payload, TokenType.ACCESS)
+    return None
+
+# Orchestrator handles string return
+def refresh_token(self):
+    new_access_token = self.jwt_manager.refresh_token(refresh_token)
+    
+    if new_access_token:
+        return jsonify({
+            "success": True,
+            "message": "Token refreshed successfully",
+            "access_token": new_access_token
+        }), 200
 ```
 
 ## Module Independence Architecture
@@ -256,6 +330,8 @@ python_base_04/
 │   │       └── secrets/                  # Module-specific secrets
 │   ├── orchestration/                    # System integration
 │   │   └── modules_orch/
+│   │       ├── base_files/
+│   │       │   └── module_orch_base.py   # Base orchestrator class
 │   │       ├── user_management_orch/
 │   │       │   └── user_management_orchestrator.py
 │   │       └── credit_system_orch/
@@ -276,9 +352,10 @@ python_base_04/
 3. Orchestrators are created with manager_initializer
 4. Orchestrator.initialize() is called
 5. Module is created and initialized
-6. Hooks are registered with system
-7. Route callbacks are registered with hooks manager
-8. Orchestrator is ready
+6. Common managers are stored as instance variables
+7. Hooks are registered with system
+8. Route callbacks are registered with hooks manager
+9. Orchestrator is ready
 ```
 
 ### 2. Request Flow
@@ -287,10 +364,10 @@ python_base_04/
 1. Flask receives request
 2. Route handler in orchestrator is called
 3. Orchestrator validates request
-4. Orchestrator gets system managers
+4. Orchestrator uses stored manager instances
 5. Orchestrator calls module business logic
 6. Module processes business logic (no system dependencies)
-7. Orchestrator persists results using system managers
+7. Orchestrator persists results using stored managers
 8. Orchestrator returns Flask response
 ```
 
@@ -310,7 +387,7 @@ python_base_04/
 
 ### 1. Complete Decoupling
 - **Modules**: Pure business logic, no system dependencies
-- **Orchestrators**: Handle all system integration
+- **Orchestrators**: Handle all system integration with stored manager instances
 - **System Managers**: Reusable across all modules
 
 ### 2. Testability
@@ -322,6 +399,7 @@ python_base_04/
 - **Clear separation**: Business logic vs system integration
 - **Consistent patterns**: All modules follow same architecture
 - **Easy to extend**: Add new modules following established pattern
+- **Manager access**: Consistent access through stored instance variables
 
 ### 4. Flexibility
 - **Independent deployment**: Modules can be deployed separately
@@ -352,9 +430,9 @@ class UserManagementModule:
 
 ### 2. User Management Orchestrator
 ```python
-class UserManagementOrchestrator:
+class UserManagementOrchestrator(ModuleOrchestratorBase):
     def __init__(self, manager_initializer):
-        self.manager_initializer = manager_initializer
+        super().__init__(manager_initializer)
         self.module = None
     
     def initialize(self):
@@ -372,12 +450,22 @@ class UserManagementOrchestrator:
         result = self.module.process_user_creation(data)
         
         if result['success']:
-            # Use system managers for persistence
-            db_manager = self.manager_initializer.get_manager('db_manager')
-            inserted_id = db_manager.insert("users", result['user_document'])
+            # Use stored database manager for persistence
+            inserted_id = self.db_manager.insert("users", result['user_document'])
             return jsonify({"success": True, "user_id": str(inserted_id)}), 201
         else:
             return jsonify({"success": False, "error": result['error']}), 400
+    
+    def login_user(self):
+        # ... user validation ...
+        
+        # Generate JWT tokens with original email
+        access_token = self.jwt_manager.create_access_token(
+            data={"user_id": str(user["_id"]), "email": data.get("email"), "username": user["username"]}
+        )
+        refresh_token = self.jwt_manager.create_refresh_token(
+            data={"user_id": str(user["_id"]), "email": data.get("email"), "username": user["username"]}
+        )
 ```
 
 ## Migration Guide
@@ -432,18 +520,45 @@ class UserModule:
             'user_document': self._prepare_user_document(user_data)
         }
 
-class UserOrchestrator:
+class UserOrchestrator(ModuleOrchestratorBase):
     def create_user(self):
         data = request.get_json()
         result = self.module.process_user_creation(data)
         
         if result['success']:
-            db_manager = self.manager_initializer.get_manager('db_manager')
-            return db_manager.insert("users", result['user_document'])
+            # Use stored database manager
+            return self.db_manager.insert("users", result['user_document'])
+```
+
+### From get_manager() Calls
+
+**Before**:
+```python
+class UserOrchestrator:
+    def create_user(self):
+        db_manager = self.manager_initializer.get_manager('db_manager')
+        jwt_manager = self.manager_initializer.get_manager('jwt_manager')
+        # ... use managers
+```
+
+**After**:
+```python
+class UserOrchestrator(ModuleOrchestratorBase):
+    def create_user(self):
+        # Use stored manager instances
+        result = self.db_manager.insert("users", user_data)
+        token = self.jwt_manager.create_access_token(data)
+        # ... use managers
 ```
 
 ## Conclusion
 
 This architecture provides complete decoupling between business logic and system integration while maintaining clean separation of concerns through the hook system and orchestrator pattern. Modules are now pure business logic utilities that can be easily tested, maintained, and deployed independently of the system infrastructure.
 
-The hook system ensures that modules can declare their needs (routes, hooks) and orchestrators handle the system integration, creating a flexible and maintainable architecture that scales with the application's complexity. 
+The hook system ensures that modules can declare their needs (routes, hooks) and orchestrators handle the system integration, creating a flexible and maintainable architecture that scales with the application's complexity.
+
+Key improvements include:
+- **Manager Storage**: Common managers stored as instance variables for consistent access
+- **JWT Token Handling**: Proper data dictionary format and original email storage
+- **Refresh Token Pattern**: String return values handled correctly
+- **Base Orchestrator Class**: Shared functionality and patterns across all orchestrators 

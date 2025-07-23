@@ -21,6 +21,7 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
         """
         super().__init__(manager_initializer)
         self.manager_initializer = manager_initializer
+        
         self.module = None
         self.is_initialized = False
         self.registered_routes = []
@@ -51,9 +52,8 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
     def _register_route_callback(self):
         """Register route callback with the hooks manager."""
         try:
-            hooks_manager = self.manager_initializer.get_manager('hooks_manager')
-            if hooks_manager:
-                hooks_manager.register_hook_callback(
+            if self.hooks_manager:
+                self.hooks_manager.register_hook_callback(
                     "register_routes",
                     self.register_routes_callback,
                     priority=10,
@@ -102,8 +102,7 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
     def _register_hooks(self):
         """Register module hooks with the system."""
         try:
-            hooks_manager = self.manager_initializer.get_manager('hooks_manager')
-            if hooks_manager:
+            if self.hooks_manager:
                 # Get hooks needed by the module
                 hooks_needed = self.module.get_hooks_needed()
                 
@@ -113,7 +112,7 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
                     context = hook_info.get('context', 'user_management')
                     
                     # Register the hook
-                    hooks_manager.register_hook(
+                    self.hooks_manager.register_hook(
                         event=event,
                         callback=self._handle_hook_event,
                         priority=priority,
@@ -166,15 +165,14 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
                 }), 400
             
             # Get database manager for persistence
-            db_manager = self.manager_initializer.get_manager('db_manager')
-            if not db_manager:
+            if not self.db_manager:
                 return jsonify({
                     "success": False,
                     "error": "Database manager not available"
                 }), 503
             
             # Check if user already exists
-            existing_user = db_manager.find_one("users", {"email": data.get("email")})
+            existing_user = self.db_manager.find_one("users", {"email": data.get("email")})
             if existing_user:
                 return jsonify({
                     "success": False,
@@ -183,7 +181,7 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
             
             # Insert user document
             user_document = result['user_document']
-            inserted_id = db_manager.insert("users", user_document)
+            inserted_id = self.db_manager.insert("users", user_document)
             
             if inserted_id:
                 return jsonify({
@@ -205,52 +203,50 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
             }), 500
 
     def login_user(self):
-        """Authenticate user and generate JWT tokens."""
+        """Authenticate user and return JWT tokens."""
         try:
             data = request.get_json()
+            email = data.get("email")
+            password = data.get("password")
             
-            # Use module for login validation
+            if not email or not password:
+                return jsonify({
+                    "success": False,
+                    "error": "Email and password are required"
+                }), 400
+            
+            # Use module for business logic
             result = self.module.process_user_login(data)
             
             if not result['success']:
                 return jsonify({
                     "success": False,
                     "error": result['error']
-                }), 400
+                }), 401
             
-            # Get managers
-            db_manager = self.manager_initializer.get_manager('db_manager')
-            jwt_manager = self.manager_initializer.get_manager('jwt_manager')
-            
-            if not db_manager or not jwt_manager:
-                return jsonify({
-                    "success": False,
-                    "error": "Required managers not available"
-                }), 503
-            
-            # Find user
-            user = db_manager.find_one("users", {"email": data.get("email")})
+            # Get user from database
+            user = self.db_manager.find_one("users", {"email": email})
             if not user:
                 return jsonify({
                     "success": False,
-                    "error": "Invalid email or password"
+                    "error": "Invalid credentials"
                 }), 401
             
             # Verify password using module
-            password_result = self.module.verify_password(data.get("password"), user.get("password_hash", ""))
-            
-            if not password_result['success'] or not password_result['password_valid']:
+            password_result = self.module.verify_password(password, user.get("password_hash", ""))
+            if not password_result['success']:
                 return jsonify({
                     "success": False,
-                    "error": "Invalid email or password"
+                    "error": "Invalid credentials"
                 }), 401
             
-            # Generate tokens
-            access_token = jwt_manager.create_access_token(
-                user_id=str(user["_id"]),
-                additional_claims={"username": user.get("username"), "email": user.get("email")}
+            # Generate JWT tokens with original email from login request
+            access_token = self.jwt_manager.create_access_token(
+                data={"user_id": str(user["_id"]), "email": data.get("email"), "username": user["username"]}
             )
-            refresh_token = jwt_manager.create_refresh_token(str(user["_id"]))
+            refresh_token = self.jwt_manager.create_refresh_token(
+                data={"user_id": str(user["_id"]), "email": data.get("email"), "username": user["username"]}
+            )
             
             return jsonify({
                 "success": True,
@@ -279,23 +275,14 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
                     "error": "Refresh token is required"
                 }), 400
             
-            # Get JWT manager
-            jwt_manager = self.manager_initializer.get_manager('jwt_manager')
-            if not jwt_manager:
-                return jsonify({
-                    "success": False,
-                    "error": "JWT manager not available"
-                }), 503
-            
             # Refresh tokens
-            new_tokens = jwt_manager.refresh_token(refresh_token)
+            new_access_token = self.jwt_manager.refresh_token(refresh_token)
             
-            if new_tokens:
+            if new_access_token:
                 return jsonify({
                     "success": True,
                     "message": "Token refreshed successfully",
-                    "access_token": new_tokens["access_token"],
-                    "refresh_token": new_tokens["refresh_token"]
+                    "access_token": new_access_token
                 }), 200
             else:
                 return jsonify({
@@ -313,14 +300,6 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
     def logout_user(self):
         """Logout user and invalidate tokens."""
         try:
-            # Get JWT manager
-            jwt_manager = self.manager_initializer.get_manager('jwt_manager')
-            if not jwt_manager:
-                return jsonify({
-                    "success": False,
-                    "error": "JWT manager not available"
-                }), 503
-            
             # Invalidate tokens (implementation depends on JWT manager)
             return jsonify({
                 "success": True,
@@ -341,17 +320,13 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
             if not user_id:
                 return jsonify({'error': 'User not authenticated'}), 401
             
-            # Get database manager
-            db_manager = self.manager_initializer.get_manager('db_manager')
-            if not db_manager:
+            # Get user from database
+            user = self.db_manager.find_one("users", {"_id": user_id})
+            if not user:
                 return jsonify({
                     "success": False,
-                    "error": "Database manager not available"
-                }), 503
-            
-            user = db_manager.find_one("users", {"_id": user_id})
-            if not user:
-                return jsonify({'error': 'User not found'}), 404
+                    "error": "User not found"
+                }), 404
             
             return jsonify({
                 "success": True,
@@ -372,15 +347,8 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
             if not user_id:
                 return jsonify({'error': 'User not authenticated'}), 401
             
-            # Get database manager
-            db_manager = self.manager_initializer.get_manager('db_manager')
-            if not db_manager:
-                return jsonify({
-                    "success": False,
-                    "error": "Database manager not available"
-                }), 503
-            
-            user = db_manager.find_one("users", {"_id": user_id})
+            # Get user from database
+            user = self.db_manager.find_one("users", {"_id": user_id})
             if not user:
                 return jsonify({'error': 'User not found'}), 404
             
@@ -415,13 +383,6 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
                 }), 400
             
             # Get database manager
-            db_manager = self.manager_initializer.get_manager('db_manager')
-            if not db_manager:
-                return jsonify({
-                    "success": False,
-                    "error": "Database manager not available"
-                }), 503
-            
             update_data = {'updated_at': datetime.utcnow().isoformat()}
             
             # Only allow updating profile fields
@@ -431,7 +392,7 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
                     update_data[f'profile.{field}'] = data[field]
             
             # Update user profile
-            modified_count = db_manager.update("users", {"_id": user_id}, {"$set": update_data})
+            modified_count = self.db_manager.update("users", {"_id": user_id}, {"$set": update_data})
             
             if modified_count > 0:
                 return jsonify({
@@ -453,15 +414,8 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
             if not user_id:
                 return jsonify({'error': 'User not authenticated'}), 401
             
-            # Get database manager
-            db_manager = self.manager_initializer.get_manager('db_manager')
-            if not db_manager:
-                return jsonify({
-                    "success": False,
-                    "error": "Database manager not available"
-                }), 503
-            
-            user = db_manager.find_one("users", {"_id": user_id})
+            # Get user from database
+            user = self.db_manager.find_one("users", {"_id": user_id})
             if not user:
                 return jsonify({'error': 'User not found'}), 404
             
@@ -491,16 +445,8 @@ class UserManagementOrchestrator(ModuleOrchestratorBase):
             if 'preferences' in data:
                 update_data['preferences'] = data['preferences']
             
-            # Get database manager
-            db_manager = self.manager_initializer.get_manager('db_manager')
-            if not db_manager:
-                return jsonify({
-                    "success": False,
-                    "error": "Database manager not available"
-                }), 503
-            
             # Update user settings
-            modified_count = db_manager.update("users", {"_id": user_id}, {"$set": update_data})
+            modified_count = self.db_manager.update("users", {"_id": user_id}, {"$set": update_data})
             
             if modified_count > 0:
                 return jsonify({

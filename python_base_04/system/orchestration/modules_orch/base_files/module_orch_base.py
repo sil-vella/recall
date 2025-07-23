@@ -18,6 +18,25 @@ class ModuleOrchestratorBase:
         """
         self.manager_initializer = manager_initializer
         self.orchestrators = {}  # Registry for module orchestrators
+        
+        # Store commonly used managers for easy access
+        self._store_common_managers()
+
+    def _store_common_managers(self):
+        """Store commonly used managers as instance variables for easy access."""
+        try:
+            self.hooks_manager = self.manager_initializer.app_initializer.hooks_manager
+            self.db_manager = self.manager_initializer.db_manager
+            self.jwt_manager = self.manager_initializer.jwt_manager
+            self.state_manager = self.manager_initializer.state_manager
+            self.redis_manager = self.manager_initializer.redis_manager
+        except AttributeError as e:
+            # Managers might not be initialized yet, store as None
+            self.hooks_manager = None
+            self.db_manager = None
+            self.jwt_manager = None
+            self.state_manager = None
+            self.redis_manager = None
 
     def initialize_orchestrators(self):
         """
@@ -31,9 +50,13 @@ class ModuleOrchestratorBase:
         except ImportError:
             # If the orchestrator does not exist yet, skip
             pass
-        # Example for additional orchestrators:
-        # from system.orchestration.modules_orch.user_management_orch.user_management_orchestrator import UserManagementOrchestrator
-        # self.orchestrators['user_management'] = UserManagementOrchestrator(self.manager_initializer)
+            
+        try:
+            from system.orchestration.modules_orch.user_management_orch.user_management_orchestrator import UserManagementOrchestrator
+            self.orchestrators['user_management'] = UserManagementOrchestrator(self.manager_initializer)
+        except ImportError:
+            # If the orchestrator does not exist yet, skip
+            pass
 
         # Call initialize on each orchestrator
         for orch in self.orchestrators.values():

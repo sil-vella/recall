@@ -21,8 +21,10 @@ class CreditSystemOrchestrator(ModuleOrchestratorBase):
         """
         super().__init__(manager_initializer)
         self.manager_initializer = manager_initializer
+        
         self.module = None
         self.is_initialized = False
+        self.registered_routes = []
         custom_log("CreditSystemOrchestrator created")
 
     def initialize(self):
@@ -50,9 +52,8 @@ class CreditSystemOrchestrator(ModuleOrchestratorBase):
     def _register_route_callback(self):
         """Register route callback with the hooks manager."""
         try:
-            hooks_manager = self.manager_initializer.get_manager('hooks_manager')
-            if hooks_manager:
-                hooks_manager.register_hook_callback(
+            if self.hooks_manager:
+                self.hooks_manager.register_hook_callback(
                     "register_routes",
                     self.register_routes_callback,
                     priority=10,
@@ -101,8 +102,7 @@ class CreditSystemOrchestrator(ModuleOrchestratorBase):
     def _register_hooks(self):
         """Register module hooks with the system."""
         try:
-            hooks_manager = self.manager_initializer.get_manager('hooks_manager')
-            if hooks_manager:
+            if self.hooks_manager:
                 # Get hooks needed by the module
                 hooks_needed = self.module.get_hooks_needed()
                 
@@ -112,7 +112,7 @@ class CreditSystemOrchestrator(ModuleOrchestratorBase):
                     context = hook_info.get('context', 'credit_system')
                     
                     # Register the hook
-                    hooks_manager.register_hook(
+                    self.hooks_manager.register_hook(
                         event=event,
                         callback=self._handle_hook_event,
                         priority=priority,

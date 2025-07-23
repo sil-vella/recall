@@ -165,8 +165,8 @@ class CreditSystemModule:
                 'status': 'active',
                 'app_id': app_id,
                 'app_name': app_name,
-                'source': source,
-                'created_via': 'external_app'
+                    'source': source,
+                    'created_via': 'external_app'
             }
             
             # Forward to credit system
@@ -183,7 +183,7 @@ class CreditSystemModule:
                 json=credit_system_user_data,
                 timeout=30
             )
-            
+                
             if response.status_code in [200, 201]:
                 return {
                     'success': True,
@@ -329,6 +329,42 @@ class CreditSystemModule:
                 'priority': 15,
                 'context': 'credit_system',
                 'description': 'Process user creation in credit system'
+            }
+        ]
+
+    def get_routes_needed(self) -> List[Dict[str, Any]]:
+        """
+        Declare what routes this module needs.
+        Returns list of route requirements for the orchestrator to register.
+        """
+        return [
+            {
+                'route': '/credit-system/health',
+                'methods': ['GET'],
+                'handler': 'health_check',
+                'description': 'Check credit system health',
+                'auth_required': False
+            },
+            {
+                'route': '/credit-system/config',
+                'methods': ['GET'],
+                'handler': 'get_config',
+                'description': 'Get credit system configuration',
+                'auth_required': False
+            },
+            {
+                'route': '/credit-system/forward',
+                'methods': ['POST'],
+                'handler': 'forward_request',
+                'description': 'Forward request to credit system',
+                'auth_required': True
+            },
+            {
+                'route': '/credit-system/user/create',
+                'methods': ['POST'],
+                'handler': 'process_user_creation',
+                'description': 'Process user creation in credit system',
+                'auth_required': True
             }
         ]
 

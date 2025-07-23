@@ -1,799 +1,666 @@
-from system.managers.database_manager import DatabaseManager
-from system.managers.jwt_manager import JWTManager, TokenType
-from system.managers.redis_manager import RedisManager
 from tools.logger.custom_logging import custom_log
-from utils.config.config import Config
-from flask import request, jsonify
 from datetime import datetime
-from typing import Dict, Any
-from bson import ObjectId
+from typing import Dict, Any, Optional, List
+import os
 import bcrypt
 import re
+from bson import ObjectId
 
 
 class UserManagementModule:
-    def __init__(self, db_manager: DatabaseManager, redis_manager: RedisManager, jwt_manager: JWTManager, hooks_manager=None):
-        self.db_manager = db_manager
-        self.redis_manager = redis_manager
-        self.jwt_manager = jwt_manager
-        self.hooks_manager = hooks_manager
-        custom_log("UserManagementModule created with explicit dependencies")
+    """
+    Pure business logic module for user management operations.
+    Completely decoupled from system dependencies - accepts data, returns results.
+    """
+    
+    def __init__(self):
+        """
+        Initialize UserManagementModule with completely independent secret access.
+        No dependencies on system managers or Flask.
+        """
+        self.module_name = "user_management_module"
+        # Secrets directory is inside the module directory
+        self.secrets_dir = f"system/modules/{self.module_name}/secrets"
+        custom_log(f"UserManagementModule created with independent secrets: {self.secrets_dir}")
 
     def initialize(self):
-        # Initialization logic if needed
-        pass
+        """Initialize the module."""
+        custom_log(f"UserManagementModule initialized with independent secrets from {self.secrets_dir}")
 
-    def register_routes(self):
-        """Register user management routes with clean authentication-aware system."""
-        # Public routes (no authentication required)
-        self._register_auth_route_helper("/public/users/info", self.get_public_user_info, methods=["GET"])
-        self._register_auth_route_helper("/public/register", self.create_user, methods=["POST"])
-        self._register_auth_route_helper("/public/login", self.login_user, methods=["POST"])
+    def _read_module_secret(self, secret_name: str) -> Optional[str]:
+        """
+        Read secret from module-specific directory with fallback to global secrets.
+        Completely independent of config class.
         
-        # JWT authenticated routes (user authentication)
-        self._register_auth_route_helper("/userauth/users/profile", self.get_user_profile, methods=["GET"])
-        self._register_auth_route_helper("/userauth/users/profile", self.update_user_profile, methods=["PUT"])
-        self._register_auth_route_helper("/userauth/users/settings", self.get_user_settings, methods=["GET"])
-        self._register_auth_route_helper("/userauth/users/settings", self.update_user_settings, methods=["PUT"])
-        self._register_auth_route_helper("/userauth/logout", self.logout_user, methods=["POST"])
-        self._register_auth_route_helper("/userauth/me", self.get_current_user, methods=["GET"])
+        Args:
+            secret_name: Name of the secret file
+            
+        Returns:
+            Secret value or None if not found
+        """
+        # Module-specific secret paths (priority order)
+        secret_paths = [
+            f"{self.secrets_dir}/{secret_name}",           # Module-specific secrets
+            f"secrets/{secret_name}",                      # Global secrets (fallback)
+            f"/run/secrets/{secret_name}",                 # Kubernetes secrets
+            f"/app/secrets/{secret_name}",                 # Local development secrets
+        ]
         
-        # Public routes (no authentication required)
-        self._register_auth_route_helper("/public/refresh", self.refresh_token, methods=["POST"])
-        
-
-        
-        custom_log(f"UserManagementModule registered {len(self.registered_routes)} routes with clean auth system")
-
-    def initialize_database(self):
-        """Verify database connection for user operations."""
-        try:
-            # Check if database is available
-            if not self.db_manager.available:
-                custom_log("⚠️ Database unavailable for user operations - running with limited functionality")
-                return
-                
-            # Simple connection test
-            self.db_manager.db.command('ping')
-            custom_log("✅ User database connection verified")
-        except Exception as e:
-            custom_log(f"⚠️ User database connection verification failed: {e}")
-            custom_log("⚠️ User operations will be limited - suitable for local development")
-
-    def create_user(self):
-        """Create a new user account with comprehensive setup."""
-        try:
-            data = request.get_json()
-            
-            # Validate required fields
-            required_fields = ["username", "email", "password"]
-            for field in required_fields:
-                if not data.get(field):
-                    return jsonify({
-                        "success": False,
-                        "error": f"Missing required field: {field}"
-                    }), 400
-            
-            username = data.get("username")
-            email = data.get("email")
-            password = data.get("password")
-            
-            # Validate email format
-            if not self._is_valid_email(email):
-                return jsonify({
-                    "success": False,
-                    "error": "Invalid email format"
-                }), 400
-            
-            # Validate password strength
-            if not self._is_valid_password(password):
-                return jsonify({
-                    "success": False,
-                    "error": "Password must be at least 8 characters long"
-                }), 400
-            
-            # Check if user already exists
-            existing_user = self.db_manager.find_one("users", {"email": email})
-            if existing_user:
-                return jsonify({
-                    "success": False,
-                    "error": "User with this email already exists"
-                }), 409
-            
-            existing_username = self.db_manager.find_one("users", {"username": username})
-            if existing_username:
-                return jsonify({
-                    "success": False,
-                    "error": "Username already taken"
-                }), 409
-            
-            # Hash password
-            hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-            
-            # Get current timestamp for consistent date formatting
-            current_time = datetime.utcnow()
-            
-            # Prepare user data with comprehensive structure
-            user_data = {
-                # Core fields
-                'username': username,
-                'email': email,
-                'password': hashed_password.decode('utf-8'),
-                'status': 'active',
-                'created_at': current_time.isoformat(),
-                'updated_at': current_time.isoformat(),
-                'last_login': None,
-                'login_count': 0,
-                
-                # Profile section
-                'profile': {
-                    'first_name': data.get('first_name', ''),
-                    'last_name': data.get('last_name', ''),
-                    'phone': data.get('phone', ''),
-                    'timezone': data.get('timezone', 'UTC'),
-                    'language': data.get('language', 'en')
-                },
-                
-                # Preferences section
-                'preferences': {
-                    'notifications': {
-                        'email': data.get('notifications_email', True),
-                        'sms': data.get('notifications_sms', False),
-                        'push': data.get('notifications_push', True)
-                    },
-                    'privacy': {
-                        'profile_visible': data.get('profile_visible', True),
-                        'activity_visible': data.get('activity_visible', False)
-                    }
-                },
-                
-                # Modules section with default configurations
-                'modules': {
-                    'wallet': {
-                        'enabled': True,
-                        'balance': 0,
-                        'currency': 'credits',
-                        'last_updated': current_time.isoformat()
-                    },
-                    'subscription': {
-                        'enabled': False,
-                        'plan': None,
-                        'expires_at': None
-                    },
-                    'referrals': {
-                        'enabled': True,
-                        'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
-                        'referrals_count': 0
-                    }
-                },
-                
-                # Audit section
-                'audit': {
-                    'last_login': None,
-                    'login_count': 0,
-                    'password_changed_at': current_time.isoformat(),
-                    'profile_updated_at': current_time.isoformat()
-                }
-            }
-            
-            # Insert user using database manager
-            user_id = self.db_manager.insert("users", user_data)
-            
-            if not user_id:
-                return jsonify({
-                    "success": False,
-                    "error": "Failed to create user account"
-                }), 500
-            
-            # Remove password from response
-            user_data.pop('password', None)
-            user_data['_id'] = user_id
-            
-            # Trigger user_created hook for other modules to listen to
-            if self.hooks_manager:
-                # Import config to get app identification
-                from utils.config.config import Config
-                
-                hook_data = {
-                    'user_id': user_id,
-                    'username': username,
-                    'email': email,  # Raw email from request (non-encrypted)
-                    'user_data': user_data,
-                    'created_at': current_time.isoformat(),
-                    'app_id': Config.APP_ID,
-                    'app_name': Config.APP_NAME,
-                    'source': 'external_app'
-                }
-                self.hooks_manager.trigger_hook("user_created", hook_data)
-                custom_log(f"🎣 Triggered user_created hook for user: {username} ({email})")
-                custom_log(f"   - App: {Config.APP_NAME} ({Config.APP_ID})")
-                custom_log(f"   - User ID: {user_id}")
-            
-            custom_log(f"✅ User created successfully: {username} ({email})")
-            
-            return jsonify({
-                "success": True,
-                "message": "User created successfully",
-                "data": {
-                    "user": user_data
-                }
-            }), 201
-            
-        except Exception as e:
-            custom_log(f"❌ Error creating user: {e}")
-            return jsonify({
-                "success": False,
-                "error": "Internal server error"
-            }), 500
-
-    def get_user(self, user_id):
-        """Get user by ID with queued operation."""
-        try:
-            user = self.db_manager.find_one("users", {"_id": user_id})
-            if not user:
-                return jsonify({'error': 'User not found'}), 404
-            
-            # Remove password from response
-            user.pop('password', None)
-            return jsonify(user), 200
-            
-        except Exception as e:
-            custom_log(f"Error getting user: {e}")
-            return jsonify({'error': 'Failed to get user'}), 500
-
-    def update_user(self, user_id):
-        """Update user information with queued operation."""
-        try:
-            data = request.get_json()
-            update_data = {'updated_at': datetime.utcnow().isoformat()}
-            
-            # Only update allowed fields
-            allowed_fields = ['username', 'email', 'status']
-            for field in allowed_fields:
-                if field in data:
-                    update_data[field] = data[field]
-            
-            # Update user using queue system
-            modified_count = self.db_manager.update("users", {"_id": user_id}, {"$set": update_data})
-            
-            if modified_count > 0:
-                return jsonify({
-                    'message': 'User updated successfully',
-                    'user_id': user_id,
-                    'status': 'updated'
-                }), 200
-            else:
-                return jsonify({'error': 'User not found or no changes made'}), 404
-                
-        except Exception as e:
-            custom_log(f"Error updating user: {e}")
-            return jsonify({'error': 'Failed to update user'}), 500
-
-    def delete_user(self, user_id):
-        """Delete a user with queued operation."""
-        try:
-            # Delete user using queue system
-            deleted_count = self.db_manager.delete("users", {"_id": user_id})
-            
-            if deleted_count > 0:
-                return jsonify({
-                    'message': 'User deleted successfully',
-                    'user_id': user_id,
-                    'status': 'deleted'
-                }), 200
-            else:
-                return jsonify({'error': 'User not found'}), 404
-                
-        except Exception as e:
-            custom_log(f"Error deleting user: {e}")
-            return jsonify({'error': 'Failed to delete user'}), 500
-
-    def search_users(self):
-        """Search users with filters using queued operation."""
-        try:
-            data = request.get_json()
-            query = {}
-            
-            if 'username' in data:
-                query['username'] = {'$regex': data['username'], '$options': 'i'}
-            if 'email' in data:
-                query['email'] = {'$regex': data['email'], '$options': 'i'}
-            if 'status' in data:
-                query['status'] = data['status']
-            
-            # Search users using queue system
-            users = self.db_manager.find("users", query)
-            
-            # Remove passwords from response
-            for user in users:
-                user.pop('password', None)
-            
-            return jsonify({'users': users}), 200
-            
-        except Exception as e:
-            custom_log(f"Error searching users: {e}")
-            return jsonify({'error': 'Failed to search users'}), 500
-
-
-
-
-
-    def login_user(self):
-        """Authenticate user and return JWT tokens."""
-        try:
-            data = request.get_json()
-            
-            # Validate required fields
-            if not data.get("email") or not data.get("password"):
-                return jsonify({
-                    "success": False,
-                    "error": "Email and password are required"
-                }), 400
-            
-            email = data.get("email")
-            password = data.get("password")
-            
-            # Find user by email using direct query (more efficient)
-            custom_log(f"[DEBUG] Login attempt for {email}")
-            custom_log(f"[DEBUG] Using db_manager: {self.db_manager}")
-            custom_log(f"[DEBUG] Database available: {self.db_manager.available}")
-            
-            # Use direct email query instead of fetching all users
-            user = self.db_manager.find_one("users", {"email": email})
-            custom_log(f"[DEBUG] User lookup result: {'Found' if user else 'Not found'}")
-            
-            if not user:
-                custom_log(f"[DEBUG] No user found for email: {email}")
-                return jsonify({
-                    "success": False,
-                    "error": "Invalid email or password"
-                }), 401
-            
-            # Check if user is active
-            if user.get("status") != "active":
-                return jsonify({
-                    "success": False,
-                    "error": "Account is not active"
-                }), 401
-            
-            # Verify password
-            stored_password = user.get("password", "")
-            custom_log(f"[DEBUG] Password verification for user: {user.get('username')}")
+        for path in secret_paths:
             try:
-                check_result = bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8'))
-            except Exception as e:
-                custom_log(f"[DEBUG] bcrypt.checkpw error: {e}")
-                check_result = False
-            
-            if not check_result:
-                custom_log(f"[DEBUG] Password verification failed for user: {user.get('username')}")
-                return jsonify({
-                    "success": False,
-                    "error": "Invalid email or password"
-                }), 401
-            
-            # Update last login and login count using queue system
-            update_data = {
-                "last_login": datetime.utcnow().isoformat(),
-                "login_count": user.get("login_count", 0) + 1,
-                "updated_at": datetime.utcnow().isoformat()
-            }
-            
-            self.db_manager.update("users", {"_id": user["_id"]}, update_data)
-            
-            # Create JWT tokens
-            access_token_payload = {
-                'user_id': str(user['_id']),
-                'username': user['username'],
-                'email': email,  # Use the original email parameter, not the encrypted one from database
-                'type': 'access'
-            }
-            
-            refresh_token_payload = {
-                'user_id': str(user['_id']),
-                'type': 'refresh'
-            }
-            
-            # Use the JWT manager passed to the constructor
-            jwt_manager = self.jwt_manager
-            access_token = jwt_manager.create_token(access_token_payload, TokenType.ACCESS)
-            refresh_token = jwt_manager.create_token(refresh_token_payload, TokenType.REFRESH)
-            
-            # Remove password from response
-            user.pop('password', None)
-            
-            custom_log(f"✅ User logged in successfully: {user['username']} ({email})")
-            
-            return jsonify({
-                "success": True,
-                "message": "Login successful",
-                "data": {
-                    "user": user,
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "token_type": "Bearer",
-                    "expires_in": Config.JWT_ACCESS_TOKEN_EXPIRES,  # Access token TTL
-                    "refresh_expires_in": Config.JWT_REFRESH_TOKEN_EXPIRES  # Refresh token TTL
-                }
-            }), 200
-            
-        except Exception as e:
-            custom_log(f"❌ Error during login: {e}")
-            return jsonify({
-                "success": False,
-                "error": "Internal server error"
-            }), 500
+                if os.path.exists(path):
+                    with open(path, 'r') as f:
+                        content = f.read().strip()
+                        if content:
+                            custom_log(f"✅ Found module secret '{secret_name}' in {path}")
+                            return content
+            except Exception:
+                continue
+        
+        custom_log(f"🔍 Module secret '{secret_name}' not found in any location")
+        return None
 
-    def logout_user(self):
-        """Logout user and revoke tokens."""
-        try:
-            # Get token from Authorization header
-            auth_header = request.headers.get('Authorization')
-            if not auth_header or not auth_header.startswith('Bearer '):
-                return jsonify({
-                    "success": False,
-                    "error": "Missing or invalid authorization header"
-                }), 401
+    def _get_environment_variable(self, env_name: str) -> Optional[str]:
+        """
+        Get environment variable value.
+        
+        Args:
+            env_name: Environment variable name
             
-            token = auth_header.split(' ')[1]
-            
-            # Use the JWT manager passed to the constructor
-            jwt_manager = self.jwt_manager
-            
-            # Verify token
-            payload = jwt_manager.verify_token(token, TokenType.ACCESS)
-            if not payload:
-                return jsonify({
-                    "success": False,
-                    "error": "Invalid or expired token"
-                }), 401
-            
-            # Revoke the token
-            success = jwt_manager.revoke_token(token)
-            
-            if success:
-                custom_log(f"✅ User logged out successfully: {payload.get('username', 'unknown')}")
-                return jsonify({
-                    "success": True,
-                    "message": "Logout successful"
-                }), 200
-            else:
-                return jsonify({
-                    "success": False,
-                    "error": "Failed to logout"
-                }), 500
-            
-        except Exception as e:
-            custom_log(f"❌ Error during logout: {e}")
-            return jsonify({
-                "success": False,
-                "error": "Internal server error"
-            }), 500
+        Returns:
+            Environment variable value or None if not found
+        """
+        return os.getenv(env_name)
 
-    def refresh_token(self):
-        """Refresh access token using refresh token."""
-        try:
-            data = request.get_json()
-            
-            if not data.get("refresh_token"):
-                return jsonify({
-                    "success": False,
-                    "error": "Refresh token is required"
-                }), 400
-            
-            refresh_token = data.get("refresh_token")
-            
-            # Use the JWT manager passed to the constructor
-            jwt_manager = self.jwt_manager
-            
-            # Verify refresh token
-            payload = jwt_manager.verify_token(refresh_token, TokenType.REFRESH)
-            if not payload:
-                return jsonify({
-                    "success": False,
-                    "error": "Invalid or expired refresh token"
-                }), 401
-            
-            # Get user data
-            user_id = payload.get("user_id")
-            user = self.db_manager.find_one("users", {"_id": ObjectId(user_id)})
-            
-            if not user:
-                return jsonify({
-                    "success": False,
-                    "error": "User not found"
-                }), 401
-            
-            # Get the original email from the login request
-            # Since refresh tokens don't contain email, we need to get it from the original login
-            # For now, we'll use the email from the database lookup, but this should be the original email
-            # The issue is that the database stores encrypted emails, so we need to handle this properly
-            
-            # Create new access token
-            access_token_payload = {
-                'user_id': str(user['_id']),
-                'username': user['username'],
-                'email': 'silvester.vella@gmail.com',  # Use the original email directly for now
-                'type': 'access'
+    def _get_jwt_secret(self) -> str:
+        """
+        Get JWT secret with module-specific secrets first, then environment, then default.
+        Completely independent of config class.
+        """
+        # Try module-specific secret first
+        module_secret = self._read_module_secret("jwt_secret")
+        if module_secret:
+            return module_secret
+        
+        # Try environment variable
+        env_value = self._get_environment_variable("JWT_SECRET_KEY")
+        if env_value:
+            return env_value
+        
+        # Default fallback
+        return "your-super-secret-key-change-in-production"
+
+    def _get_password_salt_rounds(self) -> int:
+        """
+        Get password salt rounds with module-specific secrets first, then environment, then default.
+        """
+        # Try module-specific secret first
+        module_secret = self._read_module_secret("password_salt_rounds")
+        if module_secret:
+            try:
+                return int(module_secret)
+            except ValueError:
+                pass
+        
+        # Try environment variable
+        env_value = self._get_environment_variable("PASSWORD_SALT_ROUNDS")
+        if env_value:
+            try:
+                return int(env_value)
+            except ValueError:
+                pass
+        
+        # Default fallback
+        return 12
+
+    def get_secret_sources(self) -> Dict[str, Any]:
+        """
+        Get information about where secrets are being read from.
+        
+        Returns:
+            Dict with secret source information
+        """
+        jwt_secret = self._read_module_secret("jwt_secret")
+        salt_rounds_secret = self._read_module_secret("password_salt_rounds")
+        jwt_env = self._get_environment_variable("JWT_SECRET_KEY")
+        salt_rounds_env = self._get_environment_variable("PASSWORD_SALT_ROUNDS")
+        
+        return {
+            'jwt_secret': {
+                'module_secret': bool(jwt_secret),
+                'module_secret_path': f"{self.secrets_dir}/jwt_secret" if jwt_secret else None,
+                'environment_variable': bool(jwt_env),
+                'environment_name': 'JWT_SECRET_KEY' if jwt_env else None,
+                'fallback_used': not bool(jwt_secret or jwt_env),
+                'configured': bool(jwt_secret or jwt_env or self._get_jwt_secret())
+            },
+            'password_salt_rounds': {
+                'module_secret': bool(salt_rounds_secret),
+                'module_secret_path': f"{self.secrets_dir}/password_salt_rounds" if salt_rounds_secret else None,
+                'environment_variable': bool(salt_rounds_env),
+                'environment_name': 'PASSWORD_SALT_ROUNDS' if salt_rounds_env else None,
+                'fallback_used': not bool(salt_rounds_secret or salt_rounds_env),
+                'value': int(salt_rounds_secret or salt_rounds_env or self._get_password_salt_rounds())
             }
-            
-            # Create new refresh token (token rotation for security)
-            refresh_token_payload = {
-                'user_id': str(user['_id']),
-                'type': 'refresh'
-            }
-            
-            new_access_token = jwt_manager.create_token(access_token_payload, TokenType.ACCESS)
-            new_refresh_token = jwt_manager.create_token(refresh_token_payload, TokenType.REFRESH)
-            
-            # Revoke the old refresh token for security
-            jwt_manager.revoke_token(refresh_token)
-            
-            # Remove password from response
-            user.pop('password', None)
-            
-            custom_log(f"✅ Token refreshed successfully for user: {user['username']} (with rotation)")
-            
-            return jsonify({
-                "success": True,
-                "message": "Token refreshed successfully",
-                "data": {
-                    "user": user,
-                    "access_token": new_access_token,
-                    "refresh_token": new_refresh_token,  # ✅ NEW REFRESH TOKEN
-                    "token_type": "Bearer",
-                    "expires_in": Config.JWT_ACCESS_TOKEN_EXPIRES,  # Access token TTL
-                    "refresh_expires_in": Config.JWT_REFRESH_TOKEN_EXPIRES  # Refresh token TTL
-                }
-            }), 200
-            
-        except Exception as e:
-            custom_log(f"❌ Error refreshing token: {e}")
-            return jsonify({
-                "success": False,
-                "error": "Internal server error"
-            }), 500
-
-    def get_current_user(self):
-        """Get current user information from token."""
-        try:
-            # Get token from Authorization header
-            auth_header = request.headers.get('Authorization')
-            if not auth_header or not auth_header.startswith('Bearer '):
-                return jsonify({
-                    "success": False,
-                    "error": "Missing or invalid authorization header"
-                }), 401
-            
-            token = auth_header.split(' ')[1]
-            
-            # Use the JWT manager passed to the constructor
-            jwt_manager = self.jwt_manager
-            
-            # Verify token
-            payload = jwt_manager.verify_token(token, TokenType.ACCESS)
-            if not payload:
-                return jsonify({
-                    "success": False,
-                    "error": "Invalid or expired token"
-                }), 401
-            
-            # Get user data
-            user_id = payload.get("user_id")
-            user = self.db_manager.find_one("users", {"_id": ObjectId(user_id)})
-            
-            if not user:
-                return jsonify({
-                    "success": False,
-                    "error": "User not found"
-                }), 401
-            
-            # Get user's wallet
-            wallet = self.db_manager.find_one("wallets", {"user_id": user_id})
-            
-            # Remove password from response
-            user.pop('password', None)
-            
-            return jsonify({
-                "success": True,
-                "data": {
-                    "user": user,
-                    "wallet": wallet
-                }
-            }), 200
-            
-        except Exception as e:
-            custom_log(f"❌ Error getting current user: {e}")
-            return jsonify({
-                "success": False,
-                "error": "Internal server error"
-            }), 500
-
-    def _prepare_user_response(self, user_data):
-        """Prepare user data for JSON response by converting datetime objects."""
-        import copy
-        response_data = copy.deepcopy(user_data)
-        
-        # Convert datetime objects to ISO format strings
-        datetime_fields = ['created_at', 'updated_at', 'last_login', 'password_changed_at', 'profile_updated_at']
-        
-        def convert_datetime(obj):
-            if isinstance(obj, dict):
-                for key, value in obj.items():
-                    if isinstance(value, datetime):
-                        obj[key] = value.isoformat()
-                    elif isinstance(value, dict):
-                        convert_datetime(value)
-            return obj
-        
-        # Convert main user data
-        response_data = convert_datetime(response_data)
-        
-        # Convert nested datetime fields
-        if 'modules' in response_data:
-            for module_name, module_data in response_data['modules'].items():
-                if isinstance(module_data, dict) and 'last_updated' in module_data:
-                    if isinstance(module_data['last_updated'], datetime):
-                        module_data['last_updated'] = module_data['last_updated'].isoformat()
-        
-        return response_data
+        }
 
     def _is_valid_email(self, email: str) -> bool:
-        """Validate email format."""
+        """
+        Validate email format.
+        
+        Args:
+            email: Email address to validate
+            
+        Returns:
+            True if valid email format, False otherwise
+        """
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return re.match(pattern, email) is not None
 
     def _is_valid_password(self, password: str) -> bool:
-        """Validate password strength."""
+        """
+        Validate password strength.
+        
+        Args:
+            password: Password to validate
+            
+        Returns:
+            True if password meets requirements, False otherwise
+        """
         return len(password) >= 8
 
-    def test_debug(self):
-        """Test endpoint for debugging."""
-        return jsonify({
-            'message': 'User management module is working',
-            'module': 'UserManagementModule',
-            'timestamp': str(datetime.utcnow())
-        })
-
-    def get_public_user_info(self):
-        """Get public user information (no auth required)."""
-        return jsonify({
-            'message': 'Public user info endpoint',
-            'module': 'UserManagementModule',
-            'auth_required': False
-        })
-
-    def get_user_profile(self):
-        """Get user profile (JWT auth required)."""
-        try:
-            # User ID is set by JWT middleware
-            user_id = request.user_id
-            if not user_id:
-                return jsonify({'error': 'User not authenticated'}), 401
-            
-            # Get user profile from database
-            user = self.db_manager.find_one("users", {"_id": user_id})
-            if not user:
-                return jsonify({'error': 'User not found'}), 404
-            
-            # Return profile data
-            profile_data = {
-                'user_id': user_id,
-                'email': user.get('email'),
-                'username': user.get('username'),
-                'profile': user.get('profile', {}),
-                'modules': user.get('modules', {})
-            }
-            
-            return jsonify(profile_data), 200
-            
-        except Exception as e:
-            custom_log(f"Error getting user profile: {e}")
-            return jsonify({'error': 'Failed to get user profile'}), 500
-
-    def update_user_profile(self):
-        """Update user profile (JWT auth required)."""
-        try:
-            user_id = request.user_id
-            if not user_id:
-                return jsonify({'error': 'User not authenticated'}), 401
-            
-            data = request.get_json()
-            update_data = {'updated_at': datetime.utcnow().isoformat()}
-            
-            # Only allow updating profile fields
-            allowed_fields = ['first_name', 'last_name', 'phone', 'timezone', 'language']
-            for field in allowed_fields:
-                if field in data:
-                    update_data[f'profile.{field}'] = data[field]
-            
-            # Update user profile
-            modified_count = self.db_manager.update("users", {"_id": user_id}, {"$set": update_data})
-            
-            if modified_count > 0:
-                return jsonify({
-                    'message': 'Profile updated successfully',
-                    'user_id': user_id
-                }), 200
-            else:
-                return jsonify({'error': 'Failed to update profile'}), 500
-                
-        except Exception as e:
-            custom_log(f"Error updating user profile: {e}")
-            return jsonify({'error': 'Failed to update profile'}), 500
-
-    def get_user_settings(self):
-        """Get user settings (JWT auth required)."""
-        try:
-            user_id = request.user_id
-            if not user_id:
-                return jsonify({'error': 'User not authenticated'}), 401
-            
-            user = self.db_manager.find_one("users", {"_id": user_id})
-            if not user:
-                return jsonify({'error': 'User not found'}), 404
-            
-            settings_data = {
-                'user_id': user_id,
-                'preferences': user.get('preferences', {}),
-                'modules': user.get('modules', {})
-            }
-            
-            return jsonify(settings_data), 200
-            
-        except Exception as e:
-            custom_log(f"Error getting user settings: {e}")
-            return jsonify({'error': 'Failed to get user settings'}), 500
-
-    def update_user_settings(self):
-        """Update user settings (JWT auth required)."""
-        try:
-            user_id = request.user_id
-            if not user_id:
-                return jsonify({'error': 'User not authenticated'}), 401
-            
-            data = request.get_json()
-            update_data = {'updated_at': datetime.utcnow().isoformat()}
-            
-            # Allow updating preferences
-            if 'preferences' in data:
-                update_data['preferences'] = data['preferences']
-            
-            # Update user settings
-            modified_count = self.db_manager.update("users", {"_id": user_id}, {"$set": update_data})
-            
-            if modified_count > 0:
-                return jsonify({
-                    'message': 'Settings updated successfully',
-                    'user_id': user_id
-                }), 200
-            else:
-                return jsonify({'error': 'Failed to update settings'}), 500
-                
-        except Exception as e:
-            custom_log(f"Error updating user settings: {e}")
-            return jsonify({'error': 'Failed to update settings'}), 500
-
-
-
-    def health_check(self) -> Dict[str, Any]:
-        """Perform health check for UserManagementModule."""
-        health_status = super().health_check()
-        health_status['dependencies'] = self.dependencies
+    def _hash_password(self, password: str) -> str:
+        """
+        Hash password using bcrypt.
         
-        # Add database queue status
+        Args:
+            password: Plain text password
+            
+        Returns:
+            Hashed password
+        """
+        salt_rounds = self._get_password_salt_rounds()
+        salt = bcrypt.gensalt(rounds=salt_rounds)
+        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+        return hashed.decode('utf-8')
+
+    def _verify_password(self, password: str, hashed_password: str) -> bool:
+        """
+        Verify password against hash.
+        
+        Args:
+            password: Plain text password
+            hashed_password: Hashed password to compare against
+            
+        Returns:
+            True if password matches hash, False otherwise
+        """
+        return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+    def _prepare_user_response(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare user data for response, removing sensitive information.
+        
+        Args:
+            user_data: Raw user data from database
+            
+        Returns:
+            Cleaned user data for response
+        """
+        if not user_data:
+            return {}
+        
+        # Convert ObjectId to string
+        def convert_datetime(obj):
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            return obj
+        
+        # Remove sensitive fields
+        sensitive_fields = ['password', 'password_hash', 'reset_token', 'reset_token_expires']
+        cleaned_data = {k: v for k, v in user_data.items() if k not in sensitive_fields}
+        
+        # Convert ObjectId
+        if '_id' in cleaned_data and isinstance(cleaned_data['_id'], ObjectId):
+            cleaned_data['_id'] = str(cleaned_data['_id'])
+        
+        # Convert datetime fields
+        for key, value in cleaned_data.items():
+            if isinstance(value, datetime):
+                cleaned_data[key] = value.isoformat()
+        
+        return cleaned_data
+
+    def validate_user_creation_data(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate user creation data.
+        
+        Args:
+            user_data: User data to validate
+            
+        Returns:
+            Dict with validation result
+        """
         try:
-            queue_status = self.db_manager.get_queue_status()
-            health_status['details'] = {
-                'database_queue': {
-                    'queue_size': queue_status['queue_size'],
-                    'worker_alive': queue_status['worker_alive'],
-                    'queue_enabled': queue_status['queue_enabled'],
-                    'pending_results': queue_status['pending_results']
+            # Validate required fields
+            required_fields = ["username", "email", "password"]
+            missing_fields = [field for field in required_fields if not user_data.get(field)]
+            
+            if missing_fields:
+                return {
+                    'success': False,
+                    'error': f"Missing required fields: {', '.join(missing_fields)}"
+                }
+            
+            username = user_data.get("username")
+            email = user_data.get("email")
+            password = user_data.get("password")
+            
+            # Validate email format
+            if not self._is_valid_email(email):
+                return {
+                    'success': False,
+                    'error': "Invalid email format"
+                }
+            
+            # Validate password strength
+            if not self._is_valid_password(password):
+                return {
+                    'success': False,
+                    'error': "Password must be at least 8 characters long"
+                }
+            
+            # Validate username (basic check)
+            if len(username) < 3:
+                return {
+                    'success': False,
+                    'error': "Username must be at least 3 characters long"
+                }
+            
+            return {
+                'success': True,
+                'validated_data': {
+                    'username': username,
+                    'email': email,
+                    'password': password
                 }
             }
+            
         except Exception as e:
-            health_status['details'] = {'database_queue': f'error: {str(e)}'}
+            return {
+                'success': False,
+                'error': f'Validation error: {str(e)}'
+            }
+
+    def process_user_creation(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process user creation (pure business logic).
         
-        return health_status 
+        Args:
+            user_data: User data dictionary with username, email, password
+            
+        Returns:
+            Dict with processing result
+        """
+        try:
+            # Validate input data
+            validation_result = self.validate_user_creation_data(user_data)
+            if not validation_result['success']:
+                return validation_result
+            
+            validated_data = validation_result['validated_data']
+            
+            # Hash password
+            hashed_password = self._hash_password(validated_data['password'])
+            
+            # Prepare user document
+            user_document = {
+                'username': validated_data['username'],
+                'email': validated_data['email'],
+                'password_hash': hashed_password,
+                'status': 'active',
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat(),
+                'profile': {},
+                'preferences': {},
+                'modules': {}
+            }
+            
+            return {
+                'success': True,
+                'message': f'User {validated_data["username"]} validated and prepared for creation',
+                'user_document': user_document,
+                'validation_passed': True
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Error processing user creation: {str(e)}'
+            }
+
+    def process_user_login(self, login_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process user login (pure business logic).
+        
+        Args:
+            login_data: Login data with email and password
+            
+        Returns:
+            Dict with processing result
+        """
+        try:
+            email = login_data.get('email')
+            password = login_data.get('password')
+            
+            if not email or not password:
+                return {
+                    'success': False,
+                    'error': 'Email and password are required'
+                }
+            
+            # Validate email format
+            if not self._is_valid_email(email):
+                return {
+                    'success': False,
+                    'error': 'Invalid email format'
+                }
+            
+            # Note: This is pure business logic - actual user lookup would be done by orchestrator
+            return {
+                'success': True,
+                'message': 'Login data validated',
+                'validated_data': {
+                    'email': email,
+                    'password': password
+                }
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Error processing login: {str(e)}'
+            }
+
+    def verify_password(self, password: str, hashed_password: str) -> Dict[str, Any]:
+        """
+        Verify password against hash.
+        
+        Args:
+            password: Plain text password
+            hashed_password: Hashed password to compare against
+            
+        Returns:
+            Dict with verification result
+        """
+        try:
+            is_valid = self._verify_password(password, hashed_password)
+            
+            return {
+                'success': True,
+                'password_valid': is_valid,
+                'message': 'Password verification completed'
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Error verifying password: {str(e)}'
+            }
+
+    def hash_password(self, password: str) -> Dict[str, Any]:
+        """
+        Hash password using bcrypt.
+        
+        Args:
+            password: Plain text password
+            
+        Returns:
+            Dict with hashed password
+        """
+        try:
+            hashed_password = self._hash_password(password)
+            
+            return {
+                'success': True,
+                'hashed_password': hashed_password,
+                'message': 'Password hashed successfully'
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Error hashing password: {str(e)}'
+            }
+
+    def validate_user_update_data(self, update_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate user update data.
+        
+        Args:
+            update_data: User update data to validate
+            
+        Returns:
+            Dict with validation result
+        """
+        try:
+            allowed_fields = ['username', 'email', 'first_name', 'last_name', 'phone', 'timezone', 'language']
+            validated_data = {}
+            
+            for field, value in update_data.items():
+                if field in allowed_fields:
+                    if field == 'email' and value:
+                        if not self._is_valid_email(value):
+                            return {
+                                'success': False,
+                                'error': f'Invalid email format for {field}'
+                            }
+                    validated_data[field] = value
+            
+            return {
+                'success': True,
+                'validated_data': validated_data,
+                'message': 'User update data validated'
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Error validating update data: {str(e)}'
+            }
+
+    def health_check(self) -> Dict[str, Any]:
+        """
+        Perform health check on user management module.
+        
+        Returns:
+            Dict with health status
+        """
+        try:
+            return {
+                'status': 'healthy',
+                'module': 'UserManagementModule',
+                'secrets_configured': bool(self._get_jwt_secret()),
+                'salt_rounds': self._get_password_salt_rounds(),
+                'secret_sources': self.get_secret_sources()
+            }
+            
+        except Exception as e:
+            return {
+                'status': 'unhealthy',
+                'module': 'UserManagementModule',
+                'error': str(e),
+                'secret_sources': self.get_secret_sources()
+            }
+
+    def get_config(self) -> Dict[str, Any]:
+        """Get module configuration with secret source information."""
+        return {
+            'jwt_secret_configured': bool(self._get_jwt_secret()),
+            'salt_rounds': self._get_password_salt_rounds(),
+            'secret_sources': self.get_secret_sources(),
+            'module_secrets_dir': self.secrets_dir,
+            'completely_decoupled': True
+        }
+
+    def get_config_requirements(self) -> List[Dict[str, Any]]:
+        """
+        Declare all configuration requirements for this module.
+        Returns list of config requirements for the orchestrator to provide.
+        """
+        return [
+            {
+                'key': 'jwt_secret',
+                'description': 'JWT secret key for token generation',
+                'required': True,
+                'default': 'your-super-secret-key-change-in-production',
+                'type': 'string',
+                'sensitive': True,
+                'module_secret_file': f'{self.secrets_dir}/jwt_secret',
+                'global_secret_file': 'jwt_secret_key',
+                'env_var': 'JWT_SECRET_KEY',
+                'decoupled': True
+            },
+            {
+                'key': 'password_salt_rounds',
+                'description': 'Number of salt rounds for password hashing',
+                'required': False,
+                'default': '12',
+                'type': 'integer',
+                'module_secret_file': f'{self.secrets_dir}/password_salt_rounds',
+                'global_secret_file': 'password_salt_rounds',
+                'env_var': 'PASSWORD_SALT_ROUNDS',
+                'decoupled': True
+            }
+        ]
+
+    def get_hooks_needed(self) -> List[Dict[str, Any]]:
+        """
+        Declare what hooks this module needs.
+        Returns list of hook requirements for the orchestrator to register.
+        """
+        return [
+            {
+                'event': 'user_created',
+                'priority': 10,
+                'context': 'user_management',
+                'description': 'Process user creation in user management'
+            },
+            {
+                'event': 'user_updated',
+                'priority': 10,
+                'context': 'user_management',
+                'description': 'Process user updates in user management'
+            },
+            {
+                'event': 'user_deleted',
+                'priority': 10,
+                'context': 'user_management',
+                'description': 'Process user deletion in user management'
+            }
+        ]
+
+    def get_routes_needed(self) -> List[Dict[str, Any]]:
+        """
+        Declare what routes this module needs.
+        Returns list of route requirements for the orchestrator to register.
+        """
+        return [
+            {
+                'route': '/public/users/info',
+                'methods': ['GET'],
+                'handler': 'get_public_user_info',
+                'description': 'Get public user information (no auth required)',
+                'auth_required': False
+            },
+            {
+                'route': '/public/register',
+                'methods': ['POST'],
+                'handler': 'create_user',
+                'description': 'Create a new user account',
+                'auth_required': False
+            },
+            {
+                'route': '/public/login',
+                'methods': ['POST'],
+                'handler': 'login_user',
+                'description': 'Authenticate user and generate JWT tokens',
+                'auth_required': False
+            },
+            {
+                'route': '/public/refresh',
+                'methods': ['POST'],
+                'handler': 'refresh_token',
+                'description': 'Refresh JWT access token using refresh token',
+                'auth_required': False
+            },
+            {
+                'route': '/userauth/users/profile',
+                'methods': ['GET'],
+                'handler': 'get_user_profile',
+                'description': 'Get user profile (JWT auth required)',
+                'auth_required': True
+            },
+            {
+                'route': '/userauth/users/profile',
+                'methods': ['PUT'],
+                'handler': 'update_user_profile',
+                'description': 'Update user profile (JWT auth required)',
+                'auth_required': True
+            },
+            {
+                'route': '/userauth/users/settings',
+                'methods': ['GET'],
+                'handler': 'get_user_settings',
+                'description': 'Get user settings (JWT auth required)',
+                'auth_required': True
+            },
+            {
+                'route': '/userauth/users/settings',
+                'methods': ['PUT'],
+                'handler': 'update_user_settings',
+                'description': 'Update user settings (JWT auth required)',
+                'auth_required': True
+            },
+            {
+                'route': '/userauth/logout',
+                'methods': ['POST'],
+                'handler': 'logout_user',
+                'description': 'Logout user and invalidate tokens',
+                'auth_required': True
+            },
+            {
+                'route': '/userauth/me',
+                'methods': ['GET'],
+                'handler': 'get_current_user',
+                'description': 'Get current user information (JWT auth required)',
+                'auth_required': True
+            }
+        ]
+
+    def process_hook_event(self, event_name: str, event_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process a hook event from the system.
+        
+        Args:
+            event_name: Name of the hook event
+            event_data: Data passed with the hook
+            
+        Returns:
+            Dict with processing result
+        """
+        if event_name == 'user_created':
+            return self.process_user_creation(event_data)
+        elif event_name == 'user_updated':
+            return self.validate_user_update_data(event_data)
+        elif event_name == 'user_deleted':
+            return {
+                'success': True,
+                'message': f'User deletion processed: {event_data.get("user_id", "unknown")}'
+            }
+        else:
+            return {
+                'success': False,
+                'error': f'Unknown hook event: {event_name}'
+            } 
 

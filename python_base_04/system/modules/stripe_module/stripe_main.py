@@ -148,7 +148,7 @@ class StripeModule:
                     'success': False,
                     'error': f"Missing required fields: {', '.join(missing_fields)}"
                 }
-            
+
             user_id = payment_data['user_id']
             amount = payment_data['amount']
             currency = payment_data['currency']
@@ -166,7 +166,7 @@ class StripeModule:
                     'success': False,
                     'error': 'Invalid amount format'
                 }
-            
+
             # Generate idempotency key for this request
             idempotency_key = str(uuid.uuid4())
             
@@ -184,9 +184,9 @@ class StripeModule:
                 },
                 idempotency_key=idempotency_key
             )
-            
+
             custom_log(f"✅ Payment intent created for user {user_id}: {payment_intent.id}")
-            
+
             return {
                 'success': True,
                 'client_secret': payment_intent.client_secret,
@@ -195,7 +195,7 @@ class StripeModule:
                 'currency': currency,
                 'idempotency_key': idempotency_key
             }
-            
+
         except stripe.error.CardError as e:
             custom_log(f"❌ Stripe card error: {e}", level="ERROR")
             return {
@@ -273,7 +273,7 @@ class StripeModule:
                     'success': False,
                     'error': f"Payment not successful. Status: {payment_intent.status}"
                 }
-            
+
             # Extract metadata
             user_id = payment_intent.metadata.get('user_id')
             amount_usd = float(payment_intent.metadata.get('amount_usd', 0))
@@ -283,7 +283,7 @@ class StripeModule:
                     'success': False,
                     'error': 'Invalid payment intent - missing user ID'
                 }
-            
+
             # Calculate credits from USD amount
             credit_amount = self._calculate_credits_from_usd(amount_usd)
             
@@ -347,7 +347,7 @@ class StripeModule:
                     'success': False,
                     'error': 'Stripe webhook not configured'
                 }
-            
+
             # Verify webhook signature
             try:
                 event = stripe.Webhook.construct_event(
@@ -378,7 +378,7 @@ class StripeModule:
                     'success': True,
                     'message': f'Unhandled event type: {event_type}'
                 }
-                
+            
         except Exception as e:
             custom_log(f"❌ Error processing webhook: {e}", level="ERROR")
             return {
@@ -490,21 +490,21 @@ class StripeModule:
         try:
             # Define credit packages
             credit_packages = [
-                {
+            {
                     'id': 'basic',
                     'name': 'Basic Package',
                     'credits': 100,
                     'price_usd': 5.00,
                     'description': '100 credits for $5.00'
-                },
-                {
+            },
+            {
                     'id': 'standard',
                     'name': 'Standard Package',
                     'credits': 500,
                     'price_usd': 20.00,
                     'description': '500 credits for $20.00'
-                },
-                {
+            },
+            {
                     'id': 'premium',
                     'name': 'Premium Package',
                     'credits': 1200,
@@ -524,7 +524,7 @@ class StripeModule:
                 'success': True,
                 'credit_packages': credit_packages
             }
-            
+                
         except Exception as e:
             custom_log(f"❌ Error processing credit packages request: {e}", level="ERROR")
             return {
@@ -572,7 +572,7 @@ class StripeModule:
                     'created': customer.created
                 }
             }
-            
+
         except stripe.error.StripeError as e:
             custom_log(f"❌ Stripe error creating customer: {e}", level="ERROR")
             return {
@@ -622,7 +622,7 @@ class StripeModule:
                     'metadata': customer.metadata
                 }
             }
-            
+
         except stripe.error.InvalidRequestError as e:
             return {
                 'success': False,
@@ -687,7 +687,7 @@ class StripeModule:
                     for pm in payment_methods.data
                 ]
             }
-            
+
         except stripe.error.StripeError as e:
             custom_log(f"❌ Stripe error listing payment methods: {e}", level="ERROR")
             return {
@@ -742,7 +742,7 @@ class StripeModule:
                     'created': payment_method.created
                 }
             }
-            
+
         except stripe.error.InvalidRequestError as e:
             return {
                 'success': False,
@@ -963,4 +963,4 @@ class StripeModule:
             'stripe_configured': self.stripe is not None,
             'webhook_secret_configured': self.webhook_secret is not None,
             'config_requirements': self.get_config_requirements()
-        } 
+        }

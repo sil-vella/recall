@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/00_base/screen_base.dart';
-import '../../core/managers/module_manager.dart';
-import '../../core/managers/state_manager.dart';
+import '../../system/00_base/screen_base.dart';
+import '../../system/managers/state_manager.dart';
 import '../../modules/login_module/login_module.dart';
 import '../../tools/logging/logger.dart';
 
@@ -37,8 +36,6 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   String? _errorMessage;
   String? _successMessage;
   
-  // Module manager
-  final ModuleManager _moduleManager = ModuleManager();
   LoginModule? _loginModule;
   
   @override

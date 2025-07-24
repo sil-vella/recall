@@ -462,7 +462,7 @@ class UserManagementModule:
                 'validated_data': validated_data,
                 'message': 'User update data validated'
             }
-            
+                
         except Exception as e:
             return {
                 'success': False,

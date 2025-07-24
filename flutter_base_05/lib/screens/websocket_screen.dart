@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../core/00_base/screen_base.dart';
+import '../system/00_base/screen_base.dart';
 import '../utils/consts/config.dart';
 import '../modules/login_module/login_module.dart';
-import '../core/managers/module_manager.dart';
-import '../core/managers/websockets/websocket_manager.dart';
-import '../core/models/websocket_events.dart';
+import '../system/managers/module_manager.dart';
+import '../system/managers/websockets/websocket_manager.dart';
+import '../system/models/websocket_events.dart';
 
 class WebSocketScreen extends BaseScreen {
   const WebSocketScreen({Key? key}) : super(key: key);

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/00_base/screen_base.dart';
-import '../../core/managers/app_manager.dart';
+import '../../system/00_base/screen_base.dart';
+import '../../system/orchestration/app_init/app_initializer.dart';
 import '../../utils/consts/theme_consts.dart';
 
 class HomeScreen extends BaseScreen {
@@ -20,8 +20,8 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
     super.initState();
     // Trigger home screen main hook
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final appManager = Provider.of<AppManager>(context, listen: false);
-      appManager.triggerHomeScreenMainHook(context);
+      final appInitializer = Provider.of<AppInitializer>(context, listen: false);
+      appInitializer.triggerHomeScreenMainHook(context);
     });
   }
 

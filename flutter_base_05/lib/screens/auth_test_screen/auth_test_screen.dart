@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/00_base/screen_base.dart';
-import '../../core/managers/module_manager.dart';
-import '../../core/managers/state_manager.dart';
-import '../../core/managers/auth_manager.dart';
+import '../../system/00_base/screen_base.dart';
+import '../../system/managers/module_manager.dart';
+import '../../system/managers/state_manager.dart';
+import '../../system/managers/auth_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';

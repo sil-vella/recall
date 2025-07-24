@@ -1,522 +1,404 @@
-import 'package:flutter/material.dart';
-import '../connections_api_module/connections_api_module.dart';
-import 'package:provider/provider.dart';
-import '../../core/00_base/module_base.dart';
-import '../../core/managers/module_manager.dart';
-import '../../core/managers/services_manager.dart';
-import '../../core/services/shared_preferences.dart';
 import '../../tools/logging/logger.dart';
-import '../../core/managers/state_manager.dart';
-import '../../core/managers/auth_manager.dart';
-import '../../core/managers/hooks_manager.dart';
-import '../../core/managers/navigation_manager.dart';
+import '../../utils/consts/config.dart';
 
-class LoginModule extends ModuleBase {
+/// Pure business logic module for login functionality
+/// Contains no Flutter/system dependencies
+class LoginModule {
   static final Logger _log = Logger();
 
-  late ServicesManager _servicesManager;
-  late ModuleManager _localModuleManager;
-  SharedPrefManager? _sharedPref;
-  ConnectionsApiModule? _connectionModule;
-  AuthManager? _authManager;
-  BuildContext? _currentContext;
-
-  /// ✅ Constructor with module key and dependencies
-  LoginModule() : super("login_module", dependencies: ["connections_api_module"]);
-
-  @override
-  void initialize(BuildContext context, ModuleManager moduleManager) {
-    super.initialize(context, moduleManager);
-    _localModuleManager = moduleManager;
-    _initDependencies(context);
-    _registerAuthHooks();
-    _log.info('✅ LoginModule initialized with context.');
+  /// Initialize the module
+  void initialize() {
+    _log.info('🔧 Initializing LoginModule (pure business logic)');
+    _log.info('✅ LoginModule initialized');
   }
 
-  /// ✅ Fetch dependencies once per context
-  void _initDependencies(BuildContext context) {
-    _servicesManager = Provider.of<ServicesManager>(context, listen: false);
-    _sharedPref = _servicesManager.getService<SharedPrefManager>('shared_pref');
-    _connectionModule = _localModuleManager.getModuleByType<ConnectionsApiModule>();
-    _authManager = AuthManager();
-    _currentContext = context;
-
-    // Initialize login state in StateManager after the current frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final stateManager = StateManager();
-      stateManager.registerModuleState("login", {
-        "isLoggedIn": _sharedPref?.getBool('is_logged_in') ?? false,
-        "userId": _sharedPref?.getString('user_id'),
-        "username": _sharedPref?.getString('username'),
-        "email": _sharedPref?.getString('email'),
-        "error": null
-      });
-    });
-  }
-
-  /// ✅ Register authentication hooks for logout handling
-  void _registerAuthHooks() {
-    final hooksManager = HooksManager();
+  /// Validate username (business logic only)
+  Map<String, dynamic> validateUsername(String username) {
+    _log.info('🔍 Validating username: $username');
     
-    // Register hook for auth required
-    hooksManager.registerHookWithData('auth_required', (data) {
-      _log.info('🔔 Auth required hook triggered in LoginModule: $data');
-      _handleAuthRequired(data);
-    });
-    
-    // Register hook for refresh token expiration
-    hooksManager.registerHookWithData('refresh_token_expired', (data) {
-      _log.info('🔔 Refresh token expired hook triggered in LoginModule: $data');
-      _handleRefreshTokenExpired();
-    });
-    
-    // Register hook for token refresh failure
-    hooksManager.registerHookWithData('auth_token_refresh_failed', (data) {
-      _log.info('🔔 Token refresh failed hook triggered in LoginModule: $data');
-      _handleTokenRefreshFailed();
-    });
-    
-    // Register hook for general auth errors
-    hooksManager.registerHookWithData('auth_error', (data) {
-      _log.info('🔔 Auth error hook triggered in LoginModule: $data');
-      _handleAuthError();
-    });
-    
-
-    
-    _log.info('✅ LoginModule registered auth hooks for logout handling');
-  }
-
-  /// ✅ Handle refresh token expiration
-  void _handleRefreshTokenExpired() {
-    _log.info('🔓 Handling refresh token expiration in LoginModule');
-    if (_currentContext != null) {
-      // Only logout and navigate if not already logged out
-      final stateManager = StateManager();
-      final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
-      final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      
-      if (isLoggedIn) {
-        _log.info('🔓 User still logged in, performing logout');
-        _performSynchronousLogout();
-        _navigateToAccountScreen('refresh_token_expired', 'Refresh token has expired. Please log in again.');
-      } else {
-        _log.info('⏸️ User already logged out, skipping duplicate logout');
-        // Still navigate to account screen even if already logged out
-        _navigateToAccountScreen('refresh_token_expired', 'Refresh token has expired. Please log in again.');
-      }
+    if (username.length < 3) {
+      return {
+        'valid': false,
+        'error': 'Username must be at least 3 characters long'
+      };
     }
-  }
-
-  /// ✅ Perform synchronous logout (for hook callbacks)
-  void _performSynchronousLogout() {
-    _log.info('🔓 Performing synchronous logout');
     
-    try {
-      // Clear JWT tokens using AuthManager
-      _authManager?.clearTokens();
-      
-      // Clear stored user data
-      _sharedPref?.setBool('is_logged_in', false);
-      _sharedPref?.remove('user_id');
-      _sharedPref?.remove('username');
-      _sharedPref?.remove('email');
-      
-      // Update state manager
-      final stateManager = StateManager();
-      stateManager.updateModuleState("login", {
-        "isLoggedIn": false,
-        "userId": null,
-        "username": null,
-        "email": null,
-        "error": null
-      });
-      
-      _log.info("✅ Synchronous logout completed");
-    } catch (e) {
-      _log.error("❌ Synchronous logout error: $e");
+    if (username.length > 20) {
+      return {
+        'valid': false,
+        'error': 'Username cannot be longer than 20 characters'
+      };
     }
-  }
-
-  /// ✅ Handle token refresh failure
-  void _handleTokenRefreshFailed() {
-    _log.info('🔓 Handling token refresh failure in LoginModule');
-    if (_currentContext != null) {
-      // Only logout and navigate if not already logged out
-      final stateManager = StateManager();
-      final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
-      final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      
-      if (isLoggedIn) {
-        _log.info('🔓 User still logged in, performing logout');
-        _performSynchronousLogout();
-        _navigateToAccountScreen('token_refresh_failed', 'Token refresh failed. Please log in again.');
-      } else {
-        _log.info('⏸️ User already logged out, skipping duplicate logout');
-        // Still navigate to account screen even if already logged out
-        _navigateToAccountScreen('token_refresh_failed', 'Token refresh failed. Please log in again.');
-      }
-    }
-  }
-
-  /// ✅ Handle auth required (user needs to log in)
-  void _handleAuthRequired(Map<String, dynamic> data) {
-    _log.info('🔓 Handling auth required in LoginModule');
-    final reason = data['reason'] ?? 'unknown';
-    final message = data['message'] ?? 'Authentication required';
     
-    if (_currentContext != null) {
-      // Only logout and navigate if not already logged out
-      final stateManager = StateManager();
-      final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
-      final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      
-      if (isLoggedIn) {
-        _log.info('🔓 User still logged in, performing logout');
-        _performSynchronousLogout();
-        _navigateToAccountScreen(reason, message);
-      } else {
-        _log.info('⏸️ User already logged out, skipping duplicate logout');
-        // Still navigate to account screen even if already logged out
-        _navigateToAccountScreen(reason, message);
-      }
+    if (!RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$').hasMatch(username)) {
+      return {
+        'valid': false,
+        'error': 'Username can only contain letters, numbers, underscores, and hyphens'
+      };
     }
-  }
-
-  /// ✅ Handle general auth error
-  void _handleAuthError() {
-    _log.info('🔓 Handling auth error in LoginModule');
-    if (_currentContext != null) {
-      // Only logout and navigate if not already logged out
-      final stateManager = StateManager();
-      final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
-      final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-      
-      if (isLoggedIn) {
-        _log.info('🔓 User still logged in, performing logout');
-        _performSynchronousLogout();
-        _navigateToAccountScreen('auth_error', 'Authentication error occurred. Please log in again.');
-      } else {
-        _log.info('⏸️ User already logged out, skipping duplicate logout');
-        // Still navigate to account screen even if already logged out
-        _navigateToAccountScreen('auth_error', 'Authentication error occurred. Please log in again.');
-      }
-    }
-  }
-
-
-
-  /// ✅ Navigate to account screen with auth parameters
-  void _navigateToAccountScreen(String reason, String message) {
-    final navigationManager = NavigationManager();
-    _log.info('🧭 LoginModule navigating to account screen: $reason');
-    _log.info('🧭 Message: $message');
     
-    // Use NavigationManager's queuing system to ensure router is ready
-    navigationManager.navigateToWithDelay('/account', parameters: {
-      'auth_reason': reason,
-      'auth_message': message,
-    });
-  }
-
-  Future<Map<String, dynamic>> getUserStatus(BuildContext context) async {
-    _initDependencies(context);
-
-    if (_sharedPref == null) {
-      _log.error("❌ SharedPrefManager not available.");
-      return {"error": "Service not available."};
+    if (RegExp(r'[-_]{2,}').hasMatch(username)) {
+      return {
+        'valid': false,
+        'error': 'Username cannot contain consecutive special characters'
+      };
     }
-
-    bool isLoggedIn = _sharedPref!.getBool('is_logged_in') ?? false;
-
-    if (!isLoggedIn) {
-      return {"status": "logged_out"};
+    
+    if (username.startsWith('_') || username.startsWith('-') || 
+        username.endsWith('_') || username.endsWith('-')) {
+      return {
+        'valid': false,
+        'error': 'Username cannot start or end with special characters'
+      };
     }
-
+    
     return {
-      "status": "logged_in",
-      "user_id": _sharedPref!.getString('user_id'),
-      "username": _sharedPref!.getString('username'),
-      "email": _sharedPref!.getString('email'),
+      'valid': true,
+      'username': username
     };
   }
 
-  Future<Map<String, dynamic>> registerUser({
-    required BuildContext context,
+  /// Validate email format (business logic only)
+  Map<String, dynamic> validateEmail(String email) {
+    _log.info('🔍 Validating email: $email');
+    
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      return {
+        'valid': false,
+        'error': 'Invalid email format. Please enter a valid email address.'
+      };
+    }
+    
+    return {
+      'valid': true,
+      'email': email
+    };
+  }
+
+  /// Validate password requirements (business logic only)
+  Map<String, dynamic> validatePassword(String password) {
+    _log.info('🔍 Validating password');
+    
+    if (password.length < 8) {
+      return {
+        'valid': false,
+        'error': 'Password must be at least 8 characters long'
+      };
+    }
+    
+    return {
+      'valid': true,
+      'password': password
+    };
+  }
+
+  /// Prepare registration data (business logic only)
+  Map<String, dynamic> prepareRegistrationData({
     required String username,
     required String email,
     required String password,
-  }) async {
-    _initDependencies(context);
-
-    if (_connectionModule == null) {
-      _log.error("❌ Connection module not available.");
-      return {"error": "Service not available."};
+  }) {
+    _log.info('📝 Preparing registration data for: $username');
+    
+    // Validate all inputs
+    final usernameValidation = validateUsername(username);
+    if (!usernameValidation['valid']) {
+      return {
+        'success': false,
+        'error': usernameValidation['error']
+      };
     }
-
-    // Validate username
-    if (username.length < 3) {
-      return {"error": "Username must be at least 3 characters long"};
+    
+    final emailValidation = validateEmail(email);
+    if (!emailValidation['valid']) {
+      return {
+        'success': false,
+        'error': emailValidation['error']
+      };
     }
-    if (username.length > 20) {
-      return {"error": "Username cannot be longer than 20 characters"};
+    
+    final passwordValidation = validatePassword(password);
+    if (!passwordValidation['valid']) {
+      return {
+        'success': false,
+        'error': passwordValidation['error']
+      };
     }
-    if (!RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$').hasMatch(username)) {
-      return {"error": "Username can only contain letters, numbers, underscores, and hyphens"};
-    }
-    if (RegExp(r'[-_]{2,}').hasMatch(username)) {
-      return {"error": "Username cannot contain consecutive special characters"};
-    }
-    if (username.startsWith('_') || username.startsWith('-') || 
-        username.endsWith('_') || username.endsWith('-')) {
-      return {"error": "Username cannot start or end with special characters"};
-    }
-
-    // Validate email format
-    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
-    if (!emailRegex.hasMatch(email)) {
-      return {"error": "Invalid email format. Please enter a valid email address."};
-    }
-
-    // Validate password requirements (aligned with backend)
-    if (password.length < 8) {
-      return {"error": "Password must be at least 8 characters long"};
-    }
-
-    try {
-      _log.info("⚡ Sending registration request...");
-      _log.info("📤 Registration data: username=$username, email=$email");
-      
-      // Use the correct backend route
-      final response = await _connectionModule!.sendPostRequest(
-        "/public/register",
-        {
-          "username": username,
-          "email": email,
-          "password": password,
-        },
-      );
-
-      _log.info("📥 Registration response: $response");
-
-      if (response is Map) {
-        if (response["success"] == true || response["message"] == "User created successfully") {
-          _log.info("✅ User registered successfully.");
-          return {"success": "Registration successful. Please log in."};
-        } else if (response["error"] != null) {
-          _log.error("❌ Registration failed: ${response["error"]}");
-          
-          // Handle rate limiting errors
-          if (response["status"] == 429) {
-            return {
-              "error": response["error"] ?? "Too many registration attempts. Please try again later.",
-              "isRateLimited": true
-            };
-          }
-          
-          return {"error": response["error"]};
-        }
-      }
-
-      _log.error("❌ Unexpected response format: $response");
-      return {"error": "Unexpected server response format"};
-    } catch (e) {
-      _log.error("❌ Registration error: $e");
-      return {"error": "Server error. Check network connection."};
-    }
+    
+    return {
+      'success': true,
+      'registration_data': {
+        'username': username,
+        'email': email,
+        'password': password,
+      },
+      'timestamp': DateTime.now().toIso8601String(),
+    };
   }
 
-  Future<Map<String, dynamic>> loginUser({
-    required BuildContext context,
+  /// Prepare login data (business logic only)
+  Map<String, dynamic> prepareLoginData({
     required String email,
     required String password,
-  }) async {
-    _initDependencies(context);
-    _log.info("🔑 Starting login process for email: $email");
-
-    if (_connectionModule == null || _sharedPref == null || _authManager == null) {
-      _log.error("❌ Missing required modules for login.");
-      return {"error": "Service not available."};
+  }) {
+    _log.info('📝 Preparing login data for: $email');
+    
+    // Validate email
+    final emailValidation = validateEmail(email);
+    if (!emailValidation['valid']) {
+      return {
+        'success': false,
+        'error': emailValidation['error']
+      };
     }
+    
+    // Validate password
+    final passwordValidation = validatePassword(password);
+    if (!passwordValidation['valid']) {
+      return {
+        'success': false,
+        'error': passwordValidation['error']
+      };
+    }
+    
+    return {
+      'success': true,
+      'login_data': {
+        'email': email,
+        'password': password,
+      },
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+  }
 
-    try {
-      _log.info("⚡ Preparing login request...");
-      _log.info("📤 Sending login request to backend...");
-      
-      // Use the correct backend route
-      final response = await _connectionModule!.sendPostRequest(
-        "/public/login",
-        {"email": email, "password": password},
-      );
-      _log.info("📥 Received login response: $response");
-
-      // Handle error responses
-      if (response?["status"] == 409 || response?["code"] == "CONFLICT") {
-        _log.info("⚠️ Login failed: Conflict detected");
+  /// Process registration response (business logic only)
+  Map<String, dynamic> processRegistrationResponse(Map<String, dynamic> response) {
+    _log.info('📥 Processing registration response');
+    
+    if (response is Map) {
+      if (response["success"] == true || response["message"] == "User created successfully") {
+        _log.info('✅ Registration response indicates success');
         return {
-          "error": response["message"] ?? "A conflict occurred",
-          "user": response["user"]
+          'success': true,
+          'message': 'Registration successful. Please log in.',
+          'response_data': response,
         };
-      }
-
-      if (response?["error"] != null || response?["message"]?.contains("error") == true) {
-        String errorMessage = response?["message"] ?? response?["error"] ?? "Unknown error occurred";
-        _log.error("❌ Login failed: $errorMessage");
+      } else if (response["error"] != null) {
+        _log.error('❌ Registration response indicates error: ${response["error"]}');
         
         // Handle rate limiting errors
-        if (response?["status"] == 429) {
+        if (response["status"] == 429) {
           return {
-            "error": errorMessage,
-            "isRateLimited": true
+            'success': false,
+            'error': response["error"] ?? "Too many registration attempts. Please try again later.",
+            'is_rate_limited': true,
+            'response_data': response,
           };
         }
         
-        return {"error": errorMessage};
-      }
-
-      // Handle successful login (aligned with backend response format)
-      if (response?["success"] == true || response?["message"] == "Login successful") {
-        _log.info("✅ Login successful");
-        
-        // Extract user data from response
-        final userData = response?["data"]?["user"] ?? {};
-        final accessToken = response?["data"]?["access_token"];
-        final refreshToken = response?["data"]?["refresh_token"];
-        
-        if (accessToken == null) {
-          _log.error("❌ No access token in login response");
-          return {"error": "Login successful but no access token received"};
-        }
-        
-        // Extract TTL values from backend response
-        final expiresIn = response?["data"]?["expires_in"];
-        final refreshExpiresIn = response?["data"]?["refresh_expires_in"];
-        final accessTokenTtl = expiresIn is int ? expiresIn : null;
-        final refreshTokenTtl = refreshExpiresIn is int ? refreshExpiresIn : null;
-        
-        // Store JWT tokens using AuthManager with TTL values
-        await _authManager!.storeTokens(
-          accessToken: accessToken,
-          refreshToken: refreshToken ?? '',
-          accessTokenTtl: accessTokenTtl,
-          refreshTokenTtl: refreshTokenTtl,
-        );
-        
-        // Store user data in SharedPreferences
-        await _sharedPref!.setBool('is_logged_in', true);
-        await _sharedPref!.setString('user_id', userData['_id'] ?? userData['id'] ?? '');
-        await _sharedPref!.setString('username', userData['username'] ?? '');
-        await _sharedPref!.setString('email', email);
-        await _sharedPref!.setString('last_login_timestamp', DateTime.now().toIso8601String());
-        
-        // Update state manager
-        final stateManager = StateManager();
-        stateManager.updateModuleState("login", {
-          "isLoggedIn": true,
-          "userId": userData['_id'] ?? userData['id'],
-          "username": userData['username'],
-          "email": email,
-          "error": null
-        });
-        
-        _log.info("✅ JWT tokens stored for WebSocket authentication");
-        
         return {
-          "success": "Login successful",
-          "user_id": userData['_id'] ?? userData['id'],
-          "username": userData['username'],
-          "email": email,
-          "access_token": accessToken,
-          "refresh_token": refreshToken
+          'success': false,
+          'error': response["error"],
+          'response_data': response,
         };
       }
-
-      _log.error("❌ Unexpected login response: $response");
-      return {"error": "Unexpected server response"};
-    } catch (e) {
-      _log.error("❌ Login error: $e");
-      return {"error": "Server error. Check network connection."};
-    }
-  }
-
-  Future<Map<String, dynamic>> logoutUser(BuildContext context) async {
-    _initDependencies(context);
-    _log.info("🔓 Starting logout process");
-
-    if (_authManager == null) {
-      _log.error("❌ AuthManager not available for logout");
-      return {"error": "Service not available"};
-    }
-
-    try {
-      // Clear JWT tokens using AuthManager
-      await _authManager!.clearTokens();
-      
-      // Clear stored user data
-      await _sharedPref!.setBool('is_logged_in', false);
-      await _sharedPref!.remove('user_id');
-      await _sharedPref!.remove('username');
-      await _sharedPref!.remove('email');
-      
-      // Update state manager
-      final stateManager = StateManager();
-      stateManager.updateModuleState("login", {
-        "isLoggedIn": false,
-        "userId": null,
-        "username": null,
-        "email": null,
-        "error": null
-      });
-      
-      _log.info("✅ Logout successful - JWT tokens cleared");
-      return {"success": "Logout successful"};
-    } catch (e) {
-      _log.error("❌ Logout error: $e");
-      return {"error": "Logout failed"};
-    }
-  }
-
-  /// ✅ Get current JWT token for WebSocket authentication
-  Future<String?> getCurrentToken() async {
-    if (_authManager == null) {
-      _log.error("❌ AuthManager not available for token retrieval");
-      return null;
     }
     
-    try {
-      // Use AuthManager to get current valid token
-      final token = await _authManager!.getCurrentValidToken();
-      if (token != null) {
-        _log.info("✅ Retrieved JWT token for WebSocket authentication");
-      } else {
-        _log.info("⚠️ No JWT token available for WebSocket authentication");
-      }
-      return token;
-    } catch (e) {
-      _log.error("❌ Error retrieving JWT token: $e");
-      return null;
-    }
+    _log.error('❌ Unexpected registration response format: $response');
+    return {
+      'success': false,
+      'error': 'Unexpected server response format',
+      'response_data': response,
+    };
   }
 
-  /// ✅ Check if user has valid JWT token for WebSocket
-  Future<bool> hasValidToken() async {
-    if (_authManager == null) {
-      _log.error("❌ AuthManager not available for token validation");
-      return false;
+  /// Process login response (business logic only)
+  Map<String, dynamic> processLoginResponse(Map<String, dynamic> response) {
+    _log.info('📥 Processing login response');
+    
+    // Handle error responses
+    if (response?["status"] == 409 || response?["code"] == "CONFLICT") {
+      _log.info('⚠️ Login response indicates conflict');
+      return {
+        'success': false,
+        'error': response["message"] ?? "A conflict occurred",
+        'user': response["user"],
+        'response_data': response,
+      };
+    }
+
+    if (response?["error"] != null || response?["message"]?.contains("error") == true) {
+      String errorMessage = response?["message"] ?? response?["error"] ?? "Unknown error occurred";
+      _log.error('❌ Login response indicates error: $errorMessage');
+      
+      // Handle rate limiting errors
+      if (response?["status"] == 429) {
+        return {
+          'success': false,
+          'error': errorMessage,
+          'is_rate_limited': true,
+          'response_data': response,
+        };
+      }
+      
+      return {
+        'success': false,
+        'error': errorMessage,
+        'response_data': response,
+      };
+    }
+
+    // Handle successful login
+    if (response?["success"] == true || response?["message"] == "Login successful") {
+      _log.info('✅ Login response indicates success');
+      
+      // Extract user data from response
+      final userData = response?["data"]?["user"] ?? {};
+      final accessToken = response?["data"]?["access_token"];
+      final refreshToken = response?["data"]?["refresh_token"];
+      
+      if (accessToken == null) {
+        _log.error('❌ No access token in login response');
+        return {
+          'success': false,
+          'error': 'Login successful but no access token received',
+          'response_data': response,
+        };
+      }
+      
+      // Extract TTL values from backend response
+      final expiresIn = response?["data"]?["expires_in"];
+      final refreshExpiresIn = response?["data"]?["refresh_expires_in"];
+      final accessTokenTtl = expiresIn is int ? expiresIn : null;
+      final refreshTokenTtl = refreshExpiresIn is int ? refreshExpiresIn : null;
+      
+      return {
+        'success': true,
+        'user_data': {
+          'user_id': userData['_id'] ?? userData['id'],
+          'username': userData['username'],
+          'email': userData['email'] ?? response?["data"]?["email"],
+        },
+        'tokens': {
+          'access_token': accessToken,
+          'refresh_token': refreshToken ?? '',
+          'access_token_ttl': accessTokenTtl,
+          'refresh_token_ttl': refreshTokenTtl,
+        },
+        'response_data': response,
+      };
     }
     
-    try {
-      // Use AuthManager to check token validity
-      final isValid = await _authManager!.hasValidToken();
-      if (isValid) {
-        _log.info("✅ JWT token is valid for WebSocket authentication");
-      } else {
-        _log.info("⚠️ JWT token is not valid for WebSocket authentication");
-      }
-      return isValid;
-    } catch (e) {
-      _log.error("❌ Error validating token: $e");
-      return false;
-    }
+    _log.error('❌ Unexpected login response: $response');
+    return {
+      'success': false,
+      'error': 'Unexpected server response',
+      'response_data': response,
+    };
+  }
+
+  /// Prepare logout data (business logic only)
+  Map<String, dynamic> prepareLogoutData() {
+    _log.info('📝 Preparing logout data');
+    
+    return {
+      'success': true,
+      'logout_data': {
+        'timestamp': DateTime.now().toIso8601String(),
+      },
+    };
+  }
+
+  /// Get hooks needed by this module
+  List<Map<String, dynamic>> getHooksNeeded() {
+    return [
+      {
+        'hookName': 'auth_required',
+        'priority': 1,
+        'context': 'authentication',
+      },
+      {
+        'hookName': 'refresh_token_expired',
+        'priority': 1,
+        'context': 'authentication',
+      },
+      {
+        'hookName': 'auth_token_refresh_failed',
+        'priority': 1,
+        'context': 'authentication',
+      },
+      {
+        'hookName': 'auth_error',
+        'priority': 1,
+        'context': 'authentication',
+      },
+      {
+        'hookName': 'login_success',
+        'priority': 1,
+        'context': 'authentication',
+      },
+      {
+        'hookName': 'logout_success',
+        'priority': 1,
+        'context': 'authentication',
+      },
+    ];
+  }
+
+  /// Get routes needed by this module
+  List<Map<String, dynamic>> getRoutesNeeded() {
+    return [
+      {
+        'route': '/public/register',
+        'methods': ['POST'],
+        'handler': 'register_user',
+        'auth_required': false,
+        'description': 'User registration endpoint',
+      },
+      {
+        'route': '/public/login',
+        'methods': ['POST'],
+        'handler': 'login_user',
+        'auth_required': false,
+        'description': 'User login endpoint',
+      },
+      {
+        'route': '/account',
+        'methods': ['GET'],
+        'handler': 'account_screen',
+        'auth_required': false,
+        'description': 'Account management screen',
+      },
+    ];
+  }
+
+  /// Get configuration requirements
+  Map<String, dynamic> getConfigRequirements() {
+    return {
+      'api_url': Config.apiUrl,
+      'jwt_access_token_expires': Config.jwtAccessTokenExpiresFallback,
+      'jwt_refresh_token_expires': Config.jwtRefreshTokenExpiresFallback,
+    };
+  }
+
+  /// Health check for this module
+  Map<String, dynamic> healthCheck() {
+    return {
+      'module': 'login_module',
+      'status': 'healthy',
+      'details': 'Login module is functioning normally',
+      'hooks_needed': getHooksNeeded().length,
+      'routes_needed': getRoutesNeeded().length,
+    };
+  }
+
+  /// Cleanup module resources
+  Map<String, dynamic> cleanup() {
+    _log.info('🗑 Cleaning up LoginModule');
+    return {
+      'success': true,
+      'message': 'LoginModule cleanup completed',
+    };
   }
 }

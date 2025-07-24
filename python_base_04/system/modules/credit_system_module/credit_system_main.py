@@ -159,9 +159,8 @@ class CreditSystemModule:
             
             # Prepare data for credit system
             credit_system_user_data = {
-                'email': email,
                 'username': username,
-                'password': 'temporary_password_123',
+                'email': email,
                 'status': 'active',
                 'app_id': app_id,
                 'app_name': app_name,
@@ -170,19 +169,19 @@ class CreditSystemModule:
             }
             
             # Forward to credit system
-            headers = {
+                headers = {
                 'X-API-Key': self._get_api_key(),
-                'Content-Type': 'application/json'
-            }
-            
+                    'Content-Type': 'application/json'
+                }
+                
             target_url = f"{self._get_credit_system_url()}/users/create"
-            
-            response = requests.post(
-                url=target_url,
-                headers=headers,
-                json=credit_system_user_data,
-                timeout=30
-            )
+                
+                response = requests.post(
+                    url=target_url,
+                    headers=headers,
+                    json=credit_system_user_data,
+                    timeout=30
+                )
                 
             if response.status_code in [200, 201]:
                 return {

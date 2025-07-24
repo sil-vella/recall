@@ -1,153 +1,158 @@
-import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:provider/provider.dart';
-import '../../../../core/00_base/module_base.dart';
-import '../../../../core/managers/module_manager.dart';
-import '../../../../core/managers/hooks_manager.dart';
-import '../../../../core/managers/app_manager.dart';
-import '../../../../tools/logging/logger.dart';
+import '../../../tools/logging/logger.dart';
 import '../../../../utils/consts/config.dart';
 
-class BannerAdModule extends ModuleBase {
+/// Pure business logic for banner ads
+/// Contains no Flutter/system dependencies
+class BannerAdModule {
   static final Logger _log = Logger();
-  final Map<String, BannerAd> _banners = {};
+  
   final Map<String, bool> _adLoaded = {};
-  late HooksManager _hooksManager;
+  final Map<String, dynamic> _adData = {};
 
-  /// ✅ Constructor with module key and dependencies
-  BannerAdModule() : super("admobs_banner_ad_module", dependencies: []);
+  /// ✅ Constructor
+  BannerAdModule();
 
-  @override
-  void initialize(BuildContext context, ModuleManager moduleManager) {
-    super.initialize(context, moduleManager);
-    
-    // Get HooksManager from AppManager
-    final appManager = Provider.of<AppManager>(context, listen: false);
-    _hooksManager = appManager.hooksManager;
-    
-    _log.info('📢 BannerAdModule initialized with context.');
-    
-    // Register callbacks to global hooks
-    _registerBannerCallbacks();
-  }
-
-  /// ✅ Register callbacks to global hooks
-  void _registerBannerCallbacks() {
-    _log.info('🔗 Registering banner ad callbacks to global hooks...');
-    
-    // Register callback for top banner bar hook
-    _hooksManager.registerHookWithData('top_banner_bar_loaded', (data) {
-      _log.info('📢 Top banner bar callback triggered');
-      // Load the top banner ad when global hook is triggered
-      loadBannerAd(Config.admobsTopBanner);
-    }, priority: 10); // Lower priority so it runs after the global hook
-    
-    // Register callback for bottom banner bar hook
-    _hooksManager.registerHookWithData('bottom_banner_bar_loaded', (data) {
-      _log.info('📢 Bottom banner bar callback triggered');
-      // Load the bottom banner ad when global hook is triggered
-      loadBannerAd(Config.admobsBottomBanner);
-    }, priority: 10); // Lower priority so it runs after the global hook
-    
-    _log.info('✅ Banner ad callbacks registered to global hooks successfully');
-  }
-
-  /// ✅ Loads the banner ad with a specified ad unit ID
-  Future<void> loadBannerAd(String adUnitId) async {
+  /// ✅ Load banner ad (business logic only)
+  Future<Map<String, dynamic>> loadBannerAd(String adUnitId) async {
     if (_adLoaded[adUnitId] == true) {
       _log.info('🔄 Banner Ad already loaded for ID: $adUnitId');
-      return; // ✅ Prevent reloading if already loaded
+      return {
+        'success': true,
+        'message': 'Ad already loaded',
+        'adUnitId': adUnitId,
+        'isLoaded': true
+      };
     }
 
     _log.info('📢 Loading Banner Ad for ID: $adUnitId');
 
-    final bannerAd = BannerAd(
-      adUnitId: adUnitId,
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          _log.info('✅ Banner Ad Loaded for ID: $adUnitId.');
+    // Simulate ad loading (orchestrator will handle actual loading)
           _adLoaded[adUnitId] = true;
-        },
-        onAdFailedToLoad: (Ad ad, LoadAdError error) {
-          _log.error('❌ Failed to load Banner Ad for ID: $adUnitId. Error: ${error.message}');
-          ad.dispose();
-          _adLoaded[adUnitId] = false;
-        },
-      ),
-    );
+    _adData[adUnitId] = {
+      'adUnitId': adUnitId,
+      'size': 'banner',
+      'loadedAt': DateTime.now().toIso8601String(),
+    };
 
-    await bannerAd.load();
-    _banners[adUnitId] = bannerAd;
-  }
-
-  /// ✅ Retrieve a new unique banner ad widget each time
-  Widget getBannerWidget(BuildContext context, String adUnitId) {
-    _log.info('🔄 Creating new Banner Ad instance for Widget.');
-
-    if (_adLoaded[adUnitId] != true) {
-      _log.error('❌ Banner Ad not loaded for ID: $adUnitId');
-      return const SizedBox.shrink();
+    return {
+      'success': true,
+      'message': 'Ad loaded successfully',
+      'adUnitId': adUnitId,
+      'isLoaded': true,
+      'adData': _adData[adUnitId]
+    };
     }
 
-    // Create a new BannerAd instance for this widget
-    final bannerAd = BannerAd(
-      adUnitId: adUnitId,
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) => _log.info('✅ New Banner Ad instance loaded for ID: $adUnitId.'),
-        onAdFailedToLoad: (Ad ad, LoadAdError error) {
-          _log.error('❌ Failed to load new Banner Ad instance for ID: $adUnitId. Error: ${error.message}');
-          ad.dispose();
-        },
-      ),
-    );
-
-    // Load the new instance
-    bannerAd.load();
-
-    return Container(
-      key: ValueKey('banner_ad_${DateTime.now().millisecondsSinceEpoch}'),
-      alignment: Alignment.center,
-      width: bannerAd.size.width.toDouble(),
-      height: bannerAd.size.height.toDouble(),
-      child: AdWidget(ad: bannerAd),
-    );
+  /// ✅ Get banner ad status
+  Map<String, dynamic> getBannerAdStatus(String adUnitId) {
+    final isLoaded = _adLoaded[adUnitId] == true;
+    return {
+      'adUnitId': adUnitId,
+      'isLoaded': isLoaded,
+      'adData': isLoaded ? _adData[adUnitId] : null,
+    };
   }
 
-  /// ✅ Get top banner widget (hook callback)
-  Widget getTopBannerWidget(BuildContext context) {
-    return getBannerWidget(context, Config.admobsTopBanner);
-  }
-
-  /// ✅ Get bottom banner widget (hook callback)
-  Widget getBottomBannerWidget(BuildContext context) {
-    return getBannerWidget(context, Config.admobsBottomBanner);
-  }
-
-  /// ✅ Dispose a specific banner ad
-  void disposeBannerAd(String adUnitId) {
-    if (_banners.containsKey(adUnitId)) {
-      _banners[adUnitId]?.dispose();
-      _banners.remove(adUnitId);
+  /// ✅ Dispose banner ad
+  Map<String, dynamic> disposeBannerAd(String adUnitId) {
+    if (_adLoaded.containsKey(adUnitId)) {
       _adLoaded.remove(adUnitId);
-      _log.info('🗑 Banner Ad Disposed for ID: $adUnitId.');
+      _adData.remove(adUnitId);
+      _log.info('🗑 Banner Ad disposed for ID: $adUnitId');
+      return {
+        'success': true,
+        'message': 'Ad disposed successfully',
+        'adUnitId': adUnitId,
+      };
     } else {
-      _log.error('⚠️ Tried to dispose non-existing Banner Ad for ID: $adUnitId.');
+      _log.error('⚠️ Tried to dispose non-existing Banner Ad for ID: $adUnitId');
+      return {
+        'success': false,
+        'message': 'Ad not found',
+        'adUnitId': adUnitId,
+      };
     }
   }
 
-  /// ✅ Override `dispose()` to clean up all banner ads
-  @override
-  void dispose() {
-    _log.info('🗑 Disposing all Banner Ads...');
-    for (final ad in _banners.values) {
-      ad.dispose();
+  /// ✅ Get hooks needed by this module
+  List<Map<String, dynamic>> getHooksNeeded() {
+    return [
+      {
+        'hookName': 'top_banner_bar_loaded',
+        'description': 'Triggered when top banner bar is loaded',
+        'priority': 10,
+      },
+      {
+        'hookName': 'bottom_banner_bar_loaded',
+        'description': 'Triggered when bottom banner bar is loaded',
+        'priority': 10,
+      },
+    ];
+  }
+
+  /// ✅ Get routes needed by this module
+  List<Map<String, dynamic>> getRoutesNeeded() {
+    return [
+      {
+        'route': '/ads/banner/load',
+        'method': 'POST',
+        'description': 'Load banner ad',
+      },
+      {
+        'route': '/ads/banner/status',
+        'method': 'GET',
+        'description': 'Get banner ad status',
+      },
+      {
+        'route': '/ads/banner/dispose',
+        'method': 'POST',
+        'description': 'Dispose banner ad',
+      },
+    ];
+  }
+
+  /// ✅ Get config requirements
+  List<String> getConfigRequirements() {
+    return [
+      'admobsTopBanner',
+      'admobsBottomBanner',
+    ];
+  }
+
+  /// ✅ Validate ad unit ID
+  bool validateAdUnitId(String adUnitId) {
+    if (adUnitId.isEmpty) {
+      _log.error('❌ Ad unit ID cannot be empty');
+      return false;
     }
-    _banners.clear();
+    
+    if (!adUnitId.startsWith('ca-app-pub-')) {
+      _log.error('❌ Invalid ad unit ID format: $adUnitId');
+      return false;
+    }
+    
+    return true;
+  }
+
+  /// ✅ Get all loaded ads
+  Map<String, dynamic> getAllLoadedAds() {
+    return {
+      'loadedAds': _adLoaded.keys.toList(),
+      'totalLoaded': _adLoaded.length,
+      'adData': _adData,
+    };
+  }
+
+  /// ✅ Clear all ads
+  Map<String, dynamic> clearAllAds() {
+    final count = _adLoaded.length;
     _adLoaded.clear();
-    super.dispose(); // ✅ Calls `ModuleBase.dispose()` for cleanup
+    _adData.clear();
+    _log.info('🗑 Cleared all banner ads ($count ads)');
+    return {
+      'success': true,
+      'message': 'All ads cleared',
+      'clearedCount': count,
+    };
   }
 }

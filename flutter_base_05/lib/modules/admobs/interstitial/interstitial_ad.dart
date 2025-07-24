@@ -1,82 +1,152 @@
-import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:provider/provider.dart';
-import '../../../../core/00_base/module_base.dart';
-import '../../../../core/managers/module_manager.dart';
-import '../../../../core/managers/services_manager.dart';
-import '../../../../core/services/shared_preferences.dart';
-import '../../../../tools/logging/logger.dart';
+import '../../../tools/logging/logger.dart';
+import '../../../../utils/consts/config.dart';
 
-class InterstitialAdModule extends ModuleBase {
+/// Pure business logic for interstitial ads
+/// Contains no Flutter/system dependencies
+class InterstitialAdModule {
   static final Logger _log = Logger();
+  
   final String adUnitId;
-  InterstitialAd? _interstitialAd;
   bool _isAdReady = false;
+  Map<String, dynamic> _adData = {};
 
-  /// ✅ Constructor with module key and dependencies
-  InterstitialAdModule(this.adUnitId) : super("admobs_interstitial_ad_module", dependencies: []);
+  /// ✅ Constructor
+  InterstitialAdModule(this.adUnitId);
 
-  @override
-  void initialize(BuildContext context, ModuleManager moduleManager) {
-    super.initialize(context, moduleManager);
-    _log.info('✅ InterstitialAdModule initialized with context.');
-    loadAd(); // Load ad on initialization
-  }
-
-  /// ✅ Loads the interstitial ad
-  Future<void> loadAd() async {
+  /// ✅ Load interstitial ad (business logic only)
+  Future<Map<String, dynamic>> loadAd() async {
     _log.info('📢 Loading Interstitial Ad for ID: $adUnitId');
-    InterstitialAd.load(
-      adUnitId: adUnitId,
-      request: const AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) {
-          _interstitialAd = ad;
+    
+    // Simulate ad loading (orchestrator will handle actual loading)
           _isAdReady = true;
-          _log.info('✅ Interstitial Ad Loaded for ID: $adUnitId.');
-        },
-        onAdFailedToLoad: (error) {
-          _isAdReady = false;
-          _log.error('❌ Failed to load Interstitial Ad for ID: $adUnitId. Error: ${error.message}');
-        },
-      ),
-    );
+    _adData = {
+      'adUnitId': adUnitId,
+      'type': 'interstitial',
+      'loadedAt': DateTime.now().toIso8601String(),
+      'isReady': true,
+    };
+
+    return {
+      'success': true,
+      'message': 'Interstitial ad loaded successfully',
+      'adUnitId': adUnitId,
+      'isReady': true,
+      'adData': _adData,
+    };
   }
 
-  /// ✅ Shows the interstitial ad
-  Future<void> showAd(BuildContext context) async {
-    final moduleManager = Provider.of<ModuleManager>(context, listen: false);
-    final servicesManager = Provider.of<ServicesManager>(context, listen: false);
-    final sharedPref = servicesManager.getService<SharedPrefManager>('shared_pref');
-
-    if (sharedPref == null) {
-      _log.error('❌ SharedPreferences service not available.');
-      return;
+  /// ✅ Show interstitial ad (business logic only)
+  Future<Map<String, dynamic>> showAd() async {
+    if (!_isAdReady) {
+      _log.error('❌ Interstitial Ad not ready for ID: $adUnitId');
+      return {
+        'success': false,
+        'message': 'Ad not ready',
+        'adUnitId': adUnitId,
+        'isReady': false,
+      };
     }
 
-    if (_isAdReady && _interstitialAd != null) {
       _log.info('🎬 Showing Interstitial Ad for ID: $adUnitId');
-      _interstitialAd!.show();
-      _interstitialAd = null;
+    
+    // Simulate ad showing (orchestrator will handle actual showing)
+    _isAdReady = false;
+    _adData['shownAt'] = DateTime.now().toIso8601String();
+    _adData['isReady'] = false;
+
+    return {
+      'success': true,
+      'message': 'Interstitial ad shown successfully',
+      'adUnitId': adUnitId,
+      'isReady': false,
+      'adData': _adData,
+    };
+  }
+
+  /// ✅ Get ad status
+  Map<String, dynamic> getAdStatus() {
+    return {
+      'adUnitId': adUnitId,
+      'isReady': _isAdReady,
+      'adData': _adData,
+    };
+  }
+
+  /// ✅ Dispose ad
+  Map<String, dynamic> disposeAd() {
       _isAdReady = false;
+    _adData.clear();
+    _log.info('🗑 Interstitial Ad disposed for ID: $adUnitId');
+    
+    return {
+      'success': true,
+      'message': 'Ad disposed successfully',
+      'adUnitId': adUnitId,
+    };
+  }
 
-      // ✅ Save ad view count
-      int adViews = sharedPref.getInt('interstitial_ad_views') ?? 0;
-      sharedPref.setInt('interstitial_ad_views', adViews + 1);
+  /// ✅ Get hooks needed by this module
+  List<Map<String, dynamic>> getHooksNeeded() {
+    return [
+      {
+        'hookName': 'interstitial_ad_ready',
+        'description': 'Triggered when interstitial ad is ready to show',
+        'priority': 5,
+      },
+      {
+        'hookName': 'interstitial_ad_shown',
+        'description': 'Triggered when interstitial ad is shown',
+        'priority': 5,
+      },
+    ];
+  }
 
-      // ✅ Preload next ad
-      loadAd();
-    } else {
-      _log.error('❌ Interstitial Ad not ready for ID: $adUnitId.');
+  /// ✅ Get routes needed by this module
+  List<Map<String, dynamic>> getRoutesNeeded() {
+    return [
+      {
+        'route': '/ads/interstitial/load',
+        'method': 'POST',
+        'description': 'Load interstitial ad',
+      },
+      {
+        'route': '/ads/interstitial/show',
+        'method': 'POST',
+        'description': 'Show interstitial ad',
+      },
+      {
+        'route': '/ads/interstitial/status',
+        'method': 'GET',
+        'description': 'Get interstitial ad status',
+      },
+    ];
+  }
+
+  /// ✅ Get config requirements
+  List<String> getConfigRequirements() {
+    return [
+      'admobsInterstitial01',
+    ];
+  }
+
+  /// ✅ Validate ad unit ID
+  bool validateAdUnitId() {
+    if (adUnitId.isEmpty) {
+      _log.error('❌ Ad unit ID cannot be empty');
+      return false;
     }
+    
+    if (!adUnitId.startsWith('ca-app-pub-')) {
+      _log.error('❌ Invalid ad unit ID format: $adUnitId');
+      return false;
+    }
+    
+    return true;
   }
 
-  /// ✅ Disposes of the interstitial ad
-  @override
-  void dispose() {
-    _interstitialAd?.dispose();
-    _interstitialAd = null;
-    _log.info('🗑 Interstitial Ad Module disposed for ID: $adUnitId.');
-    super.dispose();
-  }
+  /// ✅ Check if ad is ready
+  bool get isAdReady => _isAdReady;
+
+  /// ✅ Get ad unit ID
+  String get getAdUnitId => adUnitId;
 }

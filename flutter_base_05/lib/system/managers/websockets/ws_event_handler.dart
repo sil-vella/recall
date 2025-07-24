@@ -1,9 +1,11 @@
+import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../state_manager.dart';
 import '../auth_manager.dart';
-import '../../../tools/logging/logger.dart';
-import '../../models/websocket_events.dart';
+import '../../../../tools/logging/logger.dart';
+import 'websocket_events.dart';
 import 'ws_event_manager.dart';
 
 /// WebSocket Event Handler

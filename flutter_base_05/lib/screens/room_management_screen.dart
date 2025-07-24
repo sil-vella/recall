@@ -5,7 +5,7 @@ import 'dart:async';
 import '../system/00_base/screen_base.dart';
 import '../system/managers/websockets/websocket_manager.dart';
 import '../system/managers/websockets/ws_event_manager.dart';
-import '../system/models/websocket_events.dart';
+import '../system/managers/websockets/websocket_events.dart';
 
 class RoomManagementScreen extends BaseScreen {
   const RoomManagementScreen({Key? key}) : super(key: key);

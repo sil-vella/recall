@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../system/00_base/screen_base.dart';
 import '../utils/consts/config.dart';
 import '../system/managers/websockets/websocket_manager.dart';
-import '../system/models/websocket_events.dart';
+import '../system/managers/websockets/websocket_events.dart';
 
 class WebSocketScreen extends BaseScreen {
   const WebSocketScreen({Key? key}) : super(key: key);

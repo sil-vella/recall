@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../../../tools/logging/logger.dart';
-import '../../models/websocket_events.dart';
+import '../../../../tools/logging/logger.dart';
+import 'websocket_events.dart';
 import 'websocket_manager.dart';
 import '../state_manager.dart';
 

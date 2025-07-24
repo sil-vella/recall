@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
-import 'dart:async';
 import 'dart:convert';
-import '../../../tools/logging/logger.dart';
-import '../../../utils/consts/config.dart';
-import '../auth_manager.dart';
+import 'dart:async';
+import 'dart:typed_data';
+import '../../../../tools/logging/logger.dart';
+import '../../../../utils/consts/config.dart';
 import '../state_manager.dart';
+import '../auth_manager.dart';
+import '../hooks_manager.dart';
+import 'websocket_events.dart';
 import 'ws_event_manager.dart';
 import 'ws_event_listener.dart';
 import 'ws_event_handler.dart';
-import '../../models/websocket_events.dart';
 
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();

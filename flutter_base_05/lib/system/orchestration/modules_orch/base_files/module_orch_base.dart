@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../tools/logging/logger.dart';
 import '../../../managers/hooks_manager.dart';
 import '../../../managers/state_manager.dart';
@@ -6,6 +7,7 @@ import '../../../managers/auth_manager.dart';
 import '../../../managers/services_manager.dart';
 import '../../../managers/navigation_manager.dart';
 import '../../../managers/event_bus.dart';
+import '../../app_init/app_initializer.dart';
 
 /// Module Orchestrator Base
 /// 
@@ -14,13 +16,8 @@ import '../../../managers/event_bus.dart';
 abstract class ModuleOrchestratorBase {
   static final Logger _log = Logger();
   
-  // Common managers accessible to all orchestrators
-  late HooksManager _hooksManager;
-  late StateManager _stateManager;
-  late AuthManager _authManager;
-  late ServicesManager _servicesManager;
-  late NavigationManager _navigationManager;
-  late EventBus _eventBus;
+  // Access to existing manager instances through AppInitializer
+  late AppInitializer _appInitializer;
   
   // Orchestrator registry
   final Map<String, ModuleOrchestratorBase> _orchestrators = {};
@@ -30,8 +27,8 @@ abstract class ModuleOrchestratorBase {
     _log.info('🔧 Initializing ${runtimeType.toString()}...');
     
     try {
-      // Store common managers
-      _storeCommonManagers(context);
+      // Get existing manager instances from AppInitializer
+      _appInitializer = Provider.of<AppInitializer>(context, listen: false);
       
       // Initialize sub-orchestrators
       _initializeSubOrchestrators(context);
@@ -49,18 +46,6 @@ abstract class ModuleOrchestratorBase {
       _log.error('❌ Error initializing ${runtimeType.toString()}: $e');
       rethrow;
     }
-  }
-  
-  /// Store common managers for easy access
-  void _storeCommonManagers(BuildContext context) {
-    _hooksManager = HooksManager();
-    _stateManager = StateManager();
-    _authManager = AuthManager();
-    _servicesManager = ServicesManager();
-    _navigationManager = NavigationManager();
-    _eventBus = EventBus();
-    
-    _log.info('✅ Common managers stored for ${runtimeType.toString()}');
   }
   
   /// Initialize sub-orchestrators
@@ -172,11 +157,11 @@ abstract class ModuleOrchestratorBase {
     _log.info('✅ ${runtimeType.toString()} disposed successfully');
   }
   
-  // Getters for common managers
-  HooksManager get hooksManager => _hooksManager;
-  StateManager get stateManager => _stateManager;
-  AuthManager get authManager => _authManager;
-  ServicesManager get servicesManager => _servicesManager;
-  NavigationManager get navigationManager => _navigationManager;
-  EventBus get eventBus => _eventBus;
+  // Getters for existing manager instances
+  HooksManager get hooksManager => _appInitializer.hooksManager;
+  StateManager get stateManager => _appInitializer.stateManager;
+  AuthManager get authManager => _appInitializer.authManager;
+  ServicesManager get servicesManager => _appInitializer.servicesManager;
+  NavigationManager get navigationManager => _appInitializer.navigationManager;
+  EventBus get eventBus => _appInitializer.eventBus;
 } 

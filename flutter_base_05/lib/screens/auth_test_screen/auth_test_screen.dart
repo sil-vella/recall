@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../system/00_base/screen_base.dart';
-import '../../system/managers/module_manager.dart';
-import '../../system/managers/state_manager.dart';
-import '../../system/managers/auth_manager.dart';
-import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
 
@@ -21,42 +17,37 @@ class AuthTestScreen extends BaseScreen {
 class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
   static final Logger _log = Logger();
   
-  // Module manager
-  final ModuleManager _moduleManager = ModuleManager();
-  
-  // Auth manager
-  final AuthManager _authManager = AuthManager();
-  
   @override
   void initState() {
     super.initState();
-    _initializeModules();
+    _initializeScreen();
   }
   
-  void _initializeModules() {
-    _log.info('🔧 Initializing Auth Test Screen modules');
-    // Initialize any required modules here
+  void _initializeScreen() {
+    _log.info('🔧 Initializing Auth Test Screen');
+    // Get auth manager and login orchestrator for testing
+    final loginOrchestrator = getOrchestrator('login');
+    if (loginOrchestrator == null) {
+      _log.error('❌ Login orchestrator not available');
+    } else {
+      _log.info('✅ Login orchestrator available');
+    }
   }
   
   Future<void> _testJWT() async {
     try {
       _log.info('🧪 Testing JWT endpoint');
       
-      // Get the ConnectionsApiModule instance from ModuleManager
-      final connectionsApiModule = _moduleManager.getModule('connections_api') as ConnectionsApiModule;
+      // Use auth manager for JWT testing
+      final hasValidToken = await authManager.hasValidToken();
       
-      final response = await connectionsApiModule.sendPostRequest(
-        '/test-jwt',
-        {},
-      );
-      
-      _log.info('✅ JWT test response: $response');
+      _log.info('✅ JWT test result: ${hasValidToken ? "Valid token" : "No valid token"}');
       
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('JWT test successful: ${response['message'] ?? 'Success'}'),
+            content: Text('JWT test successful: ${hasValidToken ? "Valid token" : "No valid token"}'),
             backgroundColor: Colors.green,
           ),
         );
@@ -78,14 +69,14 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
   Future<void> _setTtlTo10Seconds() async {
     try {
       // Get current TTL before setting
-      final currentTtl = await _authManager.getAccessTokenTtl();
+      final currentTtl = await authManager.getAccessTokenTtl();
       _log.info('🔍 Current access token TTL before setting: ${currentTtl}s');
       
-      await _authManager.setTtlTo10Seconds();
+      await authManager.setTtlTo10Seconds();
       _log.info('✅ Set access token TTL to 10 seconds');
       
       // Get TTL after setting to verify
-      final newTtl = await _authManager.getAccessTokenTtl();
+      final newTtl = await authManager.getAccessTokenTtl();
       _log.info('🔍 New access token TTL after setting: ${newTtl}s');
       
       if (mounted) {
@@ -102,7 +93,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to set access token TTL: $e'),
+            content: Text('Failed to set TTL: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -112,8 +103,8 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
 
   Future<Map<String, int>> _getCurrentTtlValues() async {
     try {
-      final accessTtl = await _authManager.getAccessTokenTtl();
-      final refreshTtl = await _authManager.getRefreshTokenTtl();
+      final accessTtl = await authManager.getAccessTokenTtl();
+      final refreshTtl = await authManager.getRefreshTokenTtl();
       return {
         'access': accessTtl,
         'refresh': refreshTtl,
@@ -130,14 +121,14 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
   Future<void> _setRefreshTtlTo10Seconds() async {
     try {
       // Get current refresh TTL before setting
-      final currentRefreshTtl = await _authManager.getRefreshTokenTtl();
+      final currentRefreshTtl = await authManager.getRefreshTokenTtl();
       _log.info('🔍 Current refresh token TTL before setting: ${currentRefreshTtl}s');
       
-      await _authManager.setRefreshTtlTo10Seconds();
+      await authManager.setRefreshTtlTo10Seconds();
       _log.info('✅ Set refresh token TTL to 10 seconds');
       
       // Get refresh TTL after setting to verify
-      final newRefreshTtl = await _authManager.getRefreshTokenTtl();
+      final newRefreshTtl = await authManager.getRefreshTokenTtl();
       _log.info('🔍 New refresh token TTL after setting: ${newRefreshTtl}s');
       
       if (mounted) {

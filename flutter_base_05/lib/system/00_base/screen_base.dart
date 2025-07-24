@@ -3,7 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../tools/logging/logger.dart';
 import '../orchestration/app_init/app_initializer.dart';
+import '../orchestration/app_init/manager_initializer.dart';
+import '../orchestration/modules_orch/base_files/module_orch_base.dart';
 import '../managers/navigation_manager.dart';
+import '../managers/hooks_manager.dart';
+import '../managers/state_manager.dart';
+import '../managers/auth_manager.dart';
+import '../managers/services_manager.dart';
+import '../managers/event_bus.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
 
@@ -49,8 +56,75 @@ abstract class BaseScreen extends StatefulWidget {
 
 abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   late final AppInitializer appInitializer;
+  late final ManagerInitializer managerInitializer;
   final Logger log = Logger();
   BannerAdModule? bannerAdModule;
+
+  // Access to core managers through AppInitializer (using existing instances)
+  HooksManager get hooksManager => appInitializer.hooksManager;
+  StateManager get stateManager => appInitializer.stateManager;
+  AuthManager get authManager => appInitializer.authManager;
+  ServicesManager get servicesManager => appInitializer.servicesManager;
+  NavigationManager get navigationManager => appInitializer.navigationManager;
+  EventBus get eventBus => appInitializer.eventBus;
+
+  // Access to module orchestrators
+  Map<String, ModuleOrchestratorBase> get orchestrators => appInitializer.orchestrators;
+
+  /// Get a specific orchestrator by key
+  ModuleOrchestratorBase? getOrchestrator(String key) {
+    return appInitializer.getOrchestrator(key);
+  }
+
+  /// Get orchestrator by type
+  T? getOrchestratorByType<T extends ModuleOrchestratorBase>() {
+    return appInitializer.getOrchestratorByType<T>();
+  }
+
+  /// Get orchestrator status for health checks
+  Map<String, dynamic> getOrchestratorStatus() {
+    return appInitializer.getOrchestratorStatus();
+  }
+
+  /// Check if all orchestrators are healthy
+  bool checkOrchestratorHealth() {
+    return appInitializer.checkOrchestratorHealth();
+  }
+
+  /// Get comprehensive app status
+  Map<String, dynamic> getAppStatus() {
+    return appInitializer.getAppStatus(context);
+  }
+
+  /// Trigger top banner bar hook
+  void triggerTopBannerBarHook() {
+    appInitializer.triggerTopBannerBarHook(context);
+  }
+
+  /// Trigger bottom banner bar hook
+  void triggerBottomBannerBarHook() {
+    appInitializer.triggerBottomBannerBarHook(context);
+  }
+
+  /// Trigger home screen main hook
+  void triggerHomeScreenMainHook() {
+    appInitializer.triggerHomeScreenMainHook(context);
+  }
+
+  /// Trigger app initialized hook
+  void triggerAppInitializedHook() {
+    appInitializer.triggerAppInitializedHook(context);
+  }
+
+  /// Trigger app paused hook
+  void triggerAppPausedHook() {
+    appInitializer.triggerAppPausedHook(context);
+  }
+
+  /// Trigger app resumed hook
+  void triggerAppResumedHook() {
+    appInitializer.triggerAppResumedHook(context);
+  }
 
   // Layout components with automatic theme application
   Widget buildHeader(BuildContext context, {required Widget child}) {
@@ -290,6 +364,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   void initState() {
     super.initState();
     appInitializer = Provider.of<AppInitializer>(context, listen: false);
+    managerInitializer = appInitializer.managerInitializer;
 
     if (bannerAdModule == null) {
       log.error("❌ BannerAdModule not found.");
@@ -358,7 +433,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-// space for top bar
+// space for top bar  with hook trigger
 
                       SizedBox(
                         height: constraints.maxHeight - (bannerAdModule != null ? 100 : 0),
@@ -372,7 +447,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                         ),
                       ),
 
-// space for bottom bar
+// space for bottom bar with hook triggers
                     ],
                   ),
                 ),

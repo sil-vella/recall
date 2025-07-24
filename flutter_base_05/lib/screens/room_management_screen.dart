@@ -5,7 +5,6 @@ import 'dart:async';
 import '../system/00_base/screen_base.dart';
 import '../system/managers/websockets/websocket_manager.dart';
 import '../system/managers/websockets/ws_event_manager.dart';
-import '../system/managers/state_manager.dart';
 import '../system/models/websocket_events.dart';
 
 class RoomManagementScreen extends BaseScreen {
@@ -32,11 +31,6 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
   List<Map<String, dynamic>> _myRooms = [];
   bool _isLoading = false;
   
-  // Managers
-  final WebSocketManager _websocketManager = WebSocketManager.instance;
-  final WSEventManager _wsEventManager = WSEventManager.instance;
-  final StateManager _stateManager = StateManager();
-  
   // Permission options
   final List<String> _permissionOptions = [
     'public',
@@ -58,20 +52,20 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
   Future<void> _initializeWebSocket() async {
     try {
       // Check if WebSocketManager is already connected
-      if (_websocketManager.isConnected) {
+      if (WebSocketManager.instance.isConnected) {
         log.info("✅ WebSocket already connected");
         return;
       }
       
       // Check if we're already in the process of connecting
-      if (_websocketManager.isConnecting) {
+      if (WebSocketManager.instance.isConnecting) {
         log.info("🔄 WebSocket is already connecting, waiting...");
         return;
       }
       
       // Only try to connect if no existing connection
       log.info("🔄 No existing connection found, connecting to WebSocket server...");
-      final success = await _websocketManager.connect();
+      final success = await WebSocketManager.instance.connect();
       
       if (success) {
         log.info("✅ WebSocket connected successfully");
@@ -95,8 +89,8 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
     _allowedRolesController.dispose();
     
     // Clean up event callbacks
-    _wsEventManager.offEvent('room', (data) {});
-    _wsEventManager.offEvent('error', (data) {});
+    WSEventManager.instance.offEvent('room', (data) {});
+    WSEventManager.instance.offEvent('error', (data) {});
     
     super.dispose();
   }
@@ -178,7 +172,7 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
       log.info("🏠 Attempting to create room with data: $roomData");
       
       // Check if connected before creating room
-      if (!_websocketManager.isConnected) {
+      if (!WebSocketManager.instance.isConnected) {
         log.error("❌ Cannot create room: WebSocket not connected");
         setState(() {
           _isLoading = false;
@@ -187,7 +181,7 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
         return;
       }
       
-      final result = await _wsEventManager.createRoom('current_user', roomData);
+      final result = await WSEventManager.instance.createRoom('current_user', roomData);
       
       log.info("🏠 Create room result: $result");
       
@@ -235,7 +229,7 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
 
     try {
       // Check if connected before joining room
-      if (!_websocketManager.isConnected) {
+      if (!WebSocketManager.instance.isConnected) {
         log.error("❌ Cannot join room: WebSocket not connected");
         setState(() {
           _isLoading = false;
@@ -246,7 +240,7 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
       
       // Join room via WebSocket event manager
       log.info("🚪 Joining room: $roomId");
-      final result = await _wsEventManager.joinRoom(roomId, 'current_user');
+      final result = await WSEventManager.instance.joinRoom(roomId, 'current_user');
       
       if (result?['success'] == true) {
         setState(() {
@@ -274,7 +268,7 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
     try {
       // Leave room via WebSocket event manager
       log.info("🚪 Leaving room: $roomId");
-      final result = await _wsEventManager.leaveRoom(roomId);
+      final result = await WSEventManager.instance.leaveRoom(roomId);
       
       if (result?['success'] == true) {
         _showSnackBar('Left room: $roomId');
@@ -306,7 +300,7 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
 
   void _setupEventCallbacks() {
     // Listen for room events - no setState needed as StateManager handles state
-    _wsEventManager.onEvent('room', (data) {
+    WSEventManager.instance.onEvent('room', (data) {
       final action = data['action'];
       final roomId = data['roomId'];
       
@@ -324,24 +318,24 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
     });
 
     // Listen for specific room events for better debugging
-    _wsEventManager.onEvent('room_joined', (data) {
+    WSEventManager.instance.onEvent('room_joined', (data) {
       log.info("📨 Received room_joined event: $data");
     });
 
-    _wsEventManager.onEvent('join_room_success', (data) {
+    WSEventManager.instance.onEvent('join_room_success', (data) {
       log.info("📨 Received join_room_success event: $data");
     });
 
-    _wsEventManager.onEvent('create_room_success', (data) {
+    WSEventManager.instance.onEvent('create_room_success', (data) {
       log.info("📨 Received create_room_success event: $data");
     });
 
-    _wsEventManager.onEvent('room_created', (data) {
+    WSEventManager.instance.onEvent('room_created', (data) {
       log.info("📨 Received room_created event: $data");
     });
 
     // Listen for error events
-    _wsEventManager.onEvent('error', (data) {
+    WSEventManager.instance.onEvent('error', (data) {
       final error = data['error'];
       _showSnackBar('Error: $error', isError: true);
     });
@@ -360,16 +354,16 @@ class _RoomManagementScreenState extends BaseScreenState<RoomManagementScreen> {
   @override
   Widget buildContent(BuildContext context) {
     return StreamBuilder<ConnectionStatusEvent>(
-      stream: _websocketManager.connectionStatus,
+      stream: WebSocketManager.instance.connectionStatus,
       builder: (context, connectionSnapshot) {
-        final isConnected = connectionSnapshot.data?.status == ConnectionStatus.connected || _websocketManager.isConnected;
-        final isConnecting = _websocketManager.isConnecting;
+        final isConnected = connectionSnapshot.data?.status == ConnectionStatus.connected || WebSocketManager.instance.isConnected;
+        final isConnecting = WebSocketManager.instance.isConnecting;
         
-        return AnimatedBuilder(
-          animation: _stateManager,
-          builder: (context, child) {
-            // Get state from StateManager
-            final websocketState = _stateManager.getModuleState<Map<String, dynamic>>("websocket");
+                  return AnimatedBuilder(
+            animation: stateManager,
+            builder: (context, child) {
+              // Get state from StateManager
+              final websocketState = stateManager.getModuleState<Map<String, dynamic>>("websocket");
             final currentRoomId = websocketState?['currentRoomId'] as String?;
             final currentRoomInfo = websocketState?['currentRoomInfo'] as Map<String, dynamic>?;
             

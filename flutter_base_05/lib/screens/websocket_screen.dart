@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../system/00_base/screen_base.dart';
 import '../utils/consts/config.dart';
-import '../modules/login_module/login_module.dart';
-import '../system/managers/module_manager.dart';
 import '../system/managers/websockets/websocket_manager.dart';
 import '../system/models/websocket_events.dart';
 
@@ -26,14 +24,8 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _customMessageController = TextEditingController();
 
-  // Module manager for accessing LoginModule
-  final ModuleManager _moduleManager = ModuleManager();
-  
-  // WebSocket manager singleton
-  final WebSocketManager _websocketManager = WebSocketManager.instance;
-
   // Helper methods to get state from WebSocketManager
-  bool get isConnected => _websocketManager.isConnected;
+  bool get isConnected => WebSocketManager.instance.isConnected;
 
   String get connectionStatus {
     return isConnected ? 'Connected' : 'Disconnected';
@@ -48,7 +40,7 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
 
   void _connect() async {
     // Check if already connected first
-    if (_websocketManager.isConnected) {
+    if (WebSocketManager.instance.isConnected) {
       log.info('✅ WebSocket already connected');
       setState(() {
         messages.add('✅ WebSocket already connected');
@@ -57,7 +49,7 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
     }
     
     log.info('🚀 Attempting to connect to WebSocket server...');
-    final success = await _websocketManager.connect();
+    final success = await WebSocketManager.instance.connect();
     if (success) {
       setState(() {
         messages.add('✅ Connected to WebSocket server');
@@ -71,7 +63,7 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
 
   void _disconnect() {
     log.info('🔌 Manually disconnecting WebSocket...');
-    _websocketManager.disconnect();
+    WebSocketManager.instance.disconnect();
     setState(() {
       messages.add('🔌 Disconnected from WebSocket server');
     });
@@ -85,7 +77,7 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
     }
     
     log.info('💬 Sending WebSocket message: $message');
-    final result = await _websocketManager.broadcastMessage(message);
+    final result = await WebSocketManager.instance.broadcastMessage(message);
     if (result['success'] != null) {
       messages.add('💬 Sent message: $message');
       _customMessageController.clear(); // Clear the input
@@ -101,10 +93,10 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
       return;
     }
     
-    log.info('💬 Sending test WebSocket message: $message');
-    final result = await _websocketManager.broadcastMessage(message);
+    log.info('🧪 Sending test WebSocket message: $message');
+    final result = await WebSocketManager.instance.broadcastMessage(message);
     if (result['success'] != null) {
-      messages.add('💬 Sent test message: $message');
+      messages.add('🧪 Sent test message: $message');
       _messageController.clear(); // Clear the input
     } else {
       messages.add('🚨 Failed to send test message: ${result['error']}');
@@ -120,7 +112,7 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
   @override
   void dispose() {
     log.info('🔌 Disposing WebSocket screen (keeping connection alive)');
-    log.info('🔍 WebSocket state before dispose: connected=${_websocketManager.isConnected}');
+    log.info('🔍 WebSocket state before dispose: connected=${WebSocketManager.instance.isConnected}');
     
     // Don't disconnect the WebSocket manager - keep it alive for other screens
     _messageController.dispose();
@@ -131,12 +123,12 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
   @override
   Widget buildContent(BuildContext context) {
     return StreamBuilder<ConnectionStatusEvent>(
-      stream: _websocketManager.connectionStatus,
+      stream: WebSocketManager.instance.connectionStatus,
       builder: (context, connectionSnapshot) {
-        final isConnected = connectionSnapshot.data?.status == ConnectionStatus.connected || _websocketManager.isConnected;
+        final isConnected = connectionSnapshot.data?.status == ConnectionStatus.connected || WebSocketManager.instance.isConnected;
         
         return StreamBuilder<WebSocketEvent>(
-          stream: _websocketManager.events,
+          stream: WebSocketManager.instance.events,
           builder: (context, eventSnapshot) {
             // Handle incoming events
             if (eventSnapshot.hasData) {

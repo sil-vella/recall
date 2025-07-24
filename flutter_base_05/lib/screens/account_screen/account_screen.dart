@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../system/00_base/screen_base.dart';
-import '../../system/managers/state_manager.dart';
-import '../../modules/login_module/login_module.dart';
 import '../../tools/logging/logger.dart';
 
 class AccountScreen extends BaseScreen {
@@ -36,19 +34,20 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   String? _errorMessage;
   String? _successMessage;
   
-  LoginModule? _loginModule;
-  
   @override
   void initState() {
     super.initState();
     _log.info('🔍 AccountScreen initState called');
-    _initializeModules();
+    _initializeScreen();
   }
   
-  void _initializeModules() {
-    _loginModule = _moduleManager.getModuleByType<LoginModule>();
-    if (_loginModule == null) {
-      _log.error('❌ Login module not available');
+  void _initializeScreen() {
+    // Get login orchestrator for authentication
+    final loginOrchestrator = getOrchestrator('login');
+    if (loginOrchestrator == null) {
+      _log.error('❌ Login orchestrator not available');
+    } else {
+      _log.info('✅ Login orchestrator available');
     }
   }
   
@@ -97,9 +96,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   
   // State Management Methods
   String _getCurrentAppState() {
-    final stateManager = StateManager();
-    final mainState = stateManager.getMainAppState<String>("main_state");
-    return mainState ?? "unknown";
+    return stateManager.getMainAppState<String>("main_state") ?? "unknown";
   }
   
   void _showStateSelectionDialog() {
@@ -172,7 +169,6 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   }
   
   void _updateAppState(String newState) {
-    final stateManager = StateManager();
     stateManager.updateMainAppState("main_state", newState);
     
     _log.info('📱 App state updated to: $newState');
@@ -198,31 +194,39 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     });
     
     try {
-      final result = await _loginModule!.loginUser(
-        context: context,
+      // Get login orchestrator for authentication
+      final loginOrchestrator = getOrchestrator('login');
+      if (loginOrchestrator == null) {
+        throw Exception('Login orchestrator not available');
+      }
+      
+      // Cast to LoginOrchestrator for authentication
+      final loginOrch = loginOrchestrator as dynamic;
+      final result = await loginOrch.loginUser(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
       
-      if (result['success'] != null) {
+      if (result['success'] == true) {
         setState(() {
-          _successMessage = result['success'];
+          _successMessage = 'Login successful!';
           _isLoading = false;
         });
         
-        // Navigate to main screen after successful login
-        Future.delayed(const Duration(seconds: 2), () {
-          context.go('/');
-        });
+        // Navigate to home or dashboard
+        if (mounted) {
+          context.go('/home');
+        }
       } else {
         setState(() {
-          _errorMessage = result['error'];
+          _errorMessage = result['message'] ?? 'Login failed';
           _isLoading = false;
         });
       }
     } catch (e) {
+      _log.error('❌ Login error: $e');
       setState(() {
-        _errorMessage = 'An unexpected error occurred: $e';
+        _errorMessage = 'Login failed: $e';
         _isLoading = false;
       });
     }
@@ -239,70 +243,73 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     });
     
     try {
-      final result = await _loginModule!.registerUser(
-        context: context,
+      // Get login orchestrator for registration
+      final loginOrchestrator = getOrchestrator('login');
+      if (loginOrchestrator == null) {
+        throw Exception('Login orchestrator not available');
+      }
+      
+      // Cast to LoginOrchestrator for registration
+      final loginOrch = loginOrchestrator as dynamic;
+      final result = await loginOrch.registerUser(
         username: _usernameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
       
-      if (result['success'] != null) {
+      if (result['success'] == true) {
         setState(() {
-          _successMessage = result['success'];
+          _successMessage = 'Registration successful!';
           _isLoading = false;
         });
         
-        // Switch to login mode after successful registration
-        Future.delayed(const Duration(seconds: 2), () {
-          setState(() {
-            _isLoginMode = true;
-            _clearForms();
-            _clearMessages();
-          });
-        });
+        // Switch to login mode
+        _toggleMode();
       } else {
         setState(() {
-          _errorMessage = result['error'];
+          _errorMessage = result['message'] ?? 'Registration failed';
           _isLoading = false;
         });
       }
     } catch (e) {
+      _log.error('❌ Registration error: $e');
       setState(() {
-        _errorMessage = 'An unexpected error occurred: $e';
+        _errorMessage = 'Registration failed: $e';
         _isLoading = false;
       });
     }
   }
   
   Future<void> _handleLogout() async {
-    setState(() {
-      _isLoading = true;
-      _clearMessages();
-    });
-    
     try {
-      final result = await _loginModule!.logoutUser(context);
+      // Get login orchestrator for logout
+      final loginOrchestrator = getOrchestrator('login');
+      if (loginOrchestrator == null) {
+        throw Exception('Login orchestrator not available');
+      }
       
-      if (result['success'] != null) {
+      // Cast to LoginOrchestrator for logout
+      final loginOrch = loginOrchestrator as dynamic;
+      final result = await loginOrch.logoutUser();
+      
+      if (result['success'] == true) {
         setState(() {
-          _successMessage = result['success'];
-          _isLoading = false;
+          _successMessage = 'Logout successful!';
         });
         
-        // Navigate to main screen after successful logout
-        Future.delayed(const Duration(seconds: 2), () {
-          context.go('/');
-        });
+        // Navigate to login screen
+        if (mounted) {
+          context.go('/login');
+        }
       } else {
         setState(() {
-          _errorMessage = result['error'];
-          _isLoading = false;
+          _errorMessage = result['message'] ?? 'Logout failed';
         });
       }
     } catch (e) {
+      _log.error('❌ Logout error: $e');
       setState(() {
-        _errorMessage = 'An unexpected error occurred: $e';
-        _isLoading = false;
+        _errorMessage = 'Logout failed: $e';
       });
     }
   }
@@ -341,10 +348,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     _log.info('🔍 AccountScreen buildContent called');
     // Use AnimatedBuilder to listen to StateManager changes
     return AnimatedBuilder(
-      animation: StateManager(),
+      animation: stateManager,
       builder: (context, child) {
         // Get login state from StateManager
-        final stateManager = StateManager();
         final loginState = stateManager.getModuleState("login");
         final isLoggedIn = loginState?["isLoggedIn"] ?? false;
         final username = loginState?["username"] ?? "";

@@ -84,7 +84,7 @@ class ProductSyncManager:
             return {"error": error_msg}
     
     def sync_google_play_products(self) -> Dict[str, Any]:
-        """Sync products from Google Play Console."""
+        """Sync products from Google Play Console using real API."""
         sync_start = time.time()
         sync_id = None
         
@@ -94,8 +94,19 @@ class ProductSyncManager:
             # Create sync history record
             sync_id = self._create_sync_history("google_play", "full")
             
-            # Simulate Google Play API call (placeholder for real implementation)
-            google_play_products = self._simulate_google_play_sync()
+            # Initialize Google Play API client
+            from .google_play_api_client import GooglePlayAPIClient
+            api_client = GooglePlayAPIClient(self.app_manager)
+            
+            if not api_client.initialize():
+                raise Exception("Failed to initialize Google Play API client")
+            
+            # Get products from Google Play
+            in_app_products = api_client.get_in_app_products()
+            subscriptions = api_client.get_subscriptions()
+            
+            # Combine all products
+            google_play_products = in_app_products + subscriptions
             
             # Process and store products
             sync_result = self._process_products("google_play", google_play_products)

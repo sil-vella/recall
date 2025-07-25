@@ -119,26 +119,27 @@ class GooglePlayVerifier:
             }
     
     def _call_google_play_api(self, purchase_token: str, product_id: str) -> Dict[str, Any]:
-        """
-        Call the actual Google Play Developer API.
-        This is the production implementation that would be used.
-        """
-        # TODO: Implement actual Google Play API call
-        # This would require:
-        # 1. Google Play Developer API credentials
-        # 2. Service account JSON key
-        # 3. Proper API client setup
-        
-        api_url = f"https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{self.package_name}/purchases/products/{product_id}/tokens/{purchase_token}"
-        
-        # Placeholder for actual implementation
-        custom_log("🔧 Google Play API call not implemented yet", level="INFO")
-        
-        return {
-            "valid": False,
-            "error": "Google Play API not implemented",
-            "platform": "google_play"
-        }
+        """Call the actual Google Play Developer API."""
+        try:
+            # Initialize Google Play API client
+            from ..sync.google_play_api_client import GooglePlayAPIClient
+            api_client = GooglePlayAPIClient(self.app_manager)
+            
+            if not api_client.initialize():
+                raise Exception("Failed to initialize Google Play API client")
+            
+            # Verify purchase using real API
+            verification_result = api_client.verify_purchase(purchase_token, product_id)
+            
+            return verification_result
+            
+        except Exception as e:
+            custom_log(f"❌ Google Play API call failed: {e}", level="ERROR")
+            return {
+                "valid": False,
+                "error": f"Google Play API error: {str(e)}",
+                "platform": "google_play"
+            }
     
     def _get_product_info(self, product_id: str) -> Optional[Dict[str, Any]]:
         """Get product information from synced database."""

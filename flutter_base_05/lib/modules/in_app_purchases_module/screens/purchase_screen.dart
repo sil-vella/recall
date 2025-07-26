@@ -53,16 +53,14 @@ class _PurchaseScreenState extends BaseScreenState<PurchaseScreen> {
         _error = null;
       });
 
-      // Example product IDs - replace with your actual product IDs
-      final productIds = [
-        'coins_100',  // Your created product
-        'premium_feature_1',
-        'premium_feature_2',
-        'subscription_monthly',
-        'subscription_yearly',
-      ];
-
-      final products = await _purchaseService.loadProducts(productIds);
+      // Load products from backend API with automatic sync if needed
+      final products = await _purchaseService.loadProductsWithSync();
+      
+      // Also load native products for purchase flow
+      final productIds = products.map((p) => p.id).toList();
+      if (productIds.isNotEmpty) {
+        await _purchaseService.loadNativeProducts(productIds);
+      }
       
       setState(() {
         _products = products;

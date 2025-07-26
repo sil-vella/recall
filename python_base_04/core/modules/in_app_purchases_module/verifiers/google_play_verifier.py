@@ -135,11 +135,11 @@ class GooglePlayVerifier:
             
         except Exception as e:
             custom_log(f"❌ Google Play API call failed: {e}", level="ERROR")
-            return {
-                "valid": False,
+        return {
+            "valid": False,
                 "error": f"Google Play API error: {str(e)}",
-                "platform": "google_play"
-            }
+            "platform": "google_play"
+        }
     
     def _get_product_info(self, product_id: str) -> Optional[Dict[str, Any]]:
         """Get product information from synced database."""

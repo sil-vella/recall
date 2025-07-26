@@ -4,7 +4,7 @@ In-App Purchases Module
 Handles in-app purchase verification and management for both Google Play and App Store.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
 from typing import Dict, Any, Optional
 from ..base_module import BaseModule
 from core.managers.app_manager import AppManager
@@ -33,6 +33,7 @@ class InAppPurchasesModule(BaseModule):
     def initialize(self, app_manager: AppManager):
         """Initialize the in-app purchases module."""
         self.app_manager = app_manager
+        self.app = app_manager.flask_app  # Set Flask app reference
         custom_log(f"Initializing {self.module_name}", level="INFO")
         
         # Initialize verifiers
@@ -207,18 +208,15 @@ class InAppPurchasesModule(BaseModule):
     def register_routes(self):
         """Register module routes."""
         try:
-            # Create blueprint for userauth routes
-            self.blueprint = Blueprint('in_app_purchases', __name__)
-            
-            # Register routes
-            self.blueprint.route('/userauth/purchases/verify', methods=['POST'])(self.verify_purchase)
-            self.blueprint.route('/userauth/purchases/history', methods=['GET'])(self.get_purchase_history)
-            self.blueprint.route('/userauth/purchases/restore', methods=['POST'])(self.restore_purchases)
+            # Register routes using the helper method
+            self._register_route_helper('/userauth/purchases/verify', self.verify_purchase, methods=['POST'])
+            self._register_route_helper('/userauth/purchases/history', self.get_purchase_history, methods=['GET'])
+            self._register_route_helper('/userauth/purchases/restore', self.restore_purchases, methods=['POST'])
             
             # Sync management routes
-            self.blueprint.route('/userauth/purchases/sync', methods=['POST'])(self.sync_products)
-            self.blueprint.route('/userauth/purchases/products', methods=['GET'])(self.get_products)
-            self.blueprint.route('/userauth/purchases/sync/history', methods=['GET'])(self.get_sync_history)
+            self._register_route_helper('/userauth/purchases/sync', self.sync_products, methods=['POST'])
+            self._register_route_helper('/userauth/purchases/products', self.get_products, methods=['GET'])
+            self._register_route_helper('/userauth/purchases/sync/history', self.get_sync_history, methods=['GET'])
             
             # Initialize database schema
             self._initialize_database_schema()

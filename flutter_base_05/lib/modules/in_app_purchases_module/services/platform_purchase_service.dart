@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/module_manager.dart';
+import '../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../tools/logging/logger.dart';
 import '../models/purchase_product.dart';
 import '../models/purchase_status.dart' as app_purchase_status;
@@ -15,14 +16,25 @@ class PlatformPurchaseService {
   static final InAppPurchase _inAppPurchase = InAppPurchase.instance;
   
   late PurchaseVerificationService _verificationService;
+  late ConnectionsApiModule _apiModule;
   StreamSubscription<List<PurchaseDetails>>? _subscription;
-  List<ProductDetails> _products = [];
+  List<ProductDetails> _nativeProducts = [];
+  List<PurchaseProduct> _backendProducts = [];
   bool _isAvailable = false;
+  bool _isInitialized = false;
 
   /// Initialize the purchase service
   Future<void> initialize(ModuleManager moduleManager) async {
     try {
       _log.info('🔧 Initializing PlatformPurchaseService...');
+      
+      // Get existing ConnectionsApiModule from ModuleManager
+      final apiModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      if (apiModule != null) {
+        _apiModule = apiModule;
+      } else {
+        throw Exception('ConnectionsApiModule not found in ModuleManager');
+      }
       
       // Check if in-app purchases are available
       _isAvailable = await _inAppPurchase.isAvailable();
@@ -39,6 +51,7 @@ class PlatformPurchaseService {
         _verificationService = PurchaseVerificationService();
         await _verificationService.initialize(moduleManager);
         
+        _isInitialized = true;
         _log.info('✅ PlatformPurchaseService initialized successfully');
       } else {
         _log.warning('⚠️ In-app purchases not available on this device');
@@ -49,10 +62,114 @@ class PlatformPurchaseService {
     }
   }
 
-  /// Load available products
+  /// Load available products from backend API
   Future<List<PurchaseProduct>> loadProducts(List<String> productIds) async {
     try {
-      _log.info('🛍 Loading products: $productIds');
+      _log.info('🛍 Loading products from backend API...');
+      
+      // Check if we have cached products in StateManager
+      final cachedProducts = StateManager().getModuleState<Map<String, dynamic>>("in_app_purchases");
+      if (cachedProducts != null && cachedProducts['products'] != null) {
+        final lastSync = cachedProducts['lastProductSync'];
+        if (lastSync != null) {
+          final lastSyncTime = DateTime.parse(lastSync);
+          final now = DateTime.now();
+          final difference = now.difference(lastSyncTime);
+          
+          // Use cached products if they're less than 1 hour old
+          if (difference.inHours < 1) {
+            _log.info('📦 Using cached products from StateManager');
+            final products = (cachedProducts['products'] as List)
+                .map((p) => PurchaseProduct.fromJson(p))
+                .toList();
+            _backendProducts = products;
+            return products;
+          }
+        }
+      }
+
+      // Load products from backend API
+      final response = await _apiModule.sendGetRequest('/userauth/purchases/products');
+      
+      if (response['success'] == true) {
+        final productsData = response['products'] as List;
+        final products = productsData
+            .map((p) => PurchaseProduct.fromJson(p))
+            .toList();
+        
+        _backendProducts = products;
+        _log.info('✅ Loaded ${products.length} products from backend API');
+        
+        // Cache products in StateManager
+        StateManager().updateModuleState("in_app_purchases", {
+          'products': productsData,
+          'lastProductSync': DateTime.now().toIso8601String(),
+          'totalProducts': products.length,
+        });
+        
+        return products;
+      } else {
+        _log.error('❌ Failed to load products from backend: ${response['error']}');
+        return [];
+      }
+    } catch (e) {
+      _log.error('❌ Error loading products from backend: $e');
+      return [];
+    }
+  }
+
+  /// Trigger product sync on backend
+  Future<bool> syncProducts() async {
+    try {
+      _log.info('🔄 Triggering product sync on backend...');
+      
+      final response = await _apiModule.sendPostRequest('/userauth/purchases/sync', {});
+      
+      if (response['success'] == true) {
+        _log.info('✅ Product sync triggered successfully');
+        return true;
+      } else {
+        _log.error('❌ Failed to trigger product sync: ${response['error']}');
+        return false;
+      }
+    } catch (e) {
+      _log.error('❌ Error triggering product sync: $e');
+      return false;
+    }
+  }
+
+  /// Load products with fallback to sync if none found
+  Future<List<PurchaseProduct>> loadProductsWithSync() async {
+    try {
+      // First try to load existing products
+      var products = await loadProducts([]);
+      
+      // If no products found, trigger sync and try again
+      if (products.isEmpty) {
+        _log.info('📦 No products found, triggering sync...');
+        final syncSuccess = await syncProducts();
+        
+        if (syncSuccess) {
+          // Wait a moment for sync to complete
+          await Future.delayed(Duration(seconds: 2));
+          
+          // Try loading products again
+          products = await loadProducts([]);
+          _log.info('📦 Loaded ${products.length} products after sync');
+        }
+      }
+      
+      return products;
+    } catch (e) {
+      _log.error('❌ Error in loadProductsWithSync: $e');
+      return [];
+    }
+  }
+
+  /// Load native platform products for purchase flow
+  Future<List<ProductDetails>> loadNativeProducts(List<String> productIds) async {
+    try {
+      _log.info('🛍 Loading native platform products: $productIds');
       
       if (!_isAvailable) {
         _log.info('⚠️ In-app purchases not available');
@@ -65,24 +182,12 @@ class PlatformPurchaseService {
         _log.info('⚠️ Products not found: ${response.notFoundIDs}');
       }
 
-      _products = response.productDetails;
-      _log.info('✅ Loaded ${_products.length} products');
+      _nativeProducts = response.productDetails;
+      _log.info('✅ Loaded ${_nativeProducts.length} native products');
 
-      // Convert to our model
-      return _products.map((product) => PurchaseProduct(
-        id: product.id,
-        title: product.title,
-        description: product.description,
-        price: product.rawPrice,
-        currencyCode: product.currencyCode,
-        productType: _getProductType(product),
-        metadata: {
-          'productId': product.id,
-          'title': product.title,
-        },
-      )).toList();
+      return _nativeProducts;
     } catch (e) {
-      _log.error('❌ Error loading products: $e');
+      _log.error('❌ Error loading native products: $e');
       return [];
     }
   }
@@ -100,15 +205,15 @@ class PlatformPurchaseService {
         };
       }
 
-      // Find the product details
-      final productDetails = _products.firstWhere(
+      // Find the native product details for this backend product
+      final nativeProduct = _nativeProducts.firstWhere(
         (p) => p.id == product.id,
-        orElse: () => throw Exception('Product not found: ${product.id}'),
+        orElse: () => throw Exception('Native product not found: ${product.id}'),
       );
 
       // Create purchase parameters
       final PurchaseParam purchaseParam = PurchaseParam(
-        productDetails: productDetails,
+        productDetails: nativeProduct,
       );
 
       // Start the purchase

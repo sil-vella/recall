@@ -5,7 +5,7 @@ import '../utils/consts/config.dart';
 import '../modules/login_module/login_module.dart';
 import '../core/managers/module_manager.dart';
 import '../core/managers/websockets/websocket_manager.dart';
-import '../core/models/websocket_events.dart';
+import '../core/managers/websockets/websocket_events.dart';
 
 class WebSocketScreen extends BaseScreen {
   const WebSocketScreen({Key? key}) : super(key: key);

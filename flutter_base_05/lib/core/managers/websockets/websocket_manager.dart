@@ -10,7 +10,7 @@ import '../state_manager.dart';
 import 'ws_event_manager.dart';
 import 'ws_event_listener.dart';
 import 'ws_event_handler.dart';
-import '../../models/websocket_events.dart';
+import 'websocket_events.dart';
 
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();

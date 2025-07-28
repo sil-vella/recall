@@ -1,4 +1,4 @@
-import 'dart:convert';
+
 
 /// WebSocket connection status events
 enum ConnectionStatus {

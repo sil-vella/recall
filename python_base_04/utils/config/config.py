@@ -380,11 +380,11 @@ class Config:
     STRIPE_WEBHOOK_SECRET = get_sensitive_config_value("flask-app/stripe", "webhook_secret", "stripe_webhook_secret", "STRIPE_WEBHOOK_SECRET", "")
     STRIPE_API_VERSION = get_file_first_config_value("stripe_api_version", "STRIPE_API_VERSION", "2023-10-16")
 
-    # Google Play Developer API Configuration
-    GOOGLE_PLAY_PACKAGE_NAME = get_file_first_config_value("google_play_package_name", "GOOGLE_PLAY_PACKAGE_NAME", "com.yourcompany.yourapp")
-    GOOGLE_PLAY_SERVICE_ACCOUNT_FILE = get_file_first_config_value("google_play_service_account", "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", "secrets/google_play_service_account")
-    GOOGLE_PLAY_API_QUOTA_LIMIT = int(get_file_first_config_value("google_play_api_quota_limit", "GOOGLE_PLAY_API_QUOTA_LIMIT", "1000"))
-    GOOGLE_PLAY_SYNC_INTERVAL_HOURS = int(get_file_first_config_value("google_play_sync_interval_hours", "GOOGLE_PLAY_SYNC_INTERVAL_HOURS", "24"))
+    # Google Play Developer API Configuration - Removed (switching to RevenueCat)
+    # GOOGLE_PLAY_PACKAGE_NAME = get_file_first_config_value("google_play_package_name", "GOOGLE_PLAY_PACKAGE_NAME", "com.yourcompany.yourapp")
+    # GOOGLE_PLAY_SERVICE_ACCOUNT_FILE = get_file_first_config_value("google_play_service_account", "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", "secrets/google_play_service_account")
+    # GOOGLE_PLAY_API_QUOTA_LIMIT = int(get_file_first_config_value("google_play_api_quota_limit", "GOOGLE_PLAY_API_QUOTA_LIMIT", "1000"))
+    # GOOGLE_PLAY_SYNC_INTERVAL_HOURS = int(get_file_first_config_value("google_play_sync_interval_hours", "GOOGLE_PLAY_SYNC_INTERVAL_HOURS", "24"))
 
     # JWT Configuration
     JWT_SECRET_KEY = get_sensitive_config_value("flask-app/app", "secret_key", "jwt_secret_key", "JWT_SECRET_KEY", "your-super-secret-key-change-in-production")

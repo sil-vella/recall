@@ -85,11 +85,11 @@ class ModuleRegistry:
         :return: Dictionary mapping module keys to their dependencies
         """
         dependencies = {
-            "communications": [],  # Core API - no dependencies
-            "user_management": ["communications"],  # Needs API infrastructure
-            "wallet": ["communications", "user_management"],  # Needs API and users
-            "transactions": ["communications", "user_management", "wallet"],  # Needs API, users, and wallet
-            "in_app_purchases": ["user_management"],  # Needs user management for purchase verification
+            "user_management": [],  # Core user management - no dependencies
+            "credit_system": ["user_management"],  # Needs user management
+            "system_actions": [],  # Core system actions - no dependencies
+            "wallet": ["user_management"],  # Needs user management
+            "transactions": ["user_management", "wallet"],  # Needs users and wallet
         }
         
         custom_log(f"Module dependencies defined: {dependencies}")

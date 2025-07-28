@@ -1,0 +1,37 @@
+decision_type: "play_card"
+triggers:
+  - condition: "is_my_turn"
+    priority: 1
+
+evaluation:
+  - factor: "card_points"
+    weight: 0.4
+    strategy: "minimize_points"
+  
+  - factor: "special_power_utility"
+    weight: 0.3
+    strategy: "maximize_utility"
+  
+  - factor: "game_progression"
+    weight: 0.2
+    strategy: "advance_position"
+  
+  - factor: "risk_assessment"
+    weight: 0.1
+    strategy: "minimize_risk"
+
+decision_logic:
+  - if: "has_low_point_card"
+    then: "play_lowest_point_card"
+  
+  - if: "has_special_power_card"
+    and: "power_is_useful"
+    then: "play_special_power_card"
+  
+  - if: "can_call_recall"
+    and: "advantageous_position"
+    then: "call_recall"
+  
+  - else: "play_safest_card"
+
+default_action: "play_safest_card" 

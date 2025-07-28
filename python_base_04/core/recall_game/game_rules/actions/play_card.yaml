@@ -1,0 +1,45 @@
+action_type: "play_card"
+triggers:
+  - condition: "is_player_turn"
+    game_state: "player_turn"
+    out_of_turn: false
+  - condition: "same_rank_card"
+    game_state: "out_of_turn_play"
+    out_of_turn: true
+
+validation:
+  - check: "player_has_card"
+    card_id: "{card_id}"
+  - check: "card_is_playable"
+    card_rank: "{card_rank}"
+
+effects:
+  - type: "move_card_to_discard"
+    from: "player_hand"
+    to: "discard_pile"
+    card_id: "{card_id}"
+  
+  - type: "replace_card_in_hand"
+    player_id: "{player_id}"
+    new_card: "drawn_card"
+  
+  - type: "check_special_power"
+    card_rank: "{card_rank}"
+    if_power: "trigger_special_ability"
+  
+  - type: "check_recall_opportunity"
+    if_called: "start_final_round"
+
+notifications:
+  - type: "broadcast"
+    event: "card_played"
+    data:
+      player_id: "{player_id}"
+      card: "{card_data}"
+      is_out_of_turn: "{out_of_turn}"
+
+  - type: "broadcast"
+    event: "check_out_of_turn_play"
+    data:
+      played_card_rank: "{card_rank}"
+      timeout: 5000 

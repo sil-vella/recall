@@ -1,0 +1,29 @@
+card_type: "jack"
+points: 10
+special_power: "switch_cards"
+
+power_effect:
+  type: "switch_cards"
+  description: "Switch any two playing cards of any player"
+  validation:
+    - check: "card_in_hand"
+      card_rank: "jack"
+  execution:
+    - type: "switch_cards"
+      card1: "{card1_data}"
+      card2: "{card2_data}"
+  notifications:
+    - type: "broadcast"
+      event: "cards_switched"
+      data:
+        player_id: "{player_id}"
+        switched_cards: ["{card1}", "{card2}"]
+
+play_conditions:
+  - condition: "is_player_turn"
+  - condition: "card_in_hand"
+    card_rank: "jack"
+
+out_of_turn_play:
+  allowed: true
+  condition: "same_rank_card" 

@@ -1,0 +1,31 @@
+card_type: "queen"
+points: 10
+special_power: "peek_at_card"
+
+power_effect:
+  type: "peek_at_card"
+  description: "Look at any one card (own or other player's)"
+  validation:
+    - check: "card_in_hand"
+      card_rank: "queen"
+  execution:
+    - type: "show_card_to_player"
+      target_player: "{player_id}"
+      card_owner: "{target_player_id}"
+      card_position: "{card_position}"
+  notifications:
+    - type: "private"
+      event: "card_revealed"
+      target: "{player_id}"
+      data:
+        card: "{card_data}"
+        owner: "{card_owner}"
+
+play_conditions:
+  - condition: "is_player_turn"
+  - condition: "card_in_hand"
+    card_rank: "queen"
+
+out_of_turn_play:
+  allowed: true
+  condition: "same_rank_card" 

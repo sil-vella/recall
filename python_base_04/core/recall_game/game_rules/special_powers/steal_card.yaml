@@ -1,0 +1,33 @@
+power_id: "steal_card"
+card_type: "added_power"
+points: 5
+special_power: "steal_card"
+
+power_effect:
+  type: "steal_card"
+  description: "Steal a card from another player's hand"
+  validation:
+    - check: "target_player_has_cards"
+      target_player: "{target_player_id}"
+  execution:
+    - type: "move_card"
+      from_player: "{target_player_id}"
+      to_player: "{player_id}"
+      card_position: "{card_position}"
+  notifications:
+    - type: "private"
+      event: "card_stolen"
+      target: "{target_player_id}"
+    - type: "broadcast"
+      event: "power_card_used"
+      data:
+        player_id: "{player_id}"
+        power_type: "steal_card"
+
+play_conditions:
+  - condition: "is_player_turn"
+  - condition: "card_in_hand"
+    card_rank: "power_steal_card"
+
+out_of_turn_play:
+  allowed: false 

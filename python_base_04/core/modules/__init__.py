@@ -9,5 +9,5 @@ __all__ = [
     'WalletModule', 
     'TransactionsModule',
     'UserManagementModule',
-    'InAppPurchasesModule',
+    # 'InAppPurchasesModule',  # Removed - switching to RevenueCat
 ] 

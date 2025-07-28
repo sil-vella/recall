@@ -11,6 +11,7 @@ The Recall game system is built on the Python Base 04 architecture and provides:
 - **Real-time Communication**: WebSocket-based multiplayer support using existing architecture
 - **Special Power Cards**: Extended game mechanics with special abilities
 - **Modular Architecture**: Clean separation of concerns
+- **Live Reference System**: Auto-generated HTML reference for all declarations
 
 ## Architecture
 
@@ -33,7 +34,14 @@ recall_game/
 │   ├── cards/                # Card-specific rules
 │   ├── special_powers/       # Special power rules
 │   └── ai_logic/             # AI decision rules
-└── example_usage.py          # Usage examples
+├── reference_system/         # Auto-generated reference
+│   ├── generate_declarations_reference.py
+│   ├── update_reference.py
+│   └── REFERENCE_README.md
+├── generate_reference.py     # Main launcher script
+├── example_usage.py          # Usage examples
+├── DECLARATIONS_README.md    # Declarative system guide
+└── README.md                 # This file
 ```
 
 ## Integration with Python Base 04
@@ -102,26 +110,51 @@ websocket_manager.register_handler('recall_player_action', handler_function)
 Action rules define how player actions are processed:
 
 ```yaml
-action_type: "play_card"
-triggers:
-  - condition: "is_player_turn"
-    game_state: "player_turn"
-    out_of_turn: false
+action_type: "play_card"                    # Rule identifier
+triggers:                                   # When this rule applies
+  - condition: "is_player_turn"            # Condition to check
+    game_state: "player_turn"              # Required game state
+    out_of_turn: false                     # Additional parameters
+  - condition: "same_rank_card"            # Alternative trigger
+    game_state: "out_of_turn_play"
+    out_of_turn: true
 
-validation:
-  - check: "player_has_card"
+validation:                                 # Validation checks
+  - check: "player_has_card"               # Check type
+    card_id: "{card_id}"                   # Parameter with placeholder
+  - check: "card_is_playable"
+    card_rank: "{card_rank}"
+
+effects:                                   # State changes to apply
+  - type: "move_card_to_discard"          # Effect type
+    from: "player_hand"
+    to: "discard_pile"
     card_id: "{card_id}"
+  
+  - type: "replace_card_in_hand"          # Another effect
+    player_id: "{player_id}"
+    new_card: "drawn_card"
+  
+  - type: "check_special_power"           # Special power check
+    card_rank: "{card_rank}"
+    if_power: "trigger_special_ability"
+  
+  - type: "check_recall_opportunity"      # Recall opportunity
+    if_called: "start_final_round"
 
-effects:
-  - type: "move_card_to_discard"
-    card_id: "{card_id}"
-
-notifications:
-  - type: "broadcast"
-    event: "card_played"
-    data:
+notifications:                             # Events to broadcast
+  - type: "broadcast"                      # Notification type
+    event: "card_played"                   # Event name
+    data:                                 # Event data with placeholders
       player_id: "{player_id}"
       card: "{card_data}"
+      is_out_of_turn: "{out_of_turn}"
+
+  - type: "broadcast"
+    event: "check_out_of_turn_play"
+    data:
+      played_card_rank: "{card_rank}"
+      timeout: 5000
 ```
 
 ### Card Rules (`game_rules/cards/`)
@@ -129,16 +162,77 @@ notifications:
 Card-specific rules define special abilities:
 
 ```yaml
-card_type: "queen"
-points: 10
-special_power: "peek_at_card"
+card_type: "queen"                         # Card type
+points: 10                                 # Point value
+special_power: "peek_at_card"             # Special power type
 
-power_effect:
-  type: "peek_at_card"
+power_effect:                              # Power effect definition
+  type: "peek_at_card"                    # Effect type
   description: "Look at any one card (own or other player's)"
-  validation:
+  validation:                              # Power validation
     - check: "card_in_hand"
       card_rank: "queen"
+  execution:                               # Power execution
+    - type: "show_card_to_player"
+      target_player: "{player_id}"
+      card_owner: "{target_player_id}"
+      card_position: "{card_position}"
+  notifications:                           # Power notifications
+    - type: "private"
+      event: "card_revealed"
+      target: "{player_id}"
+      data:
+        card: "{card_data}"
+        owner: "{card_owner}"
+
+play_conditions:                           # When card can be played
+  - condition: "is_player_turn"
+  - condition: "card_in_hand"
+    card_rank: "queen"
+
+out_of_turn_play:                         # Out-of-turn play rules
+  allowed: true
+  condition: "same_rank_card"
+```
+
+### Special Power Rules (`game_rules/special_powers/`)
+
+Additional power card rules:
+
+```yaml
+power_id: "steal_card"                    # Power identifier
+card_type: "added_power"                  # Card type
+points: 5                                 # Point value
+special_power: "steal_card"               # Power type
+
+power_effect:                              # Power effect
+  type: "steal_card"
+  description: "Steal a card from another player's hand"
+  validation:                              # Validation
+    - check: "target_player_has_cards"
+      target_player: "{target_player_id}"
+  execution:                               # Execution
+    - type: "move_card"
+      from_player: "{target_player_id}"
+      to_player: "{player_id}"
+      card_position: "{card_position}"
+  notifications:                           # Notifications
+    - type: "private"
+      event: "card_stolen"
+      target: "{target_player_id}"
+    - type: "broadcast"
+      event: "power_card_used"
+      data:
+        player_id: "{player_id}"
+        power_type: "steal_card"
+
+play_conditions:                           # Play conditions
+  - condition: "is_player_turn"
+  - condition: "card_in_hand"
+    card_rank: "power_steal_card"
+
+out_of_turn_play:                         # Out-of-turn rules
+  allowed: false
 ```
 
 ### AI Decision Rules (`game_rules/ai_logic/`)
@@ -146,17 +240,95 @@ power_effect:
 AI behavior is defined declaratively:
 
 ```yaml
-decision_type: "play_card"
-evaluation:
-  - factor: "card_points"
-    weight: 0.4
-    strategy: "minimize_points"
+decision_type: "play_card"                 # Decision type
+triggers:                                  # When to make this decision
+  - condition: "is_my_turn"
+    priority: 1
 
-decision_logic:
-  - if: "has_low_point_card"
-    then: "play_lowest_point_card"
-  - else: "play_safest_card"
+evaluation:                                # Evaluation factors
+  - factor: "card_points"                  # Factor name
+    weight: 0.4                           # Weight in decision
+    strategy: "minimize_points"            # Strategy to apply
+  
+  - factor: "special_power_utility"
+    weight: 0.3
+    strategy: "maximize_utility"
+  
+  - factor: "game_progression"
+    weight: 0.2
+    strategy: "advance_position"
+  
+  - factor: "risk_assessment"
+    weight: 0.1
+    strategy: "minimize_risk"
+
+decision_logic:                            # Decision logic
+  - if: "has_low_point_card"              # Condition
+    then: "play_lowest_point_card"        # Action
+  
+  - if: "has_special_power_card"
+    and: "power_is_useful"                # Multiple conditions
+    then: "play_special_power_card"
+  
+  - if: "can_call_recall"
+    and: "advantageous_position"
+    then: "call_recall"
+  
+  - else: "play_safest_card"              # Default action
+
+default_action: "play_safest_card"         # Fallback action
 ```
+
+## Live Reference System
+
+### Quick Start
+
+1. **Generate the reference:**
+   ```bash
+   cd python_base_04/core/recall_game
+   python generate_reference.py
+   ```
+
+2. **View in browser:**
+   - The script will automatically open the HTML file in your default browser
+   - Or manually open `game_rules/declarations_reference.html`
+
+### Reference Features
+
+- **🔍 Searchable**: Real-time search with highlighting
+- **📊 Organized**: Sections for Actions, Cards, Powers, AI Logic
+- **🎨 Beautiful**: Modern, responsive design
+- **📝 Live**: Auto-updates when you add new declarations
+- **🔗 Placeholders**: Complete reference for dynamic values
+- **✨ Effects**: All available state changes
+- **✅ Validation**: All input validation checks
+- **🎯 Triggers**: All rule activation conditions
+
+### Adding New Declarations
+
+1. **Create your YAML file** in the appropriate directory:
+   ```bash
+   # Action rule
+   game_rules/actions/my_new_action.yaml
+   
+   # Card rule
+   game_rules/cards/my_new_card.yaml
+   
+   # Special power rule
+   game_rules/special_powers/my_new_power.yaml
+   
+   # AI logic rule
+   game_rules/ai_logic/medium/my_new_decision.yaml
+   ```
+
+2. **Update the reference:**
+   ```bash
+   python generate_reference.py
+   ```
+
+3. **View your new declaration** in the HTML reference
+
+For detailed information about the reference system, see `reference_system/REFERENCE_README.md`.
 
 ## Usage Examples
 
@@ -373,6 +545,19 @@ python app.py
 2. Use existing session and room management
 3. Follow established event naming conventions (`recall_` prefix)
 4. Use existing broadcast methods
+
+## Documentation
+
+### Reference System
+- **Live HTML Reference**: Auto-generated from YAML declarations
+- **DECLARATIONS_README.md**: Complete guide to the declarative system
+- **REFERENCE_README.md**: Reference system documentation
+
+### Key Files
+- **generate_reference.py**: Main launcher for reference generation
+- **reference_system/**: Contains all reference generation tools
+- **game_rules/**: All YAML declarations
+- **declarations_reference.html**: Generated reference (auto-created)
 
 ## License
 

@@ -1,7 +1,7 @@
 name: recall
 description: "recall - A Flutter application."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.2.3 <4.0.0'
@@ -34,10 +34,8 @@ dependencies:
   permission_handler: ^11.3.0
   image: ^4.1.7
 
-  # In-App Purchase Dependencies
-  in_app_purchase: ^3.1.13
-  in_app_purchase_android: ^0.3.6+1
-  in_app_purchase_storekit: ^0.3.6+1
+  # RevenueCat Dependencies
+  purchases_flutter: ^6.0.0
 
 dev_dependencies:
   flutter_test:

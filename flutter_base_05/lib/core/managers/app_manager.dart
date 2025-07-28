@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 import '../../tools/logging/logger.dart';
 import 'hooks_manager.dart';
 import 'module_manager.dart';
 import 'auth_manager.dart';
-import '../00_base/module_base.dart';
+import 'adapters_manager.dart';
 
 class AppManager extends ChangeNotifier {
   static final Logger _log = Logger();
@@ -20,6 +19,7 @@ class AppManager extends ChangeNotifier {
 
   final HooksManager _hooksManager = HooksManager();
   final AuthManager _authManager = AuthManager();
+  final AdaptersManager _adaptersManager = AdaptersManager();
 
   Future<void> _initializeModules(BuildContext context) async {
     _log.info('🚀 Initializing modules...');
@@ -38,6 +38,12 @@ class AppManager extends ChangeNotifier {
     if (!_isInitialized) {
       // Initialize AuthManager first
       _authManager.initialize(context);
+      
+      // Initialize AdaptersManager (automatically registers all adapters)
+      _adaptersManager.initialize(this);
+      
+      // Initialize adapters
+      await _initializeAdapters();
       
       // Register global hooks
       _registerGlobalHooks();
@@ -61,9 +67,26 @@ class AppManager extends ChangeNotifier {
     }
   }
 
-  /// ✅ Register global hooks that modules can subscribe to
+
+
+  /// Initialize all registered adapters
+  Future<void> _initializeAdapters() async {
+    _log.info('🚀 Initializing adapters...');
+    await _adaptersManager.initializeAdapters();
+  }
+
+  /// Register global hooks for RevenueCat integration
   void _registerGlobalHooks() {
-    _log.info('🔗 Registering global hooks...');
+    // Register hooks for subscription state changes
+    _hooksManager.registerHook('subscription_active', () {
+      _log.info('🎣 Subscription active hook triggered');
+      // Handle subscription activation
+    });
+    
+    _hooksManager.registerHook('subscription_inactive', () {
+      _log.info('🎣 Subscription inactive hook triggered');
+      // Handle subscription deactivation
+    });
     
     // Banner ad hooks
     _hooksManager.registerHookWithData('top_banner_bar_loaded', (data) {
@@ -79,10 +102,10 @@ class AppManager extends ChangeNotifier {
       _log.info('📢 Home screen main hook triggered');
     }, priority: 1);
     
-    _log.info('✅ Global hooks registered successfully');
+    _log.info('✅ Global hooks registered');
   }
 
-  /// ✅ Trigger top banner bar hook
+  /// Trigger top banner bar hook
   void triggerTopBannerBarHook(BuildContext context) {
     _hooksManager.triggerHookWithData('top_banner_bar_loaded', {
       'context': context,
@@ -90,7 +113,7 @@ class AppManager extends ChangeNotifier {
     });
   }
 
-  /// ✅ Trigger bottom banner bar hook
+  /// Trigger bottom banner bar hook
   void triggerBottomBannerBarHook(BuildContext context) {
     _hooksManager.triggerHookWithData('bottom_banner_bar_loaded', {
       'context': context,
@@ -98,7 +121,7 @@ class AppManager extends ChangeNotifier {
     });
   }
 
-  /// ✅ Trigger home screen main hook
+  /// Trigger home screen main hook
   void triggerHomeScreenMainHook(BuildContext context) {
     _hooksManager.triggerHookWithData('home_screen_main', {
       'context': context,
@@ -106,22 +129,15 @@ class AppManager extends ChangeNotifier {
     });
   }
 
-  /// ✅ Get HooksManager for modules to register callbacks
+  /// Get HooksManager for modules to register callbacks
   HooksManager get hooksManager => _hooksManager;
 
-  /// ✅ Get module status for health checks
-  Map<String, dynamic> getModuleStatus(BuildContext context) {
-    final moduleManager = Provider.of<ModuleManager>(context, listen: false);
-    return moduleManager.getModuleStatus();
-  }
+  /// Get AdaptersManager for external access to adapters
+  AdaptersManager get adaptersManager => _adaptersManager;
 
-  /// ✅ Check if all modules are healthy
-  bool checkModuleHealth(BuildContext context) {
-    final moduleStatus = getModuleStatus(context);
-    final totalModules = moduleStatus['total_modules'] as int;
-    final initializedModules = moduleStatus['initialized_modules'] as int;
-    final errors = moduleStatus['initialization_errors'] as Map<String, dynamic>;
-    
-    return totalModules > 0 && initializedModules == totalModules && errors.isEmpty;
+  @override
+  void dispose() {
+    super.dispose();
+    _log.info('🛑 AppManager disposed');
   }
 }

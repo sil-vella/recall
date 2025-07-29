@@ -5,6 +5,7 @@ import 'hooks_manager.dart';
 import 'module_manager.dart';
 import 'auth_manager.dart';
 import 'adapters_manager.dart';
+import '../recall_game/recall_game_main.dart';
 
 class AppManager extends ChangeNotifier {
   static final Logger _log = Logger();
@@ -20,6 +21,7 @@ class AppManager extends ChangeNotifier {
   final HooksManager _hooksManager = HooksManager();
   final AuthManager _authManager = AuthManager();
   final AdaptersManager _adaptersManager = AdaptersManager();
+  final RecallGameCore _recallGameCore = RecallGameCore();
 
   Future<void> _initializeModules(BuildContext context) async {
     _log.info('🚀 Initializing modules...');
@@ -47,6 +49,9 @@ class AppManager extends ChangeNotifier {
       
       // Register global hooks
       _registerGlobalHooks();
+      
+      // Initialize Recall Game Core
+      _recallGameCore.initialize(context);
       
       // Initialize modules
       await _initializeModules(context);
@@ -134,6 +139,9 @@ class AppManager extends ChangeNotifier {
 
   /// Get AdaptersManager for external access to adapters
   AdaptersManager get adaptersManager => _adaptersManager;
+
+  /// Get RecallGameCore for external access to Recall game functionality
+  RecallGameCore get recallGameCore => _recallGameCore;
 
   @override
   void dispose() {

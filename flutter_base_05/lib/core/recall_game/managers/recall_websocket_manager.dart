@@ -12,6 +12,7 @@ import '../models/card.dart';
 
 /// Recall Game WebSocket Manager
 /// Handles all WebSocket communication for the Recall game
+/// Uses the system WebSocketManager.instance for actual WebSocket operations
 class RecallWebSocketManager {
   static final Logger _log = Logger();
   static final RecallWebSocketManager _instance = RecallWebSocketManager._internal();
@@ -19,7 +20,7 @@ class RecallWebSocketManager {
   factory RecallWebSocketManager() => _instance;
   RecallWebSocketManager._internal();
 
-  // WebSocket manager instance
+  // System WebSocket manager instance
   final WebSocketManager _wsManager = WebSocketManager.instance;
   
   // State manager for game state
@@ -58,11 +59,11 @@ class RecallWebSocketManager {
     try {
       _log.info('🎮 Initializing Recall WebSocket Manager');
       
-      // Ensure WebSocket is connected
+      // Ensure system WebSocket is connected
       if (!_wsManager.isConnected) {
         final connected = await _wsManager.connect();
         if (!connected) {
-          _log.error('❌ Failed to connect WebSocket for Recall game');
+          _log.error('❌ Failed to connect system WebSocket for Recall game');
           return false;
         }
       }
@@ -84,27 +85,27 @@ class RecallWebSocketManager {
 
   /// Set up WebSocket event listeners
   void _setupEventListeners() {
-    // Listen to WebSocket events
+    // Listen to system WebSocket events
     _wsEventSubscription = _wsManager.events.listen((event) {
       _handleWebSocketEvent(event);
     });
     
-    // Listen to WebSocket messages
+    // Listen to system WebSocket messages
     _wsMessageSubscription = _wsManager.messages.listen((messageEvent) {
       _handleWebSocketMessage(messageEvent);
     });
     
-    // Listen to room events
+    // Listen to system room events
     _wsRoomSubscription = _wsManager.roomEvents.listen((roomEvent) {
       _handleRoomEvent(roomEvent);
     });
     
-    // Listen to connection status
+    // Listen to system connection status
     _wsConnectionSubscription = _wsManager.connectionStatus.listen((connectionEvent) {
       _handleConnectionEvent(connectionEvent);
     });
     
-    // Listen to errors
+    // Listen to system errors
     _wsErrorSubscription = _wsManager.errors.listen((errorEvent) {
       _handleErrorEvent(errorEvent);
     });
@@ -112,17 +113,17 @@ class RecallWebSocketManager {
     _log.info('✅ Recall WebSocket event listeners set up');
   }
 
-  /// Handle WebSocket events
+  /// Handle WebSocket events from system WebSocket
   void _handleWebSocketEvent(WebSocketEvent event) {
     if (event is MessageEvent) {
       _handleWebSocketMessage(event);
     } else if (event is ErrorEvent) {
-      _log.error('❌ WebSocket error: ${event.error}');
+      _log.error('❌ System WebSocket error: ${event.error}');
       _errorController.add(event.error);
     }
   }
 
-  /// Handle WebSocket messages
+  /// Handle WebSocket messages from system WebSocket
   void _handleWebSocketMessage(MessageEvent messageEvent) {
     try {
       final data = jsonDecode(messageEvent.message);
@@ -137,9 +138,9 @@ class RecallWebSocketManager {
     }
   }
 
-  /// Handle room events
+  /// Handle room events from system WebSocket
   void _handleRoomEvent(RoomEvent roomEvent) {
-    _log.info('🏠 Room event: ${roomEvent.action} - ${roomEvent.roomId}');
+    _log.info('🏠 System room event: ${roomEvent.action} - ${roomEvent.roomId}');
     
     // Handle room-specific events if needed
     switch (roomEvent.action) {
@@ -155,28 +156,28 @@ class RecallWebSocketManager {
     }
   }
 
-  /// Handle connection events
+  /// Handle connection events from system WebSocket
   void _handleConnectionEvent(ConnectionStatusEvent connectionEvent) {
-    _log.info('🔌 Connection event: ${connectionEvent.status}');
+    _log.info('🔌 System connection event: ${connectionEvent.status}');
     
     switch (connectionEvent.status) {
       case ConnectionStatus.connected:
-        _log.info('✅ WebSocket connected');
+        _log.info('✅ System WebSocket connected');
         break;
       case ConnectionStatus.disconnected:
-        _log.info('❌ WebSocket disconnected');
+        _log.info('❌ System WebSocket disconnected');
         break;
       case ConnectionStatus.error:
-        _log.error('🚨 WebSocket error: ${connectionEvent.error}');
+        _log.error('🚨 System WebSocket error: ${connectionEvent.error}');
         break;
       default:
-        _log.info('🔄 WebSocket status: ${connectionEvent.status}');
+        _log.info('🔄 System WebSocket status: ${connectionEvent.status}');
     }
   }
 
-  /// Handle error events
+  /// Handle error events from system WebSocket
   void _handleErrorEvent(ErrorEvent errorEvent) {
-    _log.error('❌ WebSocket error: ${errorEvent.error}');
+    _log.error('❌ System WebSocket error: ${errorEvent.error}');
     _errorController.add(errorEvent.error);
   }
 
@@ -472,6 +473,24 @@ class RecallWebSocketManager {
     } catch (e) {
       _log.error('❌ Error joining game: $e');
       return {'error': 'Failed to join game: $e'};
+    }
+  }
+
+  /// Send a message to a room using the system WebSocket
+  Future<Map<String, dynamic>> sendMessage(String roomId, String message, [Map<String, dynamic>? additionalData]) async {
+    if (!_wsManager.isConnected) {
+      return {'error': 'WebSocket not connected'};
+    }
+    
+    try {
+      _log.info('💬 Sending message to room: $roomId - $message');
+      
+      final result = await _wsManager.sendMessage(roomId, message, additionalData);
+      return result;
+      
+    } catch (e) {
+      _log.error('❌ Error sending message: $e');
+      return {'error': 'Failed to send message: $e'};
     }
   }
 

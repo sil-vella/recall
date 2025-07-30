@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../managers/navigation_manager.dart';
-import '../managers/app_manager.dart';
-import 'screens/game_lobby_screen.dart';
-import 'managers/recall_websocket_manager.dart';
+import '../managers/state_manager.dart';
+import 'screens/lobby_room/lobby_screen.dart';
 import 'managers/recall_state_manager.dart';
 import 'managers/recall_game_manager.dart';
 import '../../tools/logging/logger.dart';
@@ -21,13 +20,9 @@ class RecallGameCore {
   bool get isInitialized => _isInitialized;
 
   // Recall game managers
-  late final RecallWebSocketManager _recallWebSocketManager;
   late final RecallStateManager _recallStateManager;
   late final RecallGameManager _recallGameManager;
 
-  /// Get Recall WebSocket Manager
-  RecallWebSocketManager get recallWebSocketManager => _recallWebSocketManager;
-  
   /// Get Recall State Manager
   RecallStateManager get recallStateManager => _recallStateManager;
   
@@ -48,9 +43,9 @@ class RecallGameCore {
       _initializeManagers();
       
       // Register screens
-      _registerScreens();
+    _registerScreens();
       
-      _isInitialized = true;
+    _isInitialized = true;
       _log.info('✅ RecallGameCore initialized successfully');
       
     } catch (e) {
@@ -63,10 +58,6 @@ class RecallGameCore {
   void _initializeManagers() {
     _log.info('🎮 Initializing Recall game managers...');
     
-    // Initialize Recall WebSocket Manager
-    _recallWebSocketManager = RecallWebSocketManager();
-    _recallWebSocketManager.initialize();
-    
     // Initialize Recall State Manager
     _recallStateManager = RecallStateManager();
     
@@ -74,17 +65,38 @@ class RecallGameCore {
     _recallGameManager = RecallGameManager();
     _recallGameManager.initialize();
     
+    // Register Recall game state with StateManager
+    _initializeRecallGameState();
+    
     _log.info('✅ Recall game managers initialized');
+  }
+
+  /// Initialize Recall game state in StateManager
+  void _initializeRecallGameState() {
+    final stateManager = StateManager();
+    
+    // Register initial Recall game state
+    stateManager.registerModuleState("recall_game", {
+      'isInRoom': false,
+      'currentRoomId': null,
+      'currentRoom': null,
+      'gameState': null,
+      'lastUpdated': DateTime.now().toIso8601String(),
+      'rooms': [], // List of available rooms
+      'myRooms': [], // List of rooms created by current user
+    });
+    
+    _log.info('📊 Recall game state registered with StateManager');
   }
 
   /// Register all Recall game screens with NavigationManager
   void _registerScreens() {
     final navigationManager = NavigationManager();
 
-    // Register Game Lobby Screen
+    // Register Recall Game Lobby Screen (Room Management)
     navigationManager.registerRoute(
       path: '/recall/lobby',
-      screen: (context) => const GameLobbyScreen(),
+      screen: (context) => const LobbyScreen(),
       drawerTitle: 'Recall Game',
       drawerIcon: Icons.games,
       drawerPosition: 6, // After existing screens
@@ -125,7 +137,6 @@ class RecallGameCore {
       'status': _isInitialized ? 'healthy' : 'not_initialized',
       'details': 'Recall Game Core - Manages card game UI and navigation',
       'managers': {
-        'websocket_manager': _recallWebSocketManager.isConnected ? 'connected' : 'disconnected',
         'state_manager': 'initialized',
         'game_manager': 'initialized',
       },
@@ -139,7 +150,6 @@ class RecallGameCore {
   }
 
   void dispose() {
-    _recallWebSocketManager.dispose();
     _recallStateManager.dispose();
     _recallGameManager.dispose();
     _log.info('🛑 RecallGameCore disposed');

@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'package:flutter/material.dart' hide Card;
+import 'dart:convert';
 import '../../managers/state_manager.dart';
-import '../../managers/module_manager.dart';
+import '../../managers/websockets/websocket_manager.dart';
 import '../../../tools/logging/logger.dart';
-import 'recall_websocket_manager.dart';
 import 'recall_state_manager.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
@@ -20,10 +19,9 @@ class RecallGameManager {
   RecallGameManager._internal();
 
   // Managers
-  final RecallWebSocketManager _wsManager = RecallWebSocketManager();
+  final WebSocketManager _wsManager = WebSocketManager.instance;
   final RecallStateManager _stateManager = RecallStateManager();
   final StateManager _mainStateManager = StateManager();
-  final ModuleManager _moduleManager = ModuleManager();
 
   // Game state
   bool _isInitialized = false;
@@ -54,11 +52,13 @@ class RecallGameManager {
     try {
       _log.info('🎮 Initializing Recall Game Manager');
       
-      // Initialize WebSocket manager
-      final wsInitialized = await _wsManager.initialize();
-      if (!wsInitialized) {
-        _log.error('❌ Failed to initialize WebSocket manager');
-        return false;
+      // Ensure WebSocket is connected
+      if (!_wsManager.isConnected) {
+        final connected = await _wsManager.connect();
+        if (!connected) {
+          _log.error('❌ Failed to connect WebSocket');
+          return false;
+        }
       }
       
       // Initialize state manager
@@ -82,142 +82,174 @@ class RecallGameManager {
 
   /// Set up event listeners
   void _setupEventListeners() {
-    // Listen to game events
-    _gameEventSubscription = _wsManager.gameEvents.listen((event) {
-      _handleGameEvent(event);
+    // Listen to system WebSocket events for game events
+    _wsManager.messages.listen((messageEvent) {
+      _handleWebSocketMessage(messageEvent);
     });
     
-    // Listen to game state updates
-    _gameStateSubscription = _wsManager.gameStateUpdates.listen((gameState) {
-      _stateManager.updateGameState(gameState);
-      _updateGameStatus(gameState);
-    });
-    
-    // Listen to errors
-    _errorSubscription = _wsManager.errors.listen((error) {
-      _log.error('❌ Recall game error: $error');
-      _handleGameError(error);
+    // Listen to system WebSocket errors
+    _wsManager.errors.listen((errorEvent) {
+      _log.error('❌ WebSocket error: ${errorEvent.error}');
+      _handleGameError(errorEvent.error);
     });
     
     _log.info('✅ Recall Game Manager event listeners set up');
   }
 
-  /// Handle game events
-  void _handleGameEvent(GameEvent event) {
-    _log.info('🎮 Handling game event: ${event.type}');
-    
-    switch (event.type) {
-      case GameEventType.gameJoined:
-        _handleGameJoined(event as GameJoinedEvent);
-        break;
-      case GameEventType.gameLeft:
-        _handleGameLeft(event as GameLeftEvent);
-        break;
-      case GameEventType.playerJoined:
-        _handlePlayerJoined(event as PlayerJoinedEvent);
-        break;
-      case GameEventType.playerLeft:
-        _handlePlayerLeft(event as PlayerLeftEvent);
-        break;
-      case GameEventType.gameStarted:
-        _handleGameStarted(event as GameStartedEvent);
-        break;
-      case GameEventType.gameEnded:
-        _handleGameEnded(event as GameEndedEvent);
-        break;
-      case GameEventType.turnChanged:
-        _handleTurnChanged(event as TurnChangedEvent);
-        break;
-      case GameEventType.cardPlayed:
-        _handleCardPlayed(event as CardPlayedEvent);
-        break;
-      case GameEventType.recallCalled:
-        _handleRecallCalled(event as RecallCalledEvent);
-        break;
-      case GameEventType.gameStateUpdated:
-        _handleGameStateUpdated(event as GameStateUpdatedEvent);
-        break;
-      case GameEventType.gameError:
-        _handleGameErrorEvent(event as GameErrorEvent);
-        break;
-      default:
-        _log.info('⚠️ Unhandled game event: ${event.type}');
+  /// Handle WebSocket messages
+  void _handleWebSocketMessage(dynamic messageEvent) {
+    try {
+      // Parse message and check if it's a Recall game event
+      final data = messageEvent.message;
+      if (data is String) {
+        final jsonData = jsonDecode(data);
+        if (jsonData['type']?.startsWith('recall_') == true) {
+          _handleRecallGameEvent(jsonData);
+        }
+      }
+    } catch (e) {
+      _log.error('❌ Error parsing WebSocket message: $e');
+    }
+  }
+
+  /// Handle Recall game events
+  void _handleRecallGameEvent(Map<String, dynamic> data) {
+    try {
+      final eventType = data['event_type'];
+      final gameId = data['game_id'];
+      
+      _log.info('🎮 Received Recall game event: $eventType for game: $gameId');
+      
+      switch (eventType) {
+        case 'game_joined':
+          _handleGameJoined(data);
+          break;
+        case 'game_left':
+          _handleGameLeft(data);
+          break;
+        case 'player_joined':
+          _handlePlayerJoined(data);
+          break;
+        case 'player_left':
+          _handlePlayerLeft(data);
+          break;
+        case 'game_started':
+          _handleGameStarted(data);
+          break;
+        case 'game_ended':
+          _handleGameEnded(data);
+          break;
+        case 'turn_changed':
+          _handleTurnChanged(data);
+          break;
+        case 'card_played':
+          _handleCardPlayed(data);
+          break;
+        case 'recall_called':
+          _handleRecallCalled(data);
+          break;
+        case 'game_state_updated':
+          _handleGameStateUpdated(data);
+          break;
+        case 'error':
+          _handleGameErrorEvent(data);
+          break;
+        default:
+          _log.info('⚠️ Unknown Recall game event: $eventType');
+      }
+      
+    } catch (e) {
+      _log.error('❌ Error handling Recall game event: $e');
     }
   }
 
   /// Handle game joined event
-  void _handleGameJoined(GameJoinedEvent event) {
-    _currentGameId = event.gameId;
-    _currentPlayerId = event.player.id;
+  void _handleGameJoined(Map<String, dynamic> data) {
+    final gameState = GameState.fromJson(data['game_state']);
+    final player = Player.fromJson(data['player']);
+    
+    _currentGameId = gameState.gameId;
+    _currentPlayerId = player.id;
     _isGameActive = true;
     
-    _stateManager.updateGameState(event.gameState);
-    _updateGameStatus(event.gameState);
+    _stateManager.updateGameState(gameState);
+    _updateGameStatus(gameState);
     
-    _log.info('✅ Joined game: ${event.gameState.gameName}');
+    _log.info('✅ Joined game: ${gameState.gameName}');
   }
 
   /// Handle game left event
-  void _handleGameLeft(GameLeftEvent event) {
+  void _handleGameLeft(Map<String, dynamic> data) {
     _clearGameState();
-    _log.info('👋 Left game: ${event.reason}');
+    _log.info('👋 Left game: ${data['reason'] ?? 'Unknown reason'}');
   }
 
   /// Handle player joined event
-  void _handlePlayerJoined(PlayerJoinedEvent event) {
-    _stateManager.addPlayer(event.player);
-    _log.info('👋 Player joined: ${event.player.name}');
+  void _handlePlayerJoined(Map<String, dynamic> data) {
+    final player = Player.fromJson(data['player']);
+    _stateManager.addPlayer(player);
+    _log.info('👋 Player joined: ${player.name}');
   }
 
   /// Handle player left event
-  void _handlePlayerLeft(PlayerLeftEvent event) {
-    _stateManager.removePlayer(event.playerId ?? '');
-    _log.info('👋 Player left: ${event.playerName}');
+  void _handlePlayerLeft(Map<String, dynamic> data) {
+    final playerId = data['player_id'];
+    _stateManager.removePlayer(playerId);
+    _log.info('👋 Player left: ${data['player_name'] ?? 'Unknown'}');
   }
 
   /// Handle game started event
-  void _handleGameStarted(GameStartedEvent event) {
-    _stateManager.updateGameState(event.gameState);
-    _updateGameStatus(event.gameState);
-    _log.info('🎮 Game started: ${event.gameState.gameName}');
+  void _handleGameStarted(Map<String, dynamic> data) {
+    final gameState = GameState.fromJson(data['game_state']);
+    _stateManager.updateGameState(gameState);
+    _updateGameStatus(gameState);
+    _log.info('🎮 Game started: ${gameState.gameName}');
   }
 
   /// Handle game ended event
-  void _handleGameEnded(GameEndedEvent event) {
-    _stateManager.updateGameState(event.finalGameState);
-    _updateGameStatus(event.finalGameState);
-    _log.info('🏆 Game ended. Winner: ${event.winner.name}');
+  void _handleGameEnded(Map<String, dynamic> data) {
+    final gameState = GameState.fromJson(data['game_state']);
+    final winner = Player.fromJson(data['winner']);
+    _stateManager.updateGameState(gameState);
+    _updateGameStatus(gameState);
+    _log.info('🏆 Game ended. Winner: ${winner.name}');
   }
 
   /// Handle turn changed event
-  void _handleTurnChanged(TurnChangedEvent event) {
-    _stateManager.updateCurrentPlayer(event.newCurrentPlayer);
-    _log.info('🔄 Turn changed to: ${event.newCurrentPlayer.name}');
+  void _handleTurnChanged(Map<String, dynamic> data) {
+    final newCurrentPlayer = Player.fromJson(data['new_current_player']);
+    _stateManager.updateCurrentPlayer(newCurrentPlayer);
+    _log.info('🔄 Turn changed to: ${newCurrentPlayer.name}');
   }
 
   /// Handle card played event
-  void _handleCardPlayed(CardPlayedEvent event) {
-    _stateManager.updatePlayerState(event.player);
-    _log.info('🃏 Card played: ${event.playedCard.displayName} by ${event.player.name}');
+  void _handleCardPlayed(Map<String, dynamic> data) {
+    final playedCard = Card.fromJson(data['played_card']);
+    final player = Player.fromJson(data['player']);
+    _stateManager.updatePlayerState(player);
+    _log.info('🃏 Card played: ${playedCard.displayName} by ${player.name}');
   }
 
   /// Handle recall called event
-  void _handleRecallCalled(RecallCalledEvent event) {
-    _stateManager.updateGameState(event.updatedGameState);
-    _updateGameStatus(event.updatedGameState);
-    _log.info('📢 Recall called by: ${event.player.name}');
+  void _handleRecallCalled(Map<String, dynamic> data) {
+    final updatedGameState = GameState.fromJson(data['updated_game_state']);
+    _stateManager.updateGameState(updatedGameState);
+    _updateGameStatus(updatedGameState);
+    _log.info('📢 Recall called by: ${data['player']?['name'] ?? 'Unknown'}');
   }
 
   /// Handle game state updated event
-  void _handleGameStateUpdated(GameStateUpdatedEvent event) {
-    _stateManager.updateGameState(event.gameState);
-    _updateGameStatus(event.gameState);
+  void _handleGameStateUpdated(Map<String, dynamic> data) {
+    final gameState = GameState.fromJson(data['game_state']);
+    _stateManager.updateGameState(gameState);
+    _updateGameStatus(gameState);
     _log.info('🔄 Game state updated');
   }
 
   /// Handle game error event
-  void _handleGameErrorEvent(GameErrorEvent event) {
-    _log.error('❌ Game error: ${event.error}');
+  void _handleGameErrorEvent(Map<String, dynamic> data) {
+    final error = data['error'] ?? 'Unknown error';
+    _log.error('❌ Game error: $error');
     // Handle error appropriately
   }
 
@@ -266,7 +298,18 @@ class RecallGameManager {
     try {
       _log.info('🎮 Joining game: $gameId as $playerName');
       
-      final result = await _wsManager.joinGame(gameId, playerName);
+      // First join the room (game)
+      final joinResult = await _wsManager.joinRoom(gameId, playerName);
+      if (joinResult['error'] != null) {
+        return joinResult;
+      }
+      
+      // Then send the join game message
+      final result = await _wsManager.sendMessage(gameId, 'recall_join_game', {
+        'game_id': gameId,
+        'player_name': playerName,
+        'session_id': _wsManager.socket?.id,
+      });
       
       if (result['error'] == null) {
         _currentGameId = gameId;
@@ -291,7 +334,14 @@ class RecallGameManager {
     try {
       _log.info('👋 Leaving game: $_currentGameId');
       
-      final result = await _wsManager.leaveGame();
+      // Send leave game message
+      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_leave_game', {
+        'game_id': _currentGameId,
+        'player_id': _currentPlayerId,
+      });
+      
+      // Leave the room
+      await _wsManager.leaveRoom(_currentGameId!);
       
       if (result['error'] == null) {
         _clearGameState();
@@ -318,7 +368,13 @@ class RecallGameManager {
     try {
       _log.info('🃏 Playing card: ${card.displayName}');
       
-      final result = await _wsManager.playCard(card, targetPlayerId: targetPlayerId);
+      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+        'action': 'play_card',
+        'card': card.toJson(),
+        'target_player_id': targetPlayerId,
+        'player_id': _currentPlayerId,
+      });
+      
       return result;
       
     } catch (e) {
@@ -340,7 +396,11 @@ class RecallGameManager {
     try {
       _log.info('📢 Calling recall');
       
-      final result = await _wsManager.callRecall();
+      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+        'action': 'call_recall',
+        'player_id': _currentPlayerId,
+      });
+      
       return result;
       
     } catch (e) {
@@ -362,7 +422,13 @@ class RecallGameManager {
     try {
       _log.info('✨ Using special power: ${card.specialPowerDescription}');
       
-      final result = await _wsManager.useSpecialPower(card, powerData);
+      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+        'action': 'use_special_power',
+        'card': card.toJson(),
+        'power_data': powerData,
+        'player_id': _currentPlayerId,
+      });
+      
       return result;
       
     } catch (e) {
@@ -440,7 +506,6 @@ class RecallGameManager {
     _gameStateSubscription?.cancel();
     _errorSubscription?.cancel();
     
-    _wsManager.dispose();
     _stateManager.dispose();
     
     _clearGameState();

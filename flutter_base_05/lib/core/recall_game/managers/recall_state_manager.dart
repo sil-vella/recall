@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'package:flutter/material.dart' hide Card;
 import '../../managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../models/card.dart';
+import '../utils/game_constants.dart';
 
 /// Recall Game State Manager
 /// Manages game state and integrates with the main StateManager
@@ -257,7 +257,6 @@ class RecallStateManager {
   void _updateMainStateManager() {
     if (_currentGameState == null) return;
     
-    final myPlayerId = _getMyPlayerId();
     final myHand = getMyHand();
     final myScore = getMyScore();
     

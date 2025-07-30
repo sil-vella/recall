@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../modules/home_module/home_screen.dart';
 import '../../screens/websocket_screen.dart';
 import '../../screens/account_screen/account_screen.dart';
-import '../../screens/room_management_screen.dart';
 import '../../screens/auth_test_screen/auth_test_screen.dart';
 // In-app purchases screens removed - switching to RevenueCat
 import '../00_base/module_base.dart';
@@ -80,16 +79,7 @@ class NavigationManager extends ChangeNotifier {
       drawerIcon: Icons.wifi,
       drawerPosition: 3,
     );
-    
-    // Register Room Management screen
-    registerRoute(
-      path: '/rooms',
-      screen: (context) => const RoomManagementScreen(),
-      drawerTitle: 'Room Management',
-      drawerIcon: Icons.room,
-      drawerPosition: 4,
-    );
-    
+        
     // Register Auth Test screen
     registerRoute(
       path: '/auth-test',

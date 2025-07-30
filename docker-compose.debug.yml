@@ -1,0 +1,70 @@
+services:
+  # MongoDB Service (for external app)
+  mongodb-external:
+    image: bitnami/mongodb:7.0
+    container_name: external_app_mongodb
+    environment:
+      - MONGODB_ROOT_USER=mongodb_admin
+      - MONGODB_ROOT_PASSWORD=MongoAdmin123!@#SecurePass
+      - MONGODB_DATABASE=external_system
+      - MONGODB_USERNAME=external_app_user
+      - MONGODB_PASSWORD=6R3jjsvVhIRP20zMiHdkBzNKx
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_external_data:/bitnami/mongodb
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Redis Service (for external app)
+  redis-external:
+    image: bitnami/redis:7.2
+    container_name: external_app_redis
+    environment:
+      - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_external_data:/bitnami/redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # External Flask Application (Debug Mode)
+  flask-external:
+    build:
+      context: ./python_base_04
+      dockerfile: Dockerfile.debug
+    container_name: external_app_flask
+    ports:
+      - "8081:5001"
+      - "5678:5678"  # Debugpy port for VS Code debugging
+    volumes:
+      - ./python_base_04:/app  # ✅ Live code changes
+    environment:
+      - DEBUG_MODE=true  # Set to 'true' to enable debug mode
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - MONGODB_SERVICE_NAME=mongodb-external
+      - REDIS_HOST=redis-external
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
+      - RATE_LIMIT_ENABLED=false
+      - RATE_LIMIT_IP_REQUESTS=1000
+      - RATE_LIMIT_IP_WINDOW=60
+      - CREDIT_SYSTEM_URL=http://flask-app:5001
+    depends_on:
+      - mongodb-external
+      - redis-external
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  mongodb_external_data:
+  redis_external_data:
+
+networks:
+  app-network:
+    driver: bridge 

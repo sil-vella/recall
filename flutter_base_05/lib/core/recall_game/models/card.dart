@@ -1,4 +1,5 @@
-import 'dart:convert';
+import 'package:flutter/material.dart' hide Card;
+import '../utils/game_constants.dart';
 
 /// Card suit enumeration
 enum CardSuit {
@@ -36,7 +37,7 @@ enum SpecialPowerType {
   none,     // No special power
 }
 
-/// Card model representing a playing card
+/// Card model for the Recall game
 class Card {
   final CardSuit suit;
   final CardRank rank;
@@ -44,7 +45,7 @@ class Card {
   final SpecialPowerType specialPower;
   final String? specialPowerDescription;
   final Map<String, dynamic>? specialPowerData;
-
+  
   const Card({
     required this.suit,
     required this.rank,

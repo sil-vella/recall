@@ -5,6 +5,10 @@ import 'hooks_manager.dart';
 import 'module_manager.dart';
 import 'auth_manager.dart';
 import 'adapters_manager.dart';
+import 'provider_manager.dart';
+import 'services_manager.dart';
+import 'state_manager.dart';
+import 'navigation_manager.dart';
 import '../recall_game/recall_game_main.dart';
 
 class AppManager extends ChangeNotifier {
@@ -38,6 +42,9 @@ class AppManager extends ChangeNotifier {
 
   Future<void> initializeApp(BuildContext context) async {
     if (!_isInitialized) {
+      // Register core providers
+      _registerCoreProviders();
+      
       // Initialize AuthManager first
       _authManager.initialize(context);
       
@@ -72,6 +79,46 @@ class AppManager extends ChangeNotifier {
     }
   }
 
+  /// Register core providers with ProviderManager
+  void _registerCoreProviders() {
+    _log.info('📦 Registering core providers...');
+    
+    final providerManager = ProviderManager();
+    
+    // Register core managers as providers (only those that extend ChangeNotifier)
+    providerManager.registerProviderCreate(
+      () => _authManager,
+      name: 'auth_manager',
+    );
+    
+    // Register other core managers that extend ChangeNotifier
+    providerManager.registerProviderCreate(
+      () => AppManager(),
+      name: 'app_manager',
+    );
+    
+    providerManager.registerProviderCreate(
+      () => ModuleManager(),
+      name: 'module_manager',
+    );
+    
+    providerManager.registerProviderCreate(
+      () => ServicesManager(),
+      name: 'services_manager',
+    );
+    
+    providerManager.registerProviderCreate(
+      () => StateManager(),
+      name: 'state_manager',
+    );
+    
+    providerManager.registerProviderCreate(
+      () => NavigationManager(),
+      name: 'navigation_manager',
+    );
+    
+    _log.info('✅ Core providers registered');
+  }
 
 
   /// Initialize all registered adapters

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../managers/navigation_manager.dart';
 import '../managers/state_manager.dart';
+import '../managers/provider_manager.dart';
 import 'screens/lobby_room/lobby_screen.dart';
 import 'managers/recall_state_manager.dart';
 import 'managers/recall_game_manager.dart';
+import 'providers/recall_game_provider.dart';
 import '../../tools/logging/logger.dart';
 
 /// Core Recall Game Component
@@ -22,12 +24,16 @@ class RecallGameCore {
   // Recall game managers
   late final RecallStateManager _recallStateManager;
   late final RecallGameManager _recallGameManager;
+  late final RecallGameProvider _recallGameProvider;
 
   /// Get Recall State Manager
   RecallStateManager get recallStateManager => _recallStateManager;
   
   /// Get Recall Game Manager
   RecallGameManager get recallGameManager => _recallGameManager;
+
+  /// Get Recall Game Provider
+  RecallGameProvider get recallGameProvider => _recallGameProvider;
 
   /// Initialize the Recall Game core component
   void initialize(BuildContext context) {
@@ -64,6 +70,16 @@ class RecallGameCore {
     // Initialize Recall Game Manager
     _recallGameManager = RecallGameManager();
     _recallGameManager.initialize();
+    
+    // Initialize Recall Game Provider
+    _recallGameProvider = RecallGameProvider();
+    _recallGameProvider.initialize();
+    
+    // Register provider with ProviderManager
+    ProviderManager().registerProviderCreate(
+      () => _recallGameProvider,
+      name: 'recall_game_provider',
+    );
     
     // Register Recall game state with StateManager
     _initializeRecallGameState();

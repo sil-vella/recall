@@ -29,6 +29,7 @@ class WSEventHandlers:
             'join_room': self.handle_join_room,
             'create_room': self.handle_create_room,
             'leave_room': self.handle_leave_room,
+            'get_public_rooms': self.handle_get_public_rooms,
             'send_message': self.handle_send_message,
             'broadcast': self.handle_broadcast,
             'message': self.handle_message,  # Legacy support
@@ -407,4 +408,43 @@ class WSEventHandlers:
                 
         except Exception as e:
             custom_log(f"❌ Error in handle_custom_event: {str(e)}")
+            return False
+
+    def handle_get_public_rooms(self, session_id, data):
+        """Handle get public rooms request"""
+        try:
+            custom_log(f"🔧 [HANDLER-GET-PUBLIC-ROOMS] Handling get public rooms for session: {session_id}")
+            
+            # Get session data
+            session_data = self.websocket_manager.get_session_data(session_id)
+            if not session_data:
+                custom_log(f"❌ No session data found for: {session_id}")
+                self.socketio.emit('get_public_rooms_error', {'error': 'Session not found'})
+                return False
+            
+            # Get all public rooms from room manager
+            try:
+                all_rooms = self.websocket_manager.room_manager.get_all_rooms()
+                public_rooms = [room for room in all_rooms if room.get('permission') == 'public']
+                
+                custom_log(f"📊 Found {len(public_rooms)} public rooms")
+                
+                # Emit public rooms response
+                self.socketio.emit('get_public_rooms_success', {
+                    'success': True,
+                    'data': public_rooms,
+                    'count': len(public_rooms),
+                    'timestamp': datetime.now().isoformat()
+                })
+                
+                custom_log(f"✅ Successfully sent public rooms to session: {session_id}")
+                return True
+                
+            except Exception as e:
+                custom_log(f"❌ Error getting public rooms: {str(e)}")
+                self.socketio.emit('get_public_rooms_error', {'error': 'Failed to get public rooms'})
+                return False
+                
+        except Exception as e:
+            custom_log(f"❌ Error in handle_get_public_rooms: {str(e)}")
             return False 

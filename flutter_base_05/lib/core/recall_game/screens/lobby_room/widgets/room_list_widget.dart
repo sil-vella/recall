@@ -6,6 +6,8 @@ class RoomListWidget extends StatelessWidget {
   final bool isLoading;
   final bool isConnected;
   final Function(String) onJoinRoom;
+  final Function(String)? onLeaveRoom;
+  final String? currentRoomId;
   final String emptyMessage;
 
   const RoomListWidget({
@@ -15,6 +17,8 @@ class RoomListWidget extends StatelessWidget {
     required this.isLoading,
     required this.isConnected,
     required this.onJoinRoom,
+    this.onLeaveRoom,
+    this.currentRoomId,
     required this.emptyMessage,
   }) : super(key: key);
 
@@ -46,13 +50,36 @@ class RoomListWidget extends StatelessWidget {
                 itemCount: rooms.length,
                 itemBuilder: (context, index) {
                   final room = rooms[index];
+                  final roomId = room['room_id'] as String?;
+                  final isInThisRoom = currentRoomId == roomId;
+                  
                   return ListTile(
-                    title: Text('Room: ${room['room_id']}'),
-                    subtitle: Text('Members: ${room['current_size']}/${room['max_size']}'),
-                    trailing: ElevatedButton(
-                      onPressed: isConnected ? () => onJoinRoom(room['room_id']) : null,
-                      child: const Text('Join'),
+                    title: Text('Room: ${room['room_name'] ?? room['room_id']}'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Members: ${room['current_size']}/${room['max_size']}'),
+                        if (room['owner_id'] != null)
+                          Text('Owner: ${room['owner_id']}'),
+                        if (room['permission'] != null)
+                          Text('Type: ${room['permission']}'),
+                      ],
                     ),
+                    trailing: isInThisRoom
+                        ? ElevatedButton(
+                            onPressed: isConnected && onLeaveRoom != null 
+                                ? () => onLeaveRoom!(roomId!) 
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Leave'),
+                          )
+                        : ElevatedButton(
+                            onPressed: isConnected ? () => onJoinRoom(roomId!) : null,
+                            child: const Text('Join'),
+                          ),
                   );
                 },
               ),

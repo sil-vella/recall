@@ -42,31 +42,56 @@ class RoomService {
 
   Future<List<Map<String, dynamic>>> loadPublicRooms() async {
     try {
-      // For now, we'll simulate some rooms since we need to implement room discovery
-      // In a real implementation, this would come from WebSocket events
-      await Future.delayed(const Duration(seconds: 1));
+      // Check if connected before loading rooms
+      if (!_websocketManager.isConnected) {
+        _logger.error("❌ Cannot load rooms: WebSocket not connected");
+        throw Exception('Cannot load rooms: WebSocket not connected');
+      }
       
-      return [
-        {
-          'room_id': 'demo-room-1',
-          'owner_id': 'user123',
-          'permission': 'public',
-          'current_size': 2,
-          'max_size': 10,
-          'created_at': '2024-01-15T10:30:00Z'
-        },
-        {
-          'room_id': 'demo-room-2', 
-          'owner_id': 'user456',
-          'permission': 'public',
-          'current_size': 1,
-          'max_size': 10,
-          'created_at': '2024-01-15T11:00:00Z'
+      _logger.info("🏠 Loading public rooms...");
+      
+      // Create a completer to wait for the response
+      final completer = Completer<List<Map<String, dynamic>>>();
+      
+      // Listen for the response event
+      _wsEventManager.onEvent('get_public_rooms_success', (data) {
+        _logger.info("📨 Received get_public_rooms_success event: $data");
+        
+        if (data['success'] == true) {
+          final rooms = (data['data'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+          _logger.info("📊 Loaded ${rooms.length} public rooms");
+          completer.complete(rooms);
+        } else {
+          completer.complete([]);
         }
-      ];
+      });
+      
+      // Listen for error event
+      _wsEventManager.onEvent('get_public_rooms_error', (data) {
+        _logger.error("📨 Received get_public_rooms_error event: $data");
+        completer.complete([]);
+      });
+      
+      // Request public rooms from the backend via WebSocket
+      final result = await _websocketManager.sendMessage('lobby', 'get_public_rooms');
+      
+      _logger.info("🏠 Load public rooms result: $result");
+      
+      // Wait for the response with timeout
+      final rooms = await completer.future.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          _logger.warning("⚠️ Timeout waiting for public rooms response");
+          return <Map<String, dynamic>>[];
+        },
+      );
+      
+      return rooms;
+      
     } catch (e) {
       _logger.error("Error loading public rooms: $e");
-      throw Exception('Failed to load public rooms: $e');
+      // Return empty list instead of throwing to avoid breaking the UI
+      return [];
     }
   }
 
@@ -123,6 +148,11 @@ class RoomService {
         // Update StateManager
         _updateRoomState(newRoom);
         
+        // Refresh public rooms to get the latest list from backend
+        if (roomSettings['permission'] == 'public') {
+          await _refreshPublicRooms();
+        }
+        
         return newRoom;
       } else {
         throw Exception(result?['error'] ?? 'Failed to create room');
@@ -134,9 +164,45 @@ class RoomService {
     }
   }
 
+  Future<void> _refreshPublicRooms() async {
+    try {
+      final rooms = await loadPublicRooms();
+      
+      // Update StateManager with refreshed public rooms
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+      final updatedState = {
+        ...currentState,
+        'rooms': rooms,
+        'lastUpdated': DateTime.now().toIso8601String(),
+      };
+      _stateManager.updateModuleState("recall_game", updatedState);
+      
+      _logger.info("📊 Refreshed public rooms list");
+    } catch (e) {
+      _logger.error("Error refreshing public rooms: $e");
+    }
+  }
+
   void _updateRoomState(Map<String, dynamic> roomData) {
     // Get current room state
     final currentRoomState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    
+    // Get current lists
+    final currentMyRooms = (currentRoomState['myRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    final currentPublicRooms = (currentRoomState['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    
+    // Add the new room to myRooms if it's not already there
+    final roomExistsInMyRooms = currentMyRooms.any((room) => room['room_id'] == roomData['room_id']);
+    final updatedMyRooms = roomExistsInMyRooms ? currentMyRooms : [...currentMyRooms, roomData];
+    
+    // Add the new room to public rooms if it's public and not already there
+    List<Map<String, dynamic>> updatedPublicRooms = currentPublicRooms;
+    if (roomData['permission'] == 'public') {
+      final roomExistsInPublicRooms = currentPublicRooms.any((room) => room['room_id'] == roomData['room_id']);
+      if (!roomExistsInPublicRooms) {
+        updatedPublicRooms = [...currentPublicRooms, roomData];
+      }
+    }
     
     // Update with new room data
     final updatedState = {
@@ -144,6 +210,8 @@ class RoomService {
       'currentRoom': roomData,
       'currentRoomId': roomData['room_id'],
       'isInRoom': true,
+      'myRooms': updatedMyRooms,
+      'rooms': updatedPublicRooms,
       'lastUpdated': DateTime.now().toIso8601String(),
     };
     
@@ -180,7 +248,11 @@ class RoomService {
       _logger.info("🚪 Leaving room: $roomId");
       final result = await _wsEventManager.leaveRoom(roomId);
       
-      if (result?['success'] != true) {
+      if (result?['success'] == true) {
+        // Update recall_game state to reflect leaving the room
+        _updateLeaveRoomState();
+        _logger.info("✅ Successfully left room: $roomId");
+      } else {
         throw Exception(result?['error'] ?? 'Failed to leave room');
       }
       
@@ -188,6 +260,24 @@ class RoomService {
       _logger.error("Error leaving room: $e");
       throw Exception('Failed to leave room: $e');
     }
+  }
+
+  void _updateLeaveRoomState() {
+    // Get current room state
+    final currentRoomState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    
+    // Update state to reflect leaving the room
+    final updatedState = {
+      ...currentRoomState,
+      'currentRoom': null,
+      'currentRoomId': null,
+      'isInRoom': false,
+      'lastUpdated': DateTime.now().toIso8601String(),
+    };
+    
+    // Update StateManager
+    _stateManager.updateModuleState("recall_game", updatedState);
+    _logger.info("📊 Updated room state after leaving room");
   }
 
   void setupEventCallbacks(Function(String, String) onRoomEvent, Function(String) onError) {

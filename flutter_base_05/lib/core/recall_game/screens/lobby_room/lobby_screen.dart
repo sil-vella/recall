@@ -134,10 +134,17 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   Future<void> _leaveRoom(String roomId) async {
     try {
       await _roomService.leaveRoom(roomId);
-      _showSnackBar('Left room: $roomId');
+      
+      // Only show snackbar if widget is still mounted
+      if (mounted) {
+        _showSnackBar('Left room: $roomId');
+      }
       
     } catch (e) {
-      _showSnackBar('Failed to leave room: $e', isError: true);
+      // Only show snackbar if widget is still mounted
+      if (mounted) {
+        _showSnackBar('Failed to leave room: $e', isError: true);
+      }
     }
   }
 
@@ -186,9 +193,13 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           animation: _stateManager,
           builder: (context, child) {
             // Get state from StateManager
+            final recallGameState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game");
             final websocketState = _stateManager.getModuleState<Map<String, dynamic>>("websocket");
-            final currentRoomId = websocketState?['currentRoomId'] as String?;
-            final currentRoomInfo = websocketState?['currentRoomInfo'] as Map<String, dynamic>?;
+            
+            final currentRoomId = recallGameState?['currentRoomId'] as String?;
+            final currentRoomInfo = recallGameState?['currentRoom'] as Map<String, dynamic>?;
+            final publicRooms = (recallGameState?['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+            final myRooms = (recallGameState?['myRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
             
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -232,10 +243,12 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                   // Public Rooms Section
                   RoomListWidget(
                     title: 'Public Rooms',
-                    rooms: (websocketState?['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [],
+                    rooms: publicRooms,
                     isLoading: _isLoading,
                     isConnected: isConnected,
                     onJoinRoom: _joinRoom,
+                    currentRoomId: currentRoomId,
+                    onLeaveRoom: currentRoomId != null ? (roomId) => _leaveRoom(roomId) : null,
                     emptyMessage: 'No public rooms available',
                   ),
 
@@ -244,10 +257,12 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                   // My Rooms Section
                   RoomListWidget(
                     title: 'My Rooms',
-                    rooms: (websocketState?['myRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [],
+                    rooms: myRooms,
                     isLoading: false,
                     isConnected: isConnected,
                     onJoinRoom: _joinRoom,
+                    currentRoomId: currentRoomId,
+                    onLeaveRoom: currentRoomId != null ? (roomId) => _leaveRoom(roomId) : null,
                     emptyMessage: 'You haven\'t created any rooms yet',
                   ),
                 ],

@@ -741,7 +741,8 @@ class WebSocketManager {
 
       _socket!.emit('leave_room', data);
       
-      return {"success": "Successfully left room"};
+      // Don't return success immediately - wait for server response
+      return {"pending": "Leave room request sent"};
       
     } catch (e) {
       _log.error("❌ Error leaving room: $e");

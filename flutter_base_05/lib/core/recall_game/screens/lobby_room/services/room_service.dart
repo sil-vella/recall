@@ -1,14 +1,14 @@
 import 'dart:async';
+import '../../../../../tools/logging/logger.dart';
 import '../../../../managers/websockets/websocket_manager.dart';
 import '../../../../managers/websockets/ws_event_manager.dart';
 import '../../../../managers/state_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 
 class RoomService {
+  final Logger _logger = Logger();
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final WSEventManager _wsEventManager = WSEventManager.instance;
   final StateManager _stateManager = StateManager();
-  final Logger _logger = Logger();
 
   Future<void> initializeWebSocket() async {
     try {
@@ -215,7 +215,7 @@ class RoomService {
       'lastUpdated': DateTime.now().toIso8601String(),
     };
     
-    // Update StateManager
+    // Update StateManager - this will trigger StateManager provider notifications
     _stateManager.updateModuleState("recall_game", updatedState);
     _logger.info("📊 Updated room state in StateManager");
   }
@@ -244,21 +244,63 @@ class RoomService {
 
   Future<void> leaveRoom(String roomId) async {
     try {
-      // Leave room via WebSocket event manager
+      // Check if connected before leaving room
+      if (!_websocketManager.isConnected) {
+        _logger.error("❌ Cannot leave room: WebSocket not connected");
+        throw Exception('Cannot leave room: WebSocket not connected');
+      }
+      
       _logger.info("🚪 Leaving room: $roomId");
+      
+      // Create a completer to wait for the server response
+      final completer = Completer<Map<String, dynamic>>();
+      
+      // Listen for the success event
+      _wsEventManager.onEvent('leave_room_success', (data) {
+        _logger.info("📨 Received leave_room_success event: $data");
+        completer.complete({'success': true, 'data': data});
+      });
+      
+      // Listen for the error event
+      _wsEventManager.onEvent('leave_room_error', (data) {
+        _logger.error("📨 Received leave_room_error event: $data");
+        completer.complete({'success': false, 'error': data['error']});
+      });
+      
+      // Send leave room request
       final result = await _wsEventManager.leaveRoom(roomId);
       
-      if (result?['success'] == true) {
-        // Update recall_game state to reflect leaving the room
-        _updateLeaveRoomState();
-        _logger.info("✅ Successfully left room: $roomId");
+      // If the request was sent successfully, wait for server confirmation
+      if (result['pending'] != null) {
+        // Wait for server confirmation with timeout
+        final response = await completer.future.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            _logger.warning("⚠️ Timeout waiting for leave room response");
+            return {'success': false, 'error': 'Timeout waiting for server response'};
+          },
+        );
+        
+        if (response['success'] == true) {
+          // Update recall_game state to reflect leaving the room
+          _updateLeaveRoomState();
+          _logger.info("✅ Successfully left room: $roomId");
+        } else {
+          throw Exception(response['error'] ?? 'Failed to leave room');
+        }
+      } else if (result['error'] != null) {
+        throw Exception(result['error']);
       } else {
-        throw Exception(result?['error'] ?? 'Failed to leave room');
+        throw Exception('Unexpected response from leave room request');
       }
       
     } catch (e) {
       _logger.error("Error leaving room: $e");
       throw Exception('Failed to leave room: $e');
+    } finally {
+      // Clean up event listeners
+      _wsEventManager.offEvent('leave_room_success', (data) {});
+      _wsEventManager.offEvent('leave_room_error', (data) {});
     }
   }
 
@@ -266,12 +308,18 @@ class RoomService {
     // Get current room state
     final currentRoomState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
     
+    // Get current lists
+    final currentMyRooms = (currentRoomState['myRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    final currentPublicRooms = (currentRoomState['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    
     // Update state to reflect leaving the room
     final updatedState = {
       ...currentRoomState,
       'currentRoom': null,
       'currentRoomId': null,
       'isInRoom': false,
+      'myRooms': currentMyRooms, // Keep my rooms list
+      'rooms': currentPublicRooms, // Keep public rooms list
       'lastUpdated': DateTime.now().toIso8601String(),
     };
     
@@ -307,6 +355,15 @@ class RoomService {
       _logger.info("📨 Received room_created event: $data");
     });
 
+    // Listen for leave room events
+    _wsEventManager.onEvent('leave_room_success', (data) {
+      _logger.info("📨 Received leave_room_success event: $data");
+    });
+
+    _wsEventManager.onEvent('leave_room_error', (data) {
+      _logger.error("📨 Received leave_room_error event: $data");
+    });
+
     // Listen for error events
     _wsEventManager.onEvent('error', (data) {
       final error = data['error'];
@@ -317,6 +374,12 @@ class RoomService {
 
   void cleanupEventCallbacks() {
     _wsEventManager.offEvent('room', (data) {});
+    _wsEventManager.offEvent('room_joined', (data) {});
+    _wsEventManager.offEvent('join_room_success', (data) {});
+    _wsEventManager.offEvent('create_room_success', (data) {});
+    _wsEventManager.offEvent('room_created', (data) {});
+    _wsEventManager.offEvent('leave_room_success', (data) {});
+    _wsEventManager.offEvent('leave_room_error', (data) {});
     _wsEventManager.offEvent('error', (data) {});
   }
 

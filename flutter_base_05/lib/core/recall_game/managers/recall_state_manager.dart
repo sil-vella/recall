@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../../managers/state_manager.dart';
-import '../../../tools/logging/logger.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../models/card.dart';
-import '../utils/game_constants.dart';
+import '../../../../tools/logging/logger.dart';
 
 /// Recall Game State Manager
 /// Manages game state and integrates with the main StateManager
@@ -59,20 +59,33 @@ class RecallStateManager {
   /// Register with main StateManager
   void _registerWithStateManager() {
     _stateManager.registerModuleState("recall_game", {
-      "hasActiveGame": false,
-      "gameId": null,
-      "currentPlayerId": null,
-      "gamePhase": "waiting",
-      "gameStatus": "active",
-      "playerCount": 0,
-      "turnNumber": 0,
-      "roundNumber": 1,
-      "isMyTurn": false,
-      "canCallRecall": false,
-      "myHand": [],
-      "myScore": 0,
-      "gameState": null,
+      // Room management state
+      'isInRoom': false,
+      'currentRoomId': null,
+      'currentRoom': null,
+      'rooms': [], // List of available rooms
+      'myRooms': [], // List of rooms created by current user
+      
+      // Game state
+      'hasActiveGame': false,
+      'gameId': null,
+      'currentPlayerId': null,
+      'gamePhase': 'waiting',
+      'gameStatus': 'active',
+      'playerCount': 0,
+      'turnNumber': 0,
+      'roundNumber': 1,
+      'isMyTurn': false,
+      'canCallRecall': false,
+      'myHand': [],
+      'myScore': 0,
+      'gameState': null,
+      
+      // Metadata
+      'lastUpdated': DateTime.now().toIso8601String(),
     });
+    
+    _log.info('📊 Recall game state registered with StateManager');
   }
 
   /// Update game state
@@ -253,28 +266,47 @@ class RecallStateManager {
     return _currentGameState?.getPlayerById(playerId);
   }
 
-  /// Update main StateManager
+  /// Update main StateManager with current game state
   void _updateMainStateManager() {
     if (_currentGameState == null) return;
     
-    final myHand = getMyHand();
-    final myScore = getMyScore();
+    final gameState = _currentGameState!;
+    final currentPlayerId = gameState.currentPlayerId;
     
-    _stateManager.updateModuleState("recall_game", {
-      "hasActiveGame": _currentGameState!.isActive,
-      "gameId": _currentGameState!.gameId,
-      "currentPlayerId": _currentGameState!.currentPlayerId,
-      "gamePhase": _currentGameState!.phase.name,
-      "gameStatus": _currentGameState!.status.name,
-      "playerCount": _currentGameState!.playerCount,
-      "turnNumber": _currentGameState!.turnNumber,
-      "roundNumber": _currentGameState!.roundNumber,
-      "isMyTurn": isMyTurn,
-      "canCallRecall": canCallRecall,
-      "myHand": myHand.map((c) => c.toJson()).toList(),
-      "myScore": myScore,
-      "gameState": _currentGameState!.toJson(),
-    });
+    // Get current user's player data
+    final currentUser = gameState.getPlayerById(currentPlayerId ?? '');
+    final myHand = currentUser?.hand ?? [];
+    final myScore = currentUser?.totalScore ?? 0;
+    final isMyTurn = currentUser != null && gameState.isPlayerTurn(currentUser.id);
+    final canCallRecall = currentUser != null && gameState.canPlayerCallRecall(currentUser.id);
+    
+    // Get current state to preserve room management data
+    final currentState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    
+    final updatedState = {
+      ...currentState, // Preserve existing room management state
+      // Game state
+      'hasActiveGame': gameState.isActive,
+      'gameId': gameState.gameId,
+      'currentPlayerId': currentPlayerId,
+      'gamePhase': gameState.phase.name,
+      'gameStatus': gameState.status.name,
+      'playerCount': gameState.playerCount,
+      'turnNumber': gameState.turnNumber,
+      'roundNumber': gameState.roundNumber,
+      'isMyTurn': isMyTurn,
+      'canCallRecall': canCallRecall,
+      'myHand': myHand.map((card) => card.toJson()).toList(),
+      'myScore': myScore,
+      'gameState': gameState.toJson(),
+      
+      // Metadata
+      'lastUpdated': DateTime.now().toIso8601String(),
+    };
+    
+    // Update StateManager - this will trigger StateManager provider notifications
+    _stateManager.updateModuleState("recall_game", updatedState);
+    _log.info('📊 Updated main StateManager with game state');
   }
 
   /// Update current player stream

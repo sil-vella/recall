@@ -45,6 +45,10 @@ class AppManager extends ChangeNotifier {
       // Register core providers
       _registerCoreProviders();
       
+      // Initialize ServicesManager and register core services
+      final servicesManager = Provider.of<ServicesManager>(context, listen: false);
+      await servicesManager.autoRegisterAllServices();
+      
       // Initialize AuthManager first
       _authManager.initialize(context);
       

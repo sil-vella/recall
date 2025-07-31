@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
-import '../../../00_base/screen_base.dart';
+import 'package:provider/provider.dart';
 import '../../../managers/websockets/websocket_manager.dart';
-import '../../../managers/websockets/ws_event_manager.dart';
 import '../../../managers/state_manager.dart';
 import '../../../managers/websockets/websocket_events.dart';
-import 'package:provider/provider.dart';
-import '../../providers/recall_game_provider.dart';
+import '../../../00_base/screen_base.dart';
 import 'widgets/connection_status_widget.dart';
 import 'widgets/create_room_widget.dart';
 import 'widgets/join_room_widget.dart';
@@ -21,21 +18,19 @@ class LobbyScreen extends BaseScreen {
   String computeTitle(BuildContext context) => 'Game Lobby';
 
   @override
-  BaseScreenState<LobbyScreen> createState() => _LobbyScreenState();
+  _LobbyScreenState createState() => _LobbyScreenState();
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  
-  // Controllers
+  final WebSocketManager _websocketManager = WebSocketManager.instance;
+  final RoomService _roomService = RoomService();
   final TextEditingController _roomIdController = TextEditingController();
   
   // State variables - only transient UI state
   bool _isLoading = false;
   
   // Managers
-  final WebSocketManager _websocketManager = WebSocketManager.instance;
   final StateManager _stateManager = StateManager();
-  final RoomService _roomService = RoomService();
 
   @override
   void initState() {
@@ -61,24 +56,40 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   }
 
   Future<void> _loadPublicRooms() async {
-    // This is now handled by the provider
-    final provider = Provider.of<RecallGameProvider>(context, listen: false);
-    await provider.loadPublicRooms();
+    try {
+      await _roomService.loadPublicRooms();
+    } catch (e) {
+      _showSnackBar('Failed to load public rooms: $e', isError: true);
+    }
   }
 
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
-    final provider = Provider.of<RecallGameProvider>(context, listen: false);
-    await provider.createRoom(roomSettings);
+    try {
+      await _roomService.createRoom(roomSettings);
+      _showSnackBar('Room created successfully!');
+    } catch (e) {
+      _showSnackBar('Failed to create room: $e', isError: true);
+    }
   }
 
   Future<void> _joinRoom(String roomId) async {
-    final provider = Provider.of<RecallGameProvider>(context, listen: false);
-    await provider.joinRoom(roomId);
+    try {
+      await _roomService.joinRoom(roomId);
+      _showSnackBar('Joined room: $roomId');
+    } catch (e) {
+      _showSnackBar('Failed to join room: $e', isError: true);
+    }
   }
 
   Future<void> _leaveRoom(String roomId) async {
-    final provider = Provider.of<RecallGameProvider>(context, listen: false);
-    await provider.leaveRoom(roomId);
+    try {
+      await _roomService.leaveRoom(roomId);
+      // Don't show success message here - let the event callbacks handle it
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar('Failed to leave room: $e', isError: true);
+      }
+    }
   }
 
   // Form clearing is now handled in the modal
@@ -91,16 +102,20 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   void _setupEventCallbacks() {
     _roomService.setupEventCallbacks(
       (action, roomId) {
-        if (action == 'joined') {
-          _showSnackBar('Successfully joined room: $roomId');
-        } else if (action == 'left') {
-          _showSnackBar('Left room: $roomId');
-        } else if (action == 'created') {
-          _showSnackBar('Room created: $roomId');
+        if (mounted) {
+          if (action == 'joined') {
+            _showSnackBar('Successfully joined room: $roomId');
+          } else if (action == 'left') {
+            _showSnackBar('Left room: $roomId');
+          } else if (action == 'created') {
+            _showSnackBar('Room created: $roomId');
+          }
         }
       },
       (error) {
-        _showSnackBar('Error: $error', isError: true);
+        if (mounted) {
+          _showSnackBar('Error: $error', isError: true);
+        }
       },
     );
   }
@@ -122,8 +137,16 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       builder: (context, connectionSnapshot) {
         final isConnected = connectionSnapshot.data?.status == ConnectionStatus.connected || _websocketManager.isConnected;
         
-        return Consumer<RecallGameProvider>(
-          builder: (context, provider, child) {
+        return Consumer<StateManager>(
+          builder: (context, stateManager, child) {
+            // Get recall game state from StateManager
+            final recallState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+            final isLoading = recallState['isLoading'] ?? false;
+            final currentRoom = recallState['currentRoom'];
+            final currentRoomId = recallState['currentRoomId'];
+            final publicRooms = (recallState['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+            final myRooms = (recallState['myRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+            
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -131,61 +154,62 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                 children: [
                   // Connection Status
                   ConnectionStatusWidget(websocketManager: _websocketManager),
-
-                  const SizedBox(height: 24),
-
+                  
+                  const SizedBox(height: 20),
+                  
                   // Create Room Section
                   CreateRoomWidget(
-                    isLoading: provider.isLoading,
+                    isLoading: isLoading,
                     isConnected: isConnected,
                     onCreateRoom: _createRoom,
                   ),
-
-                  const SizedBox(height: 24),
-
+                  
+                  const SizedBox(height: 20),
+                  
                   // Join Room Section
                   JoinRoomWidget(
-                    isLoading: provider.isLoading,
+                    isLoading: isLoading,
                     isConnected: isConnected,
                     onJoinRoom: () => _joinRoom(_roomIdController.text.trim()),
                     roomIdController: _roomIdController,
                   ),
-
-                  const SizedBox(height: 24),
-
+                  
+                  const SizedBox(height: 20),
+                  
                   // Current Room Info
-                  CurrentRoomWidget(
-                    currentRoomInfo: provider.currentRoom,
-                    currentRoomId: provider.currentRoomId,
-                    isConnected: isConnected,
-                    onLeaveRoom: () => _leaveRoom(provider.currentRoomId!),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Public Rooms Section
+                  if (currentRoom != null)
+                    CurrentRoomWidget(
+                      currentRoomInfo: currentRoom,
+                      currentRoomId: currentRoomId,
+                      isConnected: isConnected,
+                      onLeaveRoom: () => _leaveRoom(currentRoomId!),
+                    ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Public Rooms List
                   RoomListWidget(
                     title: 'Public Rooms',
-                    rooms: provider.publicRooms,
-                    isLoading: provider.isLoading,
+                    rooms: publicRooms,
+                    isLoading: isLoading,
                     isConnected: isConnected,
                     onJoinRoom: _joinRoom,
-                    currentRoomId: provider.currentRoomId,
-                    onLeaveRoom: provider.currentRoomId != null ? (roomId) => _leaveRoom(roomId) : null,
+                    currentRoomId: currentRoomId,
+                    onLeaveRoom: currentRoomId != null ? (roomId) => _leaveRoom(roomId) : null,
                     emptyMessage: 'No public rooms available',
                   ),
-
-                  const SizedBox(height: 24),
-
-                  // My Rooms Section
+                  
+                  const SizedBox(height: 20),
+                  
+                  // My Rooms List
                   RoomListWidget(
                     title: 'My Rooms',
-                    rooms: provider.myRooms,
+                    rooms: myRooms,
                     isLoading: false,
                     isConnected: isConnected,
                     onJoinRoom: _joinRoom,
-                    currentRoomId: provider.currentRoomId,
-                    onLeaveRoom: provider.currentRoomId != null ? (roomId) => _leaveRoom(roomId) : null,
+                    currentRoomId: currentRoomId,
+                    onLeaveRoom: currentRoomId != null ? (roomId) => _leaveRoom(roomId) : null,
                     emptyMessage: 'You haven\'t created any rooms yet',
                   ),
                 ],

@@ -319,7 +319,10 @@ class WSEventManager {
     try {
       final result = await _websocketManager.leaveRoom(roomId);
       
-      if (result['success'] != null) {
+      if (result['pending'] != null) {
+        _log.info('📤 Leave room request sent, waiting for server response');
+        return result;
+      } else if (result['success'] != null) {
         _log.info('✅ Left room successfully');
         return result;
       } else {

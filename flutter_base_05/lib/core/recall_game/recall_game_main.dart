@@ -1,30 +1,19 @@
 import 'package:flutter/material.dart';
 import '../managers/navigation_manager.dart';
-import '../managers/state_manager.dart';
-import '../managers/provider_manager.dart';
-import 'screens/lobby_room/lobby_screen.dart';
 import 'managers/recall_state_manager.dart';
 import 'managers/recall_game_manager.dart';
-import 'providers/recall_game_provider.dart';
-import '../../tools/logging/logger.dart';
+import 'screens/lobby_room/lobby_screen.dart';
+import '../../../tools/logging/logger.dart';
 
-/// Core Recall Game Component
-/// Registers all Recall game screens with the navigation system
-/// and initializes Recall game managers
+/// Core component for Recall Game functionality
+/// Manages game initialization, screen registration, and state management
 class RecallGameCore {
   static final Logger _log = Logger();
-  static final RecallGameCore _instance = RecallGameCore._internal();
-  
-  factory RecallGameCore() => _instance;
-  RecallGameCore._internal();
-
   bool _isInitialized = false;
-  bool get isInitialized => _isInitialized;
-
-  // Recall game managers
-  late final RecallStateManager _recallStateManager;
-  late final RecallGameManager _recallGameManager;
-  late final RecallGameProvider _recallGameProvider;
+  
+  // Managers
+  final RecallStateManager _recallStateManager = RecallStateManager();
+  final RecallGameManager _recallGameManager = RecallGameManager();
 
   /// Get Recall State Manager
   RecallStateManager get recallStateManager => _recallStateManager;
@@ -32,77 +21,21 @@ class RecallGameCore {
   /// Get Recall Game Manager
   RecallGameManager get recallGameManager => _recallGameManager;
 
-  /// Get Recall Game Provider
-  RecallGameProvider get recallGameProvider => _recallGameProvider;
-
   /// Initialize the Recall Game core component
   void initialize(BuildContext context) {
-    if (_isInitialized) {
-      _log.info('⏸️ RecallGameCore already initialized, skipping...');
-      return;
-    }
-
-    try {
-      _log.info('🎮 Initializing Recall Game Core...');
-      
-      // Initialize Recall game managers
-      _initializeManagers();
-      
-      // Register screens
-    _registerScreens();
-      
-    _isInitialized = true;
-      _log.info('✅ RecallGameCore initialized successfully');
-      
-    } catch (e) {
-      _log.error('❌ Error initializing RecallGameCore: $e');
-      rethrow;
-    }
-  }
-
-  /// Initialize Recall game managers
-  void _initializeManagers() {
-    _log.info('🎮 Initializing Recall game managers...');
+    if (_isInitialized) return;
     
-    // Initialize Recall State Manager
-    _recallStateManager = RecallStateManager();
+    _log.info('🎮 Initializing Recall Game Core...');
     
-    // Initialize Recall Game Manager
-    _recallGameManager = RecallGameManager();
+    // Initialize managers
+    _recallStateManager.initialize();
     _recallGameManager.initialize();
     
-    // Initialize Recall Game Provider
-    _recallGameProvider = RecallGameProvider();
-    _recallGameProvider.initialize();
+    // Register screens
+    _registerScreens();
     
-    // Register provider with ProviderManager
-    ProviderManager().registerProviderCreate(
-      () => _recallGameProvider,
-      name: 'recall_game_provider',
-    );
-    
-    // Register Recall game state with StateManager
-    _initializeRecallGameState();
-    
+    _isInitialized = true;
     _log.info('✅ Recall game managers initialized');
-  }
-
-  /// Initialize Recall game state in StateManager
-  void _initializeRecallGameState() {
-    final stateManager = StateManager();
-    
-    // Register initial Recall game state
-    stateManager.registerModuleState("recall_game", {
-      'isInRoom': false,
-      'currentRoomId': null,
-      'currentRoom': null,
-      'gameState': null,
-      'lastUpdated': DateTime.now().toIso8601String(),
-      'rooms': [], // List of available rooms
-      'myRooms': [], // List of rooms created by current user
-    });
-    
-    _log.info('📊 Recall game state registered with StateManager');
   }
 
   /// Register all Recall game screens with NavigationManager

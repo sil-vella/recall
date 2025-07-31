@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../tools/logging/logger.dart';
+import 'app_manager.dart';
+import 'module_manager.dart';
+import 'services_manager.dart';
+import 'state_manager.dart';
+import 'navigation_manager.dart';
+import 'auth_manager.dart';
 
 /// Provider Manager - Centralized provider registration system
 /// Allows modules to register their own providers dynamically
@@ -46,6 +52,44 @@ class ProviderManager {
   }) {
     final provider = ChangeNotifierProvider<T>(create: (_) => create());
     registerProvider(provider, name: name);
+  }
+
+  /// Register core providers (AppManager, StateManager, etc.)
+  void registerCoreProviders() {
+    _log.info('📦 Registering core providers...');
+    
+    // Register core managers as providers
+    registerProviderCreate(
+      () => AppManager(),
+      name: 'app_manager',
+    );
+    
+    registerProviderCreate(
+      () => ModuleManager(),
+      name: 'module_manager',
+    );
+    
+    registerProviderCreate(
+      () => ServicesManager(),
+      name: 'services_manager',
+    );
+    
+    registerProviderCreate(
+      () => StateManager(),
+      name: 'state_manager',
+    );
+    
+    registerProviderCreate(
+      () => NavigationManager(),
+      name: 'navigation_manager',
+    );
+    
+    registerProviderCreate(
+      () => AuthManager(),
+      name: 'auth_manager',
+    );
+    
+    _log.info('✅ Core providers registered');
   }
 
   /// Get all registered providers

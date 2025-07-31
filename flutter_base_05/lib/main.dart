@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'core/managers/app_manager.dart';
 import 'core/managers/module_manager.dart';
 import 'core/managers/module_registry.dart';
-import 'core/managers/services_manager.dart';
 import 'core/managers/navigation_manager.dart';
 import 'core/managers/provider_manager.dart';
 import 'tools/logging/logger.dart';
@@ -25,10 +24,13 @@ void main() async {
   moduleRegistry.initializeRegistry();
   moduleRegistry.registerAllModules(moduleManager);
 
+  // Register core providers
+  ProviderManager().registerCoreProviders();
+
   runApp(
     MultiProvider(
       providers: [
-        // Core providers that are registered through ProviderManager
+        // All providers from ProviderManager
         ...ProviderManager().providers,
       ],
       child: const MyApp(),

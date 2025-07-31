@@ -1,59 +1,72 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../../managers/state_manager.dart';
 
 class CurrentRoomWidget extends StatelessWidget {
-  final Map<String, dynamic>? currentRoomInfo;
-  final String? currentRoomId;
+  final StateManager stateManager;
   final bool isConnected;
-  final VoidCallback onLeaveRoom;
+  final Function(String) onLeaveRoom;
 
   const CurrentRoomWidget({
     Key? key,
-    required this.currentRoomInfo,
-    required this.currentRoomId,
+    required this.stateManager,
     required this.isConnected,
     required this.onLeaveRoom,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    if (currentRoomInfo == null) {
-      return const SizedBox.shrink();
-    }
+    return Consumer<StateManager>(
+      builder: (context, stateManager, child) {
+        // Get recall game state from StateManager
+        final recallState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+        final currentRoom = recallState['currentRoom'];
+        final currentRoomId = recallState['currentRoomId'];
+        
+        // Get WebSocket connection state from StateManager
+        final websocketState = stateManager.getModuleState<Map<String, dynamic>>("websocket") ?? {};
+        final isConnected = websocketState['isConnected'] ?? false;
+        
+        if (currentRoom == null) {
+          return const SizedBox.shrink();
+        }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Current Room',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    const Text(
+                      'Current Room',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    ElevatedButton(
+                      onPressed: isConnected && currentRoomId != null ? () => onLeaveRoom(currentRoomId!) : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Leave'),
+                    ),
+                  ],
                 ),
-                const Spacer(),
-                ElevatedButton(
-                  onPressed: isConnected && currentRoomId != null ? onLeaveRoom : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Leave'),
-                ),
+                const SizedBox(height: 8),
+                Text('Room ID: ${currentRoom['room_id']}'),
+                Text('Owner: ${currentRoom['owner_id']}'),
+                Text('Members: ${currentRoom['current_size']}/${currentRoom['max_size']}'),
+                Text('Permission: ${currentRoom['permission']}'),
               ],
             ),
-            const SizedBox(height: 8),
-            Text('Room ID: ${currentRoomInfo!['room_id']}'),
-            Text('Owner: ${currentRoomInfo!['owner_id']}'),
-            Text('Members: ${currentRoomInfo!['current_size']}/${currentRoomInfo!['max_size']}'),
-            Text('Permission: ${currentRoomInfo!['permission']}'),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 } 

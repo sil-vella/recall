@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../../managers/state_manager.dart';
 import '../../../../managers/websockets/websocket_manager.dart';
-import '../../../../managers/websockets/websocket_events.dart';
 
 class ConnectionStatusWidget extends StatelessWidget {
   final WebSocketManager websocketManager;
@@ -12,10 +13,13 @@ class ConnectionStatusWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<ConnectionStatusEvent>(
-      stream: websocketManager.connectionStatus,
-      builder: (context, snapshot) {
-        final isConnected = snapshot.data?.status == ConnectionStatus.connected || websocketManager.isConnected;
+    return Consumer<StateManager>(
+      builder: (context, stateManager, child) {
+        // Get WebSocket connection state from StateManager
+        final websocketState = stateManager.getModuleState<Map<String, dynamic>>("websocket") ?? {};
+        final isConnected = websocketState['isConnected'] ?? false;
+        
+        // Also check the direct WebSocket manager for more detailed status
         final isConnecting = websocketManager.isConnecting;
         
         return Container(

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../../managers/state_manager.dart';
 
 class CreateRoomWidget extends StatelessWidget {
+  final StateManager stateManager;
   final bool isLoading;
   final bool isConnected;
   final Function(Map<String, dynamic>) onCreateRoom;
 
   const CreateRoomWidget({
     Key? key,
+    required this.stateManager,
     required this.isLoading,
     required this.isConnected,
     required this.onCreateRoom,
@@ -14,37 +18,49 @@ class CreateRoomWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Create New Room',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: isConnected && !isLoading ? () => _showCreateRoomModal(context) : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+    return Consumer<StateManager>(
+      builder: (context, stateManager, child) {
+        // Get recall game state from StateManager
+        final recallState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+        final isLoading = recallState['isLoading'] ?? false;
+        
+        // Get WebSocket connection state from StateManager
+        final websocketState = stateManager.getModuleState<Map<String, dynamic>>("websocket") ?? {};
+        final isConnected = websocketState['isConnected'] ?? false;
+        
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Create New Room',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                icon: const Icon(Icons.add),
-                label: const Text('Create New Room'),
-              ),
+                const SizedBox(height: 16),
+                
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isConnected && !isLoading ? () => _showCreateRoomModal(context) : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Create New Room'),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

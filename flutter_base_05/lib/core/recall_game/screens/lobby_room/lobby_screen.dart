@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../managers/websockets/websocket_manager.dart';
 import '../../../managers/state_manager.dart';
 import '../../../managers/websockets/websocket_events.dart';
@@ -25,9 +24,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final RoomService _roomService = RoomService();
   final TextEditingController _roomIdController = TextEditingController();
-  
-  // State variables - only transient UI state
-  bool _isLoading = false;
   
   // Managers
   final StateManager _stateManager = StateManager();
@@ -135,87 +131,73 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     return StreamBuilder<ConnectionStatusEvent>(
       stream: _websocketManager.connectionStatus,
       builder: (context, connectionSnapshot) {
-        final isConnected = connectionSnapshot.data?.status == ConnectionStatus.connected || _websocketManager.isConnected;
-        
-        return Consumer<StateManager>(
-          builder: (context, stateManager, child) {
-            // Get recall game state from StateManager
-            final recallState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-            final isLoading = recallState['isLoading'] ?? false;
-            final currentRoom = recallState['currentRoom'];
-            final currentRoomId = recallState['currentRoomId'];
-            final publicRooms = (recallState['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-            final myRooms = (recallState['myRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-            
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Connection Status
-                  ConnectionStatusWidget(websocketManager: _websocketManager),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Create Room Section
-                  CreateRoomWidget(
-                    isLoading: isLoading,
-                    isConnected: isConnected,
-                    onCreateRoom: _createRoom,
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Join Room Section
-                  JoinRoomWidget(
-                    isLoading: isLoading,
-                    isConnected: isConnected,
-                    onJoinRoom: () => _joinRoom(_roomIdController.text.trim()),
-                    roomIdController: _roomIdController,
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Current Room Info
-                  if (currentRoom != null)
-                    CurrentRoomWidget(
-                      currentRoomInfo: currentRoom,
-                      currentRoomId: currentRoomId,
-                      isConnected: isConnected,
-                      onLeaveRoom: () => _leaveRoom(currentRoomId!),
-                    ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Public Rooms List
-                  RoomListWidget(
-                    title: 'Public Rooms',
-                    rooms: publicRooms,
-                    isLoading: isLoading,
-                    isConnected: isConnected,
-                    onJoinRoom: _joinRoom,
-                    currentRoomId: currentRoomId,
-                    onLeaveRoom: currentRoomId != null ? (roomId) => _leaveRoom(roomId) : null,
-                    emptyMessage: 'No public rooms available',
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // My Rooms List
-                  RoomListWidget(
-                    title: 'My Rooms',
-                    rooms: myRooms,
-                    isLoading: false,
-                    isConnected: isConnected,
-                    onJoinRoom: _joinRoom,
-                    currentRoomId: currentRoomId,
-                    onLeaveRoom: currentRoomId != null ? (roomId) => _leaveRoom(roomId) : null,
-                    emptyMessage: 'You haven\'t created any rooms yet',
-                  ),
-                ],
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Connection Status
+              ConnectionStatusWidget(websocketManager: _websocketManager),
+              
+              const SizedBox(height: 20),
+              
+              // Create Room Section
+              CreateRoomWidget(
+                stateManager: _stateManager,
+                isLoading: false, // This will be overridden by the widget's Consumer
+                isConnected: false, // This will be overridden by the widget's Consumer
+                onCreateRoom: _createRoom,
               ),
-            );
-          },
+              
+              const SizedBox(height: 20),
+              
+              // Join Room Section
+              JoinRoomWidget(
+                stateManager: _stateManager,
+                isLoading: false, // This will be overridden by the widget's Consumer
+                isConnected: false, // This will be overridden by the widget's Consumer
+                onJoinRoom: () => _joinRoom(_roomIdController.text.trim()),
+                roomIdController: _roomIdController,
+              ),
+              
+              const SizedBox(height: 20),
+              
+              // Current Room Info
+              CurrentRoomWidget(
+                stateManager: _stateManager,
+                isConnected: false, // This will be overridden by the widget's Consumer
+                onLeaveRoom: _leaveRoom,
+              ),
+              
+              const SizedBox(height: 20),
+              
+              // Public Rooms List
+              RoomListWidget(
+                title: 'Public Rooms',
+                stateManager: _stateManager,
+                isLoading: false, // This will be overridden by the widget's Consumer
+                isConnected: false, // This will be overridden by the widget's Consumer
+                onJoinRoom: _joinRoom,
+                onLeaveRoom: _leaveRoom,
+                emptyMessage: 'No public rooms available',
+                roomType: 'public',
+              ),
+              
+              const SizedBox(height: 20),
+              
+              // My Rooms List
+              RoomListWidget(
+                title: 'My Rooms',
+                stateManager: _stateManager,
+                isLoading: false,
+                isConnected: false, // This will be overridden by the widget's Consumer
+                onJoinRoom: _joinRoom,
+                onLeaveRoom: _leaveRoom,
+                emptyMessage: 'You haven\'t created any rooms yet',
+                roomType: 'my',
+              ),
+            ],
+          ),
         );
       },
     );

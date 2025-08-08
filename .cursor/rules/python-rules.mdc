@@ -37,7 +37,7 @@ This document defines the rules and guidelines for AI-assisted development in th
 - `ServicesManager` - Service registration and management
 - `HooksManager` - Event system and callbacks
 
-**REQUIREMENT**: Before creating a new manager, ask the user for approval and explain why it's needed.
+**RULE**: The current managers / base system shouldn't be modified, except for the module registry when new modules need to be added..
 
 ### 2. Module System
 
@@ -81,7 +81,6 @@ class NewFeatureModule(BaseModule):
         }
 ```
 
-**REQUIREMENT**: Before creating a new module, ask the user for approval and explain the module's purpose and dependencies.
 
 ### 3. Service Layer
 
@@ -110,7 +109,6 @@ class NewService:
         }
 ```
 
-**REQUIREMENT**: Before creating a new service, ask the user for approval and explain the service's purpose.
 
 ## State Management Rules
 

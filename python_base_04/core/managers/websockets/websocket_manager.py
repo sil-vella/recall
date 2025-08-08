@@ -890,6 +890,11 @@ class WebSocketManager:
     def broadcast_message(self, room_id: str, message: str, sender_id: str = None):
         """Broadcast a message to all users in a room."""
         try:
+            # Handle special messages
+            if message == 'get_public_rooms':
+                self._handle_get_public_rooms_request(sender_id, room_id)
+                return
+            
             # Get sender info
             sender_info = {}
             if sender_id:
@@ -915,4 +920,59 @@ class WebSocketManager:
             custom_log(f"✅ Broadcasted message to room {room_id}: {message}")
             
         except Exception as e:
-            custom_log(f"❌ Error broadcasting message to room {room_id}: {str(e)}") 
+            custom_log(f"❌ Error broadcasting message to room {room_id}: {str(e)}")
+    
+    def _handle_get_public_rooms_request(self, session_id: str, room_id: str):
+        """Handle get_public_rooms message request"""
+        try:
+            if not session_id:
+                custom_log("❌ No session ID for get_public_rooms request")
+                return
+            
+            # Get all public rooms from the room manager
+            if hasattr(self, 'room_manager'):
+                all_rooms = self.room_manager.get_all_rooms()
+                
+                # Filter for public rooms only
+                public_rooms = []
+                for room_id, room_info in all_rooms.items():
+                    if room_info.get('permission') == 'public':
+                        public_rooms.append({
+                            'room_id': room_id,
+                            'room_name': room_info.get('room_name', room_id),
+                            'owner_id': room_info.get('owner_id'),
+                            'permission': room_info.get('permission'),
+                            'current_size': room_info.get('current_size', 0),
+                            'max_size': room_info.get('max_size', 4),
+                            'min_size': room_info.get('min_size', 2),
+                            'created_at': room_info.get('created_at'),
+                            'game_type': room_info.get('game_type', 'classic'),
+                            'turn_time_limit': room_info.get('turn_time_limit', 30),
+                            'auto_start': room_info.get('auto_start', True)
+                        })
+                
+                # Send response
+                self.send_to_session(session_id, 'get_public_rooms_success', {
+                    'success': True,
+                    'data': public_rooms,
+                    'count': len(public_rooms),
+                    'timestamp': time.time()
+                })
+                
+                custom_log(f"✅ Sent {len(public_rooms)} public rooms to session {session_id}")
+            else:
+                # Fallback: return empty list if room manager not available
+                self.send_to_session(session_id, 'get_public_rooms_success', {
+                    'success': True,
+                    'data': [],
+                    'count': 0,
+                    'timestamp': time.time()
+                })
+                
+                custom_log(f"⚠️ Room manager not available, sent empty public rooms list to session {session_id}")
+        
+        except Exception as e:
+            custom_log(f"❌ Error handling get_public_rooms request: {str(e)}", level="ERROR")
+            self.send_to_session(session_id, 'get_public_rooms_error', {
+                'error': f'Error getting public rooms: {str(e)}'
+            }) 

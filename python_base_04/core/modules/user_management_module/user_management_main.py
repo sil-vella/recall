@@ -532,7 +532,7 @@ class UserManagementModule(BaseModule):
             access_token_payload = {
                 'user_id': str(user['_id']),
                 'username': user['username'],
-                'email': 'silvester.vella@gmail.com',  # Use the original email directly for now
+                'email': '',  # Use the original email directly for now
                 'type': 'access'
             }
             

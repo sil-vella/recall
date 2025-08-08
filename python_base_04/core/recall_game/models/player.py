@@ -30,6 +30,7 @@ class Player:
         self.is_active = True
         self.has_called_recall = False
         self.last_action_time = None
+        self.initial_peeks_remaining = 2
     
     def add_card_to_hand(self, card: Card):
         """Add a card to the player's hand"""
@@ -55,6 +56,16 @@ class Player:
                     self.visible_cards.append(card)
                 return card
         return None
+
+    def look_at_card_by_index(self, index: int) -> Optional[Card]:
+        """Look at a specific card in hand by index"""
+        if index < 0 or index >= len(self.hand):
+            return None
+        card = self.hand[index]
+        card.is_visible = True
+        if card not in self.visible_cards:
+            self.visible_cards.append(card)
+        return card
     
     def get_visible_cards(self) -> List[Card]:
         """Get cards that the player has looked at"""
@@ -87,7 +98,8 @@ class Player:
             "points": self.points,
             "cards_remaining": self.cards_remaining,
             "is_active": self.is_active,
-            "has_called_recall": self.has_called_recall
+            "has_called_recall": self.has_called_recall,
+            "initial_peeks_remaining": self.initial_peeks_remaining,
         }
     
     @classmethod
@@ -110,6 +122,7 @@ class Player:
         player.cards_remaining = data.get("cards_remaining", 4)
         player.is_active = data.get("is_active", True)
         player.has_called_recall = data.get("has_called_recall", False)
+        player.initial_peeks_remaining = data.get("initial_peeks_remaining", 2)
         
         return player
 

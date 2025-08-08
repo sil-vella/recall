@@ -32,7 +32,7 @@ This document defines the rules and guidelines for AI-assisted development in th
 - `HooksManager` - Event hooks and callbacks
 - `EventBus` - Event communication system
 
-**REQUIREMENT**: Before creating a new manager, ask the user for approval and explain why it's needed.
+**RULE**: The current managers / base system shouldn't be modified, except for the module registry when new modules need to be added..
 
 ### 2. Module System
 
@@ -64,8 +64,6 @@ class NewFeatureModule extends ModuleBase {
 }
 ```
 
-**REQUIREMENT**: Before creating a new module, ask the user for approval and explain the module's purpose and dependencies.
-
 ### 3. Service Layer
 
 **RULE**: Core functionality must be implemented as services that extend `ServicesBase`.
@@ -84,8 +82,6 @@ class NewService extends ServicesBase {
   }
 }
 ```
-
-**REQUIREMENT**: Before creating a new service, ask the user for approval and explain the service's purpose.
 
 ## State Management Rules
 
@@ -239,6 +235,131 @@ NavigationManager().navigateTo('/screen_path');
 NavigationManager().navigateTo('/screen_path', parameters: {'id': '123'});
 ```
 
+## Screen Organization Rules
+
+### 1. Screen Structure
+
+**RULE**: All screens must follow the established screen structure pattern.
+
+**PATTERN**:
+```dart
+class MyScreen extends BaseScreen {
+  const MyScreen({Key? key}) : super(key: key);
+
+  @override
+  String computeTitle(BuildContext context) => 'Screen Title';
+
+  @override
+  _MyScreenState createState() => _MyScreenState();
+}
+
+class _MyScreenState extends BaseScreenState<MyScreen> {
+  // Managers
+  final StateManager _stateManager = StateManager();
+  
+  @override
+  void initState() {
+    super.initState();
+    // Initialize screen
+  }
+
+  @override
+  void dispose() {
+    // Cleanup resources
+    super.dispose();
+  }
+
+  @override
+  Widget buildContent(BuildContext context) {
+    return StreamBuilder<T>(
+      stream: /* state stream */,
+      builder: (context, snapshot) {
+        return /* screen content */;
+      },
+    );
+  }
+}
+```
+
+### 2. Screen Directory Structure
+
+**RULE**: Each screen must follow the established directory structure:
+
+```
+screens/
+├── screen_name/                   # Screen module directory
+│   ├── screen_name_screen.dart    # Main screen file
+│   ├── services/                  # Screen-specific services
+│   │   └── screen_service.dart
+│   ├── widgets/                   # Screen-specific widgets
+│   │   ├── widget_one.dart
+│   │   └── widget_two.dart
+│   ├── models/                    # Screen-specific models
+│   │   └── screen_models.dart
+│   └── utils/                     # Screen-specific utilities
+│       └── screen_utils.dart
+```
+
+### 3. Screen Components
+
+**RULE**: Screens must be organized into the following components:
+
+1. **Main Screen Class**:
+   - Extends `BaseScreen`
+   - Implements `computeTitle`
+   - Creates screen state
+
+2. **Screen State Class**:
+   - Extends `BaseScreenState`
+   - Manages screen lifecycle
+   - Implements `buildContent`
+
+3. **Screen Widgets**:
+   - Modular, reusable components
+   - Follow widget naming convention
+   - Include proper documentation
+
+4. **Screen Services**:
+   - Handle business logic
+   - Manage API calls
+   - Interface with managers
+
+### 4. Screen Integration
+
+**RULE**: Screens must properly integrate with the application architecture:
+
+1. **State Management**:
+```dart
+// Register screen state
+_stateManager.registerModuleState("screen_name", {
+  "isLoading": false,
+  "data": null,
+  "error": null,
+});
+
+// Update state
+_stateManager.updateModuleState("screen_name", newState);
+```
+
+2. **Manager Integration**:
+```dart
+// Initialize managers
+final StateManager _stateManager = StateManager();
+final WebSocketManager _wsManager = WebSocketManager.instance;
+
+// Setup event listeners
+_setupEventCallbacks();
+```
+
+3. **Error Handling**:
+```dart
+try {
+  // Screen operations
+} catch (e) {
+  _showSnackBar('Operation failed: $e', isError: true);
+}
+```
+
 ## File Organization Rules
 
 ### 1. Directory Structure
@@ -254,6 +375,10 @@ lib/
 │   └── 00_base/                   # Base classes
 ├── modules/                        # Feature modules
 │   ├── module_name/                # Individual modules
+│   │   ├── screens/               # Module screens
+│   │   ├── widgets/               # Module widgets
+│   │   ├── services/              # Module services
+│   │   └── models/                # Module models
 │   └── ...
 ├── screens/                        # Shared screens
 ├── models/                         # Shared models

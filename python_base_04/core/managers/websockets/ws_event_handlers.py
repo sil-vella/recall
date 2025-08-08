@@ -296,6 +296,11 @@ class WSEventHandlers:
                 self.socketio.emit('message_error', {'error': 'Missing room_id or message'})
                 return False
             
+            # Handle special messages
+            if message == 'get_public_rooms':
+                custom_log(f"🔄 Routing get_public_rooms request to dedicated handler")
+                return self.handle_get_public_rooms(session_id, data)
+            
             # Get session data
             session_data = self.websocket_manager.get_session_data(session_id)
             if not session_data:
@@ -419,30 +424,46 @@ class WSEventHandlers:
             session_data = self.websocket_manager.get_session_data(session_id)
             if not session_data:
                 custom_log(f"❌ No session data found for: {session_id}")
-                self.socketio.emit('get_public_rooms_error', {'error': 'Session not found'})
+                self.socketio.emit('get_public_rooms_error', {'error': 'Session not found'}, room=session_id)
                 return False
             
             # Get all public rooms from room manager
             try:
                 all_rooms = self.websocket_manager.room_manager.get_all_rooms()
-                public_rooms = [room for room in all_rooms if room.get('permission') == 'public']
+                public_rooms = []
+                
+                for room_id, room_info in all_rooms.items():
+                    if room_info.get('permission') == 'public':
+                        public_rooms.append({
+                            'room_id': room_id,
+                            'room_name': room_info.get('room_name', room_id),
+                            'owner_id': room_info.get('owner_id'),
+                            'permission': room_info.get('permission'),
+                            'current_size': room_info.get('current_size', 0),
+                            'max_size': room_info.get('max_size', 4),
+                            'min_size': room_info.get('min_size', 2),
+                            'created_at': room_info.get('created_at'),
+                            'game_type': room_info.get('game_type', 'classic'),
+                            'turn_time_limit': room_info.get('turn_time_limit', 30),
+                            'auto_start': room_info.get('auto_start', True)
+                        })
                 
                 custom_log(f"📊 Found {len(public_rooms)} public rooms")
                 
-                # Emit public rooms response
+                # Emit public rooms response to the specific session
                 self.socketio.emit('get_public_rooms_success', {
                     'success': True,
                     'data': public_rooms,
                     'count': len(public_rooms),
                     'timestamp': datetime.now().isoformat()
-                })
+                }, room=session_id)
                 
                 custom_log(f"✅ Successfully sent public rooms to session: {session_id}")
                 return True
                 
             except Exception as e:
                 custom_log(f"❌ Error getting public rooms: {str(e)}")
-                self.socketio.emit('get_public_rooms_error', {'error': 'Failed to get public rooms'})
+                self.socketio.emit('get_public_rooms_error', {'error': 'Failed to get public rooms'}, room=session_id)
                 return False
                 
         except Exception as e:

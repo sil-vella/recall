@@ -1,0 +1,22 @@
+{
+  "goal": "read rule.md and make sure the build always follows the rules",
+  "description": "App build rules",
+  "steps": [
+    {
+      "step": 1,
+      "description": "Read the rule.md file to understand codebase structure and architecture and add it to context"
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "max_steps": 5,
+    "created": "2024-08-05",
+    "priority": "high"
+  },
+  "requirements": {
+    "rule_file": "rule.md"
+  },
+  "success_criteria": [
+    "rule.md file is read successfully and added to context"
+  ]
+} 

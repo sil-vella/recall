@@ -1,5 +1,91 @@
 ---
-alwaysApply: false
+description: Recall Game play rules.
+alwaysApply: true
 ---
 
-- For logix related to game play, always consult /Users/sil/Documents/Work/reignofplay/Recall/app_dev/Documentation/Recall_game/Game_play.md
+# Recall Card Game Rules
+
+## 🎯 Game Objective
+
+The aim of the game is to:
+1. Finish with no cards, OR
+2. Have the fewest points with the least number of cards when 'Recall' is called
+
+## 💯 Card Points System
+
+### Regular Cards
+- **Numbered Cards (2-10)**: Points equal to card number
+- **Ace Cards**: 1 point
+- **Queens & Jacks**: 10 points
+- **Kings (Black)**: 10 points
+
+### Special Cards
+- **Joker Cards**: 0 points
+- **Red King**: 0 points
+- **Added Power Cards**: Special powers (conditions apply)
+
+## 🎮 Game Setup
+
+1. **Initial Deal**:
+   - Shuffle full deck
+   - Deal 4 cards face down to each player
+   - Players may look at any 2 of their 4 cards
+   - Place remaining cards face down as draw deck
+
+2. **Card Placement**:
+   - Players place viewed cards face down
+   - Cards must be placed next to each other
+   - Create discard pile next to draw deck (face up)
+
+## 🃏 Special Powers
+
+### Queen Power
+- Can look at any one card from any player's hand
+- Usable when queen is played
+
+### Jack Power
+- Can switch any two cards between any players
+- Usable when jack is played
+
+## 🎲 Gameplay Rules
+
+### Turn Structure
+1. **First Player**:
+   - Draw top card from draw deck
+   - Choose to play drawn card or one from hand
+   - If playing from hand, drawn card replaces it face down
+
+2. **Subsequent Players**:
+   - Same as first player
+   - Additional option to take top card from discard pile
+   - Taking from discard pile reveals information to others
+
+### Special Rules
+- **Out-of-Turn Play**: 
+  - Players can play matching rank cards out of turn
+  - Must play before next player's turn
+  - Rank matching ignores card color
+
+### Recall Phase
+- **Triggering Recall**:
+  - Player can call 'Recall' after their play
+  - Signals final round of game
+  - All other players get one last turn
+
+## 🏆 Winning Conditions
+
+1. **Primary Victory**:
+   - First player to have no cards
+
+2. **After Recall**:
+   - Lowest points wins
+   - If points tie, fewer cards wins
+   - If points and cards tie:
+     - Recall caller wins if involved in tie
+     - Otherwise, it's a draw
+
+## 📋 Game End Conditions
+
+Game ends when either:
+1. A player has no cards remaining, OR
+2. A player calls 'Recall' and final round completes

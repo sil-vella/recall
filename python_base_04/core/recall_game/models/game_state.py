@@ -35,6 +35,9 @@ class GameState:
         self.deck = CardDeck()
         self.discard_pile = []
         self.draw_pile = []
+        self.pending_draws = {}  # player_id -> Card (drawn but not placed)
+        self.out_of_turn_deadline = None  # timestamp until which out-of-turn is allowed
+        self.out_of_turn_timeout_seconds = 5
         self.last_played_card = None
         self.recall_called_by = None
         self.game_start_time = None
@@ -72,6 +75,7 @@ class GameState:
         
         # Set up draw and discard piles
         self._setup_piles()
+        # Allow initial 2 peeks per player (tracked on Player)
         
         # Set first player
         player_ids = list(self.players.keys())
@@ -125,6 +129,9 @@ class GameState:
         if not player:
             return {"error": "Player not found"}
         
+        # New turn begins; previous out-of-turn window closes
+        self.out_of_turn_deadline = None
+
         # Remove card from hand
         card = player.remove_card_from_hand(card_id)
         if not card:
@@ -134,10 +141,17 @@ class GameState:
         self.discard_pile.append(card)
         self.last_played_card = card
         self.last_action_time = time.time()
+        # Open out-of-turn window
+        self.out_of_turn_deadline = self.last_action_time + self.out_of_turn_timeout_seconds
         
         # Check for special powers
         special_effect = self._handle_special_power(card, player)
         
+        # Check if player emptied hand
+        if len(player.hand) == 0:
+            # Immediate end condition
+            return self._end_game_with_scoring(reason="player_empty_hand", last_player_id=player_id)
+
         # Check for Recall opportunity
         recall_opportunity = self._check_recall_opportunity(player)
         
@@ -156,6 +170,9 @@ class GameState:
         """Play a card out of turn (same rank)"""
         if not self.last_played_card:
             return {"error": "No card to match"}
+        # Check time window
+        if self.out_of_turn_deadline is None or time.time() > self.out_of_turn_deadline:
+            return {"error": "Out-of-turn window closed"}
         
         player = self.players.get(player_id)
         if not player:
@@ -180,6 +197,8 @@ class GameState:
         self.discard_pile.append(card_to_play)
         self.last_played_card = card_to_play
         self.last_action_time = time.time()
+        # Extend out-of-turn window for possible chains
+        self.out_of_turn_deadline = self.last_action_time + self.out_of_turn_timeout_seconds
         
         # Check for special powers
         special_effect = self._handle_special_power(card_to_play, player)
@@ -190,6 +209,88 @@ class GameState:
             "special_effect": special_effect,
             "played_out_of_turn": True
         }
+
+    def draw_from_deck(self, player_id: str) -> Dict[str, Any]:
+        """Draw the top card and hold in pending until placement decision."""
+        if player_id != self.current_player_id:
+            return {"error": "Not your turn"}
+        if not self.draw_pile:
+            return {"error": "Draw pile empty"}
+        card = self.draw_pile.pop(0)
+        self.pending_draws[player_id] = card
+        self.last_action_time = time.time()
+        return {"success": True, "drawn_card": card.to_dict(), "pending": True}
+
+    def take_from_discard(self, player_id: str) -> Dict[str, Any]:
+        """Take the top discard into pending for the current player."""
+        if player_id != self.current_player_id:
+            return {"error": "Not your turn"}
+        if not self.discard_pile:
+            return {"error": "Discard pile empty"}
+        card = self.discard_pile.pop()  # top of discard is the end
+        self.pending_draws[player_id] = card
+        self.last_action_time = time.time()
+        return {"success": True, "taken_card": card.to_dict(), "pending": True}
+
+    def place_drawn_card_replace(self, player_id: str, replace_card_id: str) -> Dict[str, Any]:
+        """Place pending drawn card by replacing a hand card; replaced card goes to discard."""
+        if player_id != self.current_player_id:
+            return {"error": "Not your turn"}
+        if player_id not in self.pending_draws:
+            return {"error": "No pending drawn card"}
+        player = self.players.get(player_id)
+        if not player:
+            return {"error": "Player not found"}
+        replaced = player.remove_card_from_hand(replace_card_id)
+        if not replaced:
+            return {"error": "Replace target not in hand"}
+        # Add pending as face down (not visible)
+        pending = self.pending_draws.pop(player_id)
+        player.add_card_to_hand(pending)
+        # Replaced goes to discard
+        self.discard_pile.append(replaced)
+        self.last_played_card = replaced
+        self.last_action_time = time.time()
+        # Do not advance turn here; turn advances when player explicitly plays
+        return {"success": True, "placed": pending.to_dict(), "discarded": replaced.to_dict()}
+
+    def place_drawn_card_play(self, player_id: str) -> Dict[str, Any]:
+        """Play the pending drawn card directly to discard."""
+        if player_id != self.current_player_id:
+            return {"error": "Not your turn"}
+        if player_id not in self.pending_draws:
+            return {"error": "No pending drawn card"}
+        card = self.pending_draws.pop(player_id)
+        self.discard_pile.append(card)
+        self.last_played_card = card
+        self.last_action_time = time.time()
+        # Open out-of-turn window
+        self.out_of_turn_deadline = self.last_action_time + self.out_of_turn_timeout_seconds
+        special_effect = self._handle_special_power(card, self.players[player_id])
+        # If player now has zero cards, end immediately
+        player = self.players.get(player_id)
+        if player and len(player.hand) == 0:
+            return self._end_game_with_scoring(reason="player_empty_hand", last_player_id=player_id)
+        self.next_player()
+        return {"success": True, "card_played": card.to_dict(), "special_effect": special_effect}
+
+    def initial_peek(self, player_id: str, indices: List[int]) -> Dict[str, Any]:
+        """Allow player to peek at up to remaining initial cards at game start."""
+        player = self.players.get(player_id)
+        if not player:
+            return {"error": "Player not found"}
+        if player.initial_peeks_remaining <= 0:
+            return {"error": "No initial peeks remaining"}
+        # Cap by remaining
+        to_peek = min(len(indices), player.initial_peeks_remaining)
+        revealed = []
+        for i in range(to_peek):
+            idx = int(indices[i])
+            card = player.look_at_card_by_index(idx)
+            if card:
+                revealed.append({"index": idx, "card": card.to_dict()})
+        player.initial_peeks_remaining -= to_peek
+        return {"success": True, "revealed": revealed, "remaining": player.initial_peeks_remaining}
     
     def call_recall(self, player_id: str) -> Dict[str, Any]:
         """Player calls Recall to end the game"""
@@ -213,33 +314,32 @@ class GameState:
     
     def end_game(self) -> Dict[str, Any]:
         """End the game and determine winner"""
-        if self.phase != GamePhase.RECALL_CALLED:
-            return {"error": "Game not in recall phase"}
-        
-        # Calculate final scores
-        final_scores = {}
-        for player in self.players.values():
-            final_points = player.calculate_points()
-            final_scores[player.player_id] = {
-                "player_id": player.player_id,
-                "name": player.name,
-                "points": final_points,
-                "cards_remaining": len(player.hand),
-                "called_recall": player.has_called_recall
+        # Allow scoring at recall or immediate end
+        if self.phase not in (GamePhase.RECALL_CALLED, GamePhase.GAME_ENDED, GamePhase.PLAYER_TURN, GamePhase.OUT_OF_TURN_PLAY):
+            return {"error": "Invalid phase for ending game"}
+        return self._end_game_with_scoring()
+
+    def _end_game_with_scoring(self, reason: str = "", last_player_id: Optional[str] = None) -> Dict[str, Any]:
+        """Compute scores and end game with tie-break rules."""
+        final_scores: Dict[str, Any] = {}
+        for p in self.players.values():
+            final_scores[p.player_id] = {
+                "player_id": p.player_id,
+                "name": p.name,
+                "points": p.calculate_points(),
+                "cards_remaining": len(p.hand),
+                "called_recall": p.has_called_recall
             }
-        
-        # Determine winner
         winner = self._determine_winner(final_scores)
-        
         self.winner = winner
         self.phase = GamePhase.GAME_ENDED
         self.game_ended = True
-        
         return {
             "success": True,
             "winner": winner,
             "final_scores": final_scores,
-            "phase": self.phase.value
+            "phase": self.phase.value,
+            "reason": reason
         }
     
     def _determine_winner(self, final_scores: Dict[str, Any]) -> str:

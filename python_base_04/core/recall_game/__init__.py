@@ -9,7 +9,6 @@ from .game_logic.game_logic_engine import GameLogicEngine
 from .models.player import Player, HumanPlayer, ComputerPlayer
 from .models.card import Card, CardDeck
 from .models.game_state import GameState, GameStateManager
-from .websocket_handlers.game_websocket_manager import RecallGameWebSocketManager
 
 __all__ = [
     'GameLogicEngine',
@@ -19,6 +18,5 @@ __all__ = [
     'Card',
     'CardDeck',
     'GameState',
-    'GameStateManager',
-    'RecallGameWebSocketManager'
+    'GameStateManager'
 ] 

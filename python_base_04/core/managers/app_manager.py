@@ -21,6 +21,9 @@ from core.managers.user_actions_manager import UserActionsManager
 from core.managers.action_discovery_manager import ActionDiscoveryManager
 from core.managers.websockets.websocket_manager import WebSocketManager
 
+# Import Recall Game Main
+from core.recall_game.recall_game_main import initialize_recall_game
+
 
 class AppManager:
     def __init__(self):
@@ -44,6 +47,7 @@ class AppManager:
         self.jwt_manager = None
         self.user_actions_manager = None
         self.action_discovery_manager = None
+        self.recall_game_main = None  # Add Recall Game Main
         self._initialized = False
 
         custom_log("AppManager instance created.")
@@ -89,8 +93,6 @@ class AppManager:
         """Get the Redis manager instance."""
         return self.redis_manager
 
-
-
     def get_state_manager(self):
         """Get the state manager instance."""
         return self.state_manager
@@ -98,6 +100,10 @@ class AppManager:
     def get_websocket_manager(self):
         """Get the WebSocket manager instance."""
         return self.websocket_manager
+
+    def get_recall_game_main(self):
+        """Get the Recall Game main instance."""
+        return self.recall_game_main
 
     @log_function_call
     def initialize(self, app):
@@ -142,7 +148,10 @@ class AppManager:
         self.websocket_manager.set_room_access_check(self.websocket_manager.room_manager.check_room_access)
         self.websocket_manager.initialize(app, use_builtin_handlers=True)
         
-        custom_log("✅ Centralized database, Redis, State, JWT, UserActions, ActionDiscovery, and WebSocket managers initialized")
+        # Initialize Recall Game backend
+        self.recall_game_main = initialize_recall_game(self)
+        
+        custom_log("✅ Centralized database, Redis, State, JWT, UserActions, ActionDiscovery, WebSocket, and Recall Game managers initialized")
 
         # Initialize services
         self.services_manager.initialize_services()

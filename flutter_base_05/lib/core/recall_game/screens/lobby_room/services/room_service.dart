@@ -228,13 +228,18 @@ class RoomService {
         throw Exception('Cannot join room: WebSocket not connected');
       }
       
-      // Join room via WebSocket event manager
       _logger.info("🚪 Joining room: $roomId");
+      
+      // Use the existing WebSocket system directly
       final result = await _wsEventManager.joinRoom(roomId, 'current_user');
       
       if (result?['success'] != true) {
         throw Exception(result?['error'] ?? 'Failed to join room');
       }
+      
+      // The WebSocket system will handle the state updates automatically
+      // We just need to update the Recall game state based on the WebSocket state
+      _syncWithWebSocketState();
       
     } catch (e) {
       _logger.error("Error joining room: $e");
@@ -252,116 +257,90 @@ class RoomService {
       
       _logger.info("🚪 Leaving room: $roomId");
       
-      // Create a completer to wait for the server response
-      final completer = Completer<Map<String, dynamic>>();
-      
-      // Listen for the success event
-      _wsEventManager.onEvent('leave_room_success', (data) {
-        _logger.info("📨 Received leave_room_success event: $data");
-        completer.complete({'success': true, 'data': data});
-      });
-      
-      // Listen for the error event
-      _wsEventManager.onEvent('leave_room_error', (data) {
-        _logger.error("📨 Received leave_room_error event: $data");
-        completer.complete({'success': false, 'error': data['error']});
-      });
-      
-      // Send leave room request
+      // Use the existing WebSocket system directly
       final result = await _wsEventManager.leaveRoom(roomId);
       
-      // If the request was sent successfully, wait for server confirmation
-      if (result['pending'] != null) {
-        // Wait for server confirmation with timeout
-        final response = await completer.future.timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {
-            _logger.warning("⚠️ Timeout waiting for leave room response");
-            return {'success': false, 'error': 'Timeout waiting for server response'};
-          },
-        );
-        
-        if (response['success'] == true) {
-          // Update recall_game state to reflect leaving the room
-          _updateLeaveRoomState();
-          _logger.info("✅ Successfully left room: $roomId");
-        } else {
-          throw Exception(response['error'] ?? 'Failed to leave room');
-        }
-      } else if (result['error'] != null) {
-        throw Exception(result['error']);
+      if (result?['pending'] != null || result?['success'] != null) {
+        // The WebSocket system will handle the state updates automatically
+        // We just need to update the Recall game state based on the WebSocket state
+        _syncWithWebSocketState();
       } else {
-        throw Exception('Unexpected response from leave room request');
+        throw Exception(result?['error'] ?? 'Failed to leave room');
       }
       
     } catch (e) {
       _logger.error("Error leaving room: $e");
       throw Exception('Failed to leave room: $e');
-    } finally {
-      // Clean up event listeners
-      _wsEventManager.offEvent('leave_room_success', (data) {});
-      _wsEventManager.offEvent('leave_room_error', (data) {});
     }
   }
 
-  void _updateLeaveRoomState() {
-    // Get current room state
-    final currentRoomState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+  void _syncWithWebSocketState() {
+    // Get the current WebSocket state
+    final websocketState = _stateManager.getModuleState<Map<String, dynamic>>("websocket") ?? {};
+    final currentRoomId = websocketState['currentRoomId'];
+    final currentRoomInfo = websocketState['currentRoomInfo'];
     
-    // Get current lists
-    final currentMyRooms = (currentRoomState['myRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-    final currentPublicRooms = (currentRoomState['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    // Get current Recall game state
+    final currentRecallState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
     
-    // Update state to reflect leaving the room
-    final updatedState = {
-      ...currentRoomState,
-      'currentRoom': null,
-      'currentRoomId': null,
-      'isInRoom': false,
-      'myRooms': currentMyRooms, // Keep my rooms list
-      'rooms': currentPublicRooms, // Keep public rooms list
+    // Update Recall game state based on WebSocket state
+    final updatedRecallState = {
+      ...currentRecallState,
+      'currentRoomId': currentRoomId,
+      'currentRoom': currentRoomInfo,
+      'isInRoom': currentRoomId != null,
       'lastUpdated': DateTime.now().toIso8601String(),
     };
     
     // Update StateManager
-    _stateManager.updateModuleState("recall_game", updatedState);
-    _logger.info("📊 Updated room state after leaving room");
+    _stateManager.updateModuleState("recall_game", updatedRecallState);
+    _logger.info("📊 Synced Recall game state with WebSocket state");
   }
 
   void setupEventCallbacks(Function(String, String) onRoomEvent, Function(String) onError) {
-    // Listen for room events
+    // Listen for room events from the WebSocket system
     _wsEventManager.onEvent('room', (data) {
       final action = data['action'];
       final roomId = data['roomId'];
       
       _logger.info("📨 Received room event: action=$action, roomId=$roomId");
+      
+      // Sync with WebSocket state after room events
+      _syncWithWebSocketState();
+      
       onRoomEvent(action, roomId);
     });
 
     // Listen for specific room events for better debugging
     _wsEventManager.onEvent('room_joined', (data) {
       _logger.info("📨 Received room_joined event: $data");
+      _syncWithWebSocketState();
     });
 
     _wsEventManager.onEvent('join_room_success', (data) {
       _logger.info("📨 Received join_room_success event: $data");
+      _syncWithWebSocketState();
     });
 
     _wsEventManager.onEvent('create_room_success', (data) {
       _logger.info("📨 Received create_room_success event: $data");
+      _syncWithWebSocketState();
     });
 
     _wsEventManager.onEvent('room_created', (data) {
       _logger.info("📨 Received room_created event: $data");
+      _syncWithWebSocketState();
     });
 
     // Listen for leave room events
     _wsEventManager.onEvent('leave_room_success', (data) {
       _logger.info("📨 Received leave_room_success event: $data");
+      _syncWithWebSocketState();
     });
 
     _wsEventManager.onEvent('leave_room_error', (data) {
       _logger.error("📨 Received leave_room_error event: $data");
+      _syncWithWebSocketState();
     });
 
     // Listen for error events

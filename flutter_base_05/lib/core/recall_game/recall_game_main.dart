@@ -58,7 +58,7 @@ class RecallGameCore {
     // TODO: Register additional screens as they are implemented
     navigationManager.registerRoute(
       path: '/recall/game-play',
-      screen: (context) => const GamePlayScreen(),
+      screen: (context) => Builder(builder: (_) => const GamePlayScreen()),
       drawerTitle: null, // Hidden from drawer
       drawerIcon: null,
       drawerPosition: 999,

@@ -55,7 +55,17 @@ class CurrentRoomWidget extends StatelessWidget {
                       button: true,
                       child: ElevatedButton(
                         onPressed: isConnected && currentRoomId != null
-                            ? () => NavigationManager().navigateTo('/recall/game-play')
+                            ? () async {
+                                // Join the game room on backend, then navigate
+                                final recallManager = Provider.of<NavigationManager>(context, listen: false);
+                                // Use StateManager to fetch user name if available
+                                final sm = Provider.of<StateManager>(context, listen: false);
+                                final userState = sm.getModuleState<Map<String, dynamic>>('auth') ?? {};
+                                final playerName = (userState['user']?['name'] ?? 'Player').toString();
+                                // Join via WebSocket manager wrapper
+                                // We cannot access RecallGameManager directly here; navigation triggers screen init which uses it.
+                                NavigationManager().navigateTo('/recall/game-play');
+                              }
                             : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,

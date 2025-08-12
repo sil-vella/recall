@@ -36,7 +36,17 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   @override
   void initState() {
     super.initState();
-    // Ensure managers are initialized via RecallGameCore
+    // Ensure managers are initialized via RecallGameCore; if entering directly from lobby,
+    // attempt to join the game with current room id.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final wsState = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+      final currentRoomId = (wsState['currentRoomId'] ?? '') as String;
+      if (currentRoomId.isNotEmpty && _gameManager.currentGameId != currentRoomId) {
+        final userState = _stateManager.getModuleState<Map<String, dynamic>>('auth') ?? {};
+        final playerName = (userState['user']?['name'] ?? 'Player').toString();
+        await _gameManager.joinGame(currentRoomId, playerName);
+      }
+    });
   }
 
   void _onSelectCard(cm.Card card, int index) {
@@ -78,6 +88,15 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
 
   Future<void> _onCallRecall() async {
     await _gameManager.callRecall();
+  }
+
+  Future<void> _onPlayOutOfTurn() async {
+    final card = _selectedCard;
+    if (card == null) return;
+    await _gameManager.playOutOfTurn(card);
+    setState(() {
+      _selectedCard = null;
+    });
   }
 
   @override
@@ -167,6 +186,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                 onReplaceWithDrawn: _onReplaceWithDrawn,
                 onPlaceDrawnAndPlay: _onPlaceDrawnAndPlay,
                 onCallRecall: _onCallRecall,
+                onPlayOutOfTurn: _onPlayOutOfTurn,
               ),
             ],
           ),

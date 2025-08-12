@@ -151,6 +151,15 @@ class RecallGameManager {
         case 'game_state_updated':
           _handleGameStateUpdated(data);
           break;
+        case 'turn_changed':
+          _handleTurnChanged(data);
+          break;
+        case 'player_joined':
+          _handlePlayerJoined(data);
+          break;
+        case 'player_left':
+          _handlePlayerLeft(data);
+          break;
         case 'error':
           _handleGameErrorEvent(data);
           break;
@@ -244,6 +253,14 @@ class RecallGameManager {
     _stateManager.updateGameState(gameState);
     _updateGameStatus(gameState);
     _log.info('🔄 Game state updated');
+
+    // Optional: out-of-turn countdown
+    final meta = data['game_state'];
+    final outEnds = meta != null ? meta['outOfTurnEndsAt'] : null;
+    if (outEnds is num) {
+      _log.info('⏱️ Out-of-turn window ends at: $outEnds');
+      // UI can read this from state json for banner countdown
+    }
   }
 
   /// Handle game error event
@@ -488,6 +505,25 @@ class RecallGameManager {
     } catch (e) {
       _log.error('❌ Error calling recall: $e');
       return {'error': 'Failed to call recall: $e'};
+    }
+  }
+
+  /// Play out-of-turn
+  Future<Map<String, dynamic>> playOutOfTurn(Card card) async {
+    if (_currentGameId == null) {
+      return {'error': 'Not in a game'};
+    }
+    try {
+      _log.info('⚡ Play out-of-turn: ${card.displayName}');
+      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+        'action': 'play_out_of_turn',
+        'card': card.toJson(),
+        'player_id': _currentPlayerId,
+      });
+      return result;
+    } catch (e) {
+      _log.error('❌ Error playing out-of-turn: $e');
+      return {'error': 'Failed to play out-of-turn: $e'};
     }
   }
 

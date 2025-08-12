@@ -39,7 +39,7 @@ class _OpponentTile extends StatelessWidget {
           Text(player.name, style: AppTextStyles.bodyLarge),
           const SizedBox(height: 4),
           Text('Cards: ${player.handSize}', style: AppTextStyles.bodyMedium),
-          Text('Score: ${player.totalScore}', style: AppTextStyles.bodySmall),
+          Text('Score: ${player.totalScore}', style: AppTextStyles.bodyMedium),
         ],
       ),
     );

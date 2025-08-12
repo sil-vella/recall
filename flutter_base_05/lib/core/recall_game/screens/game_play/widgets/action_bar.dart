@@ -8,6 +8,7 @@ class ActionBar extends StatelessWidget {
   final VoidCallback onReplaceWithDrawn;
   final VoidCallback onPlaceDrawnAndPlay;
   final VoidCallback onCallRecall;
+  final VoidCallback? onPlayOutOfTurn;
 
   const ActionBar({
     Key? key,
@@ -17,6 +18,7 @@ class ActionBar extends StatelessWidget {
     required this.onReplaceWithDrawn,
     required this.onPlaceDrawnAndPlay,
     required this.onCallRecall,
+    this.onPlayOutOfTurn,
   }) : super(key: key);
 
   @override
@@ -28,6 +30,18 @@ class ActionBar extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
+            if (onPlayOutOfTurn != null)
+              Semantics(
+                label: 'match_action_out_of_turn',
+                identifier: 'match_action_out_of_turn',
+                button: true,
+                child: ElevatedButton(
+                  onPressed: hasSelection ? onPlayOutOfTurn : null,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
+                  child: const Text('Play Out-of-Turn'),
+                ),
+              ),
+            
             Semantics(
               label: 'match_action_play',
               identifier: 'match_action_play',

@@ -496,6 +496,8 @@ class RecallGameplayManager:
             'gameSettings': {},
             'winner': None,
             'errorMessage': None,
+            # Extra metadata for UX
+            'outOfTurnEndsAt': getattr(game, 'out_of_turn_deadline', None),
         }
 
 

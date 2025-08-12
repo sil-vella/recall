@@ -52,7 +52,7 @@ class _HandCardTile extends StatelessWidget {
             children: [
               Text(card.displayName, style: AppTextStyles.bodyLarge),
               const SizedBox(height: 4),
-              Text('${card.points} pts', style: AppTextStyles.bodySmall),
+              Text('${card.points} pts', style: AppTextStyles.bodyMedium),
             ],
           ),
         ),

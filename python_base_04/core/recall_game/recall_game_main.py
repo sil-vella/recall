@@ -12,6 +12,7 @@ from .game_logic.game_logic_engine import GameLogicEngine
 import time
 from .managers.recall_websockets_manager import RecallWebSocketsManager
 from .managers.recall_message_system import RecallMessageSystem
+from .managers.recall_gameplay_manager import RecallGameplayManager
 
 
 class RecallGameMain:
@@ -24,6 +25,7 @@ class RecallGameMain:
         self.game_logic_engine = None
         self.recall_ws_manager = None
         self.recall_message_system = None
+        self.recall_gameplay_manager = None
         self._initialized = False
     
     def initialize(self, app_manager) -> bool:
@@ -40,7 +42,9 @@ class RecallGameMain:
             self.game_state_manager = GameStateManager()
             self.game_logic_engine = GameLogicEngine()
             
-            # Register Recall game handlers with the main WebSocket manager
+            # Initialize gameplay manager and wire handlers
+            self.recall_gameplay_manager = RecallGameplayManager()
+            self.recall_gameplay_manager.initialize(self.app_manager, self.game_state_manager, self.game_logic_engine)
             self._register_recall_handlers()
             # Initialize Recall-specific WebSocket event bridge (non-core)
             self.recall_ws_manager = RecallWebSocketsManager()
@@ -70,14 +74,15 @@ class RecallGameMain:
             custom_log("Warning: Event listeners not available on WebSocket manager")
             return
 
-        listeners.register_custom_listener('recall_join_game', self._on_join_game)
-        listeners.register_custom_listener('recall_leave_game', self._on_leave_game)
-        listeners.register_custom_listener('recall_player_action', self._on_player_action)
-        listeners.register_custom_listener('recall_call_recall', self._on_call_recall)
-        listeners.register_custom_listener('recall_play_out_of_turn', self._on_play_out_of_turn)
-        listeners.register_custom_listener('recall_use_special_power', self._on_use_special_power)
-        listeners.register_custom_listener('recall_initial_peek', self._on_initial_peek)
-        listeners.register_custom_listener('get_public_rooms', self._on_get_public_rooms)
+        gp = self.recall_gameplay_manager
+        listeners.register_custom_listener('recall_join_game', gp.on_join_game)
+        listeners.register_custom_listener('recall_leave_game', gp.on_leave_game)
+        listeners.register_custom_listener('recall_player_action', gp.on_player_action)
+        listeners.register_custom_listener('recall_call_recall', gp.on_call_recall)
+        listeners.register_custom_listener('recall_play_out_of_turn', gp.on_play_out_of_turn)
+        listeners.register_custom_listener('recall_use_special_power', gp.on_use_special_power)
+        listeners.register_custom_listener('recall_initial_peek', gp.on_initial_peek)
+        listeners.register_custom_listener('get_public_rooms', gp.on_get_public_rooms)
 
         custom_log("✅ Recall game handlers registered via WebSocket event listeners")
     
@@ -141,354 +146,21 @@ class RecallGameMain:
 
     # ==== New unified listener handlers (session_id, data) ====
 
-    def _on_get_public_rooms(self, session_id: str, data: Dict[str, Any]) -> bool:
-        try:
-            return self._handle_get_public_rooms({'session_id': session_id})
-        except Exception as e:
-            custom_log(f"Error in _on_get_public_rooms: {e}", level="ERROR")
-            return False
+    # Deprecated: moved to RecallGameplayManager
 
-    def _on_join_game(self, session_id: str, data: Dict[str, Any]) -> bool:
-        try:
-            game_id = data.get('game_id')
-            player_name = data.get('player_name') or 'Player'
-            player_type = data.get('player_type') or 'human'
+    # Handlers moved to RecallGameplayManager
 
-            if not game_id:
-                game_id = self.game_state_manager.create_game(max_players=4)
+    # Handlers moved to RecallGameplayManager
 
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                self._emit_error(session_id, f'Game not found: {game_id}')
-                return False
+    # Handlers moved to RecallGameplayManager
 
-            self.websocket_manager.join_room(game_id, session_id)
+    # Handlers moved to RecallGameplayManager
 
-            session_data = self.websocket_manager.get_session_data(session_id) or {}
-            user_id = str(session_data.get('user_id') or session_id)
+    # Handlers moved to RecallGameplayManager
 
-            from .models.player import HumanPlayer, ComputerPlayer
-            if user_id not in game.players:
-                player = ComputerPlayer(user_id, player_name) if player_type == 'computer' else HumanPlayer(user_id, player_name)
-                game.add_player(player)
+    # Handlers moved to RecallGameplayManager
 
-            if len(game.players) >= 2 and game.current_player_id is None:
-                game.start_game()
-
-            payload = {
-                'type': 'recall_event',
-                'event_type': 'game_joined',
-                'game_id': game_id,
-                'game_state': self._to_flutter_game_state(game),
-                'player': self._to_flutter_player(game.players[user_id], user_id == game.current_player_id),
-            }
-            self._broadcast_message(game_id, payload, session_id)
-            return True
-        except Exception as e:
-            custom_log(f"Error in _on_join_game: {e}", level="ERROR")
-            self._emit_error(session_id, f'Join game failed: {str(e)}')
-            return False
-
-    def _on_leave_game(self, session_id: str, data: Dict[str, Any]) -> bool:
-        try:
-            game_id = data.get('game_id')
-            if not game_id:
-                self._emit_error(session_id, 'Missing game_id')
-                return False
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                return True
-
-            self.websocket_manager.leave_room(game_id, session_id)
-
-            session_data = self.websocket_manager.get_session_data(session_id) or {}
-            user_id = str(session_data.get('user_id') or session_id)
-            game.remove_player(user_id)
-
-            payload = {
-                'type': 'recall_event',
-                'event_type': 'player_left',
-                'game_id': game_id,
-                'game_state': self._to_flutter_game_state(game),
-                'player': {'id': user_id, 'name': session_data.get('username') or 'Player'},
-            }
-            self._broadcast_message(game_id, payload, session_id)
-            return True
-        except Exception as e:
-            custom_log(f"Error in _on_leave_game: {e}", level="ERROR")
-            self._emit_error(session_id, f'Leave game failed: {str(e)}')
-            return False
-
-    def _on_player_action(self, session_id: str, data: Dict[str, Any]) -> bool:
-        try:
-            game_id = data.get('game_id') or data.get('room_id')
-            action = data.get('action') or data.get('action_type')
-            if not game_id or not action:
-                self._emit_error(session_id, 'Missing game_id or action')
-                return False
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                self._emit_error(session_id, f'Game not found: {game_id}')
-                return False
-
-            session_data = self.websocket_manager.get_session_data(session_id) or {}
-            user_id = str(session_data.get('user_id') or data.get('player_id') or session_id)
-
-            result: Dict[str, Any] = {'error': 'Unsupported action'}
-            event_type = 'error'
-            if action == 'play_card':
-                card = data.get('card') or {}
-                card_id = card.get('card_id') or card.get('id')
-                # Fallback: map by rank/suit if id not present from client
-                if not card_id:
-                    rank = (card.get('rank') or '').lower()
-                    suit = (card.get('suit') or '').lower()
-                    if user_id in game.players and rank and suit:
-                        for c in game.players[user_id].hand:
-                            if getattr(c, 'rank', '').lower() == rank and getattr(c, 'suit', '').lower() == suit:
-                                card_id = c.card_id
-                                break
-                if not card_id:
-                    self._emit_error(session_id, 'Missing card_id')
-                    return False
-                result = game.play_card(user_id, card_id)
-                event_type = 'card_played'
-            elif action == 'play_out_of_turn':
-                card = data.get('card') or {}
-                card_id = card.get('card_id') or card.get('id')
-                if not card_id:
-                    rank = (card.get('rank') or '').lower()
-                    suit = (card.get('suit') or '').lower()
-                    if user_id in game.players and rank and suit:
-                        for c in game.players[user_id].hand:
-                            if getattr(c, 'rank', '').lower() == rank and getattr(c, 'suit', '').lower() == suit:
-                                card_id = c.card_id
-                                break
-                if not card_id:
-                    self._emit_error(session_id, 'Missing card_id')
-                    return False
-                result = game.play_out_of_turn(user_id, card_id)
-                event_type = 'card_played'
-            elif action == 'call_recall':
-                result = game.call_recall(user_id)
-                event_type = 'recall_called'
-            elif action == 'use_special_power':
-                result = {'success': True, 'power_used': data.get('power_data')}
-                event_type = 'special_power_used'
-            elif action == 'draw_from_deck':
-                result = game.draw_from_deck(user_id)
-                event_type = 'game_state_updated'
-            elif action == 'take_from_discard':
-                result = game.take_from_discard(user_id)
-                event_type = 'game_state_updated'
-            elif action in ('place_drawn_replace', 'place_drawn_card_replace'):
-                # Accept either replace card id or index from client
-                replace_id = (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id')
-                replace_index = data.get('replaceIndex')
-                if not replace_id and replace_index is not None and user_id in game.players:
-                    try:
-                        idx = int(replace_index)
-                        hand = game.players[user_id].hand
-                        if 0 <= idx < len(hand):
-                            replace_id = hand[idx].card_id
-                    except Exception:
-                        replace_id = None
-                if not replace_id:
-                    self._emit_error(session_id, 'Missing replace target (id or index)')
-                    return False
-                result = game.place_drawn_card_replace(user_id, replace_id)
-                event_type = 'game_state_updated'
-            elif action in ('place_drawn_play', 'place_drawn_card_play'):
-                result = game.place_drawn_card_play(user_id)
-                event_type = 'card_played'
-
-            payload = {
-                'type': 'recall_event',
-                'event_type': event_type,
-                'game_id': game_id,
-                'game_state': self._to_flutter_game_state(game),
-                'result': result,
-            }
-            self._broadcast_message(game_id, payload, session_id)
-            return True
-        except Exception as e:
-            custom_log(f"Error in _on_player_action: {e}", level="ERROR")
-            self._emit_error(session_id, f'Player action failed: {str(e)}')
-            return False
-
-    def _on_call_recall(self, session_id: str, data: Dict[str, Any]) -> bool:
-        try:
-            game_id = data.get('game_id')
-            if not game_id:
-                self._emit_error(session_id, 'Missing game_id')
-                return False
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                self._emit_error(session_id, f'Game not found: {game_id}')
-                return False
-
-            session_data = self.websocket_manager.get_session_data(session_id) or {}
-            user_id = str(session_data.get('user_id') or session_id)
-            result = game.call_recall(user_id)
-
-            payload = {
-                'type': 'recall_event',
-                'event_type': 'recall_called',
-                'game_id': game_id,
-                'updated_game_state': self._to_flutter_game_state(game),
-                'result': result,
-            }
-            self._broadcast_message(game_id, payload, session_id)
-            return True
-        except Exception as e:
-            custom_log(f"Error in _on_call_recall: {e}", level="ERROR")
-            self._emit_error(session_id, f'Call recall failed: {str(e)}')
-            return False
-
-    def _on_play_out_of_turn(self, session_id: str, data: Dict[str, Any]) -> bool:
-        try:
-            game_id = data.get('game_id')
-            card = data.get('card') or {}
-            card_id = card.get('card_id') or card.get('id')
-            if not game_id or not card_id:
-                self._emit_error(session_id, 'Missing game_id or card_id')
-                return False
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                self._emit_error(session_id, f'Game not found: {game_id}')
-                return False
-
-            session_data = self.websocket_manager.get_session_data(session_id) or {}
-            user_id = str(session_data.get('user_id') or session_id)
-            result = game.play_out_of_turn(user_id, card_id)
-
-            payload = {
-                'type': 'recall_event',
-                'event_type': 'card_played',
-                'game_id': game_id,
-                'game_state': self._to_flutter_game_state(game),
-                'result': result,
-            }
-            self._broadcast_message(game_id, payload, session_id)
-            return True
-        except Exception as e:
-            custom_log(f"Error in _on_play_out_of_turn: {e}", level="ERROR")
-            self._emit_error(session_id, f'Out-of-turn play failed: {str(e)}')
-            return False
-
-    def _on_use_special_power(self, session_id: str, data: Dict[str, Any]) -> bool:
-        try:
-            game_id = data.get('game_id')
-            if not game_id:
-                self._emit_error(session_id, 'Missing game_id')
-                return False
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                self._emit_error(session_id, f'Game not found: {game_id}')
-                return False
-
-            session_data = self.websocket_manager.get_session_data(session_id) or {}
-            user_id = str(session_data.get('user_id') or session_id)
-            power = (data.get('power_data') or {}).get('power')
-            if power == 'peek_at_card':
-                target_player_id = data['power_data'].get('target_player_id')
-                target_card_index = data['power_data'].get('target_card_index')
-                player = game.players.get(target_player_id)
-                if player is None:
-                    self._emit_error(session_id, 'Invalid target player')
-                    return False
-                card = player.look_at_card_by_index(int(target_card_index))
-                if card is None:
-                    self._emit_error(session_id, 'Invalid target card index')
-                    return False
-                payload = {
-                    'type': 'recall_event',
-                    'event_type': 'special_power_used',
-                    'game_id': game_id,
-                    'game_state': self._to_flutter_game_state(game),
-                    'result': {
-                        'success': True,
-                        'power': 'peek_at_card',
-                        'target_player_id': target_player_id,
-                        'target_card_index': target_card_index,
-                    }
-                }
-                self._broadcast_message(game_id, payload, session_id)
-                return True
-            elif power == 'switch_cards':
-                src_pid = data['power_data'].get('source_player_id')
-                dst_pid = data['power_data'].get('dest_player_id')
-                src_idx = int(data['power_data'].get('source_card_index'))
-                dst_idx = int(data['power_data'].get('dest_card_index'))
-                src = game.players.get(src_pid)
-                dst = game.players.get(dst_pid)
-                if not src or not dst:
-                    self._emit_error(session_id, 'Invalid players for switch')
-                    return False
-                if src_idx < 0 or src_idx >= len(src.hand) or dst_idx < 0 or dst_idx >= len(dst.hand):
-                    self._emit_error(session_id, 'Invalid card indices for switch')
-                    return False
-                src_card = src.hand[src_idx]
-                dst_card = dst.hand[dst_idx]
-                src.hand[src_idx], dst.hand[dst_idx] = dst_card, src_card
-                payload = {
-                    'type': 'recall_event',
-                    'event_type': 'special_power_used',
-                    'game_id': game_id,
-                    'game_state': self._to_flutter_game_state(game),
-                    'result': {
-                        'success': True,
-                        'power': 'switch_cards',
-                        'source_player_id': src_pid,
-                        'source_card_index': src_idx,
-                        'dest_player_id': dst_pid,
-                        'dest_card_index': dst_idx,
-                    }
-                }
-                self._broadcast_message(game_id, payload, session_id)
-                return True
-            else:
-                payload = {
-                    'type': 'recall_event',
-                    'event_type': 'special_power_used',
-                    'game_id': game_id,
-                    'game_state': self._to_flutter_game_state(game),
-                    'result': {'success': True, 'power': power}
-                }
-                self._broadcast_message(game_id, payload, session_id)
-                return True
-        except Exception as e:
-            custom_log(f"Error in _on_use_special_power: {e}", level="ERROR")
-            self._emit_error(session_id, f'Use special power failed: {str(e)}')
-            return False
-
-    def _on_initial_peek(self, session_id: str, data: Dict[str, Any]) -> bool:
-        try:
-            game_id = data.get('game_id')
-            indices = data.get('indices') or []
-            if not game_id:
-                self._emit_error(session_id, 'Missing game_id')
-                return False
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                self._emit_error(session_id, f'Game not found: {game_id}')
-                return False
-            session_data = self.websocket_manager.get_session_data(session_id) or {}
-            user_id = str(session_data.get('user_id') or session_id)
-            result = game.initial_peek(user_id, indices)
-            payload = {
-                'type': 'recall_event',
-                'event_type': 'game_state_updated',
-                'game_id': game_id,
-                'game_state': self._to_flutter_game_state(game),
-                'result': result,
-            }
-            self._broadcast_message(game_id, payload, session_id)
-            return True
-        except Exception as e:
-            custom_log(f"Error in _on_initial_peek: {e}", level="ERROR")
-            self._emit_error(session_id, f'Initial peek failed: {str(e)}')
-            return False
+    # Handlers moved to RecallGameplayManager
 
     # ==== Helpers ====
 

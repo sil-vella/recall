@@ -5,6 +5,7 @@ import 'managers/recall_game_manager.dart';
 import 'screens/lobby_room/lobby_screen.dart';
 import '../../../tools/logging/logger.dart';
 import 'managers/recall_message_manager.dart';
+import 'screens/game_play/game_play_screen.dart';
 
 /// Core component for Recall Game functionality
 /// Manages game initialization, screen registration, and state management
@@ -55,21 +56,13 @@ class RecallGameCore {
     );
 
     // TODO: Register additional screens as they are implemented
-    // navigationManager.registerRoute(
-    //   path: '/recall/game-room',
-    //   screen: (context) => const GameRoomScreen(),
-    //   drawerTitle: null, // Don't show in drawer
-    //   drawerIcon: null,
-    //   drawerPosition: 999,
-    // );
-
-    // navigationManager.registerRoute(
-    //   path: '/recall/game-play',
-    //   screen: (context) => const GamePlayScreen(),
-    //   drawerTitle: null, // Don't show in drawer
-    //   drawerIcon: null,
-    //   drawerPosition: 999,
-    // );
+    navigationManager.registerRoute(
+      path: '/recall/game-play',
+      screen: (context) => const GamePlayScreen(),
+      drawerTitle: null, // Hidden from drawer
+      drawerIcon: null,
+      drawerPosition: 999,
+    );
 
     // navigationManager.registerRoute(
     //   path: '/recall/game-results',

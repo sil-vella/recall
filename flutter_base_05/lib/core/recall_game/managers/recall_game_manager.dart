@@ -392,6 +392,79 @@ class RecallGameManager {
     }
   }
 
+  /// Draw from face-down deck
+  Future<Map<String, dynamic>> drawFromDeck() async {
+    if (_currentGameId == null) {
+      return {'error': 'Not in a game'};
+    }
+    try {
+      _log.info('🂠 Draw from deck');
+      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+        'action': 'draw_from_deck',
+        'player_id': _currentPlayerId,
+      });
+      return result;
+    } catch (e) {
+      _log.error('❌ Error drawing from deck: $e');
+      return {'error': 'Failed to draw from deck: $e'};
+    }
+  }
+
+  /// Take top card from discard pile
+  Future<Map<String, dynamic>> takeFromDiscard() async {
+    if (_currentGameId == null) {
+      return {'error': 'Not in a game'};
+    }
+    try {
+      _log.info('🂡 Take from discard');
+      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+        'action': 'take_from_discard',
+        'player_id': _currentPlayerId,
+      });
+      return result;
+    } catch (e) {
+      _log.error('❌ Error taking from discard: $e');
+      return {'error': 'Failed to take from discard: $e'};
+    }
+  }
+
+  /// Replace a card in hand with the drawn card by index
+  Future<Map<String, dynamic>> placeDrawnCardReplace(int replaceIndex) async {
+    if (_currentGameId == null) {
+      return {'error': 'Not in a game'};
+    }
+    try {
+      _log.info('🔁 Replace card at index $replaceIndex with drawn');
+      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+        'action': 'place_drawn_card_replace',
+        'replaceIndex': replaceIndex,
+        'player_id': _currentPlayerId,
+      });
+      return result;
+    } catch (e) {
+      _log.error('❌ Error replacing with drawn: $e');
+      return {'error': 'Failed to replace with drawn: $e'};
+    }
+  }
+
+  /// Play the drawn card immediately
+  Future<Map<String, dynamic>> placeDrawnCardPlay() async {
+    if (_currentGameId == null) {
+      return {'error': 'Not in a game'};
+    }
+    try {
+      _log.info('🃏 Play drawn card');
+      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+        'action': 'place_drawn_card_play',
+        'player_id': _currentPlayerId,
+      });
+      return result;
+    } catch (e) {
+      _log.error('❌ Error playing drawn card: $e');
+      return {'error': 'Failed to play drawn card: $e'};
+    }
+  }
+
   /// Call recall
   Future<Map<String, dynamic>> callRecall() async {
     if (_currentGameId == null) {

@@ -125,75 +125,31 @@ class RecallGameplayManager:
             session_data = self.websocket_manager.get_session_data(session_id) or {}
             user_id = str(session_data.get('user_id') or data.get('player_id') or session_id)
 
-            result: Dict[str, Any] = {'error': 'Unsupported action'}
-            event_type = 'error'
+            # Build action_data for YAML engine
+            action_data: Dict[str, Any] = {
+                'action_type': action,
+                'player_id': user_id,
+                'game_id': game_id,
+                'card_id': (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id'),
+                'replace_card_id': (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id'),
+                'replace_index': data.get('replaceIndex'),
+                'power_data': data.get('power_data'),
+            }
 
-            def _resolve_card_id_from_hand(card_payload: Dict[str, Any]) -> Optional[str]:
-                cid = card_payload.get('card_id') or card_payload.get('id')
-                if cid:
-                    return cid
-                rank = (card_payload.get('rank') or '').lower()
-                suit = (card_payload.get('suit') or '').lower()
-                if user_id in game.players and rank and suit:
-                    for c in game.players[user_id].hand:
-                        if getattr(c, 'rank', '').lower() == rank and getattr(c, 'suit', '').lower() == suit:
-                            return c.card_id
-                return None
+            # Engine processes action via YAML rules
+            engine_result = self.game_logic_engine.process_player_action(game, action_data)
 
-            if action == 'play_card':
-                card = data.get('card') or {}
-                card_id = _resolve_card_id_from_hand(card)
-                if not card_id:
-                    self._emit_error(session_id, 'Missing card_id')
-                    return False
-                result = game.play_card(user_id, card_id)
-                event_type = 'card_played'
-            elif action == 'play_out_of_turn':
-                card = data.get('card') or {}
-                card_id = _resolve_card_id_from_hand(card)
-                if not card_id:
-                    self._emit_error(session_id, 'Missing card_id')
-                    return False
-                result = game.play_out_of_turn(user_id, card_id)
-                event_type = 'card_played'
-            elif action == 'call_recall':
-                result = game.call_recall(user_id)
-                event_type = 'recall_called'
-            elif action == 'use_special_power':
-                result = {'success': True, 'power_used': data.get('power_data')}
-                event_type = 'special_power_used'
-            elif action == 'draw_from_deck':
-                result = game.draw_from_deck(user_id)
-                event_type = 'game_state_updated'
-            elif action == 'take_from_discard':
-                result = game.take_from_discard(user_id)
-                event_type = 'game_state_updated'
-            elif action in ('place_drawn_replace', 'place_drawn_card_replace'):
-                replace_id = (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id')
-                replace_index = data.get('replaceIndex')
-                if not replace_id and replace_index is not None and user_id in game.players:
-                    try:
-                        idx = int(replace_index)
-                        hand = game.players[user_id].hand
-                        if 0 <= idx < len(hand):
-                            replace_id = hand[idx].card_id
-                    except Exception:
-                        replace_id = None
-                if not replace_id:
-                    self._emit_error(session_id, 'Missing replace target (id or index)')
-                    return False
-                result = game.place_drawn_card_replace(user_id, replace_id)
-                event_type = 'game_state_updated'
-            elif action in ('place_drawn_play', 'place_drawn_card_play'):
-                result = game.place_drawn_card_play(user_id)
-                event_type = 'card_played'
+            # Fallback for actions not yet in YAML: minimal delegations
+            if not engine_result or engine_result.get('error'):
+                engine_result = self._fallback_handle(game, action, user_id, data)
 
+            event_type = engine_result.get('event_type') or 'game_state_updated'
             payload = {
                 'type': 'recall_event',
                 'event_type': event_type,
                 'game_id': game_id,
                 'game_state': self._to_flutter_game_state(game),
-                'result': result,
+                'result': engine_result,
             }
             self._broadcast_message(game_id, payload, session_id)
             return True
@@ -201,6 +157,46 @@ class RecallGameplayManager:
             custom_log(f"Error in on_player_action: {e}", level="ERROR")
             self._emit_error(session_id, f'Player action failed: {str(e)}')
             return False
+
+    def _fallback_handle(self, game, action: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        # Minimal compatibility with current GameState methods while YAML rules expand
+        if action == 'draw_from_deck':
+            return game.draw_from_deck(user_id)
+        if action == 'take_from_discard':
+            return game.take_from_discard(user_id)
+        if action in ('place_drawn_replace', 'place_drawn_card_replace'):
+            replace_id = (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id')
+            replace_index = data.get('replaceIndex')
+            if not replace_id and replace_index is not None and user_id in game.players:
+                try:
+                    idx = int(replace_index)
+                    hand = game.players[user_id].hand
+                    if 0 <= idx < len(hand):
+                        replace_id = hand[idx].card_id
+                except Exception:
+                    replace_id = None
+            if not replace_id:
+                return {'error': 'Missing replace target (id or index)'}
+            return game.place_drawn_card_replace(user_id, replace_id)
+        if action in ('place_drawn_play', 'place_drawn_card_play'):
+            return game.place_drawn_card_play(user_id)
+        if action == 'play_card':
+            card = data.get('card') or {}
+            cid = card.get('card_id') or card.get('id')
+            if not cid:
+                return {'error': 'Missing card_id'}
+            return game.play_card(user_id, cid)
+        if action == 'play_out_of_turn':
+            card = data.get('card') or {}
+            cid = card.get('card_id') or card.get('id')
+            if not cid:
+                return {'error': 'Missing card_id'}
+            return game.play_out_of_turn(user_id, cid)
+        if action == 'call_recall':
+            return game.call_recall(user_id)
+        if action == 'use_special_power':
+            return {'success': True, 'power_used': data.get('power_data')}
+        return {'error': 'Unsupported action'}
 
     def on_call_recall(self, session_id: str, data: Dict[str, Any]) -> bool:
         try:

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../managers/state_manager.dart';
+import '../../../../managers/navigation_manager.dart';
 
 class CurrentRoomWidget extends StatelessWidget {
   final StateManager stateManager;
@@ -47,6 +48,23 @@ class CurrentRoomWidget extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
+                    // Enter Game button
+                    Semantics(
+                      label: 'enter_game_screen',
+                      identifier: 'enter_game_screen',
+                      button: true,
+                      child: ElevatedButton(
+                        onPressed: isConnected && currentRoomId != null
+                            ? () => NavigationManager().navigateTo('/recall/game-play')
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Enter Game'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     ElevatedButton(
                       onPressed: isConnected && currentRoomId != null ? () => onLeaveRoom(currentRoomId!) : null,
                       style: ElevatedButton.styleFrom(

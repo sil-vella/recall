@@ -21,7 +21,7 @@ class GamePlayScreen extends BaseScreen {
   String computeTitle(BuildContext context) => 'Recall Match';
 
   @override
-  BaseScreenState createState() => _GamePlayScreenState();
+  _GamePlayScreenState createState() => _GamePlayScreenState();
 }
 
 class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {

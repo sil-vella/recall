@@ -201,6 +201,16 @@ class GameLogicEngine:
             return self._effect_check_recall_opportunity(effect, game_state, action_data)
         elif effect_type == "next_player":
             return self._effect_next_player(effect, game_state, action_data)
+        elif effect_type == "draw_from_deck":
+            return game_state.draw_from_deck(action_data.get('player_id'))
+        elif effect_type == "take_from_discard":
+            return game_state.take_from_discard(action_data.get('player_id'))
+        elif effect_type == "place_drawn_card_replace":
+            return game_state.place_drawn_card_replace(action_data.get('player_id'), effect.get('replace_card_id') or action_data.get('replace_card_id'))
+        elif effect_type == "place_drawn_card_play":
+            return game_state.place_drawn_card_play(action_data.get('player_id'))
+        elif effect_type == "play_card":
+            return game_state.play_card(action_data.get('player_id'), action_data.get('card_id'))
         
         return {'type': effect_type, 'status': 'unknown_effect'}
     

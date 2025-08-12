@@ -239,6 +239,15 @@ class RecallGameMain:
             if action == 'play_card':
                 card = data.get('card') or {}
                 card_id = card.get('card_id') or card.get('id')
+                # Fallback: map by rank/suit if id not present from client
+                if not card_id:
+                    rank = (card.get('rank') or '').lower()
+                    suit = (card.get('suit') or '').lower()
+                    if user_id in game.players and rank and suit:
+                        for c in game.players[user_id].hand:
+                            if getattr(c, 'rank', '').lower() == rank and getattr(c, 'suit', '').lower() == suit:
+                                card_id = c.card_id
+                                break
                 if not card_id:
                     self._emit_error(session_id, 'Missing card_id')
                     return False
@@ -247,6 +256,14 @@ class RecallGameMain:
             elif action == 'play_out_of_turn':
                 card = data.get('card') or {}
                 card_id = card.get('card_id') or card.get('id')
+                if not card_id:
+                    rank = (card.get('rank') or '').lower()
+                    suit = (card.get('suit') or '').lower()
+                    if user_id in game.players and rank and suit:
+                        for c in game.players[user_id].hand:
+                            if getattr(c, 'rank', '').lower() == rank and getattr(c, 'suit', '').lower() == suit:
+                                card_id = c.card_id
+                                break
                 if not card_id:
                     self._emit_error(session_id, 'Missing card_id')
                     return False
@@ -264,14 +281,24 @@ class RecallGameMain:
             elif action == 'take_from_discard':
                 result = game.take_from_discard(user_id)
                 event_type = 'game_state_updated'
-            elif action == 'place_drawn_replace':
+            elif action in ('place_drawn_replace', 'place_drawn_card_replace'):
+                # Accept either replace card id or index from client
                 replace_id = (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id')
+                replace_index = data.get('replaceIndex')
+                if not replace_id and replace_index is not None and user_id in game.players:
+                    try:
+                        idx = int(replace_index)
+                        hand = game.players[user_id].hand
+                        if 0 <= idx < len(hand):
+                            replace_id = hand[idx].card_id
+                    except Exception:
+                        replace_id = None
                 if not replace_id:
-                    self._emit_error(session_id, 'Missing replace_card_id')
+                    self._emit_error(session_id, 'Missing replace target (id or index)')
                     return False
                 result = game.place_drawn_card_replace(user_id, replace_id)
                 event_type = 'game_state_updated'
-            elif action == 'place_drawn_play':
+            elif action in ('place_drawn_play', 'place_drawn_card_play'):
                 result = game.place_drawn_card_play(user_id)
                 event_type = 'card_played'
 

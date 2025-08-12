@@ -1,22 +1,71 @@
 {
-  "goal": "read rule.md and make sure the build always follows the rules",
-  "description": "App build rules",
+  "goal": "The feature is working as expected and the code follows the structure and architecture illustrated in rule.md",
+  "description": "Feature build rules",
   "steps": [
     {
-      "step": 1,
-      "description": "Read the rule.md file to understand codebase structure and architecture and add it to context"
+      "step": "read rule.md",
+      "description": "Read the rule.md file to understand codebase structure and architecture and add it to context. No need to explain the rules or how the structure works, just add it to your context."
+    },
+    {
+      "step": "launch devtools and flutter app",
+      "description": "Use the Devtools-mcp tool as instructed in the rule.md file to test the flutter app, launch it using the args and configs for chrome web, given to you in the launch_configs. Wait for the flutter app to fully launch and be ready before continuing. VERY IMPORTANT:  Always check the source tab for the fliutter code structure to figure out the elements and how they should be targeted."
+    },
+    {
+      "step": "test the feature",
+      "description": "Use silvester.vella@gmail.com as username and 12345678 as password if you need to login. Tnavigate to the recall game screen and create a test room. then notice how the public rooms widget gets blank, although it should at least list the newly creted room. find the issue and fix."
+    },
+    {
+      "step": "end",
+      "description": "End the task, move to next task if exists"
     }
   ],
   "metadata": {
     "version": "1.0",
     "max_steps": 5,
     "created": "2024-08-05",
-    "priority": "high"
+    "priority": "high",
+    "relevant_files": {
+      "rules": "/Users/sil/Documents/Work/reignofplay/Recall/app_dev/cursor_automation/tasks/001/rule.md",
+      "architecture_docs": "/Users/sil/Documents/Work/reignofplay/Recall/app_dev/Documentation/flutter_base_05/ARCHITECTURE.md",
+      "managers_docs": "/Users/sil/Documents/Work/reignofplay/Recall/app_dev/Documentation/flutter_base_05/MANAGERS.md",
+      "launch_configs": [
+                "--web-port=3000",
+                "--web-hostname=localhost",
+                "--dart-define=API_URL_LOCAL=http://localhost:8081",
+                "--dart-define=API_URL=https://fmif.reignofplay.com",
+                "--dart-define=WS_URL_LOCAL=ws://localhost:8081",
+                "--dart-define=WS_URL=wss://fmif.reignofplay.com",
+                "--dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600",
+                "--dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800",
+                "--dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300",
+                "--dart-define=JWT_TOKEN_REFRESH_INTERVAL=3600",
+                "--dart-define=ADMOBS_TOP_BANNER01=ca-app-pub-3940256099942544/9214589741",
+                "--dart-define=ADMOBS_BOTTOM_BANNER01=ca-app-pub-3940256099942544/9214589741",
+                "--dart-define=ADMOBS_INTERSTITIAL01=ca-app-pub-3940256099942544/1033173712",
+                "--dart-define=ADMOBS_REWARDED01=ca-app-pub-3940256099942544/5224354917",
+                "--dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_51MXUtTADcEzB4rlRqLVPRhD0Ti3SRZGyTEQ1crO6YoeGyEfWYBgDxouHygPawog6kKTLVWhxP6DbK1MtBylX2Z6G00JTtIRdgZ",
+                "--dart-define=FLUTTER_KEEP_SCREEN_ON=true",
+                "--dart-define=DEBUG_MODE=true"
+            ]
+
+      },
+    "logs": {
+      "backend_main": "/Users/sil/Documents/Work/reignofplay/Recall/app_dev/python_base_04/tools/logger/server.log"
+    }
   },
   "requirements": {
-    "rule_file": "rule.md"
+    "rule_file": "rule.md",
+    "core_files": {
+      "managers": "/Users/sil/Documents/Work/reignofplay/Recall/app_dev/lib/core/managers/*",
+      "base_classes": "/Users/sil/Documents/Work/reignofplay/Recall/app_dev/lib/core/00_base/*",
+      "services": "/Users/sil/Documents/Work/reignofplay/Recall/app_dev/lib/core/services/*"
+    },
+    "documentation_paths": {
+      "architecture": "/Users/sil/Documents/Work/reignofplay/Recall/app_dev/Documentation/flutter_base_05/",
+      "api_reference": "/Users/sil/Documents/Work/reignofplay/Recall/app_dev/Documentation/flutter_base_05/API_REFERENCE.md"
+    }
   },
   "success_criteria": [
-    "rule.md file is read successfully and added to context"
+    "All the steps are completed and tested successfully. Temporary testing files and configs are deleted."
   ]
 } 

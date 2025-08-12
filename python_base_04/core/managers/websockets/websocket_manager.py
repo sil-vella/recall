@@ -62,6 +62,32 @@ class WebSocketManager:
         
         custom_log("WebSocketManager initialized")
 
+        # Wire TTL expiry callback: broadcast graceful room closure and disconnect members
+        def _on_room_ttl_expired(room_id: str):
+            try:
+                custom_log(f"🔔 TTL expiry callback received for room {room_id}")
+                # Inform clients the room is closing due to TTL expiry
+                self.socketio.emit('room_closed', {
+                    'room_id': room_id,
+                    'reason': 'ttl_expired',
+                    'timestamp': datetime.now().isoformat()
+                }, room=room_id)
+
+                # Best-effort: force leave members from in-memory map
+                members = list(self.rooms.get(room_id, set()))
+                for sid in members:
+                    try:
+                        leave_room(room_id, sid=sid)
+                    except Exception:
+                        pass
+                # Clear memory and Redis data for the room
+                self._cleanup_room_data(room_id)
+                custom_log(f"✅ Room {room_id} cleanup completed after TTL expiry")
+            except Exception as e:
+                custom_log(f"⚠️ Error handling TTL expiry for room {room_id}: {e}")
+
+        self.room_manager.on_room_ttl_expired = _on_room_ttl_expired
+
     def set_cors_origins(self, origins: list):
         """Set allowed CORS origins."""
         self.socketio.cors_allowed_origins = origins
@@ -447,6 +473,12 @@ class WebSocketManager:
             
             self.redis_manager.set(room_key, room_data, expire=Config.WS_ROOM_TTL)
             custom_log(f"DEBUG - Room data stored in Redis")
+            # Ensure TTL is enforced through room manager policy as well
+            try:
+                self.room_manager.reinstate_room_ttl(room_id)
+                custom_log(f"⏱️ Reinforced TTL policy for room {room_id} after create")
+            except Exception as e:
+                custom_log(f"⚠️ Could not reinstate TTL on create for room {room_id}: {e}")
             
             # Update room permissions
             self._update_room_permissions(room_id, room_data)
@@ -599,6 +631,12 @@ class WebSocketManager:
             
             # Update room size
             self.update_room_size(room_id, 1)
+            # Reinstate room TTL on each successful join
+            try:
+                self.room_manager.reinstate_room_ttl(room_id)
+                custom_log(f"🔄 TTL reinstated for room {room_id} on join")
+            except Exception as e:
+                custom_log(f"⚠️ Could not reinstate TTL on join for room {room_id}: {e}")
             
             # Update session data
             session_data = self.get_session_data(session_id)

@@ -9,6 +9,9 @@ import 'widgets/join_room_widget.dart';
 import 'widgets/current_room_widget.dart';
 import 'widgets/room_list_widget.dart';
 import 'services/room_service.dart';
+import '../../widgets/feature_slot.dart';
+import 'features/lobby_features.dart';
+import 'widgets/message_board_widget.dart';
 
 class LobbyScreen extends BaseScreen {
   const LobbyScreen({Key? key}) : super(key: key);
@@ -27,6 +30,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   
   // Managers
   final StateManager _stateManager = StateManager();
+  final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
   @override
   void initState() {
@@ -35,6 +39,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       _loadPublicRooms();
       _setupEventCallbacks();
       _initializeRoomState();
+      _featureRegistrar.registerDefaults(context);
     });
   }
 
@@ -47,6 +52,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     
     // Clean up event callbacks
     _roomService.cleanupEventCallbacks();
+    _featureRegistrar.unregisterAll();
     
     super.dispose();
   }
@@ -138,7 +144,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
             children: [
               // Connection Status
               ConnectionStatusWidget(websocketManager: _websocketManager),
-              
               const SizedBox(height: 20),
               
               // Create Room Section
@@ -149,6 +154,11 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                 onCreateRoom: _createRoom,
               ),
               
+              const SizedBox(height: 20),
+
+              // Session Message Board
+              MessageBoardWidget(stateManager: _stateManager),
+
               const SizedBox(height: 20),
               
               // Join Room Section
@@ -161,6 +171,16 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
               ),
               
               const SizedBox(height: 20),
+              // Second slot in lobby for extra tools/actions (icon-only contract)
+              const FeatureSlot(
+                scopeKey: LobbyFeatureSlots.scopeKey,
+                slotId: LobbyFeatureSlots.slotSecondary,
+                title: 'Tools',
+                contract: 'icon_action',
+                iconSize: 22,
+              ),
+
+              const SizedBox(height: 20),
               
               // Current Room Info
               CurrentRoomWidget(
@@ -170,6 +190,14 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
               ),
               
               const SizedBox(height: 20),
+
+              // Room Message Board (if in room)
+              Builder(builder: (context) {
+                final wsState = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+                final currentRoomId = (wsState['currentRoomId'] ?? '') as String;
+                if (currentRoomId.isEmpty) return const SizedBox.shrink();
+                return MessageBoardWidget(stateManager: _stateManager, roomId: currentRoomId);
+              }),
               
               // Public Rooms List
               RoomListWidget(

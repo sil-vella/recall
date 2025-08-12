@@ -73,7 +73,7 @@ class RoomListWidget extends StatelessWidget {
                       final roomId = room['room_id'] as String?;
                       final isInThisRoom = currentRoomId == roomId;
                       
-                      return ListTile(
+                       return ListTile(
                         title: Text('Room: ${room['room_name'] ?? room['room_id']}'),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,19 +85,29 @@ class RoomListWidget extends StatelessWidget {
                               Text('Type: ${room['permission']}'),
                           ],
                         ),
-                        trailing: isInThisRoom
-                            ? ElevatedButton(
-                                onPressed: isConnected ? () => onLeaveRoom(roomId!) : null,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text('Leave'),
-                              )
-                            : ElevatedButton(
-                                onPressed: isConnected ? () => onJoinRoom(roomId!) : null,
-                                child: const Text('Join'),
-                              ),
+                         trailing: isInThisRoom
+                             ? Semantics(
+                                 label: 'room_leave_${roomId}',
+                                 identifier: 'room_leave_${roomId}',
+                                 button: true,
+                                 child: ElevatedButton(
+                                   onPressed: isConnected ? () => onLeaveRoom(roomId!) : null,
+                                   style: ElevatedButton.styleFrom(
+                                     backgroundColor: Colors.red,
+                                     foregroundColor: Colors.white,
+                                   ),
+                                   child: const Text('Leave'),
+                                 ),
+                               )
+                             : Semantics(
+                                 label: 'room_join_${roomId}',
+                                 identifier: 'room_join_${roomId}',
+                                 button: true,
+                                 child: ElevatedButton(
+                                   onPressed: isConnected ? () => onJoinRoom(roomId!) : null,
+                                   child: const Text('Join'),
+                                 ),
+                               ),
                       );
                     },
                   ),

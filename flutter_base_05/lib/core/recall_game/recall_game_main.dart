@@ -4,6 +4,7 @@ import 'managers/recall_state_manager.dart';
 import 'managers/recall_game_manager.dart';
 import 'screens/lobby_room/lobby_screen.dart';
 import '../../../tools/logging/logger.dart';
+import 'managers/recall_message_manager.dart';
 
 /// Core component for Recall Game functionality
 /// Manages game initialization, screen registration, and state management
@@ -30,6 +31,8 @@ class RecallGameCore {
     // Initialize managers
     _recallStateManager.initialize();
     _recallGameManager.initialize();
+    // One-time initialization of Recall message routing
+    RecallMessageManager().initialize();
     
     // Register screens
     _registerScreens();

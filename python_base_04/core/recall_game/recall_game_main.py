@@ -10,6 +10,8 @@ from tools.logger.custom_logging import custom_log
 from .models.game_state import GameStateManager
 from .game_logic.game_logic_engine import GameLogicEngine
 import time
+from .managers.recall_websockets_manager import RecallWebSocketsManager
+from .managers.recall_message_system import RecallMessageSystem
 
 
 class RecallGameMain:
@@ -20,6 +22,8 @@ class RecallGameMain:
         self.websocket_manager = None
         self.game_state_manager = None
         self.game_logic_engine = None
+        self.recall_ws_manager = None
+        self.recall_message_system = None
         self._initialized = False
     
     def initialize(self, app_manager) -> bool:
@@ -38,6 +42,13 @@ class RecallGameMain:
             
             # Register Recall game handlers with the main WebSocket manager
             self._register_recall_handlers()
+            # Initialize Recall-specific WebSocket event bridge (non-core)
+            self.recall_ws_manager = RecallWebSocketsManager()
+            self.recall_ws_manager.initialize(self.app_manager)
+
+            # Initialize Recall message system (facade)
+            self.recall_message_system = RecallMessageSystem()
+            self.recall_message_system.initialize(self.app_manager)
             
             self._initialized = True
             custom_log("✅ Recall Game backend initialized successfully")

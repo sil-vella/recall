@@ -5,7 +5,40 @@ alwaysApply: true
 ---
 # Python Base 04 - AI Development Rules
 
-## Overview
+## ⚠️ CRITICAL ARCHITECTURAL RULES
+
+**FUNDAMENTAL PRINCIPLE**: The system MUST maintain strict modularity. New functionality MUST be implemented through extension and integration, NEVER through modification of existing core components.
+
+### Immutable Core Components
+The following components are IMMUTABLE and MUST NOT be modified:
+- Core Managers (`core/managers/*`)
+- Base Classes (`core/00_base/*`)
+- Core Services (`core/services/*`)
+- Existing Module System
+- AppManager Configuration
+
+### Extension Points
+New functionality MUST be implemented through:
+1. **New Modules**: Create modules that extend `BaseModule`
+2. **Service Integration**: Implement new services that integrate with `ServicesManager`
+3. **Manager Usage**: Use existing manager interfaces, never modify them
+4. **Event Hooks**: Hook into existing event system via `HooksManager`
+
+### Integration Rules
+When adding functionality:
+1. **DO**:
+   - Create new modules that extend `BaseModule`
+   - Register with existing managers
+   - Use established state management patterns
+   - Implement proper service interfaces
+   - Hook into existing event systems
+
+2. **DO NOT**:
+   - Modify existing manager implementations
+   - Change core base classes
+   - Alter existing module implementations
+   - Modify the core architecture
+   - Change existing service interfaces
 
 This document defines the rules and guidelines for AI-assisted development in the Python Base 04 project. All AI interactions must follow these architectural patterns, coding standards, and development practices.
 

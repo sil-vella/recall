@@ -126,9 +126,9 @@ class RoomService {
       
       _logger.info("🏠 Create room result: $result");
       
-      if (result?['success'] != null && result!['success'].toString().contains('successfully')) {
+      if (result['success'] != null && result['success'].toString().contains('successfully')) {
         // Use the actual room data from the server response
-        final createdRoomData = result!['data'] as Map<String, dynamic>;
+        final createdRoomData = result['data'] as Map<String, dynamic>;
         
         // Update StateManager with the new room
         final newRoom = {
@@ -155,7 +155,7 @@ class RoomService {
         
         return newRoom;
       } else {
-        throw Exception(result?['error'] ?? 'Failed to create room');
+        throw Exception(result['error'] ?? 'Failed to create room');
       }
       
     } catch (e) {
@@ -166,13 +166,29 @@ class RoomService {
 
   Future<void> _refreshPublicRooms() async {
     try {
-      final rooms = await loadPublicRooms();
-      
-      // Update StateManager with refreshed public rooms
+      final fetchedRooms = await loadPublicRooms();
+
+      // Merge with existing local rooms to avoid flicker/removal when backend
+      // hasn't propagated the newly created room yet.
+      // Prefer server values when ids collide; keep local-only rooms.
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+      final existing = (currentState['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+
+      final Map<String, Map<String, dynamic>> byId = {};
+      for (final room in existing) {
+        final id = room['room_id']?.toString();
+        if (id != null) byId[id] = room;
+      }
+      for (final room in fetchedRooms) {
+        final id = room['room_id']?.toString();
+        if (id != null) byId[id] = room; // server wins on conflict
+      }
+
+      final mergedRooms = byId.values.toList();
+
       final updatedState = {
         ...currentState,
-        'rooms': rooms,
+        'rooms': mergedRooms,
         'lastUpdated': DateTime.now().toIso8601String(),
       };
       _stateManager.updateModuleState("recall_game", updatedState);
@@ -233,8 +249,8 @@ class RoomService {
       // Use the existing WebSocket system directly
       final result = await _wsEventManager.joinRoom(roomId, 'current_user');
       
-      if (result?['success'] != true) {
-        throw Exception(result?['error'] ?? 'Failed to join room');
+      if (result['success'] != true) {
+        throw Exception(result['error'] ?? 'Failed to join room');
       }
       
       // The WebSocket system will handle the state updates automatically
@@ -260,12 +276,12 @@ class RoomService {
       // Use the existing WebSocket system directly
       final result = await _wsEventManager.leaveRoom(roomId);
       
-      if (result?['pending'] != null || result?['success'] != null) {
+      if (result['pending'] != null || result['success'] != null) {
         // The WebSocket system will handle the state updates automatically
         // We just need to update the Recall game state based on the WebSocket state
         _syncWithWebSocketState();
       } else {
-        throw Exception(result?['error'] ?? 'Failed to leave room');
+        throw Exception(result['error'] ?? 'Failed to leave room');
       }
       
     } catch (e) {

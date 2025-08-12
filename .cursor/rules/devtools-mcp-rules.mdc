@@ -1,0 +1,146 @@
+---
+description: Chrome DevTools Protocol MCP Server Rules and Instructions
+
+alwaysApply: true
+---
+# DevTools MCP Rules and Instructions
+
+## Overview
+The DevTools MCP server provides Chrome DevTools Protocol (CDP) access to LLMs through Cursor. It enables browser automation, page manipulation, and screenshot capture.
+
+## Initialization Requirements
+
+1. **Chrome Debug Mode**
+   - Chrome MUST be running in debug mode before using CDP commands
+   - Command to start Chrome:
+   ```bash
+   /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+     --remote-debugging-port=9222 \
+     --remote-debugging-address=127.0.0.1 \
+     --user-data-dir=/tmp/chrome-debug \
+     --no-first-run \
+     --disable-default-apps
+   ```
+   - Verify by checking: `http://localhost:9222/json` should return a list of debuggable targets
+
+2. **Server Auto-Start**
+   - Server auto-starts via mcp.json configuration
+   - Connects to Chrome on port 9222
+   - Creates `cdp-output/` directory for binary data (screenshots, PDFs)
+
+## Available Tool
+
+The server exposes a single tool: `cdp_command`
+- Parameters:
+  - `method`: CDP command name (required)
+  - `params`: JSON string of parameters (optional, defaults to "{}")
+
+## Common CDP Commands
+
+1. **Navigation**
+   ```json
+   {
+     "method": "Page.navigate",
+     "params": "{\"url\": \"https://example.com\"}"
+   }
+   ```
+
+2. **Screenshot Capture**
+   ```json
+   {
+     "method": "Page.captureScreenshot",
+     "params": "{}"
+   }
+   ```
+   - Screenshots are saved to `cdp-output/` directory
+   - File path is returned in the response
+
+3. **JavaScript Execution**
+   ```json
+   {
+     "method": "Runtime.evaluate",
+     "params": "{\"expression\": \"document.title\"}"
+   }
+   ```
+
+4. **DOM Manipulation**
+   ```json
+   {
+     "method": "DOM.querySelector",
+     "params": "{\"nodeId\": 1, \"selector\": \".my-class\"}"
+   }
+   ```
+
+## Usage Guidelines
+
+1. **Before Using CDP Commands**
+   - ALWAYS check Chrome debug mode is running
+   - Verify connection: navigate to `http://localhost:9222/json`
+   - Watch for WebSocket connection in Chrome's terminal output
+
+2. **Error Handling**
+   - Check Chrome's debug port (9222) is not in use
+   - Ensure Chrome process is running with debug flags
+   - Monitor server logs for connection issues
+
+3. **Binary Data Handling**
+   - Screenshots and PDFs are saved to `cdp-output/`
+   - File paths are returned instead of raw binary data
+   - Clean up old files periodically
+
+4. **Best Practices**
+   - Use appropriate timeouts for long-running operations
+   - Close unused pages/targets
+   - Handle errors gracefully
+   - Clean up resources after use
+
+## Example Workflow
+
+1. **Initialize**
+   ```bash
+   # Start Chrome in debug mode
+   /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+     --remote-debugging-port=9222 \
+     --remote-debugging-address=127.0.0.1 \
+     --user-data-dir=/tmp/chrome-debug \
+     --no-first-run \
+     --disable-default-apps
+   ```
+
+2. **Verify Connection**
+   - Check `http://localhost:9222/json` returns targets
+   - Look for "DevTools listening on ws://127.0.0.1:9222/..." in Chrome output
+
+3. **Execute Commands**
+   - Use `cdp_command` tool with appropriate method and params
+   - Monitor responses for success/failure
+   - Handle binary data appropriately
+
+## Troubleshooting
+
+1. **Connection Issues**
+   - Verify Chrome is running with correct debug flags
+   - Check port 9222 is available
+   - Ensure no other Chrome instances are using debug port
+
+2. **Command Failures**
+   - Check CDP method name is correct
+   - Verify params JSON is properly formatted
+   - Monitor Chrome's debug output for errors
+
+3. **Binary Data Issues**
+   - Ensure `cdp-output/` directory exists and is writable
+   - Check disk space for large captures
+   - Monitor file cleanup
+
+## Security Notes
+
+1. **Debug Mode Considerations**
+   - Debug mode exposes Chrome's internals
+   - Use only in development/controlled environments
+   - Consider security implications of executed JavaScript
+
+2. **File System Access**
+   - Monitor `cdp-output/` directory size
+   - Clean up sensitive captures
+   - Restrict access to debug port

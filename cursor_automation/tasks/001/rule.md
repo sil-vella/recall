@@ -4,9 +4,109 @@ globs: **/*.dart
 alwaysApply: true
 ---
 
+---
+description:
+globs: **/*.dart
+alwaysApply: true
+---
+
 # Flutter Base 05 - AI Development Rules
 
-## Overview
+## ⚠️ CRITICAL ARCHITECTURAL RULES
+
+**FUNDAMENTAL PRINCIPLE**: The system MUST maintain strict modularity. New functionality MUST be implemented through extension and integration, NEVER through modification of existing core components.
+
+### Immutable Core Components
+The following components are IMMUTABLE and MUST NOT be modified:
+- Core Managers (`lib/core/managers/*`)
+- Base Classes (`lib/core/00_base/*`)
+- Core Services (`lib/core/services/*`)
+- Existing Module Registry
+
+### Extension Points
+New functionality MUST be implemented through:
+1. **New Modules**: Create new modules that integrate with existing managers
+2. **Module Registration**: Only modify module registry to register new modules
+3. **Manager Integration**: Use existing manager interfaces, never modify them
+4. **Event System**: Hook into existing event system for communication
+
+### Integration Rules
+When adding functionality:
+1. **DO**:
+   - Create new modules that extend `ModuleBase`
+   - Register with existing managers
+   - Use established state management patterns
+   - Hook into existing event systems
+
+2. **DO NOT**:
+   - Modify existing manager implementations
+   - Change core base classes
+   - Alter existing module implementations
+   - Modify the core architecture
+
+### UI Theme Compliance Rules
+All UI components MUST adhere to the centralized theme system defined in `theme_consts.dart`:
+
+1. **Color Usage**:
+   - MUST use `AppColors` constants
+   - NEVER hardcode color values
+   - Use semantic color assignments:
+     ```dart
+     // CORRECT
+     color: AppColors.primaryColor
+     backgroundColor: AppColors.scaffoldBackgroundColor
+     
+     // INCORRECT ❌
+     color: Color(0xFF41282F)
+     backgroundColor: Colors.white
+     ```
+
+2. **Typography**:
+   - MUST use `AppTextStyles` for all text styling
+   - Follow heading hierarchy:
+     ```dart
+     // CORRECT
+     style: AppTextStyles.headingLarge()
+     style: AppTextStyles.bodyMedium
+     
+     // INCORRECT ❌
+     style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)
+     ```
+
+3. **Layout Constants**:
+   - MUST use `AppPadding` for spacing
+   - Maintain consistent spacing patterns:
+     ```dart
+     // CORRECT
+     padding: AppPadding.defaultPadding
+     margin: AppPadding.cardPadding
+     
+     // INCORRECT ❌
+     padding: EdgeInsets.all(16.0)
+     ```
+
+4. **Theme Extensions**:
+   - MUST use `AppTheme.darkTheme` for theme customization
+   - Extend existing theme definitions:
+     ```dart
+     // CORRECT
+     Theme(
+       data: AppTheme.darkTheme,
+       child: widget
+     )
+     
+     // INCORRECT ❌
+     Theme(
+       data: ThemeData.dark(),
+       child: widget
+     )
+     ```
+
+5. **Component Styling**:
+   - Buttons MUST use theme-defined styles
+   - Input fields MUST follow theme decoration
+   - Navigation elements MUST use theme colors
+   - Selection and focus states MUST use theme colors
 
 This document defines the rules and guidelines for AI-assisted development in the Flutter Base 05 project. All AI interactions must follow these architectural patterns, coding standards, and development practices.
 
@@ -736,6 +836,8 @@ The key principles are:
 
 Follow these rules to maintain code quality, consistency, and architectural integrity.
 
+-----------------------
+
 ---
 description:
 globs: **/*.py
@@ -743,7 +845,40 @@ alwaysApply: true
 ---
 # Python Base 04 - AI Development Rules
 
-## Overview
+## ⚠️ CRITICAL ARCHITECTURAL RULES
+
+**FUNDAMENTAL PRINCIPLE**: The system MUST maintain strict modularity. New functionality MUST be implemented through extension and integration, NEVER through modification of existing core components.
+
+### Immutable Core Components
+The following components are IMMUTABLE and MUST NOT be modified:
+- Core Managers (`core/managers/*`)
+- Base Classes (`core/00_base/*`)
+- Core Services (`core/services/*`)
+- Existing Module System
+- AppManager Configuration
+
+### Extension Points
+New functionality MUST be implemented through:
+1. **New Modules**: Create modules that extend `BaseModule`
+2. **Service Integration**: Implement new services that integrate with `ServicesManager`
+3. **Manager Usage**: Use existing manager interfaces, never modify them
+4. **Event Hooks**: Hook into existing event system via `HooksManager`
+
+### Integration Rules
+When adding functionality:
+1. **DO**:
+   - Create new modules that extend `BaseModule`
+   - Register with existing managers
+   - Use established state management patterns
+   - Implement proper service interfaces
+   - Hook into existing event systems
+
+2. **DO NOT**:
+   - Modify existing manager implementations
+   - Change core base classes
+   - Alter existing module implementations
+   - Modify the core architecture
+   - Change existing service interfaces
 
 This document defines the rules and guidelines for AI-assisted development in the Python Base 04 project. All AI interactions must follow these architectural patterns, coding standards, and development practices.
 
@@ -1570,3 +1705,279 @@ The key principles are:
 10. **Testing requirements**
 
 Follow these rules to maintain code quality, consistency, and architectural integrity.
+
+
+-----------------------
+
+
+
+# DevTools MCP Rules and Instructions
+
+## Overview
+The DevTools MCP server provides Chrome DevTools Protocol (CDP) access to LLMs through Cursor. It enables browser automation, page manipulation, and screenshot capture.
+
+## Initialization Requirements
+
+1. **Chrome Debug Mode**
+   - Chrome MUST be running in debug mode before using CDP commands
+   - Command to start Chrome:
+   ```bash
+   /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+     --remote-debugging-port=9222 \
+     --remote-debugging-address=127.0.0.1 \
+     --user-data-dir=/tmp/chrome-debug \
+     --no-first-run \
+     --disable-default-apps
+   ```
+   - Verify by checking: `http://localhost:9222/json` should return a list of debuggable targets
+
+2. **Server Auto-Start**
+   - Server auto-starts via mcp.json configuration
+   - Connects to Chrome on port 9222
+   - Creates `cdp-output/` directory for binary data (screenshots, PDFs)
+
+## Available Tool
+
+The server exposes a single tool: `cdp_command`
+- Parameters:
+  - `method`: CDP command name (required)
+  - `params`: JSON string of parameters (optional, defaults to "{}")
+
+## Common CDP Commands
+
+1. **Navigation**
+   ```json
+   {
+     "method": "Page.navigate",
+     "params": "{\"url\": \"https://example.com\"}"
+   }
+   ```
+
+2. **Screenshot Capture**
+   ```json
+   {
+     "method": "Page.captureScreenshot",
+     "params": "{}"
+   }
+   ```
+   - Screenshots are saved to `cdp-output/` directory
+   - File path is returned in the response
+
+3. **JavaScript Execution**
+   ```json
+   {
+     "method": "Runtime.evaluate",
+     "params": "{\"expression\": \"document.title\"}"
+   }
+   ```
+
+4. **DOM Manipulation**
+   ```json
+   {
+     "method": "DOM.querySelector",
+     "params": "{\"nodeId\": 1, \"selector\": \".my-class\"}"
+   }
+   ```
+
+## Usage Guidelines
+
+1. **Before Using CDP Commands**
+   - ALWAYS check Chrome debug mode is running
+   - Verify connection: navigate to `http://localhost:9222/json`
+   - Watch for WebSocket connection in Chrome's terminal output
+
+2. **Error Handling**
+   - Check Chrome's debug port (9222) is not in use
+   - Ensure Chrome process is running with debug flags
+   - Monitor server logs for connection issues
+
+3. **Binary Data Handling**
+   - Screenshots and PDFs are saved to `cdp-output/`
+   - File paths are returned instead of raw binary data
+   - Clean up old files periodically
+
+4. **Best Practices**
+   - Use appropriate timeouts for long-running operations
+   - Close unused pages/targets
+   - Handle errors gracefully
+   - Clean up resources after use
+
+## Example Workflow
+
+1. **Initialize**
+   ```bash
+   # Start Chrome in debug mode
+   /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+     --remote-debugging-port=9222 \
+     --remote-debugging-address=127.0.0.1 \
+     --user-data-dir=/tmp/chrome-debug \
+     --no-first-run \
+     --disable-default-apps
+   ```
+
+2. **Verify Connection**
+   - Check `http://localhost:9222/json` returns targets
+   - Look for "DevTools listening on ws://127.0.0.1:9222/..." in Chrome output
+
+3. **Execute Commands**
+   - Use `cdp_command` tool with appropriate method and params
+   - Monitor responses for success/failure
+   - Handle binary data appropriately
+
+## Troubleshooting
+
+1. **Connection Issues**
+   - Verify Chrome is running with correct debug flags
+   - Check port 9222 is available
+   - Ensure no other Chrome instances are using debug port
+
+2. **Command Failures**
+   - Check CDP method name is correct
+   - Verify params JSON is properly formatted
+   - Monitor Chrome's debug output for errors
+
+3. **Binary Data Issues**
+   - Ensure `cdp-output/` directory exists and is writable
+   - Check disk space for large captures
+   - Monitor file cleanup
+
+## Security Notes
+
+1. **Debug Mode Considerations**
+   - Debug mode exposes Chrome's internals
+   - Use only in development/controlled environments
+   - Consider security implications of executed JavaScript
+
+2. **File System Access**
+   - Monitor `cdp-output/` directory size
+   - Clean up sensitive captures
+   - Restrict access to debug port
+
+
+   # Semantics-Based UI Targeting and Web Automation
+
+This document explains how we expose Flutter widgets for automation via Semantics and how to target them in the web build (Chrome) and on macOS.
+
+## What we added in code
+
+- We wrap key widgets with `Semantics` and set both a human label and an identifier.
+- On Web, `SemanticsData.identifier` becomes a DOM attribute `flt-semantics-identifier`.
+
+Examples in the app:
+- Burger button (open drawer): `identifier: drawer_open`
+- Drawer container: `identifier: drawer_container`
+- Drawer close button: `identifier: drawer_close`
+- Drawer items: `identifier: drawer_item_<title>`
+
+Reference: Flutter Semantics identifier → web `flt-semantics-identifier` attribute ([Flutter API](https://api.flutter.dev/flutter/semantics/SemanticsData/identifier.html)).
+
+## Running on Web
+
+1. Start Chrome in remote-debug mode (optional for CDP-based control):
+```
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222 \
+  --remote-debugging-address=127.0.0.1 \
+  --user-data-dir=/tmp/chrome-debug \
+  --no-first-run \
+  --disable-default-apps
+```
+
+2. Run Flutter on a fixed port (optional but convenient):
+```
+flutter run -d chrome --web-port=3000
+```
+
+## DevTools console helpers (Web)
+
+Enable semantics (first time only), click burger, wait for drawer, then click close. Paste in DevTools Console:
+```js
+(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // Enable semantics (first time only)
+  document.querySelector('flt-semantics-placeholder[role="button"]')?.click();
+
+  const opened = () =>
+    !!document.querySelector('[flt-semantics-identifier="drawer_close"]') ||
+    document.querySelectorAll('[flt-semantics-identifier^="drawer_item_"]').length > 0;
+
+  // Find burger button
+  const root = document.querySelector('[flt-semantics-identifier="drawer_open"]');
+  if (!root) { console.warn('drawer_open not found'); return; }
+  const tappable = root.querySelector('[flt-tappable]') || root;
+
+  // A) Direct click
+  tappable.click();
+  await sleep(400);
+  if (opened()) { console.log('Opened via click'); return; }
+
+  // B) Keyboard activation (Enter/Space)
+  tappable.focus?.();
+  ['keydown','keyup'].forEach(type =>
+    tappable.dispatchEvent(new KeyboardEvent(type, {bubbles:true, key:'Enter', code:'Enter', keyCode:13, which:13}))
+  );
+  await sleep(300);
+  if (opened()) { console.log('Opened via Enter'); return; }
+
+  ['keydown','keyup'].forEach(type =>
+    tappable.dispatchEvent(new KeyboardEvent(type, {bubbles:true, key:' ', code:'Space', keyCode:32, which:32}))
+  );
+  await sleep(300);
+  if (opened()) { console.log('Opened via Space'); return; }
+
+  // C) Synthesized mouse events at center (CanvasKit-friendly)
+  const r = tappable.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const target = document.elementFromPoint(cx, cy) || tappable;
+  ['mousemove','mousedown','mouseup','click'].forEach(type => {
+    target.dispatchEvent(new MouseEvent(type, {
+      bubbles: true, cancelable: true, view: window,
+      clientX: cx, clientY: cy, buttons: 1, button: 0
+    }));
+  });
+
+  await sleep(500);
+  if (opened()) { console.log('Opened via synthesized mouse events'); return; }
+
+  console.warn('Drawer did not open. Ensure the burger is visible and hot-restart if needed.');
+})();
+```
+
+Query helpers:
+```js
+// Find by identifier
+document.querySelector('[flt-semantics-identifier="drawer_close"]')
+document.querySelectorAll('[flt-semantics-identifier^="drawer_item_"]')
+```
+
+Why not plain `element.click()`?
+- Flutter Web (CanvasKit) listens for real pointer events on the canvas/glass pane. A bare DOM `click()` on the semantics wrapper may not generate those. The script above clicks the inner tappable node or synthesizes mouse events at the element’s coordinates.
+
+## CDP (Chrome DevTools Protocol) option
+
+If you prefer automation via CDP (e.g., MCP DevTools integration):
+- Enable `Accessibility` domain, locate button by AX role/name (e.g., name `drawer_open`), resolve the node, and call `click()` or synthesize events. This is robust when dealing with shadow DOM.
+
+## macOS native app (optional)
+
+For the desktop build, Semantics map to macOS Accessibility. You can target by the semantics label via AppleScript:
+```applescript
+tell application "System Events"
+  tell process "YourAppName"
+    click (first UI element of window 1 whose description is "drawer_open")
+  end tell
+end tell
+```
+Make sure Terminal/Script Editor has Accessibility permission.
+
+## Adding new targets
+
+- Wrap the widget with `Semantics(label: 'your_label', identifier: 'your_label', button: true, child: ...)`.
+- For list items: `identifier: 'list_item_<id>'` patterns make them easy to query.
+
+## Troubleshooting
+
+- Hot-restart after adding semantics so identifiers are injected.
+- Ensure the control is visible; semantics for offstage widgets may not be emitted.
+- On Web, always enable the placeholder button (`flt-semantics-placeholder`) once per session.

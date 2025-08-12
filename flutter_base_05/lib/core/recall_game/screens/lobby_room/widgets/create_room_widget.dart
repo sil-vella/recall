@@ -43,7 +43,11 @@ class CreateRoomWidget extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 
-                SizedBox(
+                Semantics(
+                  label: 'create_room_open_modal',
+                  identifier: 'create_room_open_modal',
+                  button: true,
+                  child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: isConnected && !isLoading ? () => _showCreateRoomModal(context) : null,
@@ -55,6 +59,7 @@ class CreateRoomWidget extends StatelessWidget {
                     icon: const Icon(Icons.add),
                     label: const Text('Create New Room'),
                   ),
+                ),
                 ),
               ],
             ),
@@ -193,9 +198,14 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                     ),
                   ),
                   const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
+                  Semantics(
+                    label: 'create_room_modal_close',
+                    identifier: 'create_room_modal_close',
+                    button: true,
+                    child: IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
                   ),
                 ],
               ),
@@ -211,19 +221,27 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                       const SizedBox(height: 16),
                       
                       // Room Name
-                      TextField(
+                       Semantics(
+                         label: 'create_room_field_room_name',
+                         identifier: 'create_room_field_room_name',
+                         textField: true,
+                         child: TextField(
                         controller: _roomNameController,
                         decoration: const InputDecoration(
                           labelText: 'Room Name *',
                           border: OutlineInputBorder(),
                           hintText: 'Enter room name',
                         ),
-                      ),
+                       ),
+                       ),
                       
                       const SizedBox(height: 16),
                       
                       // Game Type
-                      DropdownButtonFormField<String>(
+                       Semantics(
+                         label: 'create_room_dropdown_game_type',
+                         identifier: 'create_room_dropdown_game_type',
+                         child: DropdownButtonFormField<String>(
                         value: _selectedGameType,
                         decoration: const InputDecoration(
                           labelText: 'Game Type',
@@ -240,12 +258,16 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                             _selectedGameType = value ?? 'classic';
                           });
                         },
-                      ),
+                       ),
+                       ),
                       
                       const SizedBox(height: 16),
                       
                       // Permission Level
-                      DropdownButtonFormField<String>(
+                       Semantics(
+                         label: 'create_room_dropdown_permission',
+                         identifier: 'create_room_dropdown_permission',
+                         child: DropdownButtonFormField<String>(
                         value: _selectedPermission,
                         decoration: const InputDecoration(
                           labelText: 'Permission Level',
@@ -262,13 +284,18 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                             _selectedPermission = value ?? 'public';
                           });
                         },
-                      ),
+                       ),
+                       ),
                       
                       const SizedBox(height: 16),
                       
                       // Password (for private rooms)
                       if (_selectedPermission != 'public') ...[
-                        TextField(
+                         Semantics(
+                           label: 'create_room_field_password',
+                           identifier: 'create_room_field_password',
+                           textField: true,
+                           child: TextField(
                           controller: _passwordController,
                           decoration: const InputDecoration(
                             labelText: 'Room Password',
@@ -276,7 +303,8 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                             hintText: 'Optional password for private room',
                           ),
                           obscureText: true,
-                        ),
+                         ),
+                         ),
                         const SizedBox(height: 16),
                       ],
                       
@@ -295,7 +323,10 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                         children: [
                           const Text('Max Players: '),
                           Expanded(
-                            child: Slider(
+                             child: Semantics(
+                               label: 'create_room_slider_max_players',
+                               identifier: 'create_room_slider_max_players',
+                               child: Slider(
                               value: _maxPlayers.toDouble(),
                               min: 2,
                               max: 10,
@@ -309,7 +340,8 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                                   }
                                 });
                               },
-                            ),
+                             ),
+                             ),
                           ),
                           Text('${_maxPlayers}'),
                         ],
@@ -320,7 +352,10 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                         children: [
                           const Text('Min Players: '),
                           Expanded(
-                            child: Slider(
+                             child: Semantics(
+                               label: 'create_room_slider_min_players',
+                               identifier: 'create_room_slider_min_players',
+                               child: Slider(
                               value: _minPlayers.toDouble(),
                               min: 2,
                               max: _maxPlayers.toDouble(),
@@ -331,7 +366,8 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                                   _minPlayers = value.round();
                                 });
                               },
-                            ),
+                             ),
+                             ),
                           ),
                           Text('${_minPlayers}'),
                         ],
@@ -354,7 +390,10 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                         children: [
                           const Text('Turn Time Limit: '),
                           Expanded(
-                            child: Slider(
+                             child: Semantics(
+                               label: 'create_room_slider_turn_time',
+                               identifier: 'create_room_slider_turn_time',
+                               child: Slider(
                               value: _turnTimeLimit.toDouble(),
                               min: 15,
                               max: 120,
@@ -365,14 +404,18 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                                   _turnTimeLimit = value.round();
                                 });
                               },
-                            ),
+                             ),
+                             ),
                           ),
                           Text('${_turnTimeLimit}s'),
                         ],
                       ),
                       
                       // Auto Start Toggle
-                      SwitchListTile(
+                       Semantics(
+                         label: 'create_room_switch_auto_start',
+                         identifier: 'create_room_switch_auto_start',
+                         child: SwitchListTile(
                         title: const Text('Auto-start when full'),
                         subtitle: const Text('Start game automatically when max players join'),
                         value: _autoStart,
@@ -381,7 +424,8 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                             _autoStart = value;
                           });
                         },
-                      ),
+                       ),
+                       ),
                       
                       const SizedBox(height: 20),
                     ],
@@ -393,14 +437,23 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
+                    child: Semantics(
+                      label: 'create_room_cancel',
+                      identifier: 'create_room_cancel',
+                      button: true,
+                      child: OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('Cancel'),
+                    ),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: ElevatedButton(
+                    child: Semantics(
+                      label: 'create_room_submit',
+                      identifier: 'create_room_submit',
+                      button: true,
+                      child: ElevatedButton(
                       onPressed: _isCreating ? null : _createRoom,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
@@ -416,6 +469,7 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                               ),
                             )
                           : const Text('Create Room'),
+                    ),
                     ),
                   ),
                 ],

@@ -1,9 +1,11 @@
-from typing import Dict, Any, Optional, Set, List
+from typing import Dict, Any, Optional, Set, List, Callable
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
 from enum import Enum
 from core.managers.redis_manager import RedisManager
 from utils.config.config import Config
+import threading
+import re
 
 class RoomPermission(Enum):
     """Room permission types."""
@@ -16,6 +18,93 @@ class WSRoomManager:
     def __init__(self):
         self.redis_manager = RedisManager()
         custom_log("WSRoomManager initialized")
+        # TTL monitor for room lifetime (optional, best-effort)
+        self._ttl_monitor_started = False
+        self._start_ttl_monitor()
+        # Optional callback set by WebSocketManager to react on TTL expiry
+        self.on_room_ttl_expired: Optional[Callable[[str], None]] = None
+
+    # --- TTL utilities ----------------------------------------------------
+    def _get_room_ttl_seconds(self) -> int:
+        """Resolve room TTL from configuration (seconds)."""
+        try:
+            ttl = int(getattr(Config, 'WS_ROOM_TTL', 3600))
+            return max(1, ttl)
+        except Exception:
+            return 3600
+
+    def _room_secure_key_expire(self, room_id: str, seconds: int) -> bool:
+        """Set expiry on the secured room hash key managed by RedisManager."""
+        ok = self.redis_manager.expire("room", seconds, room_id)
+        if ok:
+            custom_log(f"⏱️ Set TTL {seconds}s on room:{room_id}")
+        else:
+            custom_log(f"⚠️ Failed to set TTL on room:{room_id}")
+        return ok
+
+    def _room_plain_ttl_key(self, room_id: str) -> str:
+        """Plain key for keyspace notifications (human-readable)."""
+        return f"ws:room_ttl:{room_id}"
+
+    def _set_plain_ttl_marker(self, room_id: str, seconds: int) -> None:
+        client = self.redis_manager.get_client()
+        client.setex(self._room_plain_ttl_key(room_id), seconds, "1")
+        custom_log(f"🧭 TTL marker set {seconds}s for room:{room_id}")
+
+    def reinstate_room_ttl(self, room_id: str, seconds: int = None) -> None:
+        """Reinstate/extend the room TTL (call on each join)."""
+        ttl = seconds or self._get_room_ttl_seconds()
+        self._room_secure_key_expire(room_id, ttl)
+        self._set_plain_ttl_marker(room_id, ttl)
+        custom_log(f"🔄 TTL reinstated to {ttl}s for room:{room_id}")
+
+    def _ensure_keyspace_notifications(self) -> None:
+        """Try enabling keyspace notifications for expirations (best-effort)."""
+        try:
+            client = self.redis_manager.get_client()
+            current = client.config_get("notify-keyspace-events").get("notify-keyspace-events", "")
+            if "E" not in current or "x" not in current.lower():
+                # enable Ex (Expired events)
+                client.config_set("notify-keyspace-events", (current + "Ex").strip())
+                custom_log("🔔 Enabled Redis keyspace notifications for expirations (Ex)")
+        except Exception as e:
+            custom_log(f"⚠️ Could not ensure keyspace notifications: {e}")
+
+    def _start_ttl_monitor(self) -> None:
+        if self._ttl_monitor_started:
+            return
+        self._ttl_monitor_started = True
+        self._ensure_keyspace_notifications()
+
+        def _worker():
+            try:
+                client = self.redis_manager.get_client()
+                pubsub = client.pubsub()
+                # Subscribe to expiry events for our plain marker keys
+                pattern = "__keyevent@*__:expired"
+                pubsub.psubscribe(pattern)
+                custom_log("👂 TTL expiry monitor started (listening for ws:room_ttl:* expirations)")
+                room_ttl_re = re.compile(r"ws:room_ttl:(.+)$")
+                for message in pubsub.listen():
+                    if message.get("type") not in ("pmessage", "message"):
+                        continue
+                    raw = message.get("data")
+                    expired_key = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
+                    m = room_ttl_re.search(expired_key)
+                    if m:
+                        room_id = m.group(1)
+                        custom_log(f"⏳ TTL expired for room:{room_id}")
+                        # Notify owner if callback is wired
+                        try:
+                            if self.on_room_ttl_expired:
+                                self.on_room_ttl_expired(room_id)
+                        except Exception as e:
+                            custom_log(f"⚠️ Error invoking TTL expiry callback for room {room_id}: {e}")
+            except Exception as e:
+                custom_log(f"⚠️ TTL monitor stopped: {e}")
+
+        t = threading.Thread(target=_worker, name="ws-room-ttl-monitor", daemon=True)
+        t.start()
 
     def create_room(self, room_id: str, permission: RoomPermission, owner_id: str, 
                    allowed_users: Set[str] = None, allowed_roles: Set[str] = None) -> Dict[str, Any]:
@@ -41,9 +130,12 @@ class WSRoomManager:
                 'max_size': Config.WS_ROOM_SIZE_LIMIT
             }
             
-            # Store room data in Redis
+            # Store room data in Redis with configured TTL
             room_key = self.redis_manager._generate_secure_key("room", room_id)
-            self.redis_manager.set(room_key, room_data, expire=Config.WS_ROOM_TTL)
+            ttl_seconds = self._get_room_ttl_seconds()
+            self.redis_manager.set(room_key, room_data, expire=ttl_seconds)
+            self._set_plain_ttl_marker(room_id, ttl_seconds)
+            custom_log(f"⏱️ TTL set to {ttl_seconds}s for room:{room_id}")
             
             custom_log(f"✅ Room created: {room_id} with permission: {permission.value}")
             return {
@@ -79,6 +171,13 @@ class WSRoomManager:
         except Exception as e:
             custom_log(f"Error getting room permissions: {str(e)}")
             return None
+
+    def touch_room(self, room_id: str) -> None:
+        """Extend room TTL (called on join or activity)."""
+        try:
+            self.reinstate_room_ttl(room_id)
+        except Exception as e:
+            custom_log(f"⚠️ Failed to reinstate TTL for room {room_id}: {e}")
 
     def update_room_permissions(self, room_id: str, permission: RoomPermission = None,
                               allowed_users: Set[str] = None, allowed_roles: Set[str] = None) -> Dict[str, Any]:

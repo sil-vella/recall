@@ -7,6 +7,7 @@ import '../managers/module_manager.dart';
 import '../managers/navigation_manager.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
+import '../recall_game/widgets/feature_slot.dart';
 
 abstract class BaseScreen extends StatefulWidget {
   const BaseScreen({Key? key}) : super(key: key);
@@ -316,6 +317,19 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       ),
       backgroundColor: AppColors.primaryColor,
       elevation: 0,
+      leading: Builder(
+        builder: (context) => Semantics(
+          label: 'drawer_open',
+          identifier: 'drawer_open',
+          button: true,
+          child: IconButton(
+            key: const Key(CustomDrawer.drawerOpenKey),
+            icon: const Icon(Icons.menu),
+            tooltip: 'Open navigation menu',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+      ),
       actions: widget.getAppBarActions(context),
     );
 
@@ -361,6 +375,13 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // Global header slot, rendered just under the AppBar
+                      FeatureSlot(
+                        scopeKey: widget.runtimeType.toString(),
+                        slotId: 'header',
+                        title: 'Notices',
+                      ),
+
                       if (bannerAdModule != null)
                         SizedBox(
                           height: 50,

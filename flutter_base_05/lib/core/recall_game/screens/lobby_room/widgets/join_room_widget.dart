@@ -48,22 +48,32 @@ class JoinRoomWidget extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
+                      child: Semantics(
+                        label: 'join_room_field_room_id',
+                        identifier: 'join_room_field_room_id',
+                        textField: true,
+                        child: TextField(
                         controller: roomIdController,
                         decoration: const InputDecoration(
                           labelText: 'Room ID',
                           border: OutlineInputBorder(),
                         ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    ElevatedButton(
+                    Semantics(
+                      label: 'join_room_submit',
+                      identifier: 'join_room_submit',
+                      button: true,
+                      child: ElevatedButton(
                       onPressed: isConnected && !isLoading ? onJoinRoom : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                       ),
                       child: const Text('Join'),
+                    ),
                     ),
                   ],
                 ),

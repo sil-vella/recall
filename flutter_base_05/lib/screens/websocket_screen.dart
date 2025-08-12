@@ -223,7 +223,11 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                         // Connect/Disconnect Button
                         SizedBox(
                           width: double.infinity,
-                          child: ElevatedButton(
+                          child: Semantics(
+                            label: isConnected ? 'ws_disconnect' : 'ws_connect',
+                            identifier: isConnected ? 'ws_disconnect' : 'ws_connect',
+                            button: true,
+                            child: ElevatedButton(
                             onPressed: isConnected ? _disconnect : _connect,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: isConnected ? Colors.red : Colors.green,
@@ -233,6 +237,7 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                             child: Text(
                               isConnected ? 'Disconnect' : 'Connect',
                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
                             ),
                           ),
                         ),
@@ -261,17 +266,26 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                               Row(
                                 children: [
                                   Expanded(
-                                    child: TextField(
+                                    child: Semantics(
+                                      label: 'ws_field_custom_message',
+                                      identifier: 'ws_field_custom_message',
+                                      textField: true,
+                                      child: TextField(
                                       controller: _customMessageController,
                                       decoration: const InputDecoration(
                                         labelText: 'Custom Message',
                                         hintText: 'Enter your message',
                                         border: OutlineInputBorder(),
                                       ),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  ElevatedButton(
+                                  Semantics(
+                                    label: 'ws_send_custom',
+                                    identifier: 'ws_send_custom',
+                                    button: true,
+                                    child: ElevatedButton(
                                     onPressed: isConnected ? _sendMessage : null,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.green,
@@ -279,29 +293,40 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                                     ),
                                     child: const Text('Send'),
                                   ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 8),
                               Row(
                                 children: [
                                   Expanded(
-                                    child: TextField(
+                                    child: Semantics(
+                                      label: 'ws_field_test_message',
+                                      identifier: 'ws_field_test_message',
+                                      textField: true,
+                                      child: TextField(
                                       controller: _messageController,
                                       decoration: const InputDecoration(
                                         labelText: 'Test Message',
                                         hintText: 'Quick test message',
                                         border: OutlineInputBorder(),
                                       ),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  ElevatedButton(
+                                  Semantics(
+                                    label: 'ws_send_test',
+                                    identifier: 'ws_send_test',
+                                    button: true,
+                                    child: ElevatedButton(
                                     onPressed: isConnected ? _sendTestMessage : null,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.blue,
                                       foregroundColor: Colors.white,
                                     ),
                                     child: const Text('Send Test'),
+                                  ),
                                   ),
                                 ],
                               ),
@@ -318,13 +343,18 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                     child: Row(
                       children: [
                         Expanded(
-                          child: ElevatedButton(
+                          child: Semantics(
+                            label: 'ws_clear_messages',
+                            identifier: 'ws_clear_messages',
+                            button: true,
+                            child: ElevatedButton(
                             onPressed: _clearMessages,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.grey,
                               foregroundColor: Colors.white,
                             ),
                             child: const Text('Clear Messages'),
+                          ),
                           ),
                         ),
                       ],

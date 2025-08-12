@@ -6,7 +6,101 @@ alwaysApply: true
 
 # Flutter Base 05 - AI Development Rules
 
-## Overview
+## ⚠️ CRITICAL ARCHITECTURAL RULES
+
+**FUNDAMENTAL PRINCIPLE**: The system MUST maintain strict modularity. New functionality MUST be implemented through extension and integration, NEVER through modification of existing core components.
+
+### Immutable Core Components
+The following components are IMMUTABLE and MUST NOT be modified:
+- Core Managers (`lib/core/managers/*`)
+- Base Classes (`lib/core/00_base/*`)
+- Core Services (`lib/core/services/*`)
+- Existing Module Registry
+
+### Extension Points
+New functionality MUST be implemented through:
+1. **New Modules**: Create new modules that integrate with existing managers
+2. **Module Registration**: Only modify module registry to register new modules
+3. **Manager Integration**: Use existing manager interfaces, never modify them
+4. **Event System**: Hook into existing event system for communication
+
+### Integration Rules
+When adding functionality:
+1. **DO**:
+   - Create new modules that extend `ModuleBase`
+   - Register with existing managers
+   - Use established state management patterns
+   - Hook into existing event systems
+
+2. **DO NOT**:
+   - Modify existing manager implementations
+   - Change core base classes
+   - Alter existing module implementations
+   - Modify the core architecture
+
+### UI Theme Compliance Rules
+All UI components MUST adhere to the centralized theme system defined in `theme_consts.dart`:
+
+1. **Color Usage**:
+   - MUST use `AppColors` constants
+   - NEVER hardcode color values
+   - Use semantic color assignments:
+     ```dart
+     // CORRECT
+     color: AppColors.primaryColor
+     backgroundColor: AppColors.scaffoldBackgroundColor
+     
+     // INCORRECT ❌
+     color: Color(0xFF41282F)
+     backgroundColor: Colors.white
+     ```
+
+2. **Typography**:
+   - MUST use `AppTextStyles` for all text styling
+   - Follow heading hierarchy:
+     ```dart
+     // CORRECT
+     style: AppTextStyles.headingLarge()
+     style: AppTextStyles.bodyMedium
+     
+     // INCORRECT ❌
+     style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)
+     ```
+
+3. **Layout Constants**:
+   - MUST use `AppPadding` for spacing
+   - Maintain consistent spacing patterns:
+     ```dart
+     // CORRECT
+     padding: AppPadding.defaultPadding
+     margin: AppPadding.cardPadding
+     
+     // INCORRECT ❌
+     padding: EdgeInsets.all(16.0)
+     ```
+
+4. **Theme Extensions**:
+   - MUST use `AppTheme.darkTheme` for theme customization
+   - Extend existing theme definitions:
+     ```dart
+     // CORRECT
+     Theme(
+       data: AppTheme.darkTheme,
+       child: widget
+     )
+     
+     // INCORRECT ❌
+     Theme(
+       data: ThemeData.dark(),
+       child: widget
+     )
+     ```
+
+5. **Component Styling**:
+   - Buttons MUST use theme-defined styles
+   - Input fields MUST follow theme decoration
+   - Navigation elements MUST use theme colors
+   - Selection and focus states MUST use theme colors
 
 This document defines the rules and guidelines for AI-assisted development in the Flutter Base 05 project. All AI interactions must follow these architectural patterns, coding standards, and development practices.
 

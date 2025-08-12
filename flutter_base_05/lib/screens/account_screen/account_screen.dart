@@ -745,7 +745,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             const SizedBox(height: 24),
             
             // Action Button
-            ElevatedButton(
+            Semantics(
+              label: 'account_submit',
+              identifier: 'account_submit',
+              button: true,
+              child: ElevatedButton(
               onPressed: _isLoading ? null : (_isLoginMode ? _handleLogin : _handleRegister),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).primaryColor,
@@ -771,6 +775,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+            ),
             ),
             
             const SizedBox(height: 16),
@@ -802,7 +807,12 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       child: Column(
         children: [
           // Email Field
-          TextFormField(
+          Semantics(
+            label: 'account_email',
+            identifier: 'account_email',
+            container: true,
+            explicitChildNodes: true,
+            child: TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             decoration: InputDecoration(
@@ -832,11 +842,17 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               return null;
             },
           ),
+          ),
           
           const SizedBox(height: 20),
           
           // Password Field
-          TextFormField(
+          Semantics(
+            label: 'account_password',
+            identifier: 'account_password',
+            container: true,
+            explicitChildNodes: true,
+            child: TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
             decoration: InputDecoration(
@@ -867,6 +883,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               }
               return null;
             },
+          ),
           ),
         ],
       ),

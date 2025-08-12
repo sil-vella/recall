@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../models/card.dart' as cm;
-import '../../../../../utils/consts/theme_consts.dart';
+import '../../../models/card.dart' as cm;
+import '../../../../../../utils/consts/theme_consts.dart';
 
 class MyHandPanel extends StatelessWidget {
   final List<cm.Card> hand;

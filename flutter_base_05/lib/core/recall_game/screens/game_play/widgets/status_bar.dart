@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../../../managers/state_manager.dart';
-import '../../../../models/game_state.dart' as gm;
-import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../managers/state_manager.dart';
+import '../../../models/game_state.dart' as gm;
+import '../../../../../../utils/consts/theme_consts.dart';
 
 class StatusBar extends StatelessWidget {
   final StateManager stateManager;

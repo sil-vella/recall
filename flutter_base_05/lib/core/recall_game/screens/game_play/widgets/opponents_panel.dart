@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../models/player.dart';
-import '../../../../../utils/consts/theme_consts.dart';
+import '../../../models/player.dart';
+import '../../../../../../utils/consts/theme_consts.dart';
 
 class OpponentsPanel extends StatelessWidget {
   final List<Player> opponents;

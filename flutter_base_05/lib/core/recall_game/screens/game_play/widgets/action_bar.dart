@@ -9,6 +9,7 @@ class ActionBar extends StatelessWidget {
   final VoidCallback onPlaceDrawnAndPlay;
   final VoidCallback onCallRecall;
   final VoidCallback? onPlayOutOfTurn;
+  final VoidCallback? onStartMatch;
 
   const ActionBar({
     Key? key,
@@ -19,6 +20,7 @@ class ActionBar extends StatelessWidget {
     required this.onPlaceDrawnAndPlay,
     required this.onCallRecall,
     this.onPlayOutOfTurn,
+    this.onStartMatch,
   }) : super(key: key);
 
   @override
@@ -30,6 +32,17 @@ class ActionBar extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
+            if (onStartMatch != null)
+              Semantics(
+                label: 'match_action_start',
+                identifier: 'match_action_start',
+                button: true,
+                child: ElevatedButton(
+                  onPressed: onStartMatch,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                  child: const Text('Start Match'),
+                ),
+              ),
             if (onPlayOutOfTurn != null)
               Semantics(
                 label: 'match_action_out_of_turn',

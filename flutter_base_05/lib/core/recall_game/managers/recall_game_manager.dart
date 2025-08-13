@@ -555,6 +555,24 @@ class RecallGameManager {
     }
   }
 
+  /// Start match (explicit init)
+  Future<Map<String, dynamic>> startMatch() async {
+    if (_currentGameId == null) {
+      return {'error': 'Not in a game'};
+    }
+    try {
+      _log.info('🚀 Starting match for game: $_currentGameId');
+      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_start_match', {
+        'game_id': _currentGameId,
+        'player_id': _currentPlayerId,
+      });
+      return result;
+    } catch (e) {
+      _log.error('❌ Error starting match: $e');
+      return {'error': 'Failed to start match: $e'};
+    }
+  }
+
   /// Get current game state
   GameState? getCurrentGameState() {
     return _stateManager.currentGameState;

@@ -63,8 +63,7 @@ class RecallGameplayManager:
                 player = ComputerPlayer(user_id, player_name) if player_type == 'computer' else HumanPlayer(user_id, player_name)
                 game.add_player(player)
 
-            if len(game.players) >= 2 and game.current_player_id is None:
-                game.start_game()
+            # Do not auto-start here; wait for explicit start via recall_start_match
 
             payload = {
                 'type': 'recall_event',
@@ -342,6 +341,34 @@ class RecallGameplayManager:
         except Exception as e:
             custom_log(f"Error in on_use_special_power: {e}", level="ERROR")
             self._emit_error(session_id, f'Use special power failed: {str(e)}')
+            return False
+
+    def on_start_match(self, session_id: str, data: Dict[str, Any]) -> bool:
+        """Explicit match start: initialize deck (deterministic), deal, first player."""
+        try:
+            game_id = data.get('game_id') or data.get('room_id')
+            if not game_id:
+                self._emit_error(session_id, 'Missing game_id')
+                return False
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                self._emit_error(session_id, f'Game not found: {game_id}')
+                return False
+
+            # Start the game using GameState.start_game (now deterministic via DeckFactory)
+            game.start_game()
+
+            payload = {
+                'type': 'recall_event',
+                'event_type': 'game_started',
+                'game_id': game_id,
+                'game_state': self._to_flutter_game_state(game),
+            }
+            self._broadcast_message(game_id, payload, session_id)
+            return True
+        except Exception as e:
+            custom_log(f"Error in on_start_match: {e}", level="ERROR")
+            self._emit_error(session_id, f'Start match failed: {str(e)}')
             return False
 
     def on_initial_peek(self, session_id: str, data: Dict[str, Any]) -> bool:

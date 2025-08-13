@@ -78,6 +78,7 @@ class RecallGameMain:
         listeners.register_custom_listener('recall_join_game', gp.on_join_game)
         listeners.register_custom_listener('recall_leave_game', gp.on_leave_game)
         listeners.register_custom_listener('recall_player_action', gp.on_player_action)
+        listeners.register_custom_listener('recall_start_match', gp.on_start_match)
         listeners.register_custom_listener('recall_call_recall', gp.on_call_recall)
         listeners.register_custom_listener('recall_play_out_of_turn', gp.on_play_out_of_turn)
         listeners.register_custom_listener('recall_use_special_power', gp.on_use_special_power)

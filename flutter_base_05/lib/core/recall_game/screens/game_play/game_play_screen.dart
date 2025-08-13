@@ -99,6 +99,10 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     });
   }
 
+  Future<void> _onStartMatch() async {
+    await _gameManager.startMatch();
+  }
+
   @override
   Widget buildContent(BuildContext context) {
     final gameState = _recallState.currentGameState;
@@ -187,6 +191,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                 onPlaceDrawnAndPlay: _onPlaceDrawnAndPlay,
                 onCallRecall: _onCallRecall,
                 onPlayOutOfTurn: _onPlayOutOfTurn,
+                onStartMatch: _onStartMatch,
               ),
             ],
           ),

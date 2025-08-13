@@ -322,8 +322,8 @@ class RecallGameManager {
         return joinResult;
       }
       
-      // Then send the join game message
-      final result = await _wsManager.sendMessage(gameId, 'recall_join_game', {
+      // Then send the join game custom event
+      final result = await _wsManager.sendCustomEvent('recall_join_game', {
         'game_id': gameId,
         'player_name': playerName,
         'session_id': _wsManager.socket?.id,
@@ -353,7 +353,7 @@ class RecallGameManager {
       _log.info('👋 Leaving game: $_currentGameId');
       
       // Send leave game message
-      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_leave_game', {
+      final result = await _wsManager.sendCustomEvent('recall_leave_game', {
         'game_id': _currentGameId,
         'player_id': _currentPlayerId,
       });
@@ -386,7 +386,7 @@ class RecallGameManager {
     try {
       _log.info('🃏 Playing card: ${card.displayName}');
       
-      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+      final result = await _wsManager.sendCustomEvent('recall_player_action', {
         'action': 'play_card',
         'card': card.toJson(),
         'target_player_id': targetPlayerId,
@@ -408,7 +408,7 @@ class RecallGameManager {
     }
     try {
       _log.info('🂠 Draw from deck');
-      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+      final result = await _wsManager.sendCustomEvent('recall_player_action', {
         'action': 'draw_from_deck',
         'player_id': _currentPlayerId,
       });
@@ -426,7 +426,7 @@ class RecallGameManager {
     }
     try {
       _log.info('🂡 Take from discard');
-      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+      final result = await _wsManager.sendCustomEvent('recall_player_action', {
         'action': 'take_from_discard',
         'player_id': _currentPlayerId,
       });
@@ -444,7 +444,7 @@ class RecallGameManager {
     }
     try {
       _log.info('🔁 Replace card at index $replaceIndex with drawn');
-      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+      final result = await _wsManager.sendCustomEvent('recall_player_action', {
         'action': 'place_drawn_card_replace',
         'replaceIndex': replaceIndex,
         'player_id': _currentPlayerId,
@@ -463,7 +463,7 @@ class RecallGameManager {
     }
     try {
       _log.info('🃏 Play drawn card');
-      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+      final result = await _wsManager.sendCustomEvent('recall_player_action', {
         'action': 'place_drawn_card_play',
         'player_id': _currentPlayerId,
       });
@@ -487,7 +487,7 @@ class RecallGameManager {
     try {
       _log.info('📢 Calling recall');
       
-      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+      final result = await _wsManager.sendCustomEvent('recall_player_action', {
         'action': 'call_recall',
         'player_id': _currentPlayerId,
       });
@@ -507,7 +507,7 @@ class RecallGameManager {
     }
     try {
       _log.info('⚡ Play out-of-turn: ${card.displayName}');
-      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+      final result = await _wsManager.sendCustomEvent('recall_player_action', {
         'action': 'play_out_of_turn',
         'card': card.toJson(),
         'player_id': _currentPlayerId,
@@ -532,7 +532,7 @@ class RecallGameManager {
     try {
       _log.info('✨ Using special power: ${card.specialPowerDescription}');
       
-      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_player_action', {
+      final result = await _wsManager.sendCustomEvent('recall_player_action', {
         'action': 'use_special_power',
         'card': card.toJson(),
         'power_data': powerData,

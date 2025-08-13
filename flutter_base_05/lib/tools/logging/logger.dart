@@ -92,7 +92,6 @@ class Logger {
 
     final payload = <String, dynamic>{
       'source': 'frontend',
-      'ts': now.toIso8601String(),
       'level': level,
       'message': message,
       if (error != null) 'error': error.toString(),

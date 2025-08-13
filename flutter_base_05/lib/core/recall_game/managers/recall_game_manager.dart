@@ -549,10 +549,28 @@ class RecallGameManager {
 
   /// Start match (explicit init)
   Future<Map<String, dynamic>> startMatch() async {
-    if (_currentGameId == null) {
-      return {'error': 'Not in a game'};
-    }
     try {
+      // Auto-join current room if not yet in a game
+      if (_currentGameId == null) {
+        final wsState = _mainStateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+        final currentRoomId = (wsState['currentRoomId'] ?? '').toString();
+        if (currentRoomId.isNotEmpty) {
+          final login = _mainStateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+          final playerName = (login['username'] ?? login['email'] ?? 'Player').toString();
+          _log.info('🔗 Not in a game. Attempting auto-join of room: $currentRoomId as $playerName');
+          final joinRes = await joinGame(currentRoomId, playerName);
+          if (joinRes['error'] != null) {
+            _log.warning('⚠️ Auto-join failed: ${joinRes['error']}');
+          }
+        } else {
+          _log.warning('⚠️ StartMatch requested but no current room and no active game');
+        }
+      }
+
+      if (_currentGameId == null) {
+        return {'error': 'Not in a game'};
+      }
+
       _log.info('🚀 Starting match for game: $_currentGameId');
       // Prefer direct custom event to avoid any routing ambiguities in send_message
       final result = await _wsManager.sendCustomEvent('recall_start_match', {

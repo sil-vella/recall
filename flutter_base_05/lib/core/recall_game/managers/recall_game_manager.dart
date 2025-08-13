@@ -554,7 +554,8 @@ class RecallGameManager {
     }
     try {
       _log.info('🚀 Starting match for game: $_currentGameId');
-      final result = await _wsManager.sendMessage(_currentGameId!, 'recall_start_match', {
+      // Prefer direct custom event to avoid any routing ambiguities in send_message
+      final result = await _wsManager.sendCustomEvent('recall_start_match', {
         'game_id': _currentGameId,
         'player_id': _currentPlayerId,
       });

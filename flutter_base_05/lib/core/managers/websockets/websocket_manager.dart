@@ -838,6 +838,26 @@ class WebSocketManager {
     }
   }
 
+  /// Emit a custom Socket.IO event with arbitrary payload
+  Future<Map<String, dynamic>> sendCustomEvent(String eventName, Map<String, dynamic> data) async {
+    if (_socket == null) {
+      _log.error("❌ Cannot send custom event: Socket not initialized");
+      return {"error": "Socket not initialized"};
+    }
+    if (!_socket!.connected) {
+      _log.error("❌ Cannot send custom event: WebSocket not connected");
+      return {"error": "WebSocket not connected"};
+    }
+    try {
+      _log.info("📡 Emitting custom event '$eventName'");
+      _socket!.emit(eventName, data);
+      return {"success": true};
+    } catch (e) {
+      _log.error("❌ Error emitting custom event '$eventName': $e");
+      return {"error": "Failed to emit custom event: $e"};
+    }
+  }
+
   /// Get current connection status
   Map<String, dynamic> getStatus() {
       return {

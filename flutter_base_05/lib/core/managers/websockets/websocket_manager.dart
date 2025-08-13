@@ -235,6 +235,21 @@ class WebSocketManager {
       _isConnected = true;
       _isConnecting = false; // Reset connecting state
       _log.info("🔍 Updated tracked connection state: $_isConnected");
+
+      // Drain any pending remote logs accumulated before transport was ready
+      final pending = Logger.drainPending();
+      if (pending.isNotEmpty) {
+        try {
+          for (final p in pending) {
+            final data = Map<String, dynamic>.from(p);
+            data['event'] = 'client_log';
+            _socket!.emit('client_log', data);
+          }
+          _log.info("📤 Flushed ${pending.length} buffered frontend logs to backend");
+        } catch (e) {
+          _log.error("❌ Failed flushing buffered logs: $e");
+        }
+      }
       
       // Emit connection event
       final event = ConnectionStatusEvent(

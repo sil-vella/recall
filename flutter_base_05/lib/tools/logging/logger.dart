@@ -50,6 +50,9 @@ class Logger {
   static final List<LogSinkFn> _sinks = <LogSinkFn>[];
   static int _emittedInWindow = 0;
   static DateTime _windowStart = DateTime.fromMillisecondsSinceEpoch(0);
+  // Buffer logs emitted before a transport (e.g., WebSocket) is ready
+  static final List<Map<String, dynamic>> _pendingRemoteLogs = <Map<String, dynamic>>[];
+  static const int _pendingMax = 500;
 
   static void registerSink(LogSinkFn sink) {
     if (!_sinks.contains(sink)) {
@@ -59,6 +62,22 @@ class Logger {
 
   static void unregisterSink(LogSinkFn sink) {
     _sinks.remove(sink);
+  }
+
+  /// Enqueue a payload for later remote delivery
+  static void enqueueRemote(Map<String, dynamic> payload) {
+    if (_pendingRemoteLogs.length >= _pendingMax) {
+      _pendingRemoteLogs.removeAt(0);
+    }
+    _pendingRemoteLogs.add(payload);
+  }
+
+  /// Drain all pending remote logs
+  static List<Map<String, dynamic>> drainPending() {
+    if (_pendingRemoteLogs.isEmpty) return const <Map<String, dynamic>>[];
+    final copy = List<Map<String, dynamic>>.from(_pendingRemoteLogs);
+    _pendingRemoteLogs.clear();
+    return copy;
   }
 
   void _emitToSinks({required int level, required String message, Object? error, StackTrace? stack}) {
@@ -82,6 +101,8 @@ class Logger {
       'buildMode': Config.buildMode,
       'appVersion': Config.appVersion,
     };
+    // Always buffer for remote delivery; transports can drain when ready
+    Logger.enqueueRemote(payload);
     for (final sink in List<LogSinkFn>.from(_sinks)) {
       try { sink(payload); } catch (_) {}
     }

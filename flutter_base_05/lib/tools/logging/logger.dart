@@ -1,7 +1,8 @@
 import 'dart:developer' as developer;
 import '../../utils/consts/config.dart';
 import 'package:flutter/foundation.dart';
-import 'log_sink.dart' if (dart.library.html) 'log_sink_web.dart' else 'log_sink_io.dart';
+// Conditional import: use web sink on web, IO sink otherwise
+import 'log_sink_io.dart' if (dart.library.html) 'log_sink_web.dart';
 
 class Logger {
   // Private constructor

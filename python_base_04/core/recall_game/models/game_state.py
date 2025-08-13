@@ -8,6 +8,7 @@ including game phases, state transitions, and game logic.
 from typing import List, Dict, Any, Optional
 from enum import Enum
 from .card import Card, CardDeck
+from ..utils.deck_factory import DeckFactory
 from .player import Player, HumanPlayer, ComputerPlayer, PlayerType
 import time
 import uuid
@@ -69,8 +70,12 @@ class GameState:
         self.phase = GamePhase.DEALING_CARDS
         self.game_start_time = time.time()
         
-        # Shuffle and deal cards
-        self.deck.shuffle()
+        # Build deterministic deck from factory, then deal
+        factory = DeckFactory(self.game_id)
+        self.deck.cards = factory.build_deck(
+            include_jokers=True,
+            include_special_powers=True,
+        )
         self._deal_cards()
         
         # Set up draw and discard piles

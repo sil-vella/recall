@@ -266,6 +266,28 @@ class RecallStateManager {
     return _currentGameState?.getPlayerById(playerId);
   }
 
+  /// Update meta/manager info in the shared StateManager under `recall_game`
+  void updateManagerMeta({
+    bool? gameManagerInitialized,
+    bool? isGameActive,
+    String? currentGameId,
+    String? currentPlayerId,
+    bool? isConnected,
+  }) {
+    final currentState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    final updated = {
+      ...currentState,
+      if (gameManagerInitialized != null) 'gameManagerInitialized': gameManagerInitialized,
+      if (isGameActive != null) 'isGameActive': isGameActive,
+      if (currentGameId != null) 'currentGameId': currentGameId,
+      if (currentPlayerId != null) 'currentPlayerId': currentPlayerId,
+      if (isConnected != null) 'isConnected': isConnected,
+      'lastUpdated': DateTime.now().toIso8601String(),
+    };
+    _stateManager.updateModuleState("recall_game", updated);
+    _log.info('📊 Updated Recall meta state');
+  }
+
   /// Update main StateManager with current game state
   void _updateMainStateManager() {
     if (_currentGameState == null) return;

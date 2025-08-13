@@ -297,22 +297,14 @@ class RecallGameManager {
 
   /// Update main StateManager
   void _updateMainStateManager() {
-    // Get current state to preserve existing data
-    final currentState = _mainStateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-    
-    final updatedState = {
-      ...currentState, // Preserve existing state
-      // Game manager state
-      'gameManagerInitialized': _isInitialized,
-      'isGameActive': _isGameActive,
-      'currentGameId': _currentGameId,
-      'currentPlayerId': _currentPlayerId,
-      'isConnected': _wsManager.isConnected,
-      'lastUpdated': DateTime.now().toIso8601String(),
-    };
-    
-    _mainStateManager.updateModuleState("recall_game", updatedState);
-    _log.info('📊 Updated main StateManager with game manager state');
+    // Delegate meta updates to RecallStateManager for uniformity
+    _stateManager.updateManagerMeta(
+      gameManagerInitialized: _isInitialized,
+      isGameActive: _isGameActive,
+      currentGameId: _currentGameId,
+      currentPlayerId: _currentPlayerId,
+      isConnected: _wsManager.isConnected,
+    );
   }
 
   /// Join a game

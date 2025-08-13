@@ -86,4 +86,15 @@ class Config {
     'ADMOBS_REWARDED01',
     defaultValue: '',
   );
+
+  // Remote logging toggle
+  static const bool enableRemoteLogging = bool.fromEnvironment(
+    'ENABLE_REMOTE_LOGGING',
+    defaultValue: true,
+  );
+
+  // Diagnostics
+  static const String platform = String.fromEnvironment('APP_PLATFORM', defaultValue: 'flutter');
+  static const String buildMode = String.fromEnvironment('BUILD_MODE', defaultValue: 'debug');
+  static const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.0.0');
 }

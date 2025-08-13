@@ -73,6 +73,20 @@ class WSEventListeners:
             session_id = request.sid
             return self.event_handlers.handle_broadcast(session_id, data or {})
 
+        # Client log ingestion: frontend logs into server.log as [frontend]
+        @self.socketio.on('client_log')
+        def handle_client_log(data=None):
+            try:
+                payload = data or {}
+                level = str(payload.get('level', ''))
+                msg = payload.get('message', '')
+                platform = payload.get('platform', '')
+                build = payload.get('buildMode', '')
+                ts = payload.get('ts', '')
+                custom_log(f"[frontend] [{platform}|{build}] {ts} {msg}")
+            except Exception as e:
+                custom_log(f"client_log handler error: {e}")
+
         # Legacy message event (for compatibility)
         @self.socketio.on('message')
         def handle_message(data=None):

@@ -20,6 +20,16 @@ class WebSocketManager {
   }
   WebSocketManager._internal() {
     Logger().info("🔍 WebSocketManager singleton instance created");
+    // Register a remote log sink that emits logs over the socket when available
+    Logger.registerSink((payload) {
+      try {
+        if (_socket != null && _socket!.connected) {
+          final data = Map<String, dynamic>.from(payload);
+          data['event'] = 'client_log';
+          _socket!.emit('client_log', data);
+        }
+      } catch (_) {}
+    });
   }
 
   static final Logger _log = Logger();

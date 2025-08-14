@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../managers/state_manager.dart';
-import '../../models/game_state.dart' as gm;
-import '../../models/player.dart';
 import '../../models/card.dart' as cm;
 import '../../managers/recall_game_manager.dart';
 import '../../managers/recall_state_manager.dart';
+// Provider removed – use StateManager only
+
+
+
 import '../../../00_base/screen_base.dart';
 import '../lobby_room/widgets/message_board_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
@@ -13,6 +15,7 @@ import 'widgets/opponents_panel.dart';
 import 'widgets/center_board.dart';
 import 'widgets/my_hand_panel.dart';
 import 'widgets/action_bar.dart';
+// Provider removed
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);
@@ -25,9 +28,12 @@ class GamePlayScreen extends BaseScreen {
 }
 
 class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
+  // Legacy managers (for backward compatibility)
   final StateManager _stateManager = StateManager();
   final RecallStateManager _recallState = RecallStateManager();
   final RecallGameManager _gameManager = RecallGameManager();
+
+  // Unified state management is now handled by BaseScreen
 
   // UI selections
   cm.Card? _selectedCard;
@@ -36,6 +42,9 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Using StateManager / legacy managers – no Provider
+    
     // Ensure managers are initialized via RecallGameCore; if entering directly from lobby,
     // attempt to join the game with current room id.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -43,7 +52,8 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       final currentRoomId = (wsState['currentRoomId'] ?? '') as String;
       if (currentRoomId.isNotEmpty && _gameManager.currentGameId != currentRoomId) {
         final userState = _stateManager.getModuleState<Map<String, dynamic>>('auth') ?? {};
-        final playerName = (userState['user']?['name'] ?? 'Player').toString();
+        final loginState = _stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+        final playerName = (userState['user']?['name'] ?? loginState['username'] ?? loginState['email'] ?? 'Player').toString();
         await _gameManager.joinGame(currentRoomId, playerName);
       }
     });
@@ -105,10 +115,25 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
-    final gameState = _recallState.currentGameState;
-    final myHand = _recallState.getMyHand();
-    final isMyTurn = _recallState.isMyTurn;
+    // Read game-related UI hints from StateManager (fallback to recall state manager)
+    final recallUi = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final myId = _stateManager.getModuleState<Map<String, dynamic>>('auth')?['user']?['id']?.toString();
+    final currentPlayer = _recallState.currentGameState?.currentPlayer;
+    final isMyTurn = recallUi['isMyTurn'] == true || (currentPlayer != null && currentPlayer.id.toString() == myId);
+    final myHandUnified = (recallUi['myHand'] as List<dynamic>?) ?? const [];
+    
+    return _buildGameContent(context, 
+      gameState: _recallState.currentGameState, // Keep legacy for game logic
+      myHand: myHandUnified.isNotEmpty ? myHandUnified : _recallState.getMyHand(),
+      isMyTurn: isMyTurn,
+    );
+  }
 
+  Widget _buildGameContent(BuildContext context, {
+    required dynamic gameState,
+    required List<dynamic> myHand,
+    required bool isMyTurn,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 900;
@@ -173,7 +198,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                 child: Padding(
                   padding: AppPadding.cardPadding,
                   child: MyHandPanel(
-                    hand: myHand,
+                    hand: myHand.cast<cm.Card>(),
                     selected: _selectedCard,
                     onSelect: _onSelectCard,
                   ),

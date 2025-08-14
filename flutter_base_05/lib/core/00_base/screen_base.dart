@@ -8,6 +8,7 @@ import '../managers/navigation_manager.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
 import '../recall_game/widgets/feature_slot.dart';
+// Note: Do not import recall game types here to keep BaseScreen generic.
 
 abstract class BaseScreen extends StatefulWidget {
   const BaseScreen({Key? key}) : super(key: key);
@@ -333,7 +334,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       actions: widget.getAppBarActions(context),
     );
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: AppColors.scaffoldBackgroundColor,
       appBar: appBar,
       drawer: CustomDrawer(),
@@ -418,6 +419,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
         ),
       ),
     );
+
+    return scaffold;
   }
 
   /// Abstract method to be implemented by child classes

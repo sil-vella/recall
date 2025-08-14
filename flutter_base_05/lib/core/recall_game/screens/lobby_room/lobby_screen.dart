@@ -12,6 +12,8 @@ import 'services/room_service.dart';
 import '../../widgets/feature_slot.dart';
 import 'features/lobby_features.dart';
 import 'widgets/message_board_widget.dart';
+// Provider removed – use StateManager only
+
 
 class LobbyScreen extends BaseScreen {
   const LobbyScreen({Key? key}) : super(key: key);
@@ -28,18 +30,34 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   final RoomService _roomService = RoomService();
   final TextEditingController _roomIdController = TextEditingController();
   
-  // Managers
+  // Legacy managers (for backward compatibility)
   final StateManager _stateManager = StateManager();
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
+  
+  // Unified state management is now handled by BaseScreen
 
   @override
   void initState() {
     super.initState();
+    
+    // Using StateManager as SSOT – no Provider
+    
     _initializeWebSocket().then((_) {
-      _loadPublicRooms();
       _setupEventCallbacks();
       _initializeRoomState();
       _featureRegistrar.registerDefaults(context);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Load public rooms after the widget tree is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadPublicRooms();
+      }
     });
   }
 
@@ -59,16 +77,31 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   Future<void> _loadPublicRooms() async {
     try {
-      await _roomService.loadPublicRooms();
+      if (!mounted) return;
+      // Use RoomService+StateManager to fetch and store rooms
+      await _roomService.loadPublicRooms().then((rooms) {
+        final current = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        _stateManager.updateModuleState('recall_game', {
+          ...current,
+          'rooms': rooms,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+      });
     } catch (e) {
-      _showSnackBar('Failed to load public rooms: $e', isError: true);
+      if (mounted) {
+        _showSnackBar('Failed to load public rooms: $e', isError: true);
+      }
     }
   }
 
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
-      await _roomService.createRoom(roomSettings);
-      _showSnackBar('Room created successfully!');
+      final created = await _roomService.createRoom(roomSettings);
+      if (created.isNotEmpty) {
+        _showSnackBar('Room created successfully!');
+      } else {
+        _showSnackBar('Failed to create room', isError: true);
+      }
     } catch (e) {
       _showSnackBar('Failed to create room: $e', isError: true);
     }
@@ -77,7 +110,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   Future<void> _joinRoom(String roomId) async {
     try {
       await _roomService.joinRoom(roomId);
-      _showSnackBar('Joined room: $roomId');
+      if (mounted) {
+        _showSnackBar('Joined room: $roomId');
+      }
     } catch (e) {
       _showSnackBar('Failed to join room: $e', isError: true);
     }
@@ -86,7 +121,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   Future<void> _leaveRoom(String roomId) async {
     try {
       await _roomService.leaveRoom(roomId);
-      // Don't show success message here - let the event callbacks handle it
+      if (mounted) {
+        _showSnackBar('Left room: $roomId');
+      }
     } catch (e) {
       if (mounted) {
         _showSnackBar('Failed to leave room: $e', isError: true);
@@ -134,6 +171,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
+    // State is now provided by BaseScreen
     return StreamBuilder<ConnectionStatusEvent>(
       stream: _websocketManager.connectionStatus,
       builder: (context, connectionSnapshot) {
@@ -143,14 +181,11 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Connection Status
-              ConnectionStatusWidget(websocketManager: _websocketManager),
+              const ConnectionStatusWidget(),
               const SizedBox(height: 20),
               
               // Create Room Section
               CreateRoomWidget(
-                stateManager: _stateManager,
-                isLoading: false, // This will be overridden by the widget's Consumer
-                isConnected: false, // This will be overridden by the widget's Consumer
                 onCreateRoom: _createRoom,
               ),
               
@@ -163,9 +198,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
               
               // Join Room Section
               JoinRoomWidget(
-                stateManager: _stateManager,
-                isLoading: false, // This will be overridden by the widget's Consumer
-                isConnected: false, // This will be overridden by the widget's Consumer
                 onJoinRoom: () => _joinRoom(_roomIdController.text.trim()),
                 roomIdController: _roomIdController,
               ),
@@ -184,8 +216,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
               
               // Current Room Info
               CurrentRoomWidget(
-                stateManager: _stateManager,
-                isConnected: false, // This will be overridden by the widget's Consumer
                 onLeaveRoom: _leaveRoom,
               ),
               
@@ -202,9 +232,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
               // Public Rooms List
               RoomListWidget(
                 title: 'Public Rooms',
-                stateManager: _stateManager,
-                isLoading: false, // This will be overridden by the widget's Consumer
-                isConnected: false, // This will be overridden by the widget's Consumer
                 onJoinRoom: _joinRoom,
                 onLeaveRoom: _leaveRoom,
                 emptyMessage: 'No public rooms available',
@@ -216,9 +243,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
               // My Rooms List
               RoomListWidget(
                 title: 'My Rooms',
-                stateManager: _stateManager,
-                isLoading: false,
-                isConnected: false, // This will be overridden by the widget's Consumer
                 onJoinRoom: _joinRoom,
                 onLeaveRoom: _leaveRoom,
                 emptyMessage: 'You haven\'t created any rooms yet',

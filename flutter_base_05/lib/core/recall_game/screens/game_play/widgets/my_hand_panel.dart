@@ -1,16 +1,46 @@
 import 'package:flutter/material.dart';
 import '../../../models/card.dart' as cm;
 import '../../../../../../utils/consts/theme_consts.dart';
+import '../../../../managers/state_manager.dart';
 
-class MyHandPanel extends StatelessWidget {
-  final List<cm.Card> hand;
+class MyHandPanel extends StatefulWidget {
+  final List<cm.Card> hand; // initial/fallback
   final cm.Card? selected;
   final void Function(cm.Card card, int index) onSelect;
 
   const MyHandPanel({Key? key, required this.hand, required this.selected, required this.onSelect}) : super(key: key);
 
   @override
+  State<MyHandPanel> createState() => _MyHandPanelState();
+}
+
+class _MyHandPanelState extends State<MyHandPanel> {
+  final StateManager _stateManager = StateManager();
+
+  @override
+  void initState() {
+    super.initState();
+    _stateManager.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    _stateManager.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final recall = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final unifiedHand = (recall['myHand'] as List<dynamic>?)
+        ?.map((m) => cm.Card.fromJson((m as Map).cast<String, dynamic>()))
+        .toList();
+    final hand = (unifiedHand != null && unifiedHand.isNotEmpty) ? unifiedHand : widget.hand;
+
     if (hand.isEmpty) {
       return Text('Your hand is empty', style: AppTextStyles.bodyMedium);
     }
@@ -18,7 +48,7 @@ class MyHandPanel extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (int i = 0; i < hand.length; i++) _HandCardTile(card: hand[i], index: i, isSelected: selected == hand[i], onTap: () => onSelect(hand[i], i)),
+        for (int i = 0; i < hand.length; i++) _HandCardTile(card: hand[i], index: i, isSelected: widget.selected == hand[i], onTap: () => widget.onSelect(hand[i], i)),
       ],
     );
   }

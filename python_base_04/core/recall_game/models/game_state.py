@@ -479,6 +479,21 @@ class GameStateManager:
         self.active_games[game_id] = game_state
         return game_id
     
+    def create_game_with_id(self, game_id: str, max_players: int = 4) -> str:
+        """Create a new game using a provided identifier (e.g., room_id).
+
+        This aligns backend game identity with the room identifier used by the
+        frontend so join/start flows can address the same id across the stack.
+        If a game with this id already exists, it is returned unchanged.
+        """
+        # If already exists, no-op
+        existing = self.active_games.get(game_id)
+        if existing is not None:
+            return game_id
+        game_state = GameState(game_id, max_players)
+        self.active_games[game_id] = game_state
+        return game_id
+    
     def get_game(self, game_id: str) -> Optional[GameState]:
         """Get a game by ID"""
         return self.active_games.get(game_id)

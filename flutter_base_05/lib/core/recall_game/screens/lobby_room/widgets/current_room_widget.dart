@@ -1,100 +1,104 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../../managers/state_manager.dart';
 import '../../../../managers/navigation_manager.dart';
+import '../../../../managers/state_manager.dart';
 
-class CurrentRoomWidget extends StatelessWidget {
-  final StateManager stateManager;
-  final bool isConnected;
+class CurrentRoomWidget extends StatefulWidget {
   final Function(String) onLeaveRoom;
 
   const CurrentRoomWidget({
     Key? key,
-    required this.stateManager,
-    required this.isConnected,
     required this.onLeaveRoom,
   }) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    return Consumer<StateManager>(
-      builder: (context, stateManager, child) {
-        // Get recall game state from StateManager
-        final recallState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-        final currentRoom = recallState['currentRoom'];
-        final currentRoomId = recallState['currentRoomId'];
-        
-        // Get WebSocket connection state from StateManager
-        final websocketState = stateManager.getModuleState<Map<String, dynamic>>("websocket") ?? {};
-        final isConnected = websocketState['isConnected'] ?? false;
-        
-        if (currentRoom == null) {
-          return const SizedBox.shrink();
-        }
+  State<CurrentRoomWidget> createState() => _CurrentRoomWidgetState();
+}
 
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+class _CurrentRoomWidgetState extends State<CurrentRoomWidget> {
+  final StateManager _stateManager = StateManager();
+
+  @override
+  void initState() {
+    super.initState();
+    _stateManager.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    _stateManager.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recall = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final ws = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    final isConnected = (ws['connected'] ?? ws['isConnected']) == true;
+    final currentRoom = recall['currentRoom'] as Map<String, dynamic>?;
+    final players = (recall['players'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+    final isRoomOwner = recall['isRoomOwner'] == true;
+
+    if (currentRoom == null) return const SizedBox.shrink();
+
+    final roomId = currentRoom['room_id']?.toString() ?? '';
+    final roomName = currentRoom['room_name']?.toString() ?? roomId;
+    final maxPlayers = currentRoom['max_size'] ?? players.length;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Current Room',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    // Enter Game button
-                    Semantics(
-                      label: 'enter_game_screen',
-                      identifier: 'enter_game_screen',
-                      button: true,
-                      child: ElevatedButton(
-                        onPressed: isConnected && currentRoomId != null
-                            ? () async {
-                                // Join the game room on backend, then navigate
-                                final recallManager = Provider.of<NavigationManager>(context, listen: false);
-                                // Use StateManager to fetch user name if available
-                                final sm = Provider.of<StateManager>(context, listen: false);
-                                final userState = sm.getModuleState<Map<String, dynamic>>('auth') ?? {};
-                                final playerName = (userState['user']?['name'] ?? 'Player').toString();
-                                // Join via WebSocket manager wrapper
-                                // We cannot access RecallGameManager directly here; navigation triggers screen init which uses it.
-                                NavigationManager().navigateTo('/recall/game-play');
-                              }
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Enter Game'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: isConnected && currentRoomId != null ? () => onLeaveRoom(currentRoomId!) : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Leave'),
-                    ),
-                  ],
+                const Text(
+                  'Current Room',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Text('Room ID: ${currentRoom['room_id']}'),
-                Text('Owner: ${currentRoom['owner_id']}'),
-                Text('Members: ${currentRoom['current_size']}/${currentRoom['max_size']}'),
-                Text('Permission: ${currentRoom['permission']}'),
+                const Spacer(),
+                Semantics(
+                  label: 'enter_game_screen',
+                  identifier: 'enter_game_screen',
+                  button: true,
+                  child: ElevatedButton(
+                    onPressed: isConnected
+                        ? () => NavigationManager().navigateTo('/recall/game-play')
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Enter Game'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: isConnected ? () => widget.onLeaveRoom(roomId) : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Leave'),
+                ),
               ],
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 8),
+            Text('Room: $roomName'),
+            Text('Room ID: $roomId'),
+            Text('Players: ${players.length}/$maxPlayers'),
+            if (isRoomOwner)
+              const Text('👑 You are the room owner', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+          ],
+        ),
+      ),
     );
   }
 } 

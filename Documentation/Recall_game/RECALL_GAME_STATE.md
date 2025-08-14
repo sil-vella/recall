@@ -1,0 +1,108 @@
+# Recall Game State System
+
+## Purpose
+High-level reference for how the Recall game state is modeled, written, and consumed after removing Provider/ChangeNotifier. Explains the Single Source of Truth (SSOT), update flow, and widget-level subscriptions.
+
+## Single Source of Truth (SSOT)
+- Global `StateManager` singleton
+- Module key: `recall_game`
+- Namespaced UI/session state for the Recall experience
+
+Typical fields (illustrative):
+- Connection/flags: `isConnected`, `isLoading`, `error`, `lastUpdated`
+- Room/session: `currentRoomId`, `currentRoom` (map), `isInRoom`, `isRoomOwner`
+- Lists: `rooms` (public), `myRooms`, `players`
+- Turn/hand hints: `currentTurnIndex`, `currentTurnPlayerId`, `myPlayerId`, optional `myHand`
+- Phase: `gamePhase` (string: `idle`, `inLobby`, `playing`, `ended`)
+
+Rationale for a single key:
+- Clear ownership and boundaries
+- Simple, explicit subscriptions per widget
+- Easier reasoning about updates
+
+## Writers (who updates state)
+1) Initialization (Recall core)
+- Registers `recall_game` default state once at startup
+
+2) WebSocket/Network
+- Updates `isConnected/isLoading`
+- Events → state:
+  - Rooms list → `rooms`
+  - Room created/joined/left → `currentRoom`, `currentRoomId`, `isRoomOwner`, `players`, `gamePhase`
+  - Game started/ended/turn changed → `gamePhase`, `currentTurn*`
+
+3) Room actions (UI → RoomService)
+- Create room: merges response into `recall_game`, may refresh `rooms`
+- Join/Leave: emits WS events, then syncs `recall_game` from websocket state
+
+Writer guidelines:
+- Always bump `lastUpdated` on meaningful writes
+- Prefer merges over wholesale replacement when possible
+- Keep `recall_game` UI/session oriented; deep engine objects live in legacy managers
+
+## Readers (who consumes state) and Subscriptions
+Screens load once; widgets self-subscribe to `StateManager` and rebuild themselves.
+
+Widget subscription pattern:
+- Make widget Stateful
+- `initState`: `StateManager().addListener(_onChanged)`
+- `dispose`: `removeListener`
+- `_onChanged`: `if (mounted) setState(() {})`
+- `build`: read only necessary keys from `StateManager().getModuleState<Map<String, dynamic>>('recall_game')`
+
+Current widget subscriptions:
+- ConnectionStatusWidget: Connection and loading (combines `websocket` + `recall_game`)
+- CurrentRoomWidget: `currentRoom`, `players`, `isRoomOwner`, connection
+- RoomListWidget: `rooms`, `currentRoomId`, connection
+- StatusBar: connection + phase/turn readouts
+- MyHandPanel: `myHand` (if present), falls back to legacy hand
+- CenterBoard: draw/discard summary
+- ActionBar: currently props-driven; can be subscribed if turn-based auto-enable is desired
+
+## Typical Flows
+A) Connect & load rooms
+- WS connects → `isConnected=true`, `isLoading=false`
+- Request rooms → `rooms` populated → subscribed widgets rebuild
+
+B) Create room
+- UI action → WS → update `currentRoom`, `currentRoomId`, `isRoomOwner` → widgets rebuild
+
+C) Join/Leave room
+- UI action → WS → sync `currentRoom/Id` → widgets rebuild
+
+D) Start match / Turn changes
+- WS event → update `gamePhase`, `currentTurn*` → turn-dependent widgets rebuild
+
+## Legacy Engine vs UI State
+- Engine models (board, rules, piles) remain in legacy managers during transition
+- `recall_game` contains UI/session signals and light hints (ownership, turn, hand)
+- Widgets can combine both: engine for visuals, SSOT for session/turn
+
+## Adding a New Reactive Widget
+1) Convert to Stateful
+2) Subscribe to `StateManager` in `initState`; unsubscribe in `dispose`
+3) Read minimal keys from `recall_game` in `build`
+4) Re-render on changes via listener
+
+Tips:
+- Minimize read surface to reduce rebuild noise
+- Use immutable-style updates in writers for list/map diffs
+- Use `lastUpdated` for debugging ordering/staleness
+
+## Troubleshooting
+- Ensure `recall_game` is registered once at startup
+- If a widget doesn’t update, verify it subscribes and that writers call `updateModuleState`
+- Check `websocket` module for connection fields
+- Use logging in services/network to trace event → state → UI
+
+## Migration Checklist (Provider → StateManager)
+- Removed Provider/ChangeNotifier in Recall
+- Registered `recall_game` module state
+- Network/services write via `StateManager.updateModuleState`
+- Widgets converted to Stateful self-subscriptions
+- Legacy engine reads remain separate (for now)
+
+## Future Enhancements
+- Normalize shapes for `currentRoom`, `players`, `myHand`
+- Add finer-grained keys/events to reduce broad rebuilds
+- Migrate gameplay visuals fully to SSOT when engine refactor is done

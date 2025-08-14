@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../../managers/state_manager.dart';
 
-class RoomListWidget extends StatelessWidget {
+class RoomListWidget extends StatefulWidget {
   final String title;
-  final StateManager stateManager;
-  final bool isLoading;
-  final bool isConnected;
   final Function(String) onJoinRoom;
   final Function(String) onLeaveRoom;
   final String emptyMessage;
@@ -15,9 +11,6 @@ class RoomListWidget extends StatelessWidget {
   const RoomListWidget({
     Key? key,
     required this.title,
-    required this.stateManager,
-    required this.isLoading,
-    required this.isConnected,
     required this.onJoinRoom,
     required this.onLeaveRoom,
     required this.emptyMessage,
@@ -25,33 +18,45 @@ class RoomListWidget extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<RoomListWidget> createState() => _RoomListWidgetState();
+}
+
+class _RoomListWidgetState extends State<RoomListWidget> {
+  final StateManager _sm = StateManager();
+
+  @override
+  void initState() {
+    super.initState();
+    _sm.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    _sm.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Consumer<StateManager>(
-      builder: (context, stateManager, child) {
-        // Get recall game state from StateManager
-        final recallState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-        final currentRoomId = recallState['currentRoomId'];
-        
-        // Get WebSocket connection state from StateManager
-        final websocketState = stateManager.getModuleState<Map<String, dynamic>>("websocket") ?? {};
-        final isConnected = websocketState['isConnected'] ?? false;
-        
-        // Get rooms based on type
-        List<Map<String, dynamic>> rooms = [];
-        if (roomType == 'public') {
-          rooms = (recallState['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-        } else if (roomType == 'my') {
-          rooms = (recallState['myRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-        }
-        
-        return Card(
+    final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final rooms = (recall['rooms'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+    final currentRoomId = (recall['currentRoomId'] ?? '') as String;
+    final ws = _sm.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    final isConnected = (ws['connected'] ?? ws['isConnected']) == true;
+    final isLoading = recall['isLoading'] == true;
+
+    return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  widget.title,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -62,7 +67,7 @@ class RoomListWidget extends StatelessWidget {
                 if (isLoading)
                   const Center(child: CircularProgressIndicator())
                 else if (rooms.isEmpty)
-                  Text(emptyMessage)
+                  Text(widget.emptyMessage)
                 else
                   ListView.builder(
                     shrinkWrap: true,
@@ -70,19 +75,17 @@ class RoomListWidget extends StatelessWidget {
                     itemCount: rooms.length,
                     itemBuilder: (context, index) {
                       final room = rooms[index];
-                      final roomId = room['room_id'] as String?;
+                      final roomId = room['room_id']?.toString() ?? '';
                       final isInThisRoom = currentRoomId == roomId;
                       
                        return ListTile(
-                        title: Text('Room: ${room['room_name'] ?? room['room_id']}'),
+                        title: Text('Room: ${room['room_name'] ?? roomId}'),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Members: ${room['current_size']}/${room['max_size']}'),
-                            if (room['owner_id'] != null)
-                              Text('Owner: ${room['owner_id']}'),
-                            if (room['permission'] != null)
-                              Text('Type: ${room['permission']}'),
+                            Text('Players: ${(room['current_size'] ?? '?')}/${room['max_size'] ?? '?'}'),
+                            if (room['permission'] == 'private')
+                              const Text('🔒 Private', style: TextStyle(color: Colors.orange)),
                           ],
                         ),
                          trailing: isInThisRoom
@@ -90,8 +93,8 @@ class RoomListWidget extends StatelessWidget {
                                  label: 'room_leave_${roomId}',
                                  identifier: 'room_leave_${roomId}',
                                  button: true,
-                                 child: ElevatedButton(
-                                   onPressed: isConnected ? () => onLeaveRoom(roomId!) : null,
+                                  child: ElevatedButton(
+                                     onPressed: isConnected ? () => widget.onLeaveRoom(roomId) : null,
                                    style: ElevatedButton.styleFrom(
                                      backgroundColor: Colors.red,
                                      foregroundColor: Colors.white,
@@ -103,8 +106,8 @@ class RoomListWidget extends StatelessWidget {
                                  label: 'room_join_${roomId}',
                                  identifier: 'room_join_${roomId}',
                                  button: true,
-                                 child: ElevatedButton(
-                                   onPressed: isConnected ? () => onJoinRoom(roomId!) : null,
+                                  child: ElevatedButton(
+                                    onPressed: isConnected ? () => widget.onJoinRoom(roomId) : null,
                                    child: const Text('Join'),
                                  ),
                                ),
@@ -115,7 +118,5 @@ class RoomListWidget extends StatelessWidget {
             ),
           ),
         );
-      },
-    );
   }
 } 

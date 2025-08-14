@@ -3,21 +3,42 @@ import '../../../../managers/state_manager.dart';
 import '../../../models/game_state.dart' as gm;
 import '../../../../../../utils/consts/theme_consts.dart';
 
-class StatusBar extends StatelessWidget {
+class StatusBar extends StatefulWidget {
   final StateManager stateManager;
   final gm.GameState? gameState;
 
   const StatusBar({Key? key, required this.stateManager, required this.gameState}) : super(key: key);
 
   @override
+  State<StatusBar> createState() => _StatusBarState();
+}
+
+class _StatusBarState extends State<StatusBar> {
+  @override
+  void initState() {
+    super.initState();
+    widget.stateManager.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.stateManager.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final ws = stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    final ws = widget.stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
     final isConnected = ws['isConnected'] == true;
 
-    final phase = gameState?.phase.name ?? 'waiting';
-    final current = gameState?.currentPlayer?.name ?? '—';
-    final turn = gameState?.turnNumber ?? 0;
-    final round = gameState?.roundNumber ?? 1;
+    final phase = widget.gameState?.phase.name ?? 'waiting';
+    final current = widget.gameState?.currentPlayer?.name ?? '—';
+    final turn = widget.gameState?.turnNumber ?? 0;
+    final round = widget.gameState?.roundNumber ?? 1;
 
     return Container(
       padding: const EdgeInsets.all(12),

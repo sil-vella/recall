@@ -101,11 +101,14 @@ class RecallGameManager {
     try {
       // Parse message and check if it's a Recall game event
       final data = messageEvent.message;
+      Map<String, dynamic>? jsonData;
       if (data is String) {
-        final jsonData = jsonDecode(data);
-        if (jsonData['type']?.startsWith('recall_') == true) {
-          _handleRecallGameEvent(jsonData);
-        }
+        jsonData = jsonDecode(data);
+      } else if (data is Map) {
+        jsonData = Map<String, dynamic>.from(data);
+      }
+      if (jsonData != null && (jsonData['type']?.toString().startsWith('recall_') == true || jsonData['event_type'] != null)) {
+        _handleRecallGameEvent(jsonData);
       }
     } catch (e) {
       _log.error('❌ Error parsing WebSocket message: $e');
@@ -150,15 +153,6 @@ class RecallGameManager {
           break;
         case 'game_state_updated':
           _handleGameStateUpdated(data);
-          break;
-        case 'turn_changed':
-          _handleTurnChanged(data);
-          break;
-        case 'player_joined':
-          _handlePlayerJoined(data);
-          break;
-        case 'player_left':
-          _handlePlayerLeft(data);
           break;
         case 'error':
           _handleGameErrorEvent(data);
@@ -310,7 +304,11 @@ class RecallGameManager {
   /// Join a game
   Future<Map<String, dynamic>> joinGame(String gameId, String playerName) async {
     if (!_isInitialized) {
-      return {'error': 'Game manager not initialized'};
+      // Attempt to initialize on-demand to avoid race with app startup
+      final initialized = await initialize();
+      if (!initialized) {
+        return {'error': 'Game manager not initialized'};
+      }
     }
     
     try {
@@ -550,6 +548,12 @@ class RecallGameManager {
   /// Start match (explicit init)
   Future<Map<String, dynamic>> startMatch() async {
     try {
+      if (!_isInitialized) {
+        final initialized = await initialize();
+        if (!initialized) {
+          return {'error': 'Game manager not initialized'};
+        }
+      }
       // Auto-join current room if not yet in a game
       if (_currentGameId == null) {
         final wsState = _mainStateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};

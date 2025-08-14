@@ -3,9 +3,9 @@ import '../../../../managers/state_manager.dart';
 import '../../../models/game_state.dart' as gm;
 import '../../../../../../utils/consts/theme_consts.dart';
 
-class CenterBoard extends StatelessWidget {
+class CenterBoard extends StatefulWidget {
   final StateManager stateManager;
-  final gm.GameState? gameState;
+  final gm.GameState? gameState; // legacy board
   final VoidCallback onDrawFromDeck;
   final VoidCallback onTakeFromDiscard;
 
@@ -18,10 +18,31 @@ class CenterBoard extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<CenterBoard> createState() => _CenterBoardState();
+}
+
+class _CenterBoardState extends State<CenterBoard> {
+  @override
+  void initState() {
+    super.initState();
+    widget.stateManager.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.stateManager.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final drawCount = gameState?.drawPile.length ?? 0;
-    final topDiscard = (gameState?.discardPile.isNotEmpty ?? false)
-        ? gameState!.discardPile.last.displayName
+    final drawCount = widget.gameState?.drawPile.length ?? 0;
+    final topDiscard = (widget.gameState?.discardPile.isNotEmpty ?? false)
+        ? widget.gameState!.discardPile.last.displayName
         : '—';
 
     return Row(
@@ -31,7 +52,7 @@ class CenterBoard extends StatelessWidget {
             title: 'Draw Pile',
             subtitle: 'Cards: $drawCount',
             actionLabel: 'Draw',
-            onAction: onDrawFromDeck,
+            onAction: widget.onDrawFromDeck,
             semanticsId: 'pile_draw',
           ),
         ),
@@ -41,7 +62,7 @@ class CenterBoard extends StatelessWidget {
             title: 'Discard Pile',
             subtitle: 'Top: $topDiscard',
             actionLabel: 'Take Top',
-            onAction: onTakeFromDiscard,
+            onAction: widget.onTakeFromDiscard,
             semanticsId: 'pile_discard_top',
           ),
         ),

@@ -45,8 +45,14 @@ class RecallGameplayManager:
             player_name = data.get('player_name') or 'Player'
             player_type = data.get('player_type') or 'human'
 
+            # Align game with room id: if provided id has no game, create one with that id
             if not game_id:
                 game_id = self.game_state_manager.create_game(max_players=4)
+            else:
+                game = self.game_state_manager.get_game(game_id)
+                if not game:
+                    # Use provided id as game id to align with room
+                    self.game_state_manager.create_game_with_id(game_id, max_players=4)
 
             game = self.game_state_manager.get_game(game_id)
             if not game:
@@ -354,6 +360,32 @@ class RecallGameplayManager:
             if not game:
                 self._emit_error(session_id, f'Game not found: {game_id}')
                 return False
+
+            # If already started, avoid re-dealing. Just echo current state.
+            try:
+                from ..models.game_state import GamePhase
+                if game.phase != GamePhase.WAITING_FOR_PLAYERS:
+                    payload = {
+                        'type': 'recall_event',
+                        'event_type': 'game_state_updated',
+                        'game_id': game_id,
+                        'game_state': self._to_flutter_game_state(game),
+                    }
+                    self._broadcast_message(game_id, payload, session_id)
+                    return True
+            except Exception:
+                pass
+
+            # If only one player is present, auto-add a computer player for solo start
+            try:
+                if len(game.players) < 2:
+                    from ..models.player import ComputerPlayer
+                    bot_id = f"bot_{game_id[:6]}"
+                    if bot_id not in game.players:
+                        game.add_player(ComputerPlayer(bot_id, 'Computer'))
+            except Exception:
+                # If auto-add fails, proceed; start_game will still validate
+                pass
 
             # Start the game using GameState.start_game (now deterministic via DeckFactory)
             game.start_game()

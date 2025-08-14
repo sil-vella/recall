@@ -1,51 +1,61 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../../managers/state_manager.dart';
-import '../../../../managers/websockets/websocket_manager.dart';
 
-class ConnectionStatusWidget extends StatelessWidget {
-  final WebSocketManager websocketManager;
+class ConnectionStatusWidget extends StatefulWidget {
+  const ConnectionStatusWidget({Key? key}) : super(key: key);
 
-  const ConnectionStatusWidget({
-    Key? key,
-    required this.websocketManager,
-  }) : super(key: key);
+  @override
+  State<ConnectionStatusWidget> createState() => _ConnectionStatusWidgetState();
+}
+
+class _ConnectionStatusWidgetState extends State<ConnectionStatusWidget> {
+  final StateManager _stateManager = StateManager();
+
+  @override
+  void initState() {
+    super.initState();
+    _stateManager.addListener(_onStateChanged);
+  }
+
+  @override
+  void dispose() {
+    _stateManager.removeListener(_onStateChanged);
+    super.dispose();
+  }
+
+  void _onStateChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<StateManager>(
-      builder: (context, stateManager, child) {
-        // Get WebSocket connection state from StateManager
-        final websocketState = stateManager.getModuleState<Map<String, dynamic>>("websocket") ?? {};
-        final isConnected = websocketState['isConnected'] ?? false;
-        
-        // Also check the direct WebSocket manager for more detailed status
-        final isConnecting = websocketManager.isConnecting;
-        
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isConnected ? Colors.green : isConnecting ? Colors.orange : Colors.red,
-            borderRadius: BorderRadius.circular(8),
+    final ws = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    final recall = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final isConnected = (ws['connected'] ?? ws['isConnected']) == true;
+    final isLoading = recall['isLoading'] == true || ws['connecting'] == true;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isConnected ? Colors.green : isLoading ? Colors.orange : Colors.red,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isConnected ? Icons.wifi : isLoading ? Icons.sync : Icons.wifi_off,
+            color: Colors.white,
           ),
-          child: Row(
-            children: [
-              Icon(
-                isConnected ? Icons.wifi : isConnecting ? Icons.sync : Icons.wifi_off,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                isConnected ? 'Connected' : isConnecting ? 'Connecting...' : 'Disconnected',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          const SizedBox(width: 8),
+          Text(
+            isConnected ? 'Connected' : isLoading ? 'Connecting...' : 'Disconnected',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
-} 
+}

@@ -26,6 +26,14 @@ class WSEventListeners:
         @self.socketio.on('*')
         def catch_all(event, data=None):
             custom_log(f"🔍 [CATCH-ALL] Received event: '{event}' with data: {data}")
+            # Avoid double-handling for core and recall-specific events which have explicit handlers
+            core_events = {
+                'connect', 'disconnect', 'join_room', 'create_room',
+                'leave_room', 'send_message', 'broadcast', 'message'
+            }
+            if event in core_events or str(event).startswith('recall_'):
+                return None
+            # Route only unknown/non-core events through the unified handler
             return self.event_handlers.handle_unified_event(event, event, data or {})
 
         # Connection events

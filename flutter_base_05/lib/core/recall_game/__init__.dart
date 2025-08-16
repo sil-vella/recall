@@ -8,7 +8,6 @@ export 'models/game_state.dart';
 export 'models/game_events.dart';
 
 // Managers
-export 'managers/recall_state_manager.dart';
 export 'managers/recall_game_manager.dart';
 
 // Screens
@@ -19,4 +18,10 @@ export 'utils/game_constants.dart';
 export 'utils/card_utils.dart';
 
 // Main
-export 'recall_game_main.dart'; 
+export 'recall_game_main.dart';
+
+// Validated Event/State System
+export 'utils/field_specifications.dart';
+export 'utils/validated_event_emitter.dart';
+export 'utils/validated_state_updater.dart';
+export 'utils/recall_game_helpers.dart'; 

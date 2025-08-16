@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import '../../../managers/websockets/websocket_manager.dart';
 import '../../../managers/state_manager.dart';
-import '../../../managers/websockets/websocket_events.dart';
 import '../../../00_base/screen_base.dart';
 import 'widgets/connection_status_widget.dart';
 import 'widgets/create_room_widget.dart';
 import 'widgets/join_room_widget.dart';
 import 'widgets/current_room_widget.dart';
 import 'widgets/room_list_widget.dart';
+import 'widgets/room_message_board_widget.dart';
 import 'services/room_service.dart';
+import '../../utils/recall_game_helpers.dart';
 import '../../widgets/feature_slot.dart';
 import 'features/lobby_features.dart';
 import 'widgets/message_board_widget.dart';
@@ -26,7 +26,6 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  final WebSocketManager _websocketManager = WebSocketManager.instance;
   final RoomService _roomService = RoomService();
   final TextEditingController _roomIdController = TextEditingController();
   
@@ -53,16 +52,31 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     
-    // Load public rooms after the widget tree is built
+    // Set up WebSocket connection listener to load rooms when connected
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _loadPublicRooms();
+        _setupConnectionListener();
       }
     });
   }
 
   Future<void> _initializeWebSocket() async {
     await _roomService.initializeWebSocket();
+  }
+  
+  void _setupConnectionListener() {
+    // Listen for WebSocket connection changes
+    _stateManager.addListener(() {
+      if (!mounted) return;
+      
+      final websocketState = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+      final isConnected = websocketState['isConnected'] == true;
+      
+      // Load rooms when WebSocket connects
+      if (isConnected) {
+        _loadPublicRooms();
+      }
+    });
   }
 
   @override
@@ -80,11 +94,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       if (!mounted) return;
       // Use RoomService+StateManager to fetch and store rooms
       await _roomService.loadPublicRooms().then((rooms) {
-        final current = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-        _stateManager.updateModuleState('recall_game', {
-          ...current,
+        // 🎯 Use UI state helper for room list updates
+        RecallGameHelpers.updateUIState({
           'rooms': rooms,
-          'lastUpdated': DateTime.now().toIso8601String(),
         });
       });
     } catch (e) {
@@ -98,12 +110,12 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     try {
       final created = await _roomService.createRoom(roomSettings);
       if (created.isNotEmpty) {
-        _showSnackBar('Room created successfully!');
+        if (mounted) _showSnackBar('Room created successfully!');
       } else {
-        _showSnackBar('Failed to create room', isError: true);
+        if (mounted) _showSnackBar('Failed to create room', isError: true);
       }
     } catch (e) {
-      _showSnackBar('Failed to create room: $e', isError: true);
+      if (mounted) _showSnackBar('Failed to create room: $e', isError: true);
     }
   }
 
@@ -114,7 +126,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         _showSnackBar('Joined room: $roomId');
       }
     } catch (e) {
-      _showSnackBar('Failed to join room: $e', isError: true);
+      if (mounted) _showSnackBar('Failed to join room: $e', isError: true);
     }
   }
 
@@ -160,6 +172,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
+    // Check if the widget is still mounted before accessing context
+    if (!mounted) return;
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -171,87 +186,78 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
-    // State is now provided by BaseScreen
-    return StreamBuilder<ConnectionStatusEvent>(
-      stream: _websocketManager.connectionStatus,
-      builder: (context, connectionSnapshot) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Connection Status
-              const ConnectionStatusWidget(),
-              const SizedBox(height: 20),
-              
-              // Create Room Section
-              CreateRoomWidget(
-                onCreateRoom: _createRoom,
-              ),
-              
-              const SizedBox(height: 20),
-
-              // Session Message Board
-              MessageBoardWidget(stateManager: _stateManager),
-
-              const SizedBox(height: 20),
-              
-              // Join Room Section
-              JoinRoomWidget(
-                onJoinRoom: () => _joinRoom(_roomIdController.text.trim()),
-                roomIdController: _roomIdController,
-              ),
-              
-              const SizedBox(height: 20),
-              // Second slot in lobby for extra tools/actions (icon-only contract)
-              const FeatureSlot(
-                scopeKey: LobbyFeatureSlots.scopeKey,
-                slotId: LobbyFeatureSlots.slotSecondary,
-                title: 'Tools',
-                contract: 'icon_action',
-                iconSize: 22,
-              ),
-
-              const SizedBox(height: 20),
-              
-              // Current Room Info
-              CurrentRoomWidget(
-                onLeaveRoom: _leaveRoom,
-              ),
-              
-              const SizedBox(height: 20),
-
-              // Room Message Board (if in room)
-              Builder(builder: (context) {
-                final wsState = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
-                final currentRoomId = (wsState['currentRoomId'] ?? '') as String;
-                if (currentRoomId.isEmpty) return const SizedBox.shrink();
-                return MessageBoardWidget(stateManager: _stateManager, roomId: currentRoomId);
-              }),
-              
-              // Public Rooms List
-              RoomListWidget(
-                title: 'Public Rooms',
-                onJoinRoom: _joinRoom,
-                onLeaveRoom: _leaveRoom,
-                emptyMessage: 'No public rooms available',
-                roomType: 'public',
-              ),
-              
-              const SizedBox(height: 20),
-              
-              // My Rooms List
-              RoomListWidget(
-                title: 'My Rooms',
-                onJoinRoom: _joinRoom,
-                onLeaveRoom: _leaveRoom,
-                emptyMessage: 'You haven\'t created any rooms yet',
-                roomType: 'my',
-              ),
-            ],
+    // Screen doesn't read state directly - widgets handle their own subscriptions
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Connection Status
+          const ConnectionStatusWidget(),
+          const SizedBox(height: 20),
+          
+          // Create Room Section
+          CreateRoomWidget(
+            onCreateRoom: _createRoom,
           ),
-        );
-      },
+          
+          const SizedBox(height: 20),
+
+          // Session Message Board
+          MessageBoardWidget(),
+
+          const SizedBox(height: 20),
+          
+          // Join Room Section
+          JoinRoomWidget(
+            onJoinRoom: () => _joinRoom(_roomIdController.text.trim()),
+            roomIdController: _roomIdController,
+          ),
+          
+          const SizedBox(height: 20),
+          // Second slot in lobby for extra tools/actions (icon-only contract)
+          const FeatureSlot(
+            scopeKey: LobbyFeatureSlots.scopeKey,
+            slotId: LobbyFeatureSlots.slotSecondary,
+            title: 'Tools',
+            contract: 'icon_action',
+            iconSize: 22,
+          ),
+
+          const SizedBox(height: 20),
+          
+          // Current Room Info
+          CurrentRoomWidget(
+            onLeaveRoom: _leaveRoom,
+          ),
+          
+          const SizedBox(height: 20),
+
+          // Room Message Board (if in room)
+          const RoomMessageBoardWidget(),
+          const SizedBox(height: 20),
+          
+          // Public Rooms List
+          RoomListWidget(
+            title: 'Public Rooms',
+            onJoinRoom: _joinRoom,
+            onLeaveRoom: _leaveRoom,
+            emptyMessage: 'No public rooms available',
+            roomType: 'public',
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // My Rooms List
+          RoomListWidget(
+            title: 'My Rooms',
+            onJoinRoom: _joinRoom,
+            onLeaveRoom: _leaveRoom,
+            emptyMessage: 'You haven\'t created any rooms yet',
+            roomType: 'my',
+          ),
+        ],
+      ),
     );
   }
 } 

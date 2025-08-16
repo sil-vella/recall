@@ -1,28 +1,27 @@
 import 'package:flutter/material.dart';
 import '../../../../managers/state_manager.dart';
-import '../../../models/game_state.dart' as gm;
+
 import '../../../../../../utils/consts/theme_consts.dart';
 
 class StatusBar extends StatefulWidget {
-  final StateManager stateManager;
-  final gm.GameState? gameState;
-
-  const StatusBar({Key? key, required this.stateManager, required this.gameState}) : super(key: key);
+  const StatusBar({Key? key}) : super(key: key);
 
   @override
   State<StatusBar> createState() => _StatusBarState();
 }
 
 class _StatusBarState extends State<StatusBar> {
+  final StateManager _stateManager = StateManager(); // ✅ Pattern 1: Widget creates its own instance
+
   @override
   void initState() {
     super.initState();
-    widget.stateManager.addListener(_onChanged);
+    _stateManager.addListener(_onChanged);
   }
 
   @override
   void dispose() {
-    widget.stateManager.removeListener(_onChanged);
+    _stateManager.removeListener(_onChanged);
     super.dispose();
   }
 
@@ -32,13 +31,22 @@ class _StatusBarState extends State<StatusBar> {
 
   @override
   Widget build(BuildContext context) {
-    final ws = widget.stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    final ws = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
     final isConnected = ws['isConnected'] == true;
 
-    final phase = widget.gameState?.phase.name ?? 'waiting';
-    final current = widget.gameState?.currentPlayer?.name ?? '—';
-    final turn = widget.gameState?.turnNumber ?? 0;
-    final round = widget.gameState?.roundNumber ?? 1;
+    // Read from widget-specific state slice for optimal performance
+    final recall = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final statusBarState = recall['statusBar'] as Map<String, dynamic>? ?? {};
+    
+    // Use state slice data with fallbacks to full game state
+    final currentPhase = statusBarState['currentPhase'] as String? ?? 'waiting';
+    final turnInfo = statusBarState['turnInfo'] as String? ?? '';
+    final playerCount = statusBarState['playerCount'] as int? ?? 0;
+
+
+    // Extract turn number and round from turnInfo if available, otherwise use fallback
+    final turn = recall['turnNumber'] as int? ?? 0;
+    final round = recall['roundNumber'] as int? ?? 1;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -51,13 +59,13 @@ class _StatusBarState extends State<StatusBar> {
         children: [
           Icon(isConnected ? Icons.wifi : Icons.wifi_off, color: isConnected ? Colors.green : Colors.red),
           const SizedBox(width: 8),
-          Text('Phase: $phase', style: AppTextStyles.bodyMedium),
+          Text('Phase: $currentPhase', style: AppTextStyles.bodyMedium),
           const SizedBox(width: 12),
           Text('Turn: $turn', style: AppTextStyles.bodyMedium),
           const SizedBox(width: 12),
           Text('Round: $round', style: AppTextStyles.bodyMedium),
           const Spacer(),
-          Text('Current: $current', style: AppTextStyles.bodyLarge),
+          Text(turnInfo.isNotEmpty ? turnInfo : 'Players: $playerCount', style: AppTextStyles.bodyLarge),
         ],
       ),
     );

@@ -325,6 +325,21 @@ class WSEventHandler {
     }
   }
 
+  /// Handle recall event
+  void handleRecallEvent(dynamic data) {
+    _log.info("🔧 [HANDLER-RECALL_EVENT] Handling recall event");
+    
+    try {
+      // Forward the recall event to the RecallGameManager
+      // This will be handled by the RecallGameManager's event listeners
+      _eventManager.triggerCallbacks('recall_event', data);
+      
+      _log.info("✅ Recall event handled successfully");
+    } catch (e) {
+      _log.error("❌ Error handling recall event: $e");
+    }
+  }
+
   /// Handle error event
   void handleError(dynamic data) {
     _log.info("🔧 [HANDLER-ERROR] Handling error event");

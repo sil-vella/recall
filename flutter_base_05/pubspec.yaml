@@ -43,7 +43,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_lints: ^2.0.0
-  flutter_launcher_icons: ^0.14.1
+  # flutter_launcher_icons: ^0.14.1 # Commented out since launcher icons are disabled
 
 flutter:
   uses-material-design: true
@@ -53,19 +53,19 @@ flutter:
     - assets/images/
     - assets/images/backgrounds/
 
-flutter_native_splash:
-  color: "#ffffff" # Background color of the splash screen
-  image: assets/images/splash_screen.png # Path to your splash screen image
-  android: true # Enable for Android
-  ios: true # Enable for iOS
-  web: false # Set to true if you want a web splash screen
-  android_gravity: fill # Ensures the image fills the screen on Android
-  ios_content_mode: scaleToFill # Ensures the image fills the screen on iOS
+# flutter_native_splash:
+#   color: "#ffffff" # Background color of the splash screen
+#   image: assets/images/splash_screen.png # Path to your splash screen image
+#   android: true # Enable for Android
+#   ios: true # Enable for iOS
+#   web: false # Set to true if you want a web splash screen
+#   android_gravity: fill # Ensures the image fills the screen on Android
+#   ios_content_mode: scaleToFill # Ensures the image fills the screen on iOS
 
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/images/icon.png"
-  adaptive_icon_background: "assets/images/icon_background.png" # Background image or color
-  adaptive_icon_foreground: "assets/images/icon_foreground.png"
-  remove_alpha_ios: true
+# flutter_launcher_icons:
+#   android: true
+#   ios: true
+#   image_path: "assets/images/icon.png"
+#   adaptive_icon_background: "assets/images/icon_background.png" # Background image or color
+#   adaptive_icon_foreground: "assets/images/icon_foreground.png"
+#   remove_alpha_ios: true

@@ -1,7 +1,9 @@
 import 'dart:async';
 
-import '../models/unified_game_state.dart';
+
 import '../models/player.dart';
+import '../models/game_state.dart';
+
 // Removed notifier dependency
 import '../../managers/websockets/websocket_manager.dart';
 import '../../managers/state_manager.dart';
@@ -289,13 +291,13 @@ class RecallNetworkService {
       if (roomsData == null) return;
       
       final rooms = roomsData
-          .map((r) => RoomInfo.fromJson(r as Map<String, dynamic>))
+          .map((r) => r as Map<String, dynamic>)
           .toList();
       final sm = StateManager();
       final current = sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       sm.updateModuleState('recall_game', {
         ...current,
-        'rooms': rooms.map((r) => r.toJson()).toList(),
+        'rooms': rooms,
         'isLoading': false,
         'lastUpdated': DateTime.now().toIso8601String(),
       });
@@ -312,19 +314,19 @@ class RecallNetworkService {
     try {
       final roomData = data['room'] as Map<String, dynamic>?;
       if (roomData != null) {
-        final room = RoomInfo.fromJson(roomData);
+        final room = roomData;
         final sm = StateManager();
         final current = sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         sm.updateModuleState('recall_game', {
           ...current,
-          'currentRoom': room.toJson(),
-          'currentRoomId': room.id,
+          'currentRoom': room,
+          'currentRoomId': room['id'],
           'isRoomOwner': true,
-          'gamePhase': GamePhase.inLobby.name,
+          'gamePhase': GamePhase.waiting.name,
           'lastUpdated': DateTime.now().toIso8601String(),
         });
         
-        _log.info('🏠 Room created and joined: ${room.name}');
+        _log.info('🏠 Room created and joined: ${room['name']}');
       }
       
       StateManager().updateModuleState('recall_game', {'isLoading': false, 'lastUpdated': DateTime.now().toIso8601String()});
@@ -345,30 +347,30 @@ class RecallNetworkService {
         // Update room info if available
         final roomData = data['room'] as Map<String, dynamic>?;
         if (roomData != null) {
-          final room = RoomInfo.fromJson(roomData);
+          final room = roomData;
           final sm1 = StateManager();
           final current1 = sm1.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
           sm1.updateModuleState('recall_game', {
             ...current1,
-            'currentRoom': room.toJson(),
-            'currentRoomId': room.id,
+            'currentRoom': room,
+            'currentRoomId': room['id'],
             'lastUpdated': DateTime.now().toIso8601String(),
           });
         } else {
           // Create minimal room info
-          final room = RoomInfo(
-            id: gameId,
-            name: 'Room $gameId',
-            playerCount: 1,
-            maxPlayers: 4,
-            createdAt: DateTime.now(),
-          );
+          final room = {
+            'id': gameId,
+            'name': 'Room $gameId',
+            'playerCount': 1,
+            'maxPlayers': 4,
+            'createdAt': DateTime.now().toIso8601String(),
+          };
           final sm2 = StateManager();
           final current2 = sm2.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
           sm2.updateModuleState('recall_game', {
             ...current2,
-            'currentRoom': room.toJson(),
-            'currentRoomId': room.id,
+            'currentRoom': room,
+            'currentRoomId': room['id'],
             'lastUpdated': DateTime.now().toIso8601String(),
           });
         }
@@ -379,7 +381,7 @@ class RecallNetworkService {
           ...current3,
           'myPlayerId': playerId,
           'isRoomOwner': isOwner,
-          'gamePhase': GamePhase.inLobby.name,
+          'gamePhase': GamePhase.waiting.name,
           'lastUpdated': DateTime.now().toIso8601String(),
         });
         
@@ -409,7 +411,7 @@ class RecallNetworkService {
         'myHand': <Map<String, dynamic>>[],
         'playerHands': <String, dynamic>{},
         'myPlayerId': null,
-        'gamePhase': GamePhase.idle.name,
+        'gamePhase': GamePhase.waiting.name,
         'lastUpdated': DateTime.now().toIso8601String(),
       });
       
@@ -468,7 +470,7 @@ class RecallNetworkService {
   /// Handle game ended event
   void _handleGameEnded(Map<String, dynamic> data) {
     try {
-      StateManager().updateModuleState('recall_game', {'gamePhase': GamePhase.ended.name, 'lastUpdated': DateTime.now().toIso8601String()});
+      StateManager().updateModuleState('recall_game', {'gamePhase': GamePhase.finished.name, 'lastUpdated': DateTime.now().toIso8601String()});
       
       final winner = data['winner'] as String?;
       if (winner != null) {

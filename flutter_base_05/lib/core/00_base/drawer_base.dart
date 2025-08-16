@@ -25,11 +25,7 @@ class CustomDrawer extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.primaryColor, // ✅ Background color
-          image: DecorationImage(
-            image: AssetImage('assets/images/icon_foreground.png'), // ✅ Background image
-            fit: BoxFit.cover, // ✅ Make sure it covers the drawer
-            opacity: 0.2, // ✅ Adjust opacity to blend with background
-          ),
+          // Removed empty image asset that was causing 500 errors
         ),
         child: Column(
           children: [

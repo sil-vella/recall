@@ -35,51 +35,89 @@ class AppManager extends ChangeNotifier {
     // Initialize all registered modules
     await moduleManager.initializeModules(context);
 
-    _isInitialized = true;
-    notifyListeners();
+    // Don't set _isInitialized here - app initialization is not complete yet
     _log.info('✅ All modules initialized successfully.');
   }
 
   Future<void> initializeApp(BuildContext context) async {
+    _log.info('🔍 initializeApp called, _isInitialized: $_isInitialized');
+    
     if (!_isInitialized) {
-      // Register core providers
-      _registerCoreProviders();
-      
-      // Initialize ServicesManager and register core services
-      final servicesManager = Provider.of<ServicesManager>(context, listen: false);
-      await servicesManager.autoRegisterAllServices();
-      
-      // Initialize AuthManager first
-      _authManager.initialize(context);
-      
-      // Initialize AdaptersManager (automatically registers all adapters)
-      _adaptersManager.initialize(this);
-      
-      // Initialize adapters
-      await _initializeAdapters();
-      
-      // Register global hooks
-      _registerGlobalHooks();
-      
-      // Initialize Recall Game Core
-      _recallGameCore.initialize(context);
-      
-      // Initialize modules
-      await _initializeModules(context);
-      
-      // Validate session on startup
-      final authStatus = await _authManager.validateSessionOnStartup();
-      
-      // Handle authentication state
-      await _authManager.handleAuthState(context, authStatus);
-      
-      _isInitialized = true;
-      notifyListeners();
-      
-      // Mark app as initialized in HooksManager to process pending hooks
-      _hooksManager.markAppInitialized();
-      
-      _log.info('✅ App initialization complete with auth status: $authStatus');
+      try {
+        _log.info('🚀 Starting app initialization...');
+        
+        // Register core providers
+        _log.info('📦 Registering core providers...');
+        _registerCoreProviders();
+        _log.info('✅ Core providers registered');
+        
+        // Initialize ServicesManager and register core services
+        _log.info('🔧 Initializing ServicesManager...');
+        final servicesManager = Provider.of<ServicesManager>(context, listen: false);
+        await servicesManager.autoRegisterAllServices();
+        _log.info('✅ ServicesManager initialized');
+        
+        // Initialize AuthManager first
+        _log.info('🔐 Initializing AuthManager...');
+        _authManager.initialize(context);
+        _log.info('✅ AuthManager initialized');
+        
+        // Initialize AdaptersManager (automatically registers all adapters)
+        _log.info('🔌 Initializing AdaptersManager...');
+        _adaptersManager.initialize(this);
+        _log.info('✅ AdaptersManager initialized');
+        
+        // Initialize adapters
+        _log.info('🔧 Initializing adapters...');
+        await _initializeAdapters();
+        _log.info('✅ Adapters initialized');
+        
+        // Initialize modules (StateManager, NavigationManager, etc.)
+        _log.info('📦 Initializing modules...');
+        await _initializeModules(context);
+        _log.info('✅ Modules initialized');
+        
+        // Register global hooks
+        _log.info('🪝 Registering global hooks...');
+        _registerGlobalHooks();
+        _log.info('✅ Global hooks registered');
+        
+        // Initialize Recall Game Core - single entry point (AFTER modules are ready)
+        _log.info('🎮 Initializing Recall Game Core...');
+        final recallGameInitResult = await _recallGameCore.initialize(context);
+        if (!recallGameInitResult) {
+          _log.error('❌ Recall Game Core initialization failed');
+          throw Exception('Recall Game Core initialization failed');
+        }
+        _log.info('✅ Recall Game Core initialized successfully');
+        
+        // Validate session on startup
+        _log.info('🔐 Validating session on startup...');
+        final authStatus = await _authManager.validateSessionOnStartup();
+        _log.info('✅ Session validation complete: $authStatus');
+        
+        // Handle authentication state
+        _log.info('🔐 Handling authentication state...');
+        await _authManager.handleAuthState(context, authStatus);
+        _log.info('✅ Authentication state handled');
+        
+        _isInitialized = true;
+        notifyListeners();
+        
+        // Mark app as initialized in HooksManager to process pending hooks
+        _log.info('🪝 Marking app as initialized in HooksManager...');
+        _hooksManager.markAppInitialized();
+        _log.info('✅ HooksManager notified');
+        
+        _log.info('🎉 App initialization complete with auth status: $authStatus');
+        
+      } catch (e) {
+        _log.error('❌ App initialization failed: $e');
+        _log.error('Stack trace: ${StackTrace.current}');
+        rethrow;
+      }
+    } else {
+      _log.info('✅ App already initialized, skipping initialization');
     }
   }
 

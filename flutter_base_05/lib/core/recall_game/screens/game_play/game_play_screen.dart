@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../managers/state_manager.dart';
 import '../../models/card.dart' as cm;
+
 import '../../managers/recall_game_manager.dart';
-import '../../managers/recall_state_manager.dart';
+import '../../utils/recall_game_helpers.dart';
 // Provider removed – use StateManager only
 
 
@@ -11,7 +12,7 @@ import '../../../00_base/screen_base.dart';
 import '../lobby_room/widgets/message_board_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import 'widgets/status_bar.dart';
-import 'widgets/opponents_panel.dart';
+
 import 'widgets/center_board.dart';
 import 'widgets/my_hand_panel.dart';
 import 'widgets/action_bar.dart';
@@ -28,31 +29,26 @@ class GamePlayScreen extends BaseScreen {
 }
 
 class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
-  // Legacy managers (for backward compatibility)
-  final StateManager _stateManager = StateManager();
-  final RecallStateManager _recallState = RecallStateManager();
+  // State management - screen itself doesn't subscribe to state changes
+  final StateManager _sm = StateManager();
   final RecallGameManager _gameManager = RecallGameManager();
 
-  // Unified state management is now handled by BaseScreen
-
-  // UI selections
-  cm.Card? _selectedCard;
-  int? _replaceIndex; // when replacing with drawn card
+  // UI selections are now managed in StateManager
 
   @override
   void initState() {
     super.initState();
     
-    // Using StateManager / legacy managers – no Provider
+
     
     // Ensure managers are initialized via RecallGameCore; if entering directly from lobby,
     // attempt to join the game with current room id.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final wsState = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+      final wsState = _sm.getModuleState<Map<String, dynamic>>('websocket') ?? {};
       final currentRoomId = (wsState['currentRoomId'] ?? '') as String;
       if (currentRoomId.isNotEmpty && _gameManager.currentGameId != currentRoomId) {
-        final userState = _stateManager.getModuleState<Map<String, dynamic>>('auth') ?? {};
-        final loginState = _stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+        final userState = _sm.getModuleState<Map<String, dynamic>>('auth') ?? {};
+        final loginState = _sm.getModuleState<Map<String, dynamic>>('login') ?? {};
         final playerName = (userState['user']?['name'] ?? loginState['username'] ?? loginState['email'] ?? 'Player').toString();
         await _gameManager.joinGame(currentRoomId, playerName);
       }
@@ -60,10 +56,8 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   void _onSelectCard(cm.Card card, int index) {
-    setState(() {
-      _selectedCard = card;
-      _replaceIndex = index; // default replace index aligns with selected index
-    });
+    // 🎯 Use validated helpers for UI state
+    RecallGameHelpers.setSelectedCard(card.toJson(), index);
   }
 
   Future<void> _onDrawFromDeck() async {
@@ -75,21 +69,24 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   Future<void> _onPlaySelected() async {
-    final card = _selectedCard;
-    if (card == null) return;
-    await _gameManager.playCard(card);
-    setState(() {
-      _selectedCard = null;
-    });
+    final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final selectedCardJson = recall['selectedCard'] as Map<String, dynamic>?;
+    if (selectedCardJson != null) {
+      final selectedCard = cm.Card.fromJson(selectedCardJson);
+      await _gameManager.playCard(selectedCard);
+      // 🎯 Clear selection using validated helpers
+      RecallGameHelpers.clearSelectedCard();
+    }
   }
 
   Future<void> _onReplaceWithDrawn() async {
-    if (_replaceIndex == null) return;
-    await _gameManager.placeDrawnCardReplace(_replaceIndex!);
-    setState(() {
-      _selectedCard = null;
-      _replaceIndex = null;
-    });
+    final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final selectedCardIndex = recall['selectedCardIndex'] as int?;
+    if (selectedCardIndex != null) {
+      await _gameManager.placeDrawnCardReplace(selectedCardIndex);
+      // 🎯 Clear selection using validated helpers
+      RecallGameHelpers.clearSelectedCard();
+    }
   }
 
   Future<void> _onPlaceDrawnAndPlay() async {
@@ -101,39 +98,33 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   Future<void> _onPlayOutOfTurn() async {
-    final card = _selectedCard;
-    if (card == null) return;
-    await _gameManager.playOutOfTurn(card);
-    setState(() {
-      _selectedCard = null;
-    });
+    final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final selectedCardJson = recall['selectedCard'] as Map<String, dynamic>?;
+    if (selectedCardJson != null) {
+      final selectedCard = cm.Card.fromJson(selectedCardJson);
+      await _gameManager.playOutOfTurn(selectedCard);
+      // 🎯 Clear selection using validated helpers
+      RecallGameHelpers.clearSelectedCard();
+    }
   }
 
   Future<void> _onStartMatch() async {
-    await _gameManager.startMatch();
+    print('🚀 _onStartMatch called!');
+    try {
+      final result = await _gameManager.startMatch();
+      print('🚀 startMatch result: $result');
+    } catch (e) {
+      print('❌ Error in _onStartMatch: $e');
+    }
   }
 
   @override
   Widget buildContent(BuildContext context) {
-    // Read game-related UI hints from StateManager (fallback to recall state manager)
-    final recallUi = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final myId = _stateManager.getModuleState<Map<String, dynamic>>('auth')?['user']?['id']?.toString();
-    final currentPlayer = _recallState.currentGameState?.currentPlayer;
-    final isMyTurn = recallUi['isMyTurn'] == true || (currentPlayer != null && currentPlayer.id.toString() == myId);
-    final myHandUnified = (recallUi['myHand'] as List<dynamic>?) ?? const [];
-    
-    return _buildGameContent(context, 
-      gameState: _recallState.currentGameState, // Keep legacy for game logic
-      myHand: myHandUnified.isNotEmpty ? myHandUnified : _recallState.getMyHand(),
-      isMyTurn: isMyTurn,
-    );
+    // Screen doesn't read state directly - widgets handle their own subscriptions
+    return _buildGameContent(context);
   }
 
-  Widget _buildGameContent(BuildContext context, {
-    required dynamic gameState,
-    required List<dynamic> myHand,
-    required bool isMyTurn,
-  }) {
+  Widget _buildGameContent(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 900;
@@ -143,20 +134,10 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Match status header
-              StatusBar(
-                stateManager: _stateManager,
-                gameState: gameState,
-              ),
+                              StatusBar(),
               const SizedBox(height: 12),
 
-              // Opponents row
-              if (gameState != null)
-                OpponentsPanel(
-                  opponents: gameState.players
-                      .where((p) => p.isHuman || p.isComputer)
-                      .where((p) => p.id != gameState.currentPlayer?.id)
-                      .toList(),
-                ),
+              // Opponents row - TODO: Create reactive OpponentsPanel
               const SizedBox(height: 12),
 
               // Board + Messages side-by-side on wide screens
@@ -167,8 +148,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                     Expanded(
                       flex: 3,
                       child: CenterBoard(
-                        stateManager: _stateManager,
-                        gameState: gameState,
+
                         onDrawFromDeck: _onDrawFromDeck,
                         onTakeFromDiscard: _onTakeFromDiscard,
                       ),
@@ -176,19 +156,18 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       flex: 2,
-                      child: MessageBoardWidget(stateManager: _stateManager),
+                      child: MessageBoardWidget(),
                     ),
                   ],
                 )
               else ...[
                 CenterBoard(
-                  stateManager: _stateManager,
-                  gameState: gameState,
+
                   onDrawFromDeck: _onDrawFromDeck,
                   onTakeFromDiscard: _onTakeFromDiscard,
                 ),
                 const SizedBox(height: 16),
-                MessageBoardWidget(stateManager: _stateManager),
+                MessageBoardWidget(),
               ],
 
               const SizedBox(height: 16),
@@ -198,8 +177,6 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                 child: Padding(
                   padding: AppPadding.cardPadding,
                   child: MyHandPanel(
-                    hand: myHand.cast<cm.Card>(),
-                    selected: _selectedCard,
                     onSelect: _onSelectCard,
                   ),
                 ),
@@ -209,8 +186,6 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
 
               // Actions
               ActionBar(
-                isMyTurn: isMyTurn,
-                hasSelection: _selectedCard != null,
                 onPlay: _onPlaySelected,
                 onReplaceWithDrawn: _onReplaceWithDrawn,
                 onPlaceDrawnAndPlay: _onPlaceDrawnAndPlay,

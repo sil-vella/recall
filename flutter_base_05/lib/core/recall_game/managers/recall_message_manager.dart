@@ -27,35 +27,29 @@ class RecallMessageManager {
 
   Stream<List<Map<String, dynamic>>> get sessionMessages => _sessionMessagesController.stream;
 
-  void initialize() {
-    // Register state domains
-    _stateManager.registerModuleState("recall_messages", {
-      'session': <Map<String, dynamic>>[],
-      'rooms': <String, List<Map<String, dynamic>>>{},
-      'lastUpdated': DateTime.now().toIso8601String(),
-    });
+  Future<bool> initialize() async {
+    try {
+      _log.info('📨 Initializing RecallMessageManager...');
+      
+      // Register state domains
+      _stateManager.registerModuleState("recall_messages", {
+        'session': <Map<String, dynamic>>[],
+        'rooms': <String, List<Map<String, dynamic>>>{},
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
 
-    // Hook to WS events (standard)
-    _wireWebsocketEvents();
+      // Hook to WS events (standard)
+      _wireWebsocketEvents();
 
-    // Hook custom socket events directly
-    final socket = WebSocketManager.instance.socket;
-    socket?.on('recall_message', (data) {
-      final scope = data['scope']?.toString();
-      if (scope == 'room') {
-        final roomId = data['target_id']?.toString() ?? '';
-        if (roomId.isNotEmpty) _addRoomMessage(roomId, level: data['level'], title: data['title'], message: data['message'], data: Map<String, dynamic>.from(data));
-      } else {
-        _addSessionMessage(level: data['level'], title: data['title'], message: data['message'], data: Map<String, dynamic>.from(data));
-      }
-    });
-    socket?.on('room_closed', (data) {
-      final roomId = data['room_id']?.toString() ?? '';
-      if (roomId.isNotEmpty) {
-        _addRoomMessage(roomId, level: 'warning', title: 'Room closed', message: data['reason']?.toString() ?? 'Closed', data: Map<String, dynamic>.from(data));
-      }
-    });
-    _log.info('✅ RecallMessageManager initialized');
+      // Recall-specific Socket.IO listeners are centralized in RecallGameManager.
+      // We subscribe only via WSEventManager callbacks here.
+      _log.info('✅ RecallMessageManager initialized successfully');
+      return true;
+      
+    } catch (e) {
+      _log.error('❌ RecallMessageManager initialization failed: $e');
+      return false;
+    }
   }
 
   void _wireWebsocketEvents() {

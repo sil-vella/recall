@@ -122,24 +122,50 @@ class Player {
 
   /// Create player from JSON
   factory Player.fromJson(Map<String, dynamic> json) {
-    return Player(
-      id: json['id'],
-      name: json['name'],
-      type: PlayerType.values.firstWhere((t) => t.name == json['type']),
-      hand: (json['hand'] as List?)
-          ?.map((cardJson) => Card.fromJson(cardJson))
-          .toList() ?? [],
-      visibleCards: (json['visibleCards'] as List?)
-          ?.map((cardJson) => Card.fromJson(cardJson))
-          .toList() ?? [],
-      score: json['score'] ?? 0,
-      status: PlayerStatus.values.firstWhere((s) => s.name == json['status']),
-      isCurrentPlayer: json['isCurrentPlayer'] ?? false,
-      hasCalledRecall: json['hasCalledRecall'] ?? false,
-      lastActivity: json['lastActivity'] != null 
-          ? DateTime.parse(json['lastActivity'])
-          : null,
-    );
+    try {
+      // Parse type with error handling
+      PlayerType type;
+      try {
+        final typeStr = json['type'] as String? ?? 'human';
+        type = PlayerType.values.firstWhere((t) => t.name == typeStr);
+      } catch (e) {
+        print('⚠️ Failed to parse player type: ${json['type']}, available: ${PlayerType.values.map((t) => t.name).join(', ')}');
+        type = PlayerType.human; // fallback
+      }
+
+      // Parse status with error handling
+      PlayerStatus status;
+      try {
+        final statusStr = json['status'] as String? ?? 'waiting';
+        status = PlayerStatus.values.firstWhere((s) => s.name == statusStr);
+      } catch (e) {
+        print('⚠️ Failed to parse player status: ${json['status']}, available: ${PlayerStatus.values.map((s) => s.name).join(', ')}');
+        status = PlayerStatus.waiting; // fallback
+      }
+
+      return Player(
+        id: json['id'] ?? 'unknown',
+        name: json['name'] ?? 'Unknown Player',
+        type: type,
+        hand: (json['hand'] as List?)
+            ?.map((cardJson) => Card.fromJson(cardJson))
+            .toList() ?? [],
+        visibleCards: (json['visibleCards'] as List?)
+            ?.map((cardJson) => Card.fromJson(cardJson))
+            .toList() ?? [],
+        score: json['score'] ?? 0,
+        status: status,
+        isCurrentPlayer: json['isCurrentPlayer'] ?? false,
+        hasCalledRecall: json['hasCalledRecall'] ?? false,
+        lastActivity: json['lastActivity'] != null 
+            ? DateTime.parse(json['lastActivity'])
+            : null,
+      );
+    } catch (e) {
+      print('❌ Error parsing Player from JSON: $e');
+      print('❌ JSON data: $json');
+      rethrow;
+    }
   }
 
   @override

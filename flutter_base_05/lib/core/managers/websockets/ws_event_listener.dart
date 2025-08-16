@@ -50,6 +50,9 @@ class WSEventListener {
     // Message events
     _registerMessageListener();
     _registerErrorListener();
+    
+    // Recall game events
+    _registerRecallEventListener();
 
     _log.info("✅ All WebSocket event listeners registered successfully");
   }
@@ -163,6 +166,14 @@ class WSEventListener {
     _socket?.on('error', (data) {
       _log.info("🔍 [ERROR] Error event received");
       _eventHandler.handleError(data);
+    });
+  }
+
+  /// Register recall event listener
+  void _registerRecallEventListener() {
+    _socket?.on('recall_event', (data) {
+      _log.info("🔍 [RECALL_EVENT] Recall event received: $data");
+      _eventHandler.handleRecallEvent(data);
     });
   }
 

@@ -4,15 +4,11 @@ import '../../../models/game_state.dart' as gm;
 import '../../../../../../utils/consts/theme_consts.dart';
 
 class CenterBoard extends StatefulWidget {
-  final StateManager stateManager;
-  final gm.GameState? gameState; // legacy board
   final VoidCallback onDrawFromDeck;
   final VoidCallback onTakeFromDiscard;
 
   const CenterBoard({
     Key? key,
-    required this.stateManager,
-    required this.gameState,
     required this.onDrawFromDeck,
     required this.onTakeFromDiscard,
   }) : super(key: key);
@@ -22,15 +18,17 @@ class CenterBoard extends StatefulWidget {
 }
 
 class _CenterBoardState extends State<CenterBoard> {
+  final StateManager _stateManager = StateManager(); // ✅ Pattern 1: Widget creates its own instance
+
   @override
   void initState() {
     super.initState();
-    widget.stateManager.addListener(_onChanged);
+    _stateManager.addListener(_onChanged);
   }
 
   @override
   void dispose() {
-    widget.stateManager.removeListener(_onChanged);
+    _stateManager.removeListener(_onChanged);
     super.dispose();
   }
 
@@ -40,9 +38,24 @@ class _CenterBoardState extends State<CenterBoard> {
 
   @override
   Widget build(BuildContext context) {
-    final drawCount = widget.gameState?.drawPile.length ?? 0;
-    final topDiscard = (widget.gameState?.discardPile.isNotEmpty ?? false)
-        ? widget.gameState!.discardPile.last.displayName
+    // Read game state from StateManager
+    final recall = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final gameStateJson = recall['gameState'] as Map<String, dynamic>?;
+    
+    // Convert to GameState object if available
+    dynamic gameState;
+    if (gameStateJson != null) {
+      try {
+        gameState = gm.GameState.fromJson(gameStateJson);
+      } catch (e) {
+        // If conversion fails, use the JSON directly
+        gameState = gameStateJson;
+      }
+    }
+    
+    final drawCount = gameState?.drawPile?.length ?? 0;
+    final topDiscard = (gameState?.discardPile?.isNotEmpty ?? false)
+        ? gameState!.discardPile.last.displayName
         : '—';
 
     return Row(

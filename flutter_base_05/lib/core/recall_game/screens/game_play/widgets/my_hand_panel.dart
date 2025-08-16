@@ -4,11 +4,9 @@ import '../../../../../../utils/consts/theme_consts.dart';
 import '../../../../managers/state_manager.dart';
 
 class MyHandPanel extends StatefulWidget {
-  final List<cm.Card> hand; // initial/fallback
-  final cm.Card? selected;
   final void Function(cm.Card card, int index) onSelect;
 
-  const MyHandPanel({Key? key, required this.hand, required this.selected, required this.onSelect}) : super(key: key);
+  const MyHandPanel({Key? key, required this.onSelect}) : super(key: key);
 
   @override
   State<MyHandPanel> createState() => _MyHandPanelState();
@@ -36,10 +34,16 @@ class _MyHandPanelState extends State<MyHandPanel> {
   @override
   Widget build(BuildContext context) {
     final recall = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final unifiedHand = (recall['myHand'] as List<dynamic>?)
+    
+    // Access the new myHand structure with widget-specific state slice
+    final myHandState = recall['myHand'] as Map<String, dynamic>?;
+    final cardsData = myHandState?['cards'] as List<dynamic>?;
+    
+    final hand = cardsData
         ?.map((m) => cm.Card.fromJson((m as Map).cast<String, dynamic>()))
-        .toList();
-    final hand = (unifiedHand != null && unifiedHand.isNotEmpty) ? unifiedHand : widget.hand;
+        .toList() ?? [];
+    final selectedCardJson = recall['selectedCard'] as Map<String, dynamic>?;
+    final selectedCard = selectedCardJson != null ? cm.Card.fromJson(selectedCardJson) : null;
 
     if (hand.isEmpty) {
       return Text('Your hand is empty', style: AppTextStyles.bodyMedium);
@@ -48,7 +52,7 @@ class _MyHandPanelState extends State<MyHandPanel> {
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (int i = 0; i < hand.length; i++) _HandCardTile(card: hand[i], index: i, isSelected: widget.selected == hand[i], onTap: () => widget.onSelect(hand[i], i)),
+        for (int i = 0; i < hand.length; i++) _HandCardTile(card: hand[i], index: i, isSelected: selectedCard == hand[i], onTap: () => widget.onSelect(hand[i], i)),
       ],
     );
   }

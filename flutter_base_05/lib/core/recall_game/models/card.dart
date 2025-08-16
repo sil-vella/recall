@@ -108,14 +108,50 @@ class Card {
 
   /// Create card from JSON
   factory Card.fromJson(Map<String, dynamic> json) {
-    return Card(
-      suit: CardSuit.values.firstWhere((s) => s.name == json['suit']),
-      rank: CardRank.values.firstWhere((r) => r.name == json['rank']),
-      points: json['points'],
-      specialPower: SpecialPowerType.values.firstWhere((s) => s.name == json['specialPower']),
-      specialPowerDescription: json['specialPowerDescription'],
-      specialPowerData: json['specialPowerData'],
-    );
+    try {
+      // Parse suit with error handling
+      CardSuit suit;
+      try {
+        final suitStr = json['suit'] as String? ?? 'hearts';
+        suit = CardSuit.values.firstWhere((s) => s.name == suitStr);
+      } catch (e) {
+        print('⚠️ Failed to parse card suit: ${json['suit']}, available: ${CardSuit.values.map((s) => s.name).join(', ')}');
+        suit = CardSuit.hearts; // fallback
+      }
+
+      // Parse rank with error handling
+      CardRank rank;
+      try {
+        final rankStr = json['rank'] as String? ?? 'ace';
+        rank = CardRank.values.firstWhere((r) => r.name == rankStr);
+      } catch (e) {
+        print('⚠️ Failed to parse card rank: ${json['rank']}, available: ${CardRank.values.map((r) => r.name).join(', ')}');
+        rank = CardRank.ace; // fallback
+      }
+
+      // Parse special power with error handling
+      SpecialPowerType specialPower;
+      try {
+        final powerStr = json['specialPower'] as String? ?? 'none';
+        specialPower = SpecialPowerType.values.firstWhere((s) => s.name == powerStr);
+      } catch (e) {
+        print('⚠️ Failed to parse special power: ${json['specialPower']}, available: ${SpecialPowerType.values.map((s) => s.name).join(', ')}');
+        specialPower = SpecialPowerType.none; // fallback
+      }
+
+      return Card(
+        suit: suit,
+        rank: rank,
+        points: json['points'] ?? 0,
+        specialPower: specialPower,
+        specialPowerDescription: json['specialPowerDescription'],
+        specialPowerData: json['specialPowerData'],
+      );
+    } catch (e) {
+      print('❌ Error parsing Card from JSON: $e');
+      print('❌ JSON data: $json');
+      rethrow;
+    }
   }
 
   /// Create a standard deck of 52 cards

@@ -14,6 +14,7 @@ This index provides a comprehensive guide to all documentation files and compone
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Detailed architecture documentation | Manager pattern, module system, state management |
 | [MANAGERS.md](./MANAGERS.md) | Manager components documentation | StateManager, AuthManager, ModuleManager, etc. |
 | [API_REFERENCE.md](./API_REFERENCE.md) | Complete API reference | All classes, methods, properties, usage examples |
+| [VALIDATED_EVENT_STATE_SYSTEM.md](./VALIDATED_EVENT_STATE_SYSTEM.md) | **NEW** Validated Event/State System | Data validation, event emission, state management, schemas |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Deployment and build documentation | Platform deployment, CI/CD, optimization |
 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | Troubleshooting guide | Common issues, debugging, error resolution |
 
@@ -376,6 +377,7 @@ final token = await authManager.getCurrentValidToken();
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Architecture details
 - [MANAGERS.md](./MANAGERS.md) - Manager documentation
 - [API_REFERENCE.md](./API_REFERENCE.md) - API reference
+- [VALIDATED_EVENT_STATE_SYSTEM.md](./VALIDATED_EVENT_STATE_SYSTEM.md) - **NEW** Validated Event/State System
 - [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment guide
 - [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) - Troubleshooting
 

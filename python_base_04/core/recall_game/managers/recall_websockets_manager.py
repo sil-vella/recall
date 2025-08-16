@@ -39,8 +39,9 @@ class RecallWebSocketsManager:
             # Subscribe to ALL events by registering a generic handler per event name
             # We'll register to already-known types and also a generic hook for custom events
             self._wire_event_subscriptions()
-            # Also register a Socket.IO catch-all so we don't depend on core forwarding
-            self._wire_socketio_catch_all()
+            # Do not attach a Socket.IO catch-all here to avoid duplicating the core catch-all
+            # Core websockets/ws_event_listeners.py already provides a global '*'
+            # listener and forwards via the centralized event manager.
             # Hook to message system so handlers can publish easily
             self.message_system = RecallMessageSystem()
             self.message_system.initialize(self.app_manager)
@@ -83,23 +84,9 @@ class RecallWebSocketsManager:
 
     def _wire_socketio_catch_all(self):
         """Register a catch-all listener directly on Socket.IO to observe every event."""
-        try:
-            socketio = getattr(self.websocket_manager, 'socketio', None)
-            if not socketio:
-                return
-
-            def _catch_all(event, data=None):
-                try:
-                    # Forward as a generic message for recall routing
-                    self._on_socketio_event(event, data or {})
-                except Exception as e:
-                    custom_log(f"RecallWS: catch-all error: {e}")
-
-            # Dynamically attach
-            socketio.on('*')(_catch_all)
-            custom_log("✅ RecallWS: Socket.IO catch-all listener attached")
-        except Exception as e:
-            custom_log(f"RecallWS: failed to attach catch-all: {e}")
+        # Intentionally disabled to prevent duplicate '*' listeners.
+        # Left in place for reference if a dedicated raw hook is ever required.
+        return
 
     # ==== Dispatchers ====
     def _handle_event(self, channel: str, event_data: Dict[str, Any]):

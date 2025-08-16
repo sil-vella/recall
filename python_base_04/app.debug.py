@@ -36,7 +36,7 @@ else:
     custom_log("⚠️ WebSocket manager not available")
 
 # Additional app-level configurations
-app.config["DEBUG"] = Config.DEBUG
+app.config["DEBUG"] = True  # Force debug mode for development
 
 @app.route('/health')
 def health_check():
@@ -98,126 +98,18 @@ def execute_internal_action(action_name, args):
         parsed_args = app_manager.action_discovery_manager.parse_url_args(args)
         
         # Merge URL args with request data
-        all_args = {**parsed_args, **request_data}
+        merged_data = {**parsed_args, **request_data}
         
-        # Search for action in YAML registry
-        action_info = app_manager.action_discovery_manager.find_action(action_name)
-        if not action_info:
-            return jsonify({
-                'error': f'Action "{action_name}" not found',
-                'available_actions': list(app_manager.action_discovery_manager.actions_registry.keys())
-            }), 404
+        # Execute the action
+        result = app_manager.action_discovery_manager.execute_action_logic(
+            action_name, merged_data
+        )
         
-        # Validate arguments against YAML declaration
-        validation_result = app_manager.action_discovery_manager.validate_action_args(action_info, all_args)
-        if not validation_result['valid']:
-            return jsonify({
-                'error': 'Invalid arguments',
-                'details': validation_result['errors'],
-                'required_params': validation_result['required_params'],
-                'optional_params': validation_result['optional_params']
-            }), 400
-        
-        # Execute action
-        result = app_manager.action_discovery_manager.execute_action_logic(action_info, all_args)
-        
-        return jsonify({
-            'success': True,
-            'action': action_name,
-            'module': action_info['module'],
-            'result': result
-        }), 200
+        return jsonify(result)
         
     except Exception as e:
-        custom_log(f"❌ Error executing internal action {action_name}: {e}", level="ERROR")
-        return jsonify({'error': f'Action execution failed: {str(e)}'}), 500
-
-@app.route('/api-auth/actions/<action_name>/<path:args>', methods=['GET', 'POST'])
-def execute_authenticated_action(action_name, args):
-    """Authenticated actions route - requires API key and forwards to credit system."""
-    try:
-        # Get request data (JSON body for POST, query params for GET)
-        if request.method == 'POST':
-            request_data = request.get_json() or {}
-        else:
-            request_data = dict(request.args)
-        
-        # Parse URL arguments
-        parsed_args = app_manager.action_discovery_manager.parse_url_args(args)
-        
-        # Merge URL args with request data
-        all_args = {**parsed_args, **request_data}
-        
-        # Search for action in YAML registry
-        action_info = app_manager.action_discovery_manager.find_action(action_name)
-        if not action_info:
-            return jsonify({
-                'error': f'Action "{action_name}" not found',
-                'available_actions': list(app_manager.action_discovery_manager.actions_registry.keys())
-            }), 404
-        
-        # Validate arguments against YAML declaration
-        validation_result = app_manager.action_discovery_manager.validate_action_args(action_info, all_args)
-        if not validation_result['valid']:
-            return jsonify({
-                'error': 'Invalid arguments',
-                'details': validation_result['errors'],
-                'required_params': validation_result['required_params'],
-                'optional_params': validation_result['optional_params']
-            }), 400
-        
-        # Forward to credit system with API key
-        credit_system_url = app_manager.action_discovery_manager.app_manager.services_manager.get_credit_system_url()
-        api_key = app_manager.action_discovery_manager.app_manager.services_manager.get_credit_system_api_key()
-        
-        if not credit_system_url or not api_key:
-            return jsonify({'error': 'Credit system not configured'}), 500
-        
-        # Prepare request to credit system
-        forward_url = f"{credit_system_url}/actions/{action_name}/{args}"
-        headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json'
-        }
-        
-        # Forward the request
-        import requests
-        if request.method == 'POST':
-            response = requests.post(forward_url, json=all_args, headers=headers)
-        else:
-            response = requests.get(forward_url, params=all_args, headers=headers)
-        
-        return jsonify(response.json()), response.status_code
-        
-    except Exception as e:
-        custom_log(f"❌ Error executing authenticated action {action_name}: {e}", level="ERROR")
-        return jsonify({'error': f'Action execution failed: {str(e)}'}), 500
-
-@app.route('/actions', methods=['GET'])
-def list_internal_actions():
-    """List all discovered internal actions (no auth required)."""
-    try:
-        result = app_manager.action_discovery_manager.list_all_actions()
-        if result.get('success'):
-            return jsonify(result), 200
-        else:
-            return jsonify(result), 500
-    except Exception as e:
-        custom_log(f"❌ Error listing internal actions: {e}", level="ERROR")
-        return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
-
-@app.route('/api-auth/actions', methods=['GET'])
-def list_authenticated_actions():
-    """List all discovered authenticated actions (requires API key)."""
-    try:
-        result = app_manager.action_discovery_manager.list_all_actions()
-        if result.get('success'):
-            return jsonify(result), 200
-        else:
-            return jsonify(result), 500
-    except Exception as e:
-        custom_log(f"❌ Error listing authenticated actions: {e}", level="ERROR")
-        return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
+        custom_log(f"❌ Error executing action {action_name}: {e}", level="ERROR")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/test/recall-join-game', methods=['POST'])
 def test_recall_join_game():
@@ -304,19 +196,19 @@ def test_recall_start_match():
     except Exception as e:
         custom_log(f"❌ Error in test_recall_start_match: {e}", level="ERROR")
         return jsonify({'error': f'Test failed: {str(e)}'}), 500
-    
 
-# Production mode: Let gunicorn handle the app
-# Development mode: Use app.debug.py for local development
-# if __name__ == "__main__":
-#     # Use environment variables for host and port
-#     host = os.getenv('FLASK_HOST', '0.0.0.0')
-#     port = int(os.getenv('FLASK_PORT', 5001))
-#     
-#     # WebSocket functionality is now handled by app_manager
-#     if app_manager.websocket_manager:
-#         custom_log("🚀 Starting Flask app with WebSocket support")
-#         app_manager.websocket_manager.run(app, host=host, port=port)
-#     else:
-#         custom_log("🚀 Starting Flask app without WebSocket support")
-#         app_manager.run(app, host=host, port=port)
+# Development server startup
+if __name__ == "__main__":
+    # Use environment variables for host and port
+    host = os.getenv('FLASK_HOST', '0.0.0.0')
+    port = int(os.getenv('FLASK_PORT', 5001))
+    
+    custom_log(f"🚀 Starting Flask DEBUG server on {host}:{port}")
+    
+    # WebSocket functionality is now handled by app_manager
+    if app_manager.websocket_manager:
+        custom_log("🚀 Starting Flask app with WebSocket support")
+        app_manager.websocket_manager.run(app, host=host, port=port, debug=True)
+    else:
+        custom_log("🚀 Starting Flask app without WebSocket support")
+        app_manager.run(app, host=host, port=port, debug=True)

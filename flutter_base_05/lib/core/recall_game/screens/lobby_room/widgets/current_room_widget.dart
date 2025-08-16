@@ -39,7 +39,10 @@ class _CurrentRoomWidgetState extends State<CurrentRoomWidget> {
     final ws = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
     final isConnected = (ws['connected'] ?? ws['isConnected']) == true;
     final currentRoom = recall['currentRoom'] as Map<String, dynamic>?;
-    final players = (recall['players'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+    // Access players from the game state
+    final gameStateJson = recall['gameState'] as Map<String, dynamic>?;
+    final gameStatePlayers = gameStateJson?['players'] as List<dynamic>?;
+    final players = (gameStatePlayers ?? const []).cast<Map<String, dynamic>>();
     final isRoomOwner = recall['isRoomOwner'] == true;
 
     if (currentRoom == null) return const SizedBox.shrink();

@@ -83,7 +83,6 @@ class RecallGameMain:
         listeners.register_custom_listener('recall_play_out_of_turn', gp.on_play_out_of_turn)
         listeners.register_custom_listener('recall_use_special_power', gp.on_use_special_power)
         listeners.register_custom_listener('recall_initial_peek', gp.on_initial_peek)
-        listeners.register_custom_listener('get_public_rooms', gp.on_get_public_rooms)
 
         custom_log("✅ Recall game handlers registered via WebSocket event listeners")
     

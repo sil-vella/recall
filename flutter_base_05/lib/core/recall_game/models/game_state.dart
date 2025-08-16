@@ -217,40 +217,66 @@ class GameState {
 
   /// Create game state from JSON
   factory GameState.fromJson(Map<String, dynamic> json) {
-    return GameState(
-      gameId: json['gameId'],
-      gameName: json['gameName'],
-      players: (json['players'] as List?)
-          ?.map((playerJson) => Player.fromJson(playerJson))
-          .toList() ?? [],
-      currentPlayer: json['currentPlayer'] != null 
-          ? Player.fromJson(json['currentPlayer'])
-          : null,
-      phase: GamePhase.values.firstWhere((p) => p.name == json['phase']),
-      status: GameStatus.values.firstWhere((s) => s.name == json['status']),
-      drawPile: (json['drawPile'] as List?)
-          ?.map((cardJson) => Card.fromJson(cardJson))
-          .toList() ?? [],
-      discardPile: (json['discardPile'] as List?)
-          ?.map((cardJson) => Card.fromJson(cardJson))
-          .toList() ?? [],
-      centerPile: (json['centerPile'] as List?)
-          ?.map((cardJson) => Card.fromJson(cardJson))
-          .toList() ?? [],
-      turnNumber: json['turnNumber'] ?? 0,
-      roundNumber: json['roundNumber'] ?? 1,
-      gameStartTime: json['gameStartTime'] != null 
-          ? DateTime.parse(json['gameStartTime'])
-          : null,
-      lastActivityTime: json['lastActivityTime'] != null 
-          ? DateTime.parse(json['lastActivityTime'])
-          : null,
-      gameSettings: Map<String, dynamic>.from(json['gameSettings'] ?? {}),
-      winner: json['winner'] != null 
-          ? Map<String, dynamic>.from(json['winner'])
-          : null,
-      errorMessage: json['errorMessage'],
-    );
+    try {
+      // Parse phase with error handling
+      GamePhase phase;
+      try {
+        final phaseStr = json['phase'] as String? ?? 'waiting';
+        phase = GamePhase.values.firstWhere((p) => p.name == phaseStr);
+      } catch (e) {
+        print('⚠️ Failed to parse phase: ${json['phase']}, available: ${GamePhase.values.map((p) => p.name).join(', ')}');
+        phase = GamePhase.waiting; // fallback
+      }
+
+      // Parse status with error handling
+      GameStatus status;
+      try {
+        final statusStr = json['status'] as String? ?? 'active';
+        status = GameStatus.values.firstWhere((s) => s.name == statusStr);
+      } catch (e) {
+        print('⚠️ Failed to parse status: ${json['status']}, available: ${GameStatus.values.map((s) => s.name).join(', ')}');
+        status = GameStatus.active; // fallback
+      }
+
+      return GameState(
+        gameId: json['gameId'] ?? 'unknown',
+        gameName: json['gameName'] ?? 'Unknown Game',
+        players: (json['players'] as List?)
+            ?.map((playerJson) => Player.fromJson(playerJson))
+            .toList() ?? [],
+        currentPlayer: json['currentPlayer'] != null 
+            ? Player.fromJson(json['currentPlayer'])
+            : null,
+        phase: phase,
+        status: status,
+        drawPile: (json['drawPile'] as List?)
+            ?.map((cardJson) => Card.fromJson(cardJson))
+            .toList() ?? [],
+        discardPile: (json['discardPile'] as List?)
+            ?.map((cardJson) => Card.fromJson(cardJson))
+            .toList() ?? [],
+        centerPile: (json['centerPile'] as List?)
+            ?.map((cardJson) => Card.fromJson(cardJson))
+            .toList() ?? [],
+        turnNumber: json['turnNumber'] ?? 0,
+        roundNumber: json['roundNumber'] ?? 1,
+        gameStartTime: json['gameStartTime'] != null 
+            ? DateTime.parse(json['gameStartTime'])
+            : null,
+        lastActivityTime: json['lastActivityTime'] != null 
+            ? DateTime.parse(json['lastActivityTime'])
+            : null,
+        gameSettings: Map<String, dynamic>.from(json['gameSettings'] ?? {}),
+        winner: json['winner'] != null 
+            ? Map<String, dynamic>.from(json['winner'])
+            : null,
+        errorMessage: json['errorMessage'],
+      );
+    } catch (e) {
+      print('❌ Error parsing GameState from JSON: $e');
+      print('❌ JSON data: $json');
+      rethrow;
+    }
   }
 
   @override

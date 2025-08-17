@@ -4,6 +4,7 @@ import '../../../../managers/websockets/websocket_manager.dart';
 import '../../../../managers/websockets/ws_event_manager.dart';
 import '../../../../managers/state_manager.dart';
 import '../../../utils/recall_game_helpers.dart';
+import '../../../utils/recall_event_listener_validator.dart';
 
 class RoomService {
   final Logger _logger = Logger();
@@ -42,61 +43,6 @@ class RoomService {
     } catch (e) {
       _logger.error("❌ Error initializing WebSocket: $e");
       _logger.info("ℹ️ Assuming WebSocket is already connected from another screen");
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> loadPublicRooms() async {
-    try {
-      // Check if connected before loading rooms
-      if (!_websocketManager.isConnected) {
-        _logger.error("❌ Cannot load rooms: WebSocket not connected");
-        throw Exception('Cannot load rooms: WebSocket not connected');
-      }
-      
-      _logger.info("🏠 Loading public rooms...");
-      
-      // Create a completer to wait for the response
-      final completer = Completer<List<Map<String, dynamic>>>();
-      
-      // Listen for the response event
-      _wsEventManager.onEvent('get_public_rooms_success', (data) {
-        _logger.info("📨 Received get_public_rooms_success event: $data");
-        
-        if (data['success'] == true) {
-          final rooms = (data['data'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-          _logger.info("📊 Loaded ${rooms.length} public rooms");
-          completer.complete(rooms);
-        } else {
-          completer.complete([]);
-        }
-      });
-      
-      // Listen for error event
-      _wsEventManager.onEvent('get_public_rooms_error', (data) {
-        _logger.error("📨 Received get_public_rooms_error event: $data");
-        completer.complete([]);
-      });
-      
-      // Request public rooms from the backend via WebSocket
-      final result = await _websocketManager.sendMessage('lobby', 'get_public_rooms');
-      
-      _logger.info("🏠 Load public rooms result: $result");
-      
-      // Wait for the response with timeout
-      final rooms = await completer.future.timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          _logger.warning("⚠️ Timeout waiting for public rooms response");
-          return <Map<String, dynamic>>[];
-        },
-      );
-      
-      return rooms;
-      
-    } catch (e) {
-      _logger.error("Error loading public rooms: $e");
-      // Return empty list instead of throwing to avoid breaking the UI
-      return [];
     }
   }
 
@@ -148,17 +94,36 @@ class RoomService {
           'auto_start': roomSettings['autoStart'],
         };
         
-        // Update StateManager
+        // First update room ownership and current room info
         _updateRoomState(newRoom);
         
-        // Refresh public rooms to get the latest list from backend
-        if (roomSettings['permission'] == 'public') {
-          try {
-            await _refreshPublicRooms();
-            _logger.info("🔄 Public rooms refreshed after room creation");
-          } catch (e) {
-            _logger.warning("⚠️ Failed to refresh public rooms after creation: $e");
-          }
+        // Register the new game in our tracking system
+        RecallGameHelpers.registerActiveGame(
+          gameId: roomId,
+          gamePhase: 'waiting',
+          gameStatus: 'inactive',
+          playerCount: newRoom['current_size'] ?? 1,
+          roomName: newRoom['room_name'],
+          ownerId: newRoom['owner_id'],
+          additionalData: {
+            'permission': newRoom['permission'],
+            'maxPlayers': newRoom['max_size'],
+            'minPlayers': newRoom['min_size'],
+            'gameType': newRoom['game_type'],
+            'turnTimeLimit': newRoom['turn_time_limit'],
+            'autoStart': newRoom['auto_start'],
+          },
+        );
+        
+        // Then update the user's created rooms list (not public rooms)
+        final currentState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+        final currentMyCreatedRooms = (currentState['myCreatedRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+        
+        // Add to myCreatedRooms if not already there
+        if (!currentMyCreatedRooms.any((room) => room['room_id'] == roomId)) {
+          RecallGameHelpers.updateUIState({
+            'myCreatedRooms': [...currentMyCreatedRooms, newRoom],
+          });
         }
         
         _logger.info("✅ Room created successfully: ${newRoom['room_id']}");
@@ -166,45 +131,9 @@ class RoomService {
       } else {
         throw Exception(result['error'] ?? 'Failed to create room');
       }
-      
     } catch (e) {
       _logger.error("Error creating room: $e");
       throw Exception('Failed to create room: $e');
-    }
-  }
-
-  Future<void> _refreshPublicRooms() async {
-    try {
-      final fetchedRooms = await loadPublicRooms();
-
-      // Merge with existing local rooms to avoid flicker/removal when backend
-      // hasn't propagated the newly created room yet.
-      // Prefer server values when ids collide; keep local-only rooms.
-      final currentState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-      final existing = (currentState['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
-
-      final Map<String, Map<String, dynamic>> byId = {};
-      for (final room in existing) {
-        final id = room['room_id']?.toString();
-        if (id != null) byId[id] = room;
-      }
-      for (final room in fetchedRooms) {
-        final id = room['room_id']?.toString();
-        if (id != null) byId[id] = room; // server wins on conflict
-      }
-
-      final mergedRooms = byId.values.toList();
-
-      final updatedState = {
-        ...currentState,
-        'rooms': mergedRooms,
-        'lastUpdated': DateTime.now().toIso8601String(),
-      };
-      _stateManager.updateModuleState("recall_game", updatedState);
-      
-      _logger.info("📊 Refreshed public rooms list");
-    } catch (e) {
-      _logger.error("Error refreshing public rooms: $e");
     }
   }
 
@@ -221,35 +150,30 @@ class RoomService {
       minSize: roomData['min_size'] ?? 2,
     );
     
-    // Update room lists (these are not part of our validated schema yet, so use direct StateManager)
-    final currentRoomState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-    final currentMyRooms = (currentRoomState['myRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-    final currentPublicRooms = (currentRoomState['rooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    // Update room lists using validated state updater
+    _logger.info("📊 Updating room lists using validated system...");
     
-    // Add the new room to myRooms if it's not already there
-    final roomExistsInMyRooms = currentMyRooms.any((room) => room['room_id'] == roomData['room_id']);
-    final updatedMyRooms = roomExistsInMyRooms ? currentMyRooms : [...currentMyRooms, roomData];
+    // Update current room
+    RecallGameHelpers.updateRoomInfo(
+      roomId: roomData['room_id'],
+      roomName: roomData['room_name'],
+      permission: roomData['permission'],
+      currentSize: roomData['current_size'] ?? 1,
+      maxSize: roomData['max_size'] ?? 4,
+      minSize: roomData['min_size'] ?? 2,
+      isInRoom: true,
+    );
     
-    // Add the new room to public rooms if it's public and not already there
-    List<Map<String, dynamic>> updatedPublicRooms = currentPublicRooms;
-    if (roomData['permission'] == 'public') {
-      final roomExistsInPublicRooms = currentPublicRooms.any((room) => room['room_id'] == roomData['room_id']);
-      if (!roomExistsInPublicRooms) {
-        updatedPublicRooms = [...currentPublicRooms, roomData];
-      }
+    // Update myCreatedRooms list
+    final currentState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    final currentMyCreatedRooms = (currentState['myCreatedRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    
+    // Add to myCreatedRooms if not already there
+    if (!currentMyCreatedRooms.any((room) => room['room_id'] == roomData['room_id'])) {
+      RecallGameHelpers.updateUIState({
+        'myCreatedRooms': [...currentMyCreatedRooms, roomData],
+      });
     }
-    
-    // Update room lists using direct StateManager (TODO: Add to validated schema later)
-    final roomListUpdates = {
-      'currentRoom': roomData,
-      'myRooms': updatedMyRooms,
-      'rooms': updatedPublicRooms,
-    };
-    
-    _stateManager.updateModuleState("recall_game", {
-      ...currentRoomState,
-      ...roomListUpdates,
-    });
     
     _logger.info("📊 Room state updated using validated system");
   }
@@ -335,12 +259,16 @@ class RoomService {
       // When joining existing room (not creating), user is not owner
       RecallGameHelpers.updateRoomInfo(isInRoom: true);
       
-      // Update room lists using direct StateManager (TODO: Add to validated schema later)
-      final currentRecallState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-      _stateManager.updateModuleState("recall_game", {
-        ...currentRecallState,
-        'currentRoom': currentRoomInfo,
-      });
+      // Update current room using validated state updater
+      RecallGameHelpers.updateRoomInfo(
+        roomId: currentRoomId,
+        roomName: currentRoomInfo?['room_name'],
+        permission: currentRoomInfo?['permission'] ?? 'public',
+        currentSize: currentRoomInfo?['current_size'] ?? 0,
+        maxSize: currentRoomInfo?['max_size'] ?? 4,
+        minSize: currentRoomInfo?['min_size'] ?? 2,
+        isInRoom: true,
+      );
     } else {
       // No room - clear room state
       RecallGameHelpers.clearRoomState();
@@ -353,82 +281,68 @@ class RoomService {
     // Clear any existing listeners first
     cleanupEventCallbacks();
     
-    // Listen for room events from the WebSocket system
-    final roomEventListener = (data) {
-      if (_isDisposed) return; // Prevent execution after disposal
-      
-      final action = data['action'];
-      final roomId = data['roomId'];
-      
-      _logger.info("📨 Received room event: action=$action, roomId=$roomId");
-      
-      // Sync with WebSocket state after room events
-      _syncWithWebSocketState();
-      
-      onRoomEvent(action, roomId);
-    };
-    _wsEventManager.onEvent('room', roomEventListener);
-    _eventListeners.add(roomEventListener);
-
-    // Listen for specific room events for better debugging
-    final roomJoinedListener = (data) {
-      if (_isDisposed) return; // Prevent execution after disposal
-      _logger.info("📨 Received room_joined event: $data");
-      _syncWithWebSocketState();
-    };
-    _wsEventManager.onEvent('room_joined', roomJoinedListener);
-    _eventListeners.add(roomJoinedListener);
-
-    final joinRoomSuccessListener = (data) {
-      if (_isDisposed) return; // Prevent execution after disposal
-      _logger.info("📨 Received join_room_success event: $data");
-      _syncWithWebSocketState();
-    };
-    _wsEventManager.onEvent('join_room_success', joinRoomSuccessListener);
-    _eventListeners.add(joinRoomSuccessListener);
-
-    final createRoomSuccessListener = (data) {
-      if (_isDisposed) return; // Prevent execution after disposal
-      _logger.info("📨 Received create_room_success event: $data");
-      _syncWithWebSocketState();
-    };
-    _wsEventManager.onEvent('create_room_success', createRoomSuccessListener);
-    _eventListeners.add(createRoomSuccessListener);
-
-    final roomCreatedListener = (data) {
-      if (_isDisposed) return; // Prevent execution after disposal
-      _logger.info("📨 Received room_created event: $data");
-      _syncWithWebSocketState();
-    };
-    _wsEventManager.onEvent('room_created', roomCreatedListener);
-    _eventListeners.add(roomCreatedListener);
-
-    // Listen for leave room events
-    final leaveRoomSuccessListener = (data) {
-      if (_isDisposed) return; // Prevent execution after disposal
-      _logger.info("📨 Received leave_room_success event: $data");
-      _syncWithWebSocketState();
-    };
-    _wsEventManager.onEvent('leave_room_success', leaveRoomSuccessListener);
-    _eventListeners.add(leaveRoomSuccessListener);
-
-    final leaveRoomErrorListener = (data) {
-      if (_isDisposed) return; // Prevent execution after disposal
-      _logger.error("📨 Received leave_room_error event: $data");
-      _syncWithWebSocketState();
-    };
-    _wsEventManager.onEvent('leave_room_error', leaveRoomErrorListener);
-    _eventListeners.add(leaveRoomErrorListener);
-
-    // Listen for error events
-    final errorListener = (data) {
-      if (_isDisposed) return; // Prevent execution after disposal
-      final error = data['error'];
-      _logger.error("📨 Received error event: $error");
-      onError(error);
-    };
-    _wsEventManager.onEvent('error', errorListener);
-    _eventListeners.add(errorListener);
+    // 🎯 Use validated event listener system for all room events
+    final eventTypes = [
+      'room', 'room_joined', 'join_room_success', 'create_room_success',
+      'room_created', 'leave_room_success', 'leave_room_error', 'error'
+    ];
+    
+    for (final eventType in eventTypes) {
+      RecallGameEventListenerExtension.onEvent(eventType, (data) {
+        if (_isDisposed) return; // Prevent execution after disposal
+        
+        _logger.info("📨 Received validated $eventType event: $data");
+        
+        // Sync with WebSocket state after room events
+        _syncWithWebSocketState();
+        
+        // Handle specific event types
+        switch (eventType) {
+          case 'room':
+            final action = data['action'] as String? ?? '';
+            final roomId = data['room_id'] as String? ?? '';
+            if (action.isNotEmpty && roomId.isNotEmpty) {
+              onRoomEvent(action, roomId);
+            }
+            break;
+            
+          case 'room_joined':
+          case 'join_room_success':
+            final roomId = data['room_id'] as String? ?? '';
+            if (roomId.isNotEmpty) {
+              onRoomEvent('joined', roomId);
+            }
+            break;
+            
+          case 'create_room_success':
+          case 'room_created':
+            final roomId = data['room_id'] as String? ?? '';
+            if (roomId.isNotEmpty) {
+              onRoomEvent('created', roomId);
+            }
+            break;
+            
+          case 'leave_room_success':
+            final roomId = data['room_id'] as String? ?? '';
+            if (roomId.isNotEmpty) {
+              onRoomEvent('left', roomId);
+            }
+            break;
+            
+          case 'leave_room_error':
+            final error = data['error'] as String? ?? 'Unknown error';
+            onError(error);
+            break;
+            
+          case 'error':
+            final error = data['error'] as String? ?? 'Unknown error';
+            onError(error);
+            break;
+        }
+      });
+    }
+    
+    _logger.info("✅ Room service event callbacks set up using validated system");
   }
 
   void cleanupEventCallbacks() {
@@ -443,4 +357,4 @@ class RoomService {
 
   bool get isConnected => _websocketManager.isConnected;
   bool get isConnecting => _websocketManager.isConnecting;
-} 
+}

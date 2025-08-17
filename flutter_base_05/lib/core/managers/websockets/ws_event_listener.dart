@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../state_manager.dart';
 import '../module_manager.dart';
@@ -46,14 +45,12 @@ class WSEventListener {
     _registerCreateRoomErrorListener();
     _registerLeaveRoomSuccessListener();
     _registerLeaveRoomErrorListener();
+    _registerRoomClosedListener();
 
     // Message events
     _registerMessageListener();
     _registerErrorListener();
     
-    // Recall game events
-    _registerRecallEventListener();
-
     _log.info("✅ All WebSocket event listeners registered successfully");
   }
 
@@ -153,6 +150,14 @@ class WSEventListener {
     });
   }
 
+  /// Register room closed event listener
+  void _registerRoomClosedListener() {
+    _socket?.on('room_closed', (data) {
+      _log.info("🔍 [ROOM_CLOSED] Room closed event received");
+      _eventHandler.handleRoomClosed(data);
+    });
+  }
+
   /// Register message listener
   void _registerMessageListener() {
     _socket?.on('message', (data) {
@@ -166,14 +171,6 @@ class WSEventListener {
     _socket?.on('error', (data) {
       _log.info("🔍 [ERROR] Error event received");
       _eventHandler.handleError(data);
-    });
-  }
-
-  /// Register recall event listener
-  void _registerRecallEventListener() {
-    _socket?.on('recall_event', (data) {
-      _log.info("🔍 [RECALL_EVENT] Recall event received: $data");
-      _eventHandler.handleRecallEvent(data);
     });
   }
 

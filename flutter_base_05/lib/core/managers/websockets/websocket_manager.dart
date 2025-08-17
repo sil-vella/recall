@@ -1,16 +1,16 @@
-import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:async';
-import 'dart:convert';
 import '../../../tools/logging/logger.dart';
 import '../../../utils/consts/config.dart';
 import '../../../modules/login_module/login_module.dart';
 import '../module_manager.dart';
 import '../state_manager.dart';
+import '../hooks_manager.dart';
 import 'ws_event_manager.dart';
 import 'ws_event_listener.dart';
 import 'ws_event_handler.dart';
 import 'websocket_events.dart';
+import 'websocket_state_validator.dart';
 
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();
@@ -181,6 +181,9 @@ class WebSocketManager {
       // Initialize event manager
       eventManager.initialize();
       
+      // Register WebSocket hooks
+      _registerWebSocketHooks();
+      
       // Initialize new centralized event listener and handler
       final stateManager = StateManager();
       _eventHandler = WSEventHandler(
@@ -231,9 +234,13 @@ class WebSocketManager {
       _log.info("✅ Session ID: ${_socket!.id}");
       _log.info("🔍 Socket state after connect: connected=${_socket!.connected}");
       
-      // Update our tracked connection state
+      // Update our tracked connection state and use validated system
       _isConnected = true;
       _isConnecting = false; // Reset connecting state
+      WebSocketStateHelpers.updateConnectionStatus(
+        isConnected: true,
+        sessionData: null,
+      );
       _log.info("🔍 Updated tracked connection state: $_isConnected");
 
       // Drain any pending remote logs accumulated before transport was ready
@@ -266,8 +273,11 @@ class WebSocketManager {
       _log.info("❌ WebSocket disconnected");
       _log.info("🔍 Socket state after disconnect: connected=${_socket!.connected}");
       
-      // Update our tracked connection state
+      // Update our tracked connection state and use validated system
       _isConnected = false;
+      WebSocketStateHelpers.updateConnectionStatus(
+        isConnected: false,
+      );
       
       // Emit disconnection event
       final event = ConnectionStatusEvent(
@@ -283,9 +293,12 @@ class WebSocketManager {
     _socket!.on('connect_error', (error) {
       _log.error("🚨 WebSocket connection error: $error");
       
-      // Update our tracked connection state
+      // Update our tracked connection state and use validated system
       _isConnected = false;
       _isConnecting = false; // Reset connecting state
+      WebSocketStateHelpers.updateConnectionStatus(
+        isConnected: false,
+      );
       
       // Emit error event
       final event = ConnectionStatusEvent(
@@ -301,6 +314,11 @@ class WebSocketManager {
     _socket!.on('session_data', (data) {
       _log.info("📋 Received session data from WebSocket server");
       
+      // Use validated state updater
+      WebSocketStateHelpers.updateSessionData(
+        data is Map<String, dynamic> ? data : null,
+      );
+      
       // Emit session data event
       final event = SessionDataEvent(data);
       _eventController.add(event);
@@ -311,10 +329,19 @@ class WebSocketManager {
     _socket!.on('room_joined', (data) {
       _log.info("🏠 Successfully joined room: $data");
       
+      final roomId = data['room_id'] ?? '';
+      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      
+      // Use validated state updater
+      WebSocketStateHelpers.updateRoomInfo(
+        roomId: roomId,
+        roomInfo: roomData,
+      );
+      
       // Emit room event
       final event = RoomEvent(
-        roomId: data['room_id'] ?? '',
-        roomData: data,
+        roomId: roomId,
+        roomData: roomData,
         action: 'joined',
       );
       _roomController.add(event);
@@ -326,10 +353,19 @@ class WebSocketManager {
     _socket!.on('join_room_success', (data) {
       _log.info("🏠 Join room success: $data");
       
+      final roomId = data['room_id'] ?? '';
+      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      
+      // Use validated state updater
+      WebSocketStateHelpers.updateRoomInfo(
+        roomId: roomId,
+        roomInfo: roomData,
+      );
+      
       // Emit room event (same as room_joined)
       final event = RoomEvent(
-        roomId: data['room_id'] ?? '',
-        roomData: data,
+        roomId: roomId,
+        roomData: roomData,
         action: 'joined',
       );
       _roomController.add(event);
@@ -355,10 +391,19 @@ class WebSocketManager {
     _socket!.on('create_room_success', (data) {
       _log.info("🏠 Successfully created room");
       
+      final roomId = data['room_id'] ?? '';
+      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      
+      // Use validated state updater
+      WebSocketStateHelpers.updateRoomInfo(
+        roomId: roomId,
+        roomInfo: roomData,
+      );
+      
       // Emit room event
       final event = RoomEvent(
-        roomId: data['room_id'] ?? '',
-        roomData: data,
+        roomId: roomId,
+        roomData: roomData,
         action: 'created',
       );
       _roomController.add(event);
@@ -370,10 +415,19 @@ class WebSocketManager {
     _socket!.on('room_created', (data) {
       _log.info("🏠 Room created: $data");
       
+      final roomId = data['room_id'] ?? '';
+      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      
+      // Use validated state updater
+      WebSocketStateHelpers.updateRoomInfo(
+        roomId: roomId,
+        roomInfo: roomData,
+      );
+      
       // Emit room event
       final event = RoomEvent(
-        roomId: data['room_id'] ?? '',
-        roomData: data,
+        roomId: roomId,
+        roomData: roomData,
         action: 'created',
       );
       _roomController.add(event);
@@ -399,10 +453,19 @@ class WebSocketManager {
     _socket!.on('leave_room_success', (data) {
       _log.info("✅ Successfully left room: $data");
       
+      final roomId = data['room_id'] ?? '';
+      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      
+      // Use validated state updater
+      WebSocketStateHelpers.updateRoomInfo(
+        roomId: null,
+        roomInfo: null,
+      );
+      
       // Emit room event
       final event = RoomEvent(
-        roomId: data['room_id'] ?? '',
-        roomData: data,
+        roomId: roomId,
+        roomData: roomData,
         action: 'left',
       );
       _roomController.add(event);
@@ -868,6 +931,26 @@ class WebSocketManager {
       'connectionTime': null,
       'lastActivity': null,
     };
+  }
+
+  /// Register WebSocket hooks with HooksManager
+  void _registerWebSocketHooks() {
+    try {
+      final hooksManager = HooksManager();
+      
+      // Register room_closed hook that will be triggered by WebSocket events
+      _log.info("🎣 Registering WebSocket hooks...");
+      
+      // Set up callback for room_closed events to trigger the hook
+      eventManager.onEvent('room_closed', (data) {
+        _log.info("🎣 Triggering room_closed hook with data: $data");
+        hooksManager.triggerHookWithData('room_closed', data);
+      });
+      
+      _log.info("✅ WebSocket hooks registered successfully");
+    } catch (e) {
+      _log.error("❌ Error registering WebSocket hooks: $e");
+    }
   }
 
   /// Dispose of the WebSocket manager

@@ -443,8 +443,23 @@ class RecallGameplayManager:
             if self.websocket_manager and hasattr(self.websocket_manager, 'room_manager'):
                 all_rooms = self.websocket_manager.room_manager.get_all_rooms()
                 public_rooms = []
-                for room_id, room_info in all_rooms.items():
+                # all_rooms is a List[Dict], not a Dict, so iterate directly
+                for room_info in all_rooms:
                     if room_info.get('permission') == 'public':
+                        room_id = room_info.get('room_id', 'unknown')
+                        
+                        # Include game status information
+                        game_id = room_id  # Game ID same as room ID
+                        has_game = game_id in self.game_state_manager.active_games if self.game_state_manager else False
+                        game_phase = None
+                        game_status = None
+                        
+                        if has_game and self.game_state_manager:
+                            game = self.game_state_manager.get_game(game_id)
+                            if game:
+                                game_phase = game.phase
+                                game_status = game.status
+                        
                         public_rooms.append({
                             'room_id': room_id,
                             'room_name': room_info.get('room_name', room_id),
@@ -456,7 +471,10 @@ class RecallGameplayManager:
                             'created_at': room_info.get('created_at'),
                             'game_type': room_info.get('game_type', 'classic'),
                             'turn_time_limit': room_info.get('turn_time_limit', 30),
-                            'auto_start': room_info.get('auto_start', True)
+                            'auto_start': room_info.get('auto_start', True),
+                            'has_game': has_game,
+                            'game_phase': game_phase,
+                            'game_status': game_status,
                         })
                 self._emit_to_session(session_id, 'get_public_rooms_success', {
                     'success': True,

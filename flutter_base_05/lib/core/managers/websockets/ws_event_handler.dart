@@ -1,10 +1,9 @@
-import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../state_manager.dart';
 import '../module_manager.dart';
 import '../../../tools/logging/logger.dart';
-import 'websocket_events.dart';
 import 'ws_event_manager.dart';
+import 'websocket_state_validator.dart';
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -31,13 +30,11 @@ class WSEventHandler {
     _log.info("🔧 [HANDLER-CONNECT] Handling connection event");
     
     try {
-      // Update state
-      _stateManager.updateModuleState('websocket', {
-        'isConnected': true,
-        'currentRoomId': null,
-        'currentRoomInfo': null,
-        'sessionData': data,
-      });
+      // Use validated state updater
+      WebSocketStateHelpers.updateConnectionStatus(
+        isConnected: true,
+        sessionData: data is Map<String, dynamic> ? data : null,
+      );
       
       _log.info("✅ Connection handled successfully");
     } catch (e) {
@@ -50,13 +47,10 @@ class WSEventHandler {
     _log.info("🔧 [HANDLER-DISCONNECT] Handling disconnection event");
     
     try {
-      // Update state
-      _stateManager.updateModuleState('websocket', {
-        'isConnected': false,
-        'currentRoomId': null,
-        'currentRoomInfo': null,
-        'sessionData': null,
-      });
+      // Use validated state updater
+      WebSocketStateHelpers.updateConnectionStatus(
+        isConnected: false,
+      );
       
       _log.info("✅ Disconnection handled successfully");
     } catch (e) {
@@ -69,14 +63,10 @@ class WSEventHandler {
     _log.info("🔧 [HANDLER-CONNECT_ERROR] Handling connection error event");
     
     try {
-      // Update state
-      _stateManager.updateModuleState('websocket', {
-        'isConnected': false,
-        'currentRoomId': null,
-        'currentRoomInfo': null,
-        'sessionData': null,
-        'error': data.toString(),
-      });
+      // Use validated state updater
+      WebSocketStateHelpers.updateConnectionStatus(
+        isConnected: false,
+      );
       
       _log.info("✅ Connection error handled successfully");
     } catch (e) {
@@ -89,11 +79,10 @@ class WSEventHandler {
     _log.info("🔧 [HANDLER-SESSION_DATA] Handling session data event");
     
     try {
-      // Update state with session data
-      _stateManager.updateModuleState('websocket', {
-        'isConnected': true,
-        'sessionData': data,
-      });
+      // Use validated state updater
+      WebSocketStateHelpers.updateSessionData(
+        data is Map<String, dynamic> ? data : null,
+      );
       
       _log.info("✅ Session data handled successfully");
     } catch (e) {
@@ -101,20 +90,19 @@ class WSEventHandler {
     }
   }
 
-  /// Handle room joined event
+    /// Handle room joined event
   void handleRoomJoined(dynamic data) {
     _log.info("🔧 [HANDLER-ROOM_JOINED] Handling room joined event");
     
     try {
       final roomId = data['room_id'] ?? '';
-      final roomData = data;
+      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
       
-      // Update state
-      _stateManager.updateModuleState('websocket', {
-        'isConnected': true,
-        'currentRoomId': roomId,
-        'currentRoomInfo': roomData,
-      });
+      // Use validated state updater
+      WebSocketStateHelpers.updateRoomInfo(
+        roomId: roomId,
+        roomInfo: roomData,
+      );
       
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
@@ -139,14 +127,13 @@ class WSEventHandler {
     
     try {
       final roomId = data['room_id'] ?? '';
-      final roomData = data;
+      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
       
-      // Update state
-      _stateManager.updateModuleState('websocket', {
-        'isConnected': true,
-        'currentRoomId': roomId,
-        'currentRoomInfo': roomData,
-      });
+      // Use validated state updater
+      WebSocketStateHelpers.updateRoomInfo(
+        roomId: roomId,
+        roomInfo: roomData,
+      );
       
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
@@ -190,14 +177,13 @@ class WSEventHandler {
     
     try {
       final roomId = data['room_id'] ?? '';
-      final roomData = data;
+      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
       
-      // Update state
-      _stateManager.updateModuleState('websocket', {
-        'isConnected': true,
-        'currentRoomId': roomId,
-        'currentRoomInfo': roomData,
-      });
+      // Use validated state updater
+      WebSocketStateHelpers.updateRoomInfo(
+        roomId: roomId,
+        roomInfo: roomData,
+      );
       
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
@@ -267,12 +253,11 @@ class WSEventHandler {
     try {
       final roomId = data['room_id'] ?? '';
       
-      // Update state
-      _stateManager.updateModuleState('websocket', {
-        'isConnected': true,
-        'currentRoomId': null,
-        'currentRoomInfo': null,
-      });
+      // Use validated state updater
+      WebSocketStateHelpers.updateRoomInfo(
+        roomId: null,
+        roomInfo: null,
+      );
       
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
@@ -310,6 +295,40 @@ class WSEventHandler {
     }
   }
 
+  /// Handle room closed event
+  void handleRoomClosed(dynamic data) {
+    _log.info("🔧 [HANDLER-ROOM_CLOSED] Handling room closed event");
+    
+    try {
+      if (data is Map<String, dynamic>) {
+        final roomId = data['room_id'] ?? '';
+        final reason = data['reason'] ?? 'unknown';
+        final timestamp = data['timestamp'];
+        
+        _log.info("🏠 Room closed: $roomId (reason: $reason)");
+        
+        // Update WebSocket state to clear room info if it's the current room
+        final currentRoomId = WebSocketStateUpdater.getCurrentRoomId();
+        if (currentRoomId == roomId) {
+          WebSocketStateHelpers.clearRoomInfo();
+          _log.info("🔧 Cleared current room info due to room closure");
+        }
+        
+        // Trigger room closed callbacks
+        _eventManager.triggerCallbacks('room_closed', {
+          'room_id': roomId,
+          'reason': reason,
+          'timestamp': timestamp,
+          'data': data,
+        });
+        
+        _log.info("✅ Room closed event handled successfully");
+      }
+    } catch (e) {
+      _log.error("❌ Error handling room closed event: $e");
+    }
+  }
+
   /// Handle message event
   void handleMessage(dynamic data) {
     _log.info("🔧 [HANDLER-MESSAGE] Handling message event");
@@ -322,21 +341,6 @@ class WSEventHandler {
       _log.info("✅ Message handled successfully");
     } catch (e) {
       _log.error("❌ Error handling message: $e");
-    }
-  }
-
-  /// Handle recall event
-  void handleRecallEvent(dynamic data) {
-    _log.info("🔧 [HANDLER-RECALL_EVENT] Handling recall event");
-    
-    try {
-      // Forward the recall event to the RecallGameManager
-      // This will be handled by the RecallGameManager's event listeners
-      _eventManager.triggerCallbacks('recall_event', data);
-      
-      _log.info("✅ Recall event handled successfully");
-    } catch (e) {
-      _log.error("❌ Error handling recall event: $e");
     }
   }
 

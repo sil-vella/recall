@@ -3,7 +3,7 @@ import '../../../../managers/state_manager.dart';
 import '../../../../managers/navigation_manager.dart';
 import '../../../managers/recall_game_manager.dart';
 
-class RoomListWidget extends StatefulWidget {
+class RoomListWidget extends StatelessWidget {
   final String title;
   final Function(String) onJoinRoom;
   final Function(String) onLeaveRoom;
@@ -19,51 +19,28 @@ class RoomListWidget extends StatefulWidget {
     required this.roomType,
   }) : super(key: key);
 
-  @override
-  State<RoomListWidget> createState() => _RoomListWidgetState();
-}
-
-class _RoomListWidgetState extends State<RoomListWidget> {
-  final StateManager _sm = StateManager();
-  final RecallGameManager _gameManager = RecallGameManager();
-
-  @override
-  void initState() {
-    super.initState();
-    _sm.addListener(_onChanged);
-  }
-
-  @override
-  void dispose() {
-    _sm.removeListener(_onChanged);
-    super.dispose();
-  }
-
-  void _onChanged() {
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _joinGame(String roomId) async {
+  Future<void> _joinGame(BuildContext context, String roomId) async {
     try {
       print('🎮 Joining game for room: $roomId');
       
       // First join the room if not already in it
-      final currentRoomId = _sm.getModuleState<Map<String, dynamic>>('recall_game')?['currentRoomId'];
+      final currentRoomId = StateManager().getModuleState<Map<String, dynamic>>('recall_game')?['currentRoomId'];
       if (currentRoomId != roomId) {
         print('🔄 Joining room: $roomId (currently in: $currentRoomId)');
-        await widget.onJoinRoom(roomId);
+        await onJoinRoom(roomId);
       } else {
         print('✅ Already in room: $roomId');
       }
       
       // Then join the game as a player
-      final login = _sm.getModuleState<Map<String, dynamic>>('login') ?? {};
+      final login = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
       final playerName = (login['username'] ?? login['email'] ?? 'Player').toString();
       
       print('🎮 Joining game as: $playerName');
-      final joinResult = await _gameManager.joinGame(roomId, playerName);
+      final gameManager = RecallGameManager();
+      final joinResult = await gameManager.joinGame(roomId, playerName);
       if (joinResult['error'] != null) {
-        _showSnackBar('Failed to join game: ${joinResult['error']}', isError: true);
+        _showSnackBar(context, 'Failed to join game: ${joinResult['error']}', isError: true);
         return;
       }
       
@@ -73,11 +50,11 @@ class _RoomListWidgetState extends State<RoomListWidget> {
       
     } catch (e) {
       print('❌ Error joining game: $e');
-      _showSnackBar('Error joining game: $e', isError: true);
+      _showSnackBar(context, 'Error joining game: $e', isError: true);
     }
   }
 
-  void _showSnackBar(String message, {bool isError = false}) {
+  void _showSnackBar(BuildContext context, String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -89,126 +66,163 @@ class _RoomListWidgetState extends State<RoomListWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    
-    // Filter rooms based on roomType
-    List<Map<String, dynamic>> rooms;
-    if (widget.roomType == 'my') {
-      rooms = (recall['myRooms'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
-      print('🔍 DEBUG: My Rooms count: ${rooms.length}');
-      print('🔍 DEBUG: My Rooms data: $rooms');
-    } else {
-      rooms = (recall['rooms'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
-      print('🔍 DEBUG: Public Rooms count: ${rooms.length}');
-    }
-    
-    final currentRoomId = (recall['currentRoomId'] ?? '') as String;
-    final ws = _sm.getModuleState<Map<String, dynamic>>('websocket') ?? {};
-    final isConnected = (ws['connected'] ?? ws['isConnected']) == true;
-    final isLoading = recall['isLoading'] == true;
-    
-    print('🔍 DEBUG: Room type: ${widget.roomType}');
-    print('🔍 DEBUG: Current room ID: $currentRoomId');
-    print('🔍 DEBUG: Is connected: $isConnected');
+    return ListenableBuilder(
+      listenable: StateManager(),
+      builder: (context, child) {
+        final recall = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        
+        // Get active games tracking
+        final activeGames = Map<String, Map<String, dynamic>>.from(recall['activeGames'] ?? {});
+        
+        // Only show user's created rooms (no public room lists in state)
+        List<Map<String, dynamic>> rooms;
+        if (roomType == 'my') {
+          rooms = (recall['myCreatedRooms'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+        } else {
+          // For public rooms, show empty list since we don't store public room lists in state
+          rooms = const [];
+        }
 
-    return Card(
+        if (rooms.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(emptyMessage),
+            ),
+          );
+        }
+
+        return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.title,
+                  title,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 16),
-                
-                if (isLoading)
-                  const Center(child: CircularProgressIndicator())
-                else if (rooms.isEmpty)
-                  Text(widget.emptyMessage)
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: rooms.length,
-                    itemBuilder: (context, index) {
-                      final room = rooms[index];
-                      final roomId = room['room_id']?.toString() ?? '';
-                      final isInThisRoom = currentRoomId == roomId;
-                      
-                       return ListTile(
-                        title: Text('Room: ${room['room_name'] ?? roomId}'),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Players: ${(room['current_size'] ?? '?')}/${room['max_size'] ?? '?'}'),
-                            if (room['permission'] == 'private')
-                              const Text('🔒 Private', style: TextStyle(color: Colors.orange)),
-                          ],
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Show Join Game button for room owners in "my" rooms
-                            if (widget.roomType == 'my') ...[
-                              Builder(builder: (context) {
-                                print('🔍 DEBUG: Checking Join Game button for room: $roomId');
-                                print('🔍 DEBUG: Room type: ${widget.roomType}, isInThisRoom: $isInThisRoom');
-                                
-                                // Show Join Game button for room owners (whether in room or not)
-                                return Semantics(
-                                  label: 'room_join_game_${roomId}',
-                                  identifier: 'room_join_game_${roomId}',
-                                  button: true,
-                                  child: ElevatedButton(
-                                    onPressed: isConnected ? () => _joinGame(roomId) : null,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: const Text('Join Game'),
-                                  ),
-                                );
-                              }),
-                            ],
-                            const SizedBox(width: 8),
-                            // Show Join/Leave button
-                            if (isInThisRoom)
-                              Semantics(
-                                label: 'room_leave_${roomId}',
-                                identifier: 'room_leave_${roomId}',
-                                button: true,
-                                child: ElevatedButton(
-                                  onPressed: isConnected ? () => widget.onLeaveRoom(roomId) : null,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text('Leave'),
-                                ),
-                              )
-                            else
-                              Semantics(
-                                label: 'room_join_${roomId}',
-                                identifier: 'room_join_${roomId}',
-                                button: true,
-                                child: ElevatedButton(
-                                  onPressed: isConnected ? () => widget.onJoinRoom(roomId) : null,
-                                  child: const Text('Join'),
-                                ),
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                ...rooms.map((room) => _RoomTile(
+                  room: room,
+                  activeGames: activeGames,
+                  onJoinRoom: () => _joinGame(context, room['room_id']),
+                  onLeaveRoom: () => onLeaveRoom(room['room_id']),
+                )),
               ],
             ),
           ),
         );
+      },
+    );
+  }
+}
+
+class _RoomTile extends StatelessWidget {
+  final Map<String, dynamic> room;
+  final Map<String, Map<String, dynamic>> activeGames;
+  final VoidCallback onJoinRoom;
+  final VoidCallback onLeaveRoom;
+
+  const _RoomTile({
+    required this.room,
+    required this.activeGames,
+    required this.onJoinRoom,
+    required this.onLeaveRoom,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final roomId = room['room_id'] as String? ?? '';
+    final roomName = room['room_name'] as String? ?? roomId;
+    final maxPlayers = room['max_size'] as int? ?? 4;
+    final currentSize = room['current_size'] as int? ?? 0;
+    final permission = room['permission'] as String? ?? 'public';
+    
+    // Check if this room has an active game
+    final gameInfo = activeGames[roomId];
+    final hasActiveGame = gameInfo != null;
+    final gamePhase = gameInfo?['gamePhase'] ?? 'waiting';
+    final gameStatus = gameInfo?['gameStatus'] ?? 'inactive';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      roomName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text('Room ID: $roomId'),
+                    Text('Players: $currentSize/$maxPlayers'),
+                    Text('Permission: $permission'),
+                    if (hasActiveGame) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Game: $gamePhase ($gameStatus)',
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Column(
+                children: [
+                  if (hasActiveGame)
+                    ElevatedButton(
+                      onPressed: onJoinRoom,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Join Game'),
+                    )
+                  else
+                    ElevatedButton(
+                      onPressed: onJoinRoom,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Join Room'),
+                    ),
+                  const SizedBox(height: 4),
+                  ElevatedButton(
+                    onPressed: onLeaveRoom,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Leave'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 } 

@@ -3,57 +3,45 @@ import '../../../models/card.dart' as cm;
 import '../../../../../../utils/consts/theme_consts.dart';
 import '../../../../managers/state_manager.dart';
 
-class MyHandPanel extends StatefulWidget {
+class MyHandPanel extends StatelessWidget {
   final void Function(cm.Card card, int index) onSelect;
 
   const MyHandPanel({Key? key, required this.onSelect}) : super(key: key);
 
   @override
-  State<MyHandPanel> createState() => _MyHandPanelState();
-}
-
-class _MyHandPanelState extends State<MyHandPanel> {
-  final StateManager _stateManager = StateManager();
-
-  @override
-  void initState() {
-    super.initState();
-    _stateManager.addListener(_onChanged);
-  }
-
-  @override
-  void dispose() {
-    _stateManager.removeListener(_onChanged);
-    super.dispose();
-  }
-
-  void _onChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final recall = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    
-    // Access the new myHand structure with widget-specific state slice
-    final myHandState = recall['myHand'] as Map<String, dynamic>?;
-    final cardsData = myHandState?['cards'] as List<dynamic>?;
-    
-    final hand = cardsData
-        ?.map((m) => cm.Card.fromJson((m as Map).cast<String, dynamic>()))
-        .toList() ?? [];
-    final selectedCardJson = recall['selectedCard'] as Map<String, dynamic>?;
-    final selectedCard = selectedCardJson != null ? cm.Card.fromJson(selectedCardJson) : null;
+    return ListenableBuilder(
+      listenable: StateManager(),
+      builder: (context, child) {
+        final recall = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        
+        // Access the new myHand structure with widget-specific state slice
+        final myHandState = recall['myHand'] as Map<String, dynamic>?;
+        final cardsData = myHandState?['cards'] as List<dynamic>?;
+        
+        final hand = cardsData
+            ?.map((m) => cm.Card.fromJson((m as Map).cast<String, dynamic>()))
+            .toList() ?? [];
+        final selectedCardJson = myHandState?['selectedCard'] as Map<String, dynamic>?;
+        final selectedCard = selectedCardJson != null ? cm.Card.fromJson(selectedCardJson) : null;
 
-    if (hand.isEmpty) {
-      return Text('Your hand is empty', style: AppTextStyles.bodyMedium);
-    }
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (int i = 0; i < hand.length; i++) _HandCardTile(card: hand[i], index: i, isSelected: selectedCard == hand[i], onTap: () => widget.onSelect(hand[i], i)),
-      ],
+        if (hand.isEmpty) {
+          return Text('Your hand is empty', style: AppTextStyles.bodyMedium);
+        }
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (int i = 0; i < hand.length; i++) 
+              _HandCardTile(
+                card: hand[i], 
+                index: i, 
+                isSelected: selectedCard == hand[i], 
+                onTap: () => onSelect(hand[i], i)
+              ),
+          ],
+        );
+      },
     );
   }
 }

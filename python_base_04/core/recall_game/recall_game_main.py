@@ -83,8 +83,39 @@ class RecallGameMain:
         listeners.register_custom_listener('recall_play_out_of_turn', gp.on_play_out_of_turn)
         listeners.register_custom_listener('recall_use_special_power', gp.on_use_special_power)
         listeners.register_custom_listener('recall_initial_peek', gp.on_initial_peek)
+        listeners.register_custom_listener('recall_get_public_rooms', gp.on_get_public_rooms)
+        listeners.register_custom_listener('recall_game_event', self._handle_recall_game_event)
 
         custom_log("✅ Recall game handlers registered via WebSocket event listeners")
+    
+    def _handle_recall_game_event(self, session_id: str, data: Dict[str, Any]) -> bool:
+        """Handle generic recall_game_event and route based on event_type"""
+        try:
+            event_type = data.get('event_type')
+            if not event_type:
+                custom_log(f"❌ Missing event_type in recall_game_event: {data}", level="ERROR")
+                return False
+            
+            custom_log(f"🎯 Routing recall_game_event: {event_type} from session {session_id}")
+            
+            # Route to appropriate handler based on event_type
+            if event_type == 'get_public_rooms':
+                return self.recall_gameplay_manager.on_get_public_rooms(session_id, data)
+            elif event_type == 'join_game':
+                return self.recall_gameplay_manager.on_join_game(session_id, data)
+            elif event_type == 'start_match':
+                return self.recall_gameplay_manager.on_start_match(session_id, data)
+            elif event_type == 'create_room':
+                # Route to room creation handler if needed
+                custom_log(f"⚠️ create_room event_type not yet implemented in recall_game_event router")
+                return False
+            else:
+                custom_log(f"❌ Unknown event_type: {event_type} in recall_game_event", level="ERROR")
+                return False
+                
+        except Exception as e:
+            custom_log(f"❌ Error handling recall_game_event: {e}", level="ERROR")
+            return False
     
     def _handle_get_public_rooms(self, data):
         """Handle request for public rooms list"""

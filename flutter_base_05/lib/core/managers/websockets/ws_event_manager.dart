@@ -5,6 +5,7 @@ import '../../../tools/logging/logger.dart';
 import 'websocket_events.dart';
 import 'websocket_manager.dart';
 import '../state_manager.dart';
+import 'websocket_state_validator.dart';
 
 /// WebSocket Event Manager - Centralized event handling for WebSocket operations
 class WSEventManager {
@@ -414,15 +415,26 @@ class WSEventManager {
 
   // ==================== UTILITY METHODS ====================
 
-  /// Update state manager with current state
+  /// Update state manager with current state (using validated system)
   void _updateStateManager() {
-    final stateManager = StateManager();
-    stateManager.updateModuleState("websocket", {
-      "isConnected": _isConnected,
-      "currentRoomId": _currentRoomId,
-      "currentRoomInfo": _currentRoomInfo,
-      "sessionData": _sessionData,
-    });
+    try {
+      WebSocketStateUpdater.updateState({
+        "isConnected": _isConnected,
+        "currentRoomId": _currentRoomId,
+        "currentRoomInfo": _currentRoomInfo,
+        "sessionData": _sessionData,
+      });
+    } catch (e) {
+      _log.error('❌ Failed to update WebSocket state via validated system: $e');
+      // Fallback to direct state manager update
+      final stateManager = StateManager();
+      stateManager.updateModuleState("websocket", {
+        "isConnected": _isConnected,
+        "currentRoomId": _currentRoomId,
+        "currentRoomInfo": _currentRoomInfo,
+        "sessionData": _sessionData,
+      });
+    }
   }
 
   /// Clear all event callbacks

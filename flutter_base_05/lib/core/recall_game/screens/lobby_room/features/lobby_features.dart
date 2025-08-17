@@ -40,7 +40,7 @@ class LobbyFeatureRegistrar {
         slotId: LobbyFeatureSlots.slotSecondary,
         priority: 10,
         icon: Icons.refresh,
-        tooltip: 'Refresh public rooms',
+        tooltip: 'Refresh rooms',
         onTap: () {
           // Intentionally minimal for example; real impl should call service
         },

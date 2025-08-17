@@ -17,6 +17,9 @@ class RecallGameEventEmitter {
   
   /// Define allowed fields for each event type
   static const Map<String, Set<String>> _allowedEventFields = {
+    'get_public_rooms': {
+      'filter', 'timestamp'
+    },
     'create_room': {
       'room_name', 'permission', 'max_players', 'min_players', 
       'turn_time_limit', 'auto_start', 'game_type', 'password'
@@ -24,14 +27,27 @@ class RecallGameEventEmitter {
     'join_game': {'game_id', 'player_name'},
     'start_match': {'game_id'},
     'play_card': {'game_id', 'card_id', 'player_id', 'replace_index'},
+    'replace_drawn_card': {'game_id', 'player_id', 'card_index'},
+    'play_drawn_card': {'game_id', 'player_id'},
     'call_recall': {'game_id', 'player_id'},
     'leave_game': {'game_id', 'reason'},
     'draw_card': {'game_id', 'player_id', 'source'},
+    'play_out_of_turn': {'game_id', 'card_id', 'player_id'},
     'use_special_power': {'game_id', 'card_id', 'player_id', 'power_data'},
   };
   
   /// Define validation rules for each field
   static const Map<String, RecallEventFieldSpec> _fieldValidation = {
+    // Filter fields
+    'filter': RecallEventFieldSpec(
+      type: Map,
+      description: 'Filter criteria for room query',
+    ),
+    'timestamp': RecallEventFieldSpec(
+      type: String,
+      pattern: r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3,6}Z?$',
+      description: 'ISO timestamp for request',
+    ),
     // Room fields
     'room_name': RecallEventFieldSpec(
       type: String,
@@ -105,6 +121,13 @@ class RecallGameEventEmitter {
     'replace_index': RecallEventFieldSpec(
       type: int,
       required: false,
+      min: 0,
+      max: 3,
+      description: 'Card index to replace: 0-3',
+    ),
+    'card_index': RecallEventFieldSpec(
+      type: int,
+      required: true,
       min: 0,
       max: 3,
       description: 'Card index to replace: 0-3',

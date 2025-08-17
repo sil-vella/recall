@@ -64,6 +64,8 @@ class RecallGameHelpers {
     );
   }
   
+
+  
   /// Play a card with validation
   static Future<Map<String, dynamic>> playCard({
     required String gameId,
@@ -84,6 +86,36 @@ class RecallGameHelpers {
     return _eventEmitter.emit(
       eventType: 'play_card',
       data: data,
+    );
+  }
+  
+  /// Replace a card in hand with the drawn card
+  static Future<Map<String, dynamic>> replaceDrawnCard({
+    required String gameId,
+    required String playerId,
+    required int cardIndex,
+  }) {
+    return _eventEmitter.emit(
+      eventType: 'replace_drawn_card',
+      data: {
+        'game_id': gameId,
+        'player_id': playerId,
+        'card_index': cardIndex,
+      },
+    );
+  }
+  
+  /// Place the drawn card and play it
+  static Future<Map<String, dynamic>> placeDrawnCard({
+    required String gameId,
+    required String playerId,
+  }) {
+    return _eventEmitter.emit(
+      eventType: 'play_drawn_card',
+      data: {
+        'game_id': gameId,
+        'player_id': playerId,
+      },
     );
   }
   
@@ -134,6 +166,28 @@ class RecallGameHelpers {
     );
   }
   
+  /// Play out-of-turn with validation
+  static Future<Map<String, dynamic>> playOutOfTurn({
+    required String gameId,
+    required String cardId,
+    required String playerId,
+  }) {
+    return _eventEmitter.emit(
+      eventType: 'play_out_of_turn',
+      data: {
+        'game_id': gameId,
+        'card_id': cardId,
+        'player_id': playerId,
+      },
+    );
+  }
+
+  /// Add event listener with validation
+  static void onEvent(String eventType, Function(Map<String, dynamic>) callback) {
+    // This method is deprecated - use RecallGameEventListenerExtension.onEvent instead
+    throw UnsupportedError('Use RecallGameEventListenerExtension.onEvent instead');
+  }
+
   /// Use special power with validation
   static Future<Map<String, dynamic>> useSpecialPower({
     required String gameId,
@@ -339,16 +393,9 @@ class RecallGameHelpers {
   // UI STATE HELPERS (for transient UI state not in validated schema)
   // ========================================
   
-  /// Update UI state (for non-validated transient state like selected cards)
+  /// Update UI state using validated state updater
   static void updateUIState(Map<String, dynamic> updates) {
-    final stateManager = StateManager();
-    final currentState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-    
-    stateManager.updateModuleState("recall_game", {
-      ...currentState,
-      ...updates,
-      'lastUpdated': DateTime.now().toIso8601String(),
-    });
+    _stateUpdater.updateState(updates);
   }
   
   /// Set selected card (UI state)
@@ -368,10 +415,156 @@ class RecallGameHelpers {
   }
   
   // ========================================
+  // GAME TRACKING METHODS
+  // ========================================
+  
+  /// Register a new active game
+  static void registerActiveGame({
+    required String gameId,
+    required String gamePhase,
+    required String gameStatus,
+    required int playerCount,
+    required String roomName,
+    String? ownerId,
+    Map<String, dynamic>? additionalData,
+  }) {
+    final stateManager = StateManager();
+    final currentState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    final activeGames = Map<String, Map<String, dynamic>>.from(currentState['activeGames'] ?? {});
+    
+    activeGames[gameId] = {
+      'gameId': gameId,
+      'roomId': gameId, // Same as game ID
+      'roomName': roomName,
+      'gamePhase': gamePhase,
+      'gameStatus': gameStatus,
+      'playerCount': playerCount,
+      'ownerId': ownerId,
+      'createdAt': DateTime.now().toIso8601String(),
+      'lastUpdated': DateTime.now().toIso8601String(),
+      ...?additionalData,
+    };
+    
+    _stateUpdater.updateState({'activeGames': activeGames});
+  }
+  
+  /// Update an existing active game
+  static void updateActiveGame({
+    required String gameId,
+    String? gamePhase,
+    String? gameStatus,
+    int? playerCount,
+    Map<String, dynamic>? additionalData,
+  }) {
+    final stateManager = StateManager();
+    final currentState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    final activeGames = Map<String, Map<String, dynamic>>.from(currentState['activeGames'] ?? {});
+    
+    if (activeGames.containsKey(gameId)) {
+      final gameData = Map<String, dynamic>.from(activeGames[gameId]!);
+      
+      if (gamePhase != null) gameData['gamePhase'] = gamePhase;
+      if (gameStatus != null) gameData['gameStatus'] = gameStatus;
+      if (playerCount != null) gameData['playerCount'] = playerCount;
+      if (additionalData != null) gameData.addAll(additionalData);
+      
+      gameData['lastUpdated'] = DateTime.now().toIso8601String();
+      activeGames[gameId] = gameData;
+      
+      _stateUpdater.updateState({'activeGames': activeGames});
+    }
+  }
+  
+  /// Remove a game from active tracking
+  static void removeActiveGame(String gameId) {
+    final stateManager = StateManager();
+    final currentState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    final activeGames = Map<String, Map<String, dynamic>>.from(currentState['activeGames'] ?? {});
+    
+    if (activeGames.containsKey(gameId)) {
+      activeGames.remove(gameId);
+      _stateUpdater.updateState({'activeGames': activeGames});
+    }
+  }
+  
+  /// Get active game info by ID
+  static Map<String, dynamic>? getActiveGame(String gameId) {
+    final stateManager = StateManager();
+    final currentState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    final activeGames = Map<String, Map<String, dynamic>>.from(currentState['activeGames'] ?? {});
+    
+    return activeGames[gameId];
+  }
+  
+  /// Get all active games
+  static Map<String, Map<String, dynamic>> getAllActiveGames() {
+    final stateManager = StateManager();
+    final currentState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    return Map<String, Map<String, dynamic>>.from(currentState['activeGames'] ?? {});
+  }
+  
+  /// Check if a game is active
+  static bool isGameActive(String gameId) {
+    final gameInfo = getActiveGame(gameId);
+    return gameInfo != null && gameInfo['gameStatus'] == 'active';
+  }
+  
+  /// Get active games count
+  static int getActiveGamesCount() {
+    return getAllActiveGames().length;
+  }
+  
+  /// Get active games for a specific room/game ID
+  static List<Map<String, dynamic>> getActiveGamesForRoom(String roomId) {
+    final activeGames = getAllActiveGames();
+    return activeGames.values.where((game) => game['roomId'] == roomId).toList();
+  }
+  
+  /// Clean up ended games (remove games with 'ended' status)
+  static void cleanupEndedGames() {
+    final stateManager = StateManager();
+    final currentState = stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    final activeGames = Map<String, Map<String, dynamic>>.from(currentState['activeGames'] ?? {});
+    
+    final endedGameIds = <String>[];
+    for (final entry in activeGames.entries) {
+      if (entry.value['gameStatus'] == 'ended') {
+        endedGameIds.add(entry.key);
+      }
+    }
+    
+    for (final gameId in endedGameIds) {
+      activeGames.remove(gameId);
+    }
+    
+    if (endedGameIds.isNotEmpty) {
+      _stateUpdater.updateState({'activeGames': activeGames});
+    }
+  }
+
+  // ========================================
+  // ROOM QUERY METHODS
+  // ========================================
+
+  /// Get list of pending (public, not started) games
+  static Future<Map<String, dynamic>> getPendingGames() {
+    return _eventEmitter.emit(
+      eventType: 'get_public_rooms',
+      data: {
+        'filter': {
+          'status': 'waiting', // Only games that haven't started
+          'permission': 'public',
+        },
+        'timestamp': DateTime.now().toIso8601String(),
+      },
+    );
+  }
+
+  // ========================================
   // CONVENIENCE METHODS
   // ========================================
   
-  /// Quick room creation for common scenarios
+  /// Quick public room creation with default settings
   static Future<Map<String, dynamic>> createPublicRoom({
     required String roomName,
     int maxPlayers = 4,

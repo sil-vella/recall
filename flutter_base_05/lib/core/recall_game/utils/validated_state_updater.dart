@@ -141,6 +141,108 @@ class RecallGameStateUpdater {
       description: 'Number of players in current game',
     ),
     
+    // Room Lists
+    'myCreatedRooms': RecallStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      description: 'List of rooms created by the current user',
+    ),
+    'currentRoom': RecallStateFieldSpec(
+      type: Map,
+      required: false,
+      description: 'Current room information',
+    ),
+    
+    // Game Tracking (Map<String, Map<String, dynamic>>)
+    'activeGames': RecallStateFieldSpec(
+      type: Map,
+      defaultValue: {},
+      description: 'Map of active games by ID with their status and metadata',
+    ),
+    
+    // Widget Slices
+    'actionBar': RecallStateFieldSpec(
+      type: Map,
+      defaultValue: {
+        'showStartButton': false,
+        'canPlayCard': false,
+        'canCallRecall': false,
+        'isGameStarted': false,
+      },
+      description: 'Action bar widget state slice',
+    ),
+    'statusBar': RecallStateFieldSpec(
+      type: Map,
+      defaultValue: {
+        'currentPhase': 'waiting',
+        'turnInfo': '',
+        'playerCount': 0,
+        'gameStatus': 'inactive',
+        'turnNumber': 0,
+        'roundNumber': 1,
+      },
+      description: 'Status bar widget state slice',
+    ),
+    'myHand': RecallStateFieldSpec(
+      type: Map,
+      defaultValue: {
+        'cards': [],
+        'selectedIndex': -1,
+        'selectedCard': null,
+      },
+      description: 'My hand widget state slice',
+    ),
+    'centerBoard': RecallStateFieldSpec(
+      type: Map,
+      defaultValue: {
+        'drawPileCount': 0,
+        'topDiscard': null,
+        'canDrawFromDeck': false,
+        'canTakeFromDiscard': false,
+      },
+      description: 'Center board widget state slice',
+    ),
+    'opponentsPanel': RecallStateFieldSpec(
+      type: Map,
+      defaultValue: {
+        'opponents': [],
+        'currentTurnIndex': -1,
+      },
+      description: 'Opponents panel widget state slice',
+    ),
+    'gameState': RecallStateFieldSpec(
+      type: Map,
+      required: false,
+      description: 'Full game state object',
+    ),
+    'myScore': RecallStateFieldSpec(
+      type: int,
+      defaultValue: 0,
+      description: 'Current player\'s total score',
+    ),
+    
+    // Message State
+    'messages': RecallStateFieldSpec(
+      type: Map,
+      defaultValue: {
+        'session': [],
+        'rooms': {},
+      },
+      description: 'Message boards for session and rooms',
+    ),
+    
+    // UI State
+    'selectedCard': RecallStateFieldSpec(
+      type: Map,
+      required: false,
+      description: 'Currently selected card in hand',
+    ),
+    'selectedCardIndex': RecallStateFieldSpec(
+      type: int,
+      required: false,
+      description: 'Index of currently selected card in hand',
+    ),
+    
     // Connection State
     'isConnected': RecallStateFieldSpec(
       type: bool,

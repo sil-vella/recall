@@ -2,70 +2,52 @@ import 'package:flutter/material.dart';
 import '../../../../managers/state_manager.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-class MessageBoardWidget extends StatefulWidget {
+class MessageBoardWidget extends StatelessWidget {
   final String? roomId; // null => session board
 
   const MessageBoardWidget({Key? key, this.roomId}) : super(key: key);
 
   @override
-  State<MessageBoardWidget> createState() => _MessageBoardWidgetState();
-}
-
-class _MessageBoardWidgetState extends State<MessageBoardWidget> {
-  final StateManager _stateManager = StateManager(); // ✅ Pattern 1: Widget creates its own instance
-
-  @override
-  void initState() {
-    super.initState();
-    _stateManager.addListener(_onChanged);
-  }
-
-  @override
-  void dispose() {
-    _stateManager.removeListener(_onChanged);
-    super.dispose();
-  }
-
-  void _onChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final data = _stateManager.getModuleState<Map<String, dynamic>>('recall_messages') ?? {};
-    final sessionList = (data['session'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
-    final rooms = (data['rooms'] as Map?)?.cast<String, List>() ?? const {};
-    final list = widget.roomId == null
-        ? sessionList
-        : (rooms[widget.roomId] ?? const []).cast<Map<String, dynamic>>();
+    return ListenableBuilder(
+      listenable: StateManager(),
+      builder: (context, child) {
+        final data = StateManager().getModuleState<Map<String, dynamic>>('recall_messages') ?? {};
+        final sessionList = (data['session'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+        final rooms = (data['rooms'] as Map?)?.cast<String, List>() ?? const {};
+        final list = roomId == null
+            ? sessionList
+            : (rooms[roomId] ?? const []).cast<Map<String, dynamic>>();
 
-    if (list.isEmpty) {
-      return Container(
-        padding: AppPadding.cardPadding,
-        decoration: BoxDecoration(
-          color: AppColors.scaffoldBackgroundColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.lightGray.withOpacity(0.3)),
-        ),
-        child: Text('No messages', style: AppTextStyles.bodyMedium),
-      );
-    }
+        if (list.isEmpty) {
+          return Container(
+            padding: AppPadding.cardPadding,
+            decoration: BoxDecoration(
+              color: AppColors.scaffoldBackgroundColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.lightGray.withOpacity(0.3)),
+            ),
+            child: Text('No messages', style: AppTextStyles.bodyMedium),
+          );
+        }
 
-    return Container(
-      padding: AppPadding.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.scaffoldBackgroundColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.lightGray.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(widget.roomId == null ? 'Session Messages' : 'Room Messages (${widget.roomId})', style: AppTextStyles.headingSmall()),
-          const SizedBox(height: 8),
-          ...list.reversed.take(20).map((e) => _MessageTile(entry: e)).toList(),
-        ],
-      ),
+        return Container(
+          padding: AppPadding.cardPadding,
+          decoration: BoxDecoration(
+            color: AppColors.scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.lightGray.withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(roomId == null ? 'Session Messages' : 'Room Messages (${roomId})', style: AppTextStyles.headingSmall()),
+              const SizedBox(height: 8),
+              ...list.reversed.take(20).map((e) => _MessageTile(entry: e)).toList(),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -99,12 +81,11 @@ class _MessageTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 6,
-            height: 24,
-            margin: const EdgeInsets.only(top: 2),
+            width: 8,
+            height: 8,
             decoration: BoxDecoration(
               color: _levelColor(level),
-              borderRadius: BorderRadius.circular(2),
+              shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 8),
@@ -112,9 +93,26 @@ class _MessageTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title.isEmpty ? level.toUpperCase() : title, style: AppTextStyles.bodyLarge),
-                if (message.isNotEmpty) Text(message, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.accentColor2)),
-                Text(ts, style: AppTextStyles.headingSmall()),
+                if (title.isNotEmpty)
+                  Text(
+                    title,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                if (message.isNotEmpty)
+                  Text(
+                    message,
+                    style: AppTextStyles.bodyMedium,
+                  ),
+                if (ts.isNotEmpty)
+                  Text(
+                    ts,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontSize: 12,
+                      color: AppColors.lightGray,
+                    ),
+                  ),
               ],
             ),
           ),

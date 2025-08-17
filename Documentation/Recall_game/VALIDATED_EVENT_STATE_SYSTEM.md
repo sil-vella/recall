@@ -97,7 +97,40 @@ class RecallGameStateUpdater {
 - **Connection Status**: `isConnected`, `lastPing`, etc.
 - **Widget Slices**: Pre-computed UI state for specific widgets
 
-### 4. Helper Methods (`recall_game_helpers.dart`)
+### 4. Event Listener Validator (`recall_event_listener_validator.dart`)
+
+Validates and processes all incoming WebSocket events from the backend.
+
+```dart
+class RecallGameEventListenerValidator {
+  static final RecallGameEventListenerValidator _instance = RecallGameEventListenerValidator._internal();
+  factory RecallGameEventListenerValidator() => _instance;
+
+  void addListener(String eventType, Function(Map<String, dynamic>) callback) {
+    // 1. Listen to 'recall_game_event' WebSocket events
+    // 2. Extract and validate event type
+    // 3. Validate event data against schema
+    // 4. Call callback with validated data
+  }
+}
+```
+
+**Supported Incoming Event Types:**
+- **Game Events**: `game_joined`, `game_left`, `game_started`, `game_ended`
+- **Player Events**: `player_joined`, `player_left`, `turn_changed`
+- **Card Events**: `card_played`, `card_drawn`
+- **Room Events**: `room_created`, `room_joined`, `room_left`, `room_closed`
+- **System Events**: `recall_called`, `game_state_updated`, `error`, `connection_status`
+
+**Key Features:**
+- **Event Schema Validation**: Validates incoming events against predefined field schemas
+- **Type Safety**: Ensures event data contains expected fields and types
+- **Error Handling**: Gracefully handles malformed events with detailed logging
+- **Automatic Timestamping**: Adds timestamps to all validated events
+- **Metadata Preservation**: Preserves additional metadata fields for extensibility
+- **Singleton Pattern**: Single instance manages all event validation
+
+### 5. Helper Methods (`recall_game_helpers.dart`)
 
 Provides convenient, type-safe methods for common operations.
 
@@ -116,6 +149,9 @@ class RecallGameHelpers {
   // UI State Helpers
   static void setSelectedCard(String cardId) { ... }
   static void updateUIState(String key, dynamic value) { ... }
+  
+  // Event Listener Helpers (via extension)
+  static void onEvent(String eventType, Function(Map<String, dynamic>) callback) { ... }
 }
 ```
 
@@ -171,6 +207,82 @@ static final Map<String, FieldSpec> _stateSchema = {
 };
 ```
 
+### Incoming Event Validation Schema
+
+The Event Listener Validator defines comprehensive schemas for all incoming WebSocket events:
+
+```dart
+static const Map<String, Set<String>> _eventSchema = {
+  // Game Lifecycle Events
+  'game_joined': {
+    'game_id', 'player_id', 'player_name', 'game_state', 'player',
+    'room_id', 'room_name', 'is_owner', 'is_active',
+  },
+  'game_started': {
+    'game_id', 'game_state', 'timestamp', 'started_by',
+    'player_order', 'initial_hands',
+  },
+  'game_ended': {
+    'game_id', 'game_state', 'winner', 'scores', 'reason',
+    'timestamp', 'duration',
+  },
+  
+  // Player Management Events
+  'player_joined': {
+    'game_id', 'player_id', 'player_name', 'player', 'players',
+    'timestamp', 'room_id',
+  },
+  'player_left': {
+    'game_id', 'player_id', 'player_name', 'reason', 'players',
+    'timestamp', 'room_id',
+  },
+  
+  // Gameplay Events
+  'turn_changed': {
+    'game_id', 'current_turn', 'previous_turn', 'turn_number',
+    'round_number', 'timestamp',
+  },
+  'card_played': {
+    'game_id', 'player_id', 'card', 'position', 'timestamp',
+    'is_out_of_turn', 'remaining_cards',
+  },
+  'card_drawn': {
+    'game_id', 'player_id', 'source', 'card', 'timestamp',
+    'remaining_deck', 'discard_top',
+  },
+  
+  // Room Management Events
+  'room_created': {
+    'room_id', 'room_name', 'owner_id', 'permission',
+    'max_players', 'min_players', 'timestamp',
+  },
+  'room_joined': {
+    'room_id', 'player_id', 'player_name', 'timestamp',
+    'current_players',
+  },
+  
+  // System Events
+  'recall_called': {
+    'game_id', 'player_id', 'timestamp', 'scores',
+    'updated_game_state',
+  },
+  'error': {
+    'error', 'message', 'code', 'details', 'timestamp',
+  },
+  'connection_status': {
+    'status', 'session_id', 'error', 'timestamp',
+  },
+};
+```
+
+**Validation Process:**
+1. **Event Type Extraction**: Extracts `event_type` from incoming WebSocket data
+2. **Schema Lookup**: Finds the corresponding field schema for the event type
+3. **Field Validation**: Only includes fields that exist in the schema
+4. **Data Enrichment**: Adds `event_type` and `timestamp` to validated data
+5. **Callback Execution**: Calls the registered callback with validated data
+6. **Error Handling**: Logs validation errors without crashing the application
+
 ## 🚀 Usage Examples
 
 ### Event Emission
@@ -214,6 +326,57 @@ RecallGameStateUpdater().updateState({
   'gameId': gameId,
   'isGameStarted': true,
   'gamePhase': 'active',
+});
+```
+
+### Event Listening
+
+```dart
+// ✅ NEW WAY: Validated event listening
+RecallGameHelpers.onEvent('game_started', (data) {
+  // data is validated and contains only allowed fields
+  final gameId = data['game_id'];
+  final gameState = data['game_state'];
+  final startedBy = data['started_by'];
+  
+  // Update UI state with validated data
+  RecallGameHelpers.updateGameInfo({
+    'gameId': gameId,
+    'isGameStarted': true,
+    'gameState': gameState,
+  });
+});
+
+// ✅ Listen to player join events
+RecallGameHelpers.onEvent('player_joined', (data) {
+  final playerId = data['player_id'];
+  final playerName = data['player_name'];
+  
+  // Update player list
+  RecallGameHelpers.updatePlayerTurn(playerId, false);
+});
+
+// ✅ Listen to card played events
+RecallGameHelpers.onEvent('card_played', (data) {
+  final card = data['card'];
+  final position = data['position'];
+  final isOutOfTurn = data['is_out_of_turn'] ?? false;
+  
+  // Update game board
+  RecallGameHelpers.updateUIState('centerBoard', {
+    'lastPlayedCard': card,
+    'lastPosition': position,
+    'wasOutOfTurn': isOutOfTurn,
+  });
+});
+
+// ✅ Listen to error events
+RecallGameHelpers.onEvent('error', (data) {
+  final errorCode = data['code'];
+  final errorMessage = data['message'];
+  
+  // Show error to user
+  _showErrorSnackBar('Error $errorCode: $errorMessage');
 });
 ```
 
@@ -277,6 +440,21 @@ UI Update ← State Manager ← State Updater ← Validation ← WebSocket ← B
 ```
 Backend Event → Event Handler → Helper Method → State Updater → Validation → StateManager → UI Rebuild
 ```
+
+### Incoming Event Flow
+```
+WebSocket Event → Event Listener Validator → Schema Validation → Data Enrichment → Callback Execution → State Updates
+     ↓
+Backend Event → Event Type Extraction → Field Validation → Timestamp Addition → Validated Data → UI State Changes
+```
+
+**Incoming Event Processing:**
+1. **WebSocket Reception**: `WSEventManager` receives `recall_game_event` messages
+2. **Event Validation**: `RecallGameEventListenerValidator` validates event type and data
+3. **Schema Compliance**: Only allowed fields are included in validated data
+4. **Data Enrichment**: `event_type` and `timestamp` are automatically added
+5. **Callback Execution**: Registered event listeners receive validated data
+6. **State Synchronization**: UI components update based on validated event data
 
 ## 🖼️ Screen vs Widget State Subscription Pattern
 
@@ -758,6 +936,35 @@ try {
 }
 ```
 
+### Event Listener Validation Errors
+
+The Event Listener Validator provides robust error handling for incoming WebSocket events:
+
+```dart
+// ❌ Missing event_type field
+// WebSocket data: {'data': 'some_value'}
+// Result: Logs error "Missing event_type in recall game event"
+
+// ❌ Unknown event type
+// WebSocket data: {'event_type': 'unknown_event', 'data': 'value'}
+// Result: Logs error "Unknown recall game event type: unknown_event"
+
+// ❌ Invalid event data structure
+// WebSocket data: {'event_type': 'game_started', 'invalid_field': 'value'}
+// Result: Only valid fields are included, invalid fields are filtered out
+
+// ✅ Valid event processing
+// WebSocket data: {'event_type': 'game_started', 'game_id': '123', 'game_state': 'active'}
+// Result: Event processed successfully, callback executed with validated data
+```
+
+**Error Handling Features:**
+- **Graceful Degradation**: Invalid events don't crash the application
+- **Detailed Logging**: Comprehensive error messages for debugging
+- **Field Filtering**: Only schema-compliant fields are passed to callbacks
+- **Automatic Recovery**: Application continues processing valid events
+- **Developer Feedback**: Clear error messages identify validation issues
+
 ## 🧪 Testing
 
 ### Unit Tests
@@ -784,6 +991,85 @@ testWidgets('Helper methods update UI correctly', (tester) async {
   await tester.pump();
   
   expect(find.text('Game Started'), findsOneWidget);
+});
+```
+
+### Event Listener Tests
+```dart
+test('Event listener validator processes valid events correctly', () {
+  final validator = RecallGameEventListenerValidator.instance;
+  bool callbackCalled = false;
+  Map<String, dynamic>? receivedData;
+  
+  // Add listener for game_started event
+  validator.addListener('game_started', (data) {
+    callbackCalled = true;
+    receivedData = data;
+  });
+  
+  // Simulate valid WebSocket event
+  final validEvent = {
+    'event_type': 'game_started',
+    'game_id': 'game_123',
+    'game_state': 'active',
+    'started_by': 'player_456',
+  };
+  
+  // Process event (this would normally come from WSEventManager)
+  // For testing, we need to simulate the event processing
+  
+  expect(callbackCalled, isTrue);
+  expect(receivedData, isNotNull);
+  expect(receivedData!['game_id'], equals('game_123'));
+  expect(receivedData!['event_type'], equals('game_started'));
+  expect(receivedData!['timestamp'], isNotNull); // Auto-added
+});
+
+test('Event listener validator filters invalid fields', () {
+  final validator = RecallGameEventListenerValidator.instance;
+  Map<String, dynamic>? receivedData;
+  
+  validator.addListener('player_joined', (data) {
+    receivedData = data;
+  });
+  
+  // Event with valid and invalid fields
+  final mixedEvent = {
+    'event_type': 'player_joined',
+    'game_id': 'game_123',
+    'player_id': 'player_789',
+    'player_name': 'John',
+    'invalid_field': 'should_be_filtered', // Not in schema
+    'another_invalid': 'also_filtered',    // Not in schema
+  };
+  
+  // Process event and verify only valid fields remain
+  // receivedData should only contain schema-defined fields
+  
+  expect(receivedData!.containsKey('invalid_field'), isFalse);
+  expect(receivedData!.containsKey('another_invalid'), isFalse);
+  expect(receivedData!.containsKey('game_id'), isTrue);
+  expect(receivedData!.containsKey('player_id'), isTrue);
+});
+
+test('Event listener validator handles unknown event types gracefully', () {
+  final validator = RecallGameEventListenerValidator.instance;
+  bool callbackCalled = false;
+  
+  validator.addListener('unknown_event', (data) {
+    callbackCalled = true;
+  });
+  
+  // Simulate unknown event type
+  final unknownEvent = {
+    'event_type': 'completely_unknown_event',
+    'data': 'some_value',
+  };
+  
+  // Process event - should log error but not crash
+  // Callback should not be called for unknown events
+  
+  expect(callbackCalled, isFalse);
 });
 ```
 
@@ -827,6 +1113,61 @@ class RecallGameHelpers {
 }
 ```
 
+### Adding New Event Types
+
+To add new incoming event types to the Event Listener Validator:
+
+```dart
+// In recall_event_listener_validator.dart
+static const Map<String, Set<String>> _eventSchema = {
+  // ... existing events ...
+  
+  // New event type
+  'new_game_event': {
+    'game_id', 'event_data', 'timestamp', 'metadata',
+  },
+  
+  // New player event
+  'player_achievement': {
+    'player_id', 'achievement_type', 'achievement_data', 'timestamp',
+  },
+};
+```
+
+**Adding New Event Types Process:**
+1. **Define Schema**: Add the event type and its allowed fields to `_eventSchema`
+2. **Field Selection**: Choose only the fields that are essential for the event
+3. **Consistent Naming**: Use snake_case for field names to match backend conventions
+4. **Required Fields**: Include `timestamp` and other essential identifiers
+5. **Optional Fields**: Add fields that might be useful but aren't critical
+6. **Testing**: Verify the new event type processes correctly with test data
+
+### Event Schema Best Practices
+
+```dart
+// ✅ GOOD: Clear, focused field sets
+'card_played': {
+  'game_id', 'player_id', 'card', 'position', 'timestamp',
+  'is_out_of_turn', 'remaining_cards',
+},
+
+// ❌ AVOID: Too many fields, unclear purpose
+'card_played': {
+  'game_id', 'player_id', 'card', 'position', 'timestamp',
+  'is_out_of_turn', 'remaining_cards', 'weather', 'mood', 'random_data',
+},
+
+// ✅ GOOD: Consistent field naming
+'player_joined': {
+  'game_id', 'player_id', 'player_name', 'timestamp',
+},
+
+// ❌ AVOID: Inconsistent naming
+'player_joined': {
+  'game_id', 'playerId', 'player_name', 'time', // Mixed naming conventions
+},
+```
+
 ## 📊 Benefits
 
 ### Before Implementation
@@ -835,17 +1176,25 @@ class RecallGameHelpers {
 - ❌ Runtime errors from invalid data
 - ❌ Difficult debugging
 - ❌ Fragile event/state coupling
+- ❌ No validation of incoming WebSocket events
+- ❌ Risk of backend data corruption affecting frontend
+- ❌ Difficult to track event processing issues
 
 ### After Implementation  
-- ✅ Centralized validation
-- ✅ Consistent data schemas
+- ✅ Centralized validation for both outgoing and incoming events
+- ✅ Consistent data schemas across the entire system
 - ✅ Compile-time error prevention
-- ✅ Clear error messages
+- ✅ Clear error messages for debugging
 - ✅ Robust event/state architecture
 - ✅ Developer-friendly APIs
-- ✅ Performance optimized
-- ✅ Easily testable
-- ✅ Maintainable and scalable
+- ✅ Performance optimized with granular updates
+- ✅ Easily testable components
+- ✅ Maintainable and scalable codebase
+- ✅ **Incoming Event Protection**: All backend events are validated before processing
+- ✅ **Data Integrity**: Only schema-compliant fields reach UI components
+- ✅ **Error Resilience**: Invalid events don't crash the application
+- ✅ **Automatic Logging**: Comprehensive event tracking for debugging
+- ✅ **Schema Evolution**: Easy to add new event types and fields
 
 ## 🎯 Migration Guide
 
@@ -877,6 +1226,53 @@ void _handleGameStarted(Map<String, dynamic> data) {
 // After
 void _handleGameStarted(Map<String, dynamic> data) {
   RecallGameHelpers.updateGameInfo(data);
+}
+```
+
+### Step 4: Replace Direct Event Listening
+```dart
+// Before: Direct WebSocket event handling
+_wsManager.onEvent('recall_game_event', (data) {
+  if (data['event_type'] == 'game_started') {
+    // Manual validation and processing
+    if (data.containsKey('game_id') && data.containsKey('game_state')) {
+      _handleGameStarted(data);
+    }
+  }
+});
+
+// After: Validated event listening
+RecallGameHelpers.onEvent('game_started', (data) {
+  // data is automatically validated and contains only allowed fields
+  _handleGameStarted(data);
+});
+```
+
+### Step 5: Update Event Handler Registration
+```dart
+// Before: Manual event type checking
+void _setupEventHandlers() {
+  _wsManager.onEvent('recall_game_event', (data) {
+    final eventType = data['event_type'];
+    switch (eventType) {
+      case 'game_started':
+        _handleGameStarted(data);
+        break;
+      case 'player_joined':
+        _handlePlayerJoined(data);
+        break;
+      // ... more cases
+    }
+  });
+}
+
+// After: Clean, validated event handlers
+void _setupEventHandlers() {
+  RecallGameHelpers.onEvent('game_started', _handleGameStarted);
+  RecallGameHelpers.onEvent('player_joined', _handlePlayerJoined);
+  RecallGameHelpers.onEvent('card_played', _handleCardPlayed);
+  RecallGameHelpers.onEvent('turn_changed', _handleTurnChanged);
+  // ... more handlers
 }
 ```
 
@@ -991,13 +1387,33 @@ _stateManager.updateModuleState('recall_game', {'gameId': id});
 RecallGameHelpers.updateGameInfo({'gameId': id});
 ```
 
+### Event Listening Pattern
+```dart
+// ❌ OLD: Direct WebSocket event handling with manual validation
+_wsManager.onEvent('recall_game_event', (data) {
+  if (data['event_type'] == 'game_started') {
+    // Manual field checking and validation
+    if (data.containsKey('game_id')) {
+      _handleGameStarted(data);
+    }
+  }
+});
+
+// ✅ NEW: Validated event listening
+RecallGameHelpers.onEvent('game_started', (data) {
+  // data is automatically validated and contains only allowed fields
+  _handleGameStarted(data);
+});
+```
+
 ### Key Principles ✅ **All Implemented**
 1. **🎯 Screens**: Load once, handle layout/navigation, no state subscription ✅ **Implemented**
 2. **🔄 Widgets**: Create own StateManager instance, subscribe to specific state slices ✅ **Implemented**
 3. **🛡️ Validation**: All events and state updates are validated ✅ **Implemented**
-4. **⚡ Performance**: Granular updates, minimal rebuilds ✅ **Implemented**
-5. **🧩 Separation**: Clear boundaries between concerns ✅ **Implemented**
-6. **🔧 Consistency**: All 12 widgets follow Pattern 1 standardization ✅ **Implemented**
+4. **📡 Event Listening**: All incoming events are validated and processed safely ✅ **Implemented**
+5. **⚡ Performance**: Granular updates, minimal rebuilds ✅ **Implemented**
+6. **🧩 Separation**: Clear boundaries between concerns ✅ **Implemented**
+7. **🔧 Consistency**: All 12 widgets follow Pattern 1 standardization ✅ **Implemented**
 
 ---
 

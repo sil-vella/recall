@@ -10,6 +10,9 @@ import '../models/player.dart';
 import '../models/card.dart';
 import '../models/game_events.dart';
 import '../utils/recall_game_helpers.dart';
+import '../utils/recall_event_listener_validator.dart';
+import '../utils/validated_event_emitter.dart';
+import '../../managers/hooks_manager.dart';
 
 /// Recall Game Manager
 /// Main orchestrator for the Recall game functionality
@@ -27,23 +30,23 @@ class RecallGameManager {
   // Current game state (moved from RecallStateManager)
   GameState? _currentGameState;
 
-  // Game state
-  bool _isInitialized = false;
-  bool _isInitializing = false;  // Add initialization guard
-  bool _isGameActive = false;
+  // Game state tracking
   String? _currentGameId;
   String? _currentPlayerId;
-
+  bool _isGameActive = false;
+  bool _isInitialized = false;
+  bool _isInitializing = false;  // Add initialization guard
+  
   // Event listeners
   StreamSubscription<GameEvent>? _gameEventSubscription;
   StreamSubscription<GameState>? _gameStateSubscription;
   StreamSubscription<String>? _errorSubscription;
-
+  
   // Getters
-  bool get isInitialized => _isInitialized;
-  bool get isGameActive => _isGameActive;
   String? get currentGameId => _currentGameId;
-  String? get currentPlayerId => _currentPlayerId;
+  String? get playerId => _currentPlayerId;
+  bool get isGameActive => _isGameActive;
+  bool get isInitialized => _isInitialized;
   bool get isConnected => _wsManager.isConnected;
   GameState? get currentGameState => _currentGameState;
   bool get hasActiveGame => _currentGameState != null && _currentGameState!.isActive;
@@ -97,7 +100,7 @@ class RecallGameManager {
       
       // State manager is already initialized globally
       _log.info('📊 Using global StateManager instance');
-      
+
       // Register recall-specific Socket.IO events in one place and fan out via WSEventManager
       _log.info('🔌 Starting Socket.IO event relay setup...');
       try {
@@ -105,25 +108,8 @@ class RecallGameManager {
         _log.info('🔌 Socket obtained: ${socket != null ? 'not null' : 'null'}');
         if (socket != null) {
           _log.info('🔌 Setting up Socket.IO event relays...');
-          // Relay recall_message to WSEventManager custom channel
-          socket.on('recall_message', (data) {
-            try {
-              WSEventManager.instance.triggerCallbacks('recall_message', Map<String, dynamic>.from(data is Map ? data : {}));
-            } catch (_) {
-              // ignore
-            }
-          });
-          _log.info('🔌 recall_message relay set up');
-          
-          // Relay room_closed to WSEventManager custom channel
-          socket.on('room_closed', (data) {
-            try {
-              WSEventManager.instance.triggerCallbacks('room_closed', Map<String, dynamic>.from(data is Map ? data : {}));
-            } catch (_) {
-              // ignore
-            }
-          });
-          _log.info('🔌 room_closed relay set up');
+          // Event relays are now handled by the validated event listener system
+          _log.info('🔌 Event relays will be set up by validated system');
           _log.info('✅ Socket.IO event relays set up');
         } else {
           _log.warning('⚠️ Socket is null, cannot set up event relays');
@@ -135,17 +121,51 @@ class RecallGameManager {
       _log.info('✅ Socket.IO event relay setup completed');
       
       // Register with main StateManager
-      _log.info('📝 Registering with main StateManager...');
-      try {
-        _registerWithStateManager();
-        _log.info('✅ Registered with main StateManager');
-      } catch (e) {
-        _log.error('❌ Error registering with StateManager: $e');
-        throw e;
-      }
+      _stateManager.registerModuleState("recall_game", {
+        "isLoading": false,
+        "isConnected": false,
+        "currentRoomId": "",
+        "currentRoom": null,
+        "isInRoom": false,
+        "myCreatedRooms": [],
+        "players": [],
+        "actionBar": {
+          "showStartButton": false,
+          "canPlayCard": false,
+          "canCallRecall": false,
+          "isGameStarted": false,
+        },
+        "statusBar": {
+          "currentPhase": "waiting",
+          "turnInfo": "",
+          "playerCount": 0,
+          "gameStatus": "inactive",
+        },
+        "myHand": {
+          "cards": [],
+          "selectedIndex": null,
+          "canSelectCards": false,
+        },
+        "centerBoard": {
+          "discardPile": [],
+          "drawPileCount": 0,
+          "lastPlayedCard": null,
+        },
+        "opponentsPanel": {
+          "players": [],
+          "currentPlayerIndex": -1,
+        },
+        "showCreateRoom": true,
+        "showRoomList": true,
+        "lastUpdated": DateTime.now().toIso8601String(),
+      });
       
       _isInitialized = true;
       _isInitializing = false;  // Clear initialization flag
+      
+      // Register hook callbacks for room closure
+      _registerHookCallbacks();
+      
       _log.info('✅ Recall Game Manager initialized successfully');
       
       // Update main state manager to reflect initialization
@@ -166,21 +186,23 @@ class RecallGameManager {
     }
   }
 
-  /// Set up event listeners
+  /// Set up event listeners using validated event system
   void _setupEventListeners() {
-    _log.info('🎧 Setting up recall_event listener...');
-    // Listen to recall events from WebSocket manager
-    _wsManager.eventManager.onEvent('recall_event', (data) {
-      _log.info('🎮 RecallGameManager received recall_event: $data');
-      _handleRecallGameEvent(data);
-    });
+    _log.info('🎧 Setting up validated event listeners...');
     
-    _log.info('🎧 Setting up WebSocket error listener...');
-    // Listen to system WebSocket errors
-    _wsManager.errors.listen((errorEvent) {
-      _log.error('❌ WebSocket error: ${errorEvent.error}');
-      _handleGameError(errorEvent.error);
-    });
+    // Use validated event listener for each event type
+    final eventTypes = [
+      'game_joined', 'game_left', 'player_joined', 'player_left',
+      'game_started', 'game_ended', 'turn_changed', 'card_played',
+      'card_drawn', 'recall_called', 'game_state_updated', 'error',
+    ];
+    
+    for (final eventType in eventTypes) {
+      RecallGameEventListenerExtension.onEvent(eventType, (data) {
+        _log.info('🎮 RecallGameManager received validated event: $eventType');
+        _handleRecallGameEvent(data);
+      });
+    }
     
     _log.info('✅ Recall Game Manager event listeners set up');
   }
@@ -305,8 +327,8 @@ class RecallGameManager {
       _log.info('🎮 Successfully parsed GameState: ${gameState.gameName}, phase: ${gameState.phase.name}');
       
       updateGameState(gameState);
-      _updateGameStatus(gameState);
-      _log.info('🎮 Game started: ${gameState.gameName}');
+    _updateGameStatus(gameState);
+    _log.info('🎮 Game started: ${gameState.gameName}');
     } catch (e) {
       _log.error('❌ Error handling game_started event: $e');
       _log.error('❌ Event data: $data');
@@ -368,11 +390,7 @@ class RecallGameManager {
     // Handle error appropriately
   }
 
-  /// Handle general game error
-  void _handleGameError(String error) {
-    _log.error('❌ General game error: $error');
-    // Handle error appropriately
-  }
+
 
   /// Update game status
   void _updateGameStatus(GameState gameState) {
@@ -382,14 +400,24 @@ class RecallGameManager {
     _updateMainStateManager();
   }
 
-  /// Register with main StateManager
+  /// Register with main StateManager using validated updater
   void _registerWithStateManager() {
-    _stateManager.registerModuleState("recall_game_manager", {
-      "isInitialized": _isInitialized,
-      "isGameActive": _isGameActive,
-      "currentGameId": _currentGameId,
-      "currentPlayerId": _currentPlayerId,
-      "isConnected": _wsManager.isConnected,
+    // First register the module state
+    _stateManager.registerModuleState("recall_game", {
+      "isInitialized": false,
+      "isGameActive": false,
+      "currentGameId": null,
+      "playerId": null,
+      "isConnected": false,
+    });
+    
+    // Then update with validated system
+    RecallGameHelpers.updateUIState({
+      'isGameActive': _isGameActive,
+      'currentGameId': _currentGameId,
+      'playerId': _currentPlayerId,
+      'isConnected': _wsManager.isConnected,
+      'isInitialized': _isInitialized,
     });
   }
 
@@ -466,7 +494,7 @@ class RecallGameManager {
       // Manager meta state
       'isGameActive': _isGameActive,
       'currentGameId': _currentGameId,
-      'currentPlayerId': _currentPlayerId,
+      'playerId': _currentPlayerId,
       'isConnected': _wsManager.isConnected,
       
       // Metadata
@@ -598,21 +626,16 @@ class RecallGameManager {
       );
     }
     
-    // For non-validated fields (widget slices, game state JSON), use direct StateManager temporarily
-    // TODO: Add these to validated schema in future iterations
-    final nonValidatedUpdates = <String, dynamic>{};
+    // Update widget slices using validated system
+    final widgetSlices = <String, dynamic>{};
     for (final key in ['actionBar', 'statusBar', 'myHand', 'centerBoard', 'opponentsPanel', 'gameState', 'myScore']) {
       if (updatedState.containsKey(key)) {
-        nonValidatedUpdates[key] = updatedState[key];
+        widgetSlices[key] = updatedState[key];
       }
     }
     
-    if (nonValidatedUpdates.isNotEmpty) {
-      final currentState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-      _stateManager.updateModuleState("recall_game", {
-        ...currentState,
-        ...nonValidatedUpdates,
-      });
+    if (widgetSlices.isNotEmpty) {
+      RecallGameHelpers.updateUIState(widgetSlices);
     }
     
     _log.info('✅ Main StateManager updated using validated system + legacy fields');
@@ -631,22 +654,20 @@ class RecallGameManager {
     try {
       _log.info('🎮 Joining game: $gameId as $playerName');
       
-      // First join the room (game)
-      final joinResult = await _wsManager.joinRoom(gameId, playerName);
-      if (joinResult['error'] != null) {
-        return joinResult;
-      }
-      
-      // Then send the join game custom event
-      final result = await _wsManager.sendCustomEvent('recall_join_game', {
-        'game_id': gameId,
-        'player_name': playerName,
-        'session_id': _wsManager.socket?.id,
-      });
+      // 🎯 Use validated event emitter for join game
+      final result = await RecallGameHelpers.joinGame(gameId, playerName);
       
       if (result['error'] == null) {
         _currentGameId = gameId;
-        _isGameActive = true;
+        _isGameActive = false; // Game is NOT active until start match is called
+        
+        // Update our game tracking - game is waiting, not active
+        RecallGameHelpers.updateActiveGame(
+          gameId: gameId,
+          gameStatus: 'inactive', // Waiting for start match
+          gamePhase: 'waiting',   // Waiting for start match
+        );
+        
         _updateMainStateManager();
       }
       
@@ -655,6 +676,39 @@ class RecallGameManager {
     } catch (e) {
       _log.error('❌ Error joining game: $e');
       return {'error': 'Failed to join game: $e'};
+    }
+  }
+
+  /// Start a match (activate the game)
+  Future<Map<String, dynamic>> startMatch() async {
+    if (_currentGameId == null) {
+      return {'error': 'Not in a game'};
+    }
+
+    try {
+      _log.info('🚀 Starting match: $_currentGameId');
+      
+      // Send start match event using validated system
+      final result = await RecallGameHelpers.startMatch(_currentGameId!);
+      
+      if (result['error'] == null) {
+        _isGameActive = true; // NOW the game becomes active
+        
+        // Update our game tracking - game is now active
+        RecallGameHelpers.updateActiveGame(
+          gameId: _currentGameId!,
+          gameStatus: 'active',   // Game is now active
+          gamePhase: 'playing',   // Game is now playing
+        );
+        
+        _updateMainStateManager();
+      }
+      
+      return result;
+      
+    } catch (e) {
+      _log.error('❌ Error starting match: $e');
+      return {'error': 'Failed to start match: $e'};
     }
   }
 
@@ -667,14 +721,11 @@ class RecallGameManager {
     try {
       _log.info('👋 Leaving game: $_currentGameId');
       
-      // Send leave game message
-      final result = await _wsManager.sendCustomEvent('recall_leave_game', {
-        'game_id': _currentGameId,
-        'player_id': _currentPlayerId,
-      });
-      
-      // Leave the room
-      await _wsManager.leaveRoom(_currentGameId!);
+      // Send leave game message using validated system
+      final result = await RecallGameHelpers.leaveGame(
+        gameId: _currentGameId!,
+        reason: 'User left game',
+      );
       
       if (result['error'] == null) {
         _clearGameState();
@@ -729,11 +780,12 @@ class RecallGameManager {
       return {'error': 'Not in a game'};
     }
     try {
-      _log.info('🂠 Draw from deck');
-      final result = await _wsManager.sendCustomEvent('recall_player_action', {
-        'action': 'draw_from_deck',
-        'player_id': _currentPlayerId,
-      });
+      _log.info('🂠 Draw from deck using validated system');
+      final result = await RecallGameHelpers.drawCard(
+        gameId: _currentGameId!,
+        playerId: _currentPlayerId!,
+        source: 'deck',
+      );
       return result;
     } catch (e) {
       _log.error('❌ Error drawing from deck: $e');
@@ -747,11 +799,12 @@ class RecallGameManager {
       return {'error': 'Not in a game'};
     }
     try {
-      _log.info('🂡 Take from discard');
-      final result = await _wsManager.sendCustomEvent('recall_player_action', {
-        'action': 'take_from_discard',
-        'player_id': _currentPlayerId,
-      });
+      _log.info('🂡 Take from discard using validated system');
+      final result = await RecallGameHelpers.drawCard(
+        gameId: _currentGameId!,
+        playerId: _currentPlayerId!,
+        source: 'discard',
+      );
       return result;
     } catch (e) {
       _log.error('❌ Error taking from discard: $e');
@@ -765,12 +818,13 @@ class RecallGameManager {
       return {'error': 'Not in a game'};
     }
     try {
-      _log.info('🔁 Replace card at index $replaceIndex with drawn');
-      final result = await _wsManager.sendCustomEvent('recall_player_action', {
-        'action': 'place_drawn_card_replace',
-        'replaceIndex': replaceIndex,
-        'player_id': _currentPlayerId,
-      });
+      _log.info('🔁 Replace card at index $replaceIndex with drawn using validated system');
+      final result = await RecallGameHelpers.playCard(
+        gameId: _currentGameId!,
+        playerId: _currentPlayerId!,
+        cardId: 'drawn_card',
+        replaceIndex: replaceIndex,
+      );
       return result;
     } catch (e) {
       _log.error('❌ Error replacing with drawn: $e');
@@ -784,11 +838,12 @@ class RecallGameManager {
       return {'error': 'Not in a game'};
     }
     try {
-      _log.info('🃏 Play drawn card');
-      final result = await _wsManager.sendCustomEvent('recall_player_action', {
-        'action': 'place_drawn_card_play',
-        'player_id': _currentPlayerId,
-      });
+      _log.info('🃏 Play drawn card using validated system');
+      final result = await RecallGameHelpers.playCard(
+        gameId: _currentGameId!,
+        playerId: _currentPlayerId!,
+        cardId: 'drawn_card',
+      );
       return result;
     } catch (e) {
       _log.error('❌ Error playing drawn card: $e');
@@ -836,11 +891,14 @@ class RecallGameManager {
     }
     try {
       _log.info('⚡ Play out-of-turn: ${card.displayName}');
-      final result = await _wsManager.sendCustomEvent('recall_player_action', {
-        'action': 'play_out_of_turn',
-        'card': card.toJson(),
-        'player_id': _currentPlayerId,
-      });
+      
+      // Use validated event emitter
+      final result = await RecallGameHelpers.playOutOfTurn(
+        gameId: _currentGameId!,
+        cardId: card.displayName,
+        playerId: _currentPlayerId!,
+      );
+      
       return result;
     } catch (e) {
       _log.error('❌ Error playing out-of-turn: $e');
@@ -859,14 +917,14 @@ class RecallGameManager {
     }
     
     try {
-      _log.info('✨ Using special power: ${card.specialPowerDescription}');
+      _log.info('✨ Using special power using validated system: ${card.specialPowerDescription}');
       
-      final result = await _wsManager.sendCustomEvent('recall_player_action', {
-        'action': 'use_special_power',
-        'card': card.toJson(),
-        'power_data': powerData,
-        'player_id': _currentPlayerId,
-      });
+      final result = await RecallGameHelpers.useSpecialPower(
+        gameId: _currentGameId!,
+        cardId: card.displayName,
+        playerId: _currentPlayerId!,
+        powerData: powerData,
+      );
       
       return result;
       
@@ -876,8 +934,8 @@ class RecallGameManager {
     }
   }
 
-  /// Start match (explicit init)
-  Future<Map<String, dynamic>> startMatch() async {
+  /// Start match (legacy method - use the newer startMatch instead)
+  Future<Map<String, dynamic>> startMatchLegacy() async {
     try {
       if (!_isInitialized) {
         final initialized = await initialize();
@@ -1002,6 +1060,15 @@ class RecallGameManager {
 
   /// Clear game state
   void _clearGameState() {
+    // Update game tracking before clearing local state
+    if (_currentGameId != null) {
+      RecallGameHelpers.updateActiveGame(
+        gameId: _currentGameId!,
+        gameStatus: 'inactive',
+        gamePhase: 'waiting',
+      );
+    }
+    
     _currentGameId = null;
     _currentPlayerId = null;
     _isGameActive = false;
@@ -1018,7 +1085,7 @@ class RecallGameManager {
       'isInitialized': _isInitialized,
       'isGameActive': _isGameActive,
       'currentGameId': _currentGameId,
-      'currentPlayerId': _currentPlayerId,
+      'playerId': _currentPlayerId,
       'isConnected': _wsManager.isConnected,
       'hasActiveGame': hasActiveGame,
       'isGameFinished': _currentGameState?.isFinished ?? false,
@@ -1029,6 +1096,42 @@ class RecallGameManager {
       'myScore': getMyScore(),
       'playerCount': allPlayers.length,
     };
+  }
+
+  /// Register hook callbacks for external events
+  void _registerHookCallbacks() {
+    try {
+      final hooksManager = HooksManager();
+      
+      _log.info('🎣 Registering hook callbacks for Recall game...');
+      
+      // Register callback for room_closed hook
+      hooksManager.registerHookWithData('room_closed', (data) {
+        final roomId = data['room_id'] as String?;
+        final reason = data['reason'] as String?;
+        
+        _log.info('🏠 Room closed hook triggered: $roomId (reason: $reason)');
+        
+        if (roomId != null) {
+          // Remove the game from our active tracking
+          RecallGameHelpers.removeActiveGame(roomId);
+          _log.info('🗑️ Removed game $roomId from active tracking due to room closure');
+          
+          // Clear game state if it's the current game
+          if (_currentGameId == roomId) {
+            _log.info('🎯 Current game room was closed, clearing game state');
+            _clearGameState();
+          }
+          
+          // Clean up any ended games
+          RecallGameHelpers.cleanupEndedGames();
+        }
+      }, priority: 5);
+      
+      _log.info('✅ Hook callbacks registered successfully');
+    } catch (e) {
+      _log.error('❌ Error registering hook callbacks: $e');
+    }
   }
 
   /// Dispose of the manager

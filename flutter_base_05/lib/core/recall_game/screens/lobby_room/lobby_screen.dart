@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../managers/state_manager.dart';
+
 import '../../../00_base/screen_base.dart';
 import 'widgets/connection_status_widget.dart';
 import 'widgets/create_room_widget.dart';
@@ -7,12 +7,13 @@ import 'widgets/join_room_widget.dart';
 import 'widgets/current_room_widget.dart';
 import 'widgets/room_list_widget.dart';
 import 'widgets/room_message_board_widget.dart';
+import 'widgets/pending_games_widget.dart';
 import 'services/room_service.dart';
-import '../../utils/recall_game_helpers.dart';
+
 import '../../widgets/feature_slot.dart';
 import 'features/lobby_features.dart';
 import 'widgets/message_board_widget.dart';
-// Provider removed – use StateManager only
+
 
 
 class LobbyScreen extends BaseScreen {
@@ -29,17 +30,11 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   final RoomService _roomService = RoomService();
   final TextEditingController _roomIdController = TextEditingController();
   
-  // Legacy managers (for backward compatibility)
-  final StateManager _stateManager = StateManager();
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
-  
-  // Unified state management is now handled by BaseScreen
 
   @override
   void initState() {
     super.initState();
-    
-    // Using StateManager as SSOT – no Provider
     
     _initializeWebSocket().then((_) {
       _setupEventCallbacks();
@@ -48,62 +43,17 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     });
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    
-    // Set up WebSocket connection listener to load rooms when connected
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _setupConnectionListener();
-      }
-    });
-  }
-
   Future<void> _initializeWebSocket() async {
     await _roomService.initializeWebSocket();
   }
   
-  void _setupConnectionListener() {
-    // Listen for WebSocket connection changes
-    _stateManager.addListener(() {
-      if (!mounted) return;
-      
-      final websocketState = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
-      final isConnected = websocketState['isConnected'] == true;
-      
-      // Load rooms when WebSocket connects
-      if (isConnected) {
-        _loadPublicRooms();
-      }
-    });
-  }
-
   @override
   void dispose() {
-    
     // Clean up event callbacks
     _roomService.cleanupEventCallbacks();
     _featureRegistrar.unregisterAll();
     
     super.dispose();
-  }
-
-  Future<void> _loadPublicRooms() async {
-    try {
-      if (!mounted) return;
-      // Use RoomService+StateManager to fetch and store rooms
-      await _roomService.loadPublicRooms().then((rooms) {
-        // 🎯 Use UI state helper for room list updates
-        RecallGameHelpers.updateUIState({
-          'rooms': rooms,
-        });
-      });
-    } catch (e) {
-      if (mounted) {
-        _showSnackBar('Failed to load public rooms: $e', isError: true);
-      }
-    }
   }
 
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
@@ -142,8 +92,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       }
     }
   }
-
-  // Form clearing is now handled in the modal
 
   void _initializeRoomState() {
     // State is now managed by StateManager, no need to initialize local variables
@@ -203,6 +151,15 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           
           const SizedBox(height: 20),
 
+          // Pending Games (fetched on demand)
+          PendingGamesWidget(
+            title: 'Available Games',
+            onJoinRoom: _joinRoom,
+            emptyMessage: 'No games available to join',
+          ),
+
+          const SizedBox(height: 20),
+
           // Session Message Board
           MessageBoardWidget(),
 
@@ -237,16 +194,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           const RoomMessageBoardWidget(),
           const SizedBox(height: 20),
           
-          // Public Rooms List
-          RoomListWidget(
-            title: 'Public Rooms',
-            onJoinRoom: _joinRoom,
-            onLeaveRoom: _leaveRoom,
-            emptyMessage: 'No public rooms available',
-            roomType: 'public',
-          ),
-          
-          const SizedBox(height: 20),
+
           
           // My Rooms List
           RoomListWidget(

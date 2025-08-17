@@ -47,9 +47,8 @@ class RecallGameCore {
           'currentRoom': null,
           'isInRoom': false,
           
-          // Room management
-          'rooms': <Map<String, dynamic>>[],
-          'myRooms': <Map<String, dynamic>>[],
+          // Room management (only current room and user's created rooms)
+          'myCreatedRooms': <Map<String, dynamic>>[],
           'players': <Map<String, dynamic>>[],
           
           // 🎯 WIDGET-SPECIFIC STATE SLICES (for Screen vs Widget pattern)

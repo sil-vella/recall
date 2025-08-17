@@ -4,6 +4,7 @@ import '../../models/card.dart' as cm;
 
 import '../../managers/recall_game_manager.dart';
 import '../../utils/recall_game_helpers.dart';
+import '../../utils/validated_event_emitter.dart';
 // Provider removed – use StateManager only
 
 
@@ -44,12 +45,12 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     // Ensure managers are initialized via RecallGameCore; if entering directly from lobby,
     // attempt to join the game with current room id.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final wsState = _sm.getModuleState<Map<String, dynamic>>('websocket') ?? {};
-      final currentRoomId = (wsState['currentRoomId'] ?? '') as String;
+      // 🎯 Use validated state access
+      final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentRoomId = recall['currentRoomId'] as String? ?? '';
       if (currentRoomId.isNotEmpty && _gameManager.currentGameId != currentRoomId) {
-        final userState = _sm.getModuleState<Map<String, dynamic>>('auth') ?? {};
-        final loginState = _sm.getModuleState<Map<String, dynamic>>('login') ?? {};
-        final playerName = (userState['user']?['name'] ?? loginState['username'] ?? loginState['email'] ?? 'Player').toString();
+        final userInfo = recall['userInfo'] as Map<String, dynamic>? ?? {};
+        final playerName = userInfo['name'] as String? ?? 'Player';
         await _gameManager.joinGame(currentRoomId, playerName);
       }
     });
@@ -61,20 +62,45 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   Future<void> _onDrawFromDeck() async {
-    await _gameManager.drawFromDeck();
+    final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final gameId = recall['currentGameId'] as String?;
+    final playerId = recall['playerId'] as String?;
+    
+    if (gameId != null && playerId != null) {
+      await RecallGameHelpers.drawCard(
+        gameId: gameId,
+        playerId: playerId,
+        source: 'deck',
+      );
+    }
   }
 
   Future<void> _onTakeFromDiscard() async {
-    await _gameManager.takeFromDiscard();
+    final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final gameId = recall['currentGameId'] as String?;
+    final playerId = recall['playerId'] as String?;
+    
+    if (gameId != null && playerId != null) {
+      await RecallGameHelpers.drawCard(
+        gameId: gameId,
+        playerId: playerId,
+        source: 'discard',
+      );
+    }
   }
 
   Future<void> _onPlaySelected() async {
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final selectedCardJson = recall['selectedCard'] as Map<String, dynamic>?;
-    if (selectedCardJson != null) {
-      final selectedCard = cm.Card.fromJson(selectedCardJson);
-      await _gameManager.playCard(selectedCard);
-      // 🎯 Clear selection using validated helpers
+    final gameId = recall['currentGameId'] as String?;
+    final playerId = recall['playerId'] as String?;
+    
+    if (selectedCardJson != null && gameId != null && playerId != null) {
+      await RecallGameHelpers.playCard(
+        gameId: gameId,
+        cardId: selectedCardJson['displayName'] as String,
+        playerId: playerId,
+      );
       RecallGameHelpers.clearSelectedCard();
     }
   }
@@ -82,39 +108,71 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   Future<void> _onReplaceWithDrawn() async {
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final selectedCardIndex = recall['selectedCardIndex'] as int?;
-    if (selectedCardIndex != null) {
-      await _gameManager.placeDrawnCardReplace(selectedCardIndex);
-      // 🎯 Clear selection using validated helpers
+    final gameId = recall['currentGameId'] as String?;
+    final playerId = recall['playerId'] as String?;
+    
+    if (selectedCardIndex != null && gameId != null && playerId != null) {
+      await RecallGameHelpers.replaceDrawnCard(
+        gameId: gameId,
+        playerId: playerId,
+        cardIndex: selectedCardIndex,
+      );
       RecallGameHelpers.clearSelectedCard();
     }
   }
 
   Future<void> _onPlaceDrawnAndPlay() async {
-    await _gameManager.placeDrawnCardPlay();
+    final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final gameId = recall['currentGameId'] as String?;
+    final playerId = recall['playerId'] as String?;
+    
+    if (gameId != null && playerId != null) {
+      await RecallGameHelpers.placeDrawnCard(
+        gameId: gameId,
+        playerId: playerId,
+      );
+    }
   }
 
   Future<void> _onCallRecall() async {
-    await _gameManager.callRecall();
+    final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final gameId = recall['currentGameId'] as String?;
+    final playerId = recall['playerId'] as String?;
+    
+    if (gameId != null && playerId != null) {
+      await RecallGameHelpers.callRecall(
+        gameId: gameId,
+        playerId: playerId,
+      );
+    }
   }
 
   Future<void> _onPlayOutOfTurn() async {
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final selectedCardJson = recall['selectedCard'] as Map<String, dynamic>?;
-    if (selectedCardJson != null) {
-      final selectedCard = cm.Card.fromJson(selectedCardJson);
-      await _gameManager.playOutOfTurn(selectedCard);
-      // 🎯 Clear selection using validated helpers
+    final gameId = recall['currentGameId'] as String?;
+    final playerId = recall['playerId'] as String?;
+    
+    if (selectedCardJson != null && gameId != null && playerId != null) {
+      await RecallGameHelpers.playOutOfTurn(
+        gameId: gameId,
+        cardId: selectedCardJson['displayName'] as String,
+        playerId: playerId,
+      );
       RecallGameHelpers.clearSelectedCard();
     }
   }
 
   Future<void> _onStartMatch() async {
-    print('🚀 _onStartMatch called!');
-    try {
-      final result = await _gameManager.startMatch();
-      print('🚀 startMatch result: $result');
-    } catch (e) {
-      print('❌ Error in _onStartMatch: $e');
+    final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final gameId = recall['currentGameId'] as String?;
+    
+    if (gameId != null) {
+      try {
+        await RecallGameHelpers.startMatch(gameId);
+      } catch (e) {
+        print('❌ Error in _onStartMatch: $e');
+      }
     }
   }
 

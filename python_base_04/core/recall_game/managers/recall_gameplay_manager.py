@@ -44,15 +44,16 @@ class RecallGameplayManager:
             game_id = data.get('game_id')
             player_name = data.get('player_name') or 'Player'
             player_type = data.get('player_type') or 'human'
+            max_players = data.get('max_players', 4)  # Get from frontend data, default to 4
 
             # Align game with room id: if provided id has no game, create one with that id
             if not game_id:
-                game_id = self.game_state_manager.create_game(max_players=4)
+                game_id = self.game_state_manager.create_game(max_players=max_players)
             else:
                 game = self.game_state_manager.get_game(game_id)
                 if not game:
                     # Use provided id as game id to align with room
-                    self.game_state_manager.create_game_with_id(game_id, max_players=4)
+                    self.game_state_manager.create_game_with_id(game_id, max_players=max_players)
 
             game = self.game_state_manager.get_game(game_id)
             if not game:

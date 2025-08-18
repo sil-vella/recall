@@ -445,8 +445,17 @@ class RecallGameCoordinator {
       // First join the room (this would be handled by RoomService in the future)
       _currentRoomId = roomId;
       
-      // Then join the game
-      final result = await _gameService.joinGame(roomId, playerName);
+      // Get room data to extract max_players
+      final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final myCreatedRooms = recallState['myCreatedRooms'] as List<dynamic>? ?? [];
+      final currentRoom = myCreatedRooms.firstWhere(
+        (room) => room['room_id'] == roomId,
+        orElse: () => <String, dynamic>{},
+      );
+      final maxPlayers = currentRoom['max_size'] as int? ?? 4;
+      
+      // Then join the game with max_players
+      final result = await _gameService.joinGame(roomId, playerName, maxPlayers: maxPlayers);
       
       if (result['error'] == null) {
         _currentGameId = roomId; // In this case, roomId is the gameId

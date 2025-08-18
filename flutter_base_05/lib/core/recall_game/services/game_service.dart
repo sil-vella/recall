@@ -32,12 +32,12 @@ class GameService {
     }
   }
 
-  Future<Map<String, dynamic>> joinGame(String gameId, String playerName) async {
+  Future<Map<String, dynamic>> joinGame(String gameId, String playerName, {int? maxPlayers}) async {
     try {
-      _log.info('🎮 GameService: Joining game: $gameId as $playerName');
+      _log.info('🎮 GameService: Joining game: $gameId as $playerName (max players: $maxPlayers)');
       
       // Use validated event emitter for join game
-      final result = await RecallGameHelpers.joinGame(gameId, playerName);
+      final result = await RecallGameHelpers.joinGame(gameId, playerName, maxPlayers: maxPlayers);
       
       _log.info('🎮 GameService: Join game result: $result');
       return result;

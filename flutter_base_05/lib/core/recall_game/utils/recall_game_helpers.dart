@@ -46,13 +46,20 @@ class RecallGameHelpers {
   }
   
   /// Join a game with validation
-  static Future<Map<String, dynamic>> joinGame(String gameId, String playerName) {
+  static Future<Map<String, dynamic>> joinGame(String gameId, String playerName, {int? maxPlayers}) {
+    final data = <String, dynamic>{
+      'game_id': gameId,
+      'player_name': playerName,
+    };
+    
+    // Add max_players if provided
+    if (maxPlayers != null) {
+      data['max_players'] = maxPlayers;
+    }
+    
     return _eventEmitter.emit(
       eventType: 'join_game',
-      data: {
-        'game_id': gameId,
-        'player_name': playerName,
-      },
+      data: data,
     );
   }
   

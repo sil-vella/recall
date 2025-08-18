@@ -24,7 +24,7 @@ class RecallGameEventEmitter {
       'room_name', 'permission', 'max_players', 'min_players', 
       'turn_time_limit', 'auto_start', 'game_type', 'password'
     },
-    'join_game': {'game_id', 'player_name'},
+    'join_game': {'game_id', 'player_name', 'max_players'},
     'start_match': {'game_id'},
     'play_card': {'game_id', 'card_id', 'player_id', 'replace_index'},
     'replace_drawn_card': {'game_id', 'player_id', 'card_index'},

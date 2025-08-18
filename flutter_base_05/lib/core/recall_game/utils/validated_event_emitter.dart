@@ -62,9 +62,10 @@ class RecallGameEventEmitter {
     ),
     'max_players': RecallEventFieldSpec(
       type: int,
+      required: false,
       min: 2,
-      max: 8,
-      description: 'Maximum players: 2-8',
+      max: 10,
+      description: 'Maximum players for the game: 2-10 (optional)',
     ),
     'min_players': RecallEventFieldSpec(
       type: int,

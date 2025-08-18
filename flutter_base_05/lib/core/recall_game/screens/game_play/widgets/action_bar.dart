@@ -44,6 +44,11 @@ class ActionBar extends StatelessWidget {
         print('  - canPlayCard: $canPlayCard');
         print('  - canCallRecall: $canCallRecall');
         print('  - isGameStarted: $isGameStarted');
+        print('  - isRoomOwner: ${recall['isRoomOwner']}');
+        print('  - isGameActive: ${recall['isGameActive']}');
+        print('  - gamePhase: ${recall['gamePhase']}');
+        print('  - gameStatus: ${recall['gameStatus']}');
+        print('  - currentRoomId: ${recall['currentRoomId']}');
         
         return Card(
           child: Padding(

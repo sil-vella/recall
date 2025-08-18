@@ -32,6 +32,7 @@ class WebSocketManager:
         )
         self.rooms: Dict[str, Set[str]] = {}  # room_id -> set of session_ids
         self.session_rooms: Dict[str, Set[str]] = {}  # session_id -> set of room_ids
+        self.room_data: Dict[str, Dict[str, Any]] = {}  # room_id -> room metadata (creator_id, permission, etc.)
         self.rate_limits = {
             'connections': {
                 'max': Config.WS_RATE_LIMIT_CONNECTIONS,
@@ -447,7 +448,7 @@ class WebSocketManager:
         custom_log(f"WARNING - register_authenticated_handler called for {event} - use ws_event_listeners.py instead")
 
     def create_room(self, room_id: str, permission: str = "public", 
-                   owner_id: Optional[int] = None,
+                   owner_id: Optional[str] = None,
                    allowed_users: Optional[Set[int]] = None,
                    allowed_roles: Optional[Set[str]] = None) -> bool:
         """Create a new room with specified permissions."""
@@ -486,7 +487,18 @@ class WebSocketManager:
             
             # Initialize room in memory
             self.rooms[room_id] = set()
+            
+            # Store room metadata in memory for fast access
+            self.room_data[room_id] = {
+                'creator_id': owner_id,
+                'permission': permission,
+                'created_at': datetime.now().isoformat(),
+                'size': 0,
+                'allowed_users': allowed_users or set(),
+                'allowed_roles': allowed_roles or set()
+            }
             custom_log(f"DEBUG - Room initialized in memory: {self.rooms}")
+            custom_log(f"DEBUG - Room metadata stored in memory: creator_id={owner_id}, permission={permission}")
             
             custom_log(f"✅ Room created: {room_id} with permission: {permission}")
             return True
@@ -503,11 +515,17 @@ class WebSocketManager:
 
     def update_room_size(self, room_id: str, delta: int):
         """Update room size counter."""
+        # Update Redis
         room_key = self.redis_manager._generate_secure_key("room", room_id)
         room_data = self.redis_manager.get(room_key)
         if room_data:
             room_data['size'] = max(0, room_data.get('size', 0) + delta)
             self.redis_manager.set(room_key, room_data, expire=Config.WS_ROOM_TTL)
+        
+        # Update memory metadata
+        if room_id in self.room_data:
+            current_size = self.room_data[room_id].get('size', 0)
+            self.room_data[room_id]['size'] = max(0, current_size + delta)
 
     def check_room_size_limit(self, room_id: str) -> bool:
         """Check if room has reached size limit."""
@@ -600,10 +618,22 @@ class WebSocketManager:
             room_data = self.redis_manager.get(room_key)
             
             if not room_data:
-                # Create public room if it doesn't exist
-                custom_log(f"Room {room_id} doesn't exist, creating as public room")
-                self.create_room(room_id, "public")
+                # Create public room if it doesn't exist, with user_id as owner
+                custom_log(f"Room {room_id} doesn't exist, creating as public room with owner: {user_id}")
+                self.create_room(room_id, "public", owner_id=user_id)
                 room_data = self.redis_manager.get(room_key)
+            else:
+                # Room exists in Redis but might not be in memory - initialize memory metadata
+                if room_id not in self.room_data:
+                    self.room_data[room_id] = {
+                        'creator_id': room_data.get('owner_id'),
+                        'permission': room_data.get('permission', 'public'),
+                        'created_at': room_data.get('created_at'),
+                        'size': room_data.get('size', 0),
+                        'allowed_users': set(room_data.get('allowed_users', [])),
+                        'allowed_roles': set(room_data.get('allowed_roles', []))
+                    }
+                    custom_log(f"Initialized room metadata in memory for existing room: {room_id}")
             
             # Check room access if access check function is available
             if self._room_access_check and user_id and user_roles:
@@ -749,6 +779,86 @@ class WebSocketManager:
         """Get all rooms for a session."""
         return self.session_rooms.get(session_id, set()).copy()
 
+    def get_room_creator(self, room_id: str) -> Optional[str]:
+        """Get the creator user ID for a room."""
+        # Try memory first for fast access
+        if room_id in self.room_data:
+            return self.room_data[room_id].get('creator_id')
+        
+        # Fallback to Redis
+        room_key = self.redis_manager._generate_secure_key("room", room_id)
+        room_data = self.redis_manager.get(room_key)
+        return room_data.get('owner_id') if room_data else None
+
+    def is_room_creator(self, room_id: str, user_id: str) -> bool:
+        """Check if user is the creator of the room."""
+        creator_id = self.get_room_creator(room_id)
+        return creator_id == user_id
+
+    def get_room_metadata(self, room_id: str) -> Optional[Dict[str, Any]]:
+        """Get room metadata from memory."""
+        return self.room_data.get(room_id)
+
+    def update_room_metadata(self, room_id: str, updates: Dict[str, Any]) -> bool:
+        """Update room metadata in memory."""
+        try:
+            if room_id in self.room_data:
+                self.room_data[room_id].update(updates)
+                custom_log(f"Updated room metadata for {room_id}: {updates}")
+                return True
+            return False
+        except Exception as e:
+            custom_log(f"Error updating room metadata: {str(e)}")
+            return False
+
+    def get_rooms_by_creator(self, creator_id: str) -> List[str]:
+        """Get all room IDs created by a specific user."""
+        rooms = []
+        for room_id, metadata in self.room_data.items():
+            if metadata.get('creator_id') == creator_id:
+                rooms.append(room_id)
+        return rooms
+
+    def get_room_info(self, room_id: str) -> Optional[Dict[str, Any]]:
+        """Get comprehensive room information including creator, members, and metadata."""
+        try:
+            # Get memory metadata
+            metadata = self.room_data.get(room_id)
+            if not metadata:
+                # Fallback to Redis
+                room_key = self.redis_manager._generate_secure_key("room", room_id)
+                room_data = self.redis_manager.get(room_key)
+                if not room_data:
+                    return None
+                
+                metadata = {
+                    'creator_id': room_data.get('owner_id'),
+                    'permission': room_data.get('permission', 'public'),
+                    'created_at': room_data.get('created_at'),
+                    'size': room_data.get('size', 0),
+                    'allowed_users': set(room_data.get('allowed_users', [])),
+                    'allowed_roles': set(room_data.get('allowed_roles', []))
+                }
+            
+            # Get current members
+            members = self.rooms.get(room_id, set())
+            
+            return {
+                'room_id': room_id,
+                'creator_id': metadata.get('creator_id'),
+                'permission': metadata.get('permission'),
+                'created_at': metadata.get('created_at'),
+                'size': len(members),
+                'max_size': self._room_size_limit,
+                'members': list(members),
+                'allowed_users': list(metadata.get('allowed_users', set())),
+                'allowed_roles': list(metadata.get('allowed_roles', set()))
+            }
+            
+        except Exception as e:
+            custom_log(f"Error getting room info: {str(e)}")
+            return None
+
     def reset_room_sizes(self):
         """Reset room size counters."""
         try:
@@ -809,6 +919,10 @@ class WebSocketManager:
             # Remove from memory
             if room_id in self.rooms:
                 del self.rooms[room_id]
+            
+            # Remove room metadata from memory
+            if room_id in self.room_data:
+                del self.room_data[room_id]
             
             # Remove from Redis
             room_key = self.redis_manager._generate_secure_key("room", room_id)

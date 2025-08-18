@@ -81,6 +81,9 @@ class WebSocketManager {
     return _eventManager!;
   }
 
+  /// Get the event listener instance
+  WSEventListener? get eventListener => _eventListener;
+
   /// Check if connected - direct socket check (no context needed)
   bool get isConnected {
     // Use both our tracked state and socket state for reliability

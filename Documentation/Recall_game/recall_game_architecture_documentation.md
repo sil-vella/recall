@@ -1,8 +1,3 @@
----
-description: Recall Game System
-alwaysApply: false
----
-
 # Validated Incremental Event/State System
 
 ## 🎯 Overview

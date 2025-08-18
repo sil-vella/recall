@@ -395,6 +395,13 @@ class RecallGameHelpers {
   
   /// Update UI state using validated state updater
   static void updateUIState(Map<String, dynamic> updates) {
+    print('🎯 [RecallGameHelpers] updateUIState called with: ${updates.keys.join(', ')}');
+    if (updates.containsKey('isRoomOwner')) {
+      print('  - isRoomOwner: ${updates['isRoomOwner']}');
+    }
+    if (updates.containsKey('isGameActive')) {
+      print('  - isGameActive: ${updates['isGameActive']}');
+    }
     _stateUpdater.updateState(updates);
   }
   

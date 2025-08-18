@@ -9,6 +9,7 @@ from tools.logger.custom_logging import custom_log
 from datetime import datetime
 import json
 import uuid
+from core.managers.jwt_manager import TokenType
 
 class WSEventHandlers:
     """Centralized WebSocket event handlers"""
@@ -17,6 +18,94 @@ class WSEventHandlers:
         self.websocket_manager = websocket_manager
         self.socketio = websocket_manager.socketio
         custom_log("WSEventHandlers initialized")
+
+    def _resolve_user_id(self, session_id: str, data: dict) -> str:
+        """Resolve the authenticated user id from backend authentication system.
+
+        Order of precedence:
+        1) Explicit user_id in incoming data (if trusted)
+        2) Session data (if previously stored)
+        3) Backend authentication system (JWT token from request)
+        4) Fallback: session_id
+        """
+        try:
+            # 1) From payload
+            user_id = (data or {}).get('user_id')
+            if user_id:
+                return str(user_id)
+
+            # 2) From session storage
+            session_data = self.websocket_manager.get_session_data(session_id)
+            if session_data and session_data.get('user_id'):
+                return str(session_data.get('user_id'))
+
+            # 3) From backend authentication system
+            try:
+                # Get JWT manager from WebSocket manager
+                jwt_manager = getattr(self.websocket_manager, '_jwt_manager', None)
+                custom_log(f"🔍 [RESOLVE] JWT manager available: {jwt_manager is not None}")
+                
+                if jwt_manager:
+                    # Try to get token from request
+                    token = None
+                    if hasattr(request, 'args') and request.args:
+                        token = request.args.get('token')
+                        custom_log(f"🔍 [RESOLVE] Token from args: {token[:20] if token else None}...")
+                    if not token and hasattr(request, 'headers') and request.headers:
+                        auth_header = request.headers.get('Authorization')
+                        custom_log(f"🔍 [RESOLVE] Auth header: {auth_header[:20] if auth_header else None}...")
+                        if auth_header and auth_header.startswith('Bearer '):
+                            token = auth_header[7:]
+                            custom_log(f"🔍 [RESOLVE] Token from header: {token[:20] if token else None}...")
+                    
+                    if token:
+                        custom_log(f"🔍 [RESOLVE] Found JWT token, validating...")
+                        payload = jwt_manager.validate_token(token, TokenType.ACCESS)
+                        custom_log(f"🔍 [RESOLVE] JWT payload: {payload}")
+                        if payload and payload.get('user_id'):
+                            user_id = str(payload.get('user_id'))
+                            custom_log(f"✅ [RESOLVE] Extracted user_id from JWT: {user_id}")
+                            
+                            # Persist back into session
+                            session_data = session_data or {}
+                            session_data['user_id'] = user_id
+                            if payload.get('username'):
+                                session_data['username'] = payload.get('username')
+                            self.websocket_manager.store_session_data(session_id, session_data)
+                            
+                            return user_id
+                        else:
+                            custom_log(f"⚠️ [RESOLVE] JWT token invalid or missing user_id")
+                    else:
+                        custom_log(f"⚠️ [RESOLVE] No JWT token found in request")
+                else:
+                    custom_log(f"⚠️ [RESOLVE] JWT manager not available")
+            except Exception as e:
+                custom_log(f"⚠️ [RESOLVE] Error extracting user_id from JWT: {e}")
+                import traceback
+                custom_log(f"⚠️ [RESOLVE] Traceback: {traceback.format_exc()}")
+
+            # 4) Fallback: use session_id as user_id (for backward compatibility)
+            # BUT: If we have session data with a real user_id, use that instead
+            if session_data and session_data.get('user_id'):
+                real_user_id = session_data.get('user_id')
+                custom_log(f"✅ [RESOLVE] Using real user_id from session: {real_user_id}")
+                return str(real_user_id)
+            
+            custom_log(f"⚠️ [RESOLVE] Using session_id as fallback user_id: {session_id}")
+            return str(session_id)
+        except Exception as e:
+            custom_log(f"⚠️ [RESOLVE] Unexpected error resolving user_id: {e}")
+            # Try to get user_id from session data as last resort
+            try:
+                session_data = self.websocket_manager.get_session_data(session_id)
+                if session_data and session_data.get('user_id'):
+                    real_user_id = session_data.get('user_id')
+                    custom_log(f"✅ [RESOLVE] Using real user_id from session (fallback): {real_user_id}")
+                    return str(real_user_id)
+            except:
+                pass
+            return str(session_id)
 
     def handle_unified_event(self, event_name, event_type, data):
         """Unified event handler that routes to specific handlers"""
@@ -59,15 +148,82 @@ class WSEventHandlers:
             # Update rate limit
             self.websocket_manager.update_rate_limit(client_id, 'connections')
             
-            # Store basic session data
+            # Extract actual user ID from JWT token during connection
+            user_id = None
+            try:
+                # Get JWT manager from WebSocket manager
+                jwt_manager = getattr(self.websocket_manager, '_jwt_manager', None)
+                custom_log(f"🔍 [CONNECT] JWT manager available: {jwt_manager is not None}")
+                
+                if jwt_manager:
+                    # Try to get token from Socket.IO connection context
+                    token = None
+                    
+                    # Debug request object
+                    custom_log(f"🔍 [CONNECT] Request object: {type(request)}")
+                    custom_log(f"🔍 [CONNECT] Request has args: {hasattr(request, 'args')}")
+                    custom_log(f"🔍 [CONNECT] Request has headers: {hasattr(request, 'headers')}")
+                    custom_log(f"🔍 [CONNECT] Request has environ: {hasattr(request, 'environ')}")
+                    
+                    # Socket.IO stores auth data in the connection context
+                    if hasattr(request, 'sid'):
+                        custom_log(f"🔍 [CONNECT] Request has sid: {request.sid}")
+                        # Get token from Socket.IO auth data
+                        try:
+                            # In Socket.IO, auth data is passed during connection
+                            # Check if we can get it from the connection context
+                            if hasattr(request, 'environ'):
+                                # Try to get from environment variables
+                                token = request.environ.get('HTTP_AUTHORIZATION')
+                                custom_log(f"🔍 [CONNECT] Token from environ: {token[:20] if token else None}...")
+                                if token and token.startswith('Bearer '):
+                                    token = token[7:]
+                                    custom_log(f"🔍 [CONNECT] Found token in environ: {token[:20]}...")
+                        except Exception as e:
+                            custom_log(f"⚠️ [CONNECT] Error getting token from environ: {e}")
+                    
+                    # If no token found, try to get from query parameters
+                    if not token and hasattr(request, 'args') and request.args:
+                        custom_log(f"🔍 [CONNECT] Request args: {request.args}")
+                        token = request.args.get('token')
+                        if token:
+                            custom_log(f"🔍 [CONNECT] Found token in args: {token[:20]}...")
+                    
+                    if token:
+                        custom_log(f"🔍 [CONNECT] Validating JWT token...")
+                        payload = jwt_manager.validate_token(token, TokenType.ACCESS)
+                        custom_log(f"🔍 [CONNECT] JWT payload: {payload}")
+                        if payload and payload.get('user_id'):
+                            user_id = str(payload.get('user_id'))
+                            custom_log(f"✅ [CONNECT] Extracted actual user_id from JWT: {user_id}")
+                        else:
+                            custom_log(f"⚠️ [CONNECT] JWT token invalid or missing user_id")
+                    else:
+                        custom_log(f"⚠️ [CONNECT] No JWT token found in connection")
+                else:
+                    custom_log(f"⚠️ [CONNECT] JWT manager not available")
+            except Exception as e:
+                custom_log(f"⚠️ [CONNECT] Error extracting user_id from JWT: {e}")
+                import traceback
+                custom_log(f"⚠️ [CONNECT] Traceback: {traceback.format_exc()}")
+            
+            # Fallback to session_id if no user_id found
+            if not user_id:
+                user_id = session_id
+                custom_log(f"⚠️ [CONNECT] Using session_id as fallback user_id: {user_id}")
+            
+            # Store session data with actual user_id
             session_data = {
                 'session_id': session_id,
+                'user_id': user_id,  # This should be the actual user ID from JWT
                 'connected_at': datetime.now().isoformat(),
                 'client_id': client_id,
                 'rooms': set(),
                 'user_roles': set(),
                 'last_activity': datetime.now().isoformat()
             }
+            
+            custom_log(f"✅ [CONNECT] Stored session data with user_id: {user_id}")
             
             # Store session data
             self.websocket_manager.store_session_data(session_id, session_data)
@@ -114,8 +270,7 @@ class WSEventHandlers:
         """Handle room join requests"""
         try:
             room_id = data.get('room_id')
-            user_id = data.get('user_id')
-            custom_log(f"🔧 [HANDLER-JOIN] Handling join room: {room_id} for session: {session_id}, user: {user_id}")
+            custom_log(f"🔧 [HANDLER-JOIN] Handling join room: {room_id} for session: {session_id}")
             
             if not room_id:
                 custom_log("❌ No room_id provided for join request")
@@ -129,17 +284,26 @@ class WSEventHandlers:
                 self.socketio.emit('join_room_error', {'error': 'Session not found'})
                 return False
             
+            # Resolve user id using backend auth/JWT if available
+            user_id = self._resolve_user_id(session_id, data)
+            
+            custom_log(f"🔧 [HANDLER-JOIN] Using user_id: {user_id} for join room: {room_id}")
+            
             # Join the room
             success = self.websocket_manager.join_room(room_id, session_id, user_id)
             
             if success:
                 custom_log(f"✅ Successfully joined room: {room_id}")
                 
+                # Get room owner information from memory storage
+                room_owner_id = self.websocket_manager.get_room_creator(room_id)
+                
                 # Emit success to client (matching Flutter expectations)
                 self.socketio.emit('join_room_success', {
                     'room_id': room_id,
                     'session_id': session_id,
                     'user_id': user_id,
+                    'owner_id': room_owner_id,  # Include owner_id in response
                     'timestamp': datetime.now().isoformat(),
                     'current_size': self.websocket_manager.get_room_size(room_id),
                     'max_size': 10
@@ -162,33 +326,32 @@ class WSEventHandlers:
             permission = data.get('permission', 'public')
             custom_log(f"🔧 [HANDLER-CREATE] Handling create room: {room_id} with permission: {permission}")
             
-            # Get session data
-            session_data = self.websocket_manager.get_session_data(session_id)
-            if not session_data:
-                custom_log(f"❌ No session data found for: {session_id}")
-                self.socketio.emit('create_room_error', {'error': 'Session not found'})
-                return False
+            # Resolve user id using backend auth/JWT if available
+            user_id = self._resolve_user_id(session_id, data)
             
             # Generate room_id if not provided
             if not room_id:
                 room_id = f"room_{uuid.uuid4().hex[:8]}"
                 custom_log(f"Generated room_id: {room_id}")
             
-            # Create the room
-            success = self.websocket_manager.create_room(room_id, permission)
+            # Create the room with owner_id
+            success = self.websocket_manager.create_room(room_id, permission, owner_id=user_id)
             
             if success:
                 # Join the room after creation
-                user_id = data.get('user_id')
                 join_success = self.websocket_manager.join_room(room_id, session_id, user_id)
                 
                 if join_success:
+                    # Get owner_id from memory storage
+                    owner_id = self.websocket_manager.get_room_creator(room_id)
+                    
                     # Emit success events to client (matching Flutter expectations)
                     self.socketio.emit('create_room_success', {
                         'room_id': room_id,
                         'permission': permission,
                         'session_id': session_id,
                         'user_id': user_id,
+                        'owner_id': owner_id,  # Get owner_id from memory
                         'timestamp': datetime.now().isoformat(),
                         'current_size': 1,
                         'max_size': 10
@@ -198,12 +361,13 @@ class WSEventHandlers:
                         'room_id': room_id,
                         'session_id': session_id,
                         'user_id': user_id,
+                        'owner_id': owner_id,  # Get owner_id from memory
                         'timestamp': datetime.now().isoformat(),
                         'current_size': 1,
                         'max_size': 10
                     })
                     
-                    custom_log(f"✅ Successfully created and joined room: {room_id}")
+                    custom_log(f"✅ Successfully created and joined room: {room_id} with owner: {user_id}")
                     return True
                 else:
                     custom_log(f"❌ Failed to join room after creation: {room_id}")

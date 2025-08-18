@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart' hide Card;
-import '../utils/game_constants.dart';
+import '../../../tools/logging/logger.dart';
 
 /// Card suit enumeration
 enum CardSuit {
@@ -39,6 +39,8 @@ enum SpecialPowerType {
 
 /// Card model for the Recall game
 class Card {
+  static final Logger _log = Logger();
+  
   final CardSuit suit;
   final CardRank rank;
   final int points;
@@ -115,7 +117,7 @@ class Card {
         final suitStr = json['suit'] as String? ?? 'hearts';
         suit = CardSuit.values.firstWhere((s) => s.name == suitStr);
       } catch (e) {
-        print('⚠️ Failed to parse card suit: ${json['suit']}, available: ${CardSuit.values.map((s) => s.name).join(', ')}');
+        _log.warning('⚠️ Failed to parse card suit: ${json['suit']}, available: ${CardSuit.values.map((s) => s.name).join(', ')}');
         suit = CardSuit.hearts; // fallback
       }
 
@@ -125,7 +127,7 @@ class Card {
         final rankStr = json['rank'] as String? ?? 'ace';
         rank = CardRank.values.firstWhere((r) => r.name == rankStr);
       } catch (e) {
-        print('⚠️ Failed to parse card rank: ${json['rank']}, available: ${CardRank.values.map((r) => r.name).join(', ')}');
+        _log.warning('⚠️ Failed to parse card rank: ${json['rank']}, available: ${CardRank.values.map((r) => r.name).join(', ')}');
         rank = CardRank.ace; // fallback
       }
 
@@ -135,7 +137,7 @@ class Card {
         final powerStr = json['specialPower'] as String? ?? 'none';
         specialPower = SpecialPowerType.values.firstWhere((s) => s.name == powerStr);
       } catch (e) {
-        print('⚠️ Failed to parse special power: ${json['specialPower']}, available: ${SpecialPowerType.values.map((s) => s.name).join(', ')}');
+        _log.warning('⚠️ Failed to parse special power: ${json['specialPower']}, available: ${SpecialPowerType.values.map((s) => s.name).join(', ')}');
         specialPower = SpecialPowerType.none; // fallback
       }
 
@@ -148,8 +150,8 @@ class Card {
         specialPowerData: json['specialPowerData'],
       );
     } catch (e) {
-      print('❌ Error parsing Card from JSON: $e');
-      print('❌ JSON data: $json');
+      _log.error('❌ Error parsing Card from JSON: $e');
+      _log.error('❌ JSON data: $json');
       rethrow;
     }
   }

@@ -213,9 +213,13 @@ class WSBroadcastManager:
     def send_join_room_success(self, session_id: str, room_id: str, room_data: Dict[str, Any]) -> bool:
         """Send join room success message to session."""
         try:
+            # Get owner_id from memory storage
+            owner_id = self.websocket_manager.get_room_creator(room_id)
+            
             success_data = {
                 'room_id': room_id,
                 'room_data': room_data,
+                'owner_id': owner_id,  # Include owner_id from memory
                 'timestamp': datetime.now().isoformat()
             }
             
@@ -270,9 +274,13 @@ class WSBroadcastManager:
     def send_room_state(self, session_id: str, room_id: str, room_data: Dict[str, Any]) -> bool:
         """Send room state to session."""
         try:
+            # Get owner_id from memory storage
+            owner_id = self.websocket_manager.get_room_creator(room_id)
+            
             state_data = {
                 'room_id': room_id,
                 'room_data': room_data,
+                'owner_id': owner_id,  # Include owner_id from memory
                 'timestamp': datetime.now().isoformat()
             }
             

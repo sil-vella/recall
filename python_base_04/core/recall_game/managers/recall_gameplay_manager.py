@@ -72,7 +72,6 @@ class RecallGameplayManager:
             # Do not auto-start here; wait for explicit start via recall_start_match
 
             payload = {
-                'type': 'recall_event',
                 'event_type': 'game_joined',
                 'game_id': game_id,
                 'game_state': self._to_flutter_game_state(game),
@@ -102,7 +101,6 @@ class RecallGameplayManager:
             game.remove_player(user_id)
 
             payload = {
-                'type': 'recall_event',
                 'event_type': 'player_left',
                 'game_id': game_id,
                 'game_state': self._to_flutter_game_state(game),
@@ -150,7 +148,6 @@ class RecallGameplayManager:
 
             event_type = engine_result.get('event_type') or 'game_state_updated'
             payload = {
-                'type': 'recall_event',
                 'event_type': event_type,
                 'game_id': game_id,
                 'game_state': self._to_flutter_game_state(game),
@@ -219,7 +216,6 @@ class RecallGameplayManager:
             result = game.call_recall(user_id)
 
             payload = {
-                'type': 'recall_event',
                 'event_type': 'recall_called',
                 'game_id': game_id,
                 'updated_game_state': self._to_flutter_game_state(game),
@@ -250,7 +246,6 @@ class RecallGameplayManager:
             result = game.play_out_of_turn(user_id, cid)
 
             payload = {
-                'type': 'recall_event',
                 'event_type': 'card_played',
                 'game_id': game_id,
                 'game_state': self._to_flutter_game_state(game),
@@ -289,7 +284,6 @@ class RecallGameplayManager:
                     self._emit_error(session_id, 'Invalid target card index')
                     return False
                 payload = {
-                    'type': 'recall_event',
                     'event_type': 'special_power_used',
                     'game_id': game_id,
                     'game_state': self._to_flutter_game_state(game),
@@ -319,7 +313,6 @@ class RecallGameplayManager:
                 dst_card = dst.hand[dst_idx]
                 src.hand[src_idx], dst.hand[dst_idx] = dst_card, src_card
                 payload = {
-                    'type': 'recall_event',
                     'event_type': 'special_power_used',
                     'game_id': game_id,
                     'game_state': self._to_flutter_game_state(game),
@@ -336,7 +329,6 @@ class RecallGameplayManager:
                 return True
             else:
                 payload = {
-                    'type': 'recall_event',
                     'event_type': 'special_power_used',
                     'game_id': game_id,
                     'game_state': self._to_flutter_game_state(game),
@@ -366,7 +358,6 @@ class RecallGameplayManager:
                 from ..models.game_state import GamePhase
                 if game.phase != GamePhase.WAITING_FOR_PLAYERS:
                     payload = {
-                        'type': 'recall_event',
                         'event_type': 'game_state_updated',
                         'game_id': game_id,
                         'game_state': self._to_flutter_game_state(game),
@@ -391,7 +382,6 @@ class RecallGameplayManager:
             game.start_game()
 
             payload = {
-                'type': 'recall_event',
                 'event_type': 'game_started',
                 'game_id': game_id,
                 'game_state': self._to_flutter_game_state(game),
@@ -418,7 +408,6 @@ class RecallGameplayManager:
             user_id = str(session_data.get('user_id') or session_id)
             result = game.initial_peek(user_id, indices)
             payload = {
-                'type': 'recall_event',
                 'event_type': 'game_state_updated',
                 'game_id': game_id,
                 'game_state': self._to_flutter_game_state(game),
@@ -498,7 +487,8 @@ class RecallGameplayManager:
 
     def _broadcast_message(self, room_id: str, payload: Dict[str, Any], sender_session_id: Optional[str] = None):
         try:
-            self.websocket_manager.broadcast_message(room_id, payload, sender_session_id)
+            # Send as recall_game_event so frontend can properly handle it
+            self.websocket_manager.broadcast_to_room(room_id, 'recall_game_event', payload)
         except Exception as e:
             custom_log(f"Error broadcasting recall event: {e}")
 
@@ -552,13 +542,19 @@ class RecallGameplayManager:
         for pid, p in game.players.items():
             players_list.append(self._to_flutter_player(p, pid == game.current_player_id))
 
+        # Determine game status based on phase
+        # Game is 'inactive' when waiting for players, 'active' after match starts
+        game_status = 'inactive' if game.phase.value == 'waiting_for_players' else 'active'
+        if game.game_ended:
+            game_status = 'ended'
+
         return {
             'gameId': game.game_id,
             'gameName': f'Recall Game {game.game_id[:6]}',
             'players': players_list,
             'currentPlayer': self._to_flutter_player(game.players[game.current_player_id], True) if game.current_player_id and game.current_player_id in game.players else None,
             'phase': self._to_flutter_phase(game.phase.value),
-            'status': 'active' if not game.game_ended else 'ended',
+            'status': game_status,
             'drawPile': [],
             'discardPile': [self._to_flutter_card(c) for c in game.discard_pile],
             'centerPile': [],

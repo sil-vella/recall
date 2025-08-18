@@ -424,8 +424,16 @@ class RecallGameStateUpdater {
     final canCallRecall = state['canCallRecall'] ?? false;
     final canPlayCard = state['canPlayCard'] ?? false;
     
+    final showStartButton = isRoomOwner && !isGameActive;
+    
+    // Debug logging for action bar computation
+    print('🎯 [ActionBar] Computing slice:');
+    print('  - isRoomOwner: $isRoomOwner');
+    print('  - isGameActive: $isGameActive');
+    print('  - showStartButton: $showStartButton (${isRoomOwner} && !${isGameActive})');
+    
     return {
-      'showStartButton': isRoomOwner && !isGameActive,
+      'showStartButton': showStartButton,
       'canPlayCard': canPlayCard && isMyTurn,
       'canCallRecall': canCallRecall && isMyTurn,
       'isGameStarted': isGameActive,

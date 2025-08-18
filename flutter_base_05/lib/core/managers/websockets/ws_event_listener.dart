@@ -49,9 +49,11 @@ class WSEventListener {
 
     // Message events
     _registerMessageListener();
+
+    // Error events
     _registerErrorListener();
-    
-    _log.info("✅ All WebSocket event listeners registered successfully");
+
+    _log.info("✅ All WebSocket event listeners registered");
   }
 
   /// Register connection event listener

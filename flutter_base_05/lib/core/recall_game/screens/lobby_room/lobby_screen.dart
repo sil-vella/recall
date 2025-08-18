@@ -13,7 +13,8 @@ import 'services/room_service.dart';
 import '../../widgets/feature_slot.dart';
 import 'features/lobby_features.dart';
 import 'widgets/message_board_widget.dart';
-
+import '../../../managers/state_manager.dart';
+import '../../utils/recall_game_helpers.dart';
 
 
 class LobbyScreen extends BaseScreen {
@@ -60,6 +61,17 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     try {
       final created = await _roomService.createRoom(roomSettings);
       if (created.isNotEmpty) {
+        // Update state to refresh MyRoomsWidget
+        final currentState = StateManager().getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+        final currentMyCreatedRooms = (currentState['myCreatedRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+        
+        // Add to myCreatedRooms if not already there
+        if (!currentMyCreatedRooms.any((room) => room['room_id'] == created['room_id'])) {
+          RecallGameHelpers.updateUIState({
+            'myCreatedRooms': [...currentMyCreatedRooms, created],
+          });
+        }
+        
         if (mounted) _showSnackBar('Room created successfully!');
       } else {
         if (mounted) _showSnackBar('Failed to create room', isError: true);
@@ -99,24 +111,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   }
 
   void _setupEventCallbacks() {
-    _roomService.setupEventCallbacks(
-      (action, roomId) {
-        if (mounted) {
-          if (action == 'joined') {
-            _showSnackBar('Successfully joined room: $roomId');
-          } else if (action == 'left') {
-            _showSnackBar('Left room: $roomId');
-          } else if (action == 'created') {
-            _showSnackBar('Room created: $roomId');
-          }
-        }
-      },
-      (error) {
-        if (mounted) {
-          _showSnackBar('Error: $error', isError: true);
-        }
-      },
-    );
+    _roomService.setupEventCallbacks();
   }
 
   void _showSnackBar(String message, {bool isError = false}) {

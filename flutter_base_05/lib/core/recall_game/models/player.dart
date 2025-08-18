@@ -1,4 +1,5 @@
 import 'card.dart';
+import '../../../tools/logging/logger.dart';
 
 /// Player type enumeration
 enum PlayerType {
@@ -17,6 +18,8 @@ enum PlayerStatus {
 
 /// Base player model
 class Player {
+  static final Logger _log = Logger();
+  
   final String id;
   final String name;
   final PlayerType type;
@@ -129,7 +132,7 @@ class Player {
         final typeStr = json['type'] as String? ?? 'human';
         type = PlayerType.values.firstWhere((t) => t.name == typeStr);
       } catch (e) {
-        print('⚠️ Failed to parse player type: ${json['type']}, available: ${PlayerType.values.map((t) => t.name).join(', ')}');
+        _log.warning('⚠️ Failed to parse player type: ${json['type']}, available: ${PlayerType.values.map((t) => t.name).join(', ')}');
         type = PlayerType.human; // fallback
       }
 
@@ -139,7 +142,7 @@ class Player {
         final statusStr = json['status'] as String? ?? 'waiting';
         status = PlayerStatus.values.firstWhere((s) => s.name == statusStr);
       } catch (e) {
-        print('⚠️ Failed to parse player status: ${json['status']}, available: ${PlayerStatus.values.map((s) => s.name).join(', ')}');
+        _log.warning('⚠️ Failed to parse player status: ${json['status']}, available: ${PlayerStatus.values.map((s) => s.name).join(', ')}');
         status = PlayerStatus.waiting; // fallback
       }
 
@@ -162,8 +165,8 @@ class Player {
             : null,
       );
     } catch (e) {
-      print('❌ Error parsing Player from JSON: $e');
-      print('❌ JSON data: $json');
+      _log.error('❌ Error parsing Player from JSON: $e');
+      _log.error('❌ JSON data: $json');
       rethrow;
     }
   }

@@ -248,6 +248,9 @@ class RecallGameManager {
         case 'game_state_updated':
           _handleGameStateUpdated(data);
           break;
+        case 'create_room_success':
+          _handleCreateRoomSuccess(data);
+          break;
         case 'error':
           _handleGameErrorEvent(data);
           break;
@@ -380,6 +383,20 @@ class RecallGameManager {
     if (outEnds is num) {
       _log.info('⏱️ Out-of-turn window ends at: $outEnds');
       // UI can read this from state json for banner countdown
+    }
+  }
+
+  /// Handle create room success event
+  void _handleCreateRoomSuccess(Map<String, dynamic> data) {
+    final roomId = data['room_id'] as String?;
+    final ownerId = data['owner_id'] as String?;
+    if (roomId != null) {
+      _log.info('🎉 Create room success: $roomId');
+      RecallGameHelpers.setRoomOwnership(
+        roomId: roomId,
+        isOwner: true,
+      );
+      _updateMainStateManager();
     }
   }
 
@@ -934,79 +951,7 @@ class RecallGameManager {
     }
   }
 
-  /// Start match (legacy method - use the newer startMatch instead)
-  Future<Map<String, dynamic>> startMatchLegacy() async {
-    try {
-      if (!_isInitialized) {
-        final initialized = await initialize();
-        if (!initialized) {
-          return {'error': 'Game manager not initialized'};
-        }
-      }
-      
-      // Auto-join current room if not yet in a game
-      if (_currentGameId == null) {
-        final wsState = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
-        final currentRoomId = (wsState['currentRoomId'] ?? '').toString();
-        if (currentRoomId.isNotEmpty) {
-          final login = _stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
-          final playerName = (login['username'] ?? login['email'] ?? 'Player').toString();
-          _log.info('🔗 Not in a game. Attempting auto-join of room: $currentRoomId as $playerName');
-          final joinRes = await joinGame(currentRoomId, playerName);
-          if (joinRes['error'] != null) {
-            _log.warning('⚠️ Auto-join failed: ${joinRes['error']}');
-            return joinRes;
-          }
-        } else {
-          _log.warning('⚠️ StartMatch requested but no current room and no active game');
-          return {'error': 'No current room'};
-        }
-      }
 
-      if (_currentGameId == null) {
-        return {'error': 'Not in a game'};
-      }
-
-      // Ensure we have a player ID - try to get it from the current game state
-      if (_currentPlayerId == null) {
-        final gameState = _currentGameState;
-        if (gameState != null) {
-          // Try to find the current user's player ID from the game state
-          final login = _stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
-          final playerName = (login['username'] ?? login['email'] ?? 'Player').toString();
-          
-          final currentUser = gameState.players.where((p) => p.name == playerName).firstOrNull;
-          if (currentUser != null) {
-            _currentPlayerId = currentUser.id;
-            _log.info('🔍 Found player ID from game state: $_currentPlayerId');
-          }
-        }
-        
-        // If still no player ID, try to get it from WebSocket session
-        if (_currentPlayerId == null) {
-          final sessionId = _wsManager.socket?.id;
-          if (sessionId != null) {
-            _currentPlayerId = sessionId;
-            _log.info('🔍 Using session ID as player ID: $_currentPlayerId');
-          }
-        }
-      }
-
-      if (_currentPlayerId == null) {
-        _log.warning('⚠️ No player ID available for start match');
-        return {'error': 'Player ID not available'};
-      }
-
-      // 🎯 Use validated event emitter for starting match
-      _log.info('🚀 Starting match using validated system for game: $_currentGameId');
-      
-      final result = await RecallGameHelpers.startMatch(_currentGameId!);
-      return result;
-    } catch (e) {
-      _log.error('❌ Error starting match: $e');
-      return {'error': 'Failed to start match: $e'};
-    }
-  }
 
   /// Get current game state
   GameState? getCurrentGameState() {

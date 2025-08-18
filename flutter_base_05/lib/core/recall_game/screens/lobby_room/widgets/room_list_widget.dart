@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../managers/state_manager.dart';
 import '../../../../managers/navigation_manager.dart';
-import '../../../managers/recall_game_manager.dart';
+import '../../../services/recall_game_coordinator.dart';
 
 class RoomListWidget extends StatelessWidget {
   final String title;
@@ -37,8 +37,8 @@ class RoomListWidget extends StatelessWidget {
       final playerName = (login['username'] ?? login['email'] ?? 'Player').toString();
       
       print('🎮 Joining game as: $playerName');
-      final gameManager = RecallGameManager();
-      final joinResult = await gameManager.joinGame(roomId, playerName);
+      final gameCoordinator = RecallGameCoordinator();
+      final joinResult = await gameCoordinator.joinGameAndRoom(roomId, playerName);
       if (joinResult['error'] != null) {
         _showSnackBar(context, 'Failed to join game: ${joinResult['error']}', isError: true);
         return;
@@ -190,7 +190,7 @@ class _RoomTile extends StatelessWidget {
               ),
               Column(
                 children: [
-                  if (hasActiveGame)
+                  if (hasActiveGame && gameStatus == 'active')
                     ElevatedButton(
                       onPressed: onJoinRoom,
                       style: ElevatedButton.styleFrom(
@@ -198,6 +198,15 @@ class _RoomTile extends StatelessWidget {
                         foregroundColor: Colors.white,
                       ),
                       child: const Text('Join Game'),
+                    )
+                  else if (hasActiveGame && gameStatus == 'inactive')
+                    ElevatedButton(
+                      onPressed: onJoinRoom,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Go to Game Room'),
                     )
                   else
                     ElevatedButton(

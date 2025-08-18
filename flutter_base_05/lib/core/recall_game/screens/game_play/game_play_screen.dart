@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../managers/state_manager.dart';
 import '../../models/card.dart' as cm;
 
-import '../../managers/recall_game_manager.dart';
+import '../../services/recall_game_coordinator.dart';
 import '../../utils/recall_game_helpers.dart';
 import '../../utils/validated_event_emitter.dart';
 // Provider removed – use StateManager only
@@ -32,7 +32,7 @@ class GamePlayScreen extends BaseScreen {
 class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   // State management - screen itself doesn't subscribe to state changes
   final StateManager _sm = StateManager();
-  final RecallGameManager _gameManager = RecallGameManager();
+  final RecallGameCoordinator _gameCoordinator = RecallGameCoordinator();
 
   // UI selections are now managed in StateManager
 
@@ -48,10 +48,10 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       // 🎯 Use validated state access
       final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentRoomId = recall['currentRoomId'] as String? ?? '';
-      if (currentRoomId.isNotEmpty && _gameManager.currentGameId != currentRoomId) {
+      if (currentRoomId.isNotEmpty && _gameCoordinator.currentGameId != currentRoomId) {
         final userInfo = recall['userInfo'] as Map<String, dynamic>? ?? {};
         final playerName = userInfo['name'] as String? ?? 'Player';
-        await _gameManager.joinGame(currentRoomId, playerName);
+        await _gameCoordinator.joinGameAndRoom(currentRoomId, playerName);
       }
     });
   }

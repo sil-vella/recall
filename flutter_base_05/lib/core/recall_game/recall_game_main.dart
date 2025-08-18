@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../managers/navigation_manager.dart';
 
-import 'managers/recall_game_manager.dart';
+import 'services/recall_game_coordinator.dart';
 // Removed RecallGameNotifier usage – using StateManager only
 import '../managers/state_manager.dart';
 // import '../managers/websockets/websocket_manager.dart';
@@ -17,10 +17,10 @@ class RecallGameCore {
   bool _isInitialized = false;
   
   // Core Managers
-  final RecallGameManager _recallGameManager = RecallGameManager();
+  final RecallGameCoordinator _recallGameCoordinator = RecallGameCoordinator();
   
-  /// Get Recall Game Manager
-  RecallGameManager get recallGameManager => _recallGameManager;
+  /// Get Recall Game Coordinator
+  RecallGameCoordinator get recallGameCoordinator => _recallGameCoordinator;
   
   // No ChangeNotifier notifier – we rely on StateManager only
 
@@ -94,14 +94,14 @@ class RecallGameCore {
       // Step 2: RecallStateManager removed - functionality moved to RecallGameManager
       _log.info('📊 RecallStateManager functionality moved to RecallGameManager');
       
-      // Step 3: Initialize and wait for RecallGameManager
-      _log.info('🎮 Initializing RecallGameManager...');
-      final gameManagerInitResult = await _recallGameManager.initialize();
-      if (!gameManagerInitResult) {
-        _log.error('❌ RecallGameManager initialization failed');
+      // Step 3: Initialize and wait for RecallGameCoordinator
+      _log.info('🎮 Initializing RecallGameCoordinator...');
+      final gameCoordinatorInitResult = await _recallGameCoordinator.initialize();
+      if (!gameCoordinatorInitResult) {
+        _log.error('❌ RecallGameCoordinator initialization failed');
         return false;
       }
-      _log.info('✅ RecallGameManager initialized successfully');
+      _log.info('✅ RecallGameCoordinator initialized successfully');
       
       // Step 4: Initialize RecallMessageManager
       _log.info('📨 Initializing RecallMessageManager...');
@@ -184,7 +184,7 @@ class RecallGameCore {
   void dispose() {
     // No notifier to dispose
 
-    _recallGameManager.dispose();
+    _recallGameCoordinator.dispose();
     _log.info('🛑 RecallGameCore disposed');
   }
 } 

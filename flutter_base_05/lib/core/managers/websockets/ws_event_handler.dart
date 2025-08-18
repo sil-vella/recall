@@ -1,9 +1,10 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../state_manager.dart';
 import '../module_manager.dart';
-import '../../../tools/logging/logger.dart';
+import '../../../../tools/logging/logger.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
+import '../../recall_game/utils/recall_game_helpers.dart';
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -36,6 +37,9 @@ class WSEventHandler {
         sessionData: data is Map<String, dynamic> ? data : null,
       );
       
+      // Also update recall game state connection status
+      RecallGameHelpers.updateConnectionStatus(isConnected: true);
+      
       _log.info("✅ Connection handled successfully");
     } catch (e) {
       _log.error("❌ Error handling connection: $e");
@@ -52,6 +56,9 @@ class WSEventHandler {
         isConnected: false,
       );
       
+      // Also update recall game state connection status
+      RecallGameHelpers.updateConnectionStatus(isConnected: false);
+      
       _log.info("✅ Disconnection handled successfully");
     } catch (e) {
       _log.error("❌ Error handling disconnection: $e");
@@ -67,6 +74,9 @@ class WSEventHandler {
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: false,
       );
+      
+      // Also update recall game state connection status
+      RecallGameHelpers.updateConnectionStatus(isConnected: false);
       
       _log.info("✅ Connection error handled successfully");
     } catch (e) {
@@ -97,6 +107,14 @@ class WSEventHandler {
     try {
       final roomId = data['room_id'] ?? '';
       final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      final ownerId = data['owner_id'] ?? '';
+      
+      // Get current user ID from login module state
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId'] ?? '';
+      
+      // Check if current user is the room owner
+      final isRoomOwner = currentUserId == ownerId;
       
       // Use validated state updater
       WebSocketStateHelpers.updateRoomInfo(
@@ -104,11 +122,22 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
+      // Set room ownership and game state in recall game state
+      RecallGameHelpers.updateUIState({
+        'isRoomOwner': isRoomOwner,
+        'currentRoomId': roomId,
+        'isGameActive': false,  // Ensure game is not active when joining room
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+      });
+      _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
+      
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
         'action': 'joined',
         'roomId': roomId,
         'roomData': roomData,
+        'isOwner': isRoomOwner,
       });
       
       // Trigger specific event callbacks
@@ -128,6 +157,14 @@ class WSEventHandler {
     try {
       final roomId = data['room_id'] ?? '';
       final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      final ownerId = data['owner_id'] ?? '';
+      
+      // Get current user ID from login module state
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId'] ?? '';
+      
+      // Check if current user is the room owner
+      final isRoomOwner = currentUserId == ownerId;
       
       // Use validated state updater
       WebSocketStateHelpers.updateRoomInfo(
@@ -135,11 +172,22 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
+      // Set room ownership and game state in recall game state
+      RecallGameHelpers.updateUIState({
+        'isRoomOwner': isRoomOwner,
+        'currentRoomId': roomId,
+        'isGameActive': false,  // Ensure game is not active when joining room
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+      });
+      _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
+      
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
         'action': 'joined',
         'roomId': roomId,
         'roomData': roomData,
+        'isOwner': isRoomOwner,
       });
       
       // Trigger specific event callbacks
@@ -178,6 +226,14 @@ class WSEventHandler {
     try {
       final roomId = data['room_id'] ?? '';
       final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      final ownerId = data['owner_id'] ?? '';
+      
+      // Get current user ID from login module state
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId'] ?? '';
+      
+      // Check if current user is the room owner
+      final isRoomOwner = currentUserId == ownerId;
       
       // Use validated state updater
       WebSocketStateHelpers.updateRoomInfo(
@@ -185,11 +241,22 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
+      // Set room ownership and game state in recall game state
+      RecallGameHelpers.updateUIState({
+        'isRoomOwner': isRoomOwner,
+        'currentRoomId': roomId,
+        'isGameActive': false,  // Ensure game is not active when room is created
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+      });
+      _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
+      
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
         'action': 'created',
         'roomId': roomId,
         'roomData': roomData,
+        'isOwner': isRoomOwner,
       });
       
       // Trigger specific event callbacks
@@ -344,11 +411,14 @@ class WSEventHandler {
     }
   }
 
-  /// Handle error event
+  /// Handle error events
   void handleError(dynamic data) {
     _log.info("🔧 [HANDLER-ERROR] Handling error event");
     
     try {
+      // Log the error event
+      _log.error("🚨 Error event received: $data");
+      
       _log.info("✅ Error handled successfully");
     } catch (e) {
       _log.error("❌ Error handling error event: $e");

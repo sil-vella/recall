@@ -1,5 +1,6 @@
 import 'card.dart';
 import 'player.dart';
+import '../../../tools/logging/logger.dart';
 
 /// Game phase enumeration
 enum GamePhase {
@@ -20,6 +21,8 @@ enum GameStatus {
 
 /// Game state model representing the current state of a Recall game
 class GameState {
+  static final Logger _log = Logger();
+  
   final String gameId;
   final String gameName;
   final List<Player> players;
@@ -224,7 +227,7 @@ class GameState {
         final phaseStr = json['phase'] as String? ?? 'waiting';
         phase = GamePhase.values.firstWhere((p) => p.name == phaseStr);
       } catch (e) {
-        print('⚠️ Failed to parse phase: ${json['phase']}, available: ${GamePhase.values.map((p) => p.name).join(', ')}');
+        _log.warning('⚠️ Failed to parse phase: ${json['phase']}, available: ${GamePhase.values.map((p) => p.name).join(', ')}');
         phase = GamePhase.waiting; // fallback
       }
 
@@ -234,7 +237,7 @@ class GameState {
         final statusStr = json['status'] as String? ?? 'active';
         status = GameStatus.values.firstWhere((s) => s.name == statusStr);
       } catch (e) {
-        print('⚠️ Failed to parse status: ${json['status']}, available: ${GameStatus.values.map((s) => s.name).join(', ')}');
+        _log.warning('⚠️ Failed to parse status: ${json['status']}, available: ${GameStatus.values.map((s) => s.name).join(', ')}');
         status = GameStatus.active; // fallback
       }
 
@@ -273,8 +276,8 @@ class GameState {
         errorMessage: json['errorMessage'],
       );
     } catch (e) {
-      print('❌ Error parsing GameState from JSON: $e');
-      print('❌ JSON data: $json');
+      _log.error('❌ Error parsing GameState from JSON: $e');
+      _log.error('❌ JSON data: $json');
       rethrow;
     }
   }
@@ -294,89 +297,4 @@ class GameState {
   }
 }
 
-/// Game state manager for managing game state updates
-class GameStateManager {
-  GameState? _currentGameState;
-  final List<Function(GameState)> _stateListeners = [];
-
-  /// Get current game state
-  GameState? get currentGameState => _currentGameState;
-
-  /// Check if there's an active game
-  bool get hasActiveGame => _currentGameState != null && _currentGameState!.isActive;
-
-  /// Update game state
-  void updateGameState(GameState newState) {
-    _currentGameState = newState;
-    _notifyListeners();
-  }
-
-  /// Update specific game state properties
-  void updateGameStateProperties({
-    List<Player>? players,
-    Player? currentPlayer,
-    GamePhase? phase,
-    GameStatus? status,
-    List<Card>? drawPile,
-    List<Card>? discardPile,
-    List<Card>? centerPile,
-    int? turnNumber,
-    int? roundNumber,
-    Map<String, dynamic>? winner,
-    String? errorMessage,
-  }) {
-    if (_currentGameState == null) return;
-
-    _currentGameState = _currentGameState!.copyWith(
-      players: players,
-      currentPlayer: currentPlayer,
-      phase: phase,
-      status: status,
-      drawPile: drawPile,
-      discardPile: discardPile,
-      centerPile: centerPile,
-      turnNumber: turnNumber,
-      roundNumber: roundNumber,
-      lastActivityTime: DateTime.now(),
-      winner: winner,
-      errorMessage: errorMessage,
-    );
-
-    _notifyListeners();
-  }
-
-  /// Add state listener
-  void addStateListener(Function(GameState) listener) {
-    _stateListeners.add(listener);
-  }
-
-  /// Remove state listener
-  void removeStateListener(Function(GameState) listener) {
-    _stateListeners.remove(listener);
-  }
-
-  /// Clear all state listeners
-  void clearStateListeners() {
-    _stateListeners.clear();
-  }
-
-  /// Notify all listeners of state change
-  void _notifyListeners() {
-    if (_currentGameState != null) {
-      for (final listener in _stateListeners) {
-        listener(_currentGameState!);
-      }
-    }
-  }
-
-  /// Clear current game state
-  void clearGameState() {
-    _currentGameState = null;
-    _notifyListeners();
-  }
-
-  /// Get game state as JSON
-  Map<String, dynamic>? getGameStateJson() {
-    return _currentGameState?.toJson();
-  }
-} 
+ 

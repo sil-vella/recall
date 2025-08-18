@@ -102,13 +102,15 @@ class RecallGameMain:
             if event_type == 'get_public_rooms':
                 return self.recall_gameplay_manager.on_get_public_rooms(session_id, data)
             elif event_type == 'join_game':
-                return self.recall_gameplay_manager.on_join_game(session_id, data)
+                custom_log(f"🎮 Calling on_join_game for session {session_id} with data: {data}")
+                result = self.recall_gameplay_manager.on_join_game(session_id, data)
+                custom_log(f"🎮 on_join_game result: {result}")
+                return result
             elif event_type == 'start_match':
                 return self.recall_gameplay_manager.on_start_match(session_id, data)
             elif event_type == 'create_room':
-                # Route to room creation handler if needed
-                custom_log(f"⚠️ create_room event_type not yet implemented in recall_game_event router")
-                return False
+                # Route to room creation handler
+                return self._handle_create_room(session_id, data)
             else:
                 custom_log(f"❌ Unknown event_type: {event_type} in recall_game_event", level="ERROR")
                 return False
@@ -173,6 +175,103 @@ class RecallGameMain:
         except Exception as e:
             custom_log(f"Error in _handle_get_public_rooms: {str(e)}", level="ERROR")
             self._emit_error(session_id, f'Error getting public rooms: {str(e)}')
+            return False
+
+    def _handle_create_room(self, session_id, data):
+        """Handle room creation request"""
+        try:
+            import uuid
+            from datetime import datetime
+            
+            # Extract room creation data
+            room_name = data.get('room_name', 'New Room')
+            permission = data.get('permission', 'public')
+            max_players = data.get('max_players', 4)
+            min_players = data.get('min_players', 2)
+            game_type = data.get('game_type', 'classic')
+            turn_time_limit = data.get('turn_time_limit', 30)
+            auto_start = data.get('auto_start', True)
+            password = data.get('password', None)
+            
+            # Generate room ID
+            room_id = f"room_{int(datetime.now().timestamp() * 1000)}"
+            
+            # Get user ID from session data
+            session_data = self.websocket_manager.get_session_data(session_id) if self.websocket_manager else {}
+            user_id = session_data.get('user_id') or session_id
+            
+            custom_log(f"Creating room: {room_id} with owner: {user_id}")
+            
+            # Create room using WebSocket manager
+            if self.websocket_manager:
+                success = self.websocket_manager.create_room(
+                    room_id=room_id,
+                    permission=permission,
+                    owner_id=user_id
+                )
+                
+                if success:
+                    # Join the room after creation
+                    join_success = self.websocket_manager.join_room(room_id, session_id, user_id)
+                    
+                    if join_success:
+                        # Prepare room data for response
+                        room_data = {
+                            'room_id': room_id,
+                            'room_name': room_name,
+                            'owner_id': user_id,
+                            'permission': permission,
+                            'current_size': 1,
+                            'max_size': max_players,
+                            'min_size': min_players,
+                            'created_at': datetime.now().isoformat(),
+                            'game_type': game_type,
+                            'turn_time_limit': turn_time_limit,
+                            'auto_start': auto_start,
+                            'password': password
+                        }
+                        
+                        # Get owner_id from memory storage
+                        owner_id = self.websocket_manager.get_room_creator(room_id)
+                        
+                        # Emit success response
+                        self._emit_to_session(session_id, 'create_room_success', {
+                            'success': True,
+                            'room_id': room_id,
+                            'room_data': room_data,
+                            'owner_id': owner_id,  # Include owner_id from memory
+                            'timestamp': time.time()
+                        })
+                        
+                        # Emit room joined event
+                        self._emit_to_session(session_id, 'room_joined', {
+                            'room_id': room_id,
+                            'session_id': session_id,
+                            'user_id': user_id,
+                            'owner_id': owner_id,  # Include owner_id from memory
+                            'timestamp': time.time(),
+                            'current_size': 1,
+                            'max_size': max_players
+                        })
+                        
+                        custom_log(f"✅ Successfully created and joined room: {room_id} with owner: {user_id}")
+                        return True
+                    else:
+                        custom_log(f"❌ Failed to join room after creation: {room_id}")
+                        self._emit_error(session_id, 'Failed to join room after creation')
+                        return False
+                else:
+                    custom_log(f"❌ Failed to create room: {room_id}")
+                    self._emit_error(session_id, 'Failed to create room')
+                    return False
+            else:
+                custom_log(f"❌ WebSocket manager not available for room creation")
+                self._emit_error(session_id, 'WebSocket manager not available')
+                return False
+                
+        except Exception as e:
+            custom_log(f"❌ Error in _handle_create_room: {str(e)}", level="ERROR")
+            self._emit_error(session_id, f'Error creating room: {str(e)}')
             return False
 
     # ==== New unified listener handlers (session_id, data) ====
@@ -245,13 +344,19 @@ class RecallGameMain:
         for pid, p in game.players.items():
             players_list.append(self._to_flutter_player(p, pid == game.current_player_id))
 
+        # Determine game status based on phase
+        # Game is 'inactive' when waiting for players, 'active' after match starts
+        game_status = 'inactive' if game.phase.value == 'waiting_for_players' else 'active'
+        if game.game_ended:
+            game_status = 'ended'
+
         return {
             'gameId': game.game_id,
             'gameName': f'Recall Game {game.game_id[:6]}',
             'players': players_list,
             'currentPlayer': self._to_flutter_player(game.players[game.current_player_id], True) if game.current_player_id and game.current_player_id in game.players else None,
             'phase': self._to_flutter_phase(game.phase.value),
-            'status': 'active' if not game.game_ended else 'ended',
+            'status': game_status,
             'drawPile': [],
             'discardPile': [self._to_flutter_card(c) for c in game.discard_pile],
             'centerPile': [],

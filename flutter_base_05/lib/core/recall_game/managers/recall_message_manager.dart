@@ -39,7 +39,7 @@ class RecallMessageManager {
       // Hook to WS events (standard)
       _wireWebsocketEvents();
 
-      // Recall-specific Socket.IO listeners are centralized in RecallGameManager.
+      // Recall-specific Socket.IO listeners are centralized in RecallGameCoordinator.
       // We subscribe only via WSEventManager callbacks here.
       _log.info('✅ RecallMessageManager initialized successfully');
       return true;

@@ -173,14 +173,28 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   Future<void> _onStartMatch() async {
     _log.info('🎮 Starting match');
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final gameId = recall['currentGameId'] as String?;
+    final gameId = recall['currentGameId'] as String? ?? recall['currentRoomId'] as String?;
+    
+    _log.info('🎮 [startMatch] recall state keys: ${recall.keys.join(', ')}');
+    _log.info('🎮 [startMatch] currentGameId: ${recall['currentGameId']}');
+    _log.info('🎮 [startMatch] currentRoomId: ${recall['currentRoomId']}');
+    _log.info('🎮 [startMatch] final gameId: $gameId');
+    _log.info('🎮 [startMatch] gameId type: ${gameId.runtimeType}');
     
     if (gameId != null) {
+      _log.info('🎮 [startMatch] Calling RecallGameHelpers.startMatch with gameId: $gameId');
       try {
         await RecallGameHelpers.startMatch(gameId);
+        _log.info('🎮 [startMatch] startMatch call completed successfully');
       } catch (e) {
         _log.error('❌ Error in _onStartMatch: $e');
+        _log.error('❌ Error type: ${e.runtimeType}');
+        if (e is Exception) {
+          _log.error('❌ Error toString: ${e.toString()}');
+        }
       }
+    } else {
+      _log.error('❌ [startMatch] Both currentGameId and currentRoomId are null!');
     }
   }
 

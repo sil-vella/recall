@@ -345,19 +345,30 @@ class RecallGameplayManager:
     def on_start_match(self, session_id: str, data: Dict[str, Any]) -> bool:
         """Explicit match start: initialize deck (deterministic), deal, first player."""
         try:
+            custom_log(f"🎮 [on_start_match] Starting with session_id: {session_id}, data: {data}")
+            
             game_id = data.get('game_id') or data.get('room_id')
+            custom_log(f"🎮 [on_start_match] Extracted game_id: {game_id}")
+            
             if not game_id:
+                custom_log(f"❌ [on_start_match] Missing game_id in data: {data}")
                 self._emit_error(session_id, 'Missing game_id')
                 return False
+                
             game = self.game_state_manager.get_game(game_id)
+            custom_log(f"🎮 [on_start_match] Retrieved game: {game is not None}")
+            
             if not game:
+                custom_log(f"❌ [on_start_match] Game not found: {game_id}")
                 self._emit_error(session_id, f'Game not found: {game_id}')
                 return False
 
             # If already started, avoid re-dealing. Just echo current state.
             try:
                 from ..models.game_state import GamePhase
+                custom_log(f"🎮 [on_start_match] Game phase: {game.phase}")
                 if game.phase != GamePhase.WAITING_FOR_PLAYERS:
+                    custom_log(f"🎮 [on_start_match] Game already started, echoing current state")
                     payload = {
                         'event_type': 'game_state_updated',
                         'game_id': game_id,
@@ -365,32 +376,39 @@ class RecallGameplayManager:
                     }
                     self._broadcast_message(game_id, payload, session_id)
                     return True
-            except Exception:
-                pass
+            except Exception as e:
+                custom_log(f"⚠️ [on_start_match] Error checking game phase: {e}")
 
             # If only one player is present, auto-add a computer player for solo start
             try:
+                custom_log(f"🎮 [on_start_match] Current players: {len(game.players)}")
                 if len(game.players) < 2:
                     from ..models.player import ComputerPlayer
                     bot_id = f"bot_{game_id[:6]}"
                     if bot_id not in game.players:
+                        custom_log(f"🎮 [on_start_match] Adding computer player: {bot_id}")
                         game.add_player(ComputerPlayer(bot_id, 'Computer'))
-            except Exception:
+            except Exception as e:
+                custom_log(f"⚠️ [on_start_match] Error adding computer player: {e}")
                 # If auto-add fails, proceed; start_game will still validate
                 pass
 
             # Start the game using GameState.start_game (now deterministic via DeckFactory)
+            custom_log(f"🎮 [on_start_match] Starting game...")
             game.start_game()
+            custom_log(f"🎮 [on_start_match] Game started successfully")
 
             payload = {
                 'event_type': 'game_started',
                 'game_id': game_id,
                 'game_state': self._to_flutter_game_state(game),
             }
+            custom_log(f"🎮 [on_start_match] Broadcasting game_started event")
             self._broadcast_message(game_id, payload, session_id)
+            custom_log(f"🎮 [on_start_match] Successfully completed")
             return True
         except Exception as e:
-            custom_log(f"Error in on_start_match: {e}", level="ERROR")
+            custom_log(f"❌ [on_start_match] Error in on_start_match: {e}", level="ERROR")
             self._emit_error(session_id, f'Start match failed: {str(e)}')
             return False
 

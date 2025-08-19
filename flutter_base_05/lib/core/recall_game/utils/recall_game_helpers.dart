@@ -67,10 +67,22 @@ class RecallGameHelpers {
   
   /// Start a match with validation
   static Future<Map<String, dynamic>> startMatch(String gameId) {
-    return _eventEmitter.emit(
-      eventType: 'start_match',
-      data: {'game_id': gameId},
-    );
+    _log.info('🎮 [RecallGameHelpers.startMatch] Called with gameId: $gameId');
+    _log.info('🎮 [RecallGameHelpers.startMatch] gameId type: ${gameId.runtimeType}');
+    _log.info('🎮 [RecallGameHelpers.startMatch] gameId length: ${gameId.length}');
+    
+    try {
+      final result = _eventEmitter.emit(
+        eventType: 'start_match',
+        data: {'game_id': gameId},
+      );
+      _log.info('🎮 [RecallGameHelpers.startMatch] emit call completed');
+      return result;
+    } catch (e) {
+      _log.error('❌ [RecallGameHelpers.startMatch] Error in emit: $e');
+      _log.error('❌ [RecallGameHelpers.startMatch] Error type: ${e.runtimeType}');
+      rethrow;
+    }
   }
   
 

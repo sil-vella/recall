@@ -159,8 +159,13 @@ class RecallGameEventEmitter {
     required Map<String, dynamic> data,
   }) async {
     try {
+      _log.info('🎯 [RecallEventEmitter.emit] Starting validation for $eventType');
+      _log.info('🎯 [RecallEventEmitter.emit] Input data: ${data.keys.join(', ')}');
+      
       // 🎯 Validate event type and fields
       final validatedData = _validateAndParseEventData(eventType, data);
+      
+      _log.info('🎯 [RecallEventEmitter.emit] Validation passed, validated data: ${validatedData.keys.join(', ')}');
       
       // Add minimal required context
       final eventPayload = {
@@ -170,14 +175,21 @@ class RecallGameEventEmitter {
         ...validatedData, // Only validated fields
       };
       
+      _log.info('🎯 [RecallEventEmitter.emit] Final payload keys: ${eventPayload.keys.join(', ')}');
+      
       // Log the event for debugging
       _logEvent(eventType, eventPayload);
       
       // Send via WebSocket
+      _log.info('🎯 [RecallEventEmitter.emit] Sending via WebSocket...');
       return await _wsManager.sendCustomEvent('recall_game_event', eventPayload);
       
     } catch (e) {
       // Log validation errors
+      _log.error('❌ [RecallEventEmitter.emit] Validation failed for $eventType:');
+      _log.error('❌ [RecallEventEmitter.emit] Error: $e');
+      _log.error('❌ [RecallEventEmitter.emit] Error type: ${e.runtimeType}');
+      _log.error('❌ [RecallEventEmitter.emit] Original data: ${data.keys.join(', ')}');
       _logEventError(eventType, data, e);
       rethrow;
     }

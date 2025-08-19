@@ -91,6 +91,8 @@ class RecallGameMain:
     def _handle_recall_game_event(self, session_id: str, data: Dict[str, Any]) -> bool:
         """Handle generic recall_game_event and route based on event_type"""
         try:
+            custom_log(f"🎯 [recall_game_event] Received event from session {session_id}: {data}")
+            
             event_type = data.get('event_type')
             if not event_type:
                 custom_log(f"❌ Missing event_type in recall_game_event: {data}", level="ERROR")
@@ -107,7 +109,10 @@ class RecallGameMain:
                 custom_log(f"🎮 on_join_game result: {result}")
                 return result
             elif event_type == 'start_match':
-                return self.recall_gameplay_manager.on_start_match(session_id, data)
+                custom_log(f"🎮 Calling on_start_match for session {session_id} with data: {data}")
+                result = self.recall_gameplay_manager.on_start_match(session_id, data)
+                custom_log(f"🎮 on_start_match result: {result}")
+                return result
             elif event_type == 'create_room':
                 # Route to room creation handler
                 return self._handle_create_room(session_id, data)

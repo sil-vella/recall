@@ -267,6 +267,9 @@ class RecallGameManager {
       
       _log.info('🎮 Received Recall game event: $eventType for game: $gameId');
       
+      // 🎯 TODO: Add validation for incoming events once basic flow is working
+      _log.info('📥 Processing incoming event: $eventType');
+      
       switch (eventType) {
         case 'game_joined':
           _handleGameJoined(data);

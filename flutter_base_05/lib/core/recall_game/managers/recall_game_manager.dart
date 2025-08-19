@@ -53,33 +53,42 @@ class RecallGameManager {
 
   /// Connect to WebSocket when authentication becomes available
   Future<bool> connectWebSocket() async {
+    _log.info('🔌 [CONNECT_WS] Attempting to connect WebSocket...');
+    _log.info('🔌 [CONNECT_WS] Current connection status: ${_wsManager.isConnected}');
+    
     if (_wsManager.isConnected) {
-      _log.info('✅ WebSocket already connected');
+      _log.info('✅ [CONNECT_WS] WebSocket already connected');
+      _log.info('🔌 [CONNECT_WS] Setting up event listeners for existing connection...');
       _setupEventListeners(); // Set up listeners even if already connected
       return true;
     }
     
-    _log.info('🔌 Attempting to connect WebSocket with authentication...');
+    _log.info('🔌 [CONNECT_WS] WebSocket not connected, attempting to connect...');
     final connected = await _wsManager.connect();
+    
     if (connected) {
-      _log.info('✅ WebSocket connected successfully');
+      _log.info('✅ [CONNECT_WS] WebSocket connected successfully');
+      _log.info('🔌 [CONNECT_WS] Setting up event listeners for new connection...');
       _setupEventListeners(); // Set up listeners after successful connection
       return true;
     } else {
-      _log.warning('⚠️ WebSocket connection failed, will retry later');
+      _log.warning('⚠️ [CONNECT_WS] WebSocket connection failed, will retry later');
+      _log.warning('⚠️ [CONNECT_WS] Connection status after failed attempt: ${_wsManager.isConnected}');
       return false;
     }
   }
 
   /// Handle WebSocket connection events
   void _handleWebSocketConnection() {
-    _log.info('🔌 WebSocket connection established, setting up event listeners...');
+    _log.info('🔌 [WS_CONNECTION] WebSocket connection established');
+    _log.info('🔌 [WS_CONNECTION] Setting up event listeners...');
     _setupEventListeners();
   }
 
   /// Handle WebSocket disconnection events
   void _handleWebSocketDisconnection() {
-    _log.info('🔌 WebSocket disconnected, cleaning up event listeners...');
+    _log.info('🔌 [WS_DISCONNECTION] WebSocket disconnected');
+    _log.info('🔌 [WS_DISCONNECTION] Cleaning up event listeners...');
     _unregisterEventListeners();
   }
 
@@ -202,24 +211,35 @@ class RecallGameManager {
 
   /// Ensure event listeners are set up (with retry logic)
   void _ensureEventListenersSetup() {
+    _log.info('🎧 [ENSURE_SETUP] Ensuring event listeners are set up...');
+    
     if (!_isInitialized) {
-      _log.warning('⚠️ Cannot set up event listeners: manager not initialized');
+      _log.warning('⚠️ [ENSURE_SETUP] Cannot set up event listeners: manager not initialized');
+      _log.warning('⚠️ [ENSURE_SETUP] Initialization status: $_isInitialized');
       return;
     }
     
+    _log.info('✅ [ENSURE_SETUP] Manager is initialized, checking socket availability...');
+    
     final socket = _wsManager.socket;
     if (socket == null) {
-      _log.warning('⚠️ Socket not available, will retry when connection is established');
+      _log.warning('⚠️ [ENSURE_SETUP] Socket not available, will retry when connection is established');
+      _log.warning('⚠️ [ENSURE_SETUP] WebSocket connection status: ${_wsManager.isConnected}');
       // Schedule a retry after a short delay
       Future.delayed(Duration(milliseconds: 500), () {
+        _log.info('🔄 [ENSURE_SETUP] Retrying event listener setup after delay...');
         if (_wsManager.isConnected && _wsManager.socket != null) {
-          _log.info('🔄 Retrying event listener setup...');
+          _log.info('🔄 [ENSURE_SETUP] Socket now available, setting up listeners...');
           _setupEventListeners();
+        } else {
+          _log.warning('⚠️ [ENSURE_SETUP] Socket still not available after retry');
+          _log.warning('⚠️ [ENSURE_SETUP] Connection status: ${_wsManager.isConnected}, Socket: ${_wsManager.socket != null}');
         }
       });
       return;
     }
     
+    _log.info('✅ [ENSURE_SETUP] Socket available, proceeding with setup...');
     _setupEventListeners();
   }
 
@@ -231,9 +251,12 @@ class RecallGameManager {
     final socket = _wsManager.socket;
     if (socket == null) {
       _log.error('❌ Cannot set up event listeners: socket is null');
+      _log.error('❌ WebSocket connection status: ${_wsManager.isConnected}');
       return;
     }
     
+    _log.info('🔌 Socket obtained successfully: ${socket != null ? 'not null' : 'null'}');
+    _log.info('🔌 WebSocket connection status: ${_wsManager.isConnected}');
     _log.info('🔌 Setting up Socket.IO event listeners directly on socket...');
     
     // Register individual event listeners directly on the socket
@@ -243,18 +266,36 @@ class RecallGameManager {
       'card_drawn', 'recall_called', 'game_state_updated', 'game_phase_changed',
     ];
     
+    _log.info('📋 Registering listeners for ${eventTypes.length} event types: ${eventTypes.join(', ')}');
+    
     for (final eventType in eventTypes) {
+      _log.info('🎧 Registering listener for event: $eventType');
+      
       socket.on(eventType, (data) {
-        _log.info('🎮 RecallGameManager received event: $eventType with data: $data');
-        _handleRecallGameEvent({
-          'event_type': eventType,
-          ...(data is Map<String, dynamic> ? data : {}),
-        });
+        _log.info('🎮 [EVENT_RECEIVED] RecallGameManager received event: $eventType');
+        _log.info('🎮 [EVENT_DATA] Event data type: ${data.runtimeType}');
+        _log.info('🎮 [EVENT_DATA] Event data: $data');
+        
+                 try {
+           final eventData = <String, dynamic>{
+             'event_type': eventType,
+             ...(data is Map<String, dynamic> ? data : <String, dynamic>{}),
+           };
+          
+          _log.info('🎮 [PROCESSING] Processing event data: $eventData');
+          _handleRecallGameEvent(eventData);
+          
+        } catch (e) {
+          _log.error('❌ [EVENT_ERROR] Error processing event $eventType: $e');
+          _log.error('❌ [EVENT_ERROR] Raw event data: $data');
+        }
       });
-      _log.info('✅ Registered listener for: $eventType');
+      
+      _log.info('✅ [LISTENER_REGISTERED] Successfully registered listener for: $eventType');
     }
     
-    _log.info('✅ Recall Game Manager individual event listeners set up directly on socket');
+    _log.info('✅ [SETUP_COMPLETE] Recall Game Manager individual event listeners set up directly on socket');
+    _log.info('✅ [SETUP_SUMMARY] Total listeners registered: ${eventTypes.length}');
   }
 
 
@@ -265,57 +306,76 @@ class RecallGameManager {
       final eventType = data['event_type'];
       final gameId = data['game_id'];
       
-      _log.info('🎮 Received Recall game event: $eventType for game: $gameId');
+      _log.info('🎮 [HANDLER_START] Handling Recall game event: $eventType');
+      _log.info('🎮 [HANDLER_DATA] Game ID: $gameId');
+      _log.info('🎮 [HANDLER_DATA] Full event data: $data');
       
       // 🎯 TODO: Add validation for incoming events once basic flow is working
-      _log.info('📥 Processing incoming event: $eventType');
+      _log.info('📥 [HANDLER_VALIDATION] Processing incoming event: $eventType');
       
       switch (eventType) {
         case 'game_joined':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to game_joined handler');
           _handleGameJoined(data);
           break;
         case 'game_left':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to game_left handler');
           _handleGameLeft(data);
           break;
         case 'player_joined':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to player_joined handler');
           _handlePlayerJoined(data);
           break;
         case 'player_left':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to player_left handler');
           _handlePlayerLeft(data);
           break;
         case 'game_started':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to game_started handler');
           _handleGameStarted(data);
           break;
         case 'game_ended':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to game_ended handler');
           _handleGameEnded(data);
           break;
         case 'turn_changed':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to turn_changed handler');
           _handleTurnChanged(data);
           break;
         case 'card_played':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to card_played handler');
           _handleCardPlayed(data);
           break;
         case 'recall_called':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to recall_called handler');
           _handleRecallCalled(data);
           break;
         case 'game_state_updated':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to game_state_updated handler');
           _handleGameStateUpdated(data);
           break;
         case 'game_phase_changed':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to game_phase_changed handler');
           _handleGamePhaseChanged(data);
           break;
         case 'create_room_success':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to create_room_success handler');
           _handleCreateRoomSuccess(data);
           break;
         case 'error':
+          _log.info('🎮 [HANDLER_ROUTE] Routing to error handler');
           _handleGameErrorEvent(data);
           break;
         default:
-          _log.info('⚠️ Unknown Recall game event: $eventType');
+          _log.warning('⚠️ [HANDLER_UNKNOWN] Unknown Recall game event: $eventType');
+          _log.warning('⚠️ [HANDLER_UNKNOWN] Event data: $data');
       }
       
+      _log.info('✅ [HANDLER_COMPLETE] Successfully handled event: $eventType');
+      
     } catch (e) {
-      _log.error('❌ Error handling Recall game event: $e');
+      _log.error('❌ [HANDLER_ERROR] Error handling Recall game event: $e');
+      _log.error('❌ [HANDLER_ERROR] Event data that caused error: $data');
     }
   }
 
@@ -1169,8 +1229,12 @@ class RecallGameManager {
     final socket = _wsManager.socket;
     if (socket == null) {
       _log.warning('⚠️ Cannot unregister listeners: socket is null');
+      _log.warning('⚠️ WebSocket connection status: ${_wsManager.isConnected}');
       return;
     }
+    
+    _log.info('🔌 Socket available for unregistration: ${socket != null ? 'not null' : 'null'}');
+    _log.info('🔌 WebSocket connection status: ${_wsManager.isConnected}');
     
     final eventTypes = [
       'game_joined', 'game_left', 'player_joined', 'player_left',
@@ -1178,12 +1242,16 @@ class RecallGameManager {
       'card_drawn', 'recall_called', 'game_state_updated', 'game_phase_changed',
     ];
     
+    _log.info('📋 Unregistering listeners for ${eventTypes.length} event types: ${eventTypes.join(', ')}');
+    
     for (final eventType in eventTypes) {
+      _log.info('🎧 Unregistering listener for event: $eventType');
       socket.off(eventType);
-      _log.info('✅ Unregistered listener for: $eventType');
+      _log.info('✅ [LISTENER_UNREGISTERED] Successfully unregistered listener for: $eventType');
     }
     
-    _log.info('✅ Recall Game Manager event listeners unregistered');
+    _log.info('✅ [UNREGISTRATION_COMPLETE] Recall Game Manager event listeners unregistered');
+    _log.info('✅ [UNREGISTRATION_SUMMARY] Total listeners unregistered: ${eventTypes.length}');
   }
 
   /// Dispose of the manager

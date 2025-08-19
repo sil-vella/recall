@@ -379,33 +379,55 @@ class RecallGameplayManager:
             except Exception as e:
                 custom_log(f"⚠️ [on_start_match] Error checking game phase: {e}")
 
-            # If only one player is present, auto-add a computer player for solo start
-            try:
-                custom_log(f"🎮 [on_start_match] Current players: {len(game.players)}")
-                if len(game.players) < 2:
-                    from ..models.player import ComputerPlayer
-                    bot_id = f"bot_{game_id[:6]}"
-                    if bot_id not in game.players:
-                        custom_log(f"🎮 [on_start_match] Adding computer player: {bot_id}")
-                        game.add_player(ComputerPlayer(bot_id, 'Computer'))
-            except Exception as e:
-                custom_log(f"⚠️ [on_start_match] Error adding computer player: {e}")
-                # If auto-add fails, proceed; start_game will still validate
-                pass
+            # Computer player addition is now handled by the game engine
 
-            # Start the game using GameState.start_game (now deterministic via DeckFactory)
-            custom_log(f"🎮 [on_start_match] Starting game...")
-            game.start_game()
-            custom_log(f"🎮 [on_start_match] Game started successfully")
-
-            payload = {
-                'event_type': 'game_started',
+            # Use game engine to process start_match action
+            custom_log(f"🎮 [on_start_match] Processing start_match via game engine...")
+            
+            # Build action data for YAML engine
+            action_data = {
+                'action_type': 'start_match',
+                'player_id': user_id,
                 'game_id': game_id,
-                'game_state': self._to_flutter_game_state(game),
             }
-            custom_log(f"🎮 [on_start_match] Broadcasting game_started event")
-            self._broadcast_message(game_id, payload, session_id)
-            custom_log(f"🎮 [on_start_match] Successfully completed")
+            
+            # Process action through game engine
+            engine_result = self.game_logic_engine.process_player_action(game, action_data)
+            custom_log(f"🎮 [on_start_match] Game engine result: {engine_result}")
+            
+            if engine_result.get('error'):
+                custom_log(f"❌ [on_start_match] Game engine error: {engine_result['error']}")
+                self._emit_error(session_id, f"Start match failed: {engine_result['error']}")
+                return False
+            
+            # Process notifications from the engine
+            notifications = engine_result.get('notifications', [])
+            for notification in notifications:
+                event = notification.get('event')
+                data = notification.get('data', {})
+                
+                if event == 'game_started':
+                    # Broadcast the game_started event with engine-generated data
+                    payload = {
+                        'event_type': event,
+                        'game_id': game_id,
+                        'game_state': self._to_flutter_game_state(game),
+                        **data  # Include additional data from engine
+                    }
+                    custom_log(f"🎮 [on_start_match] Broadcasting {event} event via engine")
+                    custom_log(f"🎮 [on_start_match] Payload: {payload}")
+                    self._broadcast_message(game_id, payload, session_id)
+                elif event == 'game_phase_changed':
+                    # Broadcast phase change event
+                    payload = {
+                        'event_type': event,
+                        'game_id': game_id,
+                        **data
+                    }
+                    custom_log(f"🎮 [on_start_match] Broadcasting {event} event")
+                    self._broadcast_message(game_id, payload, session_id)
+            
+            custom_log(f"🎮 [on_start_match] Successfully completed via game engine")
             return True
         except Exception as e:
             custom_log(f"❌ [on_start_match] Error in on_start_match: {e}", level="ERROR")
@@ -507,9 +529,11 @@ class RecallGameplayManager:
     def _broadcast_message(self, room_id: str, payload: Dict[str, Any], sender_session_id: Optional[str] = None):
         try:
             # Send as recall_game_event so frontend can properly handle it
-            self.websocket_manager.broadcast_to_room(room_id, 'recall_game_event', payload)
+            # Use the synchronous broadcast method instead of async
+            self.websocket_manager.socketio.emit('recall_game_event', payload, room=room_id)
+            custom_log(f"✅ Broadcasted recall_game_event to room {room_id}: {payload.get('event_type', 'unknown')}")
         except Exception as e:
-            custom_log(f"Error broadcasting recall event: {e}")
+            custom_log(f"❌ Error broadcasting recall event: {e}")
 
     def _emit_to_session(self, session_id: str, event: str, data: dict):
         if self.websocket_manager:

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../managers/navigation_manager.dart';
 
 import 'services/recall_game_coordinator.dart';
+import 'managers/recall_game_manager.dart';
 // Removed RecallGameNotifier usage – using StateManager only
 import '../managers/state_manager.dart';
 // import '../managers/websockets/websocket_manager.dart';
@@ -18,9 +19,13 @@ class RecallGameCore {
   
   // Core Managers
   final RecallGameCoordinator _recallGameCoordinator = RecallGameCoordinator();
+  final RecallGameManager _recallGameManager = RecallGameManager();
   
   /// Get Recall Game Coordinator
   RecallGameCoordinator get recallGameCoordinator => _recallGameCoordinator;
+  
+  /// Get Recall Game Manager
+  RecallGameManager get recallGameManager => _recallGameManager;
   
   // No ChangeNotifier notifier – we rely on StateManager only
 
@@ -91,8 +96,14 @@ class RecallGameCore {
         _log.info('📊 Recall game state already registered');
       }
       
-      // Step 2: RecallStateManager removed - functionality moved to RecallGameManager
-      _log.info('📊 RecallStateManager functionality moved to RecallGameManager');
+      // Step 2: Initialize RecallGameManager
+      _log.info('🎮 Initializing RecallGameManager...');
+      final gameManagerInitResult = await _recallGameManager.initialize();
+      if (!gameManagerInitResult) {
+        _log.error('❌ RecallGameManager initialization failed');
+        return false;
+      }
+      _log.info('✅ RecallGameManager initialized successfully');
       
       // Step 3: Initialize and wait for RecallGameCoordinator
       _log.info('🎮 Initializing RecallGameCoordinator...');
@@ -171,6 +182,7 @@ class RecallGameCore {
       'managers': {
         'state_manager': 'initialized',
         'game_manager': 'initialized',
+        'game_coordinator': 'initialized',
       },
       'screens_registered': [
         '/recall/lobby',
@@ -185,6 +197,7 @@ class RecallGameCore {
     // No notifier to dispose
 
     _recallGameCoordinator.dispose();
+    _recallGameManager.dispose();
     _log.info('🛑 RecallGameCore disposed');
   }
 } 

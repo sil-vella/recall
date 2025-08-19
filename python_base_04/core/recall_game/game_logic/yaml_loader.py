@@ -8,6 +8,7 @@ import os
 import yaml
 from typing import Dict, Any, List
 from pathlib import Path
+from tools.logger.custom_logging import custom_log
 
 
 class YAMLLoader:
@@ -38,9 +39,14 @@ class YAMLLoader:
                     with open(rule_path, 'r', encoding='utf-8') as file:
                         rule_data = yaml.safe_load(file)
                         rules[rule_name] = rule_data
+                        
+                        # Log the parsed YAML data
+                        custom_log(f"📄 [YAMLLoader] Loaded rule '{rule_name}': {list(rule_data.keys()) if rule_data else 'empty'}")
+                        
                 except Exception as e:
-                    print(f"Error loading rule {filename}: {e}")
+                    custom_log(f"❌ [YAMLLoader] Error loading rule {filename}: {e}", level="ERROR")
         
+        custom_log(f"📁 [YAMLLoader] Loaded {len(rules)} rules from '{rules_dir}': {list(rules.keys())}")
         return rules
     
     def load_single_rule(self, rule_path: str) -> Dict[str, Any]:
@@ -52,9 +58,14 @@ class YAMLLoader:
         
         try:
             with open(full_path, 'r', encoding='utf-8') as file:
-                return yaml.safe_load(file)
+                rule_data = yaml.safe_load(file)
+                
+                # Log the parsed YAML data
+                custom_log(f"📄 [YAMLLoader] Loaded single rule '{rule_path}': {list(rule_data.keys()) if rule_data else 'empty'}")
+                
+                return rule_data
         except Exception as e:
-            print(f"Error loading rule {rule_path}: {e}")
+            custom_log(f"❌ [YAMLLoader] Error loading rule {rule_path}: {e}", level="ERROR")
             return {}
     
     def load_action_rules(self) -> Dict[str, Any]:

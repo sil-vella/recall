@@ -156,6 +156,20 @@ class GameLogicEngine:
             elif check_type == "is_player_turn":
                 if game_state.current_player_id != action_data.get('player_id'):
                     errors.append("Not player's turn")
+            
+            elif check_type == "is_room_owner":
+                if not self._is_room_owner(game_state, action_data.get('player_id')):
+                    errors.append("Only room owner can start the game")
+            
+            elif check_type == "game_not_started":
+                game_phase = validation.get('game_phase')
+                if game_state.phase.value != game_phase:
+                    errors.append(f"Game is not in {game_phase} phase")
+            
+            elif check_type == "minimum_players":
+                min_players = validation.get('min_players', 2)
+                if len(game_state.players) < min_players:
+                    errors.append(f"Need at least {min_players} players to start")
         
         return {
             'valid': len(errors) == 0,
@@ -187,6 +201,16 @@ class GameLogicEngine:
         
         return False
     
+    def _is_room_owner(self, game_state: GameState, player_id: str) -> bool:
+        """Check if player is the room owner"""
+        # For now, assume the first player is the room owner
+        # This could be enhanced to check actual room ownership
+        if not game_state.players:
+            return False
+        
+        first_player_id = list(game_state.players.keys())[0]
+        return first_player_id == player_id
+    
     def _execute_effect(self, effect: Dict[str, Any], game_state: GameState, action_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a single effect"""
         effect_type = effect.get('type')
@@ -211,6 +235,16 @@ class GameLogicEngine:
             return game_state.place_drawn_card_play(action_data.get('player_id'))
         elif effect_type == "play_card":
             return game_state.play_card(action_data.get('player_id'), action_data.get('card_id'))
+        elif effect_type == "add_computer_player_if_needed":
+            return self._effect_add_computer_player_if_needed(effect, game_state, action_data)
+        elif effect_type == "start_game_dealing":
+            return self._effect_start_game_dealing(effect, game_state, action_data)
+        elif effect_type == "set_game_phase":
+            return self._effect_set_game_phase(effect, game_state, action_data)
+        elif effect_type == "set_first_player":
+            return self._effect_set_first_player(effect, game_state, action_data)
+        elif effect_type == "record_game_start":
+            return self._effect_record_game_start(effect, game_state, action_data)
         
         return {'type': effect_type, 'status': 'unknown_effect'}
     
@@ -351,5 +385,180 @@ class GameLogicEngine:
                 'card_id': action_data.get('card_id'),
                 'rank': action_data.get('card_rank')
             }
+        elif placeholder == "game_state":
+            # Return serialized game state for notifications
+            return self._serialize_game_state_for_notification(game_state)
+        elif placeholder == "players":
+            # Return player information
+            return [{'player_id': pid, 'name': player.name, 'is_computer': hasattr(player, 'is_computer') and player.is_computer} 
+                   for pid, player in game_state.players.items()]
+        elif placeholder == "current_time":
+            import time
+            return time.time()
+        elif placeholder == "current_player_id":
+            return game_state.current_player_id
         
-        return placeholder 
+        return placeholder
+    
+    def _serialize_game_state_for_notification(self, game_state: GameState) -> Dict[str, Any]:
+        """Serialize game state for notifications (similar to _to_flutter_game_state)"""
+        return {
+            'game_id': game_state.game_id,
+            'phase': game_state.phase.value,
+            'current_player_id': game_state.current_player_id,
+            'players': [{'player_id': pid, 'name': player.name, 'hand_size': len(player.hand), 'is_computer': hasattr(player, 'is_computer') and player.is_computer} 
+                       for pid, player in game_state.players.items()],
+            'draw_pile_size': len(game_state.draw_pile),
+            'discard_pile_size': len(game_state.discard_pile),
+            'last_played_card': game_state.last_played_card.to_dict() if game_state.last_played_card else None,
+            'game_started': game_state.game_start_time is not None,
+            'game_ended': game_state.game_ended
+        }
+    
+    # ========= Start Match Effect Methods =========
+    
+    def _effect_add_computer_player_if_needed(self, effect: Dict[str, Any], game_state: GameState, action_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Effect: Add computer player if less than 2 players"""
+        condition = effect.get('condition')
+        bot_name = effect.get('bot_name', 'Computer')
+        
+        if condition == "less_than_two_players" and len(game_state.players) < 2:
+            from ..models.player import ComputerPlayer
+            bot_id = f"bot_{game_state.game_id[:6]}"
+            
+            if bot_id not in game_state.players:
+                computer_player = ComputerPlayer(bot_id, bot_name)
+                game_state.add_player(computer_player)
+                
+                return {
+                    'type': 'add_computer_player_if_needed',
+                    'success': True,
+                    'bot_id': bot_id,
+                    'bot_name': bot_name
+                }
+        
+        return {
+            'type': 'add_computer_player_if_needed',
+            'success': False,
+            'reason': 'condition_not_met'
+        }
+    
+    def _effect_start_game_dealing(self, effect: Dict[str, Any], game_state: GameState, action_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Effect: Start game and deal cards"""
+        import time
+        from ..utils.deck_factory import DeckFactory
+        
+        # Set game phase to dealing
+        from ..models.game_state import GamePhase
+        game_state.phase = GamePhase.DEALING_CARDS
+        game_state.game_start_time = time.time()
+        
+        # Build deterministic deck from factory
+        factory = DeckFactory(game_state.game_id)
+        game_state.deck.cards = factory.build_deck(
+            include_jokers=True,
+            include_special_powers=True,
+        )
+        
+        # Deal cards to players
+        cards_per_player = effect.get('cards_per_player', 4)
+        for player in game_state.players.values():
+            for _ in range(cards_per_player):
+                card = game_state.deck.draw_card()
+                if card:
+                    player.add_card_to_hand(card)
+        
+        # Setup draw and discard piles
+        if effect.get('setup_draw_pile', True):
+            game_state.draw_pile = game_state.deck.cards.copy()
+            game_state.deck.cards = []
+        
+        if effect.get('setup_discard_pile', True) and game_state.draw_pile:
+            first_card = game_state.draw_pile.pop(0)
+            game_state.discard_pile.append(first_card)
+        
+        return {
+            'type': 'start_game_dealing',
+            'success': True,
+            'cards_dealt': cards_per_player * len(game_state.players),
+            'draw_pile_size': len(game_state.draw_pile),
+            'discard_pile_size': len(game_state.discard_pile)
+        }
+    
+    def _effect_set_game_phase(self, effect: Dict[str, Any], game_state: GameState, action_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Effect: Set game phase"""
+        from ..models.game_state import GamePhase
+        
+        phase_name = effect.get('phase')
+        then_phase = effect.get('then')
+        
+        if phase_name:
+            try:
+                game_state.phase = GamePhase(phase_name)
+                
+                # If there's a 'then' phase, set it after a brief moment
+                if then_phase:
+                    game_state.phase = GamePhase(then_phase)
+                
+                return {
+                    'type': 'set_game_phase',
+                    'success': True,
+                    'phase': game_state.phase.value
+                }
+            except ValueError:
+                return {
+                    'type': 'set_game_phase',
+                    'success': False,
+                    'error': f'Invalid phase: {phase_name}'
+                }
+        
+        return {
+            'type': 'set_game_phase',
+            'success': False,
+            'error': 'No phase specified'
+        }
+    
+    def _effect_set_first_player(self, effect: Dict[str, Any], game_state: GameState, action_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Effect: Set the first player"""
+        selection = effect.get('selection', 'first_player')
+        
+        if selection == "first_human_player":
+            # Find first human player (non-computer)
+            for player_id, player in game_state.players.items():
+                if not hasattr(player, 'is_computer') or not player.is_computer:
+                    game_state.current_player_id = player_id
+                    break
+        elif selection == "first_player":
+            # Set first player in the list
+            if game_state.players:
+                game_state.current_player_id = list(game_state.players.keys())[0]
+        
+        return {
+            'type': 'set_first_player',
+            'success': True,
+            'current_player_id': game_state.current_player_id
+        }
+    
+    def _effect_record_game_start(self, effect: Dict[str, Any], game_state: GameState, action_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Effect: Record game start timestamp and details"""
+        import time
+        
+        timestamp = time.time()
+        game_state.last_action_time = timestamp
+        
+        # Add to game history
+        history_entry = {
+            'action': 'game_started',
+            'timestamp': timestamp,
+            'player_id': action_data.get('player_id'),
+            'players': list(game_state.players.keys()),
+            'player_count': len(game_state.players)
+        }
+        game_state.game_history.append(history_entry)
+        
+        return {
+            'type': 'record_game_start',
+            'success': True,
+            'timestamp': timestamp,
+            'history_entry': history_entry
+        } 

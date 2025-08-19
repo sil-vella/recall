@@ -425,22 +425,7 @@ class WSEventHandler {
     }
   }
 
-  /// Handle recall game event
-  void handleRecallGameEvent(dynamic data) {
-    _log.info("🔧 [HANDLER-RECALL_GAME_EVENT] Handling recall game event");
-    
-    try {
-      // Log the event for debugging
-      _log.info("📨 Recall game event received: $data");
-      
-      // The RecallGameEventListenerValidator will handle the actual event processing
-      // This handler just logs and ensures the event is received by the WebSocket layer
-      
-      _log.info("✅ Recall game event handled successfully");
-    } catch (e) {
-      _log.error("❌ Error handling recall game event: $e");
-    }
-  }
+
 
   /// Handle unified event (for custom events)
   void handleUnifiedEvent(String eventName, dynamic data) {

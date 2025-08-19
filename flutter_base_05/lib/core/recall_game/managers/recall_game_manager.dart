@@ -186,25 +186,31 @@ class RecallGameManager {
     }
   }
 
-  /// Set up event listeners using validated event system
+  /// Set up event listeners for individual recall game events
   void _setupEventListeners() {
-    _log.info('🎧 Setting up validated event listeners...');
+    _log.info('🎧 Setting up individual recall game event listeners...');
     
-    // Use validated event listener for each event type
+    // Get WebSocket manager instance
+    final wsManager = WebSocketManager.instance;
+    
+    // Register individual event listeners directly with WebSocket manager
     final eventTypes = [
       'game_joined', 'game_left', 'player_joined', 'player_left',
       'game_started', 'game_ended', 'turn_changed', 'card_played',
-      'card_drawn', 'recall_called', 'game_state_updated', 'error',
+      'card_drawn', 'recall_called', 'game_state_updated', 'game_phase_changed',
     ];
     
     for (final eventType in eventTypes) {
-      RecallGameEventListenerExtension.onEvent(eventType, (data) {
-        _log.info('🎮 RecallGameManager received validated event: $eventType');
-        _handleRecallGameEvent(data);
+      wsManager.eventListener?.registerCustomListener(eventType, (data) {
+        _log.info('🎮 RecallGameManager received event: $eventType');
+        _handleRecallGameEvent({
+          'event_type': eventType,
+          ...(data is Map<String, dynamic> ? data : {}),
+        });
       });
     }
     
-    _log.info('✅ Recall Game Manager event listeners set up');
+    _log.info('✅ Recall Game Manager individual event listeners set up');
   }
 
 

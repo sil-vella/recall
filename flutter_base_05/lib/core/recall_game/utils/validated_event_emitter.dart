@@ -181,8 +181,8 @@ class RecallGameEventEmitter {
       _logEvent(eventType, eventPayload);
       
       // Send via WebSocket
-      _log.info('🎯 [RecallEventEmitter.emit] Sending via WebSocket...');
-      return await _wsManager.sendCustomEvent('recall_game_event', eventPayload);
+                _log.info('🎯 [RecallEventEmitter.emit] Sending via WebSocket...');
+          return await _wsManager.sendCustomEvent(eventType, eventPayload);
       
     } catch (e) {
       // Log validation errors

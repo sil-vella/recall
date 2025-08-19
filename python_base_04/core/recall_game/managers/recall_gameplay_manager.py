@@ -533,12 +533,17 @@ class RecallGameplayManager:
 
     def _broadcast_message(self, room_id: str, payload: Dict[str, Any], sender_session_id: Optional[str] = None):
         try:
-            # Send as recall_game_event so frontend can properly handle it
-            # Use the synchronous broadcast method instead of async
-            self.websocket_manager.socketio.emit('recall_game_event', payload, room=room_id)
-            custom_log(f"✅ Broadcasted recall_game_event to room {room_id}: {payload.get('event_type', 'unknown')}")
+            # Broadcast individual events instead of grouped recall_game_event
+            event_type = payload.get('event_type')
+            if event_type:
+                # Remove event_type from payload since it becomes the event name
+                event_payload = {k: v for k, v in payload.items() if k != 'event_type'}
+                self.websocket_manager.socketio.emit(event_type, event_payload, room=room_id)
+                custom_log(f"✅ Broadcasted {event_type} to room {room_id}")
+            else:
+                custom_log(f"❌ No event_type found in payload: {payload}")
         except Exception as e:
-            custom_log(f"❌ Error broadcasting recall event: {e}")
+            custom_log(f"❌ Error broadcasting event: {e}")
 
     def _emit_to_session(self, session_id: str, event: str, data: dict):
         if self.websocket_manager:

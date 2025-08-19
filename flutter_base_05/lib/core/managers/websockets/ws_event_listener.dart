@@ -50,6 +50,9 @@ class WSEventListener {
     // Message events
     _registerMessageListener();
 
+    // Recall game events
+    _registerRecallGameEventListener();
+
     // Error events
     _registerErrorListener();
 
@@ -176,6 +179,14 @@ class WSEventListener {
     });
   }
 
+  /// Register recall game event listener
+  void _registerRecallGameEventListener() {
+    _socket?.on('recall_game_event', (data) {
+      _log.info("🔍 [RECALL_GAME_EVENT] Recall game event received: ${data is Map ? data['event_type'] : 'unknown'}");
+      _eventHandler.handleRecallGameEvent(data);
+    });
+  }
+
   /// Register a custom event listener
   void registerCustomListener(String eventName, Function(dynamic) handler) {
     _socket?.on(eventName, (data) {
@@ -200,6 +211,7 @@ class WSEventListener {
     _socket?.off('leave_room_success');
     _socket?.off('leave_room_error');
     _socket?.off('message');
+    _socket?.off('recall_game_event');
     _socket?.off('error');
     
     _log.info("✅ All WebSocket event listeners unregistered");

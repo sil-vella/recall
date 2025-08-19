@@ -397,6 +397,8 @@ class GameLogicEngine:
             return time.time()
         elif placeholder == "current_player_id":
             return game_state.current_player_id
+        elif placeholder == "game_id":
+            return game_state.game_id
         
         return placeholder
     

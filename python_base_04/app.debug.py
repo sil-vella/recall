@@ -13,6 +13,24 @@ importlib.invalidate_caches()
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
+# Clear serve.log on initialization
+def clear_serve_log():
+    """Clear the server.log file on debug app initialization"""
+    try:
+        # Use the correct path to server.log
+        log_file_path = os.path.join(os.path.dirname(__file__), 'tools', 'logger', 'server.log')
+        if os.path.exists(log_file_path):
+            # Clear the file by opening in write mode and truncating
+            with open(log_file_path, 'w') as f:
+                f.write('')
+            custom_log(f"🧹 Cleared server.log file at: {log_file_path}")
+        else:
+            custom_log(f"📝 server.log file not found at: {log_file_path}, will be created when needed")
+    except Exception as e:
+        custom_log(f"⚠️ Failed to clear server.log: {e}", level="WARNING")
+
+# Clear the log file on startup
+clear_serve_log()
 
 # Initialize the AppManager
 app_manager = AppManager()

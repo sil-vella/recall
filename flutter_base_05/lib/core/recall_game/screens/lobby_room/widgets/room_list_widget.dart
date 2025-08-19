@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../../managers/state_manager.dart';
 import '../../../../managers/navigation_manager.dart';
 import '../../../services/recall_game_coordinator.dart';
+import '../../../../../tools/logging/logger.dart';
 
 class RoomListWidget extends StatelessWidget {
+  static final Logger _log = Logger();
   final String title;
   final Function(String) onJoinRoom;
   final Function(String) onLeaveRoom;
@@ -21,22 +23,22 @@ class RoomListWidget extends StatelessWidget {
 
   Future<void> _joinGame(BuildContext context, String roomId) async {
     try {
-      print('🎮 Joining game for room: $roomId');
+      _log.info('🎮 Joining game for room: $roomId');
       
       // First join the room if not already in it
       final currentRoomId = StateManager().getModuleState<Map<String, dynamic>>('recall_game')?['currentRoomId'];
       if (currentRoomId != roomId) {
-        print('🔄 Joining room: $roomId (currently in: $currentRoomId)');
+        _log.info('🔄 Joining room: $roomId (currently in: $currentRoomId)');
         await onJoinRoom(roomId);
       } else {
-        print('✅ Already in room: $roomId');
+        _log.info('✅ Already in room: $roomId');
       }
       
       // Then join the game as a player
       final login = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
       final playerName = (login['username'] ?? login['email'] ?? 'Player').toString();
       
-      print('🎮 Joining game as: $playerName');
+      _log.info('🎮 Joining game as: $playerName');
       final gameCoordinator = RecallGameCoordinator();
       final joinResult = await gameCoordinator.joinGameAndRoom(roomId, playerName);
       if (joinResult['error'] != null) {
@@ -45,11 +47,11 @@ class RoomListWidget extends StatelessWidget {
       }
       
       // Navigate to game screen (match will be started from there)
-      print('🎯 Navigating to game screen...');
+      _log.info('🎯 Navigating to game screen...');
       NavigationManager().navigateTo('/recall/game-play');
       
     } catch (e) {
-      print('❌ Error joining game: $e');
+      _log.error('❌ Error joining game: $e');
       _showSnackBar(context, 'Error joining game: $e', isError: true);
     }
   }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../managers/state_manager.dart';
-
 import '../../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
 
 class StatusBar extends StatelessWidget {
+  static final Logger _log = Logger();
+  
   const StatusBar({Key? key}) : super(key: key);
 
   @override
@@ -24,6 +26,8 @@ class StatusBar extends StatelessWidget {
         // Get turn and round from status bar slice
         final turn = statusBarState['turnNumber'] as int? ?? 0;
         final round = statusBarState['roundNumber'] as int? ?? 1;
+
+        _log.info('🎮 StatusBar: Phase=$currentPhase, Turn=$turn, Round=$round, Players=$playerCount, Connected=$isConnected');
 
         return Container(
           padding: const EdgeInsets.all(12),

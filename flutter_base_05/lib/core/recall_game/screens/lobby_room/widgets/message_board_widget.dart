@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../managers/state_manager.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
 
 class MessageBoardWidget extends StatelessWidget {
+  static final Logger _log = Logger();
   final String? roomId; // null => session board
 
   const MessageBoardWidget({Key? key, this.roomId}) : super(key: key);
@@ -18,6 +20,8 @@ class MessageBoardWidget extends StatelessWidget {
         final list = roomId == null
             ? sessionList
             : (rooms[roomId] ?? const []).cast<Map<String, dynamic>>();
+
+        _log.info('📨 MessageBoardWidget: ${roomId == null ? 'Session' : 'Room $roomId'} has ${list.length} messages');
 
         if (list.isEmpty) {
           return Container(

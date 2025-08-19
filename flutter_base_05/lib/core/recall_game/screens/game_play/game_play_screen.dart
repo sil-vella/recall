@@ -5,9 +5,8 @@ import '../../models/card.dart' as cm;
 import '../../services/recall_game_coordinator.dart';
 import '../../utils/recall_game_helpers.dart';
 import '../../utils/validated_event_emitter.dart';
+import '../../../../../tools/logging/logger.dart';
 // Provider removed – use StateManager only
-
-
 
 import '../../../00_base/screen_base.dart';
 import '../lobby_room/widgets/message_board_widget.dart';
@@ -30,6 +29,7 @@ class GamePlayScreen extends BaseScreen {
 }
 
 class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
+  static final Logger _log = Logger();
   // State management - screen itself doesn't subscribe to state changes
   final StateManager _sm = StateManager();
   final RecallGameCoordinator _gameCoordinator = RecallGameCoordinator();
@@ -39,8 +39,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   @override
   void initState() {
     super.initState();
-    
-
+    _log.info('🎮 GamePlayScreen initialized');
     
     // Ensure managers are initialized via RecallGameCore; if entering directly from lobby,
     // attempt to join the game with current room id.
@@ -57,11 +56,13 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   void _onSelectCard(cm.Card card, int index) {
+    _log.info('🎮 Card selected: ${card.displayName} at index $index');
     // 🎯 Use validated helpers for UI state
     RecallGameHelpers.setSelectedCard(card.toJson(), index);
   }
 
   Future<void> _onDrawFromDeck() async {
+    _log.info('🎮 Drawing from deck');
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final gameId = recall['currentGameId'] as String?;
     final playerId = recall['playerId'] as String?;
@@ -76,6 +77,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   Future<void> _onTakeFromDiscard() async {
+    _log.info('🎮 Taking from discard');
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final gameId = recall['currentGameId'] as String?;
     final playerId = recall['playerId'] as String?;
@@ -90,6 +92,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   Future<void> _onPlaySelected() async {
+    _log.info('🎮 Playing selected card');
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final selectedCardJson = recall['selectedCard'] as Map<String, dynamic>?;
     final gameId = recall['currentGameId'] as String?;
@@ -106,6 +109,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   Future<void> _onReplaceWithDrawn() async {
+    _log.info('🎮 Replacing with drawn card');
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final selectedCardIndex = recall['selectedCardIndex'] as int?;
     final gameId = recall['currentGameId'] as String?;
@@ -122,6 +126,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   Future<void> _onPlaceDrawnAndPlay() async {
+    _log.info('🎮 Placing drawn card and playing');
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final gameId = recall['currentGameId'] as String?;
     final playerId = recall['playerId'] as String?;
@@ -135,6 +140,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   Future<void> _onCallRecall() async {
+    _log.info('🎮 Calling recall');
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final gameId = recall['currentGameId'] as String?;
     final playerId = recall['playerId'] as String?;
@@ -148,6 +154,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   Future<void> _onPlayOutOfTurn() async {
+    _log.info('🎮 Playing out of turn');
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final selectedCardJson = recall['selectedCard'] as Map<String, dynamic>?;
     final gameId = recall['currentGameId'] as String?;
@@ -164,6 +171,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
 
   Future<void> _onStartMatch() async {
+    _log.info('🎮 Starting match');
     final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final gameId = recall['currentGameId'] as String?;
     
@@ -171,7 +179,7 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       try {
         await RecallGameHelpers.startMatch(gameId);
       } catch (e) {
-        print('❌ Error in _onStartMatch: $e');
+        _log.error('❌ Error in _onStartMatch: $e');
       }
     }
   }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../../managers/state_manager.dart';
+import '../../../../../tools/logging/logger.dart';
 
 class ActionBar extends StatelessWidget {
+  static final Logger _log = Logger();
   final VoidCallback onPlay;
   final VoidCallback onReplaceWithDrawn;
   final VoidCallback onPlaceDrawnAndPlay;
@@ -38,17 +40,17 @@ class ActionBar extends StatelessWidget {
         final hasSelection = recall['selectedCard'] != null;
         
         // Debug logging
-        print('🎮 ActionBar Debug (using ListenableBuilder):');
-        print('  - hasStartMatchCallback: ${onStartMatch != null}');
-        print('  - showStartButton: $showStartButton');
-        print('  - canPlayCard: $canPlayCard');
-        print('  - canCallRecall: $canCallRecall');
-        print('  - isGameStarted: $isGameStarted');
-        print('  - isRoomOwner: ${recall['isRoomOwner']}');
-        print('  - isGameActive: ${recall['isGameActive']}');
-        print('  - gamePhase: ${recall['gamePhase']}');
-        print('  - gameStatus: ${recall['gameStatus']}');
-        print('  - currentRoomId: ${recall['currentRoomId']}');
+        _log.info('🎮 ActionBar Debug (using ListenableBuilder):');
+        _log.info('  - hasStartMatchCallback: ${onStartMatch != null}');
+        _log.info('  - showStartButton: $showStartButton');
+        _log.info('  - canPlayCard: $canPlayCard');
+        _log.info('  - canCallRecall: $canCallRecall');
+        _log.info('  - isGameStarted: $isGameStarted');
+        _log.info('  - isRoomOwner: ${recall['isRoomOwner']}');
+        _log.info('  - isGameActive: ${recall['isGameActive']}');
+        _log.info('  - gamePhase: ${recall['gamePhase']}');
+        _log.info('  - gameStatus: ${recall['gameStatus']}');
+        _log.info('  - currentRoomId: ${recall['currentRoomId']}');
         
         return Card(
           child: Padding(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../../../tools/logging/logger.dart';
 
 class JoinRoomWidget extends StatelessWidget {
+  static final Logger _log = Logger();
   final VoidCallback onJoinRoom;
   final TextEditingController roomIdController;
 
@@ -49,7 +51,11 @@ class JoinRoomWidget extends StatelessWidget {
                       identifier: 'join_room_submit',
                       button: true,
                       child: ElevatedButton(
-                      onPressed: onJoinRoom,
+                      onPressed: () {
+                        final roomId = roomIdController.text.trim();
+                        _log.info('🎮 Joining room: $roomId');
+                        onJoinRoom();
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,

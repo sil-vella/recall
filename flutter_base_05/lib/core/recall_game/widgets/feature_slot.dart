@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../utils/consts/theme_consts.dart';
 import '../managers/feature_registry_manager.dart';
 import '../managers/feature_contracts.dart';
+import '../../../tools/logging/logger.dart';
 
 /// A visual template for a feature slot. Enforces padding, spacing, and theme.
 class SlotTemplate extends StatelessWidget {
@@ -73,14 +74,17 @@ class FeatureSlot extends StatefulWidget {
 }
 
 class _FeatureSlotState extends State<FeatureSlot> {
+  static final Logger _log = Logger();
   final FeatureRegistryManager _registry = FeatureRegistryManager.instance;
   StreamSubscription<String>? _sub;
 
   @override
   void initState() {
     super.initState();
+    _log.info('🎮 FeatureSlot initialized for scope: ${widget.scopeKey}, slot: ${widget.slotId}');
     _sub = _registry.changes.listen((scope) {
       if (scope == widget.scopeKey && mounted) {
+        _log.info('🎮 FeatureSlot rebuilding due to registry change for scope: $scope');
         setState(() {});
       }
     });
@@ -88,6 +92,7 @@ class _FeatureSlotState extends State<FeatureSlot> {
 
   @override
   void dispose() {
+    _log.info('🎮 FeatureSlot disposing for scope: ${widget.scopeKey}, slot: ${widget.slotId}');
     _sub?.cancel();
     super.dispose();
   }
@@ -98,6 +103,8 @@ class _FeatureSlotState extends State<FeatureSlot> {
       scopeKey: widget.scopeKey,
       slotId: widget.slotId,
     );
+    
+    _log.info('🎮 FeatureSlot building with ${features.length} features for scope: ${widget.scopeKey}, slot: ${widget.slotId}');
 
     if (features.isEmpty) {
       return const SizedBox.shrink();

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart' hide Card;
 import '../models/card.dart';
 import 'game_constants.dart';
+import '../../../tools/logging/logger.dart';
 
 /// Utility functions for card operations
 class CardUtils {
+  static final Logger _log = Logger();
+  
   /// Get card color for display
   static String getCardColor(Card card) {
     return card.color;
@@ -76,22 +79,29 @@ class CardUtils {
 
   /// Check if card is playable
   static bool isCardPlayable(Card card, List<Card> playableCards) {
-    return playableCards.contains(card);
+    final isPlayable = playableCards.contains(card);
+    _log.info('🎯 CardUtils: Card ${card.displayName} is ${isPlayable ? 'playable' : 'not playable'}');
+    return isPlayable;
   }
 
   /// Check if card can be played out of turn
   static bool canPlayOutOfTurn(Card card) {
-    return card.canPlayOutOfTurn;
+    final canPlay = card.canPlayOutOfTurn;
+    _log.info('🎯 CardUtils: Card ${card.displayName} can ${canPlay ? '' : 'not '}play out of turn');
+    return canPlay;
   }
 
   /// Get playable cards from hand
   static List<Card> getPlayableCards(List<Card> hand, List<Card> centerPile) {
     if (centerPile.isEmpty) {
+      _log.info('🎯 CardUtils: Center pile empty, all ${hand.length} cards are playable');
       return hand; // Any card can be played if center pile is empty
     }
     
     final topCard = centerPile.last;
-    return hand.where((card) => card.rank == topCard.rank).toList();
+    final playableCards = hand.where((card) => card.rank == topCard.rank).toList();
+    _log.info('🎯 CardUtils: Found ${playableCards.length} playable cards matching rank ${topCard.rank.name}');
+    return playableCards;
   }
 
   /// Sort cards by rank and suit

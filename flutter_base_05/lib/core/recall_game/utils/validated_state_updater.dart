@@ -1,9 +1,11 @@
 import '../../managers/state_manager.dart';
 import 'field_specifications.dart';
+import '../../../tools/logging/logger.dart';
 
 /// Validated state updater for recall game state management
 /// Ensures all state updates follow consistent structure and validation rules
 class RecallGameStateUpdater {
+  static final Logger _log = Logger();
   static RecallGameStateUpdater? _instance;
   static RecallGameStateUpdater get instance {
     _instance ??= RecallGameStateUpdater._internal();
@@ -427,10 +429,10 @@ class RecallGameStateUpdater {
     final showStartButton = isRoomOwner && !isGameActive;
     
     // Debug logging for action bar computation
-    print('🎯 [ActionBar] Computing slice:');
-    print('  - isRoomOwner: $isRoomOwner');
-    print('  - isGameActive: $isGameActive');
-    print('  - showStartButton: $showStartButton (${isRoomOwner} && !${isGameActive})');
+    _log.info('🎯 [ActionBar] Computing slice:');
+    _log.info('  - isRoomOwner: $isRoomOwner');
+    _log.info('  - isGameActive: $isGameActive');
+    _log.info('  - showStartButton: $showStartButton (${isRoomOwner} && !${isGameActive})');
     
     return {
       'showStartButton': showStartButton,
@@ -505,13 +507,13 @@ class RecallGameStateUpdater {
   
   /// Log successful state update
   void _logStateUpdate(Map<String, dynamic> updates) {
-    print('🎯 [RecallStateUpdater] Updated ${updates.length} fields: ${updates.keys.join(', ')}');
+    _log.info('🎯 [RecallStateUpdater] Updated ${updates.length} fields: ${updates.keys.join(', ')}');
   }
   
   /// Log validation errors
   void _logStateError(Map<String, dynamic> originalUpdates, dynamic error) {
-    print('❌ [RecallStateUpdater] Validation failed:');
-    print('   Error: $error');
-    print('   Attempted fields: ${originalUpdates.keys.join(', ')}');
+    _log.error('❌ [RecallStateUpdater] Validation failed:');
+    _log.error('   Error: $error');
+    _log.error('   Attempted fields: ${originalUpdates.keys.join(', ')}');
   }
 }

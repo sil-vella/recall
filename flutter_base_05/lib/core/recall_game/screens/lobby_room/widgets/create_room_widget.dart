@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../../../tools/logging/logger.dart';
 
 class CreateRoomWidget extends StatelessWidget {
+  static final Logger _log = Logger();
   final Function(Map<String, dynamic>) onCreateRoom;
 
   const CreateRoomWidget({
@@ -51,6 +53,7 @@ class CreateRoomWidget extends StatelessWidget {
   }
 
   void _showCreateRoomModal(BuildContext context) {
+    _log.info('🎮 Opening create room modal');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -75,6 +78,7 @@ class CreateRoomModal extends StatefulWidget {
 }
 
 class _CreateRoomModalState extends State<CreateRoomModal> {
+  static final Logger _log = Logger();
   // Controllers
   final TextEditingController _roomNameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();

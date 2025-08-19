@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../managers/state_manager.dart';
-
 import '../../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
 
 class CenterBoard extends StatelessWidget {
+  static final Logger _log = Logger();
   final VoidCallback onDrawFromDeck;
   final VoidCallback onTakeFromDiscard;
 
@@ -26,6 +27,8 @@ class CenterBoard extends StatelessWidget {
         final drawCount = centerBoardState['drawPileCount'] as int? ?? 0;
         final lastPlayedCard = centerBoardState['lastPlayedCard'] as Map<String, dynamic>?;
         final topDiscard = lastPlayedCard?['displayName'] as String? ?? '—';
+
+        _log.info('🎮 CenterBoard: Draw pile has $drawCount cards, top discard: $topDiscard');
 
         return Row(
           children: [
@@ -56,6 +59,7 @@ class CenterBoard extends StatelessWidget {
 }
 
 class _PileCard extends StatelessWidget {
+  static final Logger _log = Logger();
   final String title;
   final String subtitle;
   final String actionLabel;
@@ -89,7 +93,10 @@ class _PileCard extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: onAction,
+                  onPressed: () {
+                    _log.info('🎮 PileCard: Action $actionLabel triggered for $title');
+                    onAction();
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryColor,
                     foregroundColor: Colors.white,

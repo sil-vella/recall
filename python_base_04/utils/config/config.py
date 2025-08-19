@@ -528,6 +528,7 @@ class Config:
     WS_ROOM_SIZE_LIMIT = int(get_file_first_config_value("ws_room_size_limit", "WS_ROOM_SIZE_LIMIT", "100"))  # Max users per room
     WS_ROOM_SIZE_CHECK_INTERVAL = int(get_file_first_config_value("ws_room_size_check_interval", "WS_ROOM_SIZE_CHECK_INTERVAL", "30"))  # Check interval in seconds
     WS_ROOM_TTL = int(get_file_first_config_value("ws_room_ttl", "WS_ROOM_TTL", "3660"))  # Room TTL in seconds (1 hour)
+    WS_PRESENCE_TTL = int(get_file_first_config_value("ws_presence_ttl", "WS_PRESENCE_TTL", "300"))  # Presence TTL in seconds (5 minutes)
     WS_PRESENCE_CHECK_INTERVAL = int(get_file_first_config_value("ws_presence_check_interval", "WS_PRESENCE_CHECK_INTERVAL", "60"))  # Presence check interval in seconds
     WS_PRESENCE_TIMEOUT = int(get_file_first_config_value("ws_presence_timeout", "WS_PRESENCE_TIMEOUT", "300"))  # Presence timeout in seconds
     WS_PRESENCE_CLEANUP_INTERVAL = int(get_file_first_config_value("ws_presence_cleanup_interval", "WS_PRESENCE_CLEANUP_INTERVAL", "300"))  # Cleanup interval in seconds

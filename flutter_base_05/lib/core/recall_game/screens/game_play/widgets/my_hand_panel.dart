@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../models/card.dart' as cm;
 import '../../../../../../utils/consts/theme_consts.dart';
 import '../../../../managers/state_manager.dart';
+import '../../../../../tools/logging/logger.dart';
 
 class MyHandPanel extends StatelessWidget {
+  static final Logger _log = Logger();
   final void Function(cm.Card card, int index) onSelect;
 
   const MyHandPanel({Key? key, required this.onSelect}) : super(key: key);
@@ -24,6 +26,8 @@ class MyHandPanel extends StatelessWidget {
             .toList() ?? [];
         final selectedCardJson = myHandState?['selectedCard'] as Map<String, dynamic>?;
         final selectedCard = selectedCardJson != null ? cm.Card.fromJson(selectedCardJson) : null;
+
+        _log.info('🎮 MyHandPanel: Hand has ${hand.length} cards, selected: ${selectedCard?.displayName ?? 'none'}');
 
         if (hand.isEmpty) {
           return Text('Your hand is empty', style: AppTextStyles.bodyMedium);
@@ -47,6 +51,7 @@ class MyHandPanel extends StatelessWidget {
 }
 
 class _HandCardTile extends StatelessWidget {
+  static final Logger _log = Logger();
   final cm.Card card;
   final int index;
   final bool isSelected;
@@ -61,7 +66,10 @@ class _HandCardTile extends StatelessWidget {
       identifier: 'hand_card_$index',
       button: true,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          _log.info('🎮 HandCardTile: Card ${card.displayName} at index $index tapped');
+          onTap();
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
           decoration: BoxDecoration(

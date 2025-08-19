@@ -13,6 +13,7 @@ from core.managers.websockets.ws_event_handlers import WSEventHandlers
 from core.validators.websocket_validators import WebSocketValidator
 from utils.config.config import Config
 import time
+import threading
 from datetime import datetime
 from functools import wraps
 import json
@@ -33,6 +34,7 @@ class WebSocketManager:
         self.rooms: Dict[str, Set[str]] = {}  # room_id -> set of session_ids
         self.session_rooms: Dict[str, Set[str]] = {}  # session_id -> set of room_ids
         self.room_data: Dict[str, Dict[str, Any]] = {}  # room_id -> room metadata (creator_id, permission, etc.)
+        self._room_creation_lock = threading.Lock()  # Lock for preventing race conditions in room creation
         self.rate_limits = {
             'connections': {
                 'max': Config.WS_RATE_LIMIT_CONNECTIONS,
@@ -314,8 +316,8 @@ class WebSocketManager:
                 'room_id': room_id,
                 'permission': room_data.get('permission', 'public'),
                 'owner_id': room_data.get('owner_id'),
-                'allowed_users': list(room_data.get('allowed_users', set())),
-                'allowed_roles': list(room_data.get('allowed_roles', set())),
+                'allowed_users': list(room_data.get('allowed_users', set())),  # Ensure it's a list
+                'allowed_roles': list(room_data.get('allowed_roles', set())),  # Ensure it's a list
                 'created_at': datetime.now().isoformat(),
                 'updated_at': datetime.now().isoformat()
             }
@@ -447,67 +449,71 @@ class WebSocketManager:
         # This method is now deprecated - all handlers are registered through ws_event_listeners.py
         custom_log(f"WARNING - register_authenticated_handler called for {event} - use ws_event_listeners.py instead")
 
-    def create_room(self, room_id: str, permission: str = "public", 
-                   owner_id: Optional[str] = None,
-                   allowed_users: Optional[Set[int]] = None,
-                   allowed_roles: Optional[Set[str]] = None) -> bool:
-        """Create a new room with specified permissions."""
-        try:
-            custom_log(f"DEBUG - Creating room: {room_id} with permission: {permission}")
-            
-            # Initialize room data
-            room_data = {
-                'room_id': room_id,
-                'permission': permission,
-                'owner_id': owner_id,
-                'allowed_users': allowed_users or set(),
-                'allowed_roles': allowed_roles or set(),
-                'created_at': datetime.now().isoformat(),
-                'size': 0
-            }
-            
-            custom_log(f"DEBUG - Room data prepared: {room_data}")
-            
-            # Store room data in Redis
-            room_key = self.redis_manager._generate_secure_key("room", room_id)
-            custom_log(f"DEBUG - Room key generated: {room_key}")
-            
-            self.redis_manager.set(room_key, room_data, expire=Config.WS_ROOM_TTL)
-            custom_log(f"DEBUG - Room data stored in Redis")
-            # Ensure TTL is enforced through room manager policy as well
+    def create_room(self, room_id: str, permission: str = "public", owner_id: Optional[str] = None, allowed_users: Optional[Set[str]] = None, allowed_roles: Optional[Set[str]] = None) -> bool:
+        """Create a new room."""
+        # Use lock to prevent race conditions in room creation
+        with self._room_creation_lock:
             try:
-                self.room_manager.reinstate_room_ttl(room_id)
-                custom_log(f"⏱️ Reinforced TTL policy for room {room_id} after create")
+                # Check if room already exists
+                if room_id in self.rooms:
+                    custom_log(f"Room {room_id} already exists, skipping creation")
+                    return True
+                
+                custom_log(f"DEBUG - Creating room: {room_id} with permission: {permission}")
+            
+                # Prepare room data for Redis storage (convert sets to lists for JSON serialization)
+                room_data = {
+                    'room_id': room_id,
+                    'permission': permission,
+                    'owner_id': owner_id,
+                    'allowed_users': list(allowed_users or set()),  # Convert set to list for JSON serialization
+                    'allowed_roles': list(allowed_roles or set()),  # Convert set to list for JSON serialization
+                    'created_at': datetime.now().isoformat(),
+                    'size': 0
+                }
+                
+                custom_log(f"DEBUG - Room data prepared: {room_data}")
+                
+                # Store room data in Redis
+                room_key = self.redis_manager._generate_secure_key("room", room_id)
+                custom_log(f"DEBUG - Room key generated: {room_key}")
+                
+                self.redis_manager.set(room_key, room_data, expire=Config.WS_ROOM_TTL)
+                custom_log(f"DEBUG - Room data stored in Redis")
+                # Ensure TTL is enforced through room manager policy as well
+                try:
+                    self.room_manager.reinstate_room_ttl(room_id)
+                    custom_log(f"⏱️ Reinforced TTL policy for room {room_id} after create")
+                except Exception as e:
+                    custom_log(f"⚠️ Could not reinstate TTL on create for room {room_id}: {e}")
+                
+                # Update room permissions
+                self._update_room_permissions(room_id, room_data)
+                custom_log(f"DEBUG - Room permissions updated")
+                
+                # Initialize room in memory
+                self.rooms[room_id] = set()
+                
+                # Store room metadata in memory for fast access
+                self.room_data[room_id] = {
+                    'creator_id': owner_id,
+                    'permission': permission,
+                    'created_at': datetime.now().isoformat(),
+                    'size': 0,
+                    'allowed_users': list(allowed_users or set()),  # Convert set to list for consistency
+                    'allowed_roles': list(allowed_roles or set())   # Convert set to list for consistency
+                }
+                custom_log(f"DEBUG - Room initialized in memory: {self.rooms}")
+                custom_log(f"DEBUG - Room metadata stored in memory: creator_id={owner_id}, permission={permission}")
+                
+                custom_log(f"✅ Room created: {room_id} with permission: {permission}")
+                return True
+                
             except Exception as e:
-                custom_log(f"⚠️ Could not reinstate TTL on create for room {room_id}: {e}")
-            
-            # Update room permissions
-            self._update_room_permissions(room_id, room_data)
-            custom_log(f"DEBUG - Room permissions updated")
-            
-            # Initialize room in memory
-            self.rooms[room_id] = set()
-            
-            # Store room metadata in memory for fast access
-            self.room_data[room_id] = {
-                'creator_id': owner_id,
-                'permission': permission,
-                'created_at': datetime.now().isoformat(),
-                'size': 0,
-                'allowed_users': allowed_users or set(),
-                'allowed_roles': allowed_roles or set()
-            }
-            custom_log(f"DEBUG - Room initialized in memory: {self.rooms}")
-            custom_log(f"DEBUG - Room metadata stored in memory: creator_id={owner_id}, permission={permission}")
-            
-            custom_log(f"✅ Room created: {room_id} with permission: {permission}")
-            return True
-            
-        except Exception as e:
-            custom_log(f"❌ Error creating room {room_id}: {str(e)}")
-            import traceback
-            custom_log(f"❌ Full traceback: {traceback.format_exc()}")
-            return False
+                custom_log(f"❌ Error creating room {room_id}: {str(e)}")
+                import traceback
+                custom_log(f"❌ Full traceback: {traceback.format_exc()}")
+                return False
 
     def get_room_size(self, room_id: str) -> int:
         """Get the current size of a room."""
@@ -618,20 +624,37 @@ class WebSocketManager:
             room_data = self.redis_manager.get(room_key)
             
             if not room_data:
-                # Create public room if it doesn't exist, with user_id as owner
-                custom_log(f"Room {room_id} doesn't exist, creating as public room with owner: {user_id}")
-                self.create_room(room_id, "public", owner_id=user_id)
-                room_data = self.redis_manager.get(room_key)
+                # Check if room already exists in memory to prevent duplicate creation
+                if room_id in self.rooms:
+                    custom_log(f"Room {room_id} exists in memory but not in Redis - skipping creation")
+                    room_data = {
+                        'room_id': room_id,
+                        'permission': 'public',
+                        'owner_id': user_id,
+                        'allowed_users': [],
+                        'allowed_roles': [],
+                        'created_at': datetime.now().isoformat(),
+                        'size': len(self.rooms[room_id])
+                    }
+                else:
+                    # Create public room if it doesn't exist, with user_id as owner
+                    custom_log(f"Room {room_id} doesn't exist, creating as public room with owner: {user_id}")
+                    self.create_room(room_id, "public", owner_id=user_id)
+                    room_data = self.redis_manager.get(room_key)
             else:
                 # Room exists in Redis but might not be in memory - initialize memory metadata
                 if room_id not in self.room_data:
+                    # Convert lists back to sets for internal use
+                    allowed_users = room_data.get('allowed_users', [])
+                    allowed_roles = room_data.get('allowed_roles', [])
+                    
                     self.room_data[room_id] = {
                         'creator_id': room_data.get('owner_id'),
                         'permission': room_data.get('permission', 'public'),
                         'created_at': room_data.get('created_at'),
                         'size': room_data.get('size', 0),
-                        'allowed_users': set(room_data.get('allowed_users', [])),
-                        'allowed_roles': set(room_data.get('allowed_roles', []))
+                        'allowed_users': set(allowed_users) if isinstance(allowed_users, list) else allowed_users,
+                        'allowed_roles': set(allowed_roles) if isinstance(allowed_roles, list) else allowed_roles
                     }
                     custom_log(f"Initialized room metadata in memory for existing room: {room_id}")
             
@@ -678,7 +701,11 @@ class WebSocketManager:
                     session_data['rooms'] = set(session_data['rooms'])
                 session_data['rooms'].add(room_id)
                 session_data['last_activity'] = datetime.now().isoformat()
-                self.store_session_data(session_id, session_data)
+                # Convert sets to lists before storing
+                session_data_copy = session_data.copy()
+                if isinstance(session_data_copy['rooms'], set):
+                    session_data_copy['rooms'] = list(session_data_copy['rooms'])
+                self.store_session_data(session_id, session_data_copy)
             
             # Update user presence
             self.update_user_presence(session_id, 'online')

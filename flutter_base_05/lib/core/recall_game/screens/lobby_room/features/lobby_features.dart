@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../managers/feature_registry_manager.dart';
 import '../../../managers/feature_contracts.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
 
 /// Scope and slot constants for the lobby screen
 class LobbyFeatureSlots {
@@ -14,9 +15,12 @@ class LobbyFeatureSlots {
 
 /// Registers default lobby features into the registry for this screen scope
 class LobbyFeatureRegistrar {
+  static final Logger _log = Logger();
   final FeatureRegistryManager _registry = FeatureRegistryManager.instance;
 
   void registerDefaults(BuildContext context) {
+    _log.info('🎮 LobbyFeatureRegistrar: Registering default features');
+    
     // Example Feature: Connection hint banner
     _registry.register(
       scopeKey: LobbyFeatureSlots.scopeKey,
@@ -42,6 +46,7 @@ class LobbyFeatureRegistrar {
         icon: Icons.refresh,
         tooltip: 'Refresh rooms',
         onTap: () {
+          _log.info('🎮 LobbyFeatureRegistrar: Refresh rooms action triggered');
           // Intentionally minimal for example; real impl should call service
         },
       ),
@@ -56,24 +61,31 @@ class LobbyFeatureRegistrar {
         priority: 20,
         icon: Icons.help_outline,
         tooltip: 'How it works',
-        onTap: () {},
+        onTap: () {
+          _log.info('🎮 LobbyFeatureRegistrar: Help action triggered');
+        },
       ),
       context: context,
     );
+    
+    _log.info('🎮 LobbyFeatureRegistrar: Default features registered successfully');
   }
 
   void unregisterAll() {
+    _log.info('🎮 LobbyFeatureRegistrar: Unregistering all features');
     _registry.clearScope(LobbyFeatureSlots.scopeKey);
   }
 }
 
 class _InfoBanner extends StatelessWidget {
+  static final Logger _log = Logger();
   final IconData icon;
   final String text;
   const _InfoBanner({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
+    _log.info('🎮 InfoBanner: Building banner with text: $text');
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),

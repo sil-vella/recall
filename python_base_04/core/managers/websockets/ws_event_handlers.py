@@ -212,14 +212,14 @@ class WSEventHandlers:
                 user_id = session_id
                 custom_log(f"⚠️ [CONNECT] Using session_id as fallback user_id: {user_id}")
             
-            # Store session data with actual user_id
+            # Create session data
             session_data = {
                 'session_id': session_id,
-                'user_id': user_id,  # This should be the actual user ID from JWT
+                'user_id': user_id,
                 'connected_at': datetime.now().isoformat(),
                 'client_id': client_id,
-                'rooms': set(),
-                'user_roles': set(),
+                'rooms': [],  # Use empty list instead of set for Redis storage
+                'user_roles': [],  # Use empty list instead of set for Redis storage
                 'last_activity': datetime.now().isoformat()
             }
             

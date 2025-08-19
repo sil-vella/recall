@@ -1,9 +1,11 @@
 import '../../managers/websockets/websocket_manager.dart';
 import 'field_specifications.dart';
+import '../../../tools/logging/logger.dart';
 
 /// Validated event emitter for recall game WebSocket events
 /// Ensures all events follow consistent structure and validation rules
 class RecallGameEventEmitter {
+  static final Logger _log = Logger();
   static RecallGameEventEmitter? _instance;
   static RecallGameEventEmitter get instance {
     _instance ??= RecallGameEventEmitter._internal();
@@ -327,14 +329,14 @@ class RecallGameEventEmitter {
   
   /// Log successful event emission
   void _logEvent(String eventType, Map<String, dynamic> payload) {
-    print('🎯 [RecallEventEmitter] Emitting $eventType with ${payload.length} fields');
-    print('   Fields: ${payload.keys.where((k) => k != 'session_id' && k != 'timestamp').join(', ')}');
+    _log.info('🎯 [RecallEventEmitter] Emitting $eventType with ${payload.length} fields');
+    _log.info('   Fields: ${payload.keys.where((k) => k != 'session_id' && k != 'timestamp').join(', ')}');
   }
   
   /// Log validation errors
   void _logEventError(String eventType, Map<String, dynamic> originalData, dynamic error) {
-    print('❌ [RecallEventEmitter] Validation failed for $eventType:');
-    print('   Error: $error');
-    print('   Original data: ${originalData.keys.join(', ')}');
+    _log.error('❌ [RecallEventEmitter] Validation failed for $eventType:');
+    _log.error('   Error: $error');
+    _log.error('   Original data: ${originalData.keys.join(', ')}');
   }
 }

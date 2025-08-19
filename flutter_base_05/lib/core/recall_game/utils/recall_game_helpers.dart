@@ -1,10 +1,12 @@
 import 'validated_event_emitter.dart';
 import 'validated_state_updater.dart';
 import '../../managers/state_manager.dart';
+import '../../../tools/logging/logger.dart';
 
 /// Convenient helper methods for recall game operations
 /// Provides type-safe, validated methods for common game actions
 class RecallGameHelpers {
+  static final Logger _log = Logger();
   // Singleton instances
   static final _eventEmitter = RecallGameEventEmitter.instance;
   static final _stateUpdater = RecallGameStateUpdater.instance;
@@ -402,13 +404,16 @@ class RecallGameHelpers {
   
   /// Update UI state using validated state updater
   static void updateUIState(Map<String, dynamic> updates) {
-    print('🎯 [RecallGameHelpers] updateUIState called with: ${updates.keys.join(', ')}');
+    _log.info('🎯 [RecallGameHelpers] updateUIState called with: ${updates.keys.join(', ')}');
+    
+    // Debug specific fields
     if (updates.containsKey('isRoomOwner')) {
-      print('  - isRoomOwner: ${updates['isRoomOwner']}');
+      _log.info('  - isRoomOwner: ${updates['isRoomOwner']}');
     }
     if (updates.containsKey('isGameActive')) {
-      print('  - isGameActive: ${updates['isGameActive']}');
+      _log.info('  - isGameActive: ${updates['isGameActive']}');
     }
+    
     _stateUpdater.updateState(updates);
   }
   

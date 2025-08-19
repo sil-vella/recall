@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import '../../../../../tools/logging/logger.dart';
 
 import '../../../utils/recall_game_helpers.dart';
 
@@ -22,6 +22,7 @@ class PendingGamesWidget extends StatefulWidget {
 }
 
 class _PendingGamesWidgetState extends State<PendingGamesWidget> {
+  static final Logger _log = Logger();
   
   List<Map<String, dynamic>> _pendingGames = [];
   bool _isLoading = false;
@@ -31,6 +32,7 @@ class _PendingGamesWidgetState extends State<PendingGamesWidget> {
   @override
   void initState() {
     super.initState();
+    _log.info('🎮 PendingGamesWidget initialized');
     // Don't auto-load on init - only load when user requests
   }
 
@@ -44,7 +46,7 @@ class _PendingGamesWidgetState extends State<PendingGamesWidget> {
     });
 
     try {
-      print('🔄 Fetching pending games from server...');
+      _log.info('🔄 Fetching pending games from server...');
       
       // Use validated event emitter to request pending games
       final result = await RecallGameHelpers.getPendingGames();
@@ -78,7 +80,7 @@ class _PendingGamesWidgetState extends State<PendingGamesWidget> {
             _isLoading = false;
           });
           
-          print('✅ Loaded ${_pendingGames.length} pending games');
+          _log.info('✅ Loaded ${_pendingGames.length} pending games');
         } else {
           // Empty list is OK - just means no games available
           setState(() {
@@ -86,12 +88,12 @@ class _PendingGamesWidgetState extends State<PendingGamesWidget> {
             _lastRefresh = DateTime.now();
             _isLoading = false;
           });
-          print('✅ No pending games available');
+          _log.info('✅ No pending games available');
         }
       } else {
         // Handle backend errors gracefully
         final errorMsg = result['error'] ?? 'Failed to fetch pending games';
-        print('⚠️ Backend error: $errorMsg');
+        _log.warning('⚠️ Backend error: $errorMsg');
         
         setState(() {
           _pendingGames = [];
@@ -101,10 +103,12 @@ class _PendingGamesWidgetState extends State<PendingGamesWidget> {
         });
       }
     } catch (e) {
-      print('❌ Error fetching pending games: $e');
+      _log.error('❌ Error fetching pending games: $e');
       setState(() {
-        _error = e.toString();
+        _pendingGames = [];
+        _lastRefresh = DateTime.now();
         _isLoading = false;
+        _error = 'Failed to load games. Please try again.';
       });
     }
   }
@@ -293,7 +297,7 @@ class _PendingGamesWidgetState extends State<PendingGamesWidget> {
 
   /// Join a room
   void _joinRoom(String roomId, String roomName) {
-    print('🚪 Joining room: $roomId ($roomName)');
+    _log.info('🚪 Joining room: $roomId ($roomName)');
     widget.onJoinRoom(roomId);
     
     // Optionally refresh the list after joining

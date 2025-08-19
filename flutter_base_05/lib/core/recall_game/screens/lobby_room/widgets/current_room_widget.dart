@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../managers/navigation_manager.dart';
 import '../../../../managers/state_manager.dart';
+import '../../../../../tools/logging/logger.dart';
 
 class CurrentRoomWidget extends StatelessWidget {
+  static final Logger _log = Logger();
   final Function(String) onLeaveRoom;
 
   const CurrentRoomWidget({
@@ -31,6 +33,8 @@ class CurrentRoomWidget extends StatelessWidget {
         final roomName = currentRoom['room_name']?.toString() ?? roomId;
         final maxPlayers = currentRoom['max_size'] ?? players.length;
 
+        _log.info('🎮 CurrentRoomWidget: Room $roomName ($roomId) with ${players.length}/$maxPlayers players');
+
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -53,7 +57,10 @@ class CurrentRoomWidget extends StatelessWidget {
                       button: true,
                       child: ElevatedButton(
                         onPressed: isConnected
-                            ? () => NavigationManager().navigateTo('/recall/game-play')
+                            ? () {
+                                _log.info('🎮 Navigating to game screen');
+                                NavigationManager().navigateTo('/recall/game-play');
+                              }
                             : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
@@ -64,7 +71,10 @@ class CurrentRoomWidget extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton(
-                      onPressed: isConnected ? () => onLeaveRoom(roomId) : null,
+                      onPressed: isConnected ? () {
+                        _log.info('🎮 Leaving room: $roomId');
+                        onLeaveRoom(roomId);
+                      } : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,

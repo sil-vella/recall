@@ -55,6 +55,7 @@ class RecallGameManager {
   Future<bool> connectWebSocket() async {
     if (_wsManager.isConnected) {
       _log.info('✅ WebSocket already connected');
+      _setupEventListeners(); // Set up listeners even if already connected
       return true;
     }
     
@@ -62,11 +63,24 @@ class RecallGameManager {
     final connected = await _wsManager.connect();
     if (connected) {
       _log.info('✅ WebSocket connected successfully');
+      _setupEventListeners(); // Set up listeners after successful connection
       return true;
     } else {
       _log.warning('⚠️ WebSocket connection failed, will retry later');
       return false;
     }
+  }
+
+  /// Handle WebSocket connection events
+  void _handleWebSocketConnection() {
+    _log.info('🔌 WebSocket connection established, setting up event listeners...');
+    _setupEventListeners();
+  }
+
+  /// Handle WebSocket disconnection events
+  void _handleWebSocketDisconnection() {
+    _log.info('🔌 WebSocket disconnected, cleaning up event listeners...');
+    _unregisterEventListeners();
   }
 
   /// Initialize the Recall game manager
@@ -174,8 +188,8 @@ class RecallGameManager {
       
       // NOW set up event listeners after initialization is complete
       _log.info('🎧 Setting up event listeners after initialization...');
-      _setupEventListeners();
-      _log.info('✅ Event listeners set up after initialization');
+      _ensureEventListenersSetup();
+      _log.info('✅ Event listeners setup initiated after initialization');
       
       return true;
       
@@ -186,14 +200,43 @@ class RecallGameManager {
     }
   }
 
+  /// Ensure event listeners are set up (with retry logic)
+  void _ensureEventListenersSetup() {
+    if (!_isInitialized) {
+      _log.warning('⚠️ Cannot set up event listeners: manager not initialized');
+      return;
+    }
+    
+    final socket = _wsManager.socket;
+    if (socket == null) {
+      _log.warning('⚠️ Socket not available, will retry when connection is established');
+      // Schedule a retry after a short delay
+      Future.delayed(Duration(milliseconds: 500), () {
+        if (_wsManager.isConnected && _wsManager.socket != null) {
+          _log.info('🔄 Retrying event listener setup...');
+          _setupEventListeners();
+        }
+      });
+      return;
+    }
+    
+    _setupEventListeners();
+  }
+
   /// Set up event listeners for individual recall game events
   void _setupEventListeners() {
     _log.info('🎧 Setting up individual recall game event listeners...');
     
-    // Get WebSocket manager instance
-    final wsManager = WebSocketManager.instance;
+    // Get the socket instance directly
+    final socket = _wsManager.socket;
+    if (socket == null) {
+      _log.error('❌ Cannot set up event listeners: socket is null');
+      return;
+    }
     
-    // Register individual event listeners directly with WebSocket manager
+    _log.info('🔌 Setting up Socket.IO event listeners directly on socket...');
+    
+    // Register individual event listeners directly on the socket
     final eventTypes = [
       'game_joined', 'game_left', 'player_joined', 'player_left',
       'game_started', 'game_ended', 'turn_changed', 'card_played',
@@ -201,16 +244,17 @@ class RecallGameManager {
     ];
     
     for (final eventType in eventTypes) {
-      wsManager.eventListener?.registerCustomListener(eventType, (data) {
-        _log.info('🎮 RecallGameManager received event: $eventType');
+      socket.on(eventType, (data) {
+        _log.info('🎮 RecallGameManager received event: $eventType with data: $data');
         _handleRecallGameEvent({
           'event_type': eventType,
           ...(data is Map<String, dynamic> ? data : {}),
         });
       });
+      _log.info('✅ Registered listener for: $eventType');
     }
     
-    _log.info('✅ Recall Game Manager individual event listeners set up');
+    _log.info('✅ Recall Game Manager individual event listeners set up directly on socket');
   }
 
 
@@ -1115,16 +1159,45 @@ class RecallGameManager {
     }
   }
 
+  /// Unregister recall game event listeners
+  void _unregisterEventListeners() {
+    _log.info('🎧 Unregistering recall game event listeners...');
+    
+    final socket = _wsManager.socket;
+    if (socket == null) {
+      _log.warning('⚠️ Cannot unregister listeners: socket is null');
+      return;
+    }
+    
+    final eventTypes = [
+      'game_joined', 'game_left', 'player_joined', 'player_left',
+      'game_started', 'game_ended', 'turn_changed', 'card_played',
+      'card_drawn', 'recall_called', 'game_state_updated', 'game_phase_changed',
+    ];
+    
+    for (final eventType in eventTypes) {
+      socket.off(eventType);
+      _log.info('✅ Unregistered listener for: $eventType');
+    }
+    
+    _log.info('✅ Recall Game Manager event listeners unregistered');
+  }
+
   /// Dispose of the manager
   void dispose() {
+    _log.info('🗑️ Disposing Recall Game Manager...');
+    
+    // Unregister event listeners
+    _unregisterEventListeners();
+    
+    // Cancel subscriptions
     _gameEventSubscription?.cancel();
     _gameStateSubscription?.cancel();
     _errorSubscription?.cancel();
     
-    _stateManager.dispose();
-    
+    // Clear game state
     _clearGameState();
     
-    _log.info('🗑️ Recall Game Manager disposed');
+    _log.info('✅ Recall Game Manager disposed');
   }
 } 

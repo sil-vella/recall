@@ -37,6 +37,9 @@ class RecallGameEventListenerValidator {
       'game_id', 'game_state', 'timestamp', 'started_by',
       'player_order', 'initial_hands',
     },
+    'game_phase_changed': {
+      'game_id', 'new_phase', 'current_player', 'timestamp',
+    },
     'game_ended': {
       'game_id', 'game_state', 'winner', 'scores', 'reason',
       'timestamp', 'duration',

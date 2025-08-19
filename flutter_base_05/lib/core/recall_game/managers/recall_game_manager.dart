@@ -254,6 +254,9 @@ class RecallGameManager {
         case 'game_state_updated':
           _handleGameStateUpdated(data);
           break;
+        case 'game_phase_changed':
+          _handleGamePhaseChanged(data);
+          break;
         case 'create_room_success':
           _handleCreateRoomSuccess(data);
           break;
@@ -411,6 +414,33 @@ class RecallGameManager {
     final error = data['error'] ?? 'Unknown error';
     _log.error('❌ Game error: $error');
     // Handle error appropriately
+  }
+
+  /// Handle game phase changed event
+  void _handleGamePhaseChanged(Map<String, dynamic> data) {
+    final gameId = data['game_id'] as String?;
+    final newPhase = data['new_phase'] as String?;
+    final currentPlayer = data['current_player'] as String?;
+    
+    _log.info('🔄 Game phase changed: $newPhase, current player: $currentPlayer');
+    
+    // Update game phase in state
+    RecallGameHelpers.updateGameInfo(
+      gameId: gameId,
+      gamePhase: newPhase,
+    );
+    
+    // Update player turn info if we have current player
+    if (currentPlayer != null) {
+      final isMyTurn = currentPlayer == _currentPlayerId;
+      RecallGameHelpers.updatePlayerTurn(
+        isMyTurn: isMyTurn,
+        canPlayCard: isMyTurn && newPhase == 'player_turn',
+        canCallRecall: isMyTurn && newPhase == 'player_turn',
+      );
+    }
+    
+    _log.info('✅ Game phase change handled');
   }
 
 

@@ -638,7 +638,14 @@ class RecallGameManager {
   /// Check if current user is the room owner
   bool _isRoomOwner() {
     final currentState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-    return currentState['isRoomOwner'] == true;
+    final isRoomOwner = currentState['isRoomOwner'] == true;
+    
+    _log.info('🔍 [ROOM_OWNERSHIP] Checking room ownership:');
+    _log.info('🔍 [ROOM_OWNERSHIP] Current state keys: ${currentState.keys.toList()}');
+    _log.info('🔍 [ROOM_OWNERSHIP] isRoomOwner value: ${currentState['isRoomOwner']}');
+    _log.info('🔍 [ROOM_OWNERSHIP] Final result: $isRoomOwner');
+    
+    return isRoomOwner;
   }
 
   /// Update main StateManager
@@ -1218,6 +1225,20 @@ class RecallGameManager {
     
     // Check if we can access the socket and it's connected
     return _wsManager.isConnected && socket != null;
+  }
+
+  /// Manually set room ownership for debugging
+  void setRoomOwnership(bool isOwner) {
+    _log.info('🔧 [DEBUG] Manually setting room ownership: $isOwner');
+    
+    final currentState = _stateManager.getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+    final updatedState = {
+      ...currentState,
+      'isRoomOwner': isOwner,
+    };
+    
+    _stateManager.updateModuleState("recall_game", updatedState);
+    _log.info('✅ [DEBUG] Room ownership set to: $isOwner');
   }
 
   /// Get detailed status for debugging

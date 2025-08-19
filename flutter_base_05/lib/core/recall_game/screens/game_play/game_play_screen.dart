@@ -56,6 +56,10 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
         // Log detailed status for debugging
         final status = recallGameCore.getDetailedStatus();
         _log.info('📊 [GAME_PLAY] RecallGameManager status: $status');
+        
+        // 🔧 TEMPORARY DEBUG: Set room ownership to true to test start match
+        _log.info('🔧 [GAME_PLAY] TEMPORARY DEBUG: Setting room ownership to true');
+        recallGameCore.recallGameManager.setRoomOwnership(true);
       } else {
         _log.error('❌ [GAME_PLAY] RecallGameManager is not ready');
       }

@@ -51,6 +51,8 @@ class ActionBar extends StatelessWidget {
         _log.info('  - gamePhase: ${recall['gamePhase']}');
         _log.info('  - gameStatus: ${recall['gameStatus']}');
         _log.info('  - currentRoomId: ${recall['currentRoomId']}');
+        _log.info('  - Start button should show: ${onStartMatch != null && showStartButton}');
+        _log.info('  - Start button conditions: callback=${onStartMatch != null}, showButton=$showStartButton');
         
         return Card(
           child: Padding(

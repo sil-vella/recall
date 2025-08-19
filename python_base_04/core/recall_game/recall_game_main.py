@@ -75,7 +75,7 @@ class RecallGameMain:
             return
 
         gp = self.recall_gameplay_manager
-        listeners.register_custom_listener('recall_join_game', gp.on_join_game)
+        listeners.register_custom_listener('join_game', gp.on_join_game)
         listeners.register_custom_listener('recall_leave_game', gp.on_leave_game)
         listeners.register_custom_listener('recall_player_action', gp.on_player_action)
         listeners.register_custom_listener('start_match', gp.on_start_match)

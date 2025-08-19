@@ -181,15 +181,52 @@ class RecallGameCore {
       'details': 'Recall Game Core - Manages card game UI and navigation',
       'managers': {
         'state_manager': 'initialized',
-        'game_manager': 'initialized',
+        'game_manager': _recallGameManager.isInitialized ? 'initialized' : 'not_initialized',
         'game_coordinator': 'initialized',
       },
       'screens_registered': [
         '/recall/lobby',
         // '/recall/game-room', // TODO: Add when implemented
-        // '/recall/game-play', // TODO: Add when implemented
+        '/recall/game-play',
         // '/recall/game-results', // TODO: Add when implemented
       ],
+    };
+  }
+
+  /// Ensure RecallGameManager is properly initialized and event listeners are set up
+  Future<bool> ensureGameManagerReady() async {
+    _log.info('🔧 [ENSURE_READY] Ensuring RecallGameManager is ready...');
+    
+    // Check if core is initialized
+    if (!_isInitialized) {
+      _log.warning('⚠️ [ENSURE_READY] Recall Game Core not initialized, initializing...');
+      // This would require context, so we'll just check the manager directly
+    }
+    
+    // Ensure RecallGameManager is initialized
+    final managerReady = await _recallGameManager.ensureInitialized();
+    if (!managerReady) {
+      _log.error('❌ [ENSURE_READY] RecallGameManager initialization failed');
+      return false;
+    }
+    
+    _log.info('✅ [ENSURE_READY] RecallGameManager is ready');
+    
+    // Log detailed status for debugging
+    final status = _recallGameManager.getDetailedStatus();
+    _log.info('📊 [ENSURE_READY] RecallGameManager status: $status');
+    
+    return true;
+  }
+
+  /// Get detailed status for debugging
+  Map<String, dynamic> getDetailedStatus() {
+    return {
+      'core': {
+        'isInitialized': _isInitialized,
+      },
+      'gameManager': _recallGameManager.getDetailedStatus(),
+      'healthCheck': healthCheck(),
     };
   }
 

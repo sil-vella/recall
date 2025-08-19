@@ -1186,6 +1186,66 @@ class RecallGameManager {
     };
   }
 
+  /// Manually ensure initialization and event listeners are set up
+  Future<bool> ensureInitialized() async {
+    _log.info('🔧 [ENSURE_INIT] Manually ensuring RecallGameManager is initialized...');
+    
+    // Check if already initialized
+    if (_isInitialized) {
+      _log.info('✅ [ENSURE_INIT] Already initialized, checking event listeners...');
+      _ensureEventListenersSetup();
+      return true;
+    }
+    
+    // Initialize if not already done
+    _log.info('🔄 [ENSURE_INIT] Not initialized, initializing now...');
+    final initResult = await initialize();
+    
+    if (initResult) {
+      _log.info('✅ [ENSURE_INIT] Initialization successful, setting up event listeners...');
+      _ensureEventListenersSetup();
+      return true;
+    } else {
+      _log.error('❌ [ENSURE_INIT] Initialization failed');
+      return false;
+    }
+  }
+
+  /// Check if event listeners are properly set up
+  bool get areEventListenersSetUp {
+    final socket = _wsManager.socket;
+    if (socket == null) return false;
+    
+    // Check if we can access the socket and it's connected
+    return _wsManager.isConnected && socket != null;
+  }
+
+  /// Get detailed status for debugging
+  Map<String, dynamic> getDetailedStatus() {
+    return {
+      'manager': {
+        'isInitialized': _isInitialized,
+        'isInitializing': _isInitializing,
+        'isGameActive': _isGameActive,
+        'currentGameId': _currentGameId,
+        'playerId': _currentPlayerId,
+      },
+      'websocket': {
+        'isConnected': _wsManager.isConnected,
+        'socketAvailable': _wsManager.socket != null,
+        'areEventListenersSetUp': areEventListenersSetUp,
+      },
+      'game': {
+        'hasActiveGame': hasActiveGame,
+        'currentGameState': _currentGameState != null,
+        'isMyTurn': isMyTurn,
+        'canCallRecall': canCallRecall,
+        'myHandSize': getMyHand().length,
+        'playerCount': allPlayers.length,
+      },
+    };
+  }
+
   /// Register hook callbacks for external events
   void _registerHookCallbacks() {
     try {

@@ -17,6 +17,7 @@ import 'widgets/center_board.dart';
 import 'widgets/my_hand_panel.dart';
 import 'widgets/action_bar.dart';
 // Provider removed
+import '../../recall_game_main.dart';
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);
@@ -44,6 +45,21 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     // Ensure managers are initialized via RecallGameCore; if entering directly from lobby,
     // attempt to join the game with current room id.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // 🔧 Ensure RecallGameManager is ready
+      _log.info('🔧 [GAME_PLAY] Ensuring RecallGameManager is ready...');
+      final recallGameCore = RecallGameCore();
+      final managerReady = await recallGameCore.ensureGameManagerReady();
+      
+      if (managerReady) {
+        _log.info('✅ [GAME_PLAY] RecallGameManager is ready');
+        
+        // Log detailed status for debugging
+        final status = recallGameCore.getDetailedStatus();
+        _log.info('📊 [GAME_PLAY] RecallGameManager status: $status');
+      } else {
+        _log.error('❌ [GAME_PLAY] RecallGameManager is not ready');
+      }
+      
       // 🎯 Use validated state access
       final recall = _sm.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentRoomId = recall['currentRoomId'] as String? ?? '';

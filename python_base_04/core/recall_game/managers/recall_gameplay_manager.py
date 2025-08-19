@@ -384,6 +384,11 @@ class RecallGameplayManager:
             # Use game engine to process start_match action
             custom_log(f"🎮 [on_start_match] Processing start_match via game engine...")
             
+            # Get user_id from session data
+            session_data = self.websocket_manager.get_session_data(session_id) or {}
+            user_id = str(session_data.get('user_id') or session_id)
+            custom_log(f"🎮 [on_start_match] Using user_id: {user_id}")
+            
             # Build action data for YAML engine
             action_data = {
                 'action_type': 'start_match',

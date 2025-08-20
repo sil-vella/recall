@@ -37,6 +37,9 @@ class RecallGameManager {
   bool _isInitialized = false;
   bool _isInitializing = false;  // Add initialization guard
   
+  // Event stream for UI updates (following core WebSocket pattern - single stream)
+  final StreamController<GameEvent> _gameEventController = StreamController<GameEvent>.broadcast();
+  
   // Event listeners
   StreamSubscription<GameEvent>? _gameEventSubscription;
   StreamSubscription<GameState>? _gameStateSubscription;
@@ -50,6 +53,9 @@ class RecallGameManager {
   bool get isConnected => _wsManager.isConnected;
   GameState? get currentGameState => _currentGameState;
   bool get hasActiveGame => _currentGameState != null && _currentGameState!.isActive;
+  
+  // Event stream for UI (following core WebSocket pattern - single stream)
+  Stream<GameEvent> get gameEvents => _gameEventController.stream;
 
   /// Connect to WebSocket when authentication becomes available
   Future<bool> connectWebSocket() async {
@@ -295,6 +301,15 @@ class RecallGameManager {
     updateGameState(gameState);
     _updateGameStatus(gameState);
     
+    // Add to stream (following core WebSocket pattern)
+    final event = GameJoinedEvent(
+      gameId: gameState.gameId,
+      player: player,
+      gameState: gameState,
+      playerId: player.id,
+    );
+    _gameEventController.add(event);
+    
     _log.info('✅ Joined game: ${gameState.gameName}');
   }
 
@@ -354,6 +369,14 @@ class RecallGameManager {
       
       _log.info('🎮 Updating game status...');
       _updateGameStatus(gameState);
+      
+      // Add to stream (following core WebSocket pattern)
+      final event = GameStartedEvent(
+        gameId: gameState.gameId,
+        gameState: gameState,
+        playerId: data['started_by'],
+      );
+      _gameEventController.add(event);
       
       _log.info('🎮 Game started: ${gameState.gameName}');
       _log.info('🎮 Current game ID: $_currentGameId');
@@ -459,6 +482,16 @@ class RecallGameManager {
         canPlayCard: isMyTurn && newPhase == 'player_turn',
         canCallRecall: isMyTurn && newPhase == 'player_turn',
       );
+    }
+    
+    // Add to stream (following core WebSocket pattern)
+    if (_currentGameState != null) {
+      final event = GameStateUpdatedEvent(
+        gameId: gameId ?? _currentGameState!.gameId,
+        gameState: _currentGameState!,
+        playerId: currentPlayer,
+      );
+      _gameEventController.add(event);
     }
     
     _log.info('✅ Game phase change handled');
@@ -1145,6 +1178,9 @@ class RecallGameManager {
     _gameEventSubscription?.cancel();
     _gameStateSubscription?.cancel();
     _errorSubscription?.cancel();
+    
+    // Close stream controller (following core WebSocket pattern)
+    _gameEventController.close();
     
     _stateManager.dispose();
     

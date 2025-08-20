@@ -270,7 +270,9 @@ class WebSocketManager {
       _eventController.add(event);
       
       // Trigger websocket_connected hook for modules that need to set up listeners
+      _log.info("🔌 Triggering websocket_connected hook for modules...");
       HooksManager().triggerHook('websocket_connected');
+      _log.info("✅ websocket_connected hook triggered successfully");
       
       // Events are handled through the stream system, not direct handlers
     });

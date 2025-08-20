@@ -198,6 +198,7 @@ class RecallGameManager {
     _log.info('🔌 Registering websocket_connected hook for Recall game event listeners...');
     HooksManager().registerHook('websocket_connected', () {
       _log.info('🔌 WebSocket connected, setting up Recall game event listeners...');
+      _log.info('🔌 Hook callback executed successfully');
       _registerEventListeners();
     });
     

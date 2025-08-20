@@ -14,6 +14,7 @@ import '../../widgets/feature_slot.dart';
 import 'features/lobby_features.dart';
 import 'widgets/message_board_widget.dart';
 import '../../../../core/managers/state_manager.dart';
+import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../utils/recall_game_helpers.dart';
 
 
@@ -29,6 +30,7 @@ class LobbyScreen extends BaseScreen {
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   final RoomService _roomService = RoomService();
+  final WebSocketManager _websocketManager = WebSocketManager.instance;
   final TextEditingController _roomIdController = TextEditingController();
   
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
@@ -45,13 +47,35 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   }
 
   Future<void> _initializeWebSocket() async {
-    await _roomService.initializeWebSocket();
+    try {
+      // Initialize WebSocket manager if not already initialized
+      if (!_websocketManager.isInitialized) {
+        final initialized = await _websocketManager.initialize();
+        if (!initialized) {
+          _showSnackBar('Failed to initialize WebSocket', isError: true);
+          return;
+        }
+      }
+      
+      // Connect to WebSocket if not already connected
+      if (!_websocketManager.isConnected) {
+        final connected = await _websocketManager.connect();
+        if (!connected) {
+          _showSnackBar('Failed to connect to WebSocket', isError: true);
+          return;
+        }
+        _showSnackBar('WebSocket connected successfully!');
+      } else {
+        _showSnackBar('WebSocket already connected!');
+      }
+    } catch (e) {
+      _showSnackBar('WebSocket initialization error: $e', isError: true);
+    }
   }
   
   @override
   void dispose() {
-    // Clean up event callbacks
-    _roomService.cleanupEventCallbacks();
+    // Clean up event callbacks - now handled by WSEventManager
     _featureRegistrar.unregisterAll();
     
     super.dispose();
@@ -59,20 +83,37 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
-      final created = await _roomService.createRoom(roomSettings);
-      if (created.isNotEmpty) {
-        // Update state to refresh MyRoomsWidget
-        final currentState = StateManager().getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-        final currentMyCreatedRooms = (currentState['myCreatedRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-        
-        // Add to myCreatedRooms if not already there
-        if (!currentMyCreatedRooms.any((room) => room['room_id'] == created['room_id'])) {
-          RecallGameHelpers.updateUIState({
-            'myCreatedRooms': [...currentMyCreatedRooms, created],
-          });
+      // First ensure WebSocket is connected
+      if (!_websocketManager.isConnected) {
+        _showSnackBar('Connecting to WebSocket...', isError: false);
+        final connected = await _websocketManager.connect();
+        if (!connected) {
+          _showSnackBar('Failed to connect to WebSocket. Cannot create room.', isError: true);
+          return;
         }
-        
-        if (mounted) _showSnackBar('Room created successfully!');
+        _showSnackBar('WebSocket connected! Creating room...', isError: false);
+      }
+      
+      // Now proceed with room creation
+      final result = await _roomService.createRoom(roomSettings);
+      if (result['success'] == true) {
+        final roomData = result['room_data'] as Map<String, dynamic>?;
+        if (roomData != null) {
+          // Update state to refresh MyRoomsWidget
+          final currentState = StateManager().getModuleState<Map<String, dynamic>>("recall_game") ?? {};
+          final currentMyCreatedRooms = (currentState['myCreatedRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+          
+          // Add to myCreatedRooms if not already there
+          if (!currentMyCreatedRooms.any((room) => room['room_id'] == roomData['room_id'])) {
+            RecallGameHelpers.updateUIState({
+              'myCreatedRooms': [...currentMyCreatedRooms, roomData],
+            });
+          }
+          
+          if (mounted) _showSnackBar('Room created successfully!');
+        } else {
+          if (mounted) _showSnackBar('Room created but no data received', isError: true);
+        }
       } else {
         if (mounted) _showSnackBar('Failed to create room', isError: true);
       }
@@ -83,9 +124,25 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   Future<void> _joinRoom(String roomId) async {
     try {
-      await _roomService.joinRoom(roomId);
-      if (mounted) {
-        _showSnackBar('Joined room: $roomId');
+      // First ensure WebSocket is connected
+      if (!_websocketManager.isConnected) {
+        _showSnackBar('Connecting to WebSocket...', isError: false);
+        final connected = await _websocketManager.connect();
+        if (!connected) {
+          _showSnackBar('Failed to connect to WebSocket. Cannot join room.', isError: true);
+          return;
+        }
+        _showSnackBar('WebSocket connected! Joining room...', isError: false);
+      }
+      
+      // Now proceed with room joining
+      final result = await _roomService.joinRoom(roomId);
+      if (result['success'] == true) {
+        if (mounted) {
+          _showSnackBar('Joined room: $roomId');
+        }
+      } else {
+        if (mounted) _showSnackBar('Failed to join room', isError: true);
       }
     } catch (e) {
       if (mounted) _showSnackBar('Failed to join room: $e', isError: true);
@@ -94,7 +151,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   Future<void> _leaveRoom(String roomId) async {
     try {
-      await _roomService.leaveRoom(roomId);
+      await _roomService.leaveRoom();
       if (mounted) {
         _showSnackBar('Left room: $roomId');
       }
@@ -111,7 +168,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   }
 
   void _setupEventCallbacks() {
-    _roomService.setupEventCallbacks();
+    // Event callbacks are now handled by WSEventManager
+    // No need to set up specific callbacks here
+    // The WSEventManager handles all WebSocket events automatically
   }
 
   void _showSnackBar(String message, {bool isError = false}) {

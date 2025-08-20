@@ -198,8 +198,8 @@ class RecallGameMain:
             auto_start = data.get('auto_start', True)
             password = data.get('password', None)
             
-            # Generate room ID
-            room_id = f"room_{int(datetime.now().timestamp() * 1000)}"
+            # Generate room ID using consistent UUID method
+            room_id = f"room_{uuid.uuid4().hex[:8]}"
             
             # Get user ID from session data
             session_data = self.websocket_manager.get_session_data(session_id) if self.websocket_manager else {}

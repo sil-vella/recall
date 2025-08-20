@@ -322,6 +322,9 @@ class WSEventHandlers:
     def handle_create_room(self, session_id, data):
         """Handle room creation requests"""
         try:
+            import uuid
+            from datetime import datetime
+            
             room_id = data.get('room_id')
             permission = data.get('permission', 'public')
             custom_log(f"🔧 [HANDLER-CREATE] Handling create room: {room_id} with permission: {permission}")
@@ -329,7 +332,7 @@ class WSEventHandlers:
             # Resolve user id using backend auth/JWT if available
             user_id = self._resolve_user_id(session_id, data)
             
-            # Generate room_id if not provided
+            # Generate room_id if not provided - use consistent UUID method
             if not room_id:
                 room_id = f"room_{uuid.uuid4().hex[:8]}"
                 custom_log(f"Generated room_id: {room_id}")
@@ -347,14 +350,25 @@ class WSEventHandlers:
                     
                     # Emit success events to client (matching Flutter expectations)
                     self.socketio.emit('create_room_success', {
+                        'success': True,
                         'room_id': room_id,
-                        'permission': permission,
-                        'session_id': session_id,
-                        'user_id': user_id,
+                        'room_data': {
+                            'room_id': room_id,
+                            'room_name': data.get('room_name', 'New Room'),
+                            'owner_id': owner_id,
+                            'permission': permission,
+                            'current_size': 1,
+                            'max_size': data.get('max_players', 4),
+                            'min_size': data.get('min_players', 2),
+                            'created_at': datetime.now().isoformat(),
+                            'game_type': data.get('game_type', 'classic'),
+                            'turn_time_limit': data.get('turn_time_limit', 30),
+                            'auto_start': data.get('auto_start', True),
+                        },
                         'owner_id': owner_id,  # Get owner_id from memory
                         'timestamp': datetime.now().isoformat(),
                         'current_size': 1,
-                        'max_size': 10
+                        'max_size': data.get('max_players', 4)
                     })
                     
                     self.socketio.emit('room_joined', {
@@ -364,7 +378,7 @@ class WSEventHandlers:
                         'owner_id': owner_id,  # Get owner_id from memory
                         'timestamp': datetime.now().isoformat(),
                         'current_size': 1,
-                        'max_size': 10
+                        'max_size': data.get('max_players', 4)
                     })
                     
                     custom_log(f"✅ Successfully created and joined room: {room_id} with owner: {user_id}")

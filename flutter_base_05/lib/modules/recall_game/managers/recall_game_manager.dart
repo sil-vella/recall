@@ -211,11 +211,11 @@ class RecallGameManager {
     }
   }
 
-  /// Register the actual event listeners
+  /// Register the actual event listeners using direct socket.on
   void _registerEventListeners() {
     final wsManager = WebSocketManager.instance;
-    if (wsManager.eventListener == null) {
-      _log.error('❌ WebSocket event listener is null, cannot register Recall game listeners');
+    if (wsManager.socket == null) {
+      _log.error('❌ WebSocket socket is null, cannot register Recall game listeners');
       return;
     }
     
@@ -225,26 +225,28 @@ class RecallGameManager {
       'card_drawn', 'recall_called', 'game_state_updated', 'game_phase_changed',
     ];
     
-    _log.info('🎧 Registering ${eventTypes.length} event listeners...');
+    _log.info('🎧 Registering ${eventTypes.length} direct socket listeners...');
     int registeredCount = 0;
     
     for (final eventType in eventTypes) {
       try {
-        wsManager.eventListener!.registerCustomListener(eventType, (data) {
-          _log.info('🎮 RecallGameManager received event: $eventType with data: ${data is Map ? data.keys : 'non-map data'}');
+        wsManager.socket!.on(eventType, (data) {
+          _log.info('🎮 RecallGameManager received direct event: $eventType with data: ${data is Map ? data.keys : 'non-map data'}');
+          
+          // Handle the event directly (validation can be added later if needed)
           _handleRecallGameEvent({
             'event_type': eventType,
             ...(data is Map<String, dynamic> ? data : {}),
           });
         });
         registeredCount++;
-        _log.info('🎧 Registered listener for: $eventType');
+        _log.info('🎧 Registered direct socket listener for: $eventType');
       } catch (e) {
-        _log.error('❌ Failed to register listener for $eventType: $e');
+        _log.error('❌ Failed to register direct socket listener for $eventType: $e');
       }
     }
     
-    _log.info('✅ Recall Game Manager event listeners set up: $registeredCount/${eventTypes.length} registered');
+    _log.info('✅ Recall Game Manager direct socket listeners set up: $registeredCount/${eventTypes.length} registered');
   }
 
 

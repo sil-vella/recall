@@ -9,8 +9,6 @@ import 'provider_manager.dart';
 import 'services_manager.dart';
 import 'state_manager.dart';
 import 'navigation_manager.dart';
-
-
 class AppManager extends ChangeNotifier {
   static final Logger _log = Logger();
   static final AppManager _instance = AppManager._internal();
@@ -159,7 +157,7 @@ class AppManager extends ChangeNotifier {
     await _adaptersManager.initializeAdapters();
   }
 
-  /// Register global hooks for core system events
+  /// Register global hooks for RevenueCat integration
   void _registerGlobalHooks() {
     // Register hooks for subscription state changes
     _hooksManager.registerHook('subscription_active', () {
@@ -185,22 +183,6 @@ class AppManager extends ChangeNotifier {
     _hooksManager.registerHookWithData('home_screen_main', (data) {
       _log.info('📢 Home screen main hook triggered');
     }, priority: 1);
-    
-    // WebSocket connection hooks
-    _hooksManager.registerHook('websocket_connected', () {
-      _log.info('🔌 WebSocket connected hook triggered');
-      // Notify modules that WebSocket is ready
-    });
-    
-    _hooksManager.registerHook('websocket_disconnected', () {
-      _log.info('🔌 WebSocket disconnected hook triggered');
-      // Notify modules that WebSocket is down
-    });
-    
-    _hooksManager.registerHook('websocket_error', () {
-      _log.info('🔌 WebSocket error hook triggered');
-      // Handle WebSocket errors
-    });
     
     _log.info('✅ Global hooks registered');
   }

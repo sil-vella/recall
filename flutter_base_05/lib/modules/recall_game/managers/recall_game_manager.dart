@@ -191,64 +191,89 @@ class RecallGameManager {
   void _setupEventListeners() {
     final wsManager = WebSocketManager.instance;
     
-    _log.info('🎧 Setting up direct socket event listeners...');
+    _log.info('🎧 Setting up WebSocket stream listeners...');
     _log.info('🎧 WebSocketManager instance: ${wsManager != null ? 'valid' : 'null'}');
-    _log.info('🎧 WebSocketManager socket: ${wsManager.socket != null ? 'valid' : 'null'}');
     _log.info('🎧 WebSocketManager isConnected: ${wsManager.isConnected}');
     
-    // Simple approach: check if connected and set up listeners
-    if (wsManager.isConnected && wsManager.socket != null) {
-      _log.info('✅ WebSocket already connected, setting up event listeners immediately');
-      _registerEventListeners();
-    } else {
-      _log.info('⏳ WebSocket not connected yet, will set up listeners when needed');
-      // Set up a timer to check periodically
-      Timer.periodic(Duration(seconds: 1), (timer) {
-        if (wsManager.isConnected && wsManager.socket != null) {
-          _log.info('✅ WebSocket now connected, setting up event listeners');
-          _registerEventListeners();
-          timer.cancel();
-        }
-      });
+    // Listen to WebSocket manager's streams instead of registering socket listeners
+    _listenToWebSocketStreams();
+  }
+
+  /// Listen to WebSocket manager's streams for events
+  void _listenToWebSocketStreams() {
+    final wsManager = WebSocketManager.instance;
+    
+    _log.info('🎧 Setting up WebSocket stream listeners for Recall game events...');
+    
+    // Listen to room events (includes room_joined, room_created, etc.)
+    wsManager.roomEvents.listen((event) {
+      _log.info('🏠 RecallGameManager received room event: ${event.action} for room: ${event.roomId}');
+      
+      // Handle room events
+      _handleRoomEvent(event);
+    });
+    
+    // Listen to all WebSocket events for game-specific events
+    wsManager.events.listen((event) {
+      _log.info('🎮 RecallGameManager received WebSocket event: ${event.runtimeType}');
+      
+      // Handle game-specific events that come through the general event stream
+      if (event is MessageEvent) {
+        _handleMessageEvent(event);
+      }
+    });
+    
+    // Listen to connection status changes
+    wsManager.connectionStatus.listen((event) {
+      _log.info('🔌 RecallGameManager received connection status: ${event.status}');
+      
+      // Handle connection status changes
+      _handleConnectionStatusChange(event);
+    });
+    
+    _log.info('✅ WebSocket stream listeners set up successfully');
+  }
+
+  /// Handle room events from WebSocket manager
+  void _handleRoomEvent(RoomEvent event) {
+    _log.info('🏠 Handling room event: ${event.action} for room: ${event.roomId}');
+    
+    // Convert room event to Recall game event format
+    final data = {
+      'event_type': 'room_${event.action}',
+      'room_id': event.roomId,
+      ...event.roomData,
+    };
+    
+    _handleRecallGameEvent(data);
+  }
+
+  /// Handle message events from WebSocket manager
+  void _handleMessageEvent(MessageEvent event) {
+    _log.info('💬 Handling message event: ${event.message}');
+    
+    // Check if this is a game-specific message
+    if (event.message is Map<String, dynamic>) {
+      final messageData = event.message as Map<String, dynamic>;
+      final eventType = messageData['event_type'];
+      
+      if (eventType != null && eventType.toString().startsWith('game_')) {
+        _log.info('🎮 Converting message event to game event: $eventType');
+        _handleRecallGameEvent(messageData);
+      }
     }
   }
 
-  /// Register the actual event listeners using direct socket.on
-  void _registerEventListeners() {
-    final wsManager = WebSocketManager.instance;
-    if (wsManager.socket == null) {
-      _log.error('❌ WebSocket socket is null, cannot register Recall game listeners');
-      return;
+  /// Handle connection status changes
+  void _handleConnectionStatusChange(ConnectionStatusEvent event) {
+    _log.info('🔌 Handling connection status change: ${event.status}');
+    
+    // Update connection state
+    if (event.status == ConnectionStatus.connected) {
+      _log.info('✅ WebSocket connected, game events should now be received');
+    } else if (event.status == ConnectionStatus.disconnected) {
+      _log.info('❌ WebSocket disconnected, game events will not be received');
     }
-    
-    final eventTypes = [
-      'game_joined', 'game_left', 'player_joined', 'player_left',
-      'game_started', 'game_ended', 'turn_changed', 'card_played',
-      'card_drawn', 'recall_called', 'game_state_updated', 'game_phase_changed',
-    ];
-    
-    _log.info('🎧 Registering ${eventTypes.length} direct socket listeners...');
-    int registeredCount = 0;
-    
-    for (final eventType in eventTypes) {
-      try {
-        wsManager.socket!.on(eventType, (data) {
-          _log.info('🎮 RecallGameManager received direct event: $eventType with data: ${data is Map ? data.keys : 'non-map data'}');
-          
-          // Handle the event directly (validation can be added later if needed)
-          _handleRecallGameEvent({
-            'event_type': eventType,
-            ...(data is Map<String, dynamic> ? data : {}),
-          });
-        });
-        registeredCount++;
-        _log.info('🎧 Registered direct socket listener for: $eventType');
-      } catch (e) {
-        _log.error('❌ Failed to register direct socket listener for $eventType: $e');
-      }
-    }
-    
-    _log.info('✅ Recall Game Manager direct socket listeners set up: $registeredCount/${eventTypes.length} registered');
   }
 
 

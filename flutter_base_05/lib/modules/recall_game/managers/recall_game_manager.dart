@@ -196,20 +196,20 @@ class RecallGameManager {
     _log.info('🎧 WebSocketManager socket: ${wsManager.socket != null ? 'valid' : 'null'}');
     _log.info('🎧 WebSocketManager isConnected: ${wsManager.isConnected}');
     
-    // Listen to connection status changes
-    wsManager.connectionStatus.listen((event) {
-      if (event.status == ConnectionStatus.connected) {
-        _log.info('🔌 WebSocket connection status changed to connected, setting up event listeners...');
-        _registerEventListeners();
-      }
-    });
-    
-    // If WebSocket is already connected, set up listeners immediately
+    // Simple approach: check if connected and set up listeners
     if (wsManager.isConnected && wsManager.socket != null) {
       _log.info('✅ WebSocket already connected, setting up event listeners immediately');
       _registerEventListeners();
     } else {
-      _log.info('⏳ WebSocket not connected yet, event listeners will be set up when connection is established');
+      _log.info('⏳ WebSocket not connected yet, will set up listeners when needed');
+      // Set up a timer to check periodically
+      Timer.periodic(Duration(seconds: 1), (timer) {
+        if (wsManager.isConnected && wsManager.socket != null) {
+          _log.info('✅ WebSocket now connected, setting up event listeners');
+          _registerEventListeners();
+          timer.cancel();
+        }
+      });
     }
   }
 

@@ -39,7 +39,12 @@ class WebSocketManager {
   bool _isConnected = false; // Track connection state explicitly
   bool _isConnecting = false; // Track if we're in the process of connecting
   
-  // No streams, no custom bullshit - just direct socket
+  // Event streams for UI updates
+  final StreamController<WebSocketEvent> _eventController = StreamController<WebSocketEvent>.broadcast();
+  final StreamController<ConnectionStatusEvent> _connectionController = StreamController<ConnectionStatusEvent>.broadcast();
+  final StreamController<MessageEvent> _messageController = StreamController<MessageEvent>.broadcast();
+  final StreamController<RoomEvent> _roomController = StreamController<RoomEvent>.broadcast();
+  final StreamController<ErrorEvent> _errorController = StreamController<ErrorEvent>.broadcast();
   
   // Note: Event handling is now delegated to WSEventManager
   
@@ -57,7 +62,12 @@ class WebSocketManager {
   IO.Socket? get socket => _socket;
   bool get isInitialized => _isInitialized;
   
-  // No streams, no custom bullshit - just direct socket
+  // Event streams for UI
+  Stream<WebSocketEvent> get events => _eventController.stream;
+  Stream<ConnectionStatusEvent> get connectionStatus => _connectionController.stream;
+  Stream<MessageEvent> get messages => _messageController.stream;
+  Stream<RoomEvent> get roomEvents => _roomController.stream;
+  Stream<ErrorEvent> get errors => _errorController.stream;
   
   // Static getter for easy access
   static WebSocketManager get instance {
@@ -256,10 +266,15 @@ class WebSocketManager {
         status: ConnectionStatus.connected,
         sessionId: _socket!.id,
       );
+      _connectionController.add(event);
+      _eventController.add(event);
+      
       // Trigger websocket_connected hook for modules that need to set up listeners
       _log.info("🔌 Triggering websocket_connected hook for modules...");
       HooksManager().triggerHook('websocket_connected');
       _log.info("✅ websocket_connected hook triggered successfully");
+      
+      // Events are handled through the stream system, not direct handlers
     });
 
     _socket!.onDisconnect((_) {
@@ -272,7 +287,19 @@ class WebSocketManager {
         isConnected: false,
       );
       
-      // No streams, no custom bullshit
+      // Emit disconnection event
+      final event = ConnectionStatusEvent(
+        status: ConnectionStatus.disconnected,
+      );
+      _connectionController.add(event);
+      _eventController.add(event);
+      
+      // Trigger websocket_disconnected hook for modules
+      _log.info("🔌 Triggering websocket_disconnected hook for modules...");
+      HooksManager().triggerHook('websocket_disconnected');
+      _log.info("✅ websocket_disconnected hook triggered successfully");
+      
+      // Events are handled through the stream system, not direct handlers
     });
 
     // Use 'connect_error' event instead of onConnectError to avoid conflicts
@@ -286,7 +313,20 @@ class WebSocketManager {
         isConnected: false,
       );
       
-      // No streams, no custom bullshit
+      // Emit error event
+      final event = ConnectionStatusEvent(
+        status: ConnectionStatus.error,
+        error: error.toString(),
+      );
+      _connectionController.add(event);
+      _eventController.add(event);
+      
+      // Trigger websocket_error hook for modules
+      _log.info("🔌 Triggering websocket_error hook for modules...");
+      HooksManager().triggerHook('websocket_error');
+      _log.info("✅ websocket_error hook triggered successfully");
+      
+      // Events are handled through the stream system, not direct handlers
     });
 
     _socket!.on('session_data', (data) {
@@ -297,7 +337,11 @@ class WebSocketManager {
         data is Map<String, dynamic> ? data : null,
       );
       
-      // No streams, no custom bullshit
+      // Emit session data event
+      final event = SessionDataEvent(data);
+      _eventController.add(event);
+      
+      // Events are handled through the stream system, not direct handlers
     });
 
     _socket!.on('room_joined', (data) {
@@ -318,8 +362,8 @@ class WebSocketManager {
         roomData: roomData,
         action: 'joined',
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _roomController.add(event);
+      _eventController.add(event);
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -342,8 +386,8 @@ class WebSocketManager {
         roomData: roomData,
         action: 'joined',
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _roomController.add(event);
+      _eventController.add(event);
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -356,8 +400,8 @@ class WebSocketManager {
         'Failed to join room',
         details: data.toString(),
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _errorController.add(errorEvent);
+      _eventController.add(errorEvent);
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -380,8 +424,8 @@ class WebSocketManager {
         roomData: roomData,
         action: 'created',
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _roomController.add(event);
+      _eventController.add(event);
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -404,8 +448,8 @@ class WebSocketManager {
         roomData: roomData,
         action: 'created',
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _roomController.add(event);
+      _eventController.add(event);
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -418,8 +462,8 @@ class WebSocketManager {
         'Failed to create room',
         details: data.toString(),
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _errorController.add(errorEvent);
+      _eventController.add(errorEvent);
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -442,8 +486,8 @@ class WebSocketManager {
         roomData: roomData,
         action: 'left',
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _roomController.add(event);
+      _eventController.add(event);
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -456,8 +500,8 @@ class WebSocketManager {
         'Failed to leave room',
         details: data.toString(),
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _errorController.add(errorEvent);
+      _eventController.add(errorEvent);
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -472,8 +516,8 @@ class WebSocketManager {
         sender: data['sender'] ?? 'unknown',
         additionalData: data,
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _messageController.add(event);
+      _eventController.add(event);
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -486,23 +530,53 @@ class WebSocketManager {
         'WebSocket error',
         details: data.toString(),
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _errorController.add(errorEvent);
+      _eventController.add(errorEvent);
       
       // Events are handled through the stream system, not direct handlers
     });
 
-    // Direct socket listeners for game events - no streams, no custom bullshit
+    // Add specific listeners for game events
     _socket!.on('game_joined', (data) {
       _log.info("🎮 Received game_joined event: $data");
+      
+      // Emit custom event through the general event stream
+      final customEvent = MessageEvent(
+        roomId: data is Map ? (data['room_id'] ?? data['game_id'] ?? '') : '',
+        message: data,
+        sender: 'server',
+        additionalData: {'event_type': 'game_joined', ...(data is Map ? data : {})},
+      );
+      _messageController.add(customEvent);
+      _eventController.add(customEvent);
     });
 
     _socket!.on('game_started', (data) {
       _log.info("🎮 Received game_started event: $data");
+      
+      // Emit custom event through the general event stream
+      final customEvent = MessageEvent(
+        roomId: data is Map ? (data['room_id'] ?? data['game_id'] ?? '') : '',
+        message: data,
+        sender: 'server',
+        additionalData: {'event_type': 'game_started', ...(data is Map ? data : {})},
+      );
+      _messageController.add(customEvent);
+      _eventController.add(customEvent);
     });
 
     _socket!.on('game_phase_changed', (data) {
       _log.info("🎮 Received game_phase_changed event: $data");
+      
+      // Emit custom event through the general event stream
+      final customEvent = MessageEvent(
+        roomId: data is Map ? (data['room_id'] ?? data['game_id'] ?? '') : '',
+        message: data,
+        sender: 'server',
+        additionalData: {'event_type': 'game_phase_changed', ...(data is Map ? data : {})},
+      );
+      _messageController.add(customEvent);
+      _eventController.add(customEvent);
     });
 
     // Note: Custom event handling is now delegated to WSEventManager
@@ -560,8 +634,8 @@ class WebSocketManager {
       final connectingEvent = ConnectionStatusEvent(
         status: ConnectionStatus.connecting,
       );
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _connectionController.add(connectingEvent);
+      _eventController.add(connectingEvent);
       
       // Create a completer to wait for the connection event
       final completer = Completer<bool>();
@@ -946,11 +1020,11 @@ class WebSocketManager {
       _socket?.disconnect();
       _socket = null;
       // Token refresh is now handled by AuthManager
-// No streams, no custom bullshit
-// No streams, no custom bullshit
-// No streams, no custom bullshit
-// No streams, no custom bullshit
-// No streams, no custom bullshit
+      _eventController.close();
+      _connectionController.close();
+      _messageController.close();
+      _roomController.close();
+      _errorController.close();
       _isInitialized = false;
       
       _log.info("🗑️ WebSocket manager disposed");

@@ -159,7 +159,7 @@ class AppManager extends ChangeNotifier {
     await _adaptersManager.initializeAdapters();
   }
 
-  /// Register global hooks for RevenueCat integration
+  /// Register global hooks for core system events
   void _registerGlobalHooks() {
     // Register hooks for subscription state changes
     _hooksManager.registerHook('subscription_active', () {
@@ -185,6 +185,22 @@ class AppManager extends ChangeNotifier {
     _hooksManager.registerHookWithData('home_screen_main', (data) {
       _log.info('📢 Home screen main hook triggered');
     }, priority: 1);
+    
+    // WebSocket connection hooks
+    _hooksManager.registerHook('websocket_connected', () {
+      _log.info('🔌 WebSocket connected hook triggered');
+      // Notify modules that WebSocket is ready
+    });
+    
+    _hooksManager.registerHook('websocket_disconnected', () {
+      _log.info('🔌 WebSocket disconnected hook triggered');
+      // Notify modules that WebSocket is down
+    });
+    
+    _hooksManager.registerHook('websocket_error', () {
+      _log.info('🔌 WebSocket error hook triggered');
+      // Handle WebSocket errors
+    });
     
     _log.info('✅ Global hooks registered');
   }

@@ -2,24 +2,26 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../state_manager.dart';
 import '../module_manager.dart';
 import '../../../../tools/logging/logger.dart';
-// No event manager - direct socket communication only
+import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
-// No recall-specific imports in core modules
+import '../../../modules/recall_game/utils/recall_game_helpers.dart';
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
 class WSEventHandler {
   final IO.Socket? _socket;
-  // No event manager - direct socket communication only
+  final WSEventManager _eventManager;
   final StateManager _stateManager;
   final ModuleManager _moduleManager;
   final Logger _log;
 
   WSEventHandler({
     required IO.Socket? socket,
+    required WSEventManager eventManager,
     required StateManager stateManager,
     required ModuleManager moduleManager,
   })  : _socket = socket,
+        _eventManager = eventManager,
         _stateManager = stateManager,
         _moduleManager = moduleManager,
         _log = Logger();
@@ -35,7 +37,8 @@ class WSEventHandler {
         sessionData: data is Map<String, dynamic> ? data : null,
       );
       
-      // No recall-specific logic in core modules
+      // Also update recall game state connection status
+      RecallGameHelpers.updateConnectionStatus(isConnected: true);
       
       _log.info("✅ Connection handled successfully");
     } catch (e) {
@@ -53,8 +56,8 @@ class WSEventHandler {
         isConnected: false,
       );
       
-      // No recall-specific logic in core modules
-      // No recall-specific logic in core modules
+      // Also update recall game state connection status
+      RecallGameHelpers.updateConnectionStatus(isConnected: false);
       
       _log.info("✅ Disconnection handled successfully");
     } catch (e) {
@@ -72,8 +75,8 @@ class WSEventHandler {
         isConnected: false,
       );
       
-      // No recall-specific logic in core modules
-      // No recall-specific logic in core modules
+      // Also update recall game state connection status
+      RecallGameHelpers.updateConnectionStatus(isConnected: false);
       
       _log.info("✅ Connection error handled successfully");
     } catch (e) {
@@ -119,12 +122,18 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // No recall-specific logic in core modules
-      // No recall-specific logic in core modules
+      // Set room ownership and game state in recall game state
+      RecallGameHelpers.updateUIState({
+        'isRoomOwner': isRoomOwner,
+        'currentRoomId': roomId,
+        'isGameActive': false,  // Ensure game is not active when joining room
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+      });
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('room', {
         'action': 'joined',
         'roomId': roomId,
         'roomData': roomData,
@@ -132,8 +141,8 @@ class WSEventHandler {
       });
       
       // Trigger specific event callbacks
-      // No event manager - direct socket communication only
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('room_joined', data);
+      _eventManager.triggerCallbacks('join_room_success', data);
       
       _log.info("✅ Room joined handled successfully");
     } catch (e) {
@@ -163,12 +172,18 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // No recall-specific logic in core modules
-      // No recall-specific logic in core modules
+      // Set room ownership and game state in recall game state
+      RecallGameHelpers.updateUIState({
+        'isRoomOwner': isRoomOwner,
+        'currentRoomId': roomId,
+        'isGameActive': false,  // Ensure game is not active when joining room
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+      });
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('room', {
         'action': 'joined',
         'roomId': roomId,
         'roomData': roomData,
@@ -176,7 +191,7 @@ class WSEventHandler {
       });
       
       // Trigger specific event callbacks
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('join_room_success', data);
       
       _log.info("✅ Join room success handled successfully");
     } catch (e) {
@@ -190,13 +205,13 @@ class WSEventHandler {
     
     try {
       // Trigger error callbacks
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('error', {
         'error': 'Failed to join room',
         'details': data.toString(),
       });
       
       // Trigger specific error callbacks
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('join_room_error', data);
       
       _log.info("✅ Join room error handled successfully");
     } catch (e) {
@@ -226,12 +241,18 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // No recall-specific logic in core modules
-      // No recall-specific logic in core modules
+      // Set room ownership and game state in recall game state
+      RecallGameHelpers.updateUIState({
+        'isRoomOwner': isRoomOwner,
+        'currentRoomId': roomId,
+        'isGameActive': false,  // Ensure game is not active when room is created
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+      });
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('room', {
         'action': 'created',
         'roomId': roomId,
         'roomData': roomData,
@@ -239,8 +260,8 @@ class WSEventHandler {
       });
       
       // Trigger specific event callbacks
-      // No event manager - direct socket communication only
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('create_room_success', data);
+      _eventManager.triggerCallbacks('room_created', data);
       
       _log.info("✅ Create room success handled successfully");
     } catch (e) {
@@ -257,14 +278,14 @@ class WSEventHandler {
       final roomData = data;
       
       // Trigger event callbacks for room management screen
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('room', {
         'action': 'created',
         'roomId': roomId,
         'roomData': roomData,
       });
       
       // Trigger specific event callbacks
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('room_created', data);
       
       _log.info("✅ Room created handled successfully");
     } catch (e) {
@@ -278,13 +299,13 @@ class WSEventHandler {
     
     try {
       // Trigger error callbacks
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('error', {
         'error': 'Failed to create room',
         'details': data.toString(),
       });
       
       // Trigger specific error callbacks
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('create_room_error', data);
       
       _log.info("✅ Create room error handled successfully");
     } catch (e) {
@@ -306,14 +327,14 @@ class WSEventHandler {
       );
       
       // Trigger event callbacks for room management screen
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('room', {
         'action': 'left',
         'roomId': roomId,
         'roomData': data,
       });
       
       // Trigger specific event callbacks
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('leave_room_success', data);
       
       _log.info("✅ Leave room success handled successfully");
     } catch (e) {
@@ -327,13 +348,13 @@ class WSEventHandler {
     
     try {
       // Trigger error callbacks
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('error', {
         'error': 'Failed to leave room',
         'details': data.toString(),
       });
       
       // Trigger specific error callbacks
-      // No event manager - direct socket communication only
+      _eventManager.triggerCallbacks('leave_room_error', data);
       
       _log.info("✅ Leave room error handled successfully");
     } catch (e) {
@@ -361,7 +382,7 @@ class WSEventHandler {
         }
         
         // Trigger room closed callbacks
-      // No event manager - direct socket communication only
+        _eventManager.triggerCallbacks('room_closed', {
           'room_id': roomId,
           'reason': reason,
           'timestamp': timestamp,

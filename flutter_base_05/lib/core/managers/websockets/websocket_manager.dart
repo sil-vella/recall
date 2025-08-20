@@ -526,6 +526,23 @@ class WebSocketManager {
       // Events are handled through the stream system, not direct handlers
     });
 
+    // Add catch-all listener for custom events (like game_joined, game_started, etc.)
+    _socket!.onAny((eventName, data) {
+      _log.info("🎮 Received custom event: $eventName with data: $data");
+      
+      // Emit custom event through the general event stream
+      final customEvent = MessageEvent(
+        roomId: data is Map ? (data['room_id'] ?? data['game_id'] ?? '') : '',
+        message: data,
+        sender: 'server',
+        additionalData: {'event_type': eventName, ...(data is Map ? data : {})},
+      );
+      _messageController.add(customEvent);
+      _eventController.add(customEvent);
+      
+      // Events are handled through the stream system, not direct handlers
+    });
+
     // Note: Custom event handling is now delegated to WSEventManager
   }
 

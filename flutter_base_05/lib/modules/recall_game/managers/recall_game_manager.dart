@@ -194,18 +194,20 @@ class RecallGameManager {
     _log.info('🎧 WebSocketManager instance: ${wsManager != null ? 'valid' : 'null'}');
     _log.info('🎧 WebSocketManager eventListener: ${wsManager.eventListener != null ? 'valid' : 'null'}');
     
-    // If WebSocket is not connected yet, we'll set up listeners when it connects
-    if (!wsManager.isConnected || wsManager.eventListener == null) {
-      _log.info('🔌 WebSocket not connected, will set up event listeners when connection is established');
-      // Register a hook to set up listeners when WebSocket connects
-      HooksManager().registerHook('websocket_connected', () {
-        _log.info('🔌 WebSocket connected, setting up Recall game event listeners...');
-        _registerEventListeners();
-      });
-      return;
-    }
+    // Always register the hook first, regardless of WebSocket state
+    _log.info('🔌 Registering websocket_connected hook for Recall game event listeners...');
+    HooksManager().registerHook('websocket_connected', () {
+      _log.info('🔌 WebSocket connected, setting up Recall game event listeners...');
+      _registerEventListeners();
+    });
     
-    _registerEventListeners();
+    // If WebSocket is already connected, set up listeners immediately
+    if (wsManager.isConnected && wsManager.eventListener != null) {
+      _log.info('✅ WebSocket already connected, setting up event listeners immediately');
+      _registerEventListeners();
+    } else {
+      _log.info('⏳ WebSocket not connected yet, event listeners will be set up when connection is established');
+    }
   }
 
   /// Register the actual event listeners

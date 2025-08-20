@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/websockets/ws_event_manager.dart';
+import '../../../core/managers/websockets/websocket_events.dart';
 import '../../../tools/logging/logger.dart';
 
 import '../models/game_state.dart';
@@ -190,20 +191,21 @@ class RecallGameManager {
   void _setupEventListeners() {
     final wsManager = WebSocketManager.instance;
     
-    _log.info('🎧 Setting up individual recall game event listeners...');
+    _log.info('🎧 Setting up direct socket event listeners...');
     _log.info('🎧 WebSocketManager instance: ${wsManager != null ? 'valid' : 'null'}');
-    _log.info('🎧 WebSocketManager eventListener: ${wsManager.eventListener != null ? 'valid' : 'null'}');
+    _log.info('🎧 WebSocketManager socket: ${wsManager.socket != null ? 'valid' : 'null'}');
+    _log.info('🎧 WebSocketManager isConnected: ${wsManager.isConnected}');
     
-    // Always register the hook first, regardless of WebSocket state
-    _log.info('🔌 Registering websocket_connected hook for Recall game event listeners...');
-    HooksManager().registerHook('websocket_connected', () {
-      _log.info('🔌 WebSocket connected, setting up Recall game event listeners...');
-      _log.info('🔌 Hook callback executed successfully');
-      _registerEventListeners();
+    // Listen to connection status changes
+    wsManager.connectionStatus.listen((event) {
+      if (event.status == ConnectionStatus.connected) {
+        _log.info('🔌 WebSocket connection status changed to connected, setting up event listeners...');
+        _registerEventListeners();
+      }
     });
     
     // If WebSocket is already connected, set up listeners immediately
-    if (wsManager.isConnected && wsManager.eventListener != null) {
+    if (wsManager.isConnected && wsManager.socket != null) {
       _log.info('✅ WebSocket already connected, setting up event listeners immediately');
       _registerEventListeners();
     } else {

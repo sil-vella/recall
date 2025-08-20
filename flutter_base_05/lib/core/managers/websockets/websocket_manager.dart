@@ -318,8 +318,8 @@ class WebSocketManager {
         roomData: roomData,
         action: 'joined',
       );
-      _roomController.add(event);
-      _eventController.add(event);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -342,8 +342,8 @@ class WebSocketManager {
         roomData: roomData,
         action: 'joined',
       );
-      _roomController.add(event);
-      _eventController.add(event);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -356,8 +356,8 @@ class WebSocketManager {
         'Failed to join room',
         details: data.toString(),
       );
-      _errorController.add(errorEvent);
-      _eventController.add(errorEvent);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -380,8 +380,8 @@ class WebSocketManager {
         roomData: roomData,
         action: 'created',
       );
-      _roomController.add(event);
-      _eventController.add(event);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -404,8 +404,8 @@ class WebSocketManager {
         roomData: roomData,
         action: 'created',
       );
-      _roomController.add(event);
-      _eventController.add(event);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -418,8 +418,8 @@ class WebSocketManager {
         'Failed to create room',
         details: data.toString(),
       );
-      _errorController.add(errorEvent);
-      _eventController.add(errorEvent);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -442,8 +442,8 @@ class WebSocketManager {
         roomData: roomData,
         action: 'left',
       );
-      _roomController.add(event);
-      _eventController.add(event);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -456,8 +456,8 @@ class WebSocketManager {
         'Failed to leave room',
         details: data.toString(),
       );
-      _errorController.add(errorEvent);
-      _eventController.add(errorEvent);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -472,8 +472,8 @@ class WebSocketManager {
         sender: data['sender'] ?? 'unknown',
         additionalData: data,
       );
-      _messageController.add(event);
-      _eventController.add(event);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -486,8 +486,8 @@ class WebSocketManager {
         'WebSocket error',
         details: data.toString(),
       );
-      _errorController.add(errorEvent);
-      _eventController.add(errorEvent);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -560,8 +560,8 @@ class WebSocketManager {
       final connectingEvent = ConnectionStatusEvent(
         status: ConnectionStatus.connecting,
       );
-      _connectionController.add(connectingEvent);
-      _eventController.add(connectingEvent);
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       
       // Create a completer to wait for the connection event
       final completer = Completer<bool>();
@@ -946,11 +946,11 @@ class WebSocketManager {
       _socket?.disconnect();
       _socket = null;
       // Token refresh is now handled by AuthManager
-      _eventController.close();
-      _connectionController.close();
-      _messageController.close();
-      _roomController.close();
-      _errorController.close();
+// No streams, no custom bullshit
+// No streams, no custom bullshit
+// No streams, no custom bullshit
+// No streams, no custom bullshit
+// No streams, no custom bullshit
       _isInitialized = false;
       
       _log.info("🗑️ WebSocket manager disposed");

@@ -4,7 +4,7 @@ import '../module_manager.dart';
 import '../../../../tools/logging/logger.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
-import '../../../modules/recall_game/utils/recall_game_helpers.dart';
+// No recall-specific imports in core modules
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -37,8 +37,7 @@ class WSEventHandler {
         sessionData: data is Map<String, dynamic> ? data : null,
       );
       
-      // Also update recall game state connection status
-      RecallGameHelpers.updateConnectionStatus(isConnected: true);
+      // No recall-specific logic in core modules
       
       _log.info("✅ Connection handled successfully");
     } catch (e) {
@@ -56,8 +55,8 @@ class WSEventHandler {
         isConnected: false,
       );
       
-      // Also update recall game state connection status
-      RecallGameHelpers.updateConnectionStatus(isConnected: false);
+      // No recall-specific logic in core modules
+      // No recall-specific logic in core modules
       
       _log.info("✅ Disconnection handled successfully");
     } catch (e) {
@@ -75,8 +74,8 @@ class WSEventHandler {
         isConnected: false,
       );
       
-      // Also update recall game state connection status
-      RecallGameHelpers.updateConnectionStatus(isConnected: false);
+      // No recall-specific logic in core modules
+      // No recall-specific logic in core modules
       
       _log.info("✅ Connection error handled successfully");
     } catch (e) {
@@ -122,8 +121,8 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // Set room ownership and game state in recall game state
-      RecallGameHelpers.updateUIState({
+      // No recall-specific logic in core modules
+      // No recall-specific logic in core modules
         'isRoomOwner': isRoomOwner,
         'currentRoomId': roomId,
         'isGameActive': false,  // Ensure game is not active when joining room
@@ -172,8 +171,8 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // Set room ownership and game state in recall game state
-      RecallGameHelpers.updateUIState({
+      // No recall-specific logic in core modules
+      // No recall-specific logic in core modules
         'isRoomOwner': isRoomOwner,
         'currentRoomId': roomId,
         'isGameActive': false,  // Ensure game is not active when joining room
@@ -241,8 +240,8 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // Set room ownership and game state in recall game state
-      RecallGameHelpers.updateUIState({
+      // No recall-specific logic in core modules
+      // No recall-specific logic in core modules
         'isRoomOwner': isRoomOwner,
         'currentRoomId': roomId,
         'isGameActive': false,  // Ensure game is not active when room is created

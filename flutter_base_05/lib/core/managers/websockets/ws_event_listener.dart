@@ -180,11 +180,38 @@ class WSEventListener {
 
   /// Register a custom event listener
   void registerCustomListener(String eventName, Function(dynamic) handler) {
+    _log.info("🎧 [SOCKET-REGISTER] Registering custom listener for: $eventName");
+    _log.info("🎧 [SOCKET-REGISTER] Socket available: ${_socket != null}");
+    _log.info("🎧 [SOCKET-REGISTER] Socket connected: ${_socket?.connected ?? false}");
+    _log.info("🎧 [SOCKET-REGISTER] Socket ID: ${_socket?.id ?? 'null'}");
+    
     _socket?.on(eventName, (data) {
-      _log.info("🔍 [CUSTOM] Custom event '$eventName' received");
-      handler(data);
+      _log.info("🔍 [SOCKET-RECEIVE] ===== RECEIVED EVENT =====");
+      _log.info("🔍 [SOCKET-RECEIVE] Event: '$eventName'");
+      _log.info("🔍 [SOCKET-RECEIVE] Socket ID: ${_socket!.id}");
+      _log.info("🔍 [SOCKET-RECEIVE] Data type: ${data.runtimeType}");
+      _log.info("🔍 [SOCKET-RECEIVE] Data is Map: ${data is Map}");
+      
+      if (data is Map) {
+        _log.info("🔍 [SOCKET-RECEIVE] Data keys: ${data.keys.toList()}");
+        _log.info("🔍 [SOCKET-RECEIVE] Data size: ${data.length} fields");
+      }
+      
+      // Log full data for critical events
+      if (['game_started', 'game_phase_changed', 'game_joined', 'create_room_success'].contains(eventName)) {
+        _log.info("🔍 [SOCKET-RECEIVE] Full data: $data");
+      }
+      
+      _log.info("🔍 [SOCKET-RECEIVE] Calling handler...");
+      try {
+        handler(data);
+        _log.info("✅ [SOCKET-RECEIVE] Handler completed successfully for '$eventName'");
+      } catch (e) {
+        _log.error("❌ [SOCKET-RECEIVE] Handler error for '$eventName': $e");
+      }
+      _log.info("🔍 [SOCKET-RECEIVE] ===== END EVENT =====");
     });
-    _log.info("✅ Custom event listener registered for: $eventName");
+    _log.info("✅ [SOCKET-REGISTER] Custom event listener registered for: $eventName");
   }
 
   /// Unregister all listeners

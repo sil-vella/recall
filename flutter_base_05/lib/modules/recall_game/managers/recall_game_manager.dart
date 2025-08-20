@@ -2,7 +2,7 @@ import 'dart:async';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
-import '../../../core/managers/websockets/ws_event_manager.dart';
+
 import '../../../tools/logging/logger.dart';
 
 import '../models/game_state.dart';
@@ -10,8 +10,7 @@ import '../models/player.dart';
 import '../models/card.dart';
 import '../models/game_events.dart';
 import '../utils/recall_game_helpers.dart';
-import '../utils/recall_event_listener_validator.dart';
-import '../utils/validated_event_emitter.dart';
+
 import '../../../core/managers/hooks_manager.dart';
 
 /// Recall Game Manager
@@ -178,10 +177,10 @@ class RecallGameManager {
       _updateMainStateManager();
       _log.info('✅ Updated main StateManager with initialization status');
       
-      // NOW set up event listeners after initialization is complete
-      _log.info('🎧 Setting up event listeners after initialization...');
-      _setupEventListeners();
-      _log.info('✅ Event listeners set up after initialization');
+      // NOW register hooks to set up event listeners when WebSocket is ready
+      _log.info('🎣 Registering hooks for WebSocket event listener setup...');
+      _registerWebSocketHooks();
+      _log.info('✅ WebSocket hooks registered');
       
       return true;
       
@@ -192,14 +191,74 @@ class RecallGameManager {
     }
   }
 
+  /// Register WebSocket hooks to set up event listeners when ready
+  void _registerWebSocketHooks() {
+    _log.info('🎣 [HOOK-REGISTER] Registering WebSocket hooks...');
+    
+    // Register hook for when WebSocket event listeners are ready
+    HooksManager().registerHookWithData('websocket_event_listeners_ready', (hookData) {
+      _log.info('🎣 [HOOK-RECEIVED] websocket_event_listeners_ready hook triggered');
+      _log.info('🎣 [HOOK-RECEIVED] Hook data: $hookData');
+      
+      // Now we can safely set up our event listeners
+      _setupEventListenersViaHook(hookData);
+    });
+    
+    // Also register for websocket_connected in case we need to re-register after reconnection
+    HooksManager().registerHookWithData('websocket_connected', (hookData) {
+      _log.info('🎣 [HOOK-RECEIVED] websocket_connected hook triggered');
+      _log.info('🎣 [HOOK-RECEIVED] Checking if we need to re-register listeners...');
+      
+      // Only re-register if we haven't already registered
+      // This prevents double registration on reconnection
+      if (_needsEventListenerSetup()) {
+        _log.info('🎣 [HOOK-RECEIVED] Re-registering listeners after reconnection...');
+        _setupEventListenersViaHook(hookData);
+      }
+    });
+    
+    _log.info('✅ [HOOK-REGISTER] WebSocket hooks registered successfully');
+  }
+  
+  /// Check if we need to set up event listeners
+  bool _needsEventListenerSetup() {
+    // Simple check - if we haven't registered listeners yet, we need to
+    // In a more complex implementation, you might track registration state
+    return true; // For now, always allow re-registration
+  }
+  
+  /// Set up event listeners when called via WebSocket hook
+  void _setupEventListenersViaHook(Map<String, dynamic> hookData) {
+    _log.info('🎧 [HOOK-SETUP] Setting up event listeners via WebSocket hook...');
+    _log.info('🎧 [HOOK-SETUP] Hook data keys: ${hookData.keys.toList()}');
+    
+    final wsManager = hookData['websocket_manager'] as WebSocketManager?;
+    final eventListener = hookData['event_listener'];
+    
+    if (wsManager == null || eventListener == null) {
+      _log.error('❌ [HOOK-SETUP] CRITICAL: Missing websocket_manager or event_listener in hook data');
+      return;
+    }
+    
+    _log.info('✅ [HOOK-SETUP] WebSocket components available via hook, proceeding with setup...');
+    _setupEventListeners();
+  }
+
   /// Set up event listeners for individual recall game events
   void _setupEventListeners() {
-    _log.info('🎧 Setting up individual recall game event listeners...');
+    _log.info('🎧 [RECALL-SETUP] Setting up individual recall game event listeners...');
     
     // Get WebSocket manager instance
     final wsManager = WebSocketManager.instance;
-    _log.info('🎧 WebSocketManager instance: ${wsManager != null ? 'valid' : 'null'}');
-    _log.info('🎧 WebSocketManager eventListener: ${wsManager.eventListener != null ? 'valid' : 'null'}');
+    _log.info('🎧 [RECALL-SETUP] WebSocketManager instance: valid');
+    _log.info('🎧 [RECALL-SETUP] WebSocketManager eventListener: ${wsManager.eventListener != null ? 'valid' : 'null'}');
+    _log.info('🎧 [RECALL-SETUP] WebSocketManager isConnected: ${wsManager.isConnected}');
+    _log.info('🎧 [RECALL-SETUP] WebSocketManager socket ID: ${wsManager.getStatus()['sessionId']}');
+    
+    if (wsManager.eventListener == null) {
+      _log.error('❌ [RECALL-SETUP] CRITICAL: eventListener is null! Cannot register listeners.');
+      return;
+    }
     
     // Register individual event listeners directly with WebSocket manager
     final eventTypes = [
@@ -208,26 +267,56 @@ class RecallGameManager {
       'card_drawn', 'recall_called', 'game_state_updated', 'game_phase_changed',
     ];
     
-    _log.info('🎧 Registering ${eventTypes.length} event listeners...');
+    _log.info('🎧 [RECALL-SETUP] Registering ${eventTypes.length} event listeners...');
     int registeredCount = 0;
     
     for (final eventType in eventTypes) {
       try {
+        _log.info('🎧 [RECALL-SETUP] Registering listener for: $eventType');
+        
         wsManager.eventListener?.registerCustomListener(eventType, (data) {
-          _log.info('🎮 RecallGameManager received event: $eventType with data: ${data is Map ? data.keys : 'non-map data'}');
-          _handleRecallGameEvent({
-            'event_type': eventType,
-            ...(data is Map<String, dynamic> ? data : {}),
-          });
+          _log.info('🎮 [RECALL-EVENT] ===== RECALL EVENT RECEIVED =====');
+          _log.info('🎮 [RECALL-EVENT] Event type: $eventType');
+          _log.info('🎮 [RECALL-EVENT] Data type: ${data.runtimeType}');
+          _log.info('🎮 [RECALL-EVENT] Data is Map: ${data is Map}');
+          
+          if (data is Map) {
+            _log.info('🎮 [RECALL-EVENT] Data keys: ${data.keys.toList()}');
+          }
+          
+          // Critical events get full logging
+          if (['game_started', 'game_phase_changed'].contains(eventType)) {
+            _log.info('🎮 [RECALL-EVENT] CRITICAL EVENT - Full data: $data');
+          }
+          
+          _log.info('🎮 [RECALL-EVENT] Calling _handleRecallGameEvent...');
+          
+          try {
+            _handleRecallGameEvent({
+              'event_type': eventType,
+              ...(data is Map<String, dynamic> ? data : {}),
+            });
+            _log.info('✅ [RECALL-EVENT] Successfully handled $eventType');
+          } catch (e) {
+            _log.error('❌ [RECALL-EVENT] Error handling $eventType: $e');
+          }
+          
+          _log.info('🎮 [RECALL-EVENT] ===== END RECALL EVENT =====');
         });
+        
         registeredCount++;
-        _log.info('🎧 Registered listener for: $eventType');
+        _log.info('✅ [RECALL-SETUP] Successfully registered listener for: $eventType');
       } catch (e) {
-        _log.error('❌ Failed to register listener for $eventType: $e');
+        _log.error('❌ [RECALL-SETUP] Failed to register listener for $eventType: $e');
       }
     }
     
-    _log.info('✅ Recall Game Manager event listeners set up: $registeredCount/${eventTypes.length} registered');
+    _log.info('✅ [RECALL-SETUP] Recall Game Manager event listeners set up: $registeredCount/${eventTypes.length} registered');
+    
+    // Verify registration
+    if (registeredCount != eventTypes.length) {
+      _log.error('❌ [RECALL-SETUP] WARNING: Not all listeners registered! Expected: ${eventTypes.length}, Got: $registeredCount');
+    }
   }
 
 

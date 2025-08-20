@@ -174,8 +174,8 @@ class WebSocketManager {
       // Initialize event manager
       eventManager.initialize();
       
-      // Register WebSocket hooks
-      _registerWebSocketHooks();
+      // Set up hook triggering logic
+      _setupHookTriggers();
       
       // Initialize new centralized event listener and handler
       final stateManager = StateManager();
@@ -201,6 +201,26 @@ class WebSocketManager {
       
       _isInitialized = true;
       _log.info("✅ WebSocket manager initialized successfully");
+      
+      // 🎣 Trigger websocket_initialized hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_initialized hook");
+      HooksManager().triggerHookWithData('websocket_initialized', {
+        'websocket_manager': this,
+        'event_listener': _eventListener,
+        'event_manager': _eventManager,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      // 🎣 Trigger websocket_event_listeners_ready hook specifically for event registration
+      _log.info("🎣 [HOOK] Triggering websocket_event_listeners_ready hook");
+      HooksManager().triggerHookWithData('websocket_event_listeners_ready', {
+        'websocket_manager': this,
+        'event_listener': _eventListener,
+        'event_manager': _eventManager,
+        'is_ready': true,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
       return true;
       
     } catch (e) {
@@ -307,10 +327,16 @@ class WebSocketManager {
     });
 
     _socket!.on('room_joined', (data) {
-      _log.info("🏠 Successfully joined room: $data");
+      _log.info("🏠 [ROOM-JOINED] Successfully joined room");
+      _log.info("🏠 [ROOM-JOINED] Socket ID: ${_socket!.id}");
+      _log.info("🏠 [ROOM-JOINED] Data type: ${data.runtimeType}");
+      _log.info("🏠 [ROOM-JOINED] Full data: $data");
       
       final roomId = data['room_id'] ?? '';
       final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      
+      _log.info("🏠 [ROOM-JOINED] Extracted room ID: '$roomId'");
+      _log.info("🏠 [ROOM-JOINED] Room data keys: ${roomData.keys.toList()}");
       
       // Use validated state updater
       WebSocketStateHelpers.updateRoomInfo(
@@ -326,6 +352,8 @@ class WebSocketManager {
       );
       _roomController.add(event);
       _eventController.add(event);
+      
+      _log.info("✅ [ROOM-JOINED] Room event emitted for room: '$roomId'");
       
       // Events are handled through the stream system, not direct handlers
     });
@@ -567,6 +595,16 @@ class WebSocketManager {
         // Update our tracked connection state
         _isConnected = true;
         _isConnecting = false; // Reset connecting state
+        
+        // 🎣 Trigger websocket_connected hook for other modules
+        _log.info("🎣 [HOOK] Triggering websocket_connected hook");
+        HooksManager().triggerHookWithData('websocket_connected', {
+          'websocket_manager': this,
+          'socket_id': _socket!.id,
+          'event_listener': _eventListener,
+          'event_manager': _eventManager,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
         
         completer.complete(true);
       }
@@ -892,11 +930,23 @@ class WebSocketManager {
       return {"error": "WebSocket not connected"};
     }
     try {
-      _log.info("📡 Emitting custom event '$eventName'");
+      // Enhanced logging for debugging
+      _log.info("📡 [SOCKET-EMIT] Emitting event '$eventName'");
+      _log.info("📡 [SOCKET-EMIT] Socket ID: ${_socket!.id}");
+      _log.info("📡 [SOCKET-EMIT] Socket connected: ${_socket!.connected}");
+      _log.info("📡 [SOCKET-EMIT] Data keys: ${data.keys.toList()}");
+      _log.info("📡 [SOCKET-EMIT] Data size: ${data.length} fields");
+      
+      // Log full data for critical events
+      if (['start_match', 'create_room', 'join_game'].contains(eventName)) {
+        _log.info("📡 [SOCKET-EMIT] Full data: $data");
+      }
+      
       _socket!.emit(eventName, data);
+      _log.info("✅ [SOCKET-EMIT] Successfully emitted '$eventName'");
       return {"success": true};
     } catch (e) {
-      _log.error("❌ Error emitting custom event '$eventName': $e");
+      _log.error("❌ [SOCKET-EMIT] Error emitting custom event '$eventName': $e");
       return {"error": "Failed to emit custom event: $e"};
     }
   }
@@ -913,13 +963,42 @@ class WebSocketManager {
     };
   }
 
-  /// Register WebSocket hooks with HooksManager
-  void _registerWebSocketHooks() {
+  /// Debug method to check room membership and connection status
+  void logConnectionDebugInfo([String? context]) {
+    final contextStr = context != null ? "[$context] " : "";
+    _log.info("🔍 ${contextStr}=== CONNECTION DEBUG INFO ===");
+    _log.info("🔍 ${contextStr}Socket exists: ${_socket != null}");
+    _log.info("🔍 ${contextStr}Socket connected: ${_socket?.connected ?? false}");
+    _log.info("🔍 ${contextStr}Socket ID: ${_socket?.id ?? 'null'}");
+    _log.info("🔍 ${contextStr}Manager isConnected: $_isConnected");
+    _log.info("🔍 ${contextStr}Manager isInitialized: $_isInitialized");
+    _log.info("🔍 ${contextStr}EventListener exists: ${_eventListener != null}");
+    _log.info("🔍 ${contextStr}EventHandler exists: ${_eventHandler != null}");
+    
+    // Try to get current room info from state
+    try {
+      final stateManager = StateManager();
+      final wsState = stateManager.getModuleState<Map<String, dynamic>>("websocket");
+      if (wsState != null) {
+        _log.info("🔍 ${contextStr}Current room ID: ${wsState['currentRoomId']}");
+        _log.info("🔍 ${contextStr}Current room info: ${wsState['currentRoomInfo']}");
+      } else {
+        _log.info("🔍 ${contextStr}No websocket state found");
+      }
+    } catch (e) {
+      _log.info("🔍 ${contextStr}Error getting state: $e");
+    }
+    
+    _log.info("🔍 ${contextStr}=== END DEBUG INFO ===");
+  }
+
+  /// Set up hook triggering logic - triggers hooks when WebSocket events occur
+  void _setupHookTriggers() {
     try {
       final hooksManager = HooksManager();
       
-      // Register room_closed hook that will be triggered by WebSocket events
-      _log.info("🎣 Registering WebSocket hooks...");
+      // Set up hook triggering for room_closed events
+      _log.info("🎣 Setting up WebSocket hook triggers...");
       
       // Set up callback for room_closed events to trigger the hook
       eventManager.onEvent('room_closed', (data) {
@@ -927,9 +1006,9 @@ class WebSocketManager {
         hooksManager.triggerHookWithData('room_closed', data);
       });
       
-      _log.info("✅ WebSocket hooks registered successfully");
+      _log.info("✅ WebSocket hook triggers set up successfully");
     } catch (e) {
-      _log.error("❌ Error registering WebSocket hooks: $e");
+      _log.error("❌ Error setting up WebSocket hook triggers: $e");
     }
   }
 

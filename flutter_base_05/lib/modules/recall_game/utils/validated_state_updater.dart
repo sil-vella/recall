@@ -425,14 +425,17 @@ class RecallGameStateUpdater {
     final isMyTurn = state['isMyTurn'] ?? false;
     final canCallRecall = state['canCallRecall'] ?? false;
     final canPlayCard = state['canPlayCard'] ?? false;
+    final gamePhase = state['gamePhase'] ?? 'waiting';
     
-    final showStartButton = isRoomOwner && !isGameActive;
+    // Show start button if room owner and game is still in waiting phase
+    final showStartButton = isRoomOwner && gamePhase == 'waiting';
     
     // Debug logging for action bar computation
     _log.info('🎯 [ActionBar] Computing slice:');
     _log.info('  - isRoomOwner: $isRoomOwner');
     _log.info('  - isGameActive: $isGameActive');
-    _log.info('  - showStartButton: $showStartButton (${isRoomOwner} && !${isGameActive})');
+    _log.info('  - gamePhase: $gamePhase');
+    _log.info('  - showStartButton: $showStartButton (${isRoomOwner} && ${gamePhase} == waiting)');
     
     return {
       'showStartButton': showStartButton,

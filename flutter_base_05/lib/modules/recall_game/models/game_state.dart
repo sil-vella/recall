@@ -13,6 +13,7 @@ enum GamePhase {
 
 /// Game status enumeration
 enum GameStatus {
+  inactive,     // Game is created but not started yet
   active,       // Game is active and playable
   paused,       // Game is paused
   ended,        // Game has ended

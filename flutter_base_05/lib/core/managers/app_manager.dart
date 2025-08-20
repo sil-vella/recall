@@ -9,6 +9,7 @@ import 'provider_manager.dart';
 import 'services_manager.dart';
 import 'state_manager.dart';
 import 'navigation_manager.dart';
+import 'websockets/websocket_manager.dart';
 class AppManager extends ChangeNotifier {
   static final Logger _log = Logger();
   static final AppManager _instance = AppManager._internal();
@@ -83,6 +84,25 @@ class AppManager extends ChangeNotifier {
         _log.info('🔐 Validating session on startup...');
         final authStatus = await _authManager.validateSessionOnStartup();
         _log.info('✅ Session validation complete: $authStatus');
+        
+        // Initialize WebSocketManager after authentication (if user is authenticated)
+        if (authStatus == 'authenticated') {
+          _log.info('🔌 User is authenticated, initializing WebSocketManager...');
+          try {
+            // Initialize WebSocketManager
+            final webSocketManager = WebSocketManager.instance;
+            final wsInitialized = await webSocketManager.initialize();
+            if (wsInitialized) {
+              _log.info('✅ WebSocketManager initialized successfully');
+            } else {
+              _log.warning('⚠️ WebSocketManager initialization failed');
+            }
+          } catch (e) {
+            _log.error('❌ Error initializing WebSocketManager: $e');
+          }
+        } else {
+          _log.info('🔌 User not authenticated, WebSocketManager will be initialized later');
+        }
         
         // Handle authentication state
         _log.info('🔐 Handling authentication state...');

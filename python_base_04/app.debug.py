@@ -215,6 +215,34 @@ def test_recall_start_match():
         custom_log(f"❌ Error in test_recall_start_match: {e}", level="ERROR")
         return jsonify({'error': f'Test failed: {str(e)}'}), 500
 
+@app.route('/log', methods=['POST'])
+def frontend_log():
+    """Simple endpoint to catch frontend logs and append to server.log"""
+    try:
+        data = request.get_json() or {}
+        
+        # Extract log data
+        message = data.get('message', '')
+        level = data.get('level', 'INFO')
+        source = data.get('source', 'frontend')
+        platform = data.get('platform', 'flutter')
+        build_mode = data.get('buildMode', 'debug')
+        timestamp = data.get('timestamp', '')
+        
+        # Format the log message
+        log_entry = f"[{timestamp}] - {source} - {level} - [{platform}|{build_mode}] {message}"
+        
+        # Append to server.log
+        log_file_path = os.path.join(os.path.dirname(__file__), 'tools', 'logger', 'server.log')
+        with open(log_file_path, 'a') as f:
+            f.write(log_entry + '\n')
+        
+        return jsonify({'success': True, 'message': 'Log recorded'}), 200
+        
+    except Exception as e:
+        custom_log(f"❌ Error in frontend_log: {e}", level="ERROR")
+        return jsonify({'error': f'Log failed: {str(e)}'}), 500
+
 # Development server startup
 if __name__ == "__main__":
     # Use environment variables for host and port

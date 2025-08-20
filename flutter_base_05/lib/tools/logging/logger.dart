@@ -1,7 +1,7 @@
 import 'dart:developer' as developer;
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../../utils/consts/config.dart';
-
-typedef LogSinkFn = void Function(Map<String, dynamic> payload);
 
 class Logger {
   // Private constructor
@@ -21,7 +21,7 @@ class Logger {
       developer.log(message, name: name, error: error, stackTrace: stackTrace, level: level);
     }
     if (Config.enableRemoteLogging) {
-      _emitToSinks(level: level, message: message, error: error, stack: stackTrace);
+      _sendToServer(level: level, message: message, error: error, stack: stackTrace);
     }
   }
 
@@ -42,68 +42,63 @@ class Logger {
   void forceLog(String message, {String name = 'AppLogger', Object? error, StackTrace? stackTrace, int level = 0}) {
     developer.log(message, name: name, error: error, stackTrace: stackTrace, level: level);
     if (Config.enableRemoteLogging) {
-      _emitToSinks(level: level, message: message, error: error, stack: stackTrace);
+      _sendToServer(level: level, message: message, error: error, stack: stackTrace);
     }
   }
 
-  // ===== Remote sink plumbing =====
-  static final List<LogSinkFn> _sinks = <LogSinkFn>[];
-  static int _emittedInWindow = 0;
-  static DateTime _windowStart = DateTime.fromMillisecondsSinceEpoch(0);
-  // Buffer logs emitted before a transport (e.g., WebSocket) is ready
-  static final List<Map<String, dynamic>> _pendingRemoteLogs = <Map<String, dynamic>>[];
-  static const int _pendingMax = 500;
+  /// Send log to server via HTTP
+  void _sendToServer({required int level, required String message, Object? error, StackTrace? stack}) {
+    try {
+      final payload = <String, dynamic>{
+        'message': message,
+        'level': _getLevelString(level),
+        'source': 'frontend',
+        'platform': Config.platform,
+        'buildMode': Config.buildMode,
+        'timestamp': DateTime.now().toIso8601String(),
+        if (error != null) 'error': error.toString(),
+        if (stack != null) 'stack': stack.toString(),
+      };
 
-  static void registerSink(LogSinkFn sink) {
-    if (!_sinks.contains(sink)) {
-      _sinks.add(sink);
+      // Debug: Log that we're sending to server
+      developer.log('Sending log to server: ${payload['message']}', name: 'Logger');
+
+      // Send to server log endpoint - fire and forget
+      _sendHttpLog(payload).catchError((e) {
+        // Silently fail - don't want logging errors to break the app
+        developer.log('HTTP log send failed: $e', name: 'Logger');
+      });
+    } catch (e) {
+      // Don't log errors from logging to avoid infinite loops
+      developer.log('Failed to send log to server: $e', name: 'Logger');
     }
   }
 
-  static void unregisterSink(LogSinkFn sink) {
-    _sinks.remove(sink);
+  /// Convert level number to string
+  String _getLevelString(int level) {
+    if (level >= 1000) return 'ERROR';
+    if (level >= 900) return 'WARNING';
+    if (level >= 800) return 'INFO';
+    return 'DEBUG';
   }
 
-  /// Enqueue a payload for later remote delivery
-  static void enqueueRemote(Map<String, dynamic> payload) {
-    if (_pendingRemoteLogs.length >= _pendingMax) {
-      _pendingRemoteLogs.removeAt(0);
-    }
-    _pendingRemoteLogs.add(payload);
-  }
-
-  /// Drain all pending remote logs
-  static List<Map<String, dynamic>> drainPending() {
-    if (_pendingRemoteLogs.isEmpty) return const <Map<String, dynamic>>[];
-    final copy = List<Map<String, dynamic>>.from(_pendingRemoteLogs);
-    _pendingRemoteLogs.clear();
-    return copy;
-  }
-
-  void _emitToSinks({required int level, required String message, Object? error, StackTrace? stack}) {
-    // Basic throttle: max 10 messages/sec
-    final now = DateTime.now();
-    if (now.difference(_windowStart).inMilliseconds > 1000) {
-      _windowStart = now;
-      _emittedInWindow = 0;
-    }
-    if (_emittedInWindow >= 10) return;
-    _emittedInWindow++;
-
-    final payload = <String, dynamic>{
-      'source': 'frontend',
-      'level': level,
-      'message': message,
-      if (error != null) 'error': error.toString(),
-      if (stack != null) 'stack': stack.toString(),
-      'platform': Config.platform,
-      'buildMode': Config.buildMode,
-      'appVersion': Config.appVersion,
-    };
-    // Always buffer for remote delivery; transports can drain when ready
-    Logger.enqueueRemote(payload);
-    for (final sink in List<LogSinkFn>.from(_sinks)) {
-      try { sink(payload); } catch (_) {}
+  /// Send log via HTTP POST
+  Future<void> _sendHttpLog(Map<String, dynamic> payload) async {
+    try {
+      developer.log('HTTP log: Sending to ${Config.apiUrl}/log', name: 'Logger');
+      final response = await http.post(
+        Uri.parse('${Config.apiUrl}/log'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+      if (response.statusCode == 200) {
+        developer.log('HTTP log: Sent successfully', name: 'Logger');
+      } else {
+        developer.log('HTTP log: Failed with status ${response.statusCode}', name: 'Logger');
+      }
+    } catch (e) {
+      // Silently fail - don't want logging errors to break the app
+      developer.log('HTTP log: Failed to send: $e', name: 'Logger');
     }
   }
 }

@@ -20,16 +20,6 @@ class WebSocketManager {
   }
   WebSocketManager._internal() {
     Logger().info("🔍 WebSocketManager singleton instance created");
-    // Register a remote log sink that emits logs over the socket when available
-    Logger.registerSink((payload) {
-      try {
-        if (_socket != null && _socket!.connected) {
-          final data = Map<String, dynamic>.from(payload);
-          data['event'] = 'client_log';
-          _socket!.emit('client_log', data);
-        }
-      } catch (_) {}
-    });
   }
 
   static final Logger _log = Logger();
@@ -246,20 +236,7 @@ class WebSocketManager {
       );
       _log.info("🔍 Updated tracked connection state: $_isConnected");
 
-      // Drain any pending remote logs accumulated before transport was ready
-      final pending = Logger.drainPending();
-      if (pending.isNotEmpty) {
-        try {
-          for (final p in pending) {
-            final data = Map<String, dynamic>.from(p);
-            data['event'] = 'client_log';
-            _socket!.emit('client_log', data);
-          }
-          _log.info("📤 Flushed ${pending.length} buffered frontend logs to backend");
-        } catch (e) {
-          _log.error("❌ Failed flushing buffered logs: $e");
-        }
-      }
+      // Logs are now sent via HTTP endpoint, no need to drain pending logs
       
       // Emit connection event
       final event = ConnectionStatusEvent(

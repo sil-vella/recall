@@ -9,6 +9,8 @@ import 'provider_manager.dart';
 import 'services_manager.dart';
 import 'state_manager.dart';
 import 'navigation_manager.dart';
+
+
 class AppManager extends ChangeNotifier {
   static final Logger _log = Logger();
   static final AppManager _instance = AppManager._internal();

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../managers/state_manager.dart';
+import '../../../../../core/managers/state_manager.dart';
 import '../../../../../../utils/consts/theme_consts.dart';
 import '../../../../../tools/logging/logger.dart';
 

@@ -1,8 +1,8 @@
 import 'dart:async';
 import '../../../../../tools/logging/logger.dart';
-import '../../../../managers/websockets/websocket_manager.dart';
-import '../../../../managers/websockets/ws_event_manager.dart';
-import '../../../../managers/state_manager.dart';
+import '../../../../../core/managers/websockets/websocket_manager.dart';
+import '../../../../../core/managers/websockets/ws_event_manager.dart';
+import '../../../../../core/managers/state_manager.dart';
 import '../../../utils/recall_game_helpers.dart';
 import '../../../utils/recall_event_listener_validator.dart';
 

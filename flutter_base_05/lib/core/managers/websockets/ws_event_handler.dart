@@ -4,7 +4,7 @@ import '../module_manager.dart';
 import '../../../../tools/logging/logger.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
-import '../../recall_game/utils/recall_game_helpers.dart';
+import '../../../modules/recall_game/utils/recall_game_helpers.dart';
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events

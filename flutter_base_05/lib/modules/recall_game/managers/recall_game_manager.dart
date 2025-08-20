@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import '../../managers/state_manager.dart';
-import '../../managers/websockets/websocket_manager.dart';
-import '../../managers/websockets/ws_event_manager.dart';
+import '../../../core/managers/state_manager.dart';
+import '../../../core/managers/websockets/websocket_manager.dart';
+import '../../../core/managers/websockets/ws_event_manager.dart';
 import '../../../tools/logging/logger.dart';
 
 import '../models/game_state.dart';
@@ -12,7 +12,7 @@ import '../models/game_events.dart';
 import '../utils/recall_game_helpers.dart';
 import '../utils/recall_event_listener_validator.dart';
 import '../utils/validated_event_emitter.dart';
-import '../../managers/hooks_manager.dart';
+import '../../../core/managers/hooks_manager.dart';
 
 /// Recall Game Manager
 /// Main orchestrator for the Recall game functionality
@@ -186,16 +186,36 @@ class RecallGameManager {
     }
   }
 
-  /// Set up event listeners for individual recall game events
+  /// Set up event listeners for Recall game events
   void _setupEventListeners() {
-    _log.info('🎧 Setting up individual recall game event listeners...');
-    
-    // Get WebSocket manager instance
     final wsManager = WebSocketManager.instance;
+    
+    _log.info('🎧 Setting up individual recall game event listeners...');
     _log.info('🎧 WebSocketManager instance: ${wsManager != null ? 'valid' : 'null'}');
     _log.info('🎧 WebSocketManager eventListener: ${wsManager.eventListener != null ? 'valid' : 'null'}');
     
-    // Register individual event listeners directly with WebSocket manager
+    // If WebSocket is not connected yet, we'll set up listeners when it connects
+    if (!wsManager.isConnected || wsManager.eventListener == null) {
+      _log.info('🔌 WebSocket not connected, will set up event listeners when connection is established');
+      // Register a hook to set up listeners when WebSocket connects
+      HooksManager().registerHook('websocket_connected', () {
+        _log.info('🔌 WebSocket connected, setting up Recall game event listeners...');
+        _registerEventListeners();
+      });
+      return;
+    }
+    
+    _registerEventListeners();
+  }
+
+  /// Register the actual event listeners
+  void _registerEventListeners() {
+    final wsManager = WebSocketManager.instance;
+    if (wsManager.eventListener == null) {
+      _log.error('❌ WebSocket event listener is null, cannot register Recall game listeners');
+      return;
+    }
+    
     final eventTypes = [
       'game_joined', 'game_left', 'player_joined', 'player_left',
       'game_started', 'game_ended', 'turn_changed', 'card_played',
@@ -207,7 +227,7 @@ class RecallGameManager {
     
     for (final eventType in eventTypes) {
       try {
-        wsManager.eventListener?.registerCustomListener(eventType, (data) {
+        wsManager.eventListener!.registerCustomListener(eventType, (data) {
           _log.info('🎮 RecallGameManager received event: $eventType with data: ${data is Map ? data.keys : 'non-map data'}');
           _handleRecallGameEvent({
             'event_type': eventType,

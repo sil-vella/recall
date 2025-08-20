@@ -1,5 +1,5 @@
 import 'dart:async';
-import '../../managers/state_manager.dart';
+import '../../../core/managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';

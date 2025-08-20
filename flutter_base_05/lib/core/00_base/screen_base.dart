@@ -7,7 +7,7 @@ import '../managers/module_manager.dart';
 import '../managers/navigation_manager.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
-import '../recall_game/widgets/feature_slot.dart';
+import '../../modules/recall_game/widgets/feature_slot.dart';
 // Note: Do not import recall game types here to keep BaseScreen generic.
 
 abstract class BaseScreen extends StatefulWidget {

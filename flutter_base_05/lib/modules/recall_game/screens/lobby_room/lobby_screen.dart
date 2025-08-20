@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../00_base/screen_base.dart';
+import '../../../../core/00_base/screen_base.dart';
 import 'widgets/connection_status_widget.dart';
 import 'widgets/create_room_widget.dart';
 import 'widgets/join_room_widget.dart';
@@ -13,7 +13,7 @@ import 'services/room_service.dart';
 import '../../widgets/feature_slot.dart';
 import 'features/lobby_features.dart';
 import 'widgets/message_board_widget.dart';
-import '../../../managers/state_manager.dart';
+import '../../../../core/managers/state_manager.dart';
 import '../../utils/recall_game_helpers.dart';
 
 

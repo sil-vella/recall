@@ -1,4 +1,4 @@
-import '../../managers/websockets/websocket_manager.dart';
+import '../../../core/managers/websockets/websocket_manager.dart';
 import 'field_specifications.dart';
 import '../../../tools/logging/logger.dart';
 

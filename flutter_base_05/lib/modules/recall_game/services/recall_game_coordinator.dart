@@ -1,6 +1,6 @@
 import 'dart:async';
-import '../../managers/state_manager.dart';
-import '../../managers/websockets/websocket_manager.dart';
+import '../../../core/managers/state_manager.dart';
+import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../tools/logging/logger.dart';
 import 'game_service.dart';
 

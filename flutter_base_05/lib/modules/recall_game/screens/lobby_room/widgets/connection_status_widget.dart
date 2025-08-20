@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../managers/state_manager.dart';
+import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 
 class ConnectionStatusWidget extends StatelessWidget {

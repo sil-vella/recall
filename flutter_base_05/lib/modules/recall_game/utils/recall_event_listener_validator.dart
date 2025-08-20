@@ -1,5 +1,5 @@
 import '../../../tools/logging/logger.dart';
-import '../../managers/websockets/ws_event_manager.dart';
+import '../../../core/managers/websockets/ws_event_manager.dart';
 import 'recall_game_helpers.dart';
 
 /// Recall Game Event Listener Validator

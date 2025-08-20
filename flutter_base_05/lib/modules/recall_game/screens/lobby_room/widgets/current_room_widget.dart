@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../managers/navigation_manager.dart';
-import '../../../../managers/state_manager.dart';
+import '../../../../../core/managers/navigation_manager.dart';
+import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 
 class CurrentRoomWidget extends StatelessWidget {

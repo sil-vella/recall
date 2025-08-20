@@ -5,10 +5,10 @@ import 'package:recall/core/managers/state_manager.dart';
 import 'package:recall/core/services/shared_preferences.dart';
 import 'package:recall/modules/recall_game/screens/game_play/game_play_screen.dart';
 import 'package:recall/modules/recall_game/screens/lobby_room/lobby_screen.dart';
-import '../../core/00_base/module_base.dart';
-import '../../core/managers/module_manager.dart';
-import '../../core/managers/services_manager.dart';
-import '../../tools/logging/logger.dart';
+import '../core/00_base/module_base.dart';
+import '../core/managers/module_manager.dart';
+import '../core/managers/services_manager.dart';
+import '../tools/logging/logger.dart';
 
 /// Template for creating new modules
 /// 

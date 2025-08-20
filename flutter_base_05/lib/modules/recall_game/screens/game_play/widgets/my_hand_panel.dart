@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/card.dart' as cm;
 import '../../../../../../utils/consts/theme_consts.dart';
-import '../../../../managers/state_manager.dart';
+import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 
 class MyHandPanel extends StatelessWidget {

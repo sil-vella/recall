@@ -1,6 +1,6 @@
 import 'validated_event_emitter.dart';
 import 'validated_state_updater.dart';
-import '../../managers/state_manager.dart';
+import '../../../core/managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
 
 /// Convenient helper methods for recall game operations

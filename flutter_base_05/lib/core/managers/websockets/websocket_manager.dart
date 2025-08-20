@@ -39,12 +39,7 @@ class WebSocketManager {
   bool _isConnected = false; // Track connection state explicitly
   bool _isConnecting = false; // Track if we're in the process of connecting
   
-  // Event streams for UI updates
-  final StreamController<WebSocketEvent> _eventController = StreamController<WebSocketEvent>.broadcast();
-  final StreamController<ConnectionStatusEvent> _connectionController = StreamController<ConnectionStatusEvent>.broadcast();
-  final StreamController<MessageEvent> _messageController = StreamController<MessageEvent>.broadcast();
-  final StreamController<RoomEvent> _roomController = StreamController<RoomEvent>.broadcast();
-  final StreamController<ErrorEvent> _errorController = StreamController<ErrorEvent>.broadcast();
+  // No streams, no custom bullshit - just direct socket
   
   // Note: Event handling is now delegated to WSEventManager
   
@@ -62,12 +57,7 @@ class WebSocketManager {
   IO.Socket? get socket => _socket;
   bool get isInitialized => _isInitialized;
   
-  // Event streams for UI
-  Stream<WebSocketEvent> get events => _eventController.stream;
-  Stream<ConnectionStatusEvent> get connectionStatus => _connectionController.stream;
-  Stream<MessageEvent> get messages => _messageController.stream;
-  Stream<RoomEvent> get roomEvents => _roomController.stream;
-  Stream<ErrorEvent> get errors => _errorController.stream;
+  // No streams, no custom bullshit - just direct socket
   
   // Static getter for easy access
   static WebSocketManager get instance {
@@ -266,15 +256,10 @@ class WebSocketManager {
         status: ConnectionStatus.connected,
         sessionId: _socket!.id,
       );
-      _connectionController.add(event);
-      _eventController.add(event);
-      
       // Trigger websocket_connected hook for modules that need to set up listeners
       _log.info("🔌 Triggering websocket_connected hook for modules...");
       HooksManager().triggerHook('websocket_connected');
       _log.info("✅ websocket_connected hook triggered successfully");
-      
-      // Events are handled through the stream system, not direct handlers
     });
 
     _socket!.onDisconnect((_) {
@@ -287,14 +272,7 @@ class WebSocketManager {
         isConnected: false,
       );
       
-      // Emit disconnection event
-      final event = ConnectionStatusEvent(
-        status: ConnectionStatus.disconnected,
-      );
-      _connectionController.add(event);
-      _eventController.add(event);
-      
-      // Events are handled through the stream system, not direct handlers
+      // No streams, no custom bullshit
     });
 
     // Use 'connect_error' event instead of onConnectError to avoid conflicts
@@ -526,47 +504,17 @@ class WebSocketManager {
       // Events are handled through the stream system, not direct handlers
     });
 
-    // Add specific listeners for game events
+    // Direct socket listeners for game events - no streams, no custom bullshit
     _socket!.on('game_joined', (data) {
       _log.info("🎮 Received game_joined event: $data");
-      
-      // Emit custom event through the general event stream
-      final customEvent = MessageEvent(
-        roomId: data is Map ? (data['room_id'] ?? data['game_id'] ?? '') : '',
-        message: data,
-        sender: 'server',
-        additionalData: {'event_type': 'game_joined', ...(data is Map ? data : {})},
-      );
-      _messageController.add(customEvent);
-      _eventController.add(customEvent);
     });
 
     _socket!.on('game_started', (data) {
       _log.info("🎮 Received game_started event: $data");
-      
-      // Emit custom event through the general event stream
-      final customEvent = MessageEvent(
-        roomId: data is Map ? (data['room_id'] ?? data['game_id'] ?? '') : '',
-        message: data,
-        sender: 'server',
-        additionalData: {'event_type': 'game_started', ...(data is Map ? data : {})},
-      );
-      _messageController.add(customEvent);
-      _eventController.add(customEvent);
     });
 
     _socket!.on('game_phase_changed', (data) {
       _log.info("🎮 Received game_phase_changed event: $data");
-      
-      // Emit custom event through the general event stream
-      final customEvent = MessageEvent(
-        roomId: data is Map ? (data['room_id'] ?? data['game_id'] ?? '') : '',
-        message: data,
-        sender: 'server',
-        additionalData: {'event_type': 'game_phase_changed', ...(data is Map ? data : {})},
-      );
-      _messageController.add(customEvent);
-      _eventController.add(customEvent);
     });
 
     // Note: Custom event handling is now delegated to WSEventManager

@@ -29,6 +29,17 @@ class RecallGameMain extends ModuleBase {
   final RecallGameCoordinator _recallGameCoordinator = RecallGameCoordinator();
   final RecallMessageManager _recallMessageManager = RecallMessageManager();
 
+  /// Get Recall Game Coordinator
+  RecallGameCoordinator get recallGameCoordinator => _recallGameCoordinator;
+  
+  /// Get Recall Game Manager
+  RecallGameManager get recallGameManager => _recallGameManager;
+  
+  /// Get Recall Message Manager
+  RecallMessageManager get recallMessageManager => _recallMessageManager;
+  
+  // No ChangeNotifier notifier – we rely on StateManager only
+
   /// ✅ Constructor with module key and dependencies
   RecallGameMain() : super("recall_game_module", dependencies: []);
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../managers/state_manager.dart';
-import '../../../../managers/navigation_manager.dart';
+import '../../../../../core/managers/state_manager.dart';
+import '../../../../../core/managers/navigation_manager.dart';
 import '../../../services/recall_game_coordinator.dart';
 import '../../../../../tools/logging/logger.dart';
 
@@ -39,7 +39,7 @@ class RoomListWidget extends StatelessWidget {
       final playerName = (login['username'] ?? login['email'] ?? 'Player').toString();
       
       _log.info('🎮 Joining game as: $playerName');
-      final gameCoordinator = RecallGameCoordinator();
+      final gameCoordinator = RecallGameCoordinator(); // Use singleton instance
       final joinResult = await gameCoordinator.joinGameAndRoom(roomId, playerName);
       if (joinResult['error'] != null) {
         _showSnackBar(context, 'Failed to join game: ${joinResult['error']}', isError: true);

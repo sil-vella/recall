@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../managers/state_manager.dart';
+import '../../../../core/managers/state_manager.dart';
 import '../../models/card.dart' as cm;
 
 import '../../services/recall_game_coordinator.dart';
@@ -8,7 +8,7 @@ import '../../utils/validated_event_emitter.dart';
 import '../../../../../tools/logging/logger.dart';
 // Provider removed – use StateManager only
 
-import '../../../00_base/screen_base.dart';
+import '../../../../core/00_base/screen_base.dart';
 import '../lobby_room/widgets/message_board_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import 'widgets/status_bar.dart';
@@ -32,7 +32,9 @@ class _GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   static final Logger _log = Logger();
   // State management - screen itself doesn't subscribe to state changes
   final StateManager _sm = StateManager();
-  final RecallGameCoordinator _gameCoordinator = RecallGameCoordinator();
+  
+  // Use singleton instance from RecallGameMain module
+  RecallGameCoordinator get _gameCoordinator => RecallGameCoordinator();
 
   // UI selections are now managed in StateManager
 

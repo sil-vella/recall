@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:recall/modules/recall_game/recall_game_main.dart';
 import '../../tools/logging/logger.dart';
 import '../00_base/module_base.dart';
 import 'module_manager.dart';
@@ -124,6 +125,8 @@ class ModuleRegistry {
     // registerModule('admobs_interstitial_ad_module', () => InterstitialAdModule(Config.admobsInterstitial01));
     // registerModule('admobs_rewarded_ad_module', () => RewardedAdModule(Config.admobsRewarded01));
 
+    registerModule('recall_game', () => RecallGameMain());
+    
     _log.info('✅ Module registry initialized with ${_moduleFactories.length} modules');
   }
 

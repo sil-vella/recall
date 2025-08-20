@@ -9,8 +9,6 @@ import 'provider_manager.dart';
 import 'services_manager.dart';
 import 'state_manager.dart';
 import 'navigation_manager.dart';
-import '../recall_game/recall_game_main.dart';
-
 class AppManager extends ChangeNotifier {
   static final Logger _log = Logger();
   static final AppManager _instance = AppManager._internal();
@@ -25,7 +23,6 @@ class AppManager extends ChangeNotifier {
   final HooksManager _hooksManager = HooksManager();
   final AuthManager _authManager = AuthManager();
   final AdaptersManager _adaptersManager = AdaptersManager();
-  final RecallGameCore _recallGameCore = RecallGameCore();
 
   Future<void> _initializeModules(BuildContext context) async {
     _log.info('🚀 Initializing modules...');
@@ -81,15 +78,6 @@ class AppManager extends ChangeNotifier {
         _log.info('🪝 Registering global hooks...');
         _registerGlobalHooks();
         _log.info('✅ Global hooks registered');
-        
-        // Initialize Recall Game Core - single entry point (AFTER modules are ready)
-        _log.info('🎮 Initializing Recall Game Core...');
-        final recallGameInitResult = await _recallGameCore.initialize(context);
-        if (!recallGameInitResult) {
-          _log.error('❌ Recall Game Core initialization failed');
-          throw Exception('Recall Game Core initialization failed');
-        }
-        _log.info('✅ Recall Game Core initialized successfully');
         
         // Validate session on startup
         _log.info('🔐 Validating session on startup...');
@@ -228,9 +216,6 @@ class AppManager extends ChangeNotifier {
 
   /// Get AdaptersManager for external access to adapters
   AdaptersManager get adaptersManager => _adaptersManager;
-
-  /// Get RecallGameCore for external access to Recall game functionality
-  RecallGameCore get recallGameCore => _recallGameCore;
 
   @override
   void dispose() {

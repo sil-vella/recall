@@ -286,15 +286,7 @@ class WebSocketManager {
         isConnected: false,
       );
       
-      // Emit error event
-      final event = ConnectionStatusEvent(
-        status: ConnectionStatus.error,
-        error: error.toString(),
-      );
-      _connectionController.add(event);
-      _eventController.add(event);
-      
-      // Events are handled through the stream system, not direct handlers
+      // No streams, no custom bullshit
     });
 
     _socket!.on('session_data', (data) {
@@ -305,11 +297,7 @@ class WebSocketManager {
         data is Map<String, dynamic> ? data : null,
       );
       
-      // Emit session data event
-      final event = SessionDataEvent(data);
-      _eventController.add(event);
-      
-      // Events are handled through the stream system, not direct handlers
+      // No streams, no custom bullshit
     });
 
     _socket!.on('room_joined', (data) {

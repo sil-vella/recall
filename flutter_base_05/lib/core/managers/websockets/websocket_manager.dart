@@ -526,21 +526,47 @@ class WebSocketManager {
       // Events are handled through the stream system, not direct handlers
     });
 
-    // Add catch-all listener for custom events (like game_joined, game_started, etc.)
-    _socket!.onAny((eventName, data) {
-      _log.info("🎮 Received custom event: $eventName with data: $data");
+    // Add specific listeners for game events
+    _socket!.on('game_joined', (data) {
+      _log.info("🎮 Received game_joined event: $data");
       
       // Emit custom event through the general event stream
       final customEvent = MessageEvent(
         roomId: data is Map ? (data['room_id'] ?? data['game_id'] ?? '') : '',
         message: data,
         sender: 'server',
-        additionalData: {'event_type': eventName, ...(data is Map ? data : {})},
+        additionalData: {'event_type': 'game_joined', ...(data is Map ? data : {})},
       );
       _messageController.add(customEvent);
       _eventController.add(customEvent);
+    });
+
+    _socket!.on('game_started', (data) {
+      _log.info("🎮 Received game_started event: $data");
       
-      // Events are handled through the stream system, not direct handlers
+      // Emit custom event through the general event stream
+      final customEvent = MessageEvent(
+        roomId: data is Map ? (data['room_id'] ?? data['game_id'] ?? '') : '',
+        message: data,
+        sender: 'server',
+        additionalData: {'event_type': 'game_started', ...(data is Map ? data : {})},
+      );
+      _messageController.add(customEvent);
+      _eventController.add(customEvent);
+    });
+
+    _socket!.on('game_phase_changed', (data) {
+      _log.info("🎮 Received game_phase_changed event: $data");
+      
+      // Emit custom event through the general event stream
+      final customEvent = MessageEvent(
+        roomId: data is Map ? (data['room_id'] ?? data['game_id'] ?? '') : '',
+        message: data,
+        sender: 'server',
+        additionalData: {'event_type': 'game_phase_changed', ...(data is Map ? data : {})},
+      );
+      _messageController.add(customEvent);
+      _eventController.add(customEvent);
     });
 
     // Note: Custom event handling is now delegated to WSEventManager

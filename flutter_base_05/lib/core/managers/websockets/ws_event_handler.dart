@@ -123,12 +123,6 @@ class WSEventHandler {
       
       // No recall-specific logic in core modules
       // No recall-specific logic in core modules
-        'isRoomOwner': isRoomOwner,
-        'currentRoomId': roomId,
-        'isGameActive': false,  // Ensure game is not active when joining room
-        'gamePhase': 'waiting',
-        'gameStatus': 'inactive',
-      });
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
@@ -173,12 +167,6 @@ class WSEventHandler {
       
       // No recall-specific logic in core modules
       // No recall-specific logic in core modules
-        'isRoomOwner': isRoomOwner,
-        'currentRoomId': roomId,
-        'isGameActive': false,  // Ensure game is not active when joining room
-        'gamePhase': 'waiting',
-        'gameStatus': 'inactive',
-      });
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
@@ -242,12 +230,6 @@ class WSEventHandler {
       
       // No recall-specific logic in core modules
       // No recall-specific logic in core modules
-        'isRoomOwner': isRoomOwner,
-        'currentRoomId': roomId,
-        'isGameActive': false,  // Ensure game is not active when room is created
-        'gamePhase': 'waiting',
-        'gameStatus': 'inactive',
-      });
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen

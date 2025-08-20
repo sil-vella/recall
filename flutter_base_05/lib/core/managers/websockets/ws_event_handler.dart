@@ -2,7 +2,7 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../state_manager.dart';
 import '../module_manager.dart';
 import '../../../../tools/logging/logger.dart';
-import 'ws_event_manager.dart';
+// No event manager - direct socket communication only
 import 'websocket_state_validator.dart';
 // No recall-specific imports in core modules
 
@@ -10,18 +10,16 @@ import 'websocket_state_validator.dart';
 /// Centralized event processing logic for all WebSocket events
 class WSEventHandler {
   final IO.Socket? _socket;
-  final WSEventManager _eventManager;
+  // No event manager - direct socket communication only
   final StateManager _stateManager;
   final ModuleManager _moduleManager;
   final Logger _log;
 
   WSEventHandler({
     required IO.Socket? socket,
-    required WSEventManager eventManager,
     required StateManager stateManager,
     required ModuleManager moduleManager,
   })  : _socket = socket,
-        _eventManager = eventManager,
         _stateManager = stateManager,
         _moduleManager = moduleManager,
         _log = Logger();
@@ -126,7 +124,7 @@ class WSEventHandler {
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
-      _eventManager.triggerCallbacks('room', {
+      // No event manager - direct socket communication only
         'action': 'joined',
         'roomId': roomId,
         'roomData': roomData,
@@ -134,8 +132,8 @@ class WSEventHandler {
       });
       
       // Trigger specific event callbacks
-      _eventManager.triggerCallbacks('room_joined', data);
-      _eventManager.triggerCallbacks('join_room_success', data);
+      // No event manager - direct socket communication only
+      // No event manager - direct socket communication only
       
       _log.info("✅ Room joined handled successfully");
     } catch (e) {
@@ -170,7 +168,7 @@ class WSEventHandler {
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
-      _eventManager.triggerCallbacks('room', {
+      // No event manager - direct socket communication only
         'action': 'joined',
         'roomId': roomId,
         'roomData': roomData,
@@ -178,7 +176,7 @@ class WSEventHandler {
       });
       
       // Trigger specific event callbacks
-      _eventManager.triggerCallbacks('join_room_success', data);
+      // No event manager - direct socket communication only
       
       _log.info("✅ Join room success handled successfully");
     } catch (e) {
@@ -192,13 +190,13 @@ class WSEventHandler {
     
     try {
       // Trigger error callbacks
-      _eventManager.triggerCallbacks('error', {
+      // No event manager - direct socket communication only
         'error': 'Failed to join room',
         'details': data.toString(),
       });
       
       // Trigger specific error callbacks
-      _eventManager.triggerCallbacks('join_room_error', data);
+      // No event manager - direct socket communication only
       
       _log.info("✅ Join room error handled successfully");
     } catch (e) {
@@ -233,7 +231,7 @@ class WSEventHandler {
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
-      _eventManager.triggerCallbacks('room', {
+      // No event manager - direct socket communication only
         'action': 'created',
         'roomId': roomId,
         'roomData': roomData,
@@ -241,8 +239,8 @@ class WSEventHandler {
       });
       
       // Trigger specific event callbacks
-      _eventManager.triggerCallbacks('create_room_success', data);
-      _eventManager.triggerCallbacks('room_created', data);
+      // No event manager - direct socket communication only
+      // No event manager - direct socket communication only
       
       _log.info("✅ Create room success handled successfully");
     } catch (e) {
@@ -259,14 +257,14 @@ class WSEventHandler {
       final roomData = data;
       
       // Trigger event callbacks for room management screen
-      _eventManager.triggerCallbacks('room', {
+      // No event manager - direct socket communication only
         'action': 'created',
         'roomId': roomId,
         'roomData': roomData,
       });
       
       // Trigger specific event callbacks
-      _eventManager.triggerCallbacks('room_created', data);
+      // No event manager - direct socket communication only
       
       _log.info("✅ Room created handled successfully");
     } catch (e) {
@@ -280,13 +278,13 @@ class WSEventHandler {
     
     try {
       // Trigger error callbacks
-      _eventManager.triggerCallbacks('error', {
+      // No event manager - direct socket communication only
         'error': 'Failed to create room',
         'details': data.toString(),
       });
       
       // Trigger specific error callbacks
-      _eventManager.triggerCallbacks('create_room_error', data);
+      // No event manager - direct socket communication only
       
       _log.info("✅ Create room error handled successfully");
     } catch (e) {
@@ -308,14 +306,14 @@ class WSEventHandler {
       );
       
       // Trigger event callbacks for room management screen
-      _eventManager.triggerCallbacks('room', {
+      // No event manager - direct socket communication only
         'action': 'left',
         'roomId': roomId,
         'roomData': data,
       });
       
       // Trigger specific event callbacks
-      _eventManager.triggerCallbacks('leave_room_success', data);
+      // No event manager - direct socket communication only
       
       _log.info("✅ Leave room success handled successfully");
     } catch (e) {
@@ -329,13 +327,13 @@ class WSEventHandler {
     
     try {
       // Trigger error callbacks
-      _eventManager.triggerCallbacks('error', {
+      // No event manager - direct socket communication only
         'error': 'Failed to leave room',
         'details': data.toString(),
       });
       
       // Trigger specific error callbacks
-      _eventManager.triggerCallbacks('leave_room_error', data);
+      // No event manager - direct socket communication only
       
       _log.info("✅ Leave room error handled successfully");
     } catch (e) {
@@ -363,7 +361,7 @@ class WSEventHandler {
         }
         
         // Trigger room closed callbacks
-        _eventManager.triggerCallbacks('room_closed', {
+      // No event manager - direct socket communication only
           'room_id': roomId,
           'reason': reason,
           'timestamp': timestamp,

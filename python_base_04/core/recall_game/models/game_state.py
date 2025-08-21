@@ -46,21 +46,72 @@ class GameState:
         self.game_ended = False
         self.winner = None
         self.game_history = []
+        
+        # Session tracking for individual player messaging
+        self.player_sessions = {}  # player_id -> session_id
+        self.session_players = {}  # session_id -> player_id
     
-    def add_player(self, player: Player) -> bool:
+    def add_player(self, player: Player, session_id: str = None) -> bool:
         """Add a player to the game"""
         if len(self.players) >= self.max_players:
             return False
         
         self.players[player.player_id] = player
+        
+        # Track session mapping if session_id provided
+        if session_id:
+            self.player_sessions[player.player_id] = session_id
+            self.session_players[session_id] = player.player_id
+        
         return True
     
     def remove_player(self, player_id: str) -> bool:
         """Remove a player from the game"""
         if player_id in self.players:
+            # Remove session mapping
+            if player_id in self.player_sessions:
+                session_id = self.player_sessions[player_id]
+                del self.player_sessions[player_id]
+                if session_id in self.session_players:
+                    del self.session_players[session_id]
+            
             del self.players[player_id]
             return True
         return False
+    
+    def get_player_session(self, player_id: str) -> Optional[str]:
+        """Get session ID for a player"""
+        return self.player_sessions.get(player_id)
+    
+    def get_session_player(self, session_id: str) -> Optional[str]:
+        """Get player ID for a session"""
+        return self.session_players.get(session_id)
+    
+    def update_player_session(self, player_id: str, session_id: str) -> bool:
+        """Update session mapping for a player"""
+        if player_id not in self.players:
+            return False
+        
+        # Remove old mapping if exists
+        if player_id in self.player_sessions:
+            old_session_id = self.player_sessions[player_id]
+            if old_session_id in self.session_players:
+                del self.session_players[old_session_id]
+        
+        # Add new mapping
+        self.player_sessions[player_id] = session_id
+        self.session_players[session_id] = player_id
+        return True
+    
+    def remove_session(self, session_id: str) -> Optional[str]:
+        """Remove session mapping and return associated player_id"""
+        if session_id in self.session_players:
+            player_id = self.session_players[session_id]
+            del self.session_players[session_id]
+            if player_id in self.player_sessions:
+                del self.player_sessions[player_id]
+            return player_id
+        return None
     
     def start_game(self):
         """Start the game and deal cards"""
@@ -431,7 +482,10 @@ class GameState:
             "game_start_time": self.game_start_time,
             "last_action_time": self.last_action_time,
             "game_ended": self.game_ended,
-            "winner": self.winner
+            "winner": self.winner,
+            # Session tracking data
+            "player_sessions": self.player_sessions,
+            "session_players": self.session_players
         }
     
     @classmethod
@@ -454,6 +508,10 @@ class GameState:
         game_state.last_action_time = data.get("last_action_time")
         game_state.game_ended = data.get("game_ended", False)
         game_state.winner = data.get("winner")
+        
+        # Restore session tracking data
+        game_state.player_sessions = data.get("player_sessions", {})
+        game_state.session_players = data.get("session_players", {})
         
         # Restore cards
         for card_data in data.get("discard_pile", []):

@@ -1,6 +1,8 @@
 from typing import Optional, Dict, Any, List
 import time
+from datetime import datetime
 from tools.logger.custom_logging import custom_log
+from ..models.game_state import GameState, Player
 
 
 class RecallGameplayManager:
@@ -68,7 +70,13 @@ class RecallGameplayManager:
             from ..models.player import HumanPlayer, ComputerPlayer
             if user_id not in game.players:
                 player = ComputerPlayer(user_id, player_name) if player_type == 'computer' else HumanPlayer(user_id, player_name)
-                game.add_player(player)
+                # Add player with session tracking
+                game.add_player(player, session_id)
+                custom_log(f"✅ Added player {user_id} to game {game_id} with session {session_id}")
+            else:
+                # Update session mapping for existing player
+                game.update_player_session(user_id, session_id)
+                custom_log(f"✅ Updated session mapping for player {user_id} in game {game_id}")
 
             # Do not auto-start here; wait for explicit start via recall_start_match
 
@@ -97,15 +105,22 @@ class RecallGameplayManager:
 
             self.websocket_manager.leave_room(game_id, session_id)
 
-            session_data = self.websocket_manager.get_session_data(session_id) or {}
-            user_id = str(session_data.get('user_id') or session_id)
-            game.remove_player(user_id)
+            # Get player_id from session mapping
+            player_id = game.get_session_player(session_id)
+            if not player_id:
+                # Fallback to session data
+                session_data = self.websocket_manager.get_session_data(session_id) or {}
+                player_id = str(session_data.get('user_id') or session_id)
+            
+            # Remove player (this also cleans up session mapping)
+            game.remove_player(player_id)
+            custom_log(f"✅ Removed player {player_id} from game {game_id}")
 
             payload = {
                 'event_type': 'player_left',
                 'game_id': game_id,
                 'game_state': self._to_flutter_game_state(game),
-                'player': {'id': user_id, 'name': session_data.get('username') or 'Player'},
+                'player': {'id': player_id, 'name': session_data.get('username') or 'Player'},
             }
             self._broadcast_message(game_id, payload, session_id)
             return True
@@ -147,14 +162,74 @@ class RecallGameplayManager:
             if not engine_result or engine_result.get('error'):
                 engine_result = self._fallback_handle(game, action, user_id, data)
 
-            event_type = engine_result.get('event_type') or 'game_state_updated'
-            payload = {
-                'event_type': event_type,
-                'game_id': game_id,
-                'game_state': self._to_flutter_game_state(game),
+            # Handle action result with individual messaging
+            if engine_result.get('error'):
+                # Send error to the player who performed the action
+                self.send_game_action_result(game_id, user_id, engine_result)
+                return False
+            
+            # Send action result to the player who performed it
+            self.send_game_action_result(game_id, user_id, engine_result)
+            
+            # Broadcast game action to other players
+            action_broadcast_data = {
+                'action_type': action,
+                'player_id': user_id,
                 'result': engine_result,
             }
-            self._broadcast_message(game_id, payload, session_id)
+            self.broadcast_game_action(game_id, action, action_broadcast_data, user_id)
+            
+            # Send private hand update to the player who performed the action
+            self.send_private_hand_update(game_id, user_id)
+            
+            # Handle turn changes
+            if engine_result.get('next_player'):
+                next_player_id = engine_result.get('next_player')
+                if next_player_id and next_player_id in game.players:
+                    self.send_turn_notification(game_id, next_player_id)
+            
+            # Handle game state updates for all players
+            game_state_payload = {
+                'event_type': 'game_state_updated',
+                'game_id': game_id,
+                'game_state': self._to_flutter_game_state(game),
+            }
+            self.send_to_all_players(game_id, 'game_state_updated', game_state_payload)
+            
+            # Check if next player is a computer and trigger their turn
+            if engine_result.get('next_player'):
+                next_player_id = engine_result.get('next_player')
+                if next_player_id and next_player_id in game.players:
+                    next_player = game.players[next_player_id]
+                    if next_player.player_type.value == 'computer':
+                        # Add a small delay to make the game feel more natural
+                        import threading
+                        
+                        def delayed_computer_turn():
+                            import time
+                            time.sleep(1)  # 1 second delay
+                            self.trigger_computer_turn(game_id, next_player_id)
+                        
+                        # Run in background thread
+                        thread = threading.Thread(target=delayed_computer_turn)
+                        thread.daemon = True
+                        thread.start()
+            
+            # Check for computer out-of-turn opportunities
+            if engine_result.get('success') and action in ['play_card', 'play_out_of_turn']:
+                # Add a small delay to let the card play settle
+                import threading
+                
+                def delayed_out_of_turn_check():
+                    import time
+                    time.sleep(0.5)  # 0.5 second delay
+                    self.check_computer_out_of_turn_opportunities(game_id)
+                
+                # Run in background thread
+                thread = threading.Thread(target=delayed_out_of_turn_check)
+                thread.daemon = True
+                thread.start()
+            
             return True
         except Exception as e:
             custom_log(f"Error in on_player_action: {e}", level="ERROR")
@@ -412,31 +487,157 @@ class RecallGameplayManager:
                 data = notification.get('data', {})
                 
                 if event == 'game_started':
-                    # Broadcast the game_started event with engine-generated data
+                    # Send game started event to all players individually
                     payload = {
                         'event_type': event,
                         'game_id': game_id,
                         'game_state': self._to_flutter_game_state(game),
                         **data  # Include additional data from engine
                     }
-                    custom_log(f"🎮 [on_start_match] Broadcasting {event} event via engine")
+                    custom_log(f"🎮 [on_start_match] Broadcasting {event} event to all players")
                     custom_log(f"🎮 [on_start_match] Payload: {payload}")
-                    self._broadcast_message(game_id, payload, session_id)
+                    self.send_to_all_players(game_id, event, payload)
                 elif event == 'game_phase_changed':
-                    # Broadcast phase change event
+                    # Send phase change event to all players
                     payload = {
                         'event_type': event,
                         'game_id': game_id,
                         **data
                     }
-                    custom_log(f"🎮 [on_start_match] Broadcasting {event} event")
-                    self._broadcast_message(game_id, payload, session_id)
+                    custom_log(f"🎮 [on_start_match] Broadcasting {event} event to all players")
+                    self.send_to_all_players(game_id, event, payload)
+                elif event == 'turn_started':
+                    # Send turn notification to specific player
+                    target_player_id = data.get('player_id')
+                    if target_player_id:
+                        payload = {
+                            'event_type': event,
+                            'game_id': game_id,
+                            'game_state': self._to_flutter_game_state(game),
+                            **data
+                        }
+                        custom_log(f"🎮 [on_start_match] Sending {event} to player {target_player_id}")
+                        self.send_to_player(game_id, target_player_id, event, payload)
+                else:
+                    # Default: broadcast to all players
+                    payload = {
+                        'event_type': event,
+                        'game_id': game_id,
+                        **data
+                    }
+                    custom_log(f"🎮 [on_start_match] Broadcasting {event} event to all players")
+                    self.send_to_all_players(game_id, event, payload)
             
             custom_log(f"🎮 [on_start_match] Successfully completed via game engine")
+            
+            # Check if first player is a computer and trigger their turn
+            if game.current_player_id:
+                current_player = game.players.get(game.current_player_id)
+                if current_player and current_player.player_type.value == 'computer':
+                    custom_log(f"🤖 [on_start_match] First player is computer, triggering turn: {game.current_player_id}")
+                    # Add a small delay to let the game start event settle
+                    import threading
+                    
+                    def delayed_computer_turn():
+                        import time
+                        time.sleep(3)  # 3 second delay for game start
+                        self.trigger_computer_turn(game_id, game.current_player_id)
+                    
+                    # Run in background thread
+                    thread = threading.Thread(target=delayed_computer_turn)
+                    thread.daemon = True
+                    thread.start()
+            
             return True
         except Exception as e:
             custom_log(f"❌ [on_start_match] Error in on_start_match: {e}", level="ERROR")
             self._emit_error(session_id, f'Start match failed: {str(e)}')
+            return False
+
+    def on_session_disconnect(self, session_id: str) -> bool:
+        """Handle session disconnection and cleanup"""
+        try:
+            custom_log(f"🔌 [on_session_disconnect] Session disconnected: {session_id}")
+            
+            # Find all games this session is part of
+            if not self.game_state_manager:
+                return False
+            
+            disconnected_players = []
+            
+            # Check all active games for this session
+            for game_id in self.game_state_manager.active_games:
+                game = self.game_state_manager.get_game(game_id)
+                if game:
+                    player_id = game.get_session_player(session_id)
+                    if player_id:
+                        disconnected_players.append((game_id, player_id))
+                        custom_log(f"🔌 [on_session_disconnect] Found player {player_id} in game {game_id}")
+            
+            # Handle disconnections
+            for game_id, player_id in disconnected_players:
+                game = self.game_state_manager.get_game(game_id)
+                if game:
+                    # Remove session mapping but keep player in game (they can reconnect)
+                    game.remove_session(session_id)
+                    custom_log(f"🔌 [on_session_disconnect] Removed session mapping for player {player_id} in game {game_id}")
+                    
+                    # Notify other players about the disconnection
+                    disconnect_payload = {
+                        'event_type': 'player_disconnected',
+                        'game_id': game_id,
+                        'player_id': player_id,
+                        'game_state': self._to_flutter_game_state(game),
+                    }
+                    self.send_to_other_players(game_id, player_id, 'player_disconnected', disconnect_payload)
+            
+            return True
+        except Exception as e:
+            custom_log(f"❌ [on_session_disconnect] Error handling disconnect: {e}", level="ERROR")
+            return False
+
+    def on_session_reconnect(self, session_id: str, data: Dict[str, Any]) -> bool:
+        """Handle session reconnection"""
+        try:
+            game_id = data.get('game_id')
+            if not game_id:
+                return False
+            
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                return False
+            
+            session_data = self.websocket_manager.get_session_data(session_id) or {}
+            user_id = str(session_data.get('user_id') or session_id)
+            
+            # Check if player exists in game
+            if user_id in game.players:
+                # Update session mapping
+                game.update_player_session(user_id, session_id)
+                custom_log(f"🔌 [on_session_reconnect] Reconnected player {user_id} in game {game_id}")
+                
+                # Notify other players about the reconnection
+                reconnect_payload = {
+                    'event_type': 'player_reconnected',
+                    'game_id': game_id,
+                    'player_id': user_id,
+                    'game_state': self._to_flutter_game_state(game),
+                }
+                self.send_to_other_players(game_id, user_id, 'player_reconnected', reconnect_payload)
+                
+                # Send current game state to reconnected player
+                current_state_payload = {
+                    'event_type': 'game_state_updated',
+                    'game_id': game_id,
+                    'game_state': self._to_flutter_game_state(game),
+                }
+                self._emit_to_session(session_id, 'game_state_updated', current_state_payload)
+                
+                return True
+            
+            return False
+        except Exception as e:
+            custom_log(f"❌ [on_session_reconnect] Error handling reconnect: {e}", level="ERROR")
             return False
 
     def on_initial_peek(self, session_id: str, data: Dict[str, Any]) -> bool:
@@ -465,6 +666,136 @@ class RecallGameplayManager:
             custom_log(f"Error in on_initial_peek: {e}", level="ERROR")
             self._emit_error(session_id, f'Initial peek failed: {str(e)}')
             return False
+
+    # ========= Testing and Debugging Helpers =========
+    
+    def test_session_tracking(self, game_id: str) -> Dict[str, Any]:
+        """Test method to verify session tracking is working correctly"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                return {'error': 'Game not found'}
+            
+            tracking_info = {
+                'game_id': game_id,
+                'player_count': len(game.players),
+                'session_count': len(game.player_sessions),
+                'players': {},
+                'sessions': {},
+            }
+            
+            # Show player -> session mapping
+            for player_id, session_id in game.player_sessions.items():
+                tracking_info['players'][player_id] = {
+                    'session_id': session_id,
+                    'player_name': game.players[player_id].name if player_id in game.players else 'Unknown',
+                    'player_type': game.players[player_id].player_type.value if player_id in game.players else 'Unknown',
+                }
+            
+            # Show session -> player mapping
+            for session_id, player_id in game.session_players.items():
+                tracking_info['sessions'][session_id] = {
+                    'player_id': player_id,
+                    'player_name': game.players[player_id].name if player_id in game.players else 'Unknown',
+                }
+            
+            custom_log(f"🔍 [test_session_tracking] Session tracking info: {tracking_info}")
+            return tracking_info
+            
+        except Exception as e:
+            custom_log(f"❌ [test_session_tracking] Error: {e}", level="ERROR")
+            return {'error': str(e)}
+    
+    def get_game_session_info(self, game_id: str) -> Dict[str, Any]:
+        """Get comprehensive session information for a game"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                return {'error': 'Game not found'}
+            
+            session_info = {
+                'game_id': game_id,
+                'phase': game.phase.value,
+                'current_player_id': game.current_player_id,
+                'connected_players': [],
+                'disconnected_players': [],
+            }
+            
+            # Check each player's connection status
+            for player_id, player in game.players.items():
+                session_id = game.get_player_session(player_id)
+                if session_id:
+                    session_info['connected_players'].append({
+                        'player_id': player_id,
+                        'player_name': player.name,
+                        'session_id': session_id,
+                        'player_type': player.player_type.value,
+                    })
+                else:
+                    session_info['disconnected_players'].append({
+                        'player_id': player_id,
+                        'player_name': player.name,
+                        'player_type': player.player_type.value,
+                    })
+            
+            return session_info
+            
+        except Exception as e:
+            custom_log(f"❌ [get_game_session_info] Error: {e}", level="ERROR")
+            return {'error': str(e)}
+
+    def test_computer_player_system(self, game_id: str) -> Dict[str, Any]:
+        """Test method to verify computer player system is working correctly"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                return {'error': 'Game not found'}
+            
+            computer_info = {
+                'game_id': game_id,
+                'current_player_id': game.current_player_id,
+                'current_player_type': None,
+                'computer_players': [],
+                'human_players': [],
+                'can_trigger_computer_turn': False,
+            }
+            
+            # Get current player info
+            if game.current_player_id:
+                current_player = game.players.get(game.current_player_id)
+                if current_player:
+                    computer_info['current_player_type'] = current_player.player_type.value
+                    computer_info['can_trigger_computer_turn'] = current_player.player_type.value == 'computer'
+            
+            # Categorize players
+            for player_id, player in game.players.items():
+                player_info = {
+                    'player_id': player_id,
+                    'player_name': player.name,
+                    'player_type': player.player_type.value,
+                    'hand_size': len(player.hand),
+                    'score': player.calculate_points(),
+                }
+                
+                if player.player_type.value == 'computer':
+                    computer_info['computer_players'].append(player_info)
+                else:
+                    computer_info['human_players'].append(player_info)
+            
+            # Test computer turn triggering
+            if computer_info['can_trigger_computer_turn']:
+                computer_info['test_result'] = 'Computer turn can be triggered'
+                # Uncomment the next line to actually test the computer turn
+                # self.trigger_computer_turn(game_id, game.current_player_id)
+            else:
+                computer_info['test_result'] = 'Current player is not a computer'
+            
+            custom_log(f"🤖 [test_computer_player_system] Computer player info: {computer_info}")
+            return computer_info
+            
+        except Exception as e:
+            custom_log(f"❌ [test_computer_player_system] Error: {e}", level="ERROR")
+            return {'error': str(e)}
 
     # ========= Internal helpers =========
 
@@ -552,17 +883,158 @@ class RecallGameplayManager:
     def _emit_error(self, session_id: str, message: str):
         self._emit_to_session(session_id, 'recall_error', {'message': message})
 
+    # ========= Individual Player Messaging Helpers =========
+    
+    def send_to_player(self, game_id: str, player_id: str, event: str, data: dict) -> bool:
+        """Send event to a specific player"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                custom_log(f"❌ Game not found for player messaging: {game_id}", level="ERROR")
+                return False
+            
+            session_id = game.get_player_session(player_id)
+            if not session_id:
+                custom_log(f"❌ No session found for player: {player_id}", level="ERROR")
+                return False
+            
+            self._emit_to_session(session_id, event, data)
+            custom_log(f"✅ Sent {event} to player {player_id} (session: {session_id})")
+            return True
+        except Exception as e:
+            custom_log(f"❌ Error sending to player {player_id}: {e}", level="ERROR")
+            return False
+    
+    def send_to_all_players(self, game_id: str, event: str, data: dict, exclude_player_id: str = None) -> bool:
+        """Send event to all players in a game, optionally excluding one"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                custom_log(f"❌ Game not found for broadcast: {game_id}", level="ERROR")
+                return False
+            
+            sent_count = 0
+            for player_id, session_id in game.player_sessions.items():
+                if exclude_player_id and player_id == exclude_player_id:
+                    continue
+                
+                self._emit_to_session(session_id, event, data)
+                sent_count += 1
+            
+            custom_log(f"✅ Sent {event} to {sent_count} players in game {game_id}")
+            return sent_count > 0
+        except Exception as e:
+            custom_log(f"❌ Error broadcasting to players: {e}", level="ERROR")
+            return False
+    
+    def send_to_other_players(self, game_id: str, exclude_player_id: str, event: str, data: dict) -> bool:
+        """Send event to all players except the specified one"""
+        return self.send_to_all_players(game_id, event, data, exclude_player_id)
+    
+    def get_player_session(self, game_id: str, player_id: str) -> Optional[str]:
+        """Get session ID for a player in a game"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if game:
+                return game.get_player_session(player_id)
+        except Exception as e:
+            custom_log(f"❌ Error getting player session: {e}", level="ERROR")
+        return None
+    
+    def get_session_player(self, game_id: str, session_id: str) -> Optional[str]:
+        """Get player ID for a session in a game"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if game:
+                return game.get_session_player(session_id)
+        except Exception as e:
+            custom_log(f"❌ Error getting session player: {e}", level="ERROR")
+        return None
+
+    # ========= Player-Specific Event Helpers =========
+    
+    def send_private_hand_update(self, game_id: str, player_id: str) -> bool:
+        """Send private hand update to a specific player"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game or player_id not in game.players:
+                return False
+            
+            player = game.players[player_id]
+            
+            # Create private hand data (only visible cards for other players)
+            private_hand_data = {
+                'event_type': 'private_hand_update',
+                'game_id': game_id,
+                'player_id': player_id,
+                'hand': [self._to_flutter_card(card) for card in player.hand],
+                'visible_cards': [self._to_flutter_card(card) for card in player.visible_cards],
+                'score': int(player.calculate_points()),
+            }
+            
+            return self.send_to_player(game_id, player_id, 'private_hand_update', private_hand_data)
+        except Exception as e:
+            custom_log(f"❌ Error sending private hand update: {e}", level="ERROR")
+            return False
+    
+    def send_turn_notification(self, game_id: str, player_id: str) -> bool:
+        """Send turn notification to a specific player"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game or player_id not in game.players:
+                return False
+            
+            turn_data = {
+                'event_type': 'turn_started',
+                'game_id': game_id,
+                'player_id': player_id,
+                'game_state': self._to_flutter_game_state(game),
+                'timeout_seconds': game.out_of_turn_timeout_seconds if game.out_of_turn_deadline else None,
+            }
+            
+            return self.send_to_player(game_id, player_id, 'turn_started', turn_data)
+        except Exception as e:
+            custom_log(f"❌ Error sending turn notification: {e}", level="ERROR")
+            return False
+    
+    def send_game_action_result(self, game_id: str, player_id: str, action_result: Dict[str, Any]) -> bool:
+        """Send action result to the player who performed the action"""
+        try:
+            result_data = {
+                'event_type': 'action_result',
+                'game_id': game_id,
+                'action_result': action_result,
+            }
+            
+            return self.send_to_player(game_id, player_id, 'action_result', result_data)
+        except Exception as e:
+            custom_log(f"❌ Error sending action result: {e}", level="ERROR")
+            return False
+    
+    def broadcast_game_action(self, game_id: str, action_type: str, action_data: Dict[str, Any], exclude_player_id: str = None) -> bool:
+        """Broadcast game action to all players except the one who performed it"""
+        try:
+            broadcast_data = {
+                'event_type': 'game_action',
+                'game_id': game_id,
+                'action_type': action_type,
+                'action_data': action_data,
+                'game_state': self._to_flutter_game_state(self.game_state_manager.get_game(game_id)),
+            }
+            
+            return self.send_to_other_players(game_id, exclude_player_id, 'game_action', broadcast_data)
+        except Exception as e:
+            custom_log(f"❌ Error broadcasting game action: {e}", level="ERROR")
+            return False
+
     def _to_flutter_card(self, card) -> Dict[str, Any]:
         suit = card.suit
         rank = card.rank
         return {
             'suit': suit,
             'rank': rank,
-            'points': int(card.points),
-            'specialPower': (card.special_power or 'none'),
-            'specialPowerDescription': None,
-            'specialPowerData': None,
-            'displayName': str(card),
+            'points': card.points,
+            'displayName': str(card),  # Use __str__ method instead of display_name attribute
             'color': 'red' if suit in ['hearts', 'diamonds'] else 'black',
         }
 
@@ -573,53 +1045,247 @@ class RecallGameplayManager:
             'type': 'human' if player.player_type.value == 'human' else 'computer',
             'hand': [self._to_flutter_card(c) for c in player.hand],
             'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards],
-            'score': int(player.calculate_points()),
+            'score': int(player.calculate_points()),  # Use calculate_points() method
             'status': 'playing' if is_current else 'ready',
             'isCurrentPlayer': is_current,
             'hasCalledRecall': bool(player.has_called_recall),
         }
 
-    def _to_flutter_phase(self, phase: str) -> str:
-        mapping = {
-            'waiting_for_players': 'waiting',
-            'dealing_cards': 'setup',
-            'player_turn': 'playing',
-            'out_of_turn_play': 'playing',
-            'recall_called': 'recall',
-            'game_ended': 'finished',
-        }
-        return mapping.get(phase, 'waiting')
-
-    def _to_flutter_game_state(self, game) -> Dict[str, Any]:
-        players_list: List[Dict[str, Any]] = []
-        for pid, p in game.players.items():
-            players_list.append(self._to_flutter_player(p, pid == game.current_player_id))
-
-        # Determine game status based on phase
-        # Game is 'inactive' when waiting for players, 'active' after match starts
-        game_status = 'inactive' if game.phase.value == 'waiting_for_players' else 'active'
-        if game.game_ended:
-            game_status = 'ended'
-
+    def _to_flutter_game_state(self, game: GameState) -> Dict[str, Any]:
+        """Convert backend game state to Flutter format"""
+        
+        # Map backend phases to Flutter phases
+        def _to_flutter_phase(phase: str) -> str:
+            mapping = {
+                'waiting_for_players': 'waiting',
+                'dealing_cards': 'setup',
+                'player_turn': 'playing',
+                'out_of_turn_play': 'playing',
+                'recall_called': 'recall',
+                'game_ended': 'finished',
+            }
+            return mapping.get(phase, 'waiting')
+        
+        # Convert players to frontend format
+        def _to_flutter_player(player_id: str, player: Player) -> Dict[str, Any]:
+            return {
+                'id': player_id,
+                'name': player.name,
+                'type': 'human' if player.player_type.value == 'human' else 'computer',
+                'hand': [self._to_flutter_card(card) for card in player.hand],
+                'visibleCards': [self._to_flutter_card(card) for card in player.visible_cards],
+                'score': int(player.calculate_points()),  # Use calculate_points() method
+                'status': 'ready' if player.is_active else 'disconnected',
+                'isCurrentPlayer': player_id == game.current_player_id,
+                'hasCalledRecall': bool(player.has_called_recall),
+                'lastActivity': None,  # TODO: Track this
+                'handPoints': sum(card.points for card in player.hand),
+                'visiblePoints': sum(card.points for card in player.visible_cards),
+                'totalScore': int(player.calculate_points()),  # Use calculate_points() method
+                'handSize': len(player.hand),
+                'visibleSize': len(player.visible_cards),
+            }
+        
+        # Get current player data
+        current_player = None
+        if game.current_player_id and game.current_player_id in game.players:
+            current_player = _to_flutter_player(
+                game.current_player_id, 
+                game.players[game.current_player_id]
+            )
+        
         return {
             'gameId': game.game_id,
-            'gameName': f'Recall Game {game.game_id[:6]}',
-            'players': players_list,
-            'currentPlayer': self._to_flutter_player(game.players[game.current_player_id], True) if game.current_player_id and game.current_player_id in game.players else None,
-            'phase': self._to_flutter_phase(game.phase.value),
-            'status': game_status,
-            'drawPile': [],
-            'discardPile': [self._to_flutter_card(c) for c in game.discard_pile],
-            'centerPile': [],
-            'turnNumber': 0,
-            'roundNumber': 1,
-            'gameStartTime': None,
-            'lastActivityTime': None,
+            'gameName': f"Recall Game {game.game_id}",
+            'players': [_to_flutter_player(pid, player) for pid, player in game.players.items()],
+            'currentPlayer': current_player,
+            'phase': _to_flutter_phase(game.phase.value),
+            'status': 'active' if game.phase.value in ['player_turn', 'out_of_turn_play', 'recall_called'] else 'inactive' if game.phase.value == 'waiting_for_players' else 'ended',
+            'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],
+            'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
+            'centerPile': [],  # TODO: Implement if needed
+            'turnNumber': 0,  # TODO: Track this
+            'roundNumber': 1,  # TODO: Track this
+                            'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time else None,
+                'lastActivityTime': datetime.fromtimestamp(game.last_action_time).isoformat() if game.last_action_time else None,
             'gameSettings': {},
-            'winner': None,
+            'winner': game.winner,
             'errorMessage': None,
-            # Extra metadata for UX
-            'outOfTurnEndsAt': getattr(game, 'out_of_turn_deadline', None),
+            'playerCount': len(game.players),
+            'activePlayerCount': len([p for p in game.players.values() if p.is_active]),
+            'gameDuration': 'N/A',  # TODO: Calculate this
         }
+
+    # ========= Computer Player Turn Management =========
+    
+    def trigger_computer_turn(self, game_id: str, computer_player_id: str) -> bool:
+        """Trigger automatic turn for a computer player"""
+        try:
+            custom_log(f"🤖 [trigger_computer_turn] Triggering turn for computer player: {computer_player_id}")
+            
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                custom_log(f"❌ [trigger_computer_turn] Game not found: {game_id}", level="ERROR")
+                return False
+            
+            computer_player = game.players.get(computer_player_id)
+            if not computer_player or computer_player.player_type.value != 'computer':
+                custom_log(f"❌ [trigger_computer_turn] Not a computer player: {computer_player_id}", level="ERROR")
+                return False
+            
+            # Make AI decision
+            game_state_dict = game.to_dict()
+            ai_decision = computer_player.make_decision(game_state_dict)
+            
+            custom_log(f"🤖 [trigger_computer_turn] AI decision: {ai_decision}")
+            
+            # Execute the AI decision
+            if ai_decision.get('action'):
+                action_data = {
+                    'action_type': ai_decision['action'],
+                    'player_id': computer_player_id,
+                    'game_id': game_id,
+                    'card_id': ai_decision.get('card_id'),
+                    'replace_card_id': ai_decision.get('replace_card_id'),
+                    'replace_index': ai_decision.get('replace_index'),
+                    'power_data': ai_decision.get('power_data'),
+                }
+                
+                # Process through game engine
+                engine_result = self.game_logic_engine.process_player_action(game, action_data)
+                
+                if engine_result.get('error'):
+                    custom_log(f"❌ [trigger_computer_turn] AI action failed: {engine_result['error']}", level="ERROR")
+                    return False
+                
+                # Handle the result using the same logic as human players
+                self._handle_computer_action_result(game_id, computer_player_id, engine_result, ai_decision['action'])
+                
+                return True
+            else:
+                custom_log(f"❌ [trigger_computer_turn] No action in AI decision", level="ERROR")
+                return False
+                
+        except Exception as e:
+            custom_log(f"❌ [trigger_computer_turn] Error: {e}", level="ERROR")
+            return False
+    
+    def _handle_computer_action_result(self, game_id: str, computer_player_id: str, engine_result: Dict[str, Any], action: str) -> None:
+        """Handle the result of a computer player's action"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                return
+            
+            # Send action result to the computer player (for logging/debugging)
+            self.send_game_action_result(game_id, computer_player_id, engine_result)
+            
+            # Broadcast game action to other players
+            action_broadcast_data = {
+                'action_type': action,
+                'player_id': computer_player_id,
+                'result': engine_result,
+                'is_computer_player': True,
+            }
+            self.broadcast_game_action(game_id, action, action_broadcast_data, computer_player_id)
+            
+            # Send private hand update to the computer player
+            self.send_private_hand_update(game_id, computer_player_id)
+            
+            # Handle turn changes
+            if engine_result.get('next_player'):
+                next_player_id = engine_result.get('next_player')
+                if next_player_id and next_player_id in game.players:
+                    next_player = game.players[next_player_id]
+                    
+                    # If next player is also a computer, trigger their turn
+                    if next_player.player_type.value == 'computer':
+                        # Add a small delay to make the game feel more natural
+                        import asyncio
+                        import threading
+                        
+                        def delayed_computer_turn():
+                            import time
+                            time.sleep(2)  # 2 second delay
+                            self.trigger_computer_turn(game_id, next_player_id)
+                        
+                        # Run in background thread
+                        thread = threading.Thread(target=delayed_computer_turn)
+                        thread.daemon = True
+                        thread.start()
+                    else:
+                        # Send turn notification to human player
+                        self.send_turn_notification(game_id, next_player_id)
+            
+            # Handle game state updates for all players
+            game_state_payload = {
+                'event_type': 'game_state_updated',
+                'game_id': game_id,
+                'game_state': self._to_flutter_game_state(game),
+            }
+            self.send_to_all_players(game_id, 'game_state_updated', game_state_payload)
+            
+        except Exception as e:
+            custom_log(f"❌ [_handle_computer_action_result] Error: {e}", level="ERROR")
+    
+    def check_and_trigger_computer_turn(self, game_id: str) -> bool:
+        """Check if current player is a computer and trigger their turn if needed"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game or not game.current_player_id:
+                return False
+            
+            current_player = game.players.get(game.current_player_id)
+            if not current_player:
+                return False
+            
+            # Check if current player is a computer
+            if current_player.player_type.value == 'computer':
+                custom_log(f"🤖 [check_and_trigger_computer_turn] Current player is computer: {game.current_player_id}")
+                return self.trigger_computer_turn(game_id, game.current_player_id)
+            
+            return False
+            
+        except Exception as e:
+            custom_log(f"❌ [check_and_trigger_computer_turn] Error: {e}", level="ERROR")
+            return False
+
+    def check_computer_out_of_turn_opportunities(self, game_id: str) -> bool:
+        """Check if any computer players can play out of turn"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game or not game.last_played_card:
+                return False
+            
+            triggered_any = False
+            
+            # Check all computer players for out-of-turn opportunities
+            for player_id, player in game.players.items():
+                if (player.player_type.value == 'computer' and 
+                    player_id != game.current_player_id and
+                    player.can_play_out_of_turn(game.last_played_card)):
+                    
+                    custom_log(f"🤖 [check_computer_out_of_turn_opportunities] Computer {player_id} can play out of turn")
+                    
+                    # Add a small delay to make it feel more natural
+                    import threading
+                    
+                    def delayed_out_of_turn():
+                        import time
+                        time.sleep(1.5)  # 1.5 second delay
+                        self.trigger_computer_turn(game_id, player_id)
+                    
+                    # Run in background thread
+                    thread = threading.Thread(target=delayed_out_of_turn)
+                    thread.daemon = True
+                    thread.start()
+                    
+                    triggered_any = True
+            
+            return triggered_any
+            
+        except Exception as e:
+            custom_log(f"❌ [check_computer_out_of_turn_opportunities] Error: {e}", level="ERROR")
+            return False
 
 

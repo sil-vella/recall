@@ -6,6 +6,7 @@ from YAML files to handle game actions and state transitions.
 """
 
 from typing import Dict, Any, Optional, List
+from datetime import datetime
 from .yaml_loader import YAMLLoader
 from ..models.game_state import GameState
 from ..models.player import Player
@@ -404,19 +405,76 @@ class GameLogicEngine:
     
     def _serialize_game_state_for_notification(self, game_state: GameState) -> Dict[str, Any]:
         """Serialize game state for notifications (similar to _to_flutter_game_state)"""
+        
+        # Map backend phases to Flutter phases
+        def _to_flutter_phase(phase: str) -> str:
+            mapping = {
+                'waiting_for_players': 'waiting',
+                'dealing_cards': 'setup',
+                'player_turn': 'playing',
+                'out_of_turn_play': 'playing',
+                'recall_called': 'recall',
+                'game_ended': 'finished',
+            }
+            return mapping.get(phase, 'waiting')
+        
+        # Convert players to frontend format
+        def _to_flutter_player(player_id: str, player) -> Dict[str, Any]:
+            return {
+                'id': player.player_id,
+                'name': player.name,
+                'type': 'human' if player.player_type.value == 'human' else 'computer',
+                'hand': [self._to_flutter_card(c) for c in player.hand],
+                'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards],
+                'score': int(player.calculate_points()),  # Use calculate_points() method
+                'status': 'playing' if player_id == game_state.current_player_id else 'ready',
+                'isCurrentPlayer': player_id == game_state.current_player_id,
+                'hasCalledRecall': bool(player.has_called_recall),
+            }
+        
+        # Get current player data
+        current_player = None
+        if game_state.current_player_id and game_state.current_player_id in game_state.players:
+            current_player = _to_flutter_player(
+                game_state.current_player_id, 
+                game_state.players[game_state.current_player_id]
+            )
+        
         return {
-            'game_id': game_state.game_id,
-            'phase': game_state.phase.value,
-            'current_player_id': game_state.current_player_id,
-            'players': [{'player_id': pid, 'name': player.name, 'hand_size': len(player.hand), 'is_computer': hasattr(player, 'is_computer') and player.is_computer} 
-                       for pid, player in game_state.players.items()],
-            'draw_pile_size': len(game_state.draw_pile),
-            'discard_pile_size': len(game_state.discard_pile),
-            'last_played_card': game_state.last_played_card.to_dict() if game_state.last_played_card else None,
-            'game_started': game_state.game_start_time is not None,
-            'game_ended': game_state.game_ended
+            'gameId': game_state.game_id,
+            'gameName': f"Recall Game {game_state.game_id}",
+            'players': [_to_flutter_player(pid, player) for pid, player in game_state.players.items()],
+            'currentPlayer': current_player,
+            'phase': _to_flutter_phase(game_state.phase.value),
+            'status': 'active' if game_state.phase.value in ['player_turn', 'out_of_turn_play', 'recall_called'] else 'inactive' if game_state.phase.value == 'waiting_for_players' else 'ended',
+            'drawPile': [self._to_flutter_card(card) for card in game_state.draw_pile],
+            'discardPile': [self._to_flutter_card(card) for card in game_state.discard_pile],
+            'centerPile': [],  # TODO: Implement if needed
+            'turnNumber': 0,  # TODO: Track this
+            'roundNumber': 1,  # TODO: Track this
+            'gameStartTime': datetime.fromtimestamp(game_state.game_start_time).isoformat() if game_state.game_start_time else None,
+            'lastActivityTime': datetime.fromtimestamp(game_state.last_action_time).isoformat() if game_state.last_action_time else None,
+            'gameSettings': {},
+            'winner': game_state.winner,
+            'errorMessage': None,
+            'playerCount': len(game_state.players),
+            'activePlayerCount': len([p for p in game_state.players.values() if p.is_active]),
+            'gameDuration': 'N/A',  # TODO: Calculate this
         }
     
+    def _to_flutter_card(self, card) -> Dict[str, Any]:
+        """Convert backend card to Flutter format"""
+        suit = card.suit
+        rank = card.rank
+        
+        return {
+            'suit': suit,
+            'rank': rank,
+            'points': card.points,
+            'displayName': str(card),  # Use __str__ method instead of display_name attribute
+            'color': 'red' if suit in ['hearts', 'diamonds'] else 'black',
+        }
+
     # ========= Start Match Effect Methods =========
     
     def _effect_add_computer_player_if_needed(self, effect: Dict[str, Any], game_state: GameState, action_data: Dict[str, Any]) -> Dict[str, Any]:

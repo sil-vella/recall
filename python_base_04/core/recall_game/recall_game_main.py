@@ -309,9 +309,18 @@ class RecallGameMain:
     def _to_flutter_card(self, card) -> Dict[str, Any]:
         suit = card.suit
         rank = card.rank
+        
+        # Convert numeric ranks to word format for frontend compatibility
+        def _convert_rank_to_word(rank_str: str) -> str:
+            rank_mapping = {
+                '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+                '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
+            }
+            return rank_mapping.get(rank_str, rank_str)
+        
         return {
             'suit': suit,
-            'rank': rank,
+            'rank': _convert_rank_to_word(rank),
             'points': int(card.points),
             'specialPower': (card.special_power or 'none'),
             'specialPowerDescription': None,

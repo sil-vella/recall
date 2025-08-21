@@ -583,6 +583,9 @@ class RecallGameManager {
       _gameEventController.add(event);
     }
     
+    // Update UI slices from current game state
+    _updateMainStateManager();
+    
     _log.info('✅ Game phase change handled');
   }
 

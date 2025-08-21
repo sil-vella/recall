@@ -467,9 +467,17 @@ class GameLogicEngine:
         suit = card.suit
         rank = card.rank
         
+        # Convert numeric ranks to word format for frontend compatibility
+        def _convert_rank_to_word(rank_str: str) -> str:
+            rank_mapping = {
+                '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+                '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
+            }
+            return rank_mapping.get(rank_str, rank_str)
+        
         return {
             'suit': suit,
-            'rank': rank,
+            'rank': _convert_rank_to_word(rank),
             'points': card.points,
             'displayName': str(card),  # Use __str__ method instead of display_name attribute
             'color': 'red' if suit in ['hearts', 'diamonds'] else 'black',

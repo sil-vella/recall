@@ -21,7 +21,7 @@ The Recall game follows the established Flutter Base 05 architecture patterns:
 
 #### **Utils** (`utils/`)
 - **`game_constants.dart`** - Game constants, settings, and configuration
-- **`card_utils.dart`** - Utility functions for card operations and display
+- **`card_utils.dart`** - ~~Utility functions for card operations and display~~ (REMOVED - redundant, backend handles all card logic)
 - **`game_utils.dart`** - General game utility functions
 - **`websocket_utils.dart`** - WebSocket utility functions
 

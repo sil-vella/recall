@@ -498,13 +498,31 @@ class RecallGameplayManager:
                     custom_log(f"🎮 [on_start_match] Payload: {payload}")
                     self.send_to_all_players(game_id, event, payload)
                 elif event == 'game_phase_changed':
-                    # Send phase change event to all players
+                    # Send phase change event to all players with mapped phase name
+                    # Map backend phase to frontend phase
+                    def _to_flutter_phase(phase: str) -> str:
+                        mapping = {
+                            'waiting_for_players': 'waiting',
+                            'dealing_cards': 'setup',
+                            'player_turn': 'playing',
+                            'out_of_turn_play': 'playing',
+                            'recall_called': 'recall',
+                            'game_ended': 'finished',
+                        }
+                        return mapping.get(phase, 'waiting')
+                    
+                    # Map the phase name for frontend compatibility
+                    mapped_data = data.copy()
+                    if 'new_phase' in mapped_data:
+                        mapped_data['new_phase'] = _to_flutter_phase(mapped_data['new_phase'])
+                    
                     payload = {
                         'event_type': event,
                         'game_id': game_id,
-                        **data
+                        **mapped_data
                     }
                     custom_log(f"🎮 [on_start_match] Broadcasting {event} event to all players")
+                    custom_log(f"🎮 [on_start_match] Mapped phase: {data.get('new_phase')} -> {mapped_data.get('new_phase')}")
                     self.send_to_all_players(game_id, event, payload)
                 elif event == 'turn_started':
                     # Send turn notification to specific player
@@ -1030,9 +1048,18 @@ class RecallGameplayManager:
     def _to_flutter_card(self, card) -> Dict[str, Any]:
         suit = card.suit
         rank = card.rank
+        
+        # Convert numeric ranks to word format for frontend compatibility
+        def _convert_rank_to_word(rank_str: str) -> str:
+            rank_mapping = {
+                '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+                '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
+            }
+            return rank_mapping.get(rank_str, rank_str)
+        
         return {
             'suit': suit,
-            'rank': rank,
+            'rank': _convert_rank_to_word(rank),
             'points': card.points,
             'displayName': str(card),  # Use __str__ method instead of display_name attribute
             'color': 'red' if suit in ['hearts', 'diamonds'] else 'black',

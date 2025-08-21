@@ -15,7 +15,7 @@ export 'screens/lobby_room/lobby_screen.dart';
 
 // Utils
 export 'utils/game_constants.dart';
-export 'utils/card_utils.dart';
+// Removed: card_utils.dart - redundant since backend handles all card logic
 
 // Main
 export 'recall_game_main.dart';

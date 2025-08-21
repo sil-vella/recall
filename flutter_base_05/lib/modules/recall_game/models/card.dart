@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart' hide Card;
 import '../../../tools/logging/logger.dart';
 
 /// Card suit enumeration
@@ -7,6 +6,9 @@ enum CardSuit {
   diamonds,
   clubs,
   spades,
+  joker,
+  special_0,
+  special_1,
 }
 
 /// Card rank enumeration
@@ -23,7 +25,13 @@ enum CardRank {
   ten(10),
   jack(11),
   queen(12),
-  king(13);
+  king(13),
+  joker(0),
+  power_double_points(0),
+  power_skip_turn(0),
+  power_protect_card(0),
+  power_steal_card(0),
+  power_draw_extra(0);
 
   const CardRank(this.value);
   final int value;
@@ -75,12 +83,28 @@ class Card {
         return '♣';
       case CardSuit.spades:
         return '♠';
+      case CardSuit.joker:
+        return '🃏';
+      case CardSuit.special_0:
+        return '⚡';
+      case CardSuit.special_1:
+        return '🌟';
     }
   }
 
   /// Get card color (red or black)
   String get color {
-    return (suit == CardSuit.hearts || suit == CardSuit.diamonds) ? 'red' : 'black';
+    switch (suit) {
+      case CardSuit.hearts:
+      case CardSuit.diamonds:
+        return 'red';
+      case CardSuit.clubs:
+      case CardSuit.spades:
+      case CardSuit.joker:
+      case CardSuit.special_0:
+      case CardSuit.special_1:
+        return 'black';
+    }
   }
 
   /// Check if card has special power
@@ -108,7 +132,7 @@ class Card {
     };
   }
 
-  /// Create card from JSON
+  /// Create card from JSON - backend is the source of truth for all card data
   factory Card.fromJson(Map<String, dynamic> json) {
     try {
       // Parse suit with error handling
@@ -117,8 +141,9 @@ class Card {
         final suitStr = json['suit'] as String? ?? 'hearts';
         suit = CardSuit.values.firstWhere((s) => s.name == suitStr);
       } catch (e) {
-        _log.warning('⚠️ Failed to parse card suit: ${json['suit']}, available: ${CardSuit.values.map((s) => s.name).join(', ')}');
-        suit = CardSuit.hearts; // fallback
+        _log.error('❌ Failed to parse card suit: ${json['suit']}, available: ${CardSuit.values.map((s) => s.name).join(', ')}');
+        _log.error('❌ JSON data: $json');
+        throw ArgumentError('Invalid card suit: ${json['suit']}');
       }
 
       // Parse rank with error handling
@@ -127,8 +152,9 @@ class Card {
         final rankStr = json['rank'] as String? ?? 'ace';
         rank = CardRank.values.firstWhere((r) => r.name == rankStr);
       } catch (e) {
-        _log.warning('⚠️ Failed to parse card rank: ${json['rank']}, available: ${CardRank.values.map((r) => r.name).join(', ')}');
-        rank = CardRank.ace; // fallback
+        _log.error('❌ Failed to parse card rank: ${json['rank']}, available: ${CardRank.values.map((r) => r.name).join(', ')}');
+        _log.error('❌ JSON data: $json');
+        throw ArgumentError('Invalid card rank: ${json['rank']}');
       }
 
       // Parse special power with error handling
@@ -137,14 +163,17 @@ class Card {
         final powerStr = json['specialPower'] as String? ?? 'none';
         specialPower = SpecialPowerType.values.firstWhere((s) => s.name == powerStr);
       } catch (e) {
-        _log.warning('⚠️ Failed to parse special power: ${json['specialPower']}, available: ${SpecialPowerType.values.map((s) => s.name).join(', ')}');
-        specialPower = SpecialPowerType.none; // fallback
+        _log.warning('⚠️ Failed to parse special power: ${json['specialPower']}, using none as fallback');
+        specialPower = SpecialPowerType.none; // fallback for special power is safe
       }
+
+      // IMPORTANT: Always use backend point values - frontend never calculates points
+      final int points = json['points'] ?? 0;
 
       return Card(
         suit: suit,
         rank: rank,
-        points: json['points'] ?? 0,
+        points: points, // Backend is source of truth for points
         specialPower: specialPower,
         specialPowerDescription: json['specialPowerDescription'],
         specialPowerData: json['specialPowerData'],
@@ -156,76 +185,8 @@ class Card {
     }
   }
 
-  /// Create a standard deck of 52 cards
-  static List<Card> createStandardDeck() {
-    final List<Card> deck = [];
-    
-    for (final suit in CardSuit.values) {
-      for (final rank in CardRank.values) {
-        int points = _calculatePoints(rank);
-        SpecialPowerType specialPower = _getSpecialPower(rank);
-        String? specialPowerDescription = _getSpecialPowerDescription(rank);
-        
-        deck.add(Card(
-          suit: suit,
-          rank: rank,
-          points: points,
-          specialPower: specialPower,
-          specialPowerDescription: specialPowerDescription,
-        ));
-      }
-    }
-    
-    return deck;
-  }
-
-  /// Calculate points for a card rank
-  static int _calculatePoints(CardRank rank) {
-    switch (rank) {
-      case CardRank.ace:
-        return 1;
-      case CardRank.two:
-      case CardRank.three:
-      case CardRank.four:
-      case CardRank.five:
-      case CardRank.six:
-      case CardRank.seven:
-      case CardRank.eight:
-      case CardRank.nine:
-      case CardRank.ten:
-        return rank.value;
-      case CardRank.jack:
-        return 11;
-      case CardRank.queen:
-        return 12;
-      case CardRank.king:
-        return 13;
-    }
-  }
-
-  /// Get special power for a card rank
-  static SpecialPowerType _getSpecialPower(CardRank rank) {
-    switch (rank) {
-      case CardRank.queen:
-        return SpecialPowerType.queen;
-      case CardRank.jack:
-        return SpecialPowerType.jack;
-      default:
-        return SpecialPowerType.none;
-    }
-  }
-
-  /// Get special power description
-  static String? _getSpecialPowerDescription(CardRank rank) {
-    switch (rank) {
-      case CardRank.queen:
-        return 'Peek at a card from any player\'s hand';
-      case CardRank.jack:
-        return 'Switch a card with another player';
-      default:
-        return null;
-    }
-  }
+  // REMOVED: Frontend should never generate cards - only backend creates cards
+  // All card data (points, special powers, etc.) comes from backend JSON
 
   @override
   bool operator ==(Object other) {
@@ -297,12 +258,7 @@ class CardDeck {
     _cards.clear();
   }
 
-  /// Create a standard deck and shuffle it
-  factory CardDeck.standard() {
-    final deck = CardDeck(cards: Card.createStandardDeck());
-    deck.shuffle();
-    return deck;
-  }
+  // REMOVED: Frontend should never generate decks - only backend creates and manages decks
 
   /// Convert deck to JSON
   Map<String, dynamic> toJson() {

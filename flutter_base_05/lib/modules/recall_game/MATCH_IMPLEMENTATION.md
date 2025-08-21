@@ -118,7 +118,7 @@ Animations:
 
 From `RecallStateManager` derive:
 - `isMyTurn`, `canCallRecall`, `phase`, `turnNumber`, `roundNumber`, `currentPlayerId`.
-- Current hand, playable cards (optional client-side hint using `CardUtils.getPlayableCards`).
+- Current hand, playable cards (backend determines playable cards, frontend only displays).
 - Disable UI actions when not permitted; attempt anyway → server returns `recall_error` to show message.
 
 Client Hints vs Server Truth:

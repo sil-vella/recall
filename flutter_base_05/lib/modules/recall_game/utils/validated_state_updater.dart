@@ -490,18 +490,29 @@ class RecallGameStateUpdater {
     final gameState = state['gameState'] as Map<String, dynamic>?;
     final playerId = state['playerId'] as String?;
     
+    _log.info('🎯 [MyHand] Computing slice - gameState: ${gameState != null ? "available" : "null"}, playerId: $playerId');
+    
     // 🎯 Extract hand data from gameState
     List<dynamic> handCards = [];
     if (gameState != null && playerId != null) {
       final players = gameState['players'] as List<dynamic>?;
+      _log.info('🎯 [MyHand] Found ${players?.length ?? 0} players in gameState');
+      
       if (players != null) {
         // Find current player in gameState
         for (final player in players) {
-          if (player['id'] == playerId) {
+          final playerIdInGame = player['id'] as String?;
+          _log.info('🎯 [MyHand] Checking player: $playerIdInGame vs current: $playerId');
+          
+          if (playerIdInGame == playerId) {
             handCards = player['hand'] as List<dynamic>? ?? [];
-            _log.info('🎯 [MyHand] Extracted ${handCards.length} cards from gameState for player $playerId');
+            _log.info('🎯 [MyHand] ✅ Found player! Extracted ${handCards.length} cards from gameState for player $playerId');
             break;
           }
+        }
+        
+        if (handCards.isEmpty) {
+          _log.info('⚠️ [MyHand] Player $playerId not found in gameState players');
         }
       }
     }
@@ -519,6 +530,8 @@ class RecallGameStateUpdater {
         _log.info('⚠️ [MyHand] No existing hand data to preserve');
       }
     }
+    
+    _log.info('🎯 [MyHand] Final result: ${handCards.length} cards');
     
     return {
       'cards': handCards,

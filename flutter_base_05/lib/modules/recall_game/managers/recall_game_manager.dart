@@ -354,6 +354,9 @@ class RecallGameManager {
         case 'card_played':
           _handleCardPlayed(data);
           break;
+        case 'card_drawn':
+          _handleCardDrawn(data);
+          break;
         case 'recall_called':
           _handleRecallCalled(data);
           break;
@@ -502,6 +505,65 @@ class RecallGameManager {
     final player = Player.fromJson(data['player']);
     updatePlayerState(player);
     _log.info('🃏 Card played: ${playedCard.displayName} by ${player.name}');
+  }
+
+  /// Handle card drawn event
+  void _handleCardDrawn(Map<String, dynamic> data) {
+    try {
+      final drawnCardData = data['drawn_card'] as Map<String, dynamic>?;
+      final playerId = data['player_id'] as String?;
+      final source = data['source'] as String?;
+      
+      if (drawnCardData == null) {
+        _log.error('❌ Card drawn event missing drawn_card data');
+        return;
+      }
+      
+      // Convert the drawn card data to Card object
+      final drawnCard = Card.fromJson(drawnCardData);
+      
+      _log.info('🃏 Card drawn: ${drawnCard.displayName} by player $playerId from $source');
+      
+      // Update the game state with the drawn card information
+      // This will be used by the UI to show the drawn card
+      if (_currentGameState != null) {
+        // Add drawn card info to the game state
+        final updatedGameState = _currentGameState!.copyWith(
+          lastActivityTime: DateTime.now(),
+        );
+        
+        // Update the main state manager with drawn card info
+        RecallGameHelpers.updateDrawnCard(
+          drawnCard: drawnCardData,
+          source: source,
+        );
+        
+        _log.info('✅ Updated game state with drawn card: ${drawnCard.cardId}');
+      }
+      
+      // Find the player who drew the card
+      Player? player;
+      if (_currentGameState != null && playerId != null) {
+        player = _currentGameState!.players.firstWhere(
+          (p) => p.id == playerId,
+          orElse: () => Player(id: playerId, name: 'Unknown', type: PlayerType.human),
+        );
+      }
+      
+      // Add to stream for UI updates
+      if (player != null) {
+        final event = CardDrawnEvent(
+          gameId: data['game_id'] as String? ?? _currentGameId ?? '',
+          drawnCard: drawnCard,
+          player: player,
+          playerId: playerId,
+        );
+        _gameEventController.add(event);
+      }
+      
+    } catch (e) {
+      _log.error('❌ Error handling card drawn event: $e');
+    }
   }
 
   /// Handle recall called event
@@ -829,7 +891,7 @@ class RecallGameManager {
     
     // Update widget slices using validated system
     final widgetSlices = <String, dynamic>{};
-    for (final key in ['actionBar', 'statusBar', 'myHand', 'centerBoard', 'opponentsPanel', 'gameState', 'myScore']) {
+    for (final key in ['actionBar', 'statusBar', 'centerBoard', 'opponentsPanel', 'gameState', 'myScore']) {
       if (updatedState.containsKey(key)) {
         widgetSlices[key] = updatedState[key];
       }

@@ -245,6 +245,19 @@ class RecallGameStateUpdater {
       description: 'Index of currently selected card in hand',
     ),
     
+    // Drawn Card State
+    'pendingDrawnCard': RecallStateFieldSpec(
+      type: Map,
+      required: false,
+      description: 'Card that was drawn but not yet placed',
+    ),
+    'drawnCardSource': RecallStateFieldSpec(
+      type: String,
+      allowedValues: ['deck', 'discard'],
+      required: false,
+      description: 'Source of the drawn card (deck or discard pile)',
+    ),
+    
     // Connection State
     'isConnected': RecallStateFieldSpec(
       type: bool,
@@ -265,9 +278,9 @@ class RecallGameStateUpdater {
   
   /// Widget slice dependencies - only rebuild when these fields change
   static const Map<String, Set<String>> _widgetDependencies = {
-    'actionBar': {'isRoomOwner', 'isGameActive', 'isMyTurn', 'canCallRecall', 'canPlayCard'},
+    'actionBar': {'isRoomOwner', 'isGameActive', 'isMyTurn', 'canCallRecall', 'canPlayCard', 'pendingDrawnCard'},
     'statusBar': {'gamePhase', 'gameStatus', 'playerCount', 'turnNumber', 'roundNumber', 'isConnected'},
-    'myHand': {'playerId', 'isMyTurn', 'canPlayCard'},
+    'myHand': {'playerId', 'isMyTurn', 'canPlayCard', 'pendingDrawnCard', 'gameState'},
     'centerBoard': {'gamePhase', 'isGameActive', 'turnNumber'},
     'opponentsPanel': {'playerCount', 'isMyTurn', 'gamePhase'},
   };
@@ -474,9 +487,41 @@ class RecallGameStateUpdater {
   Map<String, dynamic> _computeMyHandSlice(Map<String, dynamic> state) {
     final isMyTurn = state['isMyTurn'] ?? false;
     final canPlayCard = state['canPlayCard'] ?? false;
+    final gameState = state['gameState'] as Map<String, dynamic>?;
+    final playerId = state['playerId'] as String?;
+    
+    // 🎯 Extract hand data from gameState
+    List<dynamic> handCards = [];
+    if (gameState != null && playerId != null) {
+      final players = gameState['players'] as List<dynamic>?;
+      if (players != null) {
+        // Find current player in gameState
+        for (final player in players) {
+          if (player['id'] == playerId) {
+            handCards = player['hand'] as List<dynamic>? ?? [];
+            _log.info('🎯 [MyHand] Extracted ${handCards.length} cards from gameState for player $playerId');
+            break;
+          }
+        }
+      }
+    }
+    
+    // 🛡️ Preserve existing hand data if gameState is not available
+    // This prevents the hand from going blank when only other fields are updated
+    if (handCards.isEmpty && gameState == null) {
+      // Get current state to preserve existing hand data
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentMyHand = currentState['myHand'] as Map<String, dynamic>?;
+      if (currentMyHand != null) {
+        handCards = currentMyHand['cards'] as List<dynamic>? ?? [];
+        _log.info('🛡️ [MyHand] Preserved ${handCards.length} existing cards (gameState not available)');
+      } else {
+        _log.info('⚠️ [MyHand] No existing hand data to preserve');
+      }
+    }
     
     return {
-      'cards': state['myHandCards'] ?? [],
+      'cards': handCards,
       'selectedIndex': state['selectedCardIndex'],
       'canSelectCards': isMyTurn && canPlayCard,
     };

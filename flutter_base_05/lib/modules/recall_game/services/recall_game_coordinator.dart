@@ -215,7 +215,93 @@ class RecallGameCoordinator {
     }
   }
 
+  // Delegate all other game operations to GameService
+  Future<Map<String, dynamic>> drawCard(String source) async {
+    if (_currentGameId == null || _currentPlayerId == null) {
+      return {'error': 'Not in a game or player ID not available'};
+    }
+    return await _gameService.drawCard(_currentGameId!, _currentPlayerId!, source);
+  }
 
+  Future<Map<String, dynamic>> callRecall() async {
+    if (_currentGameId == null || _currentPlayerId == null) {
+      return {'error': 'Not in a game or player ID not available'};
+    }
+    return await _gameService.callRecall(_currentGameId!, _currentPlayerId!);
+  }
+
+  Future<Map<String, dynamic>> leaveGame(String reason) async {
+    if (_currentGameId == null) {
+      return {'error': 'Not in a game'};
+    }
+    return await _gameService.leaveGame(_currentGameId!, reason);
+  }
+
+  Future<Map<String, dynamic>> playOutOfTurn(String cardId) async {
+    if (_currentGameId == null || _currentPlayerId == null) {
+      return {'error': 'Not in a game or player ID not available'};
+    }
+    return await _gameService.playOutOfTurn(_currentGameId!, cardId, _currentPlayerId!);
+  }
+
+  Future<Map<String, dynamic>> replaceDrawnCard(int cardIndex) async {
+    if (_currentGameId == null || _currentPlayerId == null) {
+      return {'error': 'Not in a game or player ID not available'};
+    }
+    return await _gameService.replaceDrawnCard(
+      gameId: _currentGameId!,
+      playerId: _currentPlayerId!,
+      cardIndex: cardIndex,
+    );
+  }
+
+  Future<Map<String, dynamic>> placeDrawnCard() async {
+    if (_currentGameId == null || _currentPlayerId == null) {
+      return {'error': 'Not in a game or player ID not available'};
+    }
+    return await _gameService.placeDrawnCard(
+      gameId: _currentGameId!,
+      playerId: _currentPlayerId!,
+    );
+  }
+
+  Future<Map<String, dynamic>> useSpecialPower(String cardId, Map<String, dynamic>? powerData) async {
+    if (_currentGameId == null || _currentPlayerId == null) {
+      return {'error': 'Not in a game or player ID not available'};
+    }
+    return await _gameService.useSpecialPower(
+      gameId: _currentGameId!,
+      cardId: cardId,
+      playerId: _currentPlayerId!,
+      powerData: powerData,
+    );
+  }
+
+  Future<Map<String, dynamic>> createRoom({
+    required String roomName,
+    required String permission,
+    required int maxPlayers,
+    required int minPlayers,
+    String gameType = 'classic',
+    int turnTimeLimit = 30,
+    bool autoStart = false,
+    String? password,
+  }) async {
+    return await _gameService.createRoom(
+      roomName: roomName,
+      permission: permission,
+      maxPlayers: maxPlayers,
+      minPlayers: minPlayers,
+      gameType: gameType,
+      turnTimeLimit: turnTimeLimit,
+      autoStart: autoStart,
+      password: password,
+    );
+  }
+
+  Future<Map<String, dynamic>> getPendingGames() async {
+    return await _gameService.getPendingGames();
+  }
 
   /// Dispose of resources
   void dispose() {

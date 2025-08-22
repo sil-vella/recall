@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../models/turn_phase.dart';
 
 class ActionBar extends StatelessWidget {
   static final Logger _log = Logger();
+  final PlayerTurnPhase currentTurnPhase;
+  final Map<String, dynamic>? pendingDrawnCard;
   final VoidCallback onPlay;
   final VoidCallback onReplaceWithDrawn;
   final VoidCallback onPlaceDrawnAndPlay;
@@ -14,6 +17,8 @@ class ActionBar extends StatelessWidget {
 
   const ActionBar({
     Key? key,
+    required this.currentTurnPhase,
+    this.pendingDrawnCard,
     required this.onPlay,
     required this.onReplaceWithDrawn,
     required this.onPlaceDrawnAndPlay,
@@ -39,18 +44,23 @@ class ActionBar extends StatelessWidget {
         // Get additional state for button logic
         final hasSelection = recall['selectedCard'] != null;
         
+        // Determine button availability based on turn phase
+        final canPlay = currentTurnPhase == PlayerTurnPhase.canPlay && hasSelection && canPlayCard;
+        final canReplaceWithDrawn = currentTurnPhase == PlayerTurnPhase.hasDrawnCard && hasSelection && pendingDrawnCard != null;
+        final canPlaceDrawnAndPlay = currentTurnPhase == PlayerTurnPhase.hasDrawnCard && pendingDrawnCard != null;
+        final canCallRecallButton = (currentTurnPhase == PlayerTurnPhase.recallOpportunity || currentTurnPhase == PlayerTurnPhase.canPlay) && canCallRecall;
+        final canPlayOutOfTurn = currentTurnPhase == PlayerTurnPhase.outOfTurn && hasSelection && onPlayOutOfTurn != null;
+        
         // Debug logging
         _log.info('🎮 ActionBar Debug (using ListenableBuilder):');
-        _log.info('  - hasStartMatchCallback: ${onStartMatch != null}');
-        _log.info('  - showStartButton: $showStartButton');
-        _log.info('  - canPlayCard: $canPlayCard');
-        _log.info('  - canCallRecall: $canCallRecall');
-        _log.info('  - isGameStarted: $isGameStarted');
-        _log.info('  - isRoomOwner: ${recall['isRoomOwner']}');
-        _log.info('  - isGameActive: ${recall['isGameActive']}');
-        _log.info('  - gamePhase: ${recall['gamePhase']}');
-        _log.info('  - gameStatus: ${recall['gameStatus']}');
-        _log.info('  - currentRoomId: ${recall['currentRoomId']}');
+        _log.info('  - currentTurnPhase: ${currentTurnPhase.name}');
+        _log.info('  - hasSelection: $hasSelection');
+        _log.info('  - pendingDrawnCard: ${pendingDrawnCard != null}');
+        _log.info('  - canPlay: $canPlay');
+        _log.info('  - canReplaceWithDrawn: $canReplaceWithDrawn');
+        _log.info('  - canPlaceDrawnAndPlay: $canPlaceDrawnAndPlay');
+        _log.info('  - canCallRecallButton: $canCallRecallButton');
+        _log.info('  - canPlayOutOfTurn: $canPlayOutOfTurn');
         
         return Card(
           child: Padding(
@@ -76,8 +86,11 @@ class ActionBar extends StatelessWidget {
                     identifier: 'match_action_out_of_turn',
                     button: true,
                     child: ElevatedButton(
-                      onPressed: hasSelection ? onPlayOutOfTurn : null,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
+                      onPressed: canPlayOutOfTurn ? onPlayOutOfTurn : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canPlayOutOfTurn ? Colors.purple : AppColors.lightGray,
+                        foregroundColor: canPlayOutOfTurn ? Colors.white : AppColors.darkGray,
+                      ),
                       child: const Text('Play Out-of-Turn'),
                     ),
                   ),
@@ -87,10 +100,10 @@ class ActionBar extends StatelessWidget {
                   identifier: 'match_action_play',
                   button: true,
                   child: ElevatedButton(
-                    onPressed: hasSelection && canPlayCard ? onPlay : null,
+                    onPressed: canPlay ? onPlay : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: hasSelection && canPlayCard ? AppColors.primaryColor : AppColors.lightGray,
-                      foregroundColor: hasSelection && canPlayCard ? Colors.white : AppColors.darkGray,
+                      backgroundColor: canPlay ? AppColors.primaryColor : AppColors.lightGray,
+                      foregroundColor: canPlay ? Colors.white : AppColors.darkGray,
                     ),
                     child: const Text('Play Card'),
                   ),
@@ -101,10 +114,10 @@ class ActionBar extends StatelessWidget {
                   identifier: 'match_action_replace',
                   button: true,
                   child: ElevatedButton(
-                    onPressed: hasSelection ? onReplaceWithDrawn : null,
+                    onPressed: canReplaceWithDrawn ? onReplaceWithDrawn : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: hasSelection ? AppColors.accentColor : AppColors.lightGray,
-                      foregroundColor: hasSelection ? Colors.white : AppColors.darkGray,
+                      backgroundColor: canReplaceWithDrawn ? AppColors.accentColor : AppColors.lightGray,
+                      foregroundColor: canReplaceWithDrawn ? Colors.white : AppColors.darkGray,
                     ),
                     child: const Text('Replace with Drawn'),
                   ),
@@ -115,10 +128,10 @@ class ActionBar extends StatelessWidget {
                   identifier: 'match_action_place_and_play',
                   button: true,
                   child: ElevatedButton(
-                    onPressed: hasSelection ? onPlaceDrawnAndPlay : null,
+                    onPressed: canPlaceDrawnAndPlay ? onPlaceDrawnAndPlay : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: hasSelection ? AppColors.accentColor2 : AppColors.lightGray,
-                      foregroundColor: hasSelection ? Colors.white : AppColors.darkGray,
+                      backgroundColor: canPlaceDrawnAndPlay ? AppColors.accentColor2 : AppColors.lightGray,
+                      foregroundColor: canPlaceDrawnAndPlay ? Colors.white : AppColors.darkGray,
                     ),
                     child: const Text('Place Drawn & Play'),
                   ),
@@ -129,10 +142,10 @@ class ActionBar extends StatelessWidget {
                   identifier: 'match_action_recall',
                   button: true,
                   child: ElevatedButton(
-                    onPressed: canCallRecall ? onCallRecall : null,
+                    onPressed: canCallRecallButton ? onCallRecall : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: canCallRecall ? AppColors.redAccent : AppColors.lightGray,
-                      foregroundColor: canCallRecall ? Colors.white : AppColors.darkGray,
+                      backgroundColor: canCallRecallButton ? AppColors.redAccent : AppColors.lightGray,
+                      foregroundColor: canCallRecallButton ? Colors.white : AppColors.darkGray,
                     ),
                     child: const Text('Call Recall!'),
                   ),

@@ -49,6 +49,7 @@ enum SpecialPowerType {
 class Card {
   static final Logger _log = Logger();
   
+  final String cardId;  // Unique card identifier from backend
   final CardSuit suit;
   final CardRank rank;
   final int points;
@@ -57,6 +58,7 @@ class Card {
   final Map<String, dynamic>? specialPowerData;
   
   const Card({
+    required this.cardId,
     required this.suit,
     required this.rank,
     required this.points,
@@ -171,6 +173,7 @@ class Card {
       final int points = json['points'] ?? 0;
 
       return Card(
+        cardId: json['cardId'] ?? '',  // Parse cardId from backend
         suit: suit,
         rank: rank,
         points: points, // Backend is source of truth for points

@@ -3,6 +3,7 @@ import 'validated_state_updater.dart';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../tools/logging/logger.dart';
+import '../services/game_service.dart';
 
 /// Convenient helper methods for recall game operations
 /// Provides type-safe, validated methods for common game actions
@@ -11,6 +12,7 @@ class RecallGameHelpers {
   // Singleton instances
   static final _eventEmitter = RecallGameEventEmitter.instance;
   static final _stateUpdater = RecallGameStateUpdater.instance;
+  static final _gameService = GameService();
   
   // ========================================
   // EVENT EMISSION HELPERS
@@ -680,5 +682,44 @@ class RecallGameHelpers {
       'gameStatus': isGameActive ? 'active' : 'inactive',
       'playerCount': playerCount,
     });
+  }
+  
+  // ========================================
+  // BUSINESS LOGIC DELEGATION METHODS
+  // ========================================
+  
+  /// Validate game state using GameService
+  static bool isValidGameState(dynamic gameState) {
+    return _gameService.isValidGameState(gameState);
+  }
+  
+  /// Check if player can play card using GameService
+  static bool canPlayerPlayCard(String playerId, dynamic gameState) {
+    return _gameService.canPlayerPlayCard(playerId, gameState);
+  }
+  
+  /// Check if game is ready to start using GameService
+  static bool isGameReadyToStart(dynamic gameState) {
+    return _gameService.isGameReadyToStart(gameState);
+  }
+  
+  /// Check if player can call recall using GameService
+  static bool canPlayerCallRecall(String playerId, dynamic gameState) {
+    return _gameService.canPlayerCallRecall(playerId, gameState);
+  }
+  
+  /// Get valid cards for player using GameService
+  static List<dynamic> getValidCardsForPlayer(String playerId, dynamic gameState) {
+    return _gameService.getValidCardsForPlayer(playerId, gameState);
+  }
+  
+  /// Get game winner using GameService
+  static dynamic getWinner(dynamic gameState) {
+    return _gameService.getWinner(gameState);
+  }
+  
+  /// Get game statistics using GameService
+  static Map<String, dynamic> getGameStatistics(dynamic gameState) {
+    return _gameService.getGameStatistics(gameState);
   }
 }

@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../../utils/consts/theme_consts.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../models/turn_phase.dart';
 
 class CenterBoard extends StatelessWidget {
   static final Logger _log = Logger();
+  final PlayerTurnPhase currentTurnPhase;
   final VoidCallback onDrawFromDeck;
   final VoidCallback onTakeFromDiscard;
 
   const CenterBoard({
     Key? key,
+    required this.currentTurnPhase,
     required this.onDrawFromDeck,
     required this.onTakeFromDiscard,
   }) : super(key: key);
@@ -30,6 +33,10 @@ class CenterBoard extends StatelessWidget {
 
         _log.info('🎮 CenterBoard: Draw pile has $drawCount cards, top discard: $topDiscard');
 
+        // Determine if pile actions are available based on turn phase
+        final canDrawFromDeck = currentTurnPhase == PlayerTurnPhase.mustDraw;
+        final canTakeFromDiscard = currentTurnPhase == PlayerTurnPhase.mustDraw;
+
         return Row(
           children: [
             Expanded(
@@ -39,6 +46,7 @@ class CenterBoard extends StatelessWidget {
                 actionLabel: 'Draw',
                 onAction: onDrawFromDeck,
                 semanticsId: 'pile_draw',
+                isEnabled: canDrawFromDeck,
               ),
             ),
             const SizedBox(width: 16),
@@ -49,6 +57,7 @@ class CenterBoard extends StatelessWidget {
                 actionLabel: 'Take Top',
                 onAction: onTakeFromDiscard,
                 semanticsId: 'pile_discard_top',
+                isEnabled: canTakeFromDiscard,
               ),
             ),
           ],
@@ -65,6 +74,7 @@ class _PileCard extends StatelessWidget {
   final String actionLabel;
   final VoidCallback onAction;
   final String semanticsId;
+  final bool isEnabled;
 
   const _PileCard({
     required this.title,
@@ -72,6 +82,7 @@ class _PileCard extends StatelessWidget {
     required this.actionLabel,
     required this.onAction,
     required this.semanticsId,
+    required this.isEnabled,
   });
 
   @override
@@ -93,13 +104,13 @@ class _PileCard extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: isEnabled ? () {
                     _log.info('🎮 PileCard: Action $actionLabel triggered for $title');
                     onAction();
-                  },
+                  } : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryColor,
-                    foregroundColor: Colors.white,
+                    backgroundColor: isEnabled ? AppColors.primaryColor : AppColors.lightGray,
+                    foregroundColor: isEnabled ? Colors.white : AppColors.darkGray,
                   ),
                   child: Text(actionLabel),
                 ),

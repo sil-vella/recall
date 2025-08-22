@@ -476,6 +476,7 @@ class GameLogicEngine:
             return rank_mapping.get(rank_str, rank_str)
         
         return {
+            'cardId': card.card_id,  # Include the unique card identifier
             'suit': suit,
             'rank': _convert_rank_to_word(rank),
             'points': card.points,

@@ -1,11 +1,9 @@
 import 'dart:async';
-import '../../../core/managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../models/card.dart';
 import '../utils/recall_game_helpers.dart';
-import '../utils/validated_event_emitter.dart';
 
 /// Game-specific business logic only - no state management
 /// Handles game operations, validation, and business rules
@@ -147,8 +145,131 @@ class GameService {
     }
   }
 
+  Future<Map<String, dynamic>> replaceDrawnCard({
+    required String gameId,
+    required String playerId,
+    required int cardIndex,
+  }) async {
+    try {
+      _log.info('🎮 GameService: Replacing drawn card at index $cardIndex in game: $gameId');
+      
+      // Use validated event emitter for replace drawn card
+      final result = await RecallGameHelpers.replaceDrawnCard(
+        gameId: gameId,
+        playerId: playerId,
+        cardIndex: cardIndex,
+      );
+      
+      _log.info('🎮 GameService: Replace drawn card result: $result');
+      return result;
+      
+    } catch (e) {
+      _log.error('❌ GameService: Error replacing drawn card: $e');
+      return {'error': 'Failed to replace drawn card: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> placeDrawnCard({
+    required String gameId,
+    required String playerId,
+  }) async {
+    try {
+      _log.info('🎮 GameService: Placing drawn card in game: $gameId');
+      
+      // Use validated event emitter for place drawn card
+      final result = await RecallGameHelpers.placeDrawnCard(
+        gameId: gameId,
+        playerId: playerId,
+      );
+      
+      _log.info('🎮 GameService: Place drawn card result: $result');
+      return result;
+      
+    } catch (e) {
+      _log.error('❌ GameService: Error placing drawn card: $e');
+      return {'error': 'Failed to place drawn card: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> useSpecialPower({
+    required String gameId,
+    required String cardId,
+    required String playerId,
+    Map<String, dynamic>? powerData,
+  }) async {
+    try {
+      _log.info('🎮 GameService: Using special power for card: $cardId in game: $gameId');
+      
+      // Use validated event emitter for special power
+      final result = await RecallGameHelpers.useSpecialPower(
+        gameId: gameId,
+        cardId: cardId,
+        playerId: playerId,
+        powerData: powerData,
+      );
+      
+      _log.info('🎮 GameService: Use special power result: $result');
+      return result;
+      
+    } catch (e) {
+      _log.error('❌ GameService: Error using special power: $e');
+      return {'error': 'Failed to use special power: $e'};
+    }
+  }
+
+  // Room management methods
+  Future<Map<String, dynamic>> createRoom({
+    required String roomName,
+    required String permission,
+    required int maxPlayers,
+    required int minPlayers,
+    String gameType = 'classic',
+    int turnTimeLimit = 30,
+    bool autoStart = false,
+    String? password,
+  }) async {
+    try {
+      _log.info('🎮 GameService: Creating room: $roomName');
+      
+      // Use validated event emitter for create room
+      final result = await RecallGameHelpers.createRoom(
+        roomName: roomName,
+        permission: permission,
+        maxPlayers: maxPlayers,
+        minPlayers: minPlayers,
+        gameType: gameType,
+        turnTimeLimit: turnTimeLimit,
+        autoStart: autoStart,
+        password: password,
+      );
+      
+      _log.info('🎮 GameService: Create room result: $result');
+      return result;
+      
+    } catch (e) {
+      _log.error('❌ GameService: Error creating room: $e');
+      return {'error': 'Failed to create room: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> getPendingGames() async {
+    try {
+      _log.info('🎮 GameService: Getting pending games');
+      
+      // Use validated event emitter for get pending games
+      final result = await RecallGameHelpers.getPendingGames();
+      
+      _log.info('🎮 GameService: Get pending games result: $result');
+      return result;
+      
+    } catch (e) {
+      _log.error('❌ GameService: Error getting pending games: $e');
+      return {'error': 'Failed to get pending games: $e'};
+    }
+  }
+
   // Game state validation methods
-  bool isValidGameState(GameState gameState) {
+  bool isValidGameState(GameState? gameState) {
     if (gameState == null) return false;
     
     // Basic validation

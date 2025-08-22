@@ -531,7 +531,6 @@ class RecallGameManager {
   /// Handle create room success event
   void _handleCreateRoomSuccess(Map<String, dynamic> data) {
     final roomId = data['room_id'] as String?;
-    final ownerId = data['owner_id'] as String?;
     if (roomId != null) {
       _log.info('🎉 Create room success: $roomId');
       RecallGameHelpers.setRoomOwnership(
@@ -844,7 +843,14 @@ class RecallGameManager {
     _log.info('📊 Final state update completed at: ${DateTime.now().toIso8601String()}');
   }
 
+  // ========================================
+  // DEPRECATED: Business Logic Methods
+  // 🚨 These methods should be replaced with GameService delegation
+  // 🎯 Use GameService or RecallGameCoordinator instead
+  // ========================================
+
   /// Join a game
+  /// ⚠️ DEPRECATED: Use GameService.joinGame() or RecallGameCoordinator.joinGameAndRoom() instead
   Future<Map<String, dynamic>> joinGame(String gameId, String playerName, {int? maxPlayers}) async {
     if (!_isInitialized) {
       // Attempt to initialize on-demand to avoid race with app startup
@@ -883,6 +889,7 @@ class RecallGameManager {
   }
 
   /// Start a match (activate the game)
+  /// ⚠️ DEPRECATED: Use GameService.startMatch() instead
   Future<Map<String, dynamic>> startMatch() async {
     if (_currentGameId == null) {
       return {'error': 'Not in a game'};
@@ -916,6 +923,7 @@ class RecallGameManager {
   }
 
   /// Leave current game
+  /// ⚠️ DEPRECATED: Use GameService.leaveGame() instead
   Future<Map<String, dynamic>> leaveGame() async {
     if (_currentGameId == null) {
       return {'error': 'Not in a game'};
@@ -943,6 +951,7 @@ class RecallGameManager {
   }
 
   /// Play a card
+  /// ⚠️ DEPRECATED: Use GameService.playCard() instead
   Future<Map<String, dynamic>> playCard(Card card, {String? targetPlayerId}) async {
     if (_currentGameId == null) {
       return {'error': 'Not in a game'};
@@ -978,6 +987,7 @@ class RecallGameManager {
   }
 
   /// Draw from face-down deck
+  /// ⚠️ DEPRECATED: Use GameService.drawCard() instead
   Future<Map<String, dynamic>> drawFromDeck() async {
     if (_currentGameId == null) {
       return {'error': 'Not in a game'};

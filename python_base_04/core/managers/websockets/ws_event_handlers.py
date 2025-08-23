@@ -352,23 +352,8 @@ class WSEventHandlers:
                     self.socketio.emit('create_room_success', {
                         'success': True,
                         'room_id': room_id,
-                        'room_data': {
-                            'room_id': room_id,
-                            'room_name': data.get('room_name', 'New Room'),
-                            'owner_id': owner_id,
-                            'permission': permission,
-                            'current_size': 1,
-                            'max_size': data.get('max_players', 4),
-                            'min_size': data.get('min_players', 2),
-                            'created_at': datetime.now().isoformat(),
-                            'game_type': data.get('game_type', 'classic'),
-                            'turn_time_limit': data.get('turn_time_limit', 30),
-                            'auto_start': data.get('auto_start', True),
-                        },
-                        'owner_id': owner_id,  # Get owner_id from memory
+                        'owner_id': owner_id,
                         'timestamp': datetime.now().isoformat(),
-                        'current_size': 1,
-                        'max_size': data.get('max_players', 4)
                     })
                     
                     self.socketio.emit('room_joined', {

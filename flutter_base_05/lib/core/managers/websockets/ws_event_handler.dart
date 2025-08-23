@@ -225,7 +225,7 @@ class WSEventHandler {
     
     try {
       final roomId = data['room_id'] ?? '';
-      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      final roomData = data;  // Use the entire data object since it's simplified
       final ownerId = data['owner_id'] ?? '';
       
       // Get current user ID from login module state
@@ -241,13 +241,10 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // Set room ownership and game state in recall game state
+      // Set room ownership in recall game state
       RecallGameHelpers.updateUIState({
         'isRoomOwner': isRoomOwner,
         'currentRoomId': roomId,
-        'isGameActive': false,  // Ensure game is not active when room is created
-        'gamePhase': 'waiting',
-        'gameStatus': 'inactive',
       });
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       

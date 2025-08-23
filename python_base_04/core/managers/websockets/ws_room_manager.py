@@ -35,6 +35,7 @@ class WSRoomManager:
 
     def _room_secure_key_expire(self, room_id: str, seconds: int) -> bool:
         """Set expiry on the secured room hash key managed by RedisManager."""
+        # Fix parameter alignment: use same parameters as room creation
         ok = self.redis_manager.expire("room", seconds, room_id)
         if ok:
             custom_log(f"⏱️ Set TTL {seconds}s on room:{room_id}")

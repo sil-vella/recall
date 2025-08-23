@@ -7,16 +7,3 @@ enum PlayerTurnPhase {
   outOfTurn,         // Can play matching cards out of turn
   recallOpportunity, // Can call recall after playing
 }
-
-/// Player actions for centralized handling and tutorial integration
-enum PlayerAction {
-  drawFromDeck,      // Draw card from deck
-  takeFromDiscard,   // Take card from discard pile
-  playCard,          // Play selected card from hand
-  replaceWithDrawn,  // Replace hand card with drawn card
-  placeDrawnAndPlay, // Place drawn card and play it
-  callRecall,        // Call recall
-  playOutOfTurn,     // Play card out of turn
-  selectCard,        // Select a card (for tutorial tracking)
-  startMatch,        // Start the match
-}

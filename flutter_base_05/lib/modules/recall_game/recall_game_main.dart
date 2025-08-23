@@ -11,9 +11,8 @@ import '../../core/managers/services_manager.dart';
 import '../../tools/logging/logger.dart';
 
 // Import Recall game components
-import 'managers/recall_game_manager.dart';
+import 'managers/recall_module_manager.dart';
 import 'managers/recall_message_manager.dart';
-import 'services/recall_game_coordinator.dart';
 
 /// Recall Game Module
 /// Main module for the Recall card game functionality
@@ -25,15 +24,11 @@ class RecallGameMain extends ModuleBase {
   final navigationManager = NavigationManager();
   
   // Recall game components
-  final RecallGameManager _recallGameManager = RecallGameManager();
-  final RecallGameCoordinator _recallGameCoordinator = RecallGameCoordinator();
+  final RecallModuleManager _recallModuleManager = RecallModuleManager();
   final RecallMessageManager _recallMessageManager = RecallMessageManager();
 
-  /// Get Recall Game Coordinator
-  RecallGameCoordinator get recallGameCoordinator => _recallGameCoordinator;
-  
   /// Get Recall Game Manager
-  RecallGameManager get recallGameManager => _recallGameManager;
+  RecallModuleManager get recallModuleManager => _recallModuleManager;
   
   /// Get Recall Message Manager
   RecallMessageManager get recallMessageManager => _recallMessageManager;
@@ -82,24 +77,15 @@ class RecallGameMain extends ModuleBase {
       _log.info('📊 Step 1: Registering Recall game state...');
       _registerState();
       
-      // Step 2: Initialize RecallGameManager
-      _log.info('🎮 Step 2: Initializing RecallGameManager...');
-      final gameManagerResult = await _recallGameManager.initialize();
-      _log.info('🎮 RecallGameManager initialization result: $gameManagerResult');
+      // Step 2: Initialize RecallModuleManager
+      _log.info('🎮 Step 2: Initializing RecallModuleManager...');
+      final gameManagerResult = await _recallModuleManager.initialize();
+      _log.info('🎮 RecallModuleManager initialization result: $gameManagerResult');
       if (!gameManagerResult) {
-        _log.error('❌ RecallGameManager initialization failed');
+        _log.error('❌ RecallModuleManager initialization failed');
         return;
       }
-      
-      // Step 3: Initialize RecallGameCoordinator
-      _log.info('🎮 Step 3: Initializing RecallGameCoordinator...');
-      final coordinatorResult = await _recallGameCoordinator.initialize();
-      _log.info('🎮 RecallGameCoordinator initialization result: $coordinatorResult');
-      if (!coordinatorResult) {
-        _log.error('❌ RecallGameCoordinator initialization failed');
-        return;
-      }
-      
+            
       // Step 4: Initialize RecallMessageManager
       _log.info('📨 Step 4: Initializing RecallMessageManager...');
       final messageManagerResult = await _recallMessageManager.initialize();
@@ -136,14 +122,9 @@ class RecallGameMain extends ModuleBase {
       results['state_manager'] = stateManager.isModuleStateRegistered('recall_game');
       _log.info('🔍 StateManager verification: ${results['state_manager']}');
       
-      // Verify RecallGameManager
-      results['recall_game_manager'] = _recallGameManager.isInitialized;
-      _log.info('🔍 RecallGameManager verification: ${results['recall_game_manager']}');
-      
-      // Verify RecallGameCoordinator
-      results['recall_game_coordinator'] = _recallGameCoordinator.isInitialized;
-      _log.info('🔍 RecallGameCoordinator verification: ${results['recall_game_coordinator']}');
-      
+      // Verify RecallModuleManager
+      results['recall_game_manager'] = _recallModuleManager.isInitialized;
+      _log.info('🔍 RecallModuleManager verification: ${results['recall_game_manager']}');
       // Verify RecallMessageManager
       results['recall_message_manager'] = true; // Assuming success if we got here
       _log.info('🔍 RecallMessageManager verification: ${results['recall_message_manager']}');
@@ -179,42 +160,21 @@ class RecallGameMain extends ModuleBase {
           'myCreatedRooms': <Map<String, dynamic>>[],
           'players': <Map<String, dynamic>>[],
           
-          // 🎯 WIDGET-SPECIFIC STATE SLICES (for Screen vs Widget pattern)
-          'actionBar': {
-            'showStartButton': false,
-            'canPlayCard': false,
-            'canCallRecall': false,
-            'isGameStarted': false,
-          },
-          'statusBar': {
-            'currentPhase': 'waiting',
-            'turnInfo': '',
-            'playerCount': 0,
-            'gameStatus': 'inactive',
-          },
-          'myHand': {
-            'cards': <Map<String, dynamic>>[],
-            'selectedIndex': null,
-            'canSelectCards': false,
-          },
-          'centerBoard': {
-            'discardPile': <Map<String, dynamic>>[],
-            'drawPileCount': 0,
-            'lastPlayedCard': null,
-          },
-          'opponentsPanel': {
-            'players': <Map<String, dynamic>>[],
-            'currentPlayerIndex': -1,
-          },
-          
           // UI control state
           'showCreateRoom': true,
           'showRoomList': true,
           
+          // Widget slices (will be populated by widgets)
+          'actionBar': <String, dynamic>{},
+          'statusBar': <String, dynamic>{},
+          'myHand': <String, dynamic>{},
+          'centerBoard': <String, dynamic>{},
+          'opponentsPanel': <String, dynamic>{},
+          
           // Metadata
           'lastUpdated': DateTime.now().toIso8601String(),
         });
-        _log.info('✅ Recall game state registered with widget slices');
+        _log.info('✅ Recall game core state registered');
       } else {
         _log.info('📊 Recall game state already registered');
       }
@@ -260,11 +220,8 @@ class RecallGameMain extends ModuleBase {
     _log.info('🛑 Starting RecallGameMain disposal...');
     
     // Dispose Recall game components
-    _recallGameManager.dispose();
-    _log.info('🛑 RecallGameManager disposed');
-    
-    _recallGameCoordinator.dispose();
-    _log.info('🛑 RecallGameCoordinator disposed');
+    _recallModuleManager.dispose();
+    _log.info('🛑 RecallModuleManager disposed');
     
     _recallMessageManager.dispose();
     _log.info('🛑 RecallMessageManager disposed');
@@ -281,8 +238,7 @@ class RecallGameMain extends ModuleBase {
       'status': isInitialized ? 'healthy' : 'not_initialized',
       'details': isInitialized ? 'RecallGameMain is functioning normally' : 'RecallGameMain not initialized',
       'components': {
-        'recall_game_manager': _recallGameManager.isInitialized ? 'healthy' : 'not_initialized',
-        'recall_game_coordinator': _recallGameCoordinator.isInitialized ? 'healthy' : 'not_initialized',
+        'recall_game_manager': _recallModuleManager.isInitialized ? 'healthy' : 'not_initialized',
         'recall_message_manager': 'initialized',
         'state_manager': 'initialized',
         'navigation_manager': 'initialized',

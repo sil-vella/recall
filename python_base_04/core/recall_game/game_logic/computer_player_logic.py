@@ -7,7 +7,7 @@ This module provides AI decision making for computer players in the Recall game.
 from typing import Dict, Any, List, Optional
 from .yaml_loader import YAMLLoader
 from ..models.card import Card
-from ..models.game_state import GameState
+from ..managers.game_state import GameState
 
 
 class ComputerPlayerLogic:

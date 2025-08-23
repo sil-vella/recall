@@ -8,7 +8,7 @@ from YAML files to handle game actions and state transitions.
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from .yaml_loader import YAMLLoader
-from ..models.game_state import GameState
+from ..managers.game_state import GameState
 from ..models.player import Player
 
 
@@ -518,7 +518,7 @@ class GameLogicEngine:
         from ..utils.deck_factory import DeckFactory
         
         # Set game phase to dealing
-        from ..models.game_state import GamePhase
+        from ..managers.game_state import GamePhase
         game_state.phase = GamePhase.DEALING_CARDS
         game_state.game_start_time = time.time()
         
@@ -556,7 +556,7 @@ class GameLogicEngine:
     
     def _effect_set_game_phase(self, effect: Dict[str, Any], game_state: GameState, action_data: Dict[str, Any]) -> Dict[str, Any]:
         """Effect: Set game phase"""
-        from ..models.game_state import GamePhase
+        from ..managers.game_state import GamePhase
         
         phase_name = effect.get('phase')
         then_phase = effect.get('then')

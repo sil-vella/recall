@@ -3,16 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/00_base/screen_base.dart';
 import 'widgets/connection_status_widget.dart';
 import 'widgets/create_room_widget.dart';
-import 'widgets/join_room_widget.dart';
-import 'widgets/current_room_widget.dart';
-import 'widgets/room_list_widget.dart';
-import 'widgets/room_message_board_widget.dart';
-import 'widgets/pending_games_widget.dart';
-import 'services/room_service.dart';
-
-import '../../widgets/feature_slot.dart';
 import 'features/lobby_features.dart';
-import 'widgets/message_board_widget.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../utils/recall_game_helpers.dart';
@@ -29,10 +20,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  final RoomService _roomService = RoomService();
   final WebSocketManager _websocketManager = WebSocketManager.instance;
-  final TextEditingController _roomIdController = TextEditingController();
-  
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
   @override
@@ -94,8 +82,17 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         _showSnackBar('WebSocket connected! Creating room...', isError: false);
       }
       
-      // Now proceed with room creation
-      final result = await _roomService.createRoom(roomSettings);
+      // Now proceed with room creation - bypass RoomService and call helper directly
+      final result = await RecallGameHelpers.createRoom(
+        roomName: roomSettings['roomName'],
+        permission: roomSettings['permission'] ?? 'public',
+        maxPlayers: roomSettings['maxPlayers'],
+        minPlayers: roomSettings['minPlayers'],
+        gameType: roomSettings['gameType'] ?? 'classic',
+        turnTimeLimit: roomSettings['turnTimeLimit'] ?? 30,
+        autoStart: roomSettings['autoStart'] ?? true,
+        password: roomSettings['password'],
+      );
       if (result['success'] == true) {
         final roomData = result['room_data'] as Map<String, dynamic>?;
         if (roomData != null) {
@@ -119,46 +116,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       }
     } catch (e) {
       if (mounted) _showSnackBar('Failed to create room: $e', isError: true);
-    }
-  }
-
-  Future<void> _joinRoom(String roomId) async {
-    try {
-      // First ensure WebSocket is connected
-      if (!_websocketManager.isConnected) {
-        _showSnackBar('Connecting to WebSocket...', isError: false);
-        final connected = await _websocketManager.connect();
-        if (!connected) {
-          _showSnackBar('Failed to connect to WebSocket. Cannot join room.', isError: true);
-          return;
-        }
-        _showSnackBar('WebSocket connected! Joining room...', isError: false);
-      }
-      
-      // Now proceed with room joining
-      final result = await _roomService.joinRoom(roomId);
-      if (result['success'] == true) {
-        if (mounted) {
-          _showSnackBar('Joined room: $roomId');
-        }
-      } else {
-        if (mounted) _showSnackBar('Failed to join room', isError: true);
-      }
-    } catch (e) {
-      if (mounted) _showSnackBar('Failed to join room: $e', isError: true);
-    }
-  }
-
-  Future<void> _leaveRoom(String roomId) async {
-    try {
-      await _roomService.leaveRoom();
-      if (mounted) {
-        _showSnackBar('Left room: $roomId');
-      }
-    } catch (e) {
-      if (mounted) {
-        _showSnackBar('Failed to leave room: $e', isError: true);
-      }
     }
   }
 
@@ -202,62 +159,8 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           CreateRoomWidget(
             onCreateRoom: _createRoom,
           ),
-          
           const SizedBox(height: 20),
-
-          // Pending Games (fetched on demand)
-          PendingGamesWidget(
-            title: 'Available Games',
-            onJoinRoom: _joinRoom,
-            emptyMessage: 'No games available to join',
-          ),
-
-          const SizedBox(height: 20),
-
-          // Session Message Board
-          MessageBoardWidget(),
-
-          const SizedBox(height: 20),
-          
-          // Join Room Section
-          JoinRoomWidget(
-            onJoinRoom: () => _joinRoom(_roomIdController.text.trim()),
-            roomIdController: _roomIdController,
-          ),
-          
-          const SizedBox(height: 20),
-          // Second slot in lobby for extra tools/actions (icon-only contract)
-          const FeatureSlot(
-            scopeKey: LobbyFeatureSlots.scopeKey,
-            slotId: LobbyFeatureSlots.slotSecondary,
-            title: 'Tools',
-            contract: 'icon_action',
-            iconSize: 22,
-          ),
-
-          const SizedBox(height: 20),
-          
-          // Current Room Info
-          CurrentRoomWidget(
-            onLeaveRoom: _leaveRoom,
-          ),
-          
-          const SizedBox(height: 20),
-
-          // Room Message Board (if in room)
-          const RoomMessageBoardWidget(),
-          const SizedBox(height: 20),
-          
-
-          
-          // My Rooms List
-          RoomListWidget(
-            title: 'My Rooms',
-            onJoinRoom: _joinRoom,
-            onLeaveRoom: _leaveRoom,
-            emptyMessage: 'You haven\'t created any rooms yet',
-            roomType: 'my',
-          ),
+        
         ],
       ),
     );

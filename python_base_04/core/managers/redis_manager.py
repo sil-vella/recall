@@ -120,7 +120,10 @@ class RedisManager:
     def _encrypt_data(self, data):
         """Encrypt data before storing in Redis."""
         try:
-            if isinstance(data, (dict, list)):
+            if isinstance(data, set):
+                # Convert sets to lists for JSON serialization
+                data = json.dumps(list(data))
+            elif isinstance(data, (dict, list)):
                 data = json.dumps(data)
             elif not isinstance(data, str):
                 data = str(data)
@@ -207,6 +210,9 @@ class RedisManager:
         """Set value in Redis with secure key generation and encryption."""
         try:
             secure_key = self._generate_secure_key(key, *args)
+            # Convert sets to lists before encryption to avoid JSON serialization errors
+            if isinstance(value, dict):
+                value = self._convert_sets_to_lists(value)
             encrypted_value = self._encrypt_data(value)
             if expire:
                 self.redis.setex(secure_key, expire, encrypted_value)

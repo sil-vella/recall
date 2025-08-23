@@ -8,7 +8,7 @@ export 'models/game_state.dart';
 export 'models/game_events.dart';
 
 // Managers
-export 'managers/recall_game_manager.dart';
+export 'managers/recall_module_manager.dart';
 
 // Screens
 export 'screens/lobby_room/lobby_screen.dart';

@@ -1,3 +1,49 @@
+/// # Create Room Widget
+/// 
+/// This widget provides the user interface for creating new game rooms in the Recall card game.
+/// It consists of two main components:
+/// 
+/// ## CreateRoomWidget
+/// A card-based widget that displays a "Create New Room" button. When pressed, it opens
+/// a modal bottom sheet with detailed room configuration options.
+/// 
+/// ## CreateRoomModal
+/// A comprehensive modal form that allows users to configure all aspects of a new game room:
+/// 
+/// ### Room Configuration Options:
+/// - **Room Name**: Required text field for the room identifier
+/// - **Game Type**: Dropdown selection (classic, tournament, practice)
+/// - **Permission Level**: Access control (public, private, restricted, owner_only)
+/// - **Password**: Optional password field for non-public rooms
+/// 
+/// ### Player Settings:
+/// - **Max Players**: Slider control (2-10 players)
+/// - **Min Players**: Slider control (2 to max players)
+/// 
+/// ### Game Settings:
+/// - **Turn Time Limit**: Slider control (15-120 seconds per turn)
+/// - **Auto-start**: Toggle to automatically start when room is full
+/// 
+/// ### Features:
+/// - Form validation (room name is required)
+/// - Dynamic UI (password field only shows for non-public rooms)
+/// - Loading states during room creation
+/// - Success/error feedback via SnackBar
+/// - Accessibility support with Semantics identifiers for automation
+/// 
+/// ### Usage:
+/// ```dart
+/// CreateRoomWidget(
+///   onCreateRoom: (roomSettings) {
+///     // Handle room creation with the provided settings map
+///     print('Creating room: ${roomSettings['roomName']}');
+///   },
+/// )
+/// ```
+/// 
+/// The widget communicates with its parent through the `onCreateRoom` callback,
+/// passing a Map containing all the configured room settings.
+
 import 'package:flutter/material.dart';
 import '../../../../../tools/logging/logger.dart';
 

@@ -7,7 +7,6 @@ including standard cards, special power cards, and point calculations.
 
 from typing import Optional, List, Dict, Any
 from enum import Enum
-import random
 
 
 class CardSuit(Enum):
@@ -46,7 +45,11 @@ class SpecialPowerType(Enum):
 
 
 class Card:
-    """Represents a single card in the Recall game"""
+    """Represents a single card in the Recall game
+    
+    Note: card_id is required and should be generated using DeckFactory
+    for deterministic, game-specific IDs.
+    """
     
     def __init__(self, rank: str, suit: str, points: int, 
                  special_power: Optional[str] = None, card_id: Optional[str] = None):
@@ -54,7 +57,9 @@ class Card:
         self.suit = suit
         self.points = points
         self.special_power = special_power
-        self.card_id = card_id or f"{rank}_{suit}_{random.randint(1000, 9999)}"
+        if card_id is None:
+            raise ValueError("card_id is required - use DeckFactory to create cards with proper IDs")
+        self.card_id = card_id
         self.is_visible = False  # Whether the card is face up
         self.owner_id = None     # Player who owns this card
     
@@ -103,7 +108,11 @@ class Card:
 
 
 class CardDeck:
-    """Represents a deck of cards for the Recall game"""
+    """Represents a deck of cards for the Recall game
+    
+    Note: This class creates cards with temporary IDs. Use DeckFactory
+    to create properly shuffled decks with deterministic card IDs.
+    """
     
     def __init__(self, include_jokers: bool = True, include_special_powers: bool = True):
         self.cards = []
@@ -122,13 +131,16 @@ class CardDeck:
             for rank in ranks:
                 points = self._get_point_value(rank, suit)
                 special_power = self._get_special_power(rank)
-                card = Card(rank, suit, points, special_power)
+                # Temporary ID - will be replaced by DeckFactory
+                card_id = f"temp-{rank}-{suit}"
+                card = Card(rank, suit, points, special_power, card_id)
                 self.cards.append(card)
         
         # Add Jokers (0 points)
         if self.include_jokers:
             for i in range(2):  # 2 jokers
-                card = Card("joker", "joker", 0, None)
+                card_id = f"temp-joker-{i}"
+                card = Card("joker", "joker", 0, None, card_id)
                 self.cards.append(card)
         
         # Add special power cards (if enabled)
@@ -176,11 +188,13 @@ class CardDeck:
         for power, points in special_powers:
             # Create special power cards with unique suits
             for i in range(2):  # 2 of each special power
-                card = Card(f"power_{power}", f"special_{i}", points, power)
+                card_id = f"temp-power_{power}-special_{i}"
+                card = Card(f"power_{power}", f"special_{i}", points, power, card_id)
                 self.cards.append(card)
     
     def shuffle(self):
-        """Shuffle the deck"""
+        """Shuffle the deck - Note: Use DeckFactory for deterministic shuffling"""
+        import random
         random.shuffle(self.cards)
     
     def draw_card(self) -> Optional[Card]:

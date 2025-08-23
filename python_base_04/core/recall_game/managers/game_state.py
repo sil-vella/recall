@@ -2,14 +2,16 @@
 Game State Models for Recall Game
 
 This module defines the game state management system for the Recall card game,
-including game phases, state transitions, and game logic.
+including game phases, state transitions, game logic, and WebSocket communication.
 """
 
 from typing import List, Dict, Any, Optional
 from enum import Enum
-from .card import Card, CardDeck
+from ..models.card import Card, CardDeck
 from ..utils.deck_factory import DeckFactory
-from .player import Player, HumanPlayer, ComputerPlayer, PlayerType
+from ..models.player import Player, HumanPlayer, ComputerPlayer, PlayerType
+from tools.logger.custom_logging import custom_log
+from datetime import datetime
 import time
 import uuid
 
@@ -172,6 +174,102 @@ class GameState:
         current_index = player_ids.index(self.current_player_id)
         next_index = (current_index + 1) % len(player_ids)
         self.current_player_id = player_ids[next_index]
+    
+    def get_card_by_id(self, card_id: str) -> Optional[Card]:
+        """Find a card by its ID anywhere in the game
+        
+        Searches through all game locations:
+        - All player hands
+        - Draw pile
+        - Discard pile
+        - Pending draws
+        
+        Args:
+            card_id (str): The unique card ID to search for
+            
+        Returns:
+            Optional[Card]: The card object if found, None otherwise
+        """
+        # Search in all player hands
+        for player in self.players.values():
+            for card in player.hand:
+                if card.card_id == card_id:
+                    return card
+        
+        # Search in draw pile
+        for card in self.draw_pile:
+            if card.card_id == card_id:
+                return card
+        
+        # Search in discard pile
+        for card in self.discard_pile:
+            if card.card_id == card_id:
+                return card
+        
+        # Search in pending draws
+        for card in self.pending_draws.values():
+            if card.card_id == card_id:
+                return card
+        
+        # Card not found anywhere
+        return None
+    
+    def find_card_location(self, card_id: str) -> Optional[Dict[str, Any]]:
+        """Find a card and return its location information
+        
+        Args:
+            card_id (str): The unique card ID to search for
+            
+        Returns:
+            Optional[Dict[str, Any]]: Location info with keys:
+                - 'card': The Card object
+                - 'location_type': 'player_hand', 'draw_pile', 'discard_pile', 'pending_draw'
+                - 'player_id': Player ID (if in player's possession)
+                - 'index': Position in collection (if applicable)
+        """
+        # Search in all player hands
+        for player_id, player in self.players.items():
+            for index, card in enumerate(player.hand):
+                if card.card_id == card_id:
+                    return {
+                        'card': card,
+                        'location_type': 'player_hand',
+                        'player_id': player_id,
+                        'index': index
+                    }
+        
+        # Search in draw pile
+        for index, card in enumerate(self.draw_pile):
+            if card.card_id == card_id:
+                return {
+                    'card': card,
+                    'location_type': 'draw_pile',
+                    'player_id': None,
+                    'index': index
+                }
+        
+        # Search in discard pile
+        for index, card in enumerate(self.discard_pile):
+            if card.card_id == card_id:
+                return {
+                    'card': card,
+                    'location_type': 'discard_pile',
+                    'player_id': None,
+                    'index': index
+                }
+        
+        # Search in pending draws
+        for player_id, card in self.pending_draws.items():
+            if card.card_id == card_id:
+                return {
+                    'card': card,
+                    'location_type': 'pending_draw',
+                    'player_id': player_id,
+                    'index': None
+                }
+        
+        # Card not found anywhere
+        return None
     
     def play_card(self, player_id: str, card_id: str) -> Dict[str, Any]:
         """Play a card from a player's hand"""
@@ -525,10 +623,30 @@ class GameState:
 
 
 class GameStateManager:
-    """Manages multiple game states"""
+    """Manages multiple game states with integrated WebSocket communication"""
     
     def __init__(self):
         self.active_games = {}  # game_id -> GameState
+        self.app_manager = None
+        self.websocket_manager = None
+        self.game_logic_engine = None
+        self._initialized = False
+    
+    def initialize(self, app_manager, game_logic_engine) -> bool:
+        """Initialize with WebSocket and game engine support"""
+        try:
+            self.app_manager = app_manager
+            self.websocket_manager = app_manager.get_websocket_manager()
+            self.game_logic_engine = game_logic_engine
+            if not self.websocket_manager:
+                custom_log("❌ WebSocket manager not available for GameStateManager", level="ERROR")
+                return False
+            self._initialized = True
+            custom_log("✅ GameStateManager initialized with WebSocket support")
+            return True
+        except Exception as e:
+            custom_log(f"❌ Failed to initialize GameStateManager: {e}", level="ERROR")
+            return False
     
     def create_game(self, max_players: int = 4) -> str:
         """Create a new game"""
@@ -567,6 +685,329 @@ class GameStateManager:
         """Get all active games"""
         return self.active_games.copy()
     
+    # ========= WebSocket Event Handlers =========
+    
+    def on_join_game(self, session_id: str, data: Dict[str, Any]) -> bool:
+        """Handle player joining a game"""
+        try:
+            game_id = data.get('game_id')
+            player_name = data.get('player_name') or 'Player'
+            player_type = data.get('player_type') or 'human'
+            max_players = data.get('max_players', 4)
+
+            # Create game if it doesn't exist
+            if not game_id:
+                game_id = self.create_game(max_players=max_players)
+            else:
+                game = self.get_game(game_id)
+                if not game:
+                    self.create_game_with_id(game_id, max_players=max_players)
+
+            game = self.get_game(game_id)
+            if not game:
+                self._send_error(session_id, f'Game not found: {game_id}')
+                return False
+
+            self.websocket_manager.join_room(game_id, session_id)
+
+            session_data = self.websocket_manager.get_session_data(session_id) or {}
+            user_id = str(session_data.get('user_id') or session_id)
+
+            # Add player if not exists
+            if user_id not in game.players:
+                player = ComputerPlayer(user_id, player_name) if player_type == 'computer' else HumanPlayer(user_id, player_name)
+                game.add_player(player, session_id)
+                custom_log(f"✅ Added player {user_id} to game {game_id}")
+            else:
+                game.update_player_session(user_id, session_id)
+                custom_log(f"✅ Updated session for player {user_id} in game {game_id}")
+
+            # Broadcast join event
+            payload = {
+                'event_type': 'game_joined',
+                'game_id': game_id,
+                'game_state': self._to_flutter_game_state(game),
+                'player': self._to_flutter_player(game.players[user_id], user_id == game.current_player_id),
+            }
+            self._broadcast_event(game_id, payload)
+            return True
+        except Exception as e:
+            custom_log(f"Error in on_join_game: {e}", level="ERROR")
+            self._send_error(session_id, f'Join game failed: {str(e)}')
+            return False
+
+    def on_player_action(self, session_id: str, data: Dict[str, Any]) -> bool:
+        """Handle player actions"""
+        try:
+            game_id = data.get('game_id') or data.get('room_id')
+            action = data.get('action') or data.get('action_type')
+            if not game_id or not action:
+                self._send_error(session_id, 'Missing game_id or action')
+                return False
+                
+            game = self.get_game(game_id)
+            if not game:
+                self._send_error(session_id, f'Game not found: {game_id}')
+                return False
+
+            session_data = self.websocket_manager.get_session_data(session_id) or {}
+            user_id = str(session_data.get('user_id') or data.get('player_id') or session_id)
+
+            # Build action data for game engine
+            action_data = {
+                'action_type': action,
+                'player_id': user_id,
+                'game_id': game_id,
+                'card_id': (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id'),
+                'replace_card_id': (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id'),
+                'replace_index': data.get('replaceIndex'),
+                'power_data': data.get('power_data'),
+            }
+
+            # Process action through game engine
+            engine_result = self.game_logic_engine.process_player_action(game, action_data)
+
+            # Fallback for actions not in engine
+            if not engine_result or engine_result.get('error'):
+                engine_result = self._fallback_handle(game, action, user_id, data)
+
+            if engine_result.get('error'):
+                self._send_action_result(game_id, user_id, engine_result)
+                return False
+            
+            # Send results and updates
+            self._send_action_result(game_id, user_id, engine_result)
+            self._broadcast_game_action(game_id, action, {'action_type': action, 'player_id': user_id, 'result': engine_result}, user_id)
+            self._send_game_state_update(game_id)
+            
+            return True
+        except Exception as e:
+            custom_log(f"Error in on_player_action: {e}", level="ERROR")
+            self._send_error(session_id, f'Player action failed: {str(e)}')
+            return False
+
+    def on_start_match(self, session_id: str, data: Dict[str, Any]) -> bool:
+        """Handle game start"""
+        try:
+            game_id = data.get('game_id') or data.get('room_id')
+            if not game_id:
+                self._send_error(session_id, 'Missing game_id')
+                return False
+                
+            game = self.get_game(game_id)
+            if not game:
+                self._send_error(session_id, f'Game not found: {game_id}')
+                return False
+
+            session_data = self.websocket_manager.get_session_data(session_id) or {}
+            user_id = str(session_data.get('user_id') or session_id)
+            
+            # Process start_match through game engine
+            action_data = {
+                'action_type': 'start_match',
+                'player_id': user_id,
+                'game_id': game_id,
+            }
+            
+            engine_result = self.game_logic_engine.process_player_action(game, action_data)
+            
+            if engine_result.get('error'):
+                self._send_error(session_id, f"Start match failed: {engine_result['error']}")
+                return False
+            
+            # Process notifications from engine
+            for notification in engine_result.get('notifications', []):
+                event = notification.get('event')
+                event_data = notification.get('data', {})
+                
+                if event == 'game_started':
+                    payload = {
+                        'event_type': event,
+                        'game_id': game_id,
+                        'game_state': self._to_flutter_game_state(game),
+                        **event_data
+                    }
+                    self._send_to_all_players(game_id, event, payload)
+                elif event == 'turn_started':
+                    target_player_id = event_data.get('player_id')
+                    if target_player_id:
+                        payload = {
+                            'event_type': event,
+                            'game_id': game_id,
+                            'game_state': self._to_flutter_game_state(game),
+                            **event_data
+                        }
+                        self._send_to_player(game_id, target_player_id, event, payload)
+            
+            return True
+        except Exception as e:
+            custom_log(f"Error in on_start_match: {e}", level="ERROR")
+            self._send_error(session_id, f'Start match failed: {str(e)}')
+            return False
+
+    # ========= WebSocket Helper Methods =========
+    
+    def _send_error(self, session_id: str, message: str):
+        """Send error message to session"""
+        if self.websocket_manager:
+            self.websocket_manager.send_to_session(session_id, 'recall_error', {'message': message})
+
+    def _broadcast_event(self, room_id: str, payload: Dict[str, Any]):
+        """Broadcast event to room"""
+        try:
+            event_type = payload.get('event_type')
+            if event_type and self.websocket_manager:
+                event_payload = {k: v for k, v in payload.items() if k != 'event_type'}
+                self.websocket_manager.socketio.emit(event_type, event_payload, room=room_id)
+        except Exception as e:
+            custom_log(f"❌ Error broadcasting event: {e}")
+
+    def _send_to_player(self, game_id: str, player_id: str, event: str, data: dict) -> bool:
+        """Send event to specific player"""
+        try:
+            game = self.get_game(game_id)
+            if not game:
+                return False
+            session_id = game.get_player_session(player_id)
+            if not session_id:
+                return False
+            self.websocket_manager.send_to_session(session_id, event, data)
+            return True
+        except Exception as e:
+            custom_log(f"❌ Error sending to player: {e}")
+            return False
+
+    def _send_to_all_players(self, game_id: str, event: str, data: dict) -> bool:
+        """Send event to all players in game"""
+        try:
+            game = self.get_game(game_id)
+            if not game:
+                return False
+            for player_id, session_id in game.player_sessions.items():
+                self.websocket_manager.send_to_session(session_id, event, data)
+            return True
+        except Exception as e:
+            custom_log(f"❌ Error broadcasting to players: {e}")
+            return False
+
+    def _send_action_result(self, game_id: str, player_id: str, result: Dict[str, Any]):
+        """Send action result to player"""
+        data = {'event_type': 'action_result', 'game_id': game_id, 'action_result': result}
+        self._send_to_player(game_id, player_id, 'action_result', data)
+
+    def _broadcast_game_action(self, game_id: str, action_type: str, action_data: Dict[str, Any], exclude_player_id: str = None):
+        """Broadcast game action to other players"""
+        try:
+            game = self.get_game(game_id)
+            if not game:
+                return
+            data = {
+                'event_type': 'game_action',
+                'game_id': game_id,
+                'action_type': action_type,
+                'action_data': action_data,
+                'game_state': self._to_flutter_game_state(game),
+            }
+            for player_id, session_id in game.player_sessions.items():
+                if exclude_player_id and player_id == exclude_player_id:
+                    continue
+                self.websocket_manager.send_to_session(session_id, 'game_action', data)
+        except Exception as e:
+            custom_log(f"❌ Error broadcasting game action: {e}")
+
+    def _send_game_state_update(self, game_id: str):
+        """Send game state update to all players"""
+        game = self.get_game(game_id)
+        if game:
+            payload = {
+                'event_type': 'game_state_updated',
+                'game_id': game_id,
+                'game_state': self._to_flutter_game_state(game),
+            }
+            self._send_to_all_players(game_id, 'game_state_updated', payload)
+
+    def _fallback_handle(self, game, action: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fallback handler for actions not in game engine"""
+        if action == 'draw_from_deck':
+            return game.draw_from_deck(user_id)
+        if action == 'take_from_discard':
+            return game.take_from_discard(user_id)
+        if action in ('place_drawn_replace', 'place_drawn_card_replace'):
+            replace_id = (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id')
+            if not replace_id:
+                return {'error': 'Missing replace target'}
+            return game.place_drawn_card_replace(user_id, replace_id)
+        if action in ('place_drawn_play', 'place_drawn_card_play'):
+            return game.place_drawn_card_play(user_id)
+        if action == 'play_card':
+            card_id = (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id')
+            if not card_id:
+                return {'error': 'Missing card_id'}
+            return game.play_card(user_id, card_id)
+        if action == 'call_recall':
+            return game.call_recall(user_id)
+        return {'error': 'Unsupported action'}
+
+    def _to_flutter_card(self, card) -> Dict[str, Any]:
+        """Convert card to Flutter format"""
+        rank_mapping = {
+            '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+            '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
+        }
+        return {
+            'cardId': card.card_id,
+            'suit': card.suit,
+            'rank': rank_mapping.get(card.rank, card.rank),
+            'points': card.points,
+            'displayName': str(card),
+            'color': 'red' if card.suit in ['hearts', 'diamonds'] else 'black',
+        }
+
+    def _to_flutter_player(self, player, is_current: bool = False) -> Dict[str, Any]:
+        """Convert player to Flutter format"""
+        return {
+            'id': player.player_id,
+            'name': player.name,
+            'type': 'human' if player.player_type.value == 'human' else 'computer',
+            'hand': [self._to_flutter_card(c) for c in player.hand],
+            'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards],
+            'score': int(player.calculate_points()),
+            'status': 'playing' if is_current else 'ready',
+            'isCurrentPlayer': is_current,
+            'hasCalledRecall': bool(player.has_called_recall),
+        }
+
+    def _to_flutter_game_state(self, game: GameState) -> Dict[str, Any]:
+        """Convert game state to Flutter format"""
+        phase_mapping = {
+            'waiting_for_players': 'waiting',
+            'dealing_cards': 'setup',
+            'player_turn': 'playing',
+            'out_of_turn_play': 'playing',
+            'recall_called': 'recall',
+            'game_ended': 'finished',
+        }
+        
+        current_player = None
+        if game.current_player_id and game.current_player_id in game.players:
+            current_player = self._to_flutter_player(game.players[game.current_player_id], True)
+
+        return {
+            'gameId': game.game_id,
+            'gameName': f"Recall Game {game.game_id}",
+            'players': [self._to_flutter_player(player, pid == game.current_player_id) for pid, player in game.players.items()],
+            'currentPlayer': current_player,
+            'phase': phase_mapping.get(game.phase.value, 'waiting'),
+            'status': 'active' if game.phase.value in ['player_turn', 'out_of_turn_play', 'recall_called'] else 'inactive',
+            'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],
+            'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
+            'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time else None,
+            'lastActivityTime': datetime.fromtimestamp(game.last_action_time).isoformat() if game.last_action_time else None,
+            'winner': game.winner,
+            'playerCount': len(game.players),
+            'activePlayerCount': len([p for p in game.players.values() if p.is_active]),
+        }
+
     def cleanup_ended_games(self):
         """Remove games that have ended"""
         ended_games = []
@@ -575,4 +1016,6 @@ class GameStateManager:
                 ended_games.append(game_id)
         
         for game_id in ended_games:
-            del self.active_games[game_id] 
+            del self.active_games[game_id]
+    
+ 

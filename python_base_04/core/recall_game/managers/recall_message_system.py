@@ -70,52 +70,6 @@ class RecallMessageSystem:
             custom_log(f"RecallMsg: session publish error: {e}")
             return False
 
-    # Convenience wrappers
-    def info_room(self, room_id: str, title: str, message: str, data: Optional[Dict[str, Any]] = None):
-        return self.publish_room_message(room_id, {'level': 'info', 'title': title, 'message': message, 'data': data or {}})
-
-    def warn_room(self, room_id: str, title: str, message: str, data: Optional[Dict[str, Any]] = None):
-        return self.publish_room_message(room_id, {'level': 'warning', 'title': title, 'message': message, 'data': data or {}})
-
-    def error_room(self, room_id: str, title: str, message: str, data: Optional[Dict[str, Any]] = None):
-        return self.publish_room_message(room_id, {'level': 'error', 'title': title, 'message': message, 'data': data or {}})
-
-    def success_room(self, room_id: str, title: str, message: str, data: Optional[Dict[str, Any]] = None):
-        return self.publish_room_message(room_id, {'level': 'success', 'title': title, 'message': message, 'data': data or {}})
-
-    def info_session(self, session_id: str, title: str, message: str, data: Optional[Dict[str, Any]] = None):
-        return self.publish_session_message(session_id, {'level': 'info', 'title': title, 'message': message, 'data': data or {}})
-
-    def warn_session(self, session_id: str, title: str, message: str, data: Optional[Dict[str, Any]] = None):
-        return self.publish_session_message(session_id, {'level': 'warning', 'title': title, 'message': message, 'data': data or {}})
-
-    def error_session(self, session_id: str, title: str, message: str, data: Optional[Dict[str, Any]] = None):
-        return self.publish_session_message(session_id, {'level': 'error', 'title': title, 'message': message, 'data': data or {}})
-
-    def success_session(self, session_id: str, title: str, message: str, data: Optional[Dict[str, Any]] = None):
-        return self.publish_session_message(session_id, {'level': 'success', 'title': title, 'message': message, 'data': data or {}})
-
-    # Retrieval helpers (optional for message boards)
-    def get_room_messages(self, room_id: str, limit: int = 50):
-        try:
-            if not self.redis_manager:
-                return []
-            key = self._history_key('room', room_id)
-            items = self.redis_manager.lrange(key, -limit, -1) or []
-            return items
-        except Exception:
-            return []
-
-    def get_session_messages(self, session_id: str, limit: int = 50):
-        try:
-            if not self.redis_manager:
-                return []
-            key = self._history_key('session', session_id)
-            items = self.redis_manager.lrange(key, -limit, -1) or []
-            return items
-        except Exception:
-            return []
-
     # ====== Internals ======
     def _normalize_message(self, msg: Dict[str, Any], scope: str, target_id: str) -> Dict[str, Any]:
         level = (msg.get('level') or 'info').lower()

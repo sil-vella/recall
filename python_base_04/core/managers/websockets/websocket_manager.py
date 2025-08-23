@@ -474,11 +474,8 @@ class WebSocketManager:
                 
                 custom_log(f"DEBUG - Room data prepared: {room_data}")
                 
-                # Store room data in Redis
-                room_key = self.redis_manager._generate_secure_key("room", room_id)
-                custom_log(f"DEBUG - Room key generated: {room_key}")
-                
-                self.redis_manager.set(room_key, room_data, expire=Config.WS_ROOM_TTL)
+                # Store room data in Redis with proper key generation
+                self.redis_manager.set("room", room_data, Config.WS_ROOM_TTL, room_id)
                 custom_log(f"DEBUG - Room data stored in Redis")
                 # Ensure TTL is enforced through room manager policy as well
                 try:

@@ -29,9 +29,10 @@ class GamePhase(Enum):
 class GameState:
     """Represents the current state of a Recall game"""
     
-    def __init__(self, game_id: str, max_players: int = 4):
+    def __init__(self, game_id: str, max_players: int = 4, min_players: int = 2):
         self.game_id = game_id
         self.max_players = max_players
+        self.min_players = min_players
         self.players = {}  # player_id -> Player
         self.current_player_id = None
         self.phase = GamePhase.WAITING_FOR_PLAYERS
@@ -641,6 +642,10 @@ class GameStateManager:
             if not self.websocket_manager:
                 custom_log("❌ WebSocket manager not available for GameStateManager", level="ERROR")
                 return False
+            
+            # Register hook callbacks for automatic game creation
+            self._register_hook_callbacks()
+            
             self._initialized = True
             custom_log("✅ GameStateManager initialized with WebSocket support")
             return True
@@ -648,14 +653,14 @@ class GameStateManager:
             custom_log(f"❌ Failed to initialize GameStateManager: {e}", level="ERROR")
             return False
     
-    def create_game(self, max_players: int = 4) -> str:
+    def create_game(self, max_players: int = 4, min_players: int = 2) -> str:
         """Create a new game"""
         game_id = str(uuid.uuid4())
-        game_state = GameState(game_id, max_players)
+        game_state = GameState(game_id, max_players, min_players)
         self.active_games[game_id] = game_state
         return game_id
     
-    def create_game_with_id(self, game_id: str, max_players: int = 4) -> str:
+    def create_game_with_id(self, game_id: str, max_players: int = 4, min_players: int = 2) -> str:
         """Create a new game using a provided identifier (e.g., room_id).
 
         This aligns backend game identity with the room identifier used by the
@@ -666,7 +671,7 @@ class GameStateManager:
         existing = self.active_games.get(game_id)
         if existing is not None:
             return game_id
-        game_state = GameState(game_id, max_players)
+        game_state = GameState(game_id, max_players, min_players)
         self.active_games[game_id] = game_state
         return game_id
     
@@ -685,29 +690,36 @@ class GameStateManager:
         """Get all active games"""
         return self.active_games.copy()
     
+    def get_available_games(self) -> List[Dict[str, Any]]:
+        """Get all public games that are in the waiting for players phase and can be joined"""
+        available_games = []
+        
+        for game_id, game in self.active_games.items():
+            # Only include games that are waiting for players
+            if game.phase == GamePhase.WAITING_FOR_PLAYERS:
+                # Convert to Flutter-compatible format
+                game_data = self._to_flutter_game_state(game)
+                available_games.append(game_data)
+        
+        custom_log(f"🎮 Found {len(available_games)} available games for joining")
+        return available_games
+    
     # ========= WebSocket Event Handlers =========
     
     def on_join_game(self, session_id: str, data: Dict[str, Any]) -> bool:
-        """Handle player joining a game"""
+        """Handle player joining a game (now simplified since games are auto-created via hooks)"""
         try:
             game_id = data.get('game_id')
             player_name = data.get('player_name') or 'Player'
             player_type = data.get('player_type') or 'human'
-            max_players = data.get('max_players', 4)
 
-            # Create game if it doesn't exist
-            if not game_id:
-                game_id = self.create_game(max_players=max_players)
-            else:
-                game = self.get_game(game_id)
-                if not game:
-                    self.create_game_with_id(game_id, max_players=max_players)
-
+            # Game should already exist (created via room_created hook)
             game = self.get_game(game_id)
             if not game:
-                self._send_error(session_id, f'Game not found: {game_id}')
+                self._send_error(session_id, f'Game not found: {game_id} - games are auto-created when rooms are created')
                 return False
 
+            # Join the room (game and room have same ID)
             self.websocket_manager.join_room(game_id, session_id)
 
             session_data = self.websocket_manager.get_session_data(session_id) or {}
@@ -1005,6 +1017,8 @@ class GameStateManager:
             'lastActivityTime': datetime.fromtimestamp(game.last_action_time).isoformat() if game.last_action_time else None,
             'winner': game.winner,
             'playerCount': len(game.players),
+            'maxPlayers': game.max_players,
+            'minPlayers': game.min_players,
             'activePlayerCount': len([p for p in game.players.values() if p.is_active]),
         }
 
@@ -1018,4 +1032,119 @@ class GameStateManager:
         for game_id in ended_games:
             del self.active_games[game_id]
     
- 
+    def _register_hook_callbacks(self):
+        """Register hook callbacks for automatic game creation"""
+        try:
+            # Register callback for room_created hook
+            self.app_manager.register_hook_callback('room_created', self._on_room_created)
+            custom_log("🎣 [HOOK] Registered room_created callback in GameStateManager")
+            
+            # Register callback for room_joined hook
+            self.app_manager.register_hook_callback('room_joined', self._on_room_joined)
+            custom_log("🎣 [HOOK] Registered room_joined callback in GameStateManager")
+            
+            # Register callback for room_closed hook
+            self.app_manager.register_hook_callback('room_closed', self._on_room_closed)
+            custom_log("🎣 [HOOK] Registered room_closed callback in GameStateManager")
+            
+            # Register callback for leave_room hook
+            self.app_manager.register_hook_callback('leave_room', self._on_leave_room)
+            custom_log("🎣 [HOOK] Registered leave_room callback in GameStateManager")
+            
+        except Exception as e:
+            custom_log(f"❌ Error registering hook callbacks: {e}", level="ERROR")
+    
+    def _on_room_created(self, room_data: Dict[str, Any]):
+        """Callback for room_created hook - automatically create game"""
+        try:
+            room_id = room_data.get('room_id')
+            max_players = room_data.get('max_players', 4)
+            min_players = room_data.get('min_players', 2)
+            
+            custom_log(f"🎮 [HOOK] Room created: {room_id}, creating game automatically")
+            
+            # Create game with room_id as game_id
+            game_id = self.create_game_with_id(room_id, max_players=max_players, min_players=min_players)
+            
+            # Initialize game state (waiting for players)
+            game = self.get_game(game_id)
+            if game:
+                game.phase = GamePhase.WAITING_FOR_PLAYERS
+                custom_log(f"✅ Game {game_id} created and initialized for room {room_id}")
+            else:
+                custom_log(f"❌ Failed to create game for room {room_id}")
+                
+        except Exception as e:
+            custom_log(f"❌ Error in _on_room_created callback: {e}", level="ERROR")
+    
+    def _on_room_joined(self, room_data: Dict[str, Any]):
+        """Callback for room_joined hook - handle player joining existing game"""
+        try:
+            room_id = room_data.get('room_id')
+            user_id = room_data.get('user_id')
+            current_size = room_data.get('current_size', 1)
+            
+            custom_log(f"🎮 [HOOK] Player {user_id} joined room {room_id}, current size: {current_size}")
+            
+            # Check if game exists for this room
+            game = self.get_game(room_id)
+            if not game:
+                custom_log(f"⚠️ No game found for room {room_id}, this shouldn't happen")
+                return
+            
+            # Update game state based on player count
+            if current_size >= game.min_players and game.phase == GamePhase.WAITING_FOR_PLAYERS:
+                custom_log(f"🎮 Room {room_id} has enough players ({current_size}), ready to start")
+                # Game is ready but not started yet - will be started manually or via auto-start
+            
+        except Exception as e:
+            custom_log(f"❌ Error in _on_room_joined callback: {e}", level="ERROR")
+    
+    def _on_room_closed(self, room_data: Dict[str, Any]):
+        """Callback for room_closed hook - cleanup game when room is closed"""
+        try:
+            room_id = room_data.get('room_id')
+            reason = room_data.get('reason', 'unknown')
+            
+            custom_log(f"🎮 [HOOK] Room closed: {room_id}, reason: {reason}, cleaning up game")
+            
+            # Remove game if it exists
+            if room_id in self.active_games:
+                del self.active_games[room_id]
+                custom_log(f"✅ Game {room_id} removed due to room closure")
+            else:
+                custom_log(f"ℹ️ No game found for closed room {room_id}")
+                
+        except Exception as e:
+            custom_log(f"❌ Error in _on_room_closed callback: {e}", level="ERROR")
+    
+    def _on_leave_room(self, room_data: Dict[str, Any]):
+        """Callback for leave_room hook - handle player leaving game"""
+        try:
+            room_id = room_data.get('room_id')
+            session_id = room_data.get('session_id')
+            
+            custom_log(f"🎮 [HOOK] Player left room: {room_id}, session: {session_id}")
+            
+            # Check if game exists for this room
+            game = self.get_game(room_id)
+            if not game:
+                custom_log(f"ℹ️ No game found for room {room_id}")
+                return
+            
+            # Find player by session_id and remove them
+            player_id = game.get_session_player(session_id)
+            if player_id:
+                game.remove_player(player_id)
+                custom_log(f"✅ Player {player_id} removed from game {room_id}")
+                
+                # Check if game should end (not enough players)
+                if len(game.players) < game.min_players:
+                    custom_log(f"🎮 Game {room_id} has insufficient players ({len(game.players)}), ending game")
+                    game.phase = GamePhase.GAME_ENDED
+                    game.game_ended = True
+            else:
+                custom_log(f"ℹ️ No player found for session {session_id} in game {room_id}")
+            
+        except Exception as e:
+            custom_log(f"❌ Error in _on_leave_room callback: {e}", level="ERROR")

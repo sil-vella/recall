@@ -26,6 +26,7 @@ class RecallGameEventEmitter {
       'room_name', 'permission', 'max_players', 'min_players', 
       'turn_time_limit', 'auto_start', 'game_type', 'password'
     },
+    'join_room': {'room_id'},
     'join_game': {'game_id', 'player_name', 'max_players'},
     'start_match': {'game_id'},
     'play_card': {'game_id', 'card_id', 'player_id', 'replace_index'},
@@ -96,6 +97,13 @@ class RecallGameEventEmitter {
       minLength: 4,
       maxLength: 20,
       description: 'Room password for private rooms: 4-20 characters',
+    ),
+    
+    // Join room fields
+    'room_id': RecallEventFieldSpec(
+      type: String,
+      pattern: r'^room_[a-zA-Z0-9_]+$',
+      description: 'Room ID in format: room_xxxxx',
     ),
     
     // Game fields

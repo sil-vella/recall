@@ -75,6 +75,15 @@ class WebSocketManager:
                     'reason': 'ttl_expired',
                     'timestamp': datetime.now().isoformat()
                 }, room=room_id)
+                
+                # 🎣 Trigger room_closed hook for game cleanup logic
+                room_data = {
+                    'room_id': room_id,
+                    'reason': 'ttl_expired',
+                    'timestamp': datetime.now().isoformat()
+                }
+                self.trigger_hook('room_closed', room_data)
+                custom_log(f"🎣 [HOOK] room_closed hook triggered with data: {room_data}")
 
                 # Best-effort: force leave members from in-memory map
                 members = list(self.rooms.get(room_id, set()))
@@ -305,6 +314,19 @@ class WebSocketManager:
         """Set the room access check function."""
         self._room_access_check = access_check_func
         custom_log("Room access check function set in WebSocket manager")
+
+    def set_app_manager(self, app_manager):
+        """Set the app manager instance for hook triggering."""
+        self._app_manager = app_manager
+        custom_log("App manager set in WebSocket manager")
+
+    def trigger_hook(self, hook_name: str, data=None, context=None):
+        """Trigger a hook through the app manager."""
+        if hasattr(self, '_app_manager') and self._app_manager:
+            self._app_manager.trigger_hook(hook_name, data, context)
+            custom_log(f"🎣 Hook '{hook_name}' triggered with data: {data}")
+        else:
+            custom_log(f"⚠️ Cannot trigger hook '{hook_name}': app_manager not available")
 
     def _update_room_permissions(self, room_id: str, room_data: Dict[str, Any], session_id: Optional[str] = None):
         """Update room permissions in Redis."""

@@ -4,6 +4,7 @@ import '../../../../core/00_base/screen_base.dart';
 import 'widgets/connection_status_widget.dart';
 import 'widgets/create_room_widget.dart';
 import 'widgets/current_room_widget.dart';
+import 'widgets/available_games_widget.dart';
 import 'features/lobby_features.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
@@ -69,7 +70,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     
     super.dispose();
   }
-
+ 
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
       // First ensure WebSocket is connected
@@ -120,6 +121,72 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     }
   }
 
+  Future<void> _joinRoom(String roomId) async {
+    try {
+      // First ensure WebSocket is connected
+      if (!_websocketManager.isConnected) {
+        _showSnackBar('Connecting to WebSocket...', isError: false);
+        final connected = await _websocketManager.connect();
+        if (!connected) {
+          _showSnackBar('Failed to connect to WebSocket. Cannot join room.', isError: true);
+          return;
+        }
+        _showSnackBar('WebSocket connected! Joining room...', isError: false);
+      }
+      
+      // Now proceed with room joining using helper
+      final result = await RecallGameHelpers.joinRoom(
+        roomId: roomId,
+      );
+      
+      if (result['success'] == true) {
+        if (mounted) _showSnackBar('Successfully joined room!');
+      } else {
+        final errorMessage = result['error'] ?? 'Failed to join room';
+        if (mounted) _showSnackBar(errorMessage, isError: true);
+      }
+    } catch (e) {
+      if (mounted) _showSnackBar('Failed to join room: $e', isError: true);
+    }
+  }
+
+  Future<void> _fetchAvailableGames() async {
+    try {
+      // Set loading state
+      RecallGameHelpers.updateUIState({
+        'isLoading': true,
+      });
+
+      // Use the helper method to fetch available games
+      final result = await RecallGameHelpers.fetchAvailableGames();
+      
+      if (result['success'] == true) {
+        // Extract games from response
+        final games = result['games'] ?? [];
+        final message = result['message'] ?? 'Games fetched successfully';
+        
+        // Update state with real game data
+        RecallGameHelpers.updateUIState({
+          'availableGames': games,
+          'isLoading': false,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+        
+        if (mounted) _showSnackBar(message);
+      } else {
+        // Handle error from helper method
+        final errorMessage = result['error'] ?? 'Failed to fetch games';
+        throw Exception(errorMessage);
+      }
+      
+    } catch (e) {
+      RecallGameHelpers.updateUIState({
+        'isLoading': false,
+      });
+      if (mounted) _showSnackBar('Failed to fetch available games: $e', isError: true);
+    }
+  }
+
   void _initializeRoomState() {
     // State is now managed by StateManager, no need to initialize local variables
     // Room state is managed by StateManager
@@ -157,12 +224,20 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           const SizedBox(height: 20),
           
           // Current Room Section
-          const CurrentRoomWidget(),
+          CurrentRoomWidget(
+            onJoinRoom: _joinRoom,
+          ),
           const SizedBox(height: 20),
           
           // Create Room Section
           CreateRoomWidget(
             onCreateRoom: _createRoom,
+          ),
+          const SizedBox(height: 20),
+          
+          // Available Games Section
+          AvailableGamesWidget(
+            onFetchGames: _fetchAvailableGames,
           ),
           const SizedBox(height: 20),
         

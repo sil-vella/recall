@@ -90,6 +90,7 @@ class ModuleRegistry:
             "system_actions": [],  # Core system actions - no dependencies
             "wallet": ["user_management"],  # Needs user management
             "transactions": ["user_management", "wallet"],  # Needs users and wallet
+            "recall_game": ["user_management"],  # Needs user management for JWT auth
         }
         
         custom_log(f"Module dependencies defined: {dependencies}")
@@ -119,6 +120,12 @@ class ModuleRegistry:
                 "priority": 3,
                 "health_check_enabled": True,
                 "verification_timeout": 30,
+            },
+            "recall_game": {
+                "enabled": True,
+                "priority": 4,
+                "health_check_enabled": True,
+                "websocket_required": True,
             },
         }
     

@@ -309,6 +309,19 @@ class WSEventHandlers:
                     'max_size': 10
                 })
                 
+                # 🎣 Trigger room_joined hook for game creation logic
+                room_data = {
+                    'room_id': room_id,
+                    'session_id': session_id,
+                    'user_id': user_id,
+                    'owner_id': room_owner_id,
+                    'current_size': self.websocket_manager.get_room_size(room_id),
+                    'max_size': 10,
+                    'joined_at': datetime.now().isoformat()
+                }
+                self.websocket_manager.trigger_hook('room_joined', room_data)
+                custom_log(f"🎣 [HOOK] room_joined hook triggered with data: {room_data}")
+                
                 return True
             else:
                 custom_log(f"❌ Failed to join room: {room_id}")
@@ -366,6 +379,22 @@ class WSEventHandlers:
                         'max_size': data.get('max_players', 4)
                     })
                     
+                    # 🎣 Trigger room_created hook for game creation logic
+                    room_data = {
+                        'room_id': room_id,
+                        'owner_id': owner_id,
+                        'permission': permission,
+                        'max_players': data.get('max_players', 4),
+                        'min_players': data.get('min_players', 2),
+                        'game_type': data.get('game_type', 'classic'),
+                        'turn_time_limit': data.get('turn_time_limit', 30),
+                        'auto_start': data.get('auto_start', True),
+                        'created_at': datetime.now().isoformat(),
+                        'current_size': 1
+                    }
+                    self.websocket_manager.trigger_hook('room_created', room_data)
+                    custom_log(f"🎣 [HOOK] room_created hook triggered with data: {room_data}")
+                    
                     custom_log(f"✅ Successfully created and joined room: {room_id} with owner: {user_id}")
                     return True
                 else:
@@ -403,6 +432,15 @@ class WSEventHandlers:
                     'session_id': session_id,
                     'timestamp': datetime.now().isoformat()
                 })
+                
+                # 🎣 Trigger leave_room hook for game state updates
+                room_data = {
+                    'room_id': room_id,
+                    'session_id': session_id,
+                    'timestamp': datetime.now().isoformat()
+                }
+                self.websocket_manager.trigger_hook('leave_room', room_data)
+                custom_log(f"🎣 [HOOK] leave_room hook triggered with data: {room_data}")
                 
                 return True
             else:

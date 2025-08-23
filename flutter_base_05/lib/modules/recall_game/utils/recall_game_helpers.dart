@@ -1,7 +1,8 @@
 import 'validated_event_emitter.dart';
 import 'validated_state_updater.dart';
-import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
+import '../../../core/managers/module_manager.dart';
+import '../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../tools/logging/logger.dart';
 
 /// Convenient helper methods for recall game operations
@@ -46,6 +47,76 @@ class RecallGameHelpers {
       eventType: 'create_room',
       data: data,
     );
+  }
+
+  /// Join an existing room with validation
+  static Future<Map<String, dynamic>> joinRoom({
+    required String roomId,
+  }) {
+    final data = {
+      'room_id': roomId,
+    };
+    
+    return _eventEmitter.emit(
+      eventType: 'join_room',
+      data: data,
+    );
+  }
+
+  /// Fetch available games from the backend API
+  static Future<Map<String, dynamic>> fetchAvailableGames() async {
+    _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] Fetching available games from API');
+    
+    try {
+      // Get the ConnectionsApiModule instance from the global module manager
+      // Note: This requires the module to be initialized in the app context
+      final moduleManager = ModuleManager();
+      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] ModuleManager instance: $moduleManager');
+      
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] ConnectionsApiModule: $connectionsModule');
+      
+      if (connectionsModule == null) {
+        _log.error('❌ [RecallGameHelpers.fetchAvailableGames] ConnectionsApiModule not available');
+        throw Exception('ConnectionsApiModule not available - ensure it is initialized');
+      }
+      
+      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] ConnectionsApiModule baseUrl: ${connectionsModule.baseUrl}');
+
+      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] Making API call to /userauth/recall/get-available-games');
+      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] Full URL will be: ${connectionsModule.baseUrl}/userauth/recall/get-available-games');
+      
+      // Make API call to fetch available games
+      // The endpoint is JWT protected, but AuthInterceptor handles tokens automatically
+      final response = await connectionsModule.sendGetRequest('/userauth/recall/get-available-games');
+      
+      // Check if response contains error
+      if (response is Map && response.containsKey('error')) {
+        throw Exception(response['message'] ?? response['error'] ?? 'Failed to fetch games');
+      }
+      
+      // Extract games from response
+      final games = response['games'] ?? [];
+      final message = response['message'] ?? 'Games fetched successfully';
+      
+      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] Successfully fetched ${games.length} games');
+      
+      return {
+        'success': true,
+        'games': games,
+        'message': message,
+        'count': games.length,
+      };
+      
+    } catch (e) {
+      _log.error('❌ [RecallGameHelpers.fetchAvailableGames] Error: $e');
+      return {
+        'success': false,
+        'error': 'Failed to fetch available games: $e',
+        'games': [],
+        'count': 0,
+      };
+    }
   }
   
 

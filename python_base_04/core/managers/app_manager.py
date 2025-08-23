@@ -20,11 +20,6 @@ from core.managers.state_manager import StateManager
 from core.managers.user_actions_manager import UserActionsManager
 from core.managers.action_discovery_manager import ActionDiscoveryManager
 from core.managers.websockets.websocket_manager import WebSocketManager
-
-# Import Recall Game Main
-from core.recall_game.recall_game_main import initialize_recall_game
-
-
 class AppManager:
     def __init__(self):
         # Plugin system removed - ModuleManager is now primary orchestrator
@@ -47,7 +42,6 @@ class AppManager:
         self.jwt_manager = None
         self.user_actions_manager = None
         self.action_discovery_manager = None
-        self.recall_game_main = None  # Add Recall Game Main
         self._initialized = False
 
         custom_log("AppManager instance created.")
@@ -101,9 +95,7 @@ class AppManager:
         """Get the WebSocket manager instance."""
         return self.websocket_manager
 
-    def get_recall_game_main(self):
-        """Get the Recall Game main instance."""
-        return self.recall_game_main
+
 
     @log_function_call
     def initialize(self, app):
@@ -146,12 +138,10 @@ class AppManager:
         self.websocket_manager = WebSocketManager()
         self.websocket_manager.set_jwt_manager(self.jwt_manager)
         self.websocket_manager.set_room_access_check(self.websocket_manager.room_manager.check_room_access)
+        self.websocket_manager.set_app_manager(self)
         self.websocket_manager.initialize(app, use_builtin_handlers=True)
         
-        # Initialize Recall Game backend
-        self.recall_game_main = initialize_recall_game(self)
-        
-        custom_log("✅ Centralized database, Redis, State, JWT, UserActions, ActionDiscovery, WebSocket, and Recall Game managers initialized")
+        custom_log("✅ Centralized database, Redis, State, JWT, UserActions, ActionDiscovery, and WebSocket managers initialized")
 
         # Initialize services
         self.services_manager.initialize_services()
@@ -537,6 +527,13 @@ class AppManager:
             # Register user_created hook
             self.register_hook("user_created")
             custom_log("✅ Registered common hook: user_created")
+            
+            # Register room management hooks
+            self.register_hook("room_created")
+            self.register_hook("room_joined")
+            self.register_hook("room_closed")
+            self.register_hook("leave_room")
+            custom_log("✅ Registered common hooks: room_created, room_joined, room_closed, leave_room")
             
             # Add more common hooks here as needed
             # self.register_hook("payment_processed")

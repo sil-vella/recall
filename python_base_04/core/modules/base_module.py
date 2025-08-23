@@ -34,6 +34,7 @@ class BaseModule(ABC):
         
         :param app_manager: AppManager instance
         """
+        self.app_manager = app_manager
         pass
     
     def register_routes(self):

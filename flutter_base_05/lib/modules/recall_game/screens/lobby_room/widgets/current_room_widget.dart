@@ -13,7 +13,12 @@ import '../../../../../tools/logging/logger.dart';
 class CurrentRoomWidget extends StatelessWidget {
   static final Logger _log = Logger();
   
-  const CurrentRoomWidget({Key? key}) : super(key: key);
+  final Function(String)? onJoinRoom;
+  
+  const CurrentRoomWidget({
+    Key? key,
+    this.onJoinRoom,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -185,10 +190,10 @@ class CurrentRoomWidget extends StatelessWidget {
                 
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
+                    onPressed: onJoinRoom != null ? () {
                       _log.info('🚪 [CurrentRoomWidget] Join button pressed for room: $roomId');
-                      // TODO: Implement join room logic
-                    },
+                      onJoinRoom!(roomId);
+                    } : null,
                     icon: const Icon(Icons.group_add),
                     label: const Text('Join Room'),
                   ),

@@ -51,13 +51,15 @@ class HooksManager:
     def trigger_hook(self, hook_name, data=None, context=None):
         """
         Trigger a specific hook, executing only callbacks matching the context.
+        If the hook doesn't exist, it will be automatically registered first.
         :param hook_name: str - The name of the hook to trigger.
         :param data: Any - Optional data to pass to the callbacks.
         :param context: str - The context to filter callbacks (e.g., article type).
         """
+        # Auto-register hook if it doesn't exist
         if hook_name not in self.hooks:
-            custom_log(f"Warning: Hook '{hook_name}' is not registered. Skipping trigger.")
-            return
+            custom_log(f"🎣 Auto-registering hook '{hook_name}' before triggering")
+            self.register_hook(hook_name)
         
         custom_log(f"Triggering hook '{hook_name}' with context: {context} and data: {data}")
 

@@ -39,7 +39,27 @@ app_manager = AppManager()
 app = Flask(__name__)
 
 # Enable Cross-Origin Resource Sharing (CORS)
-CORS(app)
+# Allow requests from Flutter web app and other local development ports
+CORS(app, 
+    origins=[
+        "http://localhost:3000",
+        "http://localhost:3001", 
+        "http://localhost:3002",
+        "http://localhost:3003",
+        "http://localhost:3004",
+        "http://localhost:3005",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
+        "http://127.0.0.1:3003",
+        "http://127.0.0.1:3004",
+        "http://127.0.0.1:3005",
+    ], 
+    supports_credentials=True,
+    allow_headers=["*"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    expose_headers=["*"]
+)
 
 # Initialize metrics
 metrics = init_metrics(app)
@@ -129,91 +149,6 @@ def execute_internal_action(action_name, args):
         custom_log(f"❌ Error executing action {action_name}: {e}", level="ERROR")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/test/recall-join-game', methods=['POST'])
-def test_recall_join_game():
-    """Test endpoint to trigger recall_join_game event"""
-    try:
-        data = request.get_json() or {}
-        
-        # Get required parameters
-        session_id = data.get('session_id', 'test_session_123')
-        game_id = data.get('game_id', 'test_game_456')
-        player_name = data.get('player_name', 'TestPlayer')
-        player_type = data.get('player_type', 'human')
-        
-        # Create test event data
-        event_data = {
-            'session_id': session_id,
-            'game_id': game_id,
-            'player_name': player_name,
-            'player_type': player_type
-        }
-        
-        # Get the recall gameplay manager from app manager
-        recall_main = app_manager.get_recall_game_main()
-        if not recall_main or not recall_main.recall_gameplay_manager:
-            return jsonify({'error': 'Recall gameplay manager not found'}), 500
-        
-        # Trigger the event handler directly
-        result = recall_main.recall_gameplay_manager.on_join_game(session_id, event_data)
-        
-        if result:
-            return jsonify({
-                'success': True,
-                'message': 'recall_join_game event triggered successfully',
-                'data': event_data
-            }), 200
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Failed to trigger recall_join_game event',
-                'data': event_data
-            }), 500
-            
-    except Exception as e:
-        custom_log(f"❌ Error in test_recall_join_game: {e}", level="ERROR")
-        return jsonify({'error': f'Test failed: {str(e)}'}), 500
-
-@app.route('/test/recall-start-match', methods=['POST'])
-def test_recall_start_match():
-    """Test endpoint to trigger recall_start_match event"""
-    try:
-        data = request.get_json() or {}
-        
-        # Get required parameters
-        session_id = data.get('session_id', 'test_session_123')
-        game_id = data.get('game_id', 'test_game_456')
-        
-        # Create test event data
-        event_data = {
-            'game_id': game_id,
-            'room_id': game_id  # Some clients send room_id instead of game_id
-        }
-        
-        # Get the recall gameplay manager from app manager
-        recall_main = app_manager.get_recall_game_main()
-        if not recall_main or not recall_main.recall_gameplay_manager:
-            return jsonify({'error': 'Recall gameplay manager not found'}), 500
-        
-        # Trigger the event handler directly
-        result = recall_main.recall_gameplay_manager.on_start_match(session_id, event_data)
-        
-        if result:
-            return jsonify({
-                'success': True,
-                'message': 'recall_start_match event triggered successfully',
-                'data': event_data
-            }), 200
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Failed to trigger recall_start_match event',
-                'data': event_data
-            }), 500
-            
-    except Exception as e:
-        custom_log(f"❌ Error in test_recall_start_match: {e}", level="ERROR")
-        return jsonify({'error': f'Test failed: {str(e)}'}), 500
 
 @app.route('/log', methods=['POST'])
 def frontend_log():

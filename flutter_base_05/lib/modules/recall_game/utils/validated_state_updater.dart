@@ -161,6 +161,11 @@ class RecallGameStateUpdater {
       defaultValue: {},
       description: 'Map of active games by ID with their status and metadata',
     ),
+    'availableGames': RecallStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      description: 'List of available games that can be joined',
+    ),
     
     // Widget Slices
     'actionBar': RecallStateFieldSpec(
@@ -260,6 +265,11 @@ class RecallGameStateUpdater {
       type: String,
       required: false,
       description: 'Last error message, if any',
+    ),
+    'lastUpdated': RecallStateFieldSpec(
+      type: String,
+      required: false,
+      description: 'Timestamp of last state update',
     ),
   };
   

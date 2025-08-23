@@ -1,6 +1,7 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../state_manager.dart';
 import '../module_manager.dart';
+import '../hooks_manager.dart';
 import '../../../../tools/logging/logger.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
@@ -259,6 +260,17 @@ class WSEventHandler {
       // Trigger specific event callbacks
       _eventManager.triggerCallbacks('create_room_success', data);
       _eventManager.triggerCallbacks('room_created', data);
+      
+      // 🎣 Trigger room_created hook for other modules
+      _log.info("🎣 [HOOK] Triggering room_created hook");
+      HooksManager().triggerHookWithData('room_created', {
+        'isSuccessful': true,
+        'roomId': roomId,
+        'isOwner': isRoomOwner,
+        'ownerId': ownerId,
+        'timestamp': data['timestamp'] ?? DateTime.now().toIso8601String(),
+        'rawData': data,  // Include the full backend response
+      });
       
       _log.info("✅ Create room success handled successfully");
     } catch (e) {

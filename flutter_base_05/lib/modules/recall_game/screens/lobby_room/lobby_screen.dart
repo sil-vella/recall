@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/00_base/screen_base.dart';
 import 'widgets/connection_status_widget.dart';
 import 'widgets/create_room_widget.dart';
+import 'widgets/current_room_widget.dart';
 import 'features/lobby_features.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
@@ -153,6 +154,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         children: [
           // Connection Status
           const ConnectionStatusWidget(),
+          const SizedBox(height: 20),
+          
+          // Current Room Section
+          const CurrentRoomWidget(),
           const SizedBox(height: 20),
           
           // Create Room Section

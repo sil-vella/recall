@@ -12,7 +12,7 @@ import '../../tools/logging/logger.dart';
 
 // Import Recall game components
 import 'managers/recall_module_manager.dart';
-import 'managers/recall_message_manager.dart';
+import 'managers/recall_event_manager.dart';
 
 /// Recall Game Module
 /// Main module for the Recall card game functionality
@@ -25,13 +25,13 @@ class RecallGameMain extends ModuleBase {
   
   // Recall game components
   final RecallModuleManager _recallModuleManager = RecallModuleManager();
-  final RecallMessageManager _recallMessageManager = RecallMessageManager();
+  final RecallEventManager _recallEventManager = RecallEventManager();
 
   /// Get Recall Game Manager
   RecallModuleManager get recallModuleManager => _recallModuleManager;
   
   /// Get Recall Message Manager
-  RecallMessageManager get recallMessageManager => _recallMessageManager;
+  RecallEventManager get recallEventManager => _recallEventManager;
   
   // No ChangeNotifier notifier – we rely on StateManager only
 
@@ -86,12 +86,12 @@ class RecallGameMain extends ModuleBase {
         return;
       }
             
-      // Step 4: Initialize RecallMessageManager
-      _log.info('📨 Step 4: Initializing RecallMessageManager...');
-      final messageManagerResult = await _recallMessageManager.initialize();
-      _log.info('📨 RecallMessageManager initialization result: $messageManagerResult');
+      // Step 4: Initialize RecallEventManager
+      _log.info('📨 Step 4: Initializing RecallEventManager...');
+      final messageManagerResult = await _recallEventManager.initialize();
+      _log.info('📨 RecallEventManager initialization result: $messageManagerResult');
       if (!messageManagerResult) {
-        _log.error('❌ RecallMessageManager initialization failed');
+        _log.error('❌ RecallEventManager initialization failed');
         return;
       }
       
@@ -125,9 +125,9 @@ class RecallGameMain extends ModuleBase {
       // Verify RecallModuleManager
       results['recall_game_manager'] = _recallModuleManager.isInitialized;
       _log.info('🔍 RecallModuleManager verification: ${results['recall_game_manager']}');
-      // Verify RecallMessageManager
+      // Verify RecallEventManager
       results['recall_message_manager'] = true; // Assuming success if we got here
-      _log.info('🔍 RecallMessageManager verification: ${results['recall_message_manager']}');
+      _log.info('🔍 RecallEventManager verification: ${results['recall_message_manager']}');
       
       // Verify NavigationManager routes
       results['navigation_manager'] = true; // Assuming success if we got here
@@ -223,8 +223,8 @@ class RecallGameMain extends ModuleBase {
     _recallModuleManager.dispose();
     _log.info('🛑 RecallModuleManager disposed');
     
-    _recallMessageManager.dispose();
-    _log.info('🛑 RecallMessageManager disposed');
+    _recallEventManager.dispose();
+    _log.info('🛑 RecallEventManager disposed');
     
     _log.info('🛑 RecallGameMain disposed.');
     super.dispose();

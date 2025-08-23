@@ -41,6 +41,14 @@ class WSEventHandler {
       // Also update recall game state connection status
       RecallGameHelpers.updateConnectionStatus(isConnected: true);
       
+      // 🎣 Trigger websocket_connect hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_connect hook");
+      HooksManager().triggerHookWithData('websocket_connect', {
+        'status': 'connected',
+        'session_data': data is Map<String, dynamic> ? data : null,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
       _log.info("✅ Connection handled successfully");
     } catch (e) {
       _log.error("❌ Error handling connection: $e");
@@ -60,6 +68,14 @@ class WSEventHandler {
       // Also update recall game state connection status
       RecallGameHelpers.updateConnectionStatus(isConnected: false);
       
+      // 🎣 Trigger websocket_disconnect hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_disconnect hook");
+      HooksManager().triggerHookWithData('websocket_disconnect', {
+        'status': 'disconnected',
+        'session_data': data is Map<String, dynamic> ? data : null,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
       _log.info("✅ Disconnection handled successfully");
     } catch (e) {
       _log.error("❌ Error handling disconnection: $e");
@@ -78,6 +94,14 @@ class WSEventHandler {
       
       // Also update recall game state connection status
       RecallGameHelpers.updateConnectionStatus(isConnected: false);
+      
+      // 🎣 Trigger websocket_connect_error hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_connect_error hook");
+      HooksManager().triggerHookWithData('websocket_connect_error', {
+        'status': 'error',
+        'error_data': data is Map<String, dynamic> ? data : null,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
       
       _log.info("✅ Connection error handled successfully");
     } catch (e) {
@@ -145,6 +169,17 @@ class WSEventHandler {
       _eventManager.triggerCallbacks('room_joined', data);
       _eventManager.triggerCallbacks('join_room_success', data);
       
+      // 🎣 Trigger websocket_room_joined hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_room_joined hook");
+      HooksManager().triggerHookWithData('websocket_room_joined', {
+        'status': 'joined',
+        'room_id': roomId,
+        'room_data': roomData,
+        'owner_id': ownerId,
+        'is_owner': isRoomOwner,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
       _log.info("✅ Room joined handled successfully");
     } catch (e) {
       _log.error("❌ Error handling room joined: $e");
@@ -194,6 +229,17 @@ class WSEventHandler {
       // Trigger specific event callbacks
       _eventManager.triggerCallbacks('join_room_success', data);
       
+      // 🎣 Trigger websocket_join_room hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_join_room hook");
+      HooksManager().triggerHookWithData('websocket_join_room', {
+        'status': 'success',
+        'room_id': roomId,
+        'room_data': roomData,
+        'owner_id': ownerId,
+        'is_owner': isRoomOwner,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
       _log.info("✅ Join room success handled successfully");
     } catch (e) {
       _log.error("❌ Error handling join room success: $e");
@@ -213,6 +259,15 @@ class WSEventHandler {
       
       // Trigger specific error callbacks
       _eventManager.triggerCallbacks('join_room_error', data);
+      
+      // 🎣 Trigger websocket_join_room_error hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_join_room_error hook");
+      HooksManager().triggerHookWithData('websocket_join_room_error', {
+        'status': 'error',
+        'error': 'Failed to join room',
+        'details': data.toString(),
+        'timestamp': DateTime.now().toIso8601String(),
+      });
       
       _log.info("✅ Join room error handled successfully");
     } catch (e) {
@@ -261,9 +316,10 @@ class WSEventHandler {
       _eventManager.triggerCallbacks('create_room_success', data);
       _eventManager.triggerCallbacks('room_created', data);
       
-      // 🎣 Trigger room_created hook for other modules
-      _log.info("🎣 [HOOK] Triggering room_created hook with room data");
-      HooksManager().triggerHookWithData('room_created', {
+      // 🎣 Trigger general room_creation hook for other modules (success case)
+      _log.info("🎣 [HOOK] Triggering room_creation hook with success data");
+      HooksManager().triggerHookWithData('room_creation', {
+        'status': 'success',
         'room_id': roomId,
         'room_data': roomData,
         'owner_id': ownerId,
@@ -292,6 +348,15 @@ class WSEventHandler {
         'roomData': roomData,
       });
       
+      // 🎣 Trigger general room_creation hook for other modules (room created event)
+      _log.info("🎣 [HOOK] Triggering room_creation hook with room created data");
+      HooksManager().triggerHookWithData('room_creation', {
+        'status': 'created',
+        'room_id': roomId,
+        'room_data': roomData,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
       // Trigger specific event callbacks
       _eventManager.triggerCallbacks('room_created', data);
       
@@ -310,6 +375,15 @@ class WSEventHandler {
       _eventManager.triggerCallbacks('error', {
         'error': 'Failed to create room',
         'details': data.toString(),
+      });
+      
+      // 🎣 Trigger general room_creation hook for other modules (error case)
+      _log.info("🎣 [HOOK] Triggering room_creation hook with error data");
+      HooksManager().triggerHookWithData('room_creation', {
+        'status': 'error',
+        'error': 'Failed to create room',
+        'details': data.toString(),
+        'timestamp': DateTime.now().toIso8601String(),
       });
       
       // Trigger specific error callbacks

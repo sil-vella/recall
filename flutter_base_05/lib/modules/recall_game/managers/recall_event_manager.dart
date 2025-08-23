@@ -1,14 +1,15 @@
 import 'dart:async';
 import '../../../core/managers/state_manager.dart';
+import '../../../core/managers/hooks_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../utils/recall_game_helpers.dart';
 import '../utils/recall_event_listener_validator.dart';
 
-class RecallMessageManager {
+class RecallEventManager {
   static final Logger _log = Logger();
-  static final RecallMessageManager _instance = RecallMessageManager._internal();
-  factory RecallMessageManager() => _instance;
-  RecallMessageManager._internal();
+  static final RecallEventManager _instance = RecallEventManager._internal();
+  factory RecallEventManager() => _instance;
+  RecallEventManager._internal();
 
   final StateManager _stateManager = StateManager();
 
@@ -27,7 +28,7 @@ class RecallMessageManager {
 
   Future<bool> initialize() async {
     try {
-      _log.info('📨 Initializing RecallMessageManager...');
+      _log.info('📨 Initializing RecallEventManager...');
       
       // Register state domains
       _stateManager.registerModuleState("recall_messages", {
@@ -39,22 +40,111 @@ class RecallMessageManager {
       // Hook to WS events (standard)
       _wireWebsocketEvents();
 
+      // Register hook callbacks for room events
+      _registerHookCallbacks();
+
       // Recall-specific Socket.IO listeners are centralized in RecallGameCoordinator.
       // We subscribe only via WSEventManager callbacks here.
-      _log.info('✅ RecallMessageManager initialized successfully');
+      _log.info('✅ RecallEventManager initialized successfully');
       return true;
       
     } catch (e) {
-      _log.error('❌ RecallMessageManager initialization failed: $e');
+      _log.error('❌ RecallEventManager initialization failed: $e');
       return false;
     }
+  }
+
+  void _registerHookCallbacks() {
+    _log.info('🎣 Registering hook callbacks for RecallEventManager...');
+    
+    // Register room_creation hook callback
+    HooksManager().registerHookWithData('room_creation', (data) {
+      _log.info('🎣 [HOOK] RecallEventManager received room_creation hook: ${data['status']}');
+      
+      final status = data['status']?.toString() ?? 'unknown';
+      final roomId = data['room_id']?.toString() ?? '';
+      final isOwner = data['is_owner'] == true;
+      
+      switch (status) {
+        case 'success':
+          // Update state for successful room creation
+          RecallGameHelpers.updateUIState({
+            'currentRoomId': roomId,
+            'isRoomOwner': isOwner,
+            'isInRoom': true,
+            'gamePhase': 'waiting',
+            'gameStatus': 'inactive',
+            'isGameActive': false,
+            'playerCount': 1, // Room creator is first player
+            'currentSize': 1,
+            'maxSize': 4, // Default max size
+            'minSize': 2, // Default min size
+          });
+          
+          _addSessionMessage(
+            level: 'success',
+            title: 'Room Created',
+            message: 'Successfully created room: $roomId',
+            data: data,
+          );
+          break;
+          
+        case 'created':
+          // Update state for room created event
+          RecallGameHelpers.updateUIState({
+            'currentRoomId': roomId,
+            'isInRoom': true,
+            'gamePhase': 'waiting',
+            'gameStatus': 'inactive',
+            'isGameActive': false,
+          });
+          
+          _addSessionMessage(
+            level: 'info',
+            title: 'Room Created',
+            message: 'Room created: $roomId',
+            data: data,
+          );
+          break;
+          
+        case 'error':
+          // Update state for room creation error
+          RecallGameHelpers.updateUIState({
+            'currentRoomId': '',
+            'isRoomOwner': false,
+            'isInRoom': false,
+            'lastError': data['error']?.toString() ?? 'Room creation failed',
+          });
+          
+          final error = data['error']?.toString() ?? 'Unknown error';
+          final details = data['details']?.toString() ?? '';
+          _addSessionMessage(
+            level: 'error',
+            title: 'Room Creation Failed',
+            message: '$error${details.isNotEmpty ? ': $details' : ''}',
+            data: data,
+          );
+          break;
+          
+        default:
+          _addSessionMessage(
+            level: 'info',
+            title: 'Room Event',
+            message: 'Room event: $status',
+            data: data,
+          );
+          break;
+      }
+    });
+    
+    _log.info('✅ Hook callbacks registered successfully');
   }
 
   void _wireWebsocketEvents() {
     // Use validated event listener for each message-related event type
     final eventTypes = [
-      'connection_status', 'room_event', 'message', 'error',
-      'recall_message', 'room_closed',
+      'connection_status', 'board_message', 'error',
+      'game_event', 
     ];
     
     for (final eventType in eventTypes) {
@@ -65,27 +155,7 @@ class RecallMessageManager {
             _addSessionMessage(level: 'info', title: 'Connection', message: 'Status: $status', data: data);
             break;
             
-          case 'room_event':
-            final action = data['action']?.toString() ?? '';
-            final roomId = data['room_id']?.toString() ?? '';
-            if (roomId.isEmpty) return;
-            
-            switch (action) {
-              case 'created':
-                _addRoomMessage(roomId, level: 'success', title: 'Room created', message: roomId, data: data);
-                break;
-              case 'joined':
-                _addRoomMessage(roomId, level: 'success', title: 'Joined room', message: roomId, data: data);
-                break;
-              case 'left':
-                _addRoomMessage(roomId, level: 'info', title: 'Left room', message: roomId, data: data);
-                break;
-              default:
-                _addRoomMessage(roomId, level: 'info', title: 'Room event', message: action, data: data);
-            }
-            break;
-
-          case 'message':
+          case 'board_message':
             final roomId = data['room_id']?.toString() ?? '';
             final msg = data['message']?.toString() ?? '';
             if (roomId.isNotEmpty) {
@@ -99,7 +169,7 @@ class RecallMessageManager {
             _addSessionMessage(level: 'error', title: 'Error', message: data['error']?.toString() ?? 'Error', data: data);
             break;
             
-          case 'recall_message':
+          case 'game_event':
             final scope = data['scope']?.toString();
             if (scope == 'room') {
               final roomId = data['target_id']?.toString() ?? '';
@@ -108,13 +178,7 @@ class RecallMessageManager {
               _addSessionMessage(level: data['level'], title: data['title'], message: data['message'], data: data);
             }
             break;
-            
-          case 'room_closed':
-            final roomId = data['room_id']?.toString() ?? '';
-            if (roomId.isNotEmpty) {
-              _addRoomMessage(roomId, level: 'warning', title: 'Room closed', message: data['reason']?.toString() ?? 'Closed', data: data);
-            }
-            break;
+
         }
       });
     }

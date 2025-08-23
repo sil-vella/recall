@@ -262,14 +262,13 @@ class WSEventHandler {
       _eventManager.triggerCallbacks('room_created', data);
       
       // 🎣 Trigger room_created hook for other modules
-      _log.info("🎣 [HOOK] Triggering room_created hook");
+      _log.info("🎣 [HOOK] Triggering room_created hook with room data");
       HooksManager().triggerHookWithData('room_created', {
-        'isSuccessful': true,
-        'roomId': roomId,
-        'isOwner': isRoomOwner,
-        'ownerId': ownerId,
-        'timestamp': data['timestamp'] ?? DateTime.now().toIso8601String(),
-        'rawData': data,  // Include the full backend response
+        'room_id': roomId,
+        'room_data': roomData,
+        'owner_id': ownerId,
+        'is_owner': isRoomOwner,
+        'timestamp': DateTime.now().toIso8601String(),
       });
       
       _log.info("✅ Create room success handled successfully");

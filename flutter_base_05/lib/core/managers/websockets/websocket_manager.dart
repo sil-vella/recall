@@ -221,6 +221,14 @@ class WebSocketManager {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
+      // 🎣 Register room_created hook for room creation events
+      _log.info("🎣 [HOOK] Registering room_created hook");
+      HooksManager().registerHook('room_created', () {
+        _log.info("🎣 [HOOK] room_created hook triggered");
+        // This hook will be triggered by room creation handlers
+      });
+      _log.info("✅ room_created hook registered successfully");
+      
       return true;
       
     } catch (e) {

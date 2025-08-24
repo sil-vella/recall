@@ -96,23 +96,8 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         password: roomSettings['password'],
       );
       if (result['success'] == true) {
-        final roomData = result['room_data'] as Map<String, dynamic>?;
-        if (roomData != null) {
-          // Update state to refresh MyRoomsWidget
-          final currentState = StateManager().getModuleState<Map<String, dynamic>>("recall_game") ?? {};
-          final currentMyCreatedRooms = (currentState['myCreatedRooms'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-          
-          // Add to myCreatedRooms if not already there
-          if (!currentMyCreatedRooms.any((room) => room['room_id'] == roomData['room_id'])) {
-            RecallGameHelpers.updateUIState({
-              'myCreatedRooms': [...currentMyCreatedRooms, roomData],
-            });
-          }
-          
-          if (mounted) _showSnackBar('Room created successfully!');
-        } else {
-          if (mounted) _showSnackBar('Room created but no data received', isError: true);
-        }
+        // Room creation initiated successfully - WebSocket events will handle state updates
+        if (mounted) _showSnackBar('Room created successfully!');
       } else {
         if (mounted) _showSnackBar('Failed to create room', isError: true);
       }

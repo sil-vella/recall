@@ -76,14 +76,14 @@ class RecallGameStateUpdater {
     'currentSize': RecallStateFieldSpec(
       type: int,
       min: 0,
-      max: 8,
+      max: 12,
       defaultValue: 0,
       description: 'Current number of players in room',
     ),
     'maxSize': RecallStateFieldSpec(
       type: int,
       min: 2,
-      max: 8,
+      max: 12,
       defaultValue: 4,
       description: 'Maximum allowed players in room',
     ),

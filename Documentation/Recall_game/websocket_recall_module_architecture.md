@@ -16,7 +16,9 @@ This document provides a comprehensive guide to the WebSocket-Recall module arch
 8. [User Joined Rooms Event](#user-joined-rooms-event)
 9. [State Management](#state-management)
 10. [Frontend Integration](#frontend-integration)
-11. [Troubleshooting](#troubleshooting)
+11. [Room Cleanup Behavior](#room-cleanup-behavior)
+12. [Game Phase Management](#game-phase-management)
+13. [Troubleshooting](#troubleshooting)
 
 ## Architecture Overview
 
@@ -350,6 +352,54 @@ flowchart TD
     E --> G[Other System Updates]
 ```
 
+### Private Room Password Handling
+
+**Password Storage**:
+- Passwords are stored in both Redis and in-memory when rooms are created
+- Private room permissions are enforced during join operations
+- Password validation happens in the backend before allowing access
+
+**Implementation**:
+```python
+# In WebSocketManager.create_room()
+def create_room(self, room_id: str, permission: str, owner_id: str, password: Optional[str] = None) -> bool:
+    room_data = {
+        'room_id': room_id,
+        'permission': permission,
+        'owner_id': owner_id,
+        'password': password,  # Store password for private rooms
+        'created_at': datetime.now().isoformat(),
+        # ... other fields
+    }
+    
+    # Store in Redis and memory
+    self.redis_manager.set(room_key, room_data, expire=Config.WS_ROOM_TTL)
+    self.room_data[room_id] = room_data.copy()
+```
+
+**Password Validation**:
+```python
+# In WSEventHandlers.handle_join_room()
+def handle_join_room(self, session_id: str, data: dict) -> bool:
+    room_id = data.get('room_id')
+    password = data.get('password')
+    
+    # Get room info including password requirement
+    room_info = self.websocket_manager.get_room_info(room_id)
+    if room_info and room_info.get('permission') == 'private':
+        stored_password = room_info.get('password')
+        if not stored_password or password != stored_password:
+            # Emit error to frontend
+            emit('join_room_error', {'error': 'Invalid password for private room'})
+            return False
+```
+
+**Security Features**:
+- **Password Storage**: Encrypted in Redis with TTL expiration
+- **Validation**: Backend-only validation prevents frontend bypass
+- **Error Handling**: Clear error messages for invalid passwords
+- **Session Management**: Secure session handling for authenticated users
+
 ## Data Flow Diagrams
 
 ### Complete Room Creation and Game Setup Flow
@@ -624,8 +674,9 @@ Frontend handles WebSocket events via `WSEventManager`:
 
 ### API Integration
 
-Frontend fetches available games via HTTP API:
+Frontend fetches available games and room information via HTTP API:
 
+**Available Games API**:
 ```dart
 final result = await RecallGameHelpers.fetchAvailableGames();
 if (result['success'] == true) {
@@ -636,6 +687,22 @@ if (result['success'] == true) {
     });
 }
 ```
+
+**Find Room API** (New):
+```dart
+final result = await RecallGameHelpers.findRoom(roomId);
+if (result['success'] == true) {
+    final game = result['game'];
+    // Extract game details: phase, permission, password requirement
+    final isPrivate = game['permission'] == 'private';
+    final passwordRequired = bool(game['password_required']);
+}
+```
+
+**API Endpoints**:
+- `GET /userauth/recall/get-available-games` - Fetch all available public games
+- `POST /userauth/recall/find-room` - Find specific game by room ID
+- `POST /userauth/recall/create-room` - Create new game room
 
 ### Updated CurrentRoomWidget
 
@@ -676,11 +743,399 @@ Widget _buildJoinedRoomsList(...) {
 }
 ```
 
+**Room Card Actions**:
+```dart
+Widget _buildRoomCard(BuildContext context, {required Map<String, dynamic> roomData}) {
+  return Card(
+    child: Column(
+      children: [
+        // Room information
+        Text('Room: ${roomData['room_id']}'),
+        Text('Size: ${roomData['current_size']}/${roomData['max_size']}'),
+        
+        // Action buttons
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => _joinRoom(roomData['room_id']),
+                icon: const Icon(Icons.games),
+                label: const Text('Game Room'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => _leaveRoom(roomData['room_id']),
+                icon: const Icon(Icons.exit_to_app),
+                label: const Text('Leave'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+```
+
+**Leave Room Functionality**:
+```dart
+void _leaveRoom(String roomId) {
+  _log.info('🚪 [CurrentRoomWidget] Leave room button pressed for room: $roomId');
+  final wsManager = WebSocketManager.instance;
+  if (wsManager.socket != null) {
+    wsManager.socket?.emit('leave_room', {'room_id': roomId});
+    _log.info('🚪 [CurrentRoomWidget] Leave room event emitted successfully');
+  } else {
+    _log.warning('⚠️ WebSocket is not connected, cannot leave room.');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('WebSocket not connected. Cannot leave room.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+}
+```
+
 **Benefits**:
 - **Accurate Room Tracking**: Always shows current room memberships
 - **Better UX**: Users can see all their active rooms at once
 - **Real-time Sync**: Updates automatically via WebSocket events
 - **Scalable**: Handles any number of joined rooms
+
+### New JoinRoomWidget
+
+The `JoinRoomWidget` provides functionality for users to join existing rooms by ID:
+
+**Features**:
+- **Room ID Input**: Text field for entering room ID
+- **Password Support**: Conditional password field for private rooms
+- **Find Room Button**: API call to get room details before joining
+- **Join Room Button**: WebSocket event to join the room
+- **Real-time Validation**: Checks room permissions and password requirements
+
+**State Management**:
+```dart
+class _JoinRoomWidgetState extends State<JoinRoomWidget> {
+  final _roomIdController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  bool _isFinding = false;
+  bool _isPrivateRoom = false;
+}
+```
+
+**Find Room Functionality**:
+```dart
+Future<void> _findRoom() async {
+  final roomId = _roomIdController.text.trim();
+  if (roomId.isEmpty) return;
+  
+  setState(() => _isFinding = true);
+  
+  try {
+    final result = await RecallGameHelpers.findRoom(roomId);
+    if (result['success'] == true) {
+      final game = result['game'];
+      setState(() {
+        _isPrivateRoom = game['permission'] == 'private';
+      });
+      // Show game details to user
+    }
+  } catch (e) {
+    // Handle error
+  } finally {
+    setState(() => _isFinding = false);
+  }
+}
+```
+
+**Join Room Functionality**:
+```dart
+Future<void> _joinRoom() async {
+  final roomId = _roomIdController.text.trim();
+  final password = _passwordController.text.trim();
+  
+  if (roomId.isEmpty) return;
+  
+  setState(() => _isLoading = true);
+  
+  try {
+    final joinData = {
+      'room_id': roomId,
+      'password': password.isNotEmpty ? password : null,
+    };
+    joinData.removeWhere((key, value) => value == null);
+    
+    // Emit join room event (backend validates password for private rooms)
+    wsManager.socket?.emit('join_room', joinData);
+  } catch (e) {
+    // Handle error
+  }
+}
+```
+
+**WebSocket Event Handling**:
+```dart
+void _setupWebSocketListeners() {
+  wsManager.socket?.on('join_room_error', (data) {
+    if (mounted) {
+      final error = data['error'] ?? 'Unknown error';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Join room failed: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      setState(() => _isLoading = false);
+    }
+  });
+}
+```
+
+**Benefits**:
+- **Room Discovery**: Users can find and join existing games
+- **Password Protection**: Secure access to private rooms
+- **Real-time Feedback**: Immediate error handling and success feedback
+- **User Experience**: Clear interface for joining games
+
+### Updated LobbyScreen Layout
+
+The `LobbyScreen` has been redesigned for better user experience:
+
+**New Layout**:
+```dart
+Widget buildContent(BuildContext context) {
+  return Column(
+    children: [
+      // Create and Join buttons side by side
+      Row(
+        children: [
+          Expanded(
+            child: CreateRoomWidget(onCreateRoom: _createRoom),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: JoinRoomWidget(onJoinRoom: () {
+              // JoinRoomWidget handles its own room joining logic
+            }),
+          ),
+        ],
+      ),
+      const SizedBox(height: 20),
+      // Current rooms below the buttons
+      CurrentRoomWidget(onJoinRoom: _joinRoom),
+    ],
+  );
+}
+```
+
+**Layout Benefits**:
+- **Balanced Design**: Create and Join buttons take equal width (50% each)
+- **Logical Flow**: Create/Join actions at top, current rooms below
+- **Better UX**: Clear separation of actions and current state
+- **Responsive**: Adapts to different screen sizes
+
+## Room Cleanup Behavior
+
+### Overview
+
+The room cleanup system has been designed to provide controlled cleanup behavior rather than immediate deletion when rooms become empty. This ensures games remain available for joining until proper cleanup conditions are met.
+
+### Cleanup Layers
+
+#### 1. Immediate Cleanup (REMOVED)
+**Previous Behavior**: Empty rooms were immediately deleted from memory when the last user left
+**Current Behavior**: ❌ **REMOVED** - No more instant deletion of empty rooms
+
+**Code Changes**:
+```python
+# REMOVED from leave_room method:
+# if not self.rooms[room_id]:
+#     del self.rooms[room_id]
+
+# REMOVED from _cleanup_room_memberships method:
+# if not self.rooms[room_id]:
+#     del self.rooms[room_id]
+```
+
+#### 2. TTL-Based Cleanup (ACTIVE)
+**Behavior**: Rooms automatically expire after a configured time period
+**Configuration**: `Config.WS_ROOM_TTL = 86400` (24 hours)
+**Process**: Redis TTL expiration triggers `room_closed` hook
+
+**Implementation**:
+```python
+# In WSRoomManager.create_room()
+ttl_seconds = self._get_room_ttl_seconds()
+self.redis_manager.set(room_key, room_data, expire=ttl_seconds)
+self._set_plain_ttl_marker(room_id, ttl_seconds)
+
+# TTL expiry callback in WebSocketManager
+def _on_room_ttl_expired(room_id: str):
+    # Trigger room_closed hook
+    self.trigger_hook('room_closed', room_data)
+    # Clean up room data
+    self._cleanup_room_data(room_id)
+```
+
+#### 3. Stale Room Cleanup (ACTIVE)
+**Behavior**: Background process cleans up old empty rooms
+**Configuration**: `Config.WS_ROOM_CLEANUP_AGE` (configurable)
+**Process**: Periodic cleanup of rooms that are empty and old enough
+
+**Implementation**:
+```python
+def _cleanup_stale_rooms(self):
+    """Clean up stale room data."""
+    for room_key in room_keys:
+        room_data = self.redis_manager.get(room_key)
+        if room_data:
+            room_id = room_data.get('room_id')
+            room_members = self.rooms.get(room_id, set())
+            if not room_members:  # Room is empty
+                created_at = room_data.get('created_at')
+                age = datetime.now() - created_time
+                if age.total_seconds() > Config.WS_ROOM_CLEANUP_AGE:
+                    self._cleanup_room_data(room_id)
+```
+
+### Benefits of New Cleanup Behavior
+
+1. **Games Remain Available**: Empty games stay visible in `available_games` API
+2. **Controlled Cleanup**: Rooms are only cleaned up after TTL expires or stale cleanup runs
+3. **Better User Experience**: Users can rejoin games that were temporarily empty
+4. **Resource Management**: Automatic cleanup prevents infinite accumulation of abandoned rooms
+
+### Cleanup Flow Diagram
+
+```
+User Leaves Room
+       │
+       ▼
+   Room Empty? ──YES──► Keep Room in Memory
+       │ NO                    │
+       ▼                       │
+   Remove User                 │
+       │                       │
+       ▼                       │
+   Wait for Cleanup            │
+       │                       │
+       ▼                       │
+   TTL Expires OR              │
+   Stale Cleanup Runs          │
+       │                       │
+       ▼                       │
+   Trigger room_closed Hook    │
+       │                       │
+       ▼                       │
+   Clean Up Game State         │
+       │                       │
+       ▼                       │
+   Remove Room Data            │
+```
+
+## Game Phase Management
+
+### Overview
+
+Game phase management has been updated to prevent games from automatically ending when they become empty. Games now maintain their `WAITING_FOR_PLAYERS` phase until the room is actually closed.
+
+### Phase Transition Logic
+
+#### Before (Previous Behavior)
+```python
+# In _on_leave_room callback
+if len(game.players) < game.min_players:
+    custom_log(f"🎮 Game {room_id} has insufficient players ({len(game.players)}), ending game")
+    game.phase = GamePhase.GAME_ENDED  # ❌ Game immediately ended
+    game.game_ended = True
+```
+
+#### After (Current Behavior)
+```python
+# In _on_leave_room callback
+# Note: Game phase remains WAITING_FOR_PLAYERS even when empty
+# Games are only cleaned up when rooms are closed (via TTL or stale cleanup)
+custom_log(f"🎮 Game {room_id} now has {len(game.players)} players, but remains available for joining")
+```
+
+### Game Phase States
+
+1. **WAITING_FOR_PLAYERS**: Game is waiting for players to join
+   - **Before**: Changed to `GAME_ENDED` when `len(players) < min_players`
+   - **After**: Stays `WAITING_FOR_PLAYERS` regardless of player count
+
+2. **GAME_ENDED**: Game has actually ended (via game logic)
+   - **Trigger**: Only when `end_game()` method is called
+   - **Not Triggered**: By players leaving the room
+
+3. **Other Phases**: `PLAYER_TURN`, `RECALL_CALLED`, etc.
+   - **Behavior**: Unchanged - managed by game logic engine
+
+### Impact on Available Games API
+
+#### Before
+```json
+{
+  "games": []  // Empty when last player leaves
+}
+```
+
+#### After
+```json
+{
+  "games": [
+    {
+      "gameId": "room_123",
+      "phase": "waiting",
+      "playerCount": 0,
+      "players": [],
+      "status": "inactive"
+    }
+  ]
+}
+```
+
+### Benefits of New Phase Management
+
+1. **Consistent API**: `available_games` always shows available games
+2. **Rejoin Capability**: Users can rejoin games that were temporarily empty
+3. **Better UX**: Games don't disappear unexpectedly
+4. **Controlled Cleanup**: Games are only removed when rooms are actually closed
+
+### Phase Management Flow
+
+```
+Player Leaves Game
+       │
+       ▼
+   Remove Player from Game
+       │
+       ▼
+   Game Empty? ──YES──► Keep Phase as WAITING_FOR_PLAYERS
+       │ NO                    │
+       ▼                       │
+   Normal Game Logic           │
+       │                       │
+       ▼                       │
+   Wait for Room Cleanup       │
+       │                       │
+       ▼                       │
+   Room Closed (TTL/Stale)     │
+       │                       │
+       ▼                       │
+   Trigger room_closed Hook    │
+       │                       │
+       ▼                       │
+   Remove Game from active_games
+```
 
 ## Troubleshooting
 

@@ -764,9 +764,6 @@ class WebSocketManager:
             # Update room membership in memory
             if room_id in self.rooms:
                 self.rooms[room_id].discard(session_id)
-                # Remove room if empty
-                if not self.rooms[room_id]:
-                    del self.rooms[room_id]
             
             # Update session room membership
             if session_id in self.session_rooms:
@@ -1031,9 +1028,6 @@ class WebSocketManager:
                     # Remove from room
                     if room_id in self.rooms:
                         self.rooms[room_id].discard(session_id)
-                        # Remove room if empty
-                        if not self.rooms[room_id]:
-                            del self.rooms[room_id]
                     
                     # Update room size
                     self.update_room_size(room_id, -1)

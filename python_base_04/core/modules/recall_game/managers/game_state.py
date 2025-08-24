@@ -1207,11 +1207,9 @@ class GameStateManager:
                 except Exception as e:
                     custom_log(f"⚠️ Failed to update room size: {e}")
                 
-                # Check if game should end (not enough players)
-                if len(game.players) < game.min_players:
-                    custom_log(f"🎮 Game {room_id} has insufficient players ({len(game.players)}), ending game")
-                    game.phase = GamePhase.GAME_ENDED
-                    game.game_ended = True
+                # Note: Game phase remains WAITING_FOR_PLAYERS even when empty
+                # Games are only cleaned up when rooms are closed (via TTL or stale cleanup)
+                custom_log(f"🎮 Game {room_id} now has {len(game.players)} players, but remains available for joining")
             else:
                 custom_log(f"⚠️ No player found for session {session_id} or user {user_id} in game {room_id}")
             

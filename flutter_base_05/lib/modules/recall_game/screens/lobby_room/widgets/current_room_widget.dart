@@ -191,11 +191,11 @@ class CurrentRoomWidget extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: onJoinRoom != null ? () {
-                      _log.info('🚪 [CurrentRoomWidget] Join button pressed for room: $roomId');
+                      _log.info('🎮 [CurrentRoomWidget] Game Room button pressed for room: $roomId');
                       onJoinRoom!(roomId);
                     } : null,
-                    icon: const Icon(Icons.group_add),
-                    label: const Text('Join Room'),
+                    icon: const Icon(Icons.games),
+                    label: const Text('Game Room'),
                   ),
                 ),
               ],

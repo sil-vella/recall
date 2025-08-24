@@ -68,6 +68,10 @@ class RecallEventManager {
       switch (status) {
         case 'success':
           // Update state for successful room creation
+          final roomData = data['room_data'] ?? {};
+          final maxPlayers = roomData['max_players'] ?? 4; // Use actual value from backend
+          final minPlayers = roomData['min_players'] ?? 2; // Use actual value from backend
+          
           RecallGameHelpers.updateUIState({
             'currentRoomId': roomId,
             'isRoomOwner': isOwner,
@@ -77,8 +81,8 @@ class RecallEventManager {
             'isGameActive': false,
             'playerCount': 1, // Room creator is first player
             'currentSize': 1,
-            'maxSize': 4, // Default max size
-            'minSize': 2, // Default min size
+            'maxSize': maxPlayers, // Use actual max_players from backend
+            'minSize': minPlayers, // Use actual min_players from backend
           });
           
           _addSessionMessage(
@@ -90,13 +94,19 @@ class RecallEventManager {
           break;
           
         case 'created':
-          // Update state for room created event
+          // Update state for room created event (this contains the full room data)
+          final roomData = data['room_data'] ?? {};
+          final maxPlayers = roomData['max_players'] ?? 4; // Use actual value from backend
+          final minPlayers = roomData['min_players'] ?? 2; // Use actual value from backend
+          
           RecallGameHelpers.updateUIState({
             'currentRoomId': roomId,
             'isInRoom': true,
             'gamePhase': 'waiting',
             'gameStatus': 'inactive',
             'isGameActive': false,
+            'maxSize': maxPlayers, // Use actual max_players from backend
+            'minSize': minPlayers, // Use actual min_players from backend
           });
           
           _addSessionMessage(

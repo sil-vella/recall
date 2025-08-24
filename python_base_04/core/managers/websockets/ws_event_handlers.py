@@ -411,6 +411,19 @@ class WSEventHandlers:
                     self.websocket_manager.trigger_hook('room_created', room_data)
                     custom_log(f"🎣 [HOOK] room_created hook triggered with data: {room_data}")
                     
+                    # 🎣 Trigger room_joined hook for player addition to game
+                    join_room_data = {
+                        'room_id': room_id,
+                        'session_id': session_id,
+                        'user_id': user_id,
+                        'owner_id': owner_id,
+                        'current_size': 1,
+                        'max_size': data.get('max_players') or Config.WS_ROOM_SIZE_LIMIT,  # Use frontend value or config fallback
+                        'joined_at': datetime.now().isoformat()
+                    }
+                    self.websocket_manager.trigger_hook('room_joined', join_room_data)
+                    custom_log(f"🎣 [HOOK] room_joined hook triggered with data: {join_room_data}")
+                    
                     custom_log(f"✅ Successfully created and joined room: {room_id} with owner: {user_id}")
                     return True
                 else:

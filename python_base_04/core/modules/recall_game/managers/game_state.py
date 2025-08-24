@@ -1092,6 +1092,16 @@ class GameStateManager:
                 custom_log(f"⚠️ No game found for room {room_id}, this shouldn't happen")
                 return
             
+            # Add player to the game if they don't exist
+            if user_id not in game.players:
+                # Create a human player for the user
+                from ..models.player import HumanPlayer
+                player = HumanPlayer(user_id, f"Player_{user_id[:8]}")
+                game.add_player(player)
+                custom_log(f"✅ Added player {user_id} to game {room_id}")
+            else:
+                custom_log(f"ℹ️ Player {user_id} already exists in game {room_id}")
+            
             # Update game state based on player count
             if current_size >= game.min_players and game.phase == GamePhase.WAITING_FOR_PLAYERS:
                 custom_log(f"🎮 Room {room_id} has enough players ({current_size}), ready to start")

@@ -391,7 +391,8 @@ class WSEventHandlers:
                         'owner_id': owner_id,  # Get owner_id from memory
                         'timestamp': datetime.now().isoformat(),
                         'current_size': 1,
-                        'max_size': data.get('max_players') or Config.WS_ROOM_SIZE_LIMIT  # Use frontend value or config fallback
+                        'max_size': data.get('max_players') or Config.WS_ROOM_SIZE_LIMIT,  # Use frontend value or config fallback
+                        'min_players': data.get('min_players') or 2  # Use frontend value or default fallback
                     })
                     
                     # 🎣 Trigger room_created hook for game creation logic

@@ -308,24 +308,7 @@ class WSRoomManager:
             custom_log(f"Error getting all rooms: {str(e)}")
             return []
 
-    def get_rooms_for_user(self, user_id: str) -> List[Dict[str, Any]]:
-        """Get all rooms accessible to a user."""
-        try:
-            all_rooms = self.get_all_rooms()
-            accessible_rooms = []
-            
-            for room in all_rooms:
-                room_id = room.get('room_id')
-                if room_id:
-                    # Check if user has access to this room
-                    if self.check_room_access(room_id, user_id, [], None):
-                        accessible_rooms.append(room)
-            
-            return accessible_rooms
-            
-        except Exception as e:
-            custom_log(f"Error getting rooms for user: {str(e)}")
-            return []
+
 
     def get_room_owner(self, room_id: str) -> Optional[str]:
         """Get the owner of a room."""

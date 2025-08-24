@@ -108,6 +108,32 @@ class WSEventHandlers:
                 pass
             return str(session_id)
 
+    def _emit_user_joined_rooms(self, session_id: str):
+        """Emit user_joined_rooms event with all rooms the user is currently in."""
+        try:
+            # Get all rooms for this session
+            user_rooms = self.websocket_manager.get_rooms_for_session(session_id)
+            
+            # Get detailed room info for each room
+            rooms_info = []
+            for room_id in user_rooms:
+                room_info = self.websocket_manager.get_room_info(room_id)
+                if room_info:
+                    rooms_info.append(room_info)
+            
+            # Emit the event to the client
+            self.socketio.emit('user_joined_rooms', {
+                'session_id': session_id,
+                'rooms': rooms_info,
+                'total_rooms': len(rooms_info),
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            custom_log(f"📡 [EMIT] user_joined_rooms event sent to session {session_id} with {len(rooms_info)} rooms")
+            
+        except Exception as e:
+            custom_log(f"❌ Error emitting user_joined_rooms event: {str(e)}")
+
     def handle_unified_event(self, event_name, event_type, data):
         """Unified event handler that routes to specific handlers"""
         custom_log(f"🔧 [UNIFIED] Processing event: '{event_name}' (type: '{event_type}') with data: {data}")
@@ -335,6 +361,9 @@ class WSEventHandlers:
                 self.websocket_manager.trigger_hook('room_joined', room_data)
                 custom_log(f"🎣 [HOOK] room_joined hook triggered with data: {room_data}")
                 
+                # 📡 Emit user_joined_rooms event after manual join
+                self._emit_user_joined_rooms(session_id)
+                
                 return True
             else:
                 custom_log(f"❌ Failed to join room: {room_id}")
@@ -433,6 +462,9 @@ class WSEventHandlers:
                     self.websocket_manager.trigger_hook('room_joined', join_room_data)
                     custom_log(f"🎣 [HOOK] room_joined hook triggered with data: {join_room_data}")
                     
+                    # 📡 Emit user_joined_rooms event after auto-join
+                    self._emit_user_joined_rooms(session_id)
+                    
                     custom_log(f"✅ Successfully created and joined room: {room_id} with owner: {user_id}")
                     return True
                 else:
@@ -479,6 +511,9 @@ class WSEventHandlers:
                 }
                 self.websocket_manager.trigger_hook('leave_room', room_data)
                 custom_log(f"🎣 [HOOK] leave_room hook triggered with data: {room_data}")
+                
+                # 📡 Emit user_joined_rooms event after leaving room
+                self._emit_user_joined_rooms(session_id)
                 
                 return True
             else:

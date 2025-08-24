@@ -64,6 +64,7 @@ class CurrentRoomWidget extends StatelessWidget {
           isRoomOwner: isRoomOwner,
           gamePhase: gamePhase,
           gameStatus: gameStatus,
+          isInRoom: isInRoom,
         );
       },
     );
@@ -126,6 +127,7 @@ class CurrentRoomWidget extends StatelessWidget {
     required bool isRoomOwner,
     required String gamePhase,
     required String gameStatus,
+    required bool isInRoom,
   }) {
     final canStartGame = isRoomOwner && 
                         gamePhase == 'waiting' && 
@@ -194,15 +196,16 @@ class CurrentRoomWidget extends StatelessWidget {
                 
                 if (canStartGame) const SizedBox(width: 8),
                 
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onJoinRoom != null ? () {
-                      _log.info('🎮 [CurrentRoomWidget] Game Room button pressed for room: $roomId');
-                      onJoinRoom!(roomId);
-                    } : null,
-                    icon: const Icon(Icons.games),
-                    label: const Text('Game Room'),
-                  ),
+                // Game Room button - only show if user is in room
+                ElevatedButton.icon(
+                  onPressed: isInRoom ? () {
+                    _log.info('🎮 [CurrentRoomWidget] Game Room button pressed for room: $roomId');
+                    // Don't call onJoinRoom since user is already in the room
+                    // This prevents duplicate join_room events that corrupt the state
+                    _log.info('🎮 [CurrentRoomWidget] User already in room, not triggering join_room event');
+                  } : null,
+                  icon: const Icon(Icons.games),
+                  label: const Text('Game Room'),
                 ),
               ],
             ),

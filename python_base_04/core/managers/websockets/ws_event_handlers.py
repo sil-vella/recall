@@ -301,7 +301,14 @@ class WSEventHandlers:
                 # Get actual room data from memory storage
                 room_info = self.websocket_manager.get_room_info(room_id) or {}
                 current_size = self.websocket_manager.get_room_size(room_id)
-                max_size = room_info.get('max_size', 4)  # Get actual max_size from room data
+                
+                # Ensure we have the required room data
+                if not room_info.get('max_size'):
+                    custom_log(f"❌ Room {room_id} missing max_size data, cannot proceed with join")
+                    self.socketio.emit('join_room_error', {'error': 'Room data incomplete'})
+                    return False
+                
+                max_size = room_info.get('max_size')  # Get actual max_size from room data
                 
                 # Emit success to client (matching Flutter expectations)
                 self.socketio.emit('join_room_success', {
@@ -371,8 +378,8 @@ class WSEventHandlers:
                         'success': True,
                         'room_id': room_id,
                         'owner_id': owner_id,
-                        'max_size': data.get('max_players', 4),
-                        'min_players': data.get('min_players', 2),
+                        'max_size': data.get('max_players'),  # No fallback - must be provided by frontend
+                        'min_players': data.get('min_players'),  # No fallback - must be provided by frontend
                         'timestamp': datetime.now().isoformat(),
                     })
                     
@@ -383,7 +390,7 @@ class WSEventHandlers:
                         'owner_id': owner_id,  # Get owner_id from memory
                         'timestamp': datetime.now().isoformat(),
                         'current_size': 1,
-                        'max_size': data.get('max_players', 4)
+                        'max_size': data.get('max_players')  # No fallback - must be provided by frontend
                     })
                     
                     # 🎣 Trigger room_created hook for game creation logic
@@ -391,8 +398,8 @@ class WSEventHandlers:
                         'room_id': room_id,
                         'owner_id': owner_id,
                         'permission': permission,
-                        'max_players': data.get('max_players', 4),
-                        'min_players': data.get('min_players', 2),
+                        'max_players': data.get('max_players'),  # No fallback - must be provided by frontend
+                        'min_players': data.get('min_players'),  # No fallback - must be provided by frontend
                         'game_type': data.get('game_type', 'classic'),
                         'turn_time_limit': data.get('turn_time_limit', 30),
                         'auto_start': data.get('auto_start', True),
@@ -642,19 +649,21 @@ class WSEventHandlers:
                 
                 for room_id, room_info in all_rooms.items():
                     if room_info.get('permission') == 'public':
-                        public_rooms.append({
-                            'room_id': room_id,
-                            'room_name': room_info.get('room_name', room_id),
-                            'owner_id': room_info.get('owner_id'),
-                            'permission': room_info.get('permission'),
-                            'current_size': room_info.get('current_size', 0),
-                            'max_size': room_info.get('max_size', 4),
-                            'min_size': room_info.get('min_size', 2),
-                            'created_at': room_info.get('created_at'),
-                            'game_type': room_info.get('game_type', 'classic'),
-                            'turn_time_limit': room_info.get('turn_time_limit', 30),
-                            'auto_start': room_info.get('auto_start', True)
-                        })
+                        # Only include rooms that have complete data
+                        if room_info.get('max_size') and room_info.get('min_size'):
+                            public_rooms.append({
+                                'room_id': room_id,
+                                'room_name': room_info.get('room_name', room_id),
+                                'owner_id': room_info.get('owner_id'),
+                                'permission': room_info.get('permission'),
+                                'current_size': room_info.get('current_size', 0),
+                                'max_size': room_info.get('max_size'),  # No fallback - must exist
+                                'min_size': room_info.get('min_size'),  # No fallback - must exist
+                                'created_at': room_info.get('created_at'),
+                                'game_type': room_info.get('game_type', 'classic'),
+                                'turn_time_limit': room_info.get('turn_time_limit', 30),
+                                'auto_start': room_info.get('auto_start', True)
+                            })
                 
                 custom_log(f"📊 Found {len(public_rooms)} public rooms")
                 

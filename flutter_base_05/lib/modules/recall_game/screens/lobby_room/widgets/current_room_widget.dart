@@ -32,8 +32,14 @@ class CurrentRoomWidget extends StatelessWidget {
         final currentRoomId = recallState['currentRoomId']?.toString() ?? '';
         final roomName = recallState['roomName']?.toString() ?? '';
         final currentSize = recallState['currentSize'] ?? 0;
-        final maxSize = recallState['maxSize'] ?? 4;
-        final minSize = recallState['minSize'] ?? 2;
+        final maxSize = recallState['maxSize'];
+        final minSize = recallState['minSize'];
+        
+        // Ensure we have the required data
+        if (maxSize == null || minSize == null) {
+          _log.warning('⚠️ CurrentRoomWidget: Missing room size data, showing empty state');
+          return _buildEmptyState();
+        }
         final permission = recallState['permission']?.toString() ?? 'public';
         final isRoomOwner = recallState['isRoomOwner'] == true;
         final gamePhase = recallState['gamePhase']?.toString() ?? 'waiting';

@@ -1135,19 +1135,21 @@ class WebSocketManager:
                 public_rooms = []
                 for room_id, room_info in all_rooms.items():
                     if room_info.get('permission') == 'public':
-                        public_rooms.append({
-                            'room_id': room_id,
-                            'room_name': room_info.get('room_name', room_id),
-                            'owner_id': room_info.get('owner_id'),
-                            'permission': room_info.get('permission'),
-                            'current_size': room_info.get('current_size', 0),
-                            'max_size': room_info.get('max_size', 4),
-                            'min_size': room_info.get('min_size', 2),
-                            'created_at': room_info.get('created_at'),
-                            'game_type': room_info.get('game_type', 'classic'),
-                            'turn_time_limit': room_info.get('turn_time_limit', 30),
-                            'auto_start': room_info.get('auto_start', True)
-                        })
+                        # Only include rooms that have complete data
+                        if room_info.get('max_size') and room_info.get('min_size'):
+                            public_rooms.append({
+                                'room_id': room_id,
+                                'room_name': room_info.get('room_name', room_id),
+                                'owner_id': room_info.get('owner_id'),
+                                'permission': room_info.get('permission'),
+                                'current_size': room_info.get('current_size', 0),
+                                'max_size': room_info.get('max_size'),  # No fallback - must exist
+                                'min_size': room_info.get('min_size'),  # No fallback - must exist
+                                'created_at': room_info.get('created_at'),
+                                'game_type': room_info.get('game_type', 'classic'),
+                                'turn_time_limit': room_info.get('turn_time_limit', 30),
+                                'auto_start': room_info.get('auto_start', True)
+                            })
                 
                 # Send response
                 self.send_to_session(session_id, 'get_public_rooms_success', {

@@ -148,8 +148,14 @@ class WSEventHandler {
       );
       
       // Set room ownership and game state in recall game state
-      final maxSize = roomData['max_size'] ?? 4; // Extract max_size from room data
-      final minSize = roomData['min_players'] ?? 2; // Extract min_players from room data
+      final maxSize = roomData['max_size']; // Extract max_size from room data
+      final minSize = roomData['min_players']; // Extract min_players from room data
+      
+      // Ensure we have the required data
+      if (maxSize == null || minSize == null) {
+        _log.error("❌ Missing room size data: max_size=$maxSize, min_players=$minSize");
+        return;
+      }
       
       RecallGameHelpers.updateUIState({
         'isRoomOwner': isRoomOwner,
@@ -214,8 +220,14 @@ class WSEventHandler {
       );
       
       // Set room ownership and game state in recall game state
-      final maxSize = roomData['max_size'] ?? 4; // Extract max_size from room data
-      final minSize = roomData['min_players'] ?? 2; // Extract min_players from room data
+      final maxSize = roomData['max_size']; // Extract max_size from room data
+      final minSize = roomData['min_players']; // Extract min_players from room data
+      
+      // Ensure we have the required data
+      if (maxSize == null || minSize == null) {
+        _log.error("❌ Missing room size data: max_size=$maxSize, min_players=$minSize");
+        return;
+      }
       
       RecallGameHelpers.updateUIState({
         'isRoomOwner': isRoomOwner,
@@ -308,8 +320,14 @@ class WSEventHandler {
       );
       
       // Set room ownership and game state in recall game state
-      final maxSize = roomData['max_size'] ?? 4; // Extract max_size from room data
-      final minSize = roomData['min_players'] ?? 2; // Extract min_players from room data
+      final maxSize = roomData['max_size']; // Extract max_size from room data
+      final minSize = roomData['min_players']; // Extract min_players from room data
+      
+      // Ensure we have the required data
+      if (maxSize == null || minSize == null) {
+        _log.error("❌ Missing room size data: max_size=$maxSize, min_players=$minSize");
+        return;
+      }
       
       RecallGameHelpers.updateUIState({
         'isRoomOwner': isRoomOwner,

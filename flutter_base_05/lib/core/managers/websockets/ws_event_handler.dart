@@ -180,9 +180,9 @@ class WSEventHandler {
       _eventManager.triggerCallbacks('room_joined', data);
       _eventManager.triggerCallbacks('join_room_success', data);
       
-      // 🎣 Trigger websocket_room_joined hook for other modules
-      _log.info("🎣 [HOOK] Triggering websocket_room_joined hook");
-      HooksManager().triggerHookWithData('websocket_room_joined', {
+      // 🎣 Trigger room_joined hook for other modules
+      _log.info("🎣 [HOOK] Triggering room_joined hook");
+      HooksManager().triggerHookWithData('room_joined', {
         'status': 'joined',
         'room_id': roomId,
         'room_data': roomData,

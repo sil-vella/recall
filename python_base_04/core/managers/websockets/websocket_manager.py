@@ -476,6 +476,12 @@ class WebSocketManager:
         # Use lock to prevent race conditions in room creation
         with self._room_creation_lock:
             try:
+                # Validate permission value
+                valid_permissions = ['public', 'private']
+                if permission not in valid_permissions:
+                    custom_log(f"❌ Invalid permission value: {permission}. Valid values: {valid_permissions}")
+                    return False
+                
                 # Check if room already exists
                 if room_id in self.rooms:
                     custom_log(f"Room {room_id} already exists, skipping creation")

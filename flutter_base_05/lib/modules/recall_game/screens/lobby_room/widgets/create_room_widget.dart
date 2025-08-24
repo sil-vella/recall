@@ -13,7 +13,7 @@
 /// ### Room Configuration Options:
 /// - **Room Name**: Required text field for the room identifier
 /// - **Game Type**: Dropdown selection (classic, tournament, practice)
-/// - **Permission Level**: Access control (public, private, restricted, owner_only)
+/// - **Permission Level**: Access control (public, private)
 /// - **Password**: Optional password field for non-public rooms
 /// 
 /// ### Player Settings:
@@ -141,9 +141,7 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
   // Options
   final List<String> _permissionOptions = [
     'public',
-    'private', 
-    'restricted',
-    'owner_only'
+    'private'
   ];
 
   final List<String> _gameTypeOptions = [
@@ -303,6 +301,7 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                         decoration: const InputDecoration(
                           labelText: 'Permission Level',
                           border: OutlineInputBorder(),
+                          helperText: 'Public: Anyone can join | Private: Password required',
                         ),
                         items: _permissionOptions.map((permission) {
                           return DropdownMenuItem(

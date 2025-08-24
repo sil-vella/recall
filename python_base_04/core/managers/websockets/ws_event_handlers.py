@@ -353,6 +353,14 @@ class WSEventHandlers:
             
             room_id = data.get('room_id')
             permission = data.get('permission', 'public')
+            
+            # Validate permission value
+            valid_permissions = ['public', 'private']
+            if permission not in valid_permissions:
+                custom_log(f"❌ Invalid permission value: {permission}. Valid values: {valid_permissions}")
+                self.socketio.emit('create_room_error', {'error': f'Invalid permission value: {permission}. Must be one of: {valid_permissions}'})
+                return False
+            
             custom_log(f"🔧 [HANDLER-CREATE] Handling create room: {room_id} with permission: {permission}")
             
             # Resolve user id using backend auth/JWT if available

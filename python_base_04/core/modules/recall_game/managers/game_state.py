@@ -1094,9 +1094,10 @@ class GameStateManager:
         try:
             room_id = room_data.get('room_id')
             user_id = room_data.get('user_id')
+            session_id = room_data.get('session_id')  # Get session_id from room_data
             current_size = room_data.get('current_size', 1)
             
-            custom_log(f"🎮 [HOOK] Player {user_id} joined room {room_id}, current size: {current_size}")
+            custom_log(f"🎮 [HOOK] Player {user_id} joined room {room_id}, session: {session_id}, current size: {current_size}")
             
             # Check if game exists for this room
             game = self.get_game(room_id)
@@ -1105,14 +1106,32 @@ class GameStateManager:
                 return
             
             # Add player to the game if they don't exist
+            player_added = False
             if user_id not in game.players:
                 # Create a human player for the user
                 from ..models.player import HumanPlayer
                 player = HumanPlayer(user_id, f"Player_{user_id[:8]}")
                 game.add_player(player)
+                player_added = True
                 custom_log(f"✅ Added player {user_id} to game {room_id}")
             else:
                 custom_log(f"ℹ️ Player {user_id} already exists in game {room_id}")
+            
+            # Set up session mapping for the player
+            if session_id and user_id:
+                game.update_player_session(user_id, session_id)
+                custom_log(f"🔗 Session mapping created: session {session_id} -> player {user_id}")
+            
+            # Update room size in WebSocket manager (if player was newly added)
+            if player_added:
+                try:
+                    from core.managers.websockets.websocket_manager import WebSocketManager
+                    ws_manager = WebSocketManager.instance
+                    if ws_manager:
+                        ws_manager.update_room_size(room_id, 1)  # Increase room size by 1
+                        custom_log(f"📊 Updated room {room_id} size after player {user_id} joined")
+                except Exception as e:
+                    custom_log(f"⚠️ Failed to update room size: {e}")
             
             # Update game state based on player count
             if current_size >= game.min_players and game.phase == GamePhase.WAITING_FOR_PLAYERS:
@@ -1145,8 +1164,9 @@ class GameStateManager:
         try:
             room_id = room_data.get('room_id')
             session_id = room_data.get('session_id')
+            user_id = room_data.get('user_id')  # Get user_id from room_data
             
-            custom_log(f"🎮 [HOOK] Player left room: {room_id}, session: {session_id}")
+            custom_log(f"🎮 [HOOK] Player left room: {room_id}, session: {session_id}, user: {user_id}")
             
             # Check if game exists for this room
             game = self.get_game(room_id)
@@ -1154,11 +1174,38 @@ class GameStateManager:
                 custom_log(f"ℹ️ No game found for room {room_id}")
                 return
             
-            # Find player by session_id and remove them
-            player_id = game.get_session_player(session_id)
+            # Try to find player by session_id first
+            player_id = None
+            if session_id:
+                player_id = game.get_session_player(session_id)
+                if player_id:
+                    custom_log(f"🔍 Found player {player_id} by session {session_id}")
+            
+            # Fallback: try to find player by user_id if session lookup failed
+            if not player_id and user_id:
+                if user_id in game.players:
+                    player_id = user_id
+                    custom_log(f"🔍 Found player {player_id} by user_id {user_id}")
+            
+            # Remove player if found
             if player_id:
                 game.remove_player(player_id)
                 custom_log(f"✅ Player {player_id} removed from game {room_id}")
+                
+                # Clean up session mapping
+                if session_id:
+                    game.remove_session(session_id)
+                    custom_log(f"🧹 Session mapping cleaned up for session {session_id}")
+                
+                # Update room size in WebSocket manager
+                try:
+                    from core.managers.websockets.websocket_manager import WebSocketManager
+                    ws_manager = WebSocketManager.instance
+                    if ws_manager:
+                        ws_manager.update_room_size(room_id, -1)  # Decrease room size by 1
+                        custom_log(f"📊 Updated room {room_id} size after player {player_id} left")
+                except Exception as e:
+                    custom_log(f"⚠️ Failed to update room size: {e}")
                 
                 # Check if game should end (not enough players)
                 if len(game.players) < game.min_players:
@@ -1166,7 +1213,7 @@ class GameStateManager:
                     game.phase = GamePhase.GAME_ENDED
                     game.game_ended = True
             else:
-                custom_log(f"ℹ️ No player found for session {session_id} in game {room_id}")
+                custom_log(f"⚠️ No player found for session {session_id} or user {user_id} in game {room_id}")
             
         except Exception as e:
             custom_log(f"❌ Error in _on_leave_room callback: {e}", level="ERROR")

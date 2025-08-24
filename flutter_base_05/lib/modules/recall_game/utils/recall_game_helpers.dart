@@ -194,5 +194,59 @@ class RecallGameHelpers {
     
     _stateUpdater.updateState(updates);
   }
+
+  /// Find a specific game by room ID via API call
+  static Future<Map<String, dynamic>> findRoom(String roomId) async {
+    _log.info('🎮 [RecallGameHelpers.findRoom] Finding game: $roomId');
+    
+    try {
+      // Get the ConnectionsApiModule instance from the global module manager
+      final moduleManager = ModuleManager();
+      _log.info('🎮 [RecallGameHelpers.findRoom] ModuleManager instance: $moduleManager');
+      
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      _log.info('🎮 [RecallGameHelpers.findRoom] ConnectionsApiModule: $connectionsModule');
+      
+      if (connectionsModule == null) {
+        _log.error('❌ [RecallGameHelpers.findRoom] ConnectionsApiModule not available');
+        throw Exception('ConnectionsApiModule not available - ensure it is initialized');
+      }
+      
+      _log.info('🎮 [RecallGameHelpers.findRoom] Making API call to /userauth/recall/find-room');
+      
+      // Make API call to find game
+      final response = await connectionsModule.sendPostRequest(
+        '/userauth/recall/find-room',
+        {'room_id': roomId},
+      );
+      
+      // Check if response contains error
+      if (response is Map && response.containsKey('error')) {
+        throw Exception(response['message'] ?? response['error'] ?? 'Failed to find game');
+      }
+      
+      // Extract game info from response
+      final game = response['game'];
+      final message = response['message'] ?? 'Game found successfully';
+      
+      _log.info('✅ [RecallGameHelpers.findRoom] Game found: $roomId');
+      
+      return {
+        'success': true,
+        'message': message,
+        'game': game,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      _log.error('❌ [RecallGameHelpers.findRoom] Error: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+        'message': 'Failed to find game',
+        'game': null,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+    }
+  }
     
 }

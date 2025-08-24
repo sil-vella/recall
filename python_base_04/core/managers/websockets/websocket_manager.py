@@ -471,7 +471,7 @@ class WebSocketManager:
         # This method is now deprecated - all handlers are registered through ws_event_listeners.py
         custom_log(f"WARNING - register_authenticated_handler called for {event} - use ws_event_listeners.py instead")
 
-    def create_room(self, room_id: str, permission: str = "public", owner_id: Optional[str] = None, allowed_users: Optional[Set[str]] = None, allowed_roles: Optional[Set[str]] = None) -> bool:
+    def create_room(self, room_id: str, permission: str = "public", owner_id: Optional[str] = None, allowed_users: Optional[Set[str]] = None, allowed_roles: Optional[Set[str]] = None, password: Optional[str] = None) -> bool:
         """Create a new room."""
         # Use lock to prevent race conditions in room creation
         with self._room_creation_lock:
@@ -499,7 +499,8 @@ class WebSocketManager:
                     'created_at': datetime.now().isoformat(),
                     'size': 0,
                     'max_size': Config.WS_ROOM_SIZE_LIMIT,  # Single fallback for room size
-                    'min_players': 2  # Default minimum players
+                    'min_players': 2,  # Default minimum players
+                    'password': password if permission == 'private' else None  # Store password for private rooms
                 }
                 
                 custom_log(f"DEBUG - Room data prepared: {room_data}")
@@ -530,7 +531,8 @@ class WebSocketManager:
                     'max_size': Config.WS_ROOM_SIZE_LIMIT,  # Single fallback for room size
                     'min_players': 2,  # Default minimum players
                     'allowed_users': list(allowed_users or set()),  # Convert set to list for consistency
-                    'allowed_roles': list(allowed_roles or set())   # Convert set to list for consistency
+                    'allowed_roles': list(allowed_roles or set()),   # Convert set to list for consistency
+                    'password': password if permission == 'private' else None  # Store password for private rooms
                 }
                 custom_log(f"DEBUG - Room initialized in memory: {self.rooms}")
                 custom_log(f"DEBUG - Room metadata stored in memory: creator_id={owner_id}, permission={permission}")
@@ -683,7 +685,8 @@ class WebSocketManager:
                         'created_at': room_data.get('created_at'),
                         'size': room_data.get('size', 0),
                         'allowed_users': set(allowed_users) if isinstance(allowed_users, list) else allowed_users,
-                        'allowed_roles': set(allowed_roles) if isinstance(allowed_roles, list) else allowed_roles
+                        'allowed_roles': set(allowed_roles) if isinstance(allowed_roles, list) else allowed_roles,
+                        'password': room_data.get('password')  # Include password from Redis
                     }
                     custom_log(f"Initialized room metadata in memory for existing room: {room_id}")
             
@@ -893,7 +896,8 @@ class WebSocketManager:
                     'created_at': room_data.get('created_at'),
                     'size': room_data.get('size', 0),
                     'allowed_users': set(room_data.get('allowed_users', [])),
-                    'allowed_roles': set(room_data.get('allowed_roles', []))
+                    'allowed_roles': set(room_data.get('allowed_roles', [])),
+                    'password': room_data.get('password')  # Include password from Redis
                 }
             
             # Get current members
@@ -908,7 +912,8 @@ class WebSocketManager:
                 'max_size': self._room_size_limit,
                 'members': list(members),
                 'allowed_users': list(metadata.get('allowed_users', set())),
-                'allowed_roles': list(metadata.get('allowed_roles', set()))
+                'allowed_roles': list(metadata.get('allowed_roles', set())),
+                'password': metadata.get('password')  # Include password in room info
             }
             
         except Exception as e:

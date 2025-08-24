@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/00_base/screen_base.dart';
 import 'widgets/connection_status_widget.dart';
 import 'widgets/create_room_widget.dart';
+import 'widgets/join_room_widget.dart';
 import 'widgets/current_room_widget.dart';
 import 'widgets/available_games_widget.dart';
 import 'features/lobby_features.dart';
@@ -208,15 +209,32 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           const ConnectionStatusWidget(),
           const SizedBox(height: 20),
           
-          // Current Room Section
-          CurrentRoomWidget(
-            onJoinRoom: _joinRoom,
+          // Create and Join Room Section (Side by Side)
+          Row(
+            children: [
+              // Create Room Widget (50% width)
+              Expanded(
+                child: CreateRoomWidget(
+                  onCreateRoom: _createRoom,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Join Room Widget (50% width)
+              Expanded(
+                child: JoinRoomWidget(
+                  onJoinRoom: () {
+                    // JoinRoomWidget handles its own room joining logic
+                    // This callback is called after successful join request
+                  },
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           
-          // Create Room Section
-          CreateRoomWidget(
-            onCreateRoom: _createRoom,
+          // Current Room Section (moved under Create/Join buttons)
+          CurrentRoomWidget(
+            onJoinRoom: _joinRoom,
           ),
           const SizedBox(height: 20),
           

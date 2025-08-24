@@ -67,6 +67,9 @@ class RecallGameMain(BaseModule):
         # Register the get-available-games endpoint with JWT authentication
         self._register_route_helper("/userauth/recall/get-available-games", self.get_available_games, methods=["GET"], auth="jwt")
         
+        # Register the find-room endpoint with JWT authentication
+        self._register_route_helper("/userauth/recall/find-room", self.find_room, methods=["POST"], auth="jwt")
+        
         custom_log(f"Recall game module registered {len(self.registered_routes)} routes")
     
     def get_available_games(self):
@@ -121,6 +124,89 @@ class RecallGameMain(BaseModule):
             return jsonify({
                 "success": False,
                 "message": "Failed to retrieve available games",
+                "error": str(e)
+            }), 500
+    
+    def find_room(self):
+        """Find a specific room by room ID (JWT protected endpoint)"""
+        try:
+            # Verify JWT token
+            auth_header = request.headers.get('Authorization')
+            
+            if not auth_header:
+                return jsonify({
+                    "success": False,
+                    "message": "No Authorization header provided",
+                    "error": "Missing JWT token"
+                }), 401
+            
+            # Extract token from Authorization header
+            if auth_header.startswith('Bearer '):
+                token = auth_header[7:]  # Remove 'Bearer ' prefix
+            else:
+                token = auth_header
+            
+            # Get JWT manager from app_manager
+            jwt_manager = self.app_manager.jwt_manager
+            
+            # Verify the token
+            payload = jwt_manager.verify_token(token, TokenType.ACCESS)
+            
+            if not payload:
+                return jsonify({
+                    "success": False,
+                    "message": "Invalid or expired JWT token",
+                    "error": "Token validation failed"
+                }), 401
+            
+            # Get room ID from request body
+            data = request.get_json()
+            if not data or 'room_id' not in data:
+                return jsonify({
+                    "success": False,
+                    "message": "Room ID is required",
+                    "error": "Missing room_id in request body"
+                }), 400
+            
+            room_id = data['room_id']
+            
+            # Get game info from game state manager (games use room_id as game_id)
+            game = self.game_state_manager.get_game(room_id)
+            
+            if not game:
+                return jsonify({
+                    "success": False,
+                    "message": f"Game '{room_id}' not found",
+                    "error": "Game does not exist"
+                }), 404
+            
+            # Convert game to Flutter-compatible format
+            game_info = self.game_state_manager._to_flutter_game_state(game)
+            
+            # Get room info from WebSocket manager to include permission and password requirement
+            room_info = self.websocket_manager.get_room_info(room_id)
+            if room_info:
+                # Add room permission info to game info
+                game_info['room_permission'] = room_info.get('permission', 'public')
+                game_info['requires_password'] = room_info.get('permission') == 'private'
+                # Don't include actual password for security
+            
+            # Return success response with game info
+            response_data = {
+                "success": True,
+                "message": f"Game '{room_id}' found",
+                "game": game_info,
+                "timestamp": time.time()
+            }
+            
+            custom_log(f"✅ Game '{room_id}' found successfully for user: {payload.get('user_id')}")
+            return jsonify(response_data), 200
+            
+        except Exception as e:
+            custom_log(f"❌ Error in find_room endpoint: {e}", level="ERROR")
+            return jsonify({
+                "success": False,
+                "message": "Failed to find game",
                 "error": str(e)
             }), 500
     

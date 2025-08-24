@@ -297,12 +297,40 @@ class WSEventHandlers:
         """Handle room join requests"""
         try:
             room_id = data.get('room_id')
+            password = data.get('password')  # Get password from join request
             custom_log(f"🔧 [HANDLER-JOIN] Handling join room: {room_id} for session: {session_id}")
             
             if not room_id:
                 custom_log("❌ No room_id provided for join request")
                 self.socketio.emit('join_room_error', {'error': 'No room_id provided'})
                 return False
+            
+            # Check if room exists and get room info
+            room_info = self.websocket_manager.get_room_info(room_id)
+            if not room_info:
+                custom_log(f"❌ Room {room_id} not found")
+                self.socketio.emit('join_room_error', {'error': f'Room {room_id} not found'})
+                return False
+            
+            # Validate password for private rooms
+            if room_info.get('permission') == 'private':
+                stored_password = room_info.get('password')
+                if not stored_password:
+                    custom_log(f"❌ Private room {room_id} has no password stored")
+                    self.socketio.emit('join_room_error', {'error': 'Room access configuration error'})
+                    return False
+                
+                if not password:
+                    custom_log(f"❌ Password required for private room {room_id}")
+                    self.socketio.emit('join_room_error', {'error': 'Password required for private room'})
+                    return False
+                
+                if password != stored_password:
+                    custom_log(f"❌ Invalid password for private room {room_id}")
+                    self.socketio.emit('join_room_error', {'error': 'Invalid password for private room'})
+                    return False
+                
+                custom_log(f"✅ Password validated for private room {room_id}")
             
             # Get session data
             session_data = self.websocket_manager.get_session_data(session_id)
@@ -400,8 +428,11 @@ class WSEventHandlers:
                 room_id = f"room_{uuid.uuid4().hex[:8]}"
                 custom_log(f"Generated room_id: {room_id}")
             
-            # Create the room with owner_id
-            success = self.websocket_manager.create_room(room_id, permission, owner_id=user_id)
+            # Get password from data if provided
+            password = data.get('password')
+            
+            # Create the room with owner_id and password
+            success = self.websocket_manager.create_room(room_id, permission, owner_id=user_id, password=password)
             
             if success:
                 # Join the room after creation

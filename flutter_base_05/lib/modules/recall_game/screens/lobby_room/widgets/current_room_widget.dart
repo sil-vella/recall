@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
+import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 
 /// Widget to display all joined rooms with join functionality
@@ -233,15 +234,33 @@ class CurrentRoomWidget extends StatelessWidget {
                 if (canStartGame) const SizedBox(width: 8),
                 
                 // Game Room button - only show if user is in room
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: isInRoom ? () {
+                      _log.info('🎮 [CurrentRoomWidget] Game Room button pressed for room: $roomId');
+                      // Don't call onJoinRoom since user is already in the room
+                      // This prevents duplicate join_room events that corrupt the state
+                      _log.info('🎮 [CurrentRoomWidget] User already in room, not triggering join_room event');
+                    } : null,
+                    icon: const Icon(Icons.games),
+                    label: const Text('Game Room'),
+                  ),
+                ),
+                
+                const SizedBox(width: 8),
+                
+                // Leave Room button
                 ElevatedButton.icon(
-                  onPressed: isInRoom ? () {
-                    _log.info('🎮 [CurrentRoomWidget] Game Room button pressed for room: $roomId');
-                    // Don't call onJoinRoom since user is already in the room
-                    // This prevents duplicate join_room events that corrupt the state
-                    _log.info('🎮 [CurrentRoomWidget] User already in room, not triggering join_room event');
-                  } : null,
-                  icon: const Icon(Icons.games),
-                  label: const Text('Game Room'),
+                  onPressed: () {
+                    _log.info('🚪 [CurrentRoomWidget] Leave room button pressed for room: $roomId');
+                    _leaveRoom(roomId);
+                  },
+                  icon: const Icon(Icons.exit_to_app),
+                  label: const Text('Leave'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             ),
@@ -399,6 +418,26 @@ class CurrentRoomWidget extends StatelessWidget {
       }
     } catch (e) {
       return 'Unknown';
+    }
+  }
+
+  /// Leave room by emitting WebSocket event
+  void _leaveRoom(String roomId) {
+    try {
+      _log.info('🚪 [CurrentRoomWidget] Emitting leave_room event for room: $roomId');
+      
+      // Get WebSocket manager instance
+      final wsManager = WebSocketManager.instance;
+      
+      // Emit leave_room event
+      wsManager.socket?.emit('leave_room', {
+        'room_id': roomId,
+      });
+      
+      _log.info('🚪 [CurrentRoomWidget] Leave room event emitted successfully');
+      
+    } catch (e) {
+      _log.error('❌ [CurrentRoomWidget] Error leaving room: $e');
     }
   }
 }

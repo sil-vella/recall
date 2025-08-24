@@ -13,9 +13,10 @@ This document provides a comprehensive guide to the WebSocket-Recall module arch
 5. [Hook System](#hook-system)
 6. [Data Flow Diagrams](#data-flow-diagrams)
 7. [Event Flow](#event-flow)
-8. [State Management](#state-management)
-9. [Frontend Integration](#frontend-integration)
-10. [Troubleshooting](#troubleshooting)
+8. [User Joined Rooms Event](#user-joined-rooms-event)
+9. [State Management](#state-management)
+10. [Frontend Integration](#frontend-integration)
+11. [Troubleshooting](#troubleshooting)
 
 ## Architecture Overview
 
@@ -407,6 +408,7 @@ flowchart TD
 | `join_room_error` | Room join failed | Error message | Room join failed |
 | `room_joined` | User joined room | Room info, user info | User joins room |
 | `leave_room_success` | Room leave successful | Room ID | User left room |
+| `user_joined_rooms` | All user's joined rooms | Complete room list, count, timestamp | After room join/leave/creation |
 
 ### Hook Events
 
@@ -416,6 +418,97 @@ flowchart TD
 | `room_joined` | User join notification | User and room info | `_on_room_joined` |
 | `room_closed` | Room closure notification | Room ID, reason | `_on_room_closed` |
 | `leave_room` | User leave notification | Room ID, session ID | `_on_leave_room` |
+
+## User Joined Rooms Event
+
+### Purpose
+The `user_joined_rooms` event provides comprehensive room membership tracking by emitting all rooms a user is currently in whenever their room membership changes.
+
+### Event Structure
+```json
+{
+  "session_id": "session_123",
+  "rooms": [
+    {
+      "room_id": "room_abc",
+      "creator_id": "user_456",
+      "permission": "public",
+      "created_at": "2025-08-24T14:30:00",
+      "size": 2,
+      "max_size": 6,
+      "min_players": 2,
+      "members": ["session_123", "session_789"],
+      "allowed_users": [],
+      "allowed_roles": []
+    }
+  ],
+  "total_rooms": 1,
+  "timestamp": "2025-08-24T14:30:00"
+}
+```
+
+### Trigger Points
+The event is emitted in three scenarios:
+
+1. **Room Creation (Auto-join)**: After owner is automatically joined to created room
+2. **Manual Room Join**: After user successfully joins a room
+3. **Room Leave**: After user leaves a room
+
+### Backend Implementation
+```python
+def _emit_user_joined_rooms(self, session_id: str):
+    """Emit user_joined_rooms event with all rooms the user is currently in."""
+    try:
+        # Get all rooms for this session
+        user_rooms = self.websocket_manager.get_rooms_for_session(session_id)
+        
+        # Get detailed room info for each room
+        rooms_info = []
+        for room_id in user_rooms:
+            room_info = self.websocket_manager.get_room_info(room_id)
+            if room_info:
+                rooms_info.append(room_info)
+        
+        # Emit the event to the client
+        self.socketio.emit('user_joined_rooms', {
+            'session_id': session_id,
+            'rooms': rooms_info,
+            'total_rooms': len(rooms_info),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        custom_log(f"📡 [EMIT] user_joined_rooms event sent to session {session_id} with {len(rooms_info)} rooms")
+        
+    except Exception as e:
+        custom_log(f"❌ Error emitting user_joined_rooms event: {str(e)}")
+```
+
+### Frontend Integration
+The frontend `CurrentRoomWidget` now subscribes to the `websocket` state slice to display all joined rooms:
+
+```dart
+// Get websocket state for joined rooms
+final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+
+// Extract joined rooms from WebSocket state
+final joinedRooms = websocketState['joinedRooms'] as List<dynamic>? ?? [];
+final totalJoinedRooms = websocketState['totalJoinedRooms'] ?? 0;
+final joinedRoomsTimestamp = websocketState['joinedRoomsTimestamp']?.toString() ?? '';
+
+// Display all joined rooms
+return _buildJoinedRoomsList(
+  context,
+  joinedRooms: joinedRooms.cast<Map<String, dynamic>>(),
+  totalJoinedRooms: totalJoinedRooms,
+  timestamp: joinedRoomsTimestamp,
+);
+```
+
+### Benefits
+- **Multiple Room Support**: User can be in several rooms simultaneously
+- **Real-time Updates**: Frontend gets notified of all room membership changes
+- **Complete Room Info**: Detailed information about each joined room
+- **Accurate State**: Frontend always knows exactly which rooms user is in
 
 ## State Management
 
@@ -479,6 +572,30 @@ State is synchronized through the hook system:
 2. **Hook Callbacks** → Update game state
 3. **Game State Changes** → Available via API endpoints
 
+### WebSocket State Structure
+
+The `websocket` state slice now includes comprehensive room membership tracking:
+
+```dart
+{
+  'isConnected': bool,
+  'currentRoomId': String?,
+  'currentRoomInfo': Map<String, dynamic>?,
+  'sessionData': Map<String, dynamic>?,
+  'joinedRooms': List<Map<String, dynamic>>,  // All rooms user is in
+  'totalJoinedRooms': int,                     // Count of joined rooms
+  'joinedRoomsTimestamp': String?,             // Last update timestamp
+  'joinedRoomsSessionId': String?,             // Session ID for the data
+  'lastUpdated': String
+}
+```
+
+**Key Fields**:
+- `joinedRooms`: Array of complete room information for all rooms user is in
+- `totalJoinedRooms`: Total count of rooms user is currently in
+- `joinedRoomsTimestamp`: ISO timestamp of last room membership update
+- `joinedRoomsSessionId`: Session ID that the room data belongs to
+
 ## Frontend Integration
 
 ### State Subscription
@@ -486,10 +603,13 @@ State is synchronized through the hook system:
 Frontend widgets subscribe to specific state slices:
 
 ```dart
-// CurrentRoomWidget subscribes to room state
-final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+// CurrentRoomWidget subscribes to websocket state for joined rooms
+final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+final joinedRooms = websocketState['joinedRooms'] as List<dynamic>? ?? [];
+final totalJoinedRooms = websocketState['totalJoinedRooms'] ?? 0;
 
 // AvailableGamesWidget subscribes to games state
+final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
 final availableGames = recallState['availableGames'] as List<dynamic>? ?? [];
 ```
 
@@ -516,6 +636,51 @@ if (result['success'] == true) {
     });
 }
 ```
+
+### Updated CurrentRoomWidget
+
+The `CurrentRoomWidget` has been completely refactored to support multiple room memberships:
+
+**New Features**:
+- **Multiple Room Display**: Shows all rooms user is currently in
+- **Real-time Updates**: Automatically updates when room membership changes
+- **Room Count Header**: Displays total number of joined rooms
+- **Timestamp Display**: Shows when room list was last updated
+- **Individual Room Cards**: Each room displays as a separate card with full details
+
+**State Subscription**:
+```dart
+// Now subscribes to websocket state instead of recall_game
+final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+final joinedRooms = websocketState['joinedRooms'] as List<dynamic>? ?? [];
+final totalJoinedRooms = websocketState['totalJoinedRooms'] ?? 0;
+```
+
+**Widget Structure**:
+```dart
+Widget _buildJoinedRoomsList(...) {
+  return Card(
+    child: Column(
+      children: [
+        // Header with room count and timestamp
+        Row(children: [
+          Text('Joined Rooms ($totalJoinedRooms)'),
+          Text('Updated: ${_formatTimestamp(timestamp)}'),
+        ]),
+        
+        // List of all joined rooms
+        ...joinedRooms.map((roomData) => _buildRoomCard(context, roomData: roomData)),
+      ],
+    ),
+  );
+}
+```
+
+**Benefits**:
+- **Accurate Room Tracking**: Always shows current room memberships
+- **Better UX**: Users can see all their active rooms at once
+- **Real-time Sync**: Updates automatically via WebSocket events
+- **Scalable**: Handles any number of joined rooms
 
 ## Troubleshooting
 
@@ -562,6 +727,36 @@ if (result['success'] == true) {
 - Ensure `room_joined` hook is triggered for both manual joins and auto-joins
 - Verify game instances exist before adding players
 - Check hook callback registration and execution
+
+#### 4. user_joined_rooms Event Not Received
+
+**Symptoms**: Frontend not showing updated room list after join/leave
+
+**Causes**:
+- `_emit_user_joined_rooms` not called
+- WebSocket state not updated
+- Frontend not subscribing to correct state slice
+
+**Solutions**:
+- Verify `_emit_user_joined_rooms` is called in all three trigger points
+- Check WebSocket state validation and updates
+- Ensure frontend subscribes to `websocket` state slice
+- Verify event listener registration for `user_joined_rooms`
+
+#### 5. Multiple Rooms Not Displayed
+
+**Symptoms**: Only one room shown even when user is in multiple rooms
+
+**Causes**:
+- `get_rooms_for_session` returning incomplete data
+- Room data not properly serialized
+- Frontend not handling multiple rooms correctly
+
+**Solutions**:
+- Verify `get_rooms_for_session` returns all room IDs
+- Check room data serialization in `get_room_info`
+- Ensure frontend `_buildJoinedRoomsList` handles multiple rooms
+- Verify WebSocket state contains `joinedRooms` array
 
 ### Debug Commands
 

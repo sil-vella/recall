@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 
-/// Widget to display current room information with join functionality
+/// Widget to display all joined rooms with join functionality
 /// 
-/// This widget subscribes to the recall_game state slice and displays:
-/// - Current room information (if user is in a room)
-/// - Room details (name, size, permission)
+/// This widget subscribes to both recall_game and websocket state slices and displays:
+/// - All rooms the user is currently in (from WebSocket state)
+/// - Room details (name, size, permission, game phase)
 /// - Join button for room actions
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
@@ -25,46 +25,27 @@ class CurrentRoomWidget extends StatelessWidget {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        // Get websocket state for joined rooms
+        final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
         
-        // Extract room-related state
-        final isInRoom = recallState['isInRoom'] == true;
-        final currentRoomId = recallState['currentRoomId']?.toString() ?? '';
-        final roomName = recallState['roomName']?.toString() ?? '';
-        final currentSize = recallState['currentSize'] ?? 0;
-        final maxSize = recallState['maxSize'];
-        final minSize = recallState['minSize'];
+        // Extract joined rooms from WebSocket state
+        final joinedRooms = websocketState['joinedRooms'] as List<dynamic>? ?? [];
+        final totalJoinedRooms = websocketState['totalJoinedRooms'] ?? 0;
+        final joinedRoomsTimestamp = websocketState['joinedRoomsTimestamp']?.toString() ?? '';
         
-        // Ensure we have the required data
-        if (maxSize == null || minSize == null) {
-          _log.warning('⚠️ CurrentRoomWidget: Missing room size data, showing empty state');
-          return _buildEmptyState();
-        }
-        final permission = recallState['permission']?.toString() ?? 'public';
-        final isRoomOwner = recallState['isRoomOwner'] == true;
-        final gamePhase = recallState['gamePhase']?.toString() ?? 'waiting';
-        final gameStatus = recallState['gameStatus']?.toString() ?? 'inactive';
+        _log.info('🏠 CurrentRoomWidget: Found $totalJoinedRooms joined rooms');
 
-        _log.info('🏠 CurrentRoomWidget: isInRoom=$isInRoom, roomId=$currentRoomId, size=$currentSize/$maxSize');
-
-        // If not in a room, show empty state
-        if (!isInRoom || currentRoomId.isEmpty) {
+        // If not in any rooms, show empty state
+        if (totalJoinedRooms == 0 || joinedRooms.isEmpty) {
           return _buildEmptyState();
         }
 
-        // Show current room information
-        return _buildRoomCard(
+        // Show all joined rooms
+        return _buildJoinedRoomsList(
           context,
-          roomId: currentRoomId,
-          roomName: roomName,
-          currentSize: currentSize,
-          maxSize: maxSize,
-          minSize: minSize,
-          permission: permission,
-          isRoomOwner: isRoomOwner,
-          gamePhase: gamePhase,
-          gameStatus: gameStatus,
-          isInRoom: isInRoom,
+          joinedRooms: joinedRooms.cast<Map<String, dynamic>>(),
+          totalJoinedRooms: totalJoinedRooms,
+          timestamp: joinedRoomsTimestamp,
         );
       },
     );
@@ -84,7 +65,7 @@ class CurrentRoomWidget extends StatelessWidget {
                 Icon(Icons.room, color: Colors.grey[600]),
                 const SizedBox(width: 8),
                 Text(
-                  'Current Room',
+                  'Joined Rooms',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -95,7 +76,7 @@ class CurrentRoomWidget extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Not currently in a room',
+              'Not currently in any rooms',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
@@ -115,20 +96,75 @@ class CurrentRoomWidget extends StatelessWidget {
     );
   }
 
-  /// Build room card with current room information
+  /// Build list of all joined rooms
+  Widget _buildJoinedRoomsList(
+    BuildContext context, {
+    required List<Map<String, dynamic>> joinedRooms,
+    required int totalJoinedRooms,
+    required String timestamp,
+  }) {
+    return Card(
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with count and timestamp
+            Row(
+              children: [
+                Icon(Icons.room, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Joined Rooms ($totalJoinedRooms)',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (timestamp.isNotEmpty)
+                  Text(
+                    'Updated: ${_formatTimestamp(timestamp)}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // List of joined rooms
+            ...joinedRooms.map((roomData) => _buildRoomCard(
+              context,
+              roomData: roomData,
+            )).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build room card with room information from data
   Widget _buildRoomCard(
     BuildContext context, {
-    required String roomId,
-    required String roomName,
-    required int currentSize,
-    required int maxSize,
-    required int minSize,
-    required String permission,
-    required bool isRoomOwner,
-    required String gamePhase,
-    required String gameStatus,
-    required bool isInRoom,
+    required Map<String, dynamic> roomData,
   }) {
+    // Extract room information from the data
+    final roomId = roomData['room_id']?.toString() ?? '';
+    final roomName = roomData['room_name']?.toString() ?? 'Room $roomId';
+    final currentSize = roomData['size'] ?? 0;
+    final maxSize = roomData['max_size'] ?? 4;
+    final minSize = roomData['min_players'] ?? 2;
+    final permission = roomData['permission']?.toString() ?? 'public';
+    final isRoomOwner = roomData['creator_id']?.toString() == roomData['user_id']?.toString();
+    final gamePhase = roomData['game_phase']?.toString() ?? 'waiting';
+    final gameStatus = roomData['game_status']?.toString() ?? 'inactive';
+    final isInRoom = true; // If we're showing this room, user is in it
+    
     final canStartGame = isRoomOwner && 
                         gamePhase == 'waiting' && 
                         currentSize >= minSize;
@@ -343,5 +379,26 @@ class CurrentRoomWidget extends StatelessWidget {
       backgroundColor: chipColor,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
+  }
+
+  /// Format timestamp for display
+  String _formatTimestamp(String timestamp) {
+    try {
+      final dateTime = DateTime.parse(timestamp);
+      final now = DateTime.now();
+      final difference = now.difference(dateTime);
+      
+      if (difference.inMinutes < 1) {
+        return 'Just now';
+      } else if (difference.inMinutes < 60) {
+        return '${difference.inMinutes}m ago';
+      } else if (difference.inHours < 24) {
+        return '${difference.inHours}h ago';
+      } else {
+        return '${difference.inDays}d ago';
+      }
+    } catch (e) {
+      return 'Unknown';
+    }
   }
 }

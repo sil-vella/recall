@@ -504,10 +504,60 @@ class WSEventHandler {
           'data': data,
         });
         
-        _log.info("✅ Room closed event handled successfully");
+              _log.info("✅ Room closed event handled successfully");
+    }
+  } catch (e) {
+    _log.error("❌ Error handling room closed event: $e");
+  }
+}
+
+  /// Handle user joined rooms event
+  void handleUserJoinedRooms(dynamic data) {
+    _log.info("🔧 [HANDLER-USER_JOINED_ROOMS] Handling user joined rooms event");
+    
+    try {
+      // Validate the data structure
+      if (data is! Map<String, dynamic>) {
+        _log.error("❌ Invalid data format for user_joined_rooms event");
+        return;
       }
+      
+      final sessionId = data['session_id']?.toString() ?? '';
+      final rooms = data['rooms'] as List<dynamic>? ?? [];
+      final totalRooms = data['total_rooms'] ?? 0;
+      final timestamp = data['timestamp']?.toString() ?? '';
+      
+      _log.info("🏠 [USER_JOINED_ROOMS] Session: $sessionId, Total rooms: $totalRooms");
+      
+      // Update WebSocket state with joined rooms information
+      WebSocketStateHelpers.updateJoinedRooms(
+        sessionId: sessionId,
+        joinedRooms: rooms.cast<Map<String, dynamic>>(),
+        totalRooms: totalRooms,
+        timestamp: timestamp,
+      );
+      
+      // Trigger event callbacks for room management
+      _eventManager.triggerCallbacks('user_joined_rooms', {
+        'session_id': sessionId,
+        'rooms': rooms,
+        'total_rooms': totalRooms,
+        'timestamp': timestamp,
+      });
+      
+      // 🎣 Trigger websocket_user_joined_rooms hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_user_joined_rooms hook");
+      HooksManager().triggerHookWithData('websocket_user_joined_rooms', {
+        'status': 'updated',
+        'session_id': sessionId,
+        'rooms': rooms,
+        'total_rooms': totalRooms,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      _log.info("✅ User joined rooms handled successfully");
     } catch (e) {
-      _log.error("❌ Error handling room closed event: $e");
+      _log.error("❌ Error handling user joined rooms: $e");
     }
   }
 

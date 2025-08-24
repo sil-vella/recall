@@ -46,6 +46,7 @@ class WSEventListener {
     _registerLeaveRoomSuccessListener();
     _registerLeaveRoomErrorListener();
     _registerRoomClosedListener();
+    _registerUserJoinedRoomsListener();
 
     // Message events
     _registerMessageListener();
@@ -176,7 +177,13 @@ class WSEventListener {
     });
   }
 
-
+  /// Register user joined rooms listener
+  void _registerUserJoinedRoomsListener() {
+    _socket?.on('user_joined_rooms', (data) {
+      _log.info("🔍 [USER_JOINED_ROOMS] User joined rooms event received");
+      _eventHandler.handleUserJoinedRooms(data);
+    });
+  }
 
   /// Register a custom event listener
   void registerCustomListener(String eventName, Function(dynamic) handler) {
@@ -228,6 +235,8 @@ class WSEventListener {
     _socket?.off('create_room_error');
     _socket?.off('leave_room_success');
     _socket?.off('leave_room_error');
+    _socket?.off('room_closed');
+    _socket?.off('user_joined_rooms');
     _socket?.off('message');
     _socket?.off('error');
     

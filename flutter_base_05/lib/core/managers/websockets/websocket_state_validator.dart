@@ -62,6 +62,30 @@ class WebSocketStateUpdater {
       required: false,
       defaultValue: null,
     ),
+    'joinedRooms': WebSocketStateFieldSpec(
+      name: 'joinedRooms',
+      type: List,
+      required: false,
+      defaultValue: [],
+    ),
+    'totalJoinedRooms': WebSocketStateFieldSpec(
+      name: 'totalJoinedRooms',
+      type: int,
+      required: false,
+      defaultValue: 0,
+    ),
+    'joinedRoomsTimestamp': WebSocketStateFieldSpec(
+      name: 'joinedRoomsTimestamp',
+      type: String,
+      required: false,
+      defaultValue: null,
+    ),
+    'joinedRoomsSessionId': WebSocketStateFieldSpec(
+      name: 'joinedRoomsSessionId',
+      type: String,
+      required: false,
+      defaultValue: null,
+    ),
     'lastUpdated': WebSocketStateFieldSpec(
       name: 'lastUpdated',
       type: String,
@@ -110,6 +134,16 @@ class WebSocketStateUpdater {
           } else if (spec.type == Map && value is! Map) {
             throw WebSocketStateException(
               'Field "$fieldName" must be of type Map, got ${value.runtimeType}',
+              fieldName,
+            );
+          } else if (spec.type == List && value is! List) {
+            throw WebSocketStateException(
+              'Field "$fieldName" must be of type List, got ${value.runtimeType}',
+              fieldName,
+            );
+          } else if (spec.type == int && value is! int) {
+            throw WebSocketStateException(
+              'Field "$fieldName" must be of type int, got ${value.runtimeType}',
               fieldName,
             );
           }
@@ -265,6 +299,23 @@ class WebSocketStateHelpers {
     
     WebSocketStateUpdater.updateState({
       'sessionData': sessionData,
+    });
+  }
+
+  /// Update joined rooms information
+  static void updateJoinedRooms({
+    required String sessionId,
+    required List<Map<String, dynamic>> joinedRooms,
+    required int totalRooms,
+    required String timestamp,
+  }) {
+    _logger.info("🔧 [WS-HELPER] Updating joined rooms: $totalRooms rooms for session: $sessionId");
+    
+    WebSocketStateUpdater.updateState({
+      'joinedRooms': joinedRooms,
+      'totalJoinedRooms': totalRooms,
+      'joinedRoomsTimestamp': timestamp,
+      'joinedRoomsSessionId': sessionId,
     });
   }
 }

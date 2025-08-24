@@ -29,10 +29,11 @@ class GamePhase(Enum):
 class GameState:
     """Represents the current state of a Recall game"""
     
-    def __init__(self, game_id: str, max_players: int = 4, min_players: int = 2):
+    def __init__(self, game_id: str, max_players: int = 4, min_players: int = 2, permission: str = 'public'):
         self.game_id = game_id
         self.max_players = max_players
         self.min_players = min_players
+        self.permission = permission  # 'public' or 'private'
         self.players = {}  # player_id -> Player
         self.current_player_id = None
         self.phase = GamePhase.WAITING_FOR_PLAYERS
@@ -653,14 +654,14 @@ class GameStateManager:
             custom_log(f"❌ Failed to initialize GameStateManager: {e}", level="ERROR")
             return False
     
-    def create_game(self, max_players: int = 4, min_players: int = 2) -> str:
+    def create_game(self, max_players: int = 4, min_players: int = 2, permission: str = 'public') -> str:
         """Create a new game"""
         game_id = str(uuid.uuid4())
-        game_state = GameState(game_id, max_players, min_players)
+        game_state = GameState(game_id, max_players, min_players, permission)
         self.active_games[game_id] = game_state
         return game_id
     
-    def create_game_with_id(self, game_id: str, max_players: int = 4, min_players: int = 2) -> str:
+    def create_game_with_id(self, game_id: str, max_players: int = 4, min_players: int = 2, permission: str = 'public') -> str:
         """Create a new game using a provided identifier (e.g., room_id).
 
         This aligns backend game identity with the room identifier used by the
@@ -671,7 +672,7 @@ class GameStateManager:
         existing = self.active_games.get(game_id)
         if existing is not None:
             return game_id
-        game_state = GameState(game_id, max_players, min_players)
+        game_state = GameState(game_id, max_players, min_players, permission)
         self.active_games[game_id] = game_state
         return game_id
     
@@ -693,15 +694,24 @@ class GameStateManager:
     def get_available_games(self) -> List[Dict[str, Any]]:
         """Get all public games that are in the waiting for players phase and can be joined"""
         available_games = []
+        total_games = len(self.active_games)
+        public_games = 0
+        private_games = 0
         
         for game_id, game in self.active_games.items():
-            # Only include games that are waiting for players
-            if game.phase == GamePhase.WAITING_FOR_PLAYERS:
+            # Log game details for debugging
+            custom_log(f"🎮 [DEBUG] Game {game_id}: phase={game.phase.value}, permission={game.permission}, players={len(game.players)}")
+            
+            # Only include PUBLIC games that are waiting for players
+            if game.phase == GamePhase.WAITING_FOR_PLAYERS and game.permission == 'public':
                 # Convert to Flutter-compatible format
                 game_data = self._to_flutter_game_state(game)
                 available_games.append(game_data)
+                public_games += 1
+            elif game.permission == 'private':
+                private_games += 1
         
-        custom_log(f"🎮 Found {len(available_games)} available games for joining")
+        custom_log(f"🎮 Found {len(available_games)} available PUBLIC games out of {total_games} total games ({public_games} public, {private_games} private)")
         return available_games
     
     # ========= WebSocket Event Handlers =========
@@ -1020,6 +1030,7 @@ class GameStateManager:
             'maxPlayers': game.max_players,
             'minPlayers': game.min_players,
             'activePlayerCount': len([p for p in game.players.values() if p.is_active]),
+            'permission': game.permission,  # Include room permission
         }
 
     def cleanup_ended_games(self):
@@ -1060,17 +1071,18 @@ class GameStateManager:
             room_id = room_data.get('room_id')
             max_players = room_data.get('max_players', 4)
             min_players = room_data.get('min_players', 2)
+            permission = room_data.get('permission', 'public')  # Extract room permission
             
-            custom_log(f"🎮 [HOOK] Room created: {room_id}, creating game automatically")
+            custom_log(f"🎮 [HOOK] Room created: {room_id}, creating game automatically with permission: {permission}")
             
-            # Create game with room_id as game_id
-            game_id = self.create_game_with_id(room_id, max_players=max_players, min_players=min_players)
+            # Create game with room_id as game_id and room permission
+            game_id = self.create_game_with_id(room_id, max_players=max_players, min_players=min_players, permission=permission)
             
             # Initialize game state (waiting for players)
             game = self.get_game(game_id)
             if game:
                 game.phase = GamePhase.WAITING_FOR_PLAYERS
-                custom_log(f"✅ Game {game_id} created and initialized for room {room_id}")
+                custom_log(f"✅ Game {game_id} created and initialized for room {room_id} with permission: {permission}")
             else:
                 custom_log(f"❌ Failed to create game for room {room_id}")
                 

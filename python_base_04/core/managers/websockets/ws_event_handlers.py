@@ -298,6 +298,11 @@ class WSEventHandlers:
                 # Get room owner information from memory storage
                 room_owner_id = self.websocket_manager.get_room_creator(room_id)
                 
+                # Get actual room data from memory storage
+                room_info = self.websocket_manager.get_room_info(room_id) or {}
+                current_size = self.websocket_manager.get_room_size(room_id)
+                max_size = room_info.get('max_size', 4)  # Get actual max_size from room data
+                
                 # Emit success to client (matching Flutter expectations)
                 self.socketio.emit('join_room_success', {
                     'room_id': room_id,
@@ -305,8 +310,8 @@ class WSEventHandlers:
                     'user_id': user_id,
                     'owner_id': room_owner_id,  # Include owner_id in response
                     'timestamp': datetime.now().isoformat(),
-                    'current_size': self.websocket_manager.get_room_size(room_id),
-                    'max_size': 10
+                    'current_size': current_size,
+                    'max_size': max_size  # Use actual max_size from room data
                 })
                 
                 # 🎣 Trigger room_joined hook for game creation logic
@@ -315,8 +320,8 @@ class WSEventHandlers:
                     'session_id': session_id,
                     'user_id': user_id,
                     'owner_id': room_owner_id,
-                    'current_size': self.websocket_manager.get_room_size(room_id),
-                    'max_size': 10,
+                    'current_size': current_size,
+                    'max_size': max_size,  # Use actual max_size from room data
                     'joined_at': datetime.now().isoformat()
                 }
                 self.websocket_manager.trigger_hook('room_joined', room_data)

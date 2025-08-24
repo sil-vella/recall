@@ -366,6 +366,8 @@ class WSEventHandlers:
                         'success': True,
                         'room_id': room_id,
                         'owner_id': owner_id,
+                        'max_size': data.get('max_players', 4),
+                        'min_players': data.get('min_players', 2),
                         'timestamp': datetime.now().isoformat(),
                     })
                     

@@ -307,10 +307,15 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // Set room ownership in recall game state
+      // Set room ownership and game state in recall game state
+      final maxSize = roomData['max_size'] ?? 4; // Extract max_size from room data
+      final minSize = roomData['min_players'] ?? 2; // Extract min_players from room data
+      
       RecallGameHelpers.updateUIState({
         'isRoomOwner': isRoomOwner,
         'currentRoomId': roomId,
+        'maxSize': maxSize, // Update with actual max_size from backend
+        'minSize': minSize, // Update with actual min_players from backend
       });
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       

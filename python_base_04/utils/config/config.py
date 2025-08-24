@@ -525,7 +525,7 @@ class Config:
     WS_RATE_LIMIT_CONNECTIONS = int(get_file_first_config_value("ws_rate_limit_connections", "WS_RATE_LIMIT_CONNECTIONS", "100"))  # Max connections per window
     WS_RATE_LIMIT_MESSAGES = int(get_file_first_config_value("ws_rate_limit_messages", "WS_RATE_LIMIT_MESSAGES", "1000"))  # Max messages per window
     WS_RATE_LIMIT_WINDOW = int(get_file_first_config_value("ws_rate_limit_window", "WS_RATE_LIMIT_WINDOW", "60"))  # Rate limit window in seconds
-    WS_ROOM_SIZE_LIMIT = int(get_file_first_config_value("ws_room_size_limit", "WS_ROOM_SIZE_LIMIT", "100"))  # Max users per room
+    WS_ROOM_SIZE_LIMIT = int(get_file_first_config_value("ws_room_size_limit", "WS_ROOM_SIZE_LIMIT", "6"))  # Max users per room
     WS_ROOM_SIZE_CHECK_INTERVAL = int(get_file_first_config_value("ws_room_size_check_interval", "WS_ROOM_SIZE_CHECK_INTERVAL", "30"))  # Check interval in seconds
     WS_ROOM_TTL = int(get_file_first_config_value("ws_room_ttl", "WS_ROOM_TTL", "86400"))  # Room TTL in seconds (24 hours)
     WS_ROOM_CLEANUP_AGE = int(get_file_first_config_value("ws_room_cleanup_age", "WS_ROOM_CLEANUP_AGE", "600"))  # Stale room cleanup age in seconds (10 minutes)

@@ -10,6 +10,7 @@ from datetime import datetime
 import json
 import uuid
 from core.managers.jwt_manager import TokenType
+from utils.config.config import Config
 
 class WSEventHandlers:
     """Centralized WebSocket event handlers"""
@@ -378,8 +379,8 @@ class WSEventHandlers:
                         'success': True,
                         'room_id': room_id,
                         'owner_id': owner_id,
-                        'max_size': data.get('max_players'),  # No fallback - must be provided by frontend
-                        'min_players': data.get('min_players'),  # No fallback - must be provided by frontend
+                        'max_size': data.get('max_players') or Config.WS_ROOM_SIZE_LIMIT,  # Use frontend value or config fallback
+                        'min_players': data.get('min_players') or 2,  # Use frontend value or default fallback
                         'timestamp': datetime.now().isoformat(),
                     })
                     
@@ -390,7 +391,7 @@ class WSEventHandlers:
                         'owner_id': owner_id,  # Get owner_id from memory
                         'timestamp': datetime.now().isoformat(),
                         'current_size': 1,
-                        'max_size': data.get('max_players')  # No fallback - must be provided by frontend
+                        'max_size': data.get('max_players') or Config.WS_ROOM_SIZE_LIMIT  # Use frontend value or config fallback
                     })
                     
                     # 🎣 Trigger room_created hook for game creation logic
@@ -398,8 +399,8 @@ class WSEventHandlers:
                         'room_id': room_id,
                         'owner_id': owner_id,
                         'permission': permission,
-                        'max_players': data.get('max_players'),  # No fallback - must be provided by frontend
-                        'min_players': data.get('min_players'),  # No fallback - must be provided by frontend
+                        'max_players': data.get('max_players') or Config.WS_ROOM_SIZE_LIMIT,  # Use frontend value or config fallback
+                        'min_players': data.get('min_players') or 2,  # Use frontend value or default fallback
                         'game_type': data.get('game_type', 'classic'),
                         'turn_time_limit': data.get('turn_time_limit', 30),
                         'auto_start': data.get('auto_start', True),

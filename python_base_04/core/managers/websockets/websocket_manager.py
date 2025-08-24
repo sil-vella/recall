@@ -491,7 +491,9 @@ class WebSocketManager:
                     'allowed_users': list(allowed_users or set()),  # Convert set to list for JSON serialization
                     'allowed_roles': list(allowed_roles or set()),  # Convert set to list for JSON serialization
                     'created_at': datetime.now().isoformat(),
-                    'size': 0
+                    'size': 0,
+                    'max_size': Config.WS_ROOM_SIZE_LIMIT,  # Single fallback for room size
+                    'min_players': 2  # Default minimum players
                 }
                 
                 custom_log(f"DEBUG - Room data prepared: {room_data}")
@@ -519,6 +521,8 @@ class WebSocketManager:
                     'permission': permission,
                     'created_at': datetime.now().isoformat(),
                     'size': 0,
+                    'max_size': Config.WS_ROOM_SIZE_LIMIT,  # Single fallback for room size
+                    'min_players': 2,  # Default minimum players
                     'allowed_users': list(allowed_users or set()),  # Convert set to list for consistency
                     'allowed_roles': list(allowed_roles or set())   # Convert set to list for consistency
                 }

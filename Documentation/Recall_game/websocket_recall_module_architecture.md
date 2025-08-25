@@ -448,6 +448,215 @@ flowchart TD
 | `join_room` | Join existing room | Room ID | `handle_join_room` |
 | `leave_room` | Leave current room | Room ID | `handle_leave_room` |
 
+### Custom Event Registration System
+
+The Recall module uses a **custom event registration system** that integrates with the core WebSocket infrastructure while maintaining module-specific event handling.
+
+#### Architecture Overview
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Backend       │    │   Core WebSocket  │    │   Recall Module │
+│   (Python)      │───►│   Event Manager   │───►│   Event Handler │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌──────────────────┐
+                       │   State Manager  │
+                       │   (Flutter)      │
+                       └──────────────────┘
+```
+
+#### Backend Event Emission
+
+**Recall-Specific Events**:
+```python
+# In game_state.py - _send_recall_player_joined_events()
+def _send_recall_player_joined_events(self, room_id: str, user_id: str, session_id: str, game):
+    # 1. Send new_player_joined event to the room
+    room_payload = {
+        'event_type': 'recall_new_player_joined',
+        'room_id': room_id,
+        'joined_player': {
+            'user_id': user_id,
+            'session_id': session_id,
+            'name': f"Player_{user_id[:8]}",
+            'joined_at': datetime.now().isoformat()
+        },
+        'game_state': game_state,
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Send as recall_game_event to the room
+    self.websocket_manager.socketio.emit('recall_game_event', room_payload, room=room_id)
+    
+    # 2. Send joined_games event to the joined user
+    user_payload = {
+        'event_type': 'recall_joined_games',
+        'user_id': user_id,
+        'session_id': session_id,
+        'games': user_games,
+        'total_games': len(user_games),
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Send as recall_game_event to the specific user's session
+    self.websocket_manager.send_to_session(session_id, 'recall_game_event', user_payload)
+```
+
+**Event Structure**:
+- **Wrapper Event**: `recall_game_event` (single Socket.IO event)
+- **Event Type**: `event_type` field determines specific event type
+- **Event Types**: `recall_new_player_joined`, `recall_joined_games`
+- **Data**: Event-specific payload with game state information
+
+#### Frontend Custom Event Registration
+
+**Core WebSocket Integration**:
+```dart
+// In recall_event_listener_validator.dart
+class RecallGameEventListenerValidator {
+  static final RecallGameEventListenerValidator _instance = RecallGameEventListenerValidator._internal();
+  static RecallGameEventListenerValidator get instance => _instance;
+  
+  // Register with core WebSocket system
+  void _registerSocketIOListener() {
+    final wsManager = WebSocketManager.instance;
+    
+    // Use the core WebSocket system's connection logic
+    if (wsManager.isConnected && wsManager.eventListener != null) {
+      _registerListenerNow();
+    } else {
+      // Wait for WebSocket to connect
+      wsManager.connectionStatus.listen((event) {
+        if (event.status == ConnectionStatus.connected && !_socketIOListenerRegistered) {
+          _registerListenerNow();
+        }
+      });
+    }
+  }
+  
+  // Register the actual Socket.IO listener
+  void _registerListenerNow() {
+    final wsManager = WebSocketManager.instance;
+    
+    // Use the core WebSocket system's event listener
+    wsManager.eventListener!.registerCustomListener('recall_game_event', (data) {
+      _handleRecallGameEvent(data);
+    });
+  }
+}
+```
+
+**Event Validation and Routing**:
+```dart
+// Event schema validation
+static const Map<String, Set<String>> _eventSchema = {
+  'recall_new_player_joined': {
+    'event_type', 'room_id', 'joined_player', 'game_state', 'timestamp',
+  },
+  'recall_joined_games': {
+    'event_type', 'user_id', 'session_id', 'games', 'total_games', 'timestamp',
+  },
+};
+
+// Event handling and routing
+void _handleRecallGameEvent(Map<String, dynamic> data) {
+  final eventType = data['event_type'] as String?;
+  
+  // Validate event type against schema
+  if (!_eventSchema.containsKey(eventType)) {
+    _log.error('❌ Unknown recall game event type: $eventType');
+    return;
+  }
+  
+  // Route to appropriate callback
+  final callback = _callbacks[eventType];
+  if (callback != null) {
+    callback(data);
+  }
+}
+```
+
+#### State Management Integration
+
+**Event-Driven State Updates**:
+```dart
+// In recall_event_manager.dart
+void _registerRecallEventListeners() {
+  // Register recall_joined_games event listener
+  RecallGameEventListenerValidator.instance.addListener('recall_joined_games', (data) {
+    final games = data['games'] as List<dynamic>? ?? [];
+    final totalGames = data['total_games'] ?? 0;
+    
+    // Update recall game state with joined games information
+    RecallGameHelpers.updateUIState({
+      'joinedGames': games.cast<Map<String, dynamic>>(),
+      'totalJoinedGames': totalGames,
+      'joinedGamesTimestamp': DateTime.now().toIso8601String(),
+      'lastUpdated': DateTime.now().toIso8601String(),
+    });
+  });
+}
+```
+
+**State Schema Validation**:
+```dart
+// In validated_state_updater.dart
+static const Map<String, RecallStateFieldSpec> _stateSchema = {
+  // ... existing fields ...
+  
+  // 🎯 NEW: Joined Games Tracking
+  'joinedGames': RecallStateFieldSpec(
+    type: List,
+    defaultValue: [],
+    description: 'List of games the user is currently in',
+  ),
+  'totalJoinedGames': RecallStateFieldSpec(
+    type: int,
+    defaultValue: 0,
+    description: 'Total number of games the user is currently in',
+  ),
+  'joinedGamesTimestamp': RecallStateFieldSpec(
+    type: String,
+    required: false,
+    description: 'Timestamp of last joined games update',
+  ),
+};
+```
+
+#### Widget State Subscription
+
+**State-Driven UI Updates**:
+```dart
+// In current_room_widget.dart
+Widget build(BuildContext context) {
+  return ListenableBuilder(
+    listenable: StateManager(),
+    builder: (context, child) {
+      // Get recall game state for joined games
+      final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      
+      // Extract joined games from recall game state
+      final joinedGames = recallGameState['joinedGames'] as List<dynamic>? ?? [];
+      final totalJoinedGames = recallGameState['totalJoinedGames'] ?? 0;
+      
+      // Display games using state data
+      return _buildJoinedGamesList(context, joinedGames: joinedGames, totalJoinedGames: totalJoinedGames);
+    },
+  );
+}
+```
+
+#### Benefits of Custom Event System
+
+1. **Module Isolation**: Recall-specific events don't interfere with core WebSocket events
+2. **Centralized Registration**: Uses core WebSocket system for connection management
+3. **Schema Validation**: Ensures event data integrity
+4. **State Integration**: Seamlessly updates Flutter state management
+5. **Extensible Design**: Easy to add new recall-specific events
+6. **Connection Reliability**: Leverages core WebSocket connection monitoring
+
 ### WebSocket Events to Frontend
 
 | Event | Purpose | Data Structure | Triggered When |
@@ -459,6 +668,43 @@ flowchart TD
 | `room_joined` | User joined room | Room info, user info | User joins room |
 | `leave_room_success` | Room leave successful | Room ID | User left room |
 | `user_joined_rooms` | All user's joined rooms | Complete room list, count, timestamp | After room join/leave/creation |
+
+### Recall-Specific Events
+
+| Event | Purpose | Data Structure | Triggered When |
+|-------|---------|----------------|----------------|
+| `recall_game_event` | Wrapper for all recall events | `{event_type, ...event_data}` | Various recall game events |
+| `recall_new_player_joined` | New player joined game | Player info, game state | Player joins room/game |
+| `recall_joined_games` | User's joined games updated | User's game list | User joins/leaves games |
+
+**Recall Event Structure**:
+```json
+{
+  "event_type": "recall_joined_games",
+  "user_id": "user_123",
+  "session_id": "session_456",
+  "games": [
+    {
+      "game_id": "room_789",
+      "room_id": "room_789",
+      "game_state": {
+        "gameId": "room_789",
+        "gameName": "Recall Game room_789",
+        "players": [...],
+        "playerCount": 1,
+        "maxPlayers": 6,
+        "minPlayers": 2,
+        "phase": "waiting",
+        "status": "inactive",
+        "permission": "public"
+      },
+      "joined_at": "2025-08-25T14:21:53.009561"
+    }
+  ],
+  "total_games": 1,
+  "timestamp": "2025-08-25T14:21:53.009803"
+}
+```
 
 ### Hook Events
 
@@ -653,15 +899,22 @@ The `websocket` state slice now includes comprehensive room membership tracking:
 Frontend widgets subscribe to specific state slices:
 
 ```dart
-// CurrentRoomWidget subscribes to websocket state for joined rooms
-final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
-final joinedRooms = websocketState['joinedRooms'] as List<dynamic>? ?? [];
-final totalJoinedRooms = websocketState['totalJoinedRooms'] ?? 0;
+// CurrentRoomWidget subscribes to recall_game state for joined games
+final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+final joinedGames = recallGameState['joinedGames'] as List<dynamic>? ?? [];
+final totalJoinedGames = recallGameState['totalJoinedGames'] ?? 0;
+final joinedGamesTimestamp = recallGameState['joinedGamesTimestamp']?.toString() ?? '';
 
 // AvailableGamesWidget subscribes to games state
 final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
 final availableGames = recallState['availableGames'] as List<dynamic>? ?? [];
 ```
+
+**State-Driven Architecture**:
+- **Widgets read from state**: No direct event handling in widgets
+- **Events update state**: Custom events update state via validated state updater
+- **State validation**: All state updates go through schema validation
+- **Real-time updates**: Widgets automatically rebuild when state changes
 
 ### WebSocket Event Handling
 
@@ -706,21 +959,42 @@ if (result['success'] == true) {
 
 ### Updated CurrentRoomWidget
 
-The `CurrentRoomWidget` has been completely refactored to support multiple room memberships:
+The `CurrentRoomWidget` has been completely refactored to support **state-driven game display**:
 
 **New Features**:
-- **Multiple Room Display**: Shows all rooms user is currently in
-- **Real-time Updates**: Automatically updates when room membership changes
-- **Room Count Header**: Displays total number of joined rooms
-- **Timestamp Display**: Shows when room list was last updated
-- **Individual Room Cards**: Each room displays as a separate card with full details
+- **Game Display**: Shows all games the user is currently in
+- **Real-time Updates**: Automatically updates when game state changes
+- **Game Count Header**: Displays total number of joined games
+- **Timestamp Display**: Shows when game list was last updated
+- **Individual Game Cards**: Each game displays as a separate card with full details
+- **State-Driven**: Reads from validated state instead of direct event handling
 
 **State Subscription**:
 ```dart
-// Now subscribes to websocket state instead of recall_game
-final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
-final joinedRooms = websocketState['joinedRooms'] as List<dynamic>? ?? [];
-final totalJoinedRooms = websocketState['totalJoinedRooms'] ?? 0;
+// Subscribes to recall_game state for joined games
+final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+final joinedGames = recallGameState['joinedGames'] as List<dynamic>? ?? [];
+final totalJoinedGames = recallGameState['totalJoinedGames'] ?? 0;
+final joinedGamesTimestamp = recallGameState['joinedGamesTimestamp']?.toString() ?? '';
+```
+
+**Game Data Extraction**:
+```dart
+// Extract game information from the state data (which comes from the event)
+final gameId = gameData['game_id']?.toString() ?? '';
+final roomId = gameData['room_id']?.toString() ?? gameId;
+
+// Get game state from the nested game_state object (this is the actual game data from backend)
+final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+
+// Extract data from the game_state object (this is what the backend sends)
+final roomName = gameState['gameName']?.toString() ?? 'Game $gameId';
+final currentSize = gameState['playerCount'] ?? 0;
+final maxSize = gameState['maxPlayers'] ?? 4;
+final minSize = gameState['minPlayers'] ?? 2;
+final permission = gameState['permission']?.toString() ?? 'public';
+final gamePhase = gameState['phase']?.toString() ?? 'waiting';
+final gameStatus = gameState['status']?.toString() ?? 'inactive';
 ```
 
 **Widget Structure**:
@@ -786,22 +1060,36 @@ Widget _buildRoomCard(BuildContext context, {required Map<String, dynamic> roomD
 **Leave Room Functionality**:
 ```dart
 void _leaveRoom(String roomId) {
-  _log.info('🚪 [CurrentRoomWidget] Leave room button pressed for room: $roomId');
-  final wsManager = WebSocketManager.instance;
-  if (wsManager.socket != null) {
-    wsManager.socket?.emit('leave_room', {'room_id': roomId});
-    _log.info('🚪 [CurrentRoomWidget] Leave room event emitted successfully');
-  } else {
-    _log.warning('⚠️ WebSocket is not connected, cannot leave room.');
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('WebSocket not connected. Cannot leave room.'),
-        backgroundColor: Colors.orange,
-      ),
-    );
+  try {
+    _log.info('🚪 [CurrentRoomWidget] Leaving room: $roomId');
+    
+    // Use the core WebSocket event manager
+    final wsEventManager = WSEventManager.instance;
+    
+    // Leave room using the proper method
+    wsEventManager.leaveRoom(roomId).then((result) {
+      if (result['pending'] != null) {
+        _log.info('🚪 [CurrentRoomWidget] Leave room request sent, waiting for server response');
+      } else if (result['success'] != null) {
+        _log.info('✅ [CurrentRoomWidget] Left room successfully');
+      } else {
+        _log.error('❌ [CurrentRoomWidget] Failed to leave room: ${result['error']}');
+      }
+    }).catchError((e) {
+      _log.error('❌ [CurrentRoomWidget] Error leaving room: $e');
+    });
+    
+  } catch (e) {
+    _log.error('❌ [CurrentRoomWidget] Error leaving room: $e');
   }
 }
 ```
+
+**Core WebSocket Integration**:
+- **Uses `WSEventManager`**: Proper method call instead of direct Socket.IO emission
+- **Error Handling**: Comprehensive error handling and logging
+- **State Updates**: Automatic state updates via core WebSocket system
+- **Connection Management**: Leverages core WebSocket connection monitoring
 
 **Benefits**:
 - **Accurate Room Tracking**: Always shows current room memberships
@@ -1136,6 +1424,96 @@ Player Leaves Game
        ▼                       │
    Remove Game from active_games
 ```
+
+## Extensive Logging System
+
+### Overview
+
+The system now includes **comprehensive logging** for debugging and monitoring the custom event registration and state management flow.
+
+### Event Validation Logging
+
+**Event Reception and Processing**:
+```
+🎧 [RecallGameEvent] ===== PROCESSING RECALL GAME EVENT =====
+🎧 [RecallGameEvent] Raw data type: _JsonMap
+🎧 [RecallGameEvent] Raw data: {event_type: recall_joined_games, user_id: 68700c8550fad8a5be4e28bd, ...}
+🎧 [RecallGameEvent] Data keys: [event_type, user_id, session_id, games, total_games, timestamp]
+🎧 [RecallGameEvent] Data size: 6 fields
+🎧 [RecallGameEvent] Extracted event_type: recall_joined_games
+✅ [RecallGameEvent] Event type validated: recall_joined_games
+```
+
+**Schema Validation**:
+```
+🔍 [VALIDATION] ===== VALIDATING EVENT DATA =====
+🔍 [VALIDATION] Event type: recall_joined_games
+🔍 [VALIDATION] Input data: {event_type: recall_joined_games, user_id: 68700c8550fad8a5be4e28bd, ...}
+🔍 [VALIDATION] Expected schema fields: [event_type, user_id, session_id, games, total_games, timestamp]
+🔍 [VALIDATION] Schema field count: 6
+✅ [VALIDATION] Field found: event_type = recall_joined_games
+✅ [VALIDATION] Field found: user_id = 68700c8550fad8a5be4e28bd
+✅ [VALIDATION] Field found: session_id = D1XBRASvAEa_9xE7AAAB
+✅ [VALIDATION] Field found: games = [{game_id: room_910510e0, ...}]
+✅ [VALIDATION] Field found: total_games = 1
+✅ [VALIDATION] Field found: timestamp = 2025-08-25T14:21:53.009803
+🔍 [VALIDATION] Found fields: [event_type, user_id, session_id, games, total_games, timestamp]
+🔍 [VALIDATION] Missing fields: []
+🔍 [VALIDATION] Found field count: 6/6
+✅ [VALIDATION] All expected fields present - validation PASSED
+```
+
+### State Management Logging
+
+**State Update Process**:
+```
+🎯 [RecallStateUpdater] ===== UPDATING RECALL GAME STATE =====
+🎯 [RecallStateUpdater] Input updates: {joinedGames: [{game_id: room_910510e0, ...}], totalJoinedGames: 1, ...}
+🎯 [RecallStateUpdater] Update keys: [joinedGames, totalJoinedGames, joinedGamesTimestamp, lastUpdated]
+🎯 [RecallStateUpdater] Update count: 4 fields
+🔍 [RecallStateUpdater] Starting field validation...
+🔍 [VALIDATION] ===== VALIDATING STATE UPDATES =====
+🔍 [VALIDATION] Available schema fields: [userId, username, playerId, isRoomOwner, ..., joinedGames, totalJoinedGames, joinedGamesTimestamp, ...]
+🔍 [VALIDATION] Processing field: joinedGames = [{game_id: room_910510e0, ...}]
+🔍 [VALIDATION] Field type: List<Map<String, dynamic>>
+✅ [VALIDATION] Field exists in schema: joinedGames
+🔍 [VALIDATION] Field spec: type=List, required=false, description=List of games the user is currently in
+✅ [VALIDATION] Field validation passed: joinedGames = [{game_id: room_910510e0, ...}]
+✅ [RecallStateUpdater] Field validation completed
+✅ [RecallStateUpdater] StateManager updated successfully
+🎯 [RecallStateUpdater] ===== END STATE UPDATE (SUCCESS) =====
+```
+
+### Connection Management Logging
+
+**WebSocket Connection Monitoring**:
+```
+🔌 Using core WebSocket connection monitoring for recall_game_event listener
+⏳ WebSocket not connected yet, will register listener when connected
+🔌 Connection status event received: connecting
+🔌 Connection status event received: connected
+🔌 WebSocket connected, registering recall_game_event listener
+📝 Registered Socket.IO listener for event: recall_game_event via core WebSocket system
+```
+
+### Widget State Subscription Logging
+
+**Widget Data Extraction**:
+```
+🎮 CurrentRoomWidget: Found 1 joined games
+🎮 CurrentRoomWidget: Joined games data: [{game_id: room_910510e0, room_id: room_910510e0, game_state: {...}}]
+🎮 CurrentRoomWidget: First game data: {game_id: room_910510e0, room_id: room_910510e0, game_state: {...}}
+🎮 CurrentRoomWidget: First game state: {gameId: room_910510e0, gameName: Recall Game room_910510e0, players: [...], playerCount: 1, maxPlayers: 6, minPlayers: 2, phase: waiting, status: inactive, permission: public}
+🎮 CurrentRoomWidget: Extracted data for room_910510e0: currentSize=1, maxSize=6, minSize=2, permission=public, gamePhase=waiting, gameStatus=inactive
+```
+
+### Benefits of Extensive Logging
+
+1. **Debugging**: Easy to trace event flow and identify issues
+2. **Validation**: Clear visibility into data validation process
+3. **State Tracking**: Monitor state updates and widget rebuilds
+4. **Connection Issues**: Identify WebSocket connection problems
+5. **Performance**: Track event processing and state update performance
 
 ## Troubleshooting
 

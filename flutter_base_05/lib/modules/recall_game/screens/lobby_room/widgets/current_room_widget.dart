@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
-import '../../../../../core/managers/websockets/websocket_manager.dart';
+import '../../../../../core/managers/websockets/ws_event_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 
 /// Widget to display all joined rooms with join functionality
@@ -26,33 +26,43 @@ class CurrentRoomWidget extends StatelessWidget {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        // Get websocket state for joined rooms
-        final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+        // Get recall game state for joined games
+        final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         
-        // Extract joined rooms from WebSocket state
-        final joinedRooms = websocketState['joinedRooms'] as List<dynamic>? ?? [];
-        final totalJoinedRooms = websocketState['totalJoinedRooms'] ?? 0;
-        final joinedRoomsTimestamp = websocketState['joinedRoomsTimestamp']?.toString() ?? '';
+        // Extract joined games from recall game state
+        final joinedGames = recallGameState['joinedGames'] as List<dynamic>? ?? [];
+        final totalJoinedGames = recallGameState['totalJoinedGames'] ?? 0;
+        final joinedGamesTimestamp = recallGameState['joinedGamesTimestamp']?.toString() ?? '';
         
-        _log.info('🏠 CurrentRoomWidget: Found $totalJoinedRooms joined rooms');
+        _log.info('🎮 CurrentRoomWidget: Found $totalJoinedGames joined games');
+        _log.info('🎮 CurrentRoomWidget: Joined games data: $joinedGames');
+        
+        if (joinedGames.isNotEmpty) {
+          final firstGame = joinedGames.first as Map<String, dynamic>;
+          _log.info('🎮 CurrentRoomWidget: First game data: $firstGame');
+          if (firstGame.containsKey('game_state')) {
+            final gameState = firstGame['game_state'] as Map<String, dynamic>;
+            _log.info('🎮 CurrentRoomWidget: First game state: $gameState');
+          }
+        }
 
-        // If not in any rooms, show empty state
-        if (totalJoinedRooms == 0 || joinedRooms.isEmpty) {
+        // If not in any games, show empty state
+        if (totalJoinedGames == 0 || joinedGames.isEmpty) {
           return _buildEmptyState();
         }
 
-        // Show all joined rooms
-        return _buildJoinedRoomsList(
+        // Show all joined games
+        return _buildJoinedGamesList(
           context,
-          joinedRooms: joinedRooms.cast<Map<String, dynamic>>(),
-          totalJoinedRooms: totalJoinedRooms,
-          timestamp: joinedRoomsTimestamp,
+          joinedGames: joinedGames.cast<Map<String, dynamic>>(),
+          totalJoinedGames: totalJoinedGames,
+          timestamp: joinedGamesTimestamp,
         );
       },
     );
   }
 
-  /// Build empty state when user is not in a room
+  /// Build empty state when user is not in any games
   Widget _buildEmptyState() {
     return Card(
       margin: const EdgeInsets.all(16),
@@ -63,10 +73,10 @@ class CurrentRoomWidget extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.room, color: Colors.grey[600]),
+                Icon(Icons.games, color: Colors.grey[600]),
                 const SizedBox(width: 8),
                 Text(
-                  'Joined Rooms',
+                  'Joined Games',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -77,7 +87,7 @@ class CurrentRoomWidget extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Not currently in any rooms',
+              'Not currently in any games',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
@@ -97,11 +107,11 @@ class CurrentRoomWidget extends StatelessWidget {
     );
   }
 
-  /// Build list of all joined rooms
-  Widget _buildJoinedRoomsList(
+  /// Build list of all joined games
+  Widget _buildJoinedGamesList(
     BuildContext context, {
-    required List<Map<String, dynamic>> joinedRooms,
-    required int totalJoinedRooms,
+    required List<Map<String, dynamic>> joinedGames,
+    required int totalJoinedGames,
     required String timestamp,
   }) {
     return Card(
@@ -114,11 +124,11 @@ class CurrentRoomWidget extends StatelessWidget {
             // Header with count and timestamp
             Row(
               children: [
-                Icon(Icons.room, color: Colors.blue),
+                Icon(Icons.games, color: Colors.blue),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Joined Rooms ($totalJoinedRooms)',
+                    'Joined Games ($totalJoinedGames)',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -138,10 +148,10 @@ class CurrentRoomWidget extends StatelessWidget {
             
             const SizedBox(height: 16),
             
-            // List of joined rooms
-            ...joinedRooms.map((roomData) => _buildRoomCard(
+            // List of joined games
+            ...joinedGames.map((gameData) => _buildGameCard(
               context,
-              roomData: roomData,
+              gameData: gameData,
             )).toList(),
           ],
         ),
@@ -149,24 +159,35 @@ class CurrentRoomWidget extends StatelessWidget {
     );
   }
 
-  /// Build room card with room information from data
-  Widget _buildRoomCard(
+  /// Build game card with game information from state data
+  Widget _buildGameCard(
     BuildContext context, {
-    required Map<String, dynamic> roomData,
+    required Map<String, dynamic> gameData,
   }) {
-    // Extract room information from the data
-    final roomId = roomData['room_id']?.toString() ?? '';
-    final roomName = roomData['room_name']?.toString() ?? 'Room $roomId';
-    final currentSize = roomData['size'] ?? 0;
-    final maxSize = roomData['max_size'] ?? 4;
-    final minSize = roomData['min_players'] ?? 2;
-    final permission = roomData['permission']?.toString() ?? 'public';
-    final isRoomOwner = roomData['creator_id']?.toString() == roomData['user_id']?.toString();
-    final gamePhase = roomData['game_phase']?.toString() ?? 'waiting';
-    final gameStatus = roomData['game_status']?.toString() ?? 'inactive';
-    final isInRoom = true; // If we're showing this room, user is in it
+    // Extract game information from the state data (which comes from the event)
+    final gameId = gameData['game_id']?.toString() ?? '';
+    final roomId = gameData['room_id']?.toString() ?? gameId;
     
-    final canStartGame = isRoomOwner && 
+    // Get game state from the nested game_state object (this is the actual game data from backend)
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    _log.info('🎮 [CurrentRoomWidget] Game state for $gameId: $gameState');
+    
+    // Extract data from the game_state object (this is what the backend sends)
+    final roomName = gameState['gameName']?.toString() ?? 'Game $gameId';
+    final currentSize = gameState['playerCount'] ?? 0;
+    final maxSize = gameState['maxPlayers'] ?? 4;
+    final minSize = gameState['minPlayers'] ?? 2;
+    final permission = gameState['permission']?.toString() ?? 'public';
+    final gamePhase = gameState['phase']?.toString() ?? 'waiting';
+    final gameStatus = gameState['status']?.toString() ?? 'inactive';
+    
+    // Determine if user is game owner (this might need to be passed from the event)
+    final isGameOwner = gameData['owner_id']?.toString() == gameData['user_id']?.toString();
+    final isInGame = true; // If we're showing this game, user is in it
+    
+    _log.info('🎮 [CurrentRoomWidget] Extracted data for $gameId: currentSize=$currentSize, maxSize=$maxSize, minSize=$minSize, permission=$permission, gamePhase=$gamePhase, gameStatus=$gameStatus');
+    
+    final canStartGame = isGameOwner && 
                         gamePhase == 'waiting' && 
                         currentSize >= minSize;
 
@@ -200,14 +221,15 @@ class CurrentRoomWidget extends StatelessWidget {
             
             const SizedBox(height: 12),
             
-            // Room details
-            _buildRoomDetails(
+            // Game details
+            _buildGameDetails(
+              gameId: gameId,
               roomId: roomId,
               currentSize: currentSize,
               maxSize: maxSize,
               minSize: minSize,
               permission: permission,
-              isRoomOwner: isRoomOwner,
+              isGameOwner: isGameOwner,
             ),
             
             const SizedBox(height: 16),
@@ -233,14 +255,14 @@ class CurrentRoomWidget extends StatelessWidget {
                 
                 if (canStartGame) const SizedBox(width: 8),
                 
-                // Game Room button - only show if user is in room
+                // Game Room button - only show if user is in game
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: isInRoom ? () {
-                      _log.info('🎮 [CurrentRoomWidget] Game Room button pressed for room: $roomId');
-                      // Don't call onJoinRoom since user is already in the room
+                    onPressed: isInGame ? () {
+                      _log.info('🎮 [CurrentRoomWidget] Game Room button pressed for game: $gameId');
+                      // Don't call onJoinRoom since user is already in the game
                       // This prevents duplicate join_room events that corrupt the state
-                      _log.info('🎮 [CurrentRoomWidget] User already in room, not triggering join_room event');
+                      _log.info('🎮 [CurrentRoomWidget] User already in game, not triggering join_room event');
                     } : null,
                     icon: const Icon(Icons.games),
                     label: const Text('Game Room'),
@@ -249,10 +271,10 @@ class CurrentRoomWidget extends StatelessWidget {
                 
                 const SizedBox(width: 8),
                 
-                // Leave Room button
+                // Leave Game button
                 ElevatedButton.icon(
                   onPressed: () {
-                    _log.info('🚪 [CurrentRoomWidget] Leave room button pressed for room: $roomId');
+                    _log.info('🚪 [CurrentRoomWidget] Leave game button pressed for game: $gameId');
                     _leaveRoom(roomId);
                   },
                   icon: const Icon(Icons.exit_to_app),
@@ -270,14 +292,15 @@ class CurrentRoomWidget extends StatelessWidget {
     );
   }
 
-  /// Build room details section
-  Widget _buildRoomDetails({
+  /// Build game details section
+  Widget _buildGameDetails({
+    required String gameId,
     required String roomId,
     required int currentSize,
     required int maxSize,
     required int minSize,
     required String permission,
-    required bool isRoomOwner,
+    required bool isGameOwner,
   }) {
     return Column(
       children: [
@@ -337,8 +360,8 @@ class CurrentRoomWidget extends StatelessWidget {
         
         const SizedBox(height: 4),
         
-        // Room owner indicator
-        if (isRoomOwner)
+        // Game owner indicator
+        if (isGameOwner)
           Row(
             children: [
               Icon(Icons.star, size: 16, color: Colors.orange),
@@ -421,20 +444,26 @@ class CurrentRoomWidget extends StatelessWidget {
     }
   }
 
-  /// Leave room by emitting WebSocket event
+  /// Leave room using core WebSocket system
   void _leaveRoom(String roomId) {
     try {
-      _log.info('🚪 [CurrentRoomWidget] Emitting leave_room event for room: $roomId');
+      _log.info('🚪 [CurrentRoomWidget] Leaving room: $roomId');
       
-      // Get WebSocket manager instance
-      final wsManager = WebSocketManager.instance;
+      // Use the core WebSocket event manager
+      final wsEventManager = WSEventManager.instance;
       
-      // Emit leave_room event
-      wsManager.socket?.emit('leave_room', {
-        'room_id': roomId,
+      // Leave room using the proper method
+      wsEventManager.leaveRoom(roomId).then((result) {
+        if (result['pending'] != null) {
+          _log.info('🚪 [CurrentRoomWidget] Leave room request sent, waiting for server response');
+        } else if (result['success'] != null) {
+          _log.info('✅ [CurrentRoomWidget] Left room successfully');
+        } else {
+          _log.error('❌ [CurrentRoomWidget] Failed to leave room: ${result['error']}');
+        }
+      }).catchError((e) {
+        _log.error('❌ [CurrentRoomWidget] Error leaving room: $e');
       });
-      
-      _log.info('🚪 [CurrentRoomWidget] Leave room event emitted successfully');
       
     } catch (e) {
       _log.error('❌ [CurrentRoomWidget] Error leaving room: $e');

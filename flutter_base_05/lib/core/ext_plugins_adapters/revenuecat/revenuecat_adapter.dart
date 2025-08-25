@@ -217,14 +217,21 @@ class RevenueCatAdapter extends AdapterBase {
       }
 
       // Purchase the package using RevenueCat plugin
-      final customerInfo = await Purchases.purchasePackage(package);
+      final purchaseResult = await Purchases.purchasePackage(package);
       
-      // Update state with real purchase data
-      _updateStateManager({
-        'isSubscribed': customerInfo.entitlements.all.isNotEmpty,
-        'plan': customerInfo.entitlements.all.keys.firstOrNull ?? 'free',
-        'features': customerInfo.entitlements.all.keys.toList(),
-      });
+      // In v9, purchasePackage returns PurchaseResult
+      if (purchaseResult.customerInfo != null) {
+        final customerInfo = purchaseResult.customerInfo!;
+        // Update state with real purchase data
+        _updateStateManager({
+          'isSubscribed': customerInfo.entitlements.all.isNotEmpty,
+          'plan': customerInfo.entitlements.all.keys.firstOrNull ?? 'free',
+          'features': customerInfo.entitlements.all.keys.toList(),
+        });
+      } else {
+        // Handle failed purchase
+        _log.warning('⚠️ Purchase completed but no customer info returned');
+      }
 
       return {"success": true, "message": "Product purchased successfully"};
 

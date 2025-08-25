@@ -167,6 +167,23 @@ class RecallGameStateUpdater {
       description: 'List of available games that can be joined',
     ),
     
+    // 🎯 NEW: Joined Games Tracking
+    'joinedGames': RecallStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      description: 'List of games the user is currently in',
+    ),
+    'totalJoinedGames': RecallStateFieldSpec(
+      type: int,
+      defaultValue: 0,
+      description: 'Total number of games the user is currently in',
+    ),
+    'joinedGamesTimestamp': RecallStateFieldSpec(
+      type: String,
+      required: false,
+      description: 'Timestamp of last joined games update',
+    ),
+    
     // Widget Slices
     'actionBar': RecallStateFieldSpec(
       type: Map,
@@ -284,12 +301,22 @@ class RecallGameStateUpdater {
   
   /// Update state with validation
   void updateState(Map<String, dynamic> updates) {
+    _log.info('🎯 [RecallStateUpdater] ===== UPDATING RECALL GAME STATE =====');
+    _log.info('🎯 [RecallStateUpdater] Input updates: $updates');
+    _log.info('🎯 [RecallStateUpdater] Update keys: ${updates.keys.toList()}');
+    _log.info('🎯 [RecallStateUpdater] Update count: ${updates.length} fields');
+    
     try {
       // 🎯 Validate each field before updating
+      _log.info('🔍 [RecallStateUpdater] Starting field validation...');
       final validatedUpdates = _validateAndParseStateUpdates(updates);
+      _log.info('✅ [RecallStateUpdater] Field validation completed');
+      _log.info('🔍 [RecallStateUpdater] Validated updates: $validatedUpdates');
       
       // Get current state
+      _log.info('🔍 [RecallStateUpdater] Getting current state...');
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      _log.info('🔍 [RecallStateUpdater] Current state keys: ${currentState.keys.toList()}');
       
       // Apply only the validated updates
       final newState = {
@@ -297,49 +324,86 @@ class RecallGameStateUpdater {
         ...validatedUpdates,
         'lastUpdated': DateTime.now().toIso8601String(),
       };
+      _log.info('🔍 [RecallStateUpdater] New state created with timestamp');
+      _log.info('🔍 [RecallStateUpdater] New state keys: ${newState.keys.toList()}');
       
       // Rebuild dependent widget slices only if relevant fields changed
+      _log.info('🔍 [RecallStateUpdater] Updating widget slices...');
       final updatedStateWithSlices = _updateWidgetSlices(
         currentState,
         newState,
         validatedUpdates.keys.toSet(),
       );
+      _log.info('✅ [RecallStateUpdater] Widget slices updated');
       
       // Update StateManager
+      _log.info('🔍 [RecallStateUpdater] Calling StateManager.updateModuleState...');
       _stateManager.updateModuleState('recall_game', updatedStateWithSlices);
+      _log.info('✅ [RecallStateUpdater] StateManager updated successfully');
       
       // Log successful update
       _logStateUpdate(validatedUpdates);
+      _log.info('🎯 [RecallStateUpdater] ===== END STATE UPDATE (SUCCESS) =====');
       
     } catch (e) {
       // Log validation errors
       _logStateError(updates, e);
+      _log.error('❌ [RecallStateUpdater] State update failed: $e');
+      _log.error('❌ [RecallStateUpdater] Error type: ${e.runtimeType}');
+      _log.error('❌ [RecallStateUpdater] Stack trace: ${StackTrace.current}');
+      _log.info('🎯 [RecallStateUpdater] ===== END STATE UPDATE (ERROR) =====');
       rethrow;
     }
   }
   
   /// Validate and parse state updates
   Map<String, dynamic> _validateAndParseStateUpdates(Map<String, dynamic> updates) {
+    _log.info('🔍 [VALIDATION] ===== VALIDATING STATE UPDATES =====');
+    _log.info('🔍 [VALIDATION] Input updates: $updates');
+    _log.info('🔍 [VALIDATION] Available schema fields: ${_stateSchema.keys.toList()}');
+    
     final validatedUpdates = <String, dynamic>{};
+    final validFields = <String>[];
+    final invalidFields = <String>[];
     
     for (final entry in updates.entries) {
       final key = entry.key;
       final value = entry.value;
       
+      _log.info('🔍 [VALIDATION] Processing field: $key = $value');
+      _log.info('🔍 [VALIDATION] Field type: ${value.runtimeType}');
+      
       // 🚨 Check if field exists in schema
       final fieldSpec = _stateSchema[key];
       if (fieldSpec == null) {
-        throw RecallStateException(
-          'Unknown state field: "$key". '
-          'Allowed fields: ${_stateSchema.keys.join(', ')}',
-          fieldName: key,
-        );
+        final error = 'Unknown state field: "$key". Allowed fields: ${_stateSchema.keys.join(', ')}';
+        _log.error('❌ [VALIDATION] $error');
+        invalidFields.add(key);
+        throw RecallStateException(error, fieldName: key);
       }
       
+      _log.info('✅ [VALIDATION] Field exists in schema: $key');
+      _log.info('🔍 [VALIDATION] Field spec: type=${fieldSpec.type}, required=${fieldSpec.required}, description=${fieldSpec.description}');
+      
       // 🚨 Validate field value
-      final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
-      validatedUpdates[key] = validatedValue;
+      try {
+        final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
+        validatedUpdates[key] = validatedValue;
+        validFields.add(key);
+        _log.info('✅ [VALIDATION] Field validation passed: $key = $validatedValue');
+      } catch (e) {
+        _log.error('❌ [VALIDATION] Field validation failed: $key - $e');
+        invalidFields.add(key);
+        rethrow;
+      }
     }
+    
+    _log.info('🔍 [VALIDATION] Validation summary:');
+    _log.info('🔍 [VALIDATION] Valid fields: $validFields');
+    _log.info('🔍 [VALIDATION] Invalid fields: $invalidFields');
+    _log.info('🔍 [VALIDATION] Valid field count: ${validFields.length}/${updates.length}');
+    _log.info('🔍 [VALIDATION] Final validated updates: $validatedUpdates');
+    _log.info('🔍 [VALIDATION] ===== END VALIDATION =====');
     
     return validatedUpdates;
   }

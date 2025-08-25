@@ -72,14 +72,23 @@ class _PaywallState extends State<Paywall> {
                   child: ListTile(
                     onTap: () async {
                       try {
-                        CustomerInfo customerInfo = await Purchases.purchasePackage(
+                        final purchaseResult = await Purchases.purchasePackage(
                           myProductList[index]
                         );
-                        EntitlementInfo? entitlement = customerInfo
-                            .entitlements.all[entitlementID];
-                        bool isActive = entitlement?.isActive ?? false;
                         
-                        widget.onPurchaseComplete?.call(isActive);
+                        // In v9, purchasePackage returns PurchaseResult
+                        // We need to check if the purchase was successful
+                        if (purchaseResult.customerInfo != null) {
+                          final customerInfo = purchaseResult.customerInfo!;
+                          EntitlementInfo? entitlement = customerInfo
+                              .entitlements.all[entitlementID];
+                          bool isActive = entitlement?.isActive ?? false;
+                          
+                          widget.onPurchaseComplete?.call(isActive);
+                        } else {
+                          // Handle failed purchase
+                          widget.onPurchaseComplete?.call(false);
+                        }
                       } catch (e) {
                         print('Purchase error: $e');
                       }

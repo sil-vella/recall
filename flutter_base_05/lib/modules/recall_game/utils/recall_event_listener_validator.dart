@@ -1,5 +1,8 @@
+import 'dart:async';
 import '../../../tools/logging/logger.dart';
 import '../../../core/managers/websockets/ws_event_manager.dart';
+import '../../../core/managers/websockets/websocket_manager.dart';
+import '../../../core/managers/websockets/websocket_events.dart';
 import 'recall_game_helpers.dart';
 
 /// Recall Game Event Listener Validator
@@ -15,6 +18,11 @@ class RecallGameEventListenerValidator {
   }
   
   RecallGameEventListenerValidator._internal();
+  
+  // Track registered callbacks for each event type
+  final Map<String, List<Function(Map<String, dynamic>)>> _callbacks = {};
+  bool _isListenerRegistered = false;
+  bool _socketIOListenerRegistered = false;
   
   /// Event schema for validation
   static const Map<String, Set<String>> _eventSchema = {
@@ -103,6 +111,12 @@ class RecallGameEventListenerValidator {
     'room_closed': {
       'room_id', 'reason', 'timestamp', 'owner_id',
     },
+    'recall_new_player_joined': {
+      'event_type', 'room_id', 'joined_player', 'game_state', 'timestamp',
+    },
+    'recall_joined_games': {
+      'event_type', 'user_id', 'session_id', 'games', 'total_games', 'timestamp',
+    },
     'create_room': {
       'room_name', 'permission', 'max_players', 'min_players',
       'game_type', 'turn_time_limit', 'auto_start', 'password',
@@ -149,27 +163,126 @@ class RecallGameEventListenerValidator {
 
   /// Add event listener with validation
   void addListener(String eventType, Function(Map<String, dynamic>) callback) {
-    _wsEvents.onEvent('recall_game_event', (data) {
+    // Register the main listener only once
+    if (!_isListenerRegistered) {
+      // Register the Socket.IO listener when WebSocket is connected
+      _registerSocketIOListener();
+      _isListenerRegistered = true;
+    }
+    
+    // Add callback to the list for this event type
+    _callbacks.putIfAbsent(eventType, () => []).add(callback);
+    _log.info('📝 Added callback for event type: $eventType (total: ${_callbacks[eventType]?.length})');
+  }
+  
+  /// Register the Socket.IO listener when WebSocket is connected
+  void _registerSocketIOListener() {
+    final wsManager = WebSocketManager.instance;
+    
+    // Use the core WebSocket system's connection logic - same as connection widget
+    _log.info('🔌 Using core WebSocket connection monitoring for recall_game_event listener');
+    
+    // Check if WebSocket is already connected
+    if (wsManager.isConnected && wsManager.eventListener != null) {
+      _log.info('✅ WebSocket already connected, registering recall_game_event listener immediately');
+      _registerListenerNow();
+    } else {
+      _log.info('⏳ WebSocket not connected yet, will register listener when connected');
+      
+      // Use the core WebSocket system's connection status stream - same as connection widget
+      wsManager.connectionStatus.listen((event) {
+        _log.info('🔌 Connection status event received: ${event.status}');
+        
+        if (event.status == ConnectionStatus.connected && !_socketIOListenerRegistered) {
+          _log.info('🔌 WebSocket connected, registering recall_game_event listener');
+          _registerListenerNow();
+        }
+      });
+      
+      // Also check periodically in case the connection status stream misses events
+      _setupPeriodicConnectionCheck();
+    }
+  }
+  
+  /// Setup periodic connection check as fallback
+  void _setupPeriodicConnectionCheck() {
+    Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_socketIOListenerRegistered) {
+        timer.cancel();
+        return;
+      }
+      
+      final wsManager = WebSocketManager.instance;
+      if (wsManager.isConnected && wsManager.eventListener != null) {
+        _log.info('🔌 Periodic check: WebSocket connected, registering recall_game_event listener');
+        _registerListenerNow();
+        timer.cancel();
+      }
+    });
+  }
+  
+  /// Register the actual Socket.IO listener
+  void _registerListenerNow() {
+    if (_socketIOListenerRegistered) return;
+    
+    final wsManager = WebSocketManager.instance;
+    
+    // Use the core WebSocket system's event listener - same pattern as connection widget
+    if (wsManager.eventListener != null) {
+      wsManager.eventListener!.registerCustomListener('recall_game_event', (data) {
+        _log.info('🎧 [RecallGameEvent] Raw event received: $data');
+        _handleRecallGameEvent(data);
+      });
+      _socketIOListenerRegistered = true;
+      _log.info('📝 Registered Socket.IO listener for event: recall_game_event via core WebSocket system');
+    } else {
+      _log.error('❌ WebSocket event listener not available, cannot register recall_game_event listener');
+    }
+  }
+  
+  /// Handle recall game events and route to appropriate callbacks
+  void _handleRecallGameEvent(Map<String, dynamic> data) {
+    _log.info('🎧 [RecallGameEvent] ===== PROCESSING RECALL GAME EVENT =====');
+    _log.info('🎧 [RecallGameEvent] Raw data type: ${data.runtimeType}');
+    _log.info('🎧 [RecallGameEvent] Raw data: $data');
+    _log.info('🎧 [RecallGameEvent] Data keys: ${data.keys.toList()}');
+    _log.info('🎧 [RecallGameEvent] Data size: ${data.length} fields');
+    
       try {
         // Extract event type from data
         final type = data['event_type'] as String?;
+      _log.info('🎧 [RecallGameEvent] Extracted event_type: $type');
+      
         if (type == null) {
-          _log.error('❌ Missing event_type in recall game event');
+        _log.error('❌ [RecallGameEvent] Missing event_type in recall game event');
+        _log.error('❌ [RecallGameEvent] Available fields: ${data.keys.toList()}');
+        _log.error('❌ [RecallGameEvent] Full data: $data');
           return;
         }
 
         // Validate event type
+      _log.info('🎧 [RecallGameEvent] Checking if event type exists in schema...');
+      _log.info('🎧 [RecallGameEvent] Available schema types: ${_eventSchema.keys.toList()}');
+      
         if (!_eventSchema.containsKey(type)) {
-          _log.error('❌ Unknown recall game event type: $type');
+        _log.error('❌ [RecallGameEvent] Unknown recall game event type: $type');
+        _log.error('❌ [RecallGameEvent] Available schema types: ${_eventSchema.keys.toList()}');
           return;
         }
+      
+      _log.info('✅ [RecallGameEvent] Event type validated: $type');
 
         // Validate event data against schema
+      _log.info('🎧 [RecallGameEvent] Validating event data against schema...');
         final validatedData = _validateEventData(type, data);
         if (validatedData == null) {
-          _log.error('❌ Invalid data for recall game event: $type');
+        _log.error('❌ [RecallGameEvent] Invalid data for recall game event: $type');
+        _log.error('❌ [RecallGameEvent] Validation failed - see validation logs above');
           return;
         }
+      
+      _log.info('✅ [RecallGameEvent] Event data validation passed');
+      _log.info('🎧 [RecallGameEvent] Validated data: $validatedData');
 
         // Add minimal required context
         final eventPayload = {
@@ -177,45 +290,111 @@ class RecallGameEventListenerValidator {
           'timestamp': DateTime.now().toIso8601String(),
           ...validatedData,
         };
+      
+      _log.info('🎧 [RecallGameEvent] Final event payload: $eventPayload');
 
         // Log the event
         _logEvent(type, eventPayload);
 
-        // Call the callback with validated data
-        if (type == eventType) {
+      // Call all registered callbacks for this event type
+      _log.info('🎧 [RecallGameEvent] Looking for callbacks for event type: $type');
+      final callbacks = _callbacks[type];
+      if (callbacks != null) {
+        _log.info('🎧 [RecallGameEvent] Found ${callbacks.length} callbacks for event type: $type');
+        for (int i = 0; i < callbacks.length; i++) {
+          final callback = callbacks[i];
+          _log.info('🎧 [RecallGameEvent] Executing callback ${i + 1}/${callbacks.length}');
+          try {
           callback(eventPayload);
+            _log.info('✅ [RecallGameEvent] Callback ${i + 1} executed successfully');
+          } catch (e) {
+            _log.error('❌ [RecallGameEvent] Error in callback ${i + 1} for event type $type: $e');
+            _log.error('❌ [RecallGameEvent] Error stack trace: ${StackTrace.current}');
+          }
+        }
+      } else {
+        _log.warning('⚠️ [RecallGameEvent] No callbacks registered for event type: $type');
+        _log.info('🎧 [RecallGameEvent] Available callback types: ${_callbacks.keys.toList()}');
         }
 
       } catch (e) {
-        _log.error('❌ Error handling recall game event: $e');
+      _log.error('❌ [RecallGameEvent] Error handling recall game event: $e');
+      _log.error('❌ [RecallGameEvent] Error stack trace: ${StackTrace.current}');
       }
-    });
+    
+    _log.info('🎧 [RecallGameEvent] ===== END PROCESSING RECALL GAME EVENT =====');
   }
 
   /// Validate event data against schema
   Map<String, dynamic>? _validateEventData(String eventType, Map<String, dynamic> data) {
+    _log.info('🔍 [VALIDATION] ===== VALIDATING EVENT DATA =====');
+    _log.info('🔍 [VALIDATION] Event type: $eventType');
+    _log.info('🔍 [VALIDATION] Input data: $data');
+    _log.info('🔍 [VALIDATION] Input data keys: ${data.keys.toList()}');
+    
     try {
       final schema = _eventSchema[eventType];
-      if (schema == null) return null;
+      if (schema == null) {
+        _log.error('❌ [VALIDATION] No schema found for event type: $eventType');
+        _log.error('❌ [VALIDATION] Available schemas: ${_eventSchema.keys.toList()}');
+        return null;
+      }
+      
+      _log.info('✅ [VALIDATION] Found schema for event type: $eventType');
+      _log.info('🔍 [VALIDATION] Expected schema fields: ${schema.toList()}');
+      _log.info('🔍 [VALIDATION] Schema field count: ${schema.length}');
 
       final validatedData = <String, dynamic>{};
+      final missingFields = <String>[];
+      final foundFields = <String>[];
 
       // Check for required fields based on event type
       for (final field in schema) {
         if (data.containsKey(field)) {
           validatedData[field] = data[field];
+          foundFields.add(field);
+          _log.info('✅ [VALIDATION] Field found: $field = ${data[field]}');
+        } else {
+          missingFields.add(field);
+          _log.warning('⚠️ [VALIDATION] Missing expected field: $field');
         }
       }
+      
+      _log.info('🔍 [VALIDATION] Found fields: $foundFields');
+      _log.info('🔍 [VALIDATION] Missing fields: $missingFields');
+      _log.info('🔍 [VALIDATION] Found field count: ${foundFields.length}/${schema.length}');
 
       // Add any additional fields that might be useful
+      final extraFields = data.keys.where((field) => !schema.contains(field)).toList();
+      if (extraFields.isNotEmpty) {
+        _log.info('🔍 [VALIDATION] Extra fields found: $extraFields');
+        for (final field in extraFields) {
+          _log.info('🔍 [VALIDATION] Extra field: $field = ${data[field]}');
+        }
+      }
+      
       if (data.containsKey('metadata')) {
         validatedData['metadata'] = data['metadata'];
+        _log.info('✅ [VALIDATION] Added metadata field');
       }
 
+      _log.info('🔍 [VALIDATION] Final validated data: $validatedData');
+      _log.info('🔍 [VALIDATION] Validated data keys: ${validatedData.keys.toList()}');
+      _log.info('🔍 [VALIDATION] Validated data size: ${validatedData.length} fields');
+      
+      if (missingFields.isEmpty) {
+        _log.info('✅ [VALIDATION] All expected fields present - validation PASSED');
+      } else {
+        _log.warning('⚠️ [VALIDATION] Missing fields but continuing - validation PARTIAL');
+      }
+      
+      _log.info('🔍 [VALIDATION] ===== END VALIDATION =====');
       return validatedData;
 
     } catch (e) {
-      _log.error('❌ Error validating recall game event data: $e');
+      _log.error('❌ [VALIDATION] Error validating recall game event data: $e');
+      _log.error('❌ [VALIDATION] Error stack trace: ${StackTrace.current}');
+      _log.info('🔍 [VALIDATION] ===== END VALIDATION (ERROR) =====');
       return null;
     }
   }

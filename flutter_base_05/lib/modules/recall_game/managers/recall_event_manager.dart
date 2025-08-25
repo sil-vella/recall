@@ -43,6 +43,9 @@ class RecallEventManager {
       // Register hook callbacks for room events
       _registerHookCallbacks();
 
+      // Register recall-specific event listeners
+      _registerRecallEventListeners();
+
       // Recall-specific Socket.IO listeners are centralized in RecallGameCoordinator.
       // We subscribe only via WSEventManager callbacks here.
       _log.info('✅ RecallEventManager initialized successfully');
@@ -52,6 +55,67 @@ class RecallEventManager {
       _log.error('❌ RecallEventManager initialization failed: $e');
       return false;
     }
+  }
+
+  void _registerRecallEventListeners() {
+    _log.info('🎧 Registering recall-specific event listeners...');
+    
+    // Register recall_new_player_joined event listener
+    RecallGameEventListenerValidator.instance.addListener('recall_new_player_joined', (data) {
+      _log.info('🎧 [RECALL] Received recall_new_player_joined event');
+      
+      final roomId = data['room_id']?.toString() ?? '';
+      final joinedPlayer = data['joined_player'] as Map<String, dynamic>? ?? {};
+      final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
+      
+      _log.info('🎧 [RECALL] Player ${joinedPlayer['name']} joined room $roomId');
+      
+      // Update game state with new player information
+      RecallGameHelpers.updateUIState({
+        'gameState': gameState,
+        'playerCount': gameState['playerCount'] ?? 0,
+        'players': gameState['players'] ?? [],
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      // Add session message about new player
+      _addSessionMessage(
+        level: 'info',
+        title: 'Player Joined',
+        message: '${joinedPlayer['name']} joined the game',
+        data: joinedPlayer,
+      );
+    });
+    
+    // Register recall_joined_games event listener
+    RecallGameEventListenerValidator.instance.addListener('recall_joined_games', (data) {
+      _log.info('🎧 [RECALL] Received recall_joined_games event');
+      
+      final userId = data['user_id']?.toString() ?? '';
+      final sessionId = data['session_id']?.toString() ?? '';
+      final games = data['games'] as List<dynamic>? ?? [];
+      final totalGames = data['total_games'] ?? 0;
+      
+      _log.info('🎧 [RECALL] User $userId is in $totalGames games');
+      
+      // Update recall game state with joined games information
+      RecallGameHelpers.updateUIState({
+        'joinedGames': games.cast<Map<String, dynamic>>(),
+        'totalJoinedGames': totalGames,
+        'joinedGamesTimestamp': DateTime.now().toIso8601String(),
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      // Add session message about joined games
+      _addSessionMessage(
+        level: 'info',
+        title: 'Games Updated',
+        message: 'You are now in $totalGames game${totalGames != 1 ? 's' : ''}',
+        data: {'total_games': totalGames, 'games': games},
+      );
+    });
+    
+    _log.info('✅ Recall-specific event listeners registered');
   }
 
   void _registerHookCallbacks() {

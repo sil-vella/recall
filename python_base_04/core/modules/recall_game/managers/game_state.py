@@ -948,6 +948,59 @@ class GameStateManager:
             }
             self._send_to_all_players(game_id, 'game_state_updated', payload)
 
+    def _send_recall_player_joined_events(self, room_id: str, user_id: str, session_id: str, game):
+        """Send recall-specific events when a player joins a room"""
+        try:
+            # Convert game to Flutter format
+            game_state = self._to_flutter_game_state(game)
+            
+            # 1. Send new_player_joined event to the room
+            room_payload = {
+                'event_type': 'recall_new_player_joined',
+                'room_id': room_id,
+                'joined_player': {
+                    'user_id': user_id,
+                    'session_id': session_id,
+                    'name': f"Player_{user_id[:8]}",
+                    'joined_at': datetime.now().isoformat()
+                },
+                'game_state': game_state,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Send as recall_game_event to the room
+            self.websocket_manager.socketio.emit('recall_game_event', room_payload, room=room_id)
+            custom_log(f"📡 [RECALL] recall_new_player_joined event sent to room {room_id} for player {user_id}")
+            
+            # 2. Send joined_games event to the joined user
+            user_games = []
+            for game_id, user_game in self.active_games.items():
+                # Check if user is in this game
+                if user_id in user_game.players:
+                    user_game_state = self._to_flutter_game_state(user_game)
+                    user_games.append({
+                        'game_id': game_id,
+                        'room_id': game_id,  # Game ID is the same as room ID
+                        'game_state': user_game_state,
+                        'joined_at': datetime.now().isoformat()
+                    })
+            
+            user_payload = {
+                'event_type': 'recall_joined_games',
+                'user_id': user_id,
+                'session_id': session_id,
+                'games': user_games,
+                'total_games': len(user_games),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Send as recall_game_event to the specific user's session
+            self.websocket_manager.send_to_session(session_id, 'recall_game_event', user_payload)
+            custom_log(f"📡 [RECALL] recall_joined_games event sent to session {session_id} with {len(user_games)} games")
+            
+        except Exception as e:
+            custom_log(f"❌ Error sending recall player joined events: {e}")
+
     def _fallback_handle(self, game, action: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Fallback handler for actions not in game engine"""
         if action == 'draw_from_deck':
@@ -1137,6 +1190,9 @@ class GameStateManager:
             if current_size >= game.min_players and game.phase == GamePhase.WAITING_FOR_PLAYERS:
                 custom_log(f"🎮 Room {room_id} has enough players ({current_size}), ready to start")
                 # Game is ready but not started yet - will be started manually or via auto-start
+            
+            # 🎯 NEW: Send recall-specific events after player joins
+            self._send_recall_player_joined_events(room_id, user_id, session_id, game)
             
         except Exception as e:
             custom_log(f"❌ Error in _on_room_joined callback: {e}", level="ERROR")

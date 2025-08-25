@@ -561,6 +561,107 @@ class WSEventHandler {
     }
   }
 
+  /// Handle new player joined event
+  void handleNewPlayerJoined(dynamic data) {
+    _log.info("🔧 [HANDLER-NEW_PLAYER_JOINED] Handling new player joined event");
+    
+    try {
+      // Validate the data structure
+      if (data is! Map<String, dynamic>) {
+        _log.error("❌ Invalid data format for new_player_joined event");
+        return;
+      }
+      
+      final roomId = data['room_id']?.toString() ?? '';
+      final joinedPlayer = data['joined_player'] as Map<String, dynamic>? ?? {};
+      final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
+      final timestamp = data['timestamp']?.toString() ?? '';
+      
+      _log.info("🎮 [NEW_PLAYER_JOINED] Room: $roomId, Player: ${joinedPlayer['name']}");
+      
+      // Update recall game state with new game data
+      RecallGameHelpers.updateUIState({
+        'gameState': gameState,
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      // Trigger event callbacks for game management
+      _eventManager.triggerCallbacks('new_player_joined', {
+        'room_id': roomId,
+        'joined_player': joinedPlayer,
+        'game_state': gameState,
+        'timestamp': timestamp,
+      });
+      
+      // 🎣 Trigger websocket_new_player_joined hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_new_player_joined hook");
+      HooksManager().triggerHookWithData('websocket_new_player_joined', {
+        'status': 'player_joined',
+        'room_id': roomId,
+        'joined_player': joinedPlayer,
+        'game_state': gameState,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      _log.info("✅ New player joined handled successfully");
+    } catch (e) {
+      _log.error("❌ Error handling new player joined: $e");
+    }
+  }
+
+  /// Handle joined games event
+  void handleJoinedGames(dynamic data) {
+    _log.info("🔧 [HANDLER-JOINED_GAMES] Handling joined games event");
+    
+    try {
+      // Validate the data structure
+      if (data is! Map<String, dynamic>) {
+        _log.error("❌ Invalid data format for joined_games event");
+        return;
+      }
+      
+      final userId = data['user_id']?.toString() ?? '';
+      final sessionId = data['session_id']?.toString() ?? '';
+      final games = data['games'] as List<dynamic>? ?? [];
+      final totalGames = data['total_games'] ?? 0;
+      final timestamp = data['timestamp']?.toString() ?? '';
+      
+      _log.info("🎮 [JOINED_GAMES] User: $userId, Session: $sessionId, Total games: $totalGames");
+      
+      // Update recall game state with joined games information
+      RecallGameHelpers.updateUIState({
+        'joinedGames': games.cast<Map<String, dynamic>>(),
+        'totalJoinedGames': totalGames,
+        'joinedGamesTimestamp': timestamp,
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      // Trigger event callbacks for game management
+      _eventManager.triggerCallbacks('joined_games', {
+        'user_id': userId,
+        'session_id': sessionId,
+        'games': games,
+        'total_games': totalGames,
+        'timestamp': timestamp,
+      });
+      
+      // 🎣 Trigger websocket_joined_games hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_joined_games hook");
+      HooksManager().triggerHookWithData('websocket_joined_games', {
+        'status': 'updated',
+        'user_id': userId,
+        'session_id': sessionId,
+        'games': games,
+        'total_games': totalGames,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      _log.info("✅ Joined games handled successfully");
+    } catch (e) {
+      _log.error("❌ Error handling joined games: $e");
+    }
+  }
+
   /// Handle message event
   void handleMessage(dynamic data) {
     _log.info("🔧 [HANDLER-MESSAGE] Handling message event");

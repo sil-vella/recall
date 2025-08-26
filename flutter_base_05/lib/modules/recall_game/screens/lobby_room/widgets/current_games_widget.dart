@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/websockets/ws_event_manager.dart';
+import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 
 /// Widget to display all joined rooms with join functionality
@@ -266,17 +267,19 @@ class CurrentRoomWidget extends StatelessWidget {
                 
                 if (canStartGame) const SizedBox(width: 8),
                 
-                // Game Room button - only show if user is in game
+                // Enter Game Room button - navigate to game play screen
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: isInGame ? () {
-                      _log.info('🎮 [CurrentRoomWidget] Game Room button pressed for game: $gameId');
-                      // Don't call onJoinRoom since user is already in the game
-                      // This prevents duplicate join_room events that corrupt the state
-                      _log.info('🎮 [CurrentRoomWidget] User already in game, not triggering join_room event');
+                      _log.info('🎮 [CurrentRoomWidget] Enter Game Room button pressed for game: $gameId');
+                      _enterGameRoom(context, gameData);
                     } : null,
                     icon: const Icon(Icons.games),
-                    label: const Text('Game Room'),
+                    label: const Text('Enter Game Room'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ),
                 
@@ -301,6 +304,34 @@ class CurrentRoomWidget extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Navigate to game play screen with game data
+  void _enterGameRoom(BuildContext context, Map<String, dynamic> gameData) {
+    try {
+      _log.info('🎮 [CurrentRoomWidget] Navigating to game play screen with game data: $gameData');
+      
+      // Store game data in state for the game play screen to access
+      final gameId = gameData['game_id']?.toString() ?? '';
+      final roomId = gameData['room_id']?.toString() ?? gameId;
+      
+      // Update recall game state with current game data
+      StateManager().updateModuleState('recall_game', {
+        'currentGameId': gameId,
+        'currentRoomId': roomId,
+        'currentGameData': gameData,
+        'isInGame': true,
+        'gameStartedAt': DateTime.now().toIso8601String(),
+      });
+      
+      // Navigate to game play screen
+      NavigationManager().navigateTo('/recall/game-play');
+      
+      _log.info('✅ [CurrentRoomWidget] Successfully navigated to game play screen');
+      
+    } catch (e) {
+      _log.error('❌ [CurrentRoomWidget] Error navigating to game play screen: $e');
+    }
   }
 
   /// Build game details section

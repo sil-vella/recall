@@ -1,249 +1,251 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/00_base/screen_base.dart';
+import 'widgets/connection_status_widget.dart';
+import 'widgets/create_room_widget.dart';
+import 'widgets/join_room_widget.dart';
+import 'widgets/current_room_widget.dart';
+import 'widgets/available_games_widget.dart';
+import 'features/lobby_features.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
-import '../../../../core/managers/websockets/ws_event_manager.dart';
-import '../../../../tools/logging/logger.dart';
-import 'widgets/create_game_widget.dart';
-import 'widgets/join_game_widget.dart';
-import 'widgets/current_games_widget.dart';
 import '../../utils/recall_game_helpers.dart';
 
-/// ## LobbyScreen
-/// 
-/// The main lobby screen for the Recall card game, providing functionality to:
-/// - Create new games with customizable settings
-/// - Join existing games by ID
-/// - View and manage currently joined games
-/// - Monitor WebSocket connection status
-/// 
-/// ### Features:
-/// - **Game Creation**: Create new games with player limits, permissions, and settings
-/// - **Game Joining**: Join existing games by entering game ID and password
-/// - **Game Management**: View all joined games with real-time updates
-/// - **Connection Status**: Monitor WebSocket connection and reconnect if needed
-/// - **State-Driven UI**: All widgets automatically update based on state changes
-/// 
-/// ### State Management:
-/// - Subscribes to `recall_game` state for game information
-/// - Subscribes to `websocket` state for connection status
-/// - Uses `ListenableBuilder` for automatic UI updates
-/// 
-/// ### Event Flow:
-/// - Game creation emits `create_room` WebSocket event
-/// - Game joining emits `join_room` WebSocket event
-/// - Game leaving uses `WSEventManager.leaveRoom()`
-/// - All events update state automatically via backend hooks
 
-class LobbyScreen extends StatefulWidget {
+class LobbyScreen extends BaseScreen {
   const LobbyScreen({Key? key}) : super(key: key);
 
   @override
-  State<LobbyScreen> createState() => _LobbyScreenState();
+  String computeTitle(BuildContext context) => 'Game Lobby';
+
+  @override
+  _LobbyScreenState createState() => _LobbyScreenState();
 }
 
-class _LobbyScreenState extends State<LobbyScreen> {
-  final Logger _log = Logger();
+class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
+  final WebSocketManager _websocketManager = WebSocketManager.instance;
+  final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
   @override
   void initState() {
     super.initState();
-    _log.info('🎮 [LobbyScreen] Initializing lobby screen');
+    
+    _initializeWebSocket().then((_) {
+      _setupEventCallbacks();
+      _initializeRoomState();
+      _featureRegistrar.registerDefaults(context);
+    });
+  }
+
+  Future<void> _initializeWebSocket() async {
+    try {
+      // Initialize WebSocket manager if not already initialized
+      if (!_websocketManager.isInitialized) {
+        final initialized = await _websocketManager.initialize();
+        if (!initialized) {
+          _showSnackBar('Failed to initialize WebSocket', isError: true);
+          return;
+        }
+      }
+      
+      // Connect to WebSocket if not already connected
+      if (!_websocketManager.isConnected) {
+        final connected = await _websocketManager.connect();
+        if (!connected) {
+          _showSnackBar('Failed to connect to WebSocket', isError: true);
+          return;
+        }
+        _showSnackBar('WebSocket connected successfully!');
+      } else {
+        _showSnackBar('WebSocket already connected!');
+      }
+    } catch (e) {
+      _showSnackBar('WebSocket initialization error: $e', isError: true);
+    }
+  }
+  
+  @override
+  void dispose() {
+    // Clean up event callbacks - now handled by WSEventManager
+    _featureRegistrar.unregisterAll();
+    
+    super.dispose();
+  }
+ 
+  Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
+    try {
+      // First ensure WebSocket is connected
+      if (!_websocketManager.isConnected) {
+        _showSnackBar('Connecting to WebSocket...', isError: false);
+        final connected = await _websocketManager.connect();
+        if (!connected) {
+          _showSnackBar('Failed to connect to WebSocket. Cannot create room.', isError: true);
+          return;
+        }
+        _showSnackBar('WebSocket connected! Creating room...', isError: false);
+      }
+      
+      // Now proceed with room creation - bypass RoomService and call helper directly
+      final result = await RecallGameHelpers.createRoom(
+        roomName: roomSettings['roomName'],
+        permission: roomSettings['permission'] ?? 'public',
+        maxPlayers: roomSettings['maxPlayers'],
+        minPlayers: roomSettings['minPlayers'],
+        gameType: roomSettings['gameType'] ?? 'classic',
+        turnTimeLimit: roomSettings['turnTimeLimit'] ?? 30,
+        autoStart: roomSettings['autoStart'] ?? true,
+        password: roomSettings['password'],
+      );
+      if (result['success'] == true) {
+        // Room creation initiated successfully - WebSocket events will handle state updates
+        if (mounted) _showSnackBar('Room created successfully!');
+      } else {
+        if (mounted) _showSnackBar('Failed to create room', isError: true);
+      }
+    } catch (e) {
+      if (mounted) _showSnackBar('Failed to create room: $e', isError: true);
+    }
+  }
+
+  Future<void> _joinRoom(String roomId) async {
+    try {
+      // First ensure WebSocket is connected
+      if (!_websocketManager.isConnected) {
+        _showSnackBar('Connecting to WebSocket...', isError: false);
+        final connected = await _websocketManager.connect();
+        if (!connected) {
+          _showSnackBar('Failed to connect to WebSocket. Cannot join room.', isError: true);
+          return;
+        }
+        _showSnackBar('WebSocket connected! Joining room...', isError: false);
+      }
+      
+      // Now proceed with room joining using helper
+      final result = await RecallGameHelpers.joinRoom(
+        roomId: roomId,
+      );
+      
+      if (result['success'] == true) {
+        if (mounted) _showSnackBar('Successfully joined room!');
+      } else {
+        final errorMessage = result['error'] ?? 'Failed to join room';
+        if (mounted) _showSnackBar(errorMessage, isError: true);
+      }
+    } catch (e) {
+      if (mounted) _showSnackBar('Failed to join room: $e', isError: true);
+    }
+  }
+
+  Future<void> _fetchAvailableGames() async {
+    try {
+      // Set loading state
+      RecallGameHelpers.updateUIState({
+        'isLoading': true,
+      });
+
+      // Use the helper method to fetch available games
+      final result = await RecallGameHelpers.fetchAvailableGames();
+      
+      if (result['success'] == true) {
+        // Extract games from response
+        final games = result['games'] ?? [];
+        final message = result['message'] ?? 'Games fetched successfully';
+        
+        // Update state with real game data
+        RecallGameHelpers.updateUIState({
+          'availableGames': games,
+          'isLoading': false,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+        
+        if (mounted) _showSnackBar(message);
+      } else {
+        // Handle error from helper method
+        final errorMessage = result['error'] ?? 'Failed to fetch games';
+        throw Exception(errorMessage);
+      }
+      
+    } catch (e) {
+      RecallGameHelpers.updateUIState({
+        'isLoading': false,
+      });
+      if (mounted) _showSnackBar('Failed to fetch available games: $e', isError: true);
+    }
+  }
+
+  void _initializeRoomState() {
+    // State is now managed by StateManager, no need to initialize local variables
+    // Room state is managed by StateManager
+  }
+
+  void _setupEventCallbacks() {
+    // Event callbacks are now handled by WSEventManager
+    // No need to set up specific callbacks here
+    // The WSEventManager handles all WebSocket events automatically
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    // Check if the widget is still mounted before accessing context
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Recall Game Lobby'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-        actions: [
-          // Connection status indicator
-          _buildConnectionStatus(),
+  Widget buildContent(BuildContext context) {
+    // Screen doesn't read state directly - widgets handle their own subscriptions
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Connection Status
+          const ConnectionStatusWidget(),
+          const SizedBox(height: 20),
+          
+          // Create and Join Room Section (Side by Side)
+          Row(
+            children: [
+              // Create Room Widget (50% width)
+              Expanded(
+                child: CreateRoomWidget(
+                  onCreateRoom: _createRoom,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Join Room Widget (50% width)
+              Expanded(
+                child: JoinRoomWidget(
+                  onJoinRoom: () {
+                    // JoinRoomWidget handles its own room joining logic
+                    // This callback is called after successful join request
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          
+          // Current Room Section (moved under Create/Join buttons)
+          CurrentRoomWidget(
+            onJoinRoom: _joinRoom,
+          ),
+          const SizedBox(height: 20),
+          
+          // Available Games Section
+          AvailableGamesWidget(
+            onFetchGames: _fetchAvailableGames,
+          ),
+          const SizedBox(height: 20),
+        
         ],
       ),
-      body: _buildContent(context),
     );
-  }
-
-  Widget _buildConnectionStatus() {
-    return ListenableBuilder(
-      listenable: StateManager(),
-      builder: (context, child) {
-        final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
-        final isConnected = websocketState['isConnected'] ?? false;
-
-        return Container(
-          margin: const EdgeInsets.only(right: 16),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isConnected ? Icons.wifi : Icons.wifi_off,
-                color: isConnected ? Colors.green : Colors.red,
-                size: 20,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                isConnected ? 'Connected' : 'Disconnected',
-                style: TextStyle(
-                  color: isConnected ? Colors.green : Colors.red,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildContent(BuildContext context) {
-    return ListenableBuilder(
-      listenable: StateManager(),
-      builder: (context, child) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Welcome message
-              _buildWelcomeMessage(),
-              const SizedBox(height: 24),
-
-              // Create and Join buttons side by side
-              Row(
-                children: [
-                  Expanded(
-                    child: CreateGameWidget(onCreateGame: _createGame),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: JoinGameWidget(onJoinGame: _joinGame),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Current games below the buttons
-              CurrentGamesWidget(onJoinGame: _joinGame),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildWelcomeMessage() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.emoji_events, color: Theme.of(context).primaryColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Welcome to Recall!',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Create a new game or join an existing one to start playing the classic card game.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Handle game creation
-  void _createGame(Map<String, dynamic> gameData) async {
-    try {
-      _log.info('🎮 [LobbyScreen] Creating game with data: $gameData');
-
-      // Get WebSocket manager
-      final wsManager = WebSocketManager.instance;
-      
-      if (wsManager.socket != null) {
-        // Emit create room event
-        wsManager.socket?.emit('create_room', gameData);
-        
-        _log.info('🎮 [LobbyScreen] Create room event emitted successfully');
-        
-        // Show success message
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Game creation request sent!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        throw Exception('WebSocket not connected');
-      }
-
-    } catch (e) {
-      _log.error('❌ [LobbyScreen] Error creating game: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error creating game: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  /// Handle game joining
-  void _joinGame(String gameId) async {
-    try {
-      _log.info('🎮 [LobbyScreen] Joining game: $gameId');
-
-      // Get WebSocket manager
-      final wsManager = WebSocketManager.instance;
-      
-      if (wsManager.socket != null) {
-        // Emit join room event
-        wsManager.socket?.emit('join_room', {'room_id': gameId});
-        
-        _log.info('🎮 [LobbyScreen] Join room event emitted successfully');
-        
-        // Show success message
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Join request sent!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        throw Exception('WebSocket not connected');
-      }
-
-    } catch (e) {
-      _log.error('❌ [LobbyScreen] Error joining game: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error joining game: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 } 

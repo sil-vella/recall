@@ -1,181 +1,92 @@
-/// ## JoinGameWidget
-/// 
-/// A widget that allows users to join existing games by entering a game ID.
-/// 
-/// ### Features:
-/// - **Game ID Input**: Text field for entering game ID
-/// - **Password Support**: Conditional password field for private games
-/// - **Find Game Button**: API call to get game details before joining
-/// - **Join Game Button**: WebSocket event to join the game
-/// - **Real-time Validation**: Checks game permissions and password requirements
-/// 
-/// ### Event Emissions:
-/// - Emits `join_room` WebSocket event (backend handles room/game joining)
-/// - Backend automatically adds user to both room and game instances
-/// - Frontend receives `join_room_success` and `room_joined` events
-/// 
-/// ### State Updates:
-/// - Updates `recall_game` state with joined game information
-/// - Triggers UI refresh via `ListenableBuilder`
-/// 
-/// ### Integration:
-/// - Uses `WSEventManager` for WebSocket communication
-/// - Integrates with `StateManager` for state updates
-/// - Follows core WebSocket event patterns
-
 import 'package:flutter/material.dart';
+import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
-import '../../../../../tools/logging/logger.dart';
+import '../../../utils/recall_game_helpers.dart';
 
-class JoinGameWidget extends StatefulWidget {
-  final Function(String) onJoinGame;
-  
-  const JoinGameWidget({
+class JoinRoomWidget extends StatefulWidget {
+  final VoidCallback? onJoinRoom;
+
+  const JoinRoomWidget({
     Key? key,
-    required this.onJoinGame,
+    this.onJoinRoom,
   }) : super(key: key);
 
   @override
-  State<JoinGameWidget> createState() => _JoinGameWidgetState();
+  State<JoinRoomWidget> createState() => _JoinRoomWidgetState();
 }
 
-class _JoinGameWidgetState extends State<JoinGameWidget> {
-  final _gameIdController = TextEditingController();
+class _JoinRoomWidgetState extends State<JoinRoomWidget> {
+  final _formKey = GlobalKey<FormState>();
+  final _roomIdController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isFinding = false;
-  bool _isPrivateGame = false;
-  final Logger _log = Logger();
+  bool _isPrivateRoom = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupWebSocketListeners();
+  }
+
+  void _setupWebSocketListeners() {
+    // Listen for join room errors from backend
+    final wsManager = WebSocketManager.instance;
+    wsManager.socket?.on('join_room_error', (data) {
+      if (mounted) {
+        final error = data['error'] ?? 'Unknown error';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Join game failed: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        // Reset loading state
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
-    _gameIdController.dispose();
+    _roomIdController.dispose();
     _passwordController.dispose();
+    // Remove WebSocket listeners
+    final wsManager = WebSocketManager.instance;
+    wsManager.socket?.off('join_room_error');
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.join_full, color: Theme.of(context).primaryColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Join Existing Game',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildJoinGameForm(context),
-          ],
-        ),
-      ),
+  void _onRoomIdChanged(String value) {
+    // Reset private room state when room ID changes
+    setState(() {
+      _isPrivateRoom = false;
+    });
+    
+    // Check if this is a private room by looking at available games
+    final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final availableGames = recallState['availableGames'] as List<dynamic>? ?? [];
+    
+    final matchingGame = availableGames.firstWhere(
+      (game) => game['roomId'] == value,
+      orElse: () => null,
     );
+    
+    if (matchingGame != null) {
+      setState(() {
+        _isPrivateRoom = matchingGame['permission'] == 'private';
+      });
+    }
   }
 
-  Widget _buildJoinGameForm(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Game ID Input
-        TextFormField(
-          controller: _gameIdController,
-          decoration: const InputDecoration(
-            labelText: 'Game ID',
-            hintText: 'Enter the game ID to join',
-            prefixIcon: Icon(Icons.games),
-            border: OutlineInputBorder(),
-          ),
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Please enter a game ID';
-            }
-            if (value.trim().length < 3) {
-              return 'Game ID must be at least 3 characters';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-
-        // Password Field (for private games)
-        if (_isPrivateGame) ...[
-          TextFormField(
-            controller: _passwordController,
-            decoration: const InputDecoration(
-              labelText: 'Game Password',
-              hintText: 'Enter password for private game',
-              prefixIcon: Icon(Icons.lock),
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
-            validator: (value) {
-              if (_isPrivateGame && (value == null || value.isEmpty)) {
-                return 'Password required for private games';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-        ],
-
-        // Action Buttons
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isFinding ? null : _findGame,
-                icon: _isFinding 
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.search),
-                label: Text(_isFinding ? 'Finding...' : 'Find Game'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : _joinGame,
-                icon: _isLoading 
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.join_full),
-                label: Text(_isLoading ? 'Joining...' : 'Join Game'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Future<void> _findGame() async {
-    final gameId = _gameIdController.text.trim();
-    if (gameId.isEmpty) {
+  Future<void> _findRoom() async {
+    final roomId = _roomIdController.text.trim();
+    if (roomId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a game ID'),
+          content: Text('Please enter a game ID to find'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -187,32 +98,36 @@ class _JoinGameWidgetState extends State<JoinGameWidget> {
     });
 
     try {
-      _log.info('🔍 [JoinGameWidget] Finding game: $gameId');
+      // Import the helper method
+      final result = await RecallGameHelpers.findRoom(roomId);
       
-      // TODO: Implement find game API call
-      // For now, simulate finding a game
-      await Future.delayed(const Duration(seconds: 1));
-      
-      // Simulate finding a private game
-      setState(() {
-        _isPrivateGame = true;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Game found! This is a private game.'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      if (result['success'] == true) {
+        final game = result['game'];
+        final message = result['message'] ?? 'Game found successfully';
+        
+        // Update the private room state based on found game
+        setState(() {
+          _isPrivateRoom = game['permission'] == 'private';
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$message\nPhase: ${game['phase']}, Permission: ${game['permission']}'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } else {
+        final errorMessage = result['error'] ?? 'Failed to find game';
+        throw Exception(errorMessage);
       }
-
     } catch (e) {
-      _log.error('❌ [JoinGameWidget] Error finding game: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error finding game: $e'),
+            content: Text('Failed to find game: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -226,81 +141,62 @@ class _JoinGameWidgetState extends State<JoinGameWidget> {
     }
   }
 
-  Future<void> _joinGame() async {
-    final gameId = _gameIdController.text.trim();
-    final password = _passwordController.text.trim();
-
-    if (gameId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a game ID'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    if (_isPrivateGame && password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password required for private games'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
+  Future<void> _joinRoom() async {
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      _log.info('🎮 [JoinGameWidget] Joining game: $gameId');
+      final roomId = _roomIdController.text.trim();
+      final password = _passwordController.text.trim();
 
-      // Prepare join data
-      final joinData = {
-        'room_id': gameId,
-        'password': password.isNotEmpty ? password : null,
-      };
-      
-      // Remove null values
-      joinData.removeWhere((key, value) => value == null);
+      // Validate private room password if required (frontend validation)
+      if (_isPrivateRoom && password.isEmpty) {
+        throw Exception('Password is required for private games');
+      }
 
       // Get WebSocket manager
       final wsManager = WebSocketManager.instance;
-      
-      if (wsManager.socket != null) {
-        // Emit join room event (backend validates password for private games)
-        wsManager.socket?.emit('join_room', joinData);
-        
-        _log.info('🎮 [JoinGameWidget] Join room event emitted successfully');
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Join request sent!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+      if (!wsManager.isConnected) {
+        throw Exception('Not connected to server');
+      }
 
-        // Clear form
-        _gameIdController.clear();
-        _passwordController.clear();
-        setState(() {
-          _isPrivateGame = false;
-        });
+      // Prepare join data
+      final joinData = {
+        'room_id': roomId,
+        'password': password.isNotEmpty ? password : null,
+      };
 
-      } else {
-        throw Exception('WebSocket not connected');
+      // Remove null values
+      joinData.removeWhere((key, value) => value == null);
+
+      // Emit join room event (backend will validate password for private rooms)
+      wsManager.socket?.emit('join_room', joinData);
+
+      // Clear form
+      _roomIdController.clear();
+      _passwordController.clear();
+
+      // Call callback if provided
+      widget.onJoinRoom?.call();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Join game request sent successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
 
     } catch (e) {
-      _log.error('❌ [JoinGameWidget] Error joining game: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error joining game: $e'),
+            content: Text('Failed to join game: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -312,5 +208,136 @@ class _JoinGameWidgetState extends State<JoinGameWidget> {
         });
       }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.login,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Join Game',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Room ID Field
+              TextFormField(
+                controller: _roomIdController,
+                decoration: const InputDecoration(
+                  labelText: 'Game ID',
+                  border: OutlineInputBorder(),
+                  hintText: 'Enter game ID to join',
+                  prefixIcon: Icon(Icons.room),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Game ID is required';
+                  }
+                  return null;
+                },
+                onChanged: _onRoomIdChanged,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              
+              // Password Field (shown only for private rooms)
+              if (_isPrivateRoom) ...[
+                TextFormField(
+                  controller: _passwordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(),
+                    hintText: 'Enter game password',
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                  obscureText: true,
+                  validator: (value) {
+                    if (_isPrivateRoom && (value == null || value.trim().isEmpty)) {
+                      return 'Password is required for private games';
+                    }
+                    return null;
+                  },
+                  textInputAction: TextInputAction.done,
+                ),
+                const SizedBox(height: 16),
+              ],
+              
+              // Find and Join Buttons (Side by Side)
+              Row(
+                children: [
+                  // Find Room Button (50% width)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isFinding ? null : _findRoom,
+                      icon: _isFinding
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.search),
+                      label: Text(_isFinding ? 'Finding...' : 'Find Games'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Join Room Button (50% width)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _joinRoom,
+                      icon: _isLoading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.login),
+                      label: Text(_isLoading ? 'Joining...' : 'Join Game'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              // Help Text
+              const SizedBox(height: 12),
+              Text(
+                _isPrivateRoom
+                    ? 'This is a private game. Password required.'
+                    : 'This is a public game. No password needed.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: _isPrivateRoom ? Colors.orange : Colors.green,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

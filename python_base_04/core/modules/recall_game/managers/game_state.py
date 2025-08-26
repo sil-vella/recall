@@ -955,9 +955,13 @@ class GameStateManager:
             game_state = self._to_flutter_game_state(game)
             
             # 1. Send new_player_joined event to the room
+            # Get the owner_id for this room from the WebSocket manager
+            owner_id = self.websocket_manager.get_room_creator(room_id)
+            
             room_payload = {
                 'event_type': 'recall_new_player_joined',
                 'room_id': room_id,
+                'owner_id': owner_id,  # Include owner_id for ownership determination
                 'joined_player': {
                     'user_id': user_id,
                     'session_id': session_id,
@@ -978,9 +982,14 @@ class GameStateManager:
                 # Check if user is in this game
                 if user_id in user_game.players:
                     user_game_state = self._to_flutter_game_state(user_game)
+                    
+                    # Get the owner_id for this room from the WebSocket manager
+                    owner_id = self.websocket_manager.get_room_creator(game_id)
+                    
                     user_games.append({
                         'game_id': game_id,
                         'room_id': game_id,  # Game ID is the same as room ID
+                        'owner_id': owner_id,  # Include owner_id for ownership determination
                         'game_state': user_game_state,
                         'joined_at': datetime.now().isoformat()
                     })

@@ -112,7 +112,7 @@ class RecallGameEventListenerValidator {
       'room_id', 'reason', 'timestamp', 'owner_id',
     },
     'recall_new_player_joined': {
-      'event_type', 'room_id', 'joined_player', 'game_state', 'timestamp',
+      'event_type', 'room_id', 'owner_id', 'joined_player', 'game_state', 'timestamp',
     },
     'recall_joined_games': {
       'event_type', 'user_id', 'session_id', 'games', 'total_games', 'timestamp',

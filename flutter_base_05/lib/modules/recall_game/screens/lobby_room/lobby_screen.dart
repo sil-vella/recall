@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import 'widgets/connection_status_widget.dart';
-import 'widgets/create_room_widget.dart';
-import 'widgets/join_room_widget.dart';
-import 'widgets/current_room_widget.dart';
+import 'widgets/create_game_widget.dart';
+import 'widgets/join_game_widget.dart';
+import 'widgets/current_games_widget.dart';
 import 'widgets/available_games_widget.dart';
 import 'features/lobby_features.dart';
 import '../../../../core/managers/state_manager.dart';

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
+import '../../../../../core/managers/websockets/ws_event_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../utils/recall_game_helpers.dart';
 
 /// Widget to display available games with fetch functionality
 /// 
@@ -27,10 +29,22 @@ class AvailableGamesWidget extends StatelessWidget {
       builder: (context, child) {
         final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         
+        // Note: We could get current user ID from login state if needed in the future
+        // final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+        
         // Extract games-related state
         final availableGames = recallState['availableGames'] as List<dynamic>? ?? [];
+        final joinedGames = recallState['joinedGames'] as List<dynamic>? ?? [];
         final isLoading = recallState['isLoading'] == true;
         final lastUpdated = recallState['lastUpdated'];
+        
+        // Create a set of game IDs that the user is already in for quick lookup
+        final Set<String> userJoinedGameIds = joinedGames
+            .map((game) => game['game_id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet();
+        
+        _log.info('🎮 AvailableGamesWidget: ${availableGames.length} games available, user in ${userJoinedGameIds.length} games');
 
         _log.info('🎮 AvailableGamesWidget: ${availableGames.length} games available, loading=$isLoading');
 
@@ -99,7 +113,7 @@ class AvailableGamesWidget extends StatelessWidget {
                 if (availableGames.isEmpty)
                   _buildEmptyState()
                 else
-                  _buildGamesList(availableGames),
+                  _buildGamesList(availableGames, userJoinedGameIds),
               ],
             ),
           ),
@@ -148,7 +162,7 @@ class AvailableGamesWidget extends StatelessWidget {
   }
 
   /// Build list of available games
-  Widget _buildGamesList(List<dynamic> games) {
+  Widget _buildGamesList(List<dynamic> games, Set<String> userJoinedGameIds) {
     return Column(
       children: [
         Text(
@@ -160,13 +174,13 @@ class AvailableGamesWidget extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        ...games.map((game) => _buildGameCard(game)).toList(),
+        ...games.map((game) => _buildGameCard(game, userJoinedGameIds)).toList(),
       ],
     );
   }
 
   /// Build individual game card
-  Widget _buildGameCard(Map<String, dynamic> game) {
+  Widget _buildGameCard(Map<String, dynamic> game, Set<String> userJoinedGameIds) {
     final gameId = game['gameId']?.toString() ?? 'Unknown';
     final gameName = game['gameName']?.toString() ?? 'Unnamed Game';
     final playerCount = game['playerCount'] ?? 0;
@@ -228,23 +242,51 @@ class AvailableGamesWidget extends StatelessWidget {
               ),
             ),
             
-            // Join button
-            Semantics(
-              label: 'join_game_$gameId',
-              identifier: 'join_game_$gameId',
-              button: true,
-              child: ElevatedButton(
-                onPressed: () {
-                  _log.info('🎮 [AvailableGamesWidget] Join game button pressed for game: $gameId');
-                  // TODO: Implement join game logic
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                ),
-                child: const Text('Join'),
-              ),
+            // Join/Leave button based on user's current status
+            Builder(
+              builder: (context) {
+                final isUserInGame = userJoinedGameIds.contains(gameId);
+                
+                if (isUserInGame) {
+                  // User is already in this game - show Leave button
+                  return Semantics(
+                    label: 'leave_game_$gameId',
+                    identifier: 'leave_game_$gameId',
+                    button: true,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        _log.info('🎮 [AvailableGamesWidget] Leave game button pressed for game: $gameId');
+                        _leaveGame(gameId);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                      child: const Text('Leave'),
+                    ),
+                  );
+                } else {
+                  // User is not in this game - show Join button
+                  return Semantics(
+                    label: 'join_game_$gameId',
+                    identifier: 'join_game_$gameId',
+                    button: true,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        _log.info('🎮 [AvailableGamesWidget] Join game button pressed for game: $gameId');
+                        _joinGame(gameId);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                      child: const Text('Join'),
+                    ),
+                  );
+                }
+              },
             ),
           ],
         ),
@@ -292,6 +334,53 @@ class AvailableGamesWidget extends StatelessWidget {
       return 'Unknown';
     } catch (e) {
       return 'Invalid';
+    }
+  }
+
+  /// Join a game using the core WebSocket system
+  void _joinGame(String gameId) {
+    try {
+      _log.info('🎮 [AvailableGamesWidget] Joining game: $gameId');
+      
+      // Use RecallGameHelpers to join the room
+      RecallGameHelpers.joinRoom(roomId: gameId).then((result) {
+        if (result['success'] == true) {
+          _log.info('✅ [AvailableGamesWidget] Successfully joined game: $gameId');
+        } else {
+          _log.error('❌ [AvailableGamesWidget] Failed to join game: ${result['error']}');
+        }
+      }).catchError((e) {
+        _log.error('❌ [AvailableGamesWidget] Error joining game: $e');
+      });
+      
+    } catch (e) {
+      _log.error('❌ [AvailableGamesWidget] Error joining game: $e');
+    }
+  }
+
+  /// Leave a game using the core WebSocket system
+  void _leaveGame(String gameId) {
+    try {
+      _log.info('🚪 [AvailableGamesWidget] Leaving game: $gameId');
+      
+      // Use the core WebSocket event manager
+      final wsEventManager = WSEventManager.instance;
+      
+      // Leave room using the proper method
+      wsEventManager.leaveRoom(gameId).then((result) {
+        if (result['pending'] != null) {
+          _log.info('🚪 [AvailableGamesWidget] Leave room request sent, waiting for server response');
+        } else if (result['success'] != null) {
+          _log.info('✅ [AvailableGamesWidget] Left room successfully');
+        } else {
+          _log.error('❌ [AvailableGamesWidget] Failed to leave room: ${result['error']}');
+        }
+      }).catchError((e) {
+        _log.error('❌ [AvailableGamesWidget] Error leaving room: $e');
+      });
+      
+    } catch (e) {
+      _log.error('❌ [AvailableGamesWidget] Error leaving game: $e');
     }
   }
 }

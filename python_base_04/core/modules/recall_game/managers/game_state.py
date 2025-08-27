@@ -972,8 +972,8 @@ class GameStateManager:
                 'timestamp': datetime.now().isoformat()
             }
             
-            # Send as recall_game_event to the room
-            self.websocket_manager.socketio.emit('recall_game_event', room_payload, room=room_id)
+            # Send as direct event to the room
+            self.websocket_manager.socketio.emit('recall_new_player_joined', room_payload, room=room_id)
             custom_log(f"📡 [RECALL] recall_new_player_joined event sent to room {room_id} for player {user_id}")
             
             # 2. Send joined_games event to the joined user
@@ -1003,8 +1003,8 @@ class GameStateManager:
                 'timestamp': datetime.now().isoformat()
             }
             
-            # Send as recall_game_event to the specific user's session
-            self.websocket_manager.send_to_session(session_id, 'recall_game_event', user_payload)
+            # Send as direct event to the specific user's session
+            self.websocket_manager.send_to_session(session_id, 'recall_joined_games', user_payload)
             custom_log(f"📡 [RECALL] recall_joined_games event sent to session {session_id} with {len(user_games)} games")
             
         except Exception as e:

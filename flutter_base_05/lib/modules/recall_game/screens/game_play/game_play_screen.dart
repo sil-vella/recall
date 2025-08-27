@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import 'widgets/game_info_widget.dart';
+import 'widgets/opponents_panel_widget.dart';
+import 'widgets/draw_pile_widget.dart';
+import 'widgets/discard_pile_widget.dart';
+import 'widgets/my_hand_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 
 class GamePlayScreen extends BaseScreen {
@@ -97,23 +101,51 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
           const GameInfoWidget(),
           const SizedBox(height: 20),
           
-          // Game content will be added here in future iterations
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Center(
-              child: Text(
-                'Game Play Screen - Coming Soon',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+          // Opponents Panel Section
+          const OpponentsPanelWidget(),
+          const SizedBox(height: 20),
+          
+          // Game Board Section
+          Card(
+            margin: const EdgeInsets.only(bottom: 20),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.casino, color: Colors.green),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Game Board',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Game board content in a row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Draw Pile Widget
+                      const DrawPileWidget(),
+                      
+                      // Discard Pile Widget
+                      const DiscardPileWidget(),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
+          
+          // My Hand Section
+          const MyHandWidget(),
         ],
       ),
     );

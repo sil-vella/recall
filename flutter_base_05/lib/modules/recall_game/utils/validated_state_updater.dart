@@ -239,6 +239,26 @@ class RecallGameStateUpdater {
       required: false,
       description: 'Full game state object',
     ),
+    'drawPileCount': RecallStateFieldSpec(
+      type: int,
+      defaultValue: 0,
+      description: 'Number of cards in draw pile',
+    ),
+    'discardPile': RecallStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      description: 'Cards in discard pile',
+    ),
+    'opponentPlayers': RecallStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      description: 'List of opponent players',
+    ),
+    'currentPlayerIndex': RecallStateFieldSpec(
+      type: int,
+      defaultValue: -1,
+      description: 'Index of current player',
+    ),
     'myScore': RecallStateFieldSpec(
       type: int,
       defaultValue: 0,
@@ -295,8 +315,8 @@ class RecallGameStateUpdater {
     'actionBar': {'isRoomOwner', 'isGameActive', 'isMyTurn', 'canCallRecall', 'canPlayCard'},
     'statusBar': {'gamePhase', 'gameStatus', 'playerCount', 'turnNumber', 'roundNumber', 'isConnected'},
     'myHand': {'playerId', 'isMyTurn', 'canPlayCard'},
-    'centerBoard': {'gamePhase', 'isGameActive', 'turnNumber'},
-    'opponentsPanel': {'playerCount', 'isMyTurn', 'gamePhase'},
+    'centerBoard': {'gamePhase', 'isGameActive', 'turnNumber', 'drawPileCount', 'discardPile'},
+    'opponentsPanel': {'playerCount', 'isMyTurn', 'gamePhase', 'opponentPlayers', 'currentPlayerIndex'},
   };
   
   /// Update state with validation
@@ -560,12 +580,14 @@ class RecallGameStateUpdater {
   Map<String, dynamic> _computeCenterBoardSlice(Map<String, dynamic> state) {
     final gamePhase = state['gamePhase'] ?? 'waiting';
     final isGameActive = state['isGameActive'] ?? false;
+    final drawPileCount = state['drawPileCount'] ?? 0;
+    final discardPile = state['discardPile'] as List<dynamic>? ?? [];
     
     return {
-      'discardPile': state['discardPile'] ?? [],
-      'drawPileCount': state['drawPileCount'] ?? 0,
-      'lastPlayedCard': state['lastPlayedCard'],
-      'showCards': isGameActive && gamePhase == 'playing',
+      'drawPileCount': drawPileCount,
+      'topDiscard': discardPile.isNotEmpty ? discardPile.last : null,
+      'canDrawFromDeck': drawPileCount > 0,
+      'canTakeFromDiscard': discardPile.isNotEmpty,
     };
   }
   
@@ -573,12 +595,12 @@ class RecallGameStateUpdater {
   Map<String, dynamic> _computeOpponentsPanelSlice(Map<String, dynamic> state) {
     final playerCount = state['playerCount'] ?? 0;
     final gamePhase = state['gamePhase'] ?? 'waiting';
+    final opponentPlayers = state['opponentPlayers'] as List<dynamic>? ?? [];
+    final currentPlayerIndex = state['currentPlayerIndex'] ?? -1;
     
     return {
-      'players': state['opponentPlayers'] ?? [],
-      'currentPlayerIndex': state['currentPlayerIndex'] ?? -1,
-      'showPlayerInfo': playerCount > 1,
-      'gamePhase': gamePhase,
+      'opponents': opponentPlayers,
+      'currentTurnIndex': currentPlayerIndex,
     };
   }
   

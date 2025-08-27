@@ -221,108 +221,110 @@ class RecallGameEventListenerValidator {
     });
   }
   
-  /// Register the actual Socket.IO listener
+  /// Register the actual Socket.IO listeners for direct events
   void _registerListenerNow() {
     if (_socketIOListenerRegistered) return;
     
     final wsManager = WebSocketManager.instance;
     
-    // Use the core WebSocket system's event listener - same pattern as connection widget
+    // Use the core WebSocket system's event listener to register for direct events
     if (wsManager.eventListener != null) {
-      wsManager.eventListener!.registerCustomListener('recall_game_event', (data) {
-        _log.info('🎧 [RecallGameEvent] Raw event received: $data');
-        _handleRecallGameEvent(data);
-      });
+      // Register listeners for all the direct game events
+      final directEvents = [
+        'game_joined', 'game_left', 'player_joined', 'player_left',
+        'game_started', 'game_phase_changed', 'game_ended', 'turn_changed',
+        'card_played', 'card_drawn', 'replace_drawn_card', 'play_drawn_card',
+        'recall_called', 'game_state_updated', 'recall_new_player_joined',
+        'recall_joined_games', 'recall_message'
+      ];
+      
+      for (final eventName in directEvents) {
+        wsManager.eventListener!.registerCustomListener(eventName, (data) {
+          _log.info('🎧 [DirectEvent] Raw event received: $eventName');
+          _handleDirectEvent(eventName, data);
+        });
+      }
+      
       _socketIOListenerRegistered = true;
-      _log.info('📝 Registered Socket.IO listener for event: recall_game_event via core WebSocket system');
+      _log.info('📝 Registered Socket.IO listeners for ${directEvents.length} direct game events via core WebSocket system');
     } else {
-      _log.error('❌ WebSocket event listener not available, cannot register recall_game_event listener');
+      _log.error('❌ WebSocket event listener not available, cannot register direct game event listeners');
     }
   }
   
-  /// Handle recall game events and route to appropriate callbacks
-  void _handleRecallGameEvent(Map<String, dynamic> data) {
-    _log.info('🎧 [RecallGameEvent] ===== PROCESSING RECALL GAME EVENT =====');
-    _log.info('🎧 [RecallGameEvent] Raw data type: ${data.runtimeType}');
-    _log.info('🎧 [RecallGameEvent] Raw data: $data');
-    _log.info('🎧 [RecallGameEvent] Data keys: ${data.keys.toList()}');
-    _log.info('🎧 [RecallGameEvent] Data size: ${data.length} fields');
+  /// Handle direct game events and route to appropriate callbacks
+  void _handleDirectEvent(String eventType, Map<String, dynamic> data) {
+    _log.info('🎧 [DirectEvent] ===== PROCESSING DIRECT GAME EVENT =====');
+    _log.info('🎧 [DirectEvent] Event type: $eventType');
+    _log.info('🎧 [DirectEvent] Raw data type: ${data.runtimeType}');
+    _log.info('🎧 [DirectEvent] Raw data: $data');
+    _log.info('🎧 [DirectEvent] Data keys: ${data.keys.toList()}');
+    _log.info('🎧 [DirectEvent] Data size: ${data.length} fields');
     
-      try {
-        // Extract event type from data
-        final type = data['event_type'] as String?;
-      _log.info('🎧 [RecallGameEvent] Extracted event_type: $type');
+    try {
+      // Validate event type
+      _log.info('🎧 [DirectEvent] Checking if event type exists in schema...');
+      _log.info('🎧 [DirectEvent] Available schema types: ${_eventSchema.keys.toList()}');
       
-        if (type == null) {
-        _log.error('❌ [RecallGameEvent] Missing event_type in recall game event');
-        _log.error('❌ [RecallGameEvent] Available fields: ${data.keys.toList()}');
-        _log.error('❌ [RecallGameEvent] Full data: $data');
-          return;
-        }
+      if (!_eventSchema.containsKey(eventType)) {
+        _log.error('❌ [DirectEvent] Unknown game event type: $eventType');
+        _log.error('❌ [DirectEvent] Available schema types: ${_eventSchema.keys.toList()}');
+        return;
+      }
+      
+      _log.info('✅ [DirectEvent] Event type validated: $eventType');
 
-        // Validate event type
-      _log.info('🎧 [RecallGameEvent] Checking if event type exists in schema...');
-      _log.info('🎧 [RecallGameEvent] Available schema types: ${_eventSchema.keys.toList()}');
+      // Validate event data against schema
+      _log.info('🎧 [DirectEvent] Validating event data against schema...');
+      final validatedData = _validateEventData(eventType, data);
+      if (validatedData == null) {
+        _log.error('❌ [DirectEvent] Invalid data for game event: $eventType');
+        _log.error('❌ [DirectEvent] Validation failed - see validation logs above');
+        return;
+      }
       
-        if (!_eventSchema.containsKey(type)) {
-        _log.error('❌ [RecallGameEvent] Unknown recall game event type: $type');
-        _log.error('❌ [RecallGameEvent] Available schema types: ${_eventSchema.keys.toList()}');
-          return;
-        }
-      
-      _log.info('✅ [RecallGameEvent] Event type validated: $type');
+      _log.info('✅ [DirectEvent] Event data validation passed');
+      _log.info('🎧 [DirectEvent] Validated data: $validatedData');
 
-        // Validate event data against schema
-      _log.info('🎧 [RecallGameEvent] Validating event data against schema...');
-        final validatedData = _validateEventData(type, data);
-        if (validatedData == null) {
-        _log.error('❌ [RecallGameEvent] Invalid data for recall game event: $type');
-        _log.error('❌ [RecallGameEvent] Validation failed - see validation logs above');
-          return;
-        }
+      // Add minimal required context
+      final eventPayload = {
+        'event_type': eventType,
+        'timestamp': DateTime.now().toIso8601String(),
+        ...validatedData,
+      };
       
-      _log.info('✅ [RecallGameEvent] Event data validation passed');
-      _log.info('🎧 [RecallGameEvent] Validated data: $validatedData');
+      _log.info('🎧 [DirectEvent] Final event payload: $eventPayload');
 
-        // Add minimal required context
-        final eventPayload = {
-          'event_type': type,
-          'timestamp': DateTime.now().toIso8601String(),
-          ...validatedData,
-        };
-      
-      _log.info('🎧 [RecallGameEvent] Final event payload: $eventPayload');
-
-        // Log the event
-        _logEvent(type, eventPayload);
+      // Log the event
+      _logEvent(eventType, eventPayload);
 
       // Call all registered callbacks for this event type
-      _log.info('🎧 [RecallGameEvent] Looking for callbacks for event type: $type');
-      final callbacks = _callbacks[type];
+      _log.info('🎧 [DirectEvent] Looking for callbacks for event type: $eventType');
+      final callbacks = _callbacks[eventType];
       if (callbacks != null) {
-        _log.info('🎧 [RecallGameEvent] Found ${callbacks.length} callbacks for event type: $type');
+        _log.info('🎧 [DirectEvent] Found ${callbacks.length} callbacks for event type: $eventType');
         for (int i = 0; i < callbacks.length; i++) {
           final callback = callbacks[i];
-          _log.info('🎧 [RecallGameEvent] Executing callback ${i + 1}/${callbacks.length}');
+          _log.info('🎧 [DirectEvent] Executing callback ${i + 1}/${callbacks.length}');
           try {
-          callback(eventPayload);
-            _log.info('✅ [RecallGameEvent] Callback ${i + 1} executed successfully');
+            callback(eventPayload);
+            _log.info('✅ [DirectEvent] Callback ${i + 1} executed successfully');
           } catch (e) {
-            _log.error('❌ [RecallGameEvent] Error in callback ${i + 1} for event type $type: $e');
-            _log.error('❌ [RecallGameEvent] Error stack trace: ${StackTrace.current}');
+            _log.error('❌ [DirectEvent] Error in callback ${i + 1} for event type $eventType: $e');
+            _log.error('❌ [DirectEvent] Error stack trace: ${StackTrace.current}');
           }
         }
       } else {
-        _log.warning('⚠️ [RecallGameEvent] No callbacks registered for event type: $type');
-        _log.info('🎧 [RecallGameEvent] Available callback types: ${_callbacks.keys.toList()}');
-        }
-
-      } catch (e) {
-      _log.error('❌ [RecallGameEvent] Error handling recall game event: $e');
-      _log.error('❌ [RecallGameEvent] Error stack trace: ${StackTrace.current}');
+        _log.warning('⚠️ [DirectEvent] No callbacks registered for event type: $eventType');
+        _log.info('🎧 [DirectEvent] Available callback types: ${_callbacks.keys.toList()}');
       }
+
+    } catch (e) {
+      _log.error('❌ [DirectEvent] Error handling direct game event: $e');
+      _log.error('❌ [DirectEvent] Error stack trace: ${StackTrace.current}');
+    }
     
-    _log.info('🎧 [RecallGameEvent] ===== END PROCESSING RECALL GAME EVENT =====');
+    _log.info('🎧 [DirectEvent] ===== END PROCESSING DIRECT GAME EVENT =====');
   }
 
   /// Validate event data against schema

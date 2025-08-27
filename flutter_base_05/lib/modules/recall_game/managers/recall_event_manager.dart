@@ -115,6 +115,79 @@ class RecallEventManager {
       );
     });
     
+    // Register game_started event listener
+    RecallGameEventListenerValidator.instance.addListener('game_started', (data) {
+      _log.info('🎧 [RECALL] Received game_started event');
+      
+      final gameId = data['game_id']?.toString() ?? '';
+      final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
+      final startedBy = data['started_by']?.toString() ?? '';
+      final timestamp = data['timestamp']?.toString() ?? '';
+      
+      _log.info('🎧 [RECALL] Game $gameId started by $startedBy');
+      
+      // Extract player data
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+      final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+      
+      // Find the current user's player data
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId']?.toString() ?? '';
+      Map<String, dynamic>? myPlayer;
+      try {
+        myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
+          (player) => player['id'] == currentUserId,
+        );
+      } catch (e) {
+        myPlayer = null;
+      }
+      
+      // Extract opponent players (excluding current user)
+      final opponents = players.where((player) => player['id'] != currentUserId).toList();
+      
+      // Update recall game state with game started information
+      final widgetUpdates = {
+        'gameState': gameState,
+        'gamePhase': gameState['phase'] ?? 'playing',
+        'gameStatus': gameState['status'] ?? 'active',
+        'isGameActive': true,
+        'lastUpdated': DateTime.now().toIso8601String(),
+        
+        // Update specific state slices for widgets
+        'myHand': {
+          'cards': myPlayer?['hand'] ?? [],
+          'selectedIndex': -1,
+          'selectedCard': null,
+        },
+        
+        // Update fields that the compute methods expect
+        'drawPileCount': drawPile.length,
+        'discardPile': discardPile,
+        'opponentPlayers': opponents.cast<Map<String, dynamic>>(),
+        'currentPlayerIndex': currentPlayer != null ? players.indexOf(currentPlayer) : -1,
+      };
+      
+      _log.info('🎮 [GAME_STARTED] Updating widget state slices:');
+      _log.info('🎮 [GAME_STARTED] centerBoard: ${widgetUpdates['centerBoard']}');
+      _log.info('🎮 [GAME_STARTED] opponentsPanel: ${widgetUpdates['opponentsPanel']}');
+      
+      RecallGameHelpers.updateUIState(widgetUpdates);
+      
+      // Add session message about game started
+      _addSessionMessage(
+        level: 'success',
+        title: 'Game Started',
+        message: 'Game $gameId has started!',
+        data: {
+          'game_id': gameId,
+          'started_by': startedBy,
+          'game_state': gameState,
+        },
+      );
+    });
+    
     _log.info('✅ Recall-specific event listeners registered');
   }
 

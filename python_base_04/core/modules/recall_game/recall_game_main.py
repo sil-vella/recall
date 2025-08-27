@@ -49,6 +49,9 @@ class RecallGameMain(BaseModule):
             # Initialize game state manager with WebSocket support
             self.game_state_manager.initialize(self.app_manager, self.game_logic_engine)
             
+            # Register WebSocket event listeners for game events
+            self.register_websocket_listeners()
+            
             # Register routes now that Flask app is available
             self.register_routes()
             
@@ -71,6 +74,69 @@ class RecallGameMain(BaseModule):
         self._register_route_helper("/userauth/recall/find-room", self.find_room, methods=["POST"], auth="jwt")
         
         custom_log(f"Recall game module registered {len(self.registered_routes)} routes")
+    
+    def register_websocket_listeners(self):
+        """Register WebSocket event listeners for Recall game events"""
+        try:
+            custom_log("🎮 Registering Recall game WebSocket event listeners...")
+            
+            # Get the WebSocket event listeners from the WebSocket manager
+            event_listeners = self.websocket_manager.event_listeners
+            if not event_listeners:
+                custom_log("❌ WebSocket event listeners not available", level="ERROR")
+                return
+            
+            # Register game event listeners
+            game_events = [
+                'start_match',
+                'draw_card', 
+                'play_card',
+                'discard_card',
+                'take_from_discard',
+                'call_recall'
+            ]
+            
+            for event_name in game_events:
+                # Create a wrapper function that captures the event name
+                def create_event_handler(event_name):
+                    def event_handler(session_id, data):
+                        return self.handle_game_event(session_id, event_name, data)
+                    return event_handler
+                
+                event_listeners.register_custom_listener(event_name, create_event_handler(event_name))
+                custom_log(f"✅ Registered game event listener: {event_name}")
+            
+            custom_log(f"✅ Registered {len(game_events)} Recall game event listeners")
+            
+        except Exception as e:
+            custom_log(f"❌ Error registering Recall game WebSocket listeners: {e}", level="ERROR")
+    
+    def handle_game_event(self, session_id: str, event_name: str, data: dict):
+        """Handle incoming game events"""
+        try:
+            custom_log(f"🎮 [RECALL-GAME] Handling game event: '{event_name}' for session: {session_id}")
+            custom_log(f"🎮 [RECALL-GAME] Event data: {data}")
+            
+            # Route to appropriate game state manager method
+            if event_name == 'start_match':
+                return self.game_state_manager.on_start_match(session_id, data)
+            elif event_name == 'draw_card':
+                return self.game_state_manager.on_player_action(session_id, 'draw_from_deck', data)
+            elif event_name == 'play_card':
+                return self.game_state_manager.on_player_action(session_id, 'play_card', data)
+            elif event_name == 'discard_card':
+                return self.game_state_manager.on_player_action(session_id, 'discard_card', data)
+            elif event_name == 'take_from_discard':
+                return self.game_state_manager.on_player_action(session_id, 'take_from_discard', data)
+            elif event_name == 'call_recall':
+                return self.game_state_manager.on_player_action(session_id, 'call_recall', data)
+            else:
+                custom_log(f"⚠️ [RECALL-GAME] Unknown game event: '{event_name}'")
+                return False
+                
+        except Exception as e:
+            custom_log(f"❌ [RECALL-GAME] Error handling game event: {e}", level="ERROR")
+            return False
     
     def get_available_games(self):
         """Get all available games that can be joined (JWT protected endpoint)"""

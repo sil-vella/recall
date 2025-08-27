@@ -701,6 +701,16 @@ class WebSocketManager:
                 custom_log(f"❌ Room {room_id} has reached size limit")
                 return False
             
+            # Check if user is already in the room
+            if session_id in self.session_rooms and room_id in self.session_rooms[session_id]:
+                custom_log(f"ℹ️ Session {session_id} is already in room {room_id}")
+                return "already_joined"  # Return special status for already joined
+            
+            # Check if room exists and session is already in it
+            if room_id in self.rooms and session_id in self.rooms[room_id]:
+                custom_log(f"ℹ️ Session {session_id} is already in room {room_id}")
+                return "already_joined"  # Return special status for already joined
+            
             # Join room using Socket.IO
             join_room(room_id)
             

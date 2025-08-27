@@ -386,7 +386,7 @@ registerAppBarAction(featureId: 'notifications', priority: 150, ...);
 Registers a new app bar action feature.
 
 ```dart
-registerAppBarAction(
+  registerAppBarAction(
   featureId: 'help',
   icon: Icons.help_outline,
   onTap: () => showHelp(),

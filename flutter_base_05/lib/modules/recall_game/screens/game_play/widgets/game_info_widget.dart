@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../managers/game_coordinator.dart';
 
 /// Widget to display current game information
 /// 
@@ -25,6 +26,7 @@ class GameInfoWidget extends StatelessWidget {
         final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
         final currentGameData = recallGameState['currentGameData'] as Map<String, dynamic>? ?? {};
         final isInGame = recallGameState['isInGame'] == true;
+        final isRoomOwner = recallGameState['isRoomOwner'] ?? false;
         
         _log.info('🎮 GameInfoWidget: isInGame=$isInGame, currentGameId=$currentGameId');
         
@@ -51,6 +53,7 @@ class GameInfoWidget extends StatelessWidget {
           maxSize: maxSize,
           gamePhase: gamePhase,
           gameStatus: gameStatus,
+          isRoomOwner: isRoomOwner,
         );
       },
     );
@@ -108,6 +111,7 @@ class GameInfoWidget extends StatelessWidget {
     required int maxSize,
     required String gamePhase,
     required String gameStatus,
+    required bool isRoomOwner,
   }) {
     return Card(
       margin: const EdgeInsets.all(16),
@@ -167,10 +171,60 @@ class GameInfoWidget extends StatelessWidget {
               ],
             ),
             
+            const SizedBox(height: 16),
+            
+            // Start Match Button (only for room owner during waiting phase)
+            if (isRoomOwner && gamePhase == 'waiting')
+              _buildStartMatchButton(),
           ],
         ),
       ),
     );
+  }
+  
+  /// Build start match button
+  Widget _buildStartMatchButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _handleStartMatch,
+        icon: const Icon(Icons.play_arrow, size: 18),
+        label: const Text(
+          'Start Match',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  /// Handle start match button press
+  void _handleStartMatch() async {
+    _log.info('🎮 GameInfoWidget: Start match button pressed');
+    
+    try {
+      // Call GameCoordinator to start the match
+      final gameCoordinator = GameCoordinator();
+      final success = await gameCoordinator.startMatch();
+      
+      if (success) {
+        _log.info('✅ GameInfoWidget: Start match action sent successfully');
+      } else {
+        _log.error('❌ GameInfoWidget: Failed to send start match action');
+      }
+    } catch (e) {
+      _log.error('❌ GameInfoWidget: Error in start match action: $e');
+    }
   }
   
   /// Build status chip based on game phase and status

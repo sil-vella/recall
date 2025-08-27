@@ -345,25 +345,53 @@ class WSEventHandlers:
             custom_log(f"🔧 [HANDLER-JOIN] Using user_id: {user_id} for join room: {room_id}")
             
             # Join the room
-            success = self.websocket_manager.join_room(room_id, session_id, user_id)
+            join_result = self.websocket_manager.join_room(room_id, session_id, user_id)
             
-            if success:
+            # Get room owner information from memory storage
+            room_owner_id = self.websocket_manager.get_room_creator(room_id)
+            
+            # Get actual room data from memory storage
+            room_info = self.websocket_manager.get_room_info(room_id) or {}
+            current_size = self.websocket_manager.get_room_size(room_id)
+            
+            # Ensure we have the required room data
+            if not room_info.get('max_size'):
+                custom_log(f"❌ Room {room_id} missing max_size data, cannot proceed with join")
+                self.socketio.emit('join_room_error', {'error': 'Room data incomplete'})
+                return False
+            
+            max_size = room_info.get('max_size')  # Get actual max_size from room data
+            
+            if join_result == "already_joined":
+                custom_log(f"ℹ️ User already in room: {room_id}")
+                
+                # Emit already_joined event with same room data as room_joined
+                self.socketio.emit('already_joined', {
+                    'room_id': room_id,
+                    'session_id': session_id,
+                    'user_id': user_id,
+                    'owner_id': room_owner_id,  # Include owner_id in response
+                    'timestamp': datetime.now().isoformat(),
+                    'current_size': current_size,
+                    'max_size': max_size  # Use actual max_size from room data
+                })
+                
+                # 🎣 Trigger room_joined hook for game creation logic (same as normal join)
+                room_data = {
+                    'room_id': room_id,
+                    'session_id': session_id,
+                    'user_id': user_id,
+                    'owner_id': room_owner_id,
+                    'current_size': current_size,
+                    'max_size': max_size,  # Use actual max_size from room data
+                    'joined_at': datetime.now().isoformat()
+                }
+                self.websocket_manager.trigger_hook('room_joined', room_data)
+                custom_log(f"🎣 [HOOK] room_joined hook triggered for already_joined with data: {room_data}")
+                
+                return True
+            elif join_result:
                 custom_log(f"✅ Successfully joined room: {room_id}")
-                
-                # Get room owner information from memory storage
-                room_owner_id = self.websocket_manager.get_room_creator(room_id)
-                
-                # Get actual room data from memory storage
-                room_info = self.websocket_manager.get_room_info(room_id) or {}
-                current_size = self.websocket_manager.get_room_size(room_id)
-                
-                # Ensure we have the required room data
-                if not room_info.get('max_size'):
-                    custom_log(f"❌ Room {room_id} missing max_size data, cannot proceed with join")
-                    self.socketio.emit('join_room_error', {'error': 'Room data incomplete'})
-                    return False
-                
-                max_size = room_info.get('max_size')  # Get actual max_size from room data
                 
                 # Emit success to client (matching Flutter expectations)
                 self.socketio.emit('join_room_success', {

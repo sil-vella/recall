@@ -100,20 +100,37 @@ class FeatureRegistryManager {
   }
 
   /// Get features for a slot within a scope, sorted by priority then id
+  /// Also includes global features from 'global_app_bar' scope
   List<FeatureDescriptor> getFeaturesForSlot({
     required String scopeKey,
     required String slotId,
   }) {
+    final List<FeatureDescriptor> allFeatures = [];
+    
+    // Get features from the specific scope
     final scope = _scopedRegistries[scopeKey];
-    if (scope == null || scope.isEmpty) return const [];
-
-    final list = scope.values.where((f) => f.slotId == slotId).toList();
-    list.sort((a, b) {
+    if (scope != null && scope.isNotEmpty) {
+      final scopeFeatures = scope.values.where((f) => f.slotId == slotId).toList();
+      allFeatures.addAll(scopeFeatures);
+    }
+    
+    // Get features from global scope (if not already looking at global scope)
+    if (scopeKey != 'global_app_bar') {
+      final globalScope = _scopedRegistries['global_app_bar'];
+      if (globalScope != null && globalScope.isNotEmpty) {
+        final globalFeatures = globalScope.values.where((f) => f.slotId == slotId).toList();
+        allFeatures.addAll(globalFeatures);
+      }
+    }
+    
+    // Sort by priority then id
+    allFeatures.sort((a, b) {
       final p = a.priority.compareTo(b.priority);
       if (p != 0) return p;
       return a.featureId.compareTo(b.featureId);
     });
-    return list;
+    
+    return allFeatures;
   }
 
   /// Debug/inspection helper

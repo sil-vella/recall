@@ -75,6 +75,8 @@ class AppManager extends ChangeNotifier {
         await _initializeModules(context);
         _log.info('✅ Modules initialized');
         
+
+        
         // Register global hooks
         _log.info('🪝 Registering global hooks...');
         _registerGlobalHooks();

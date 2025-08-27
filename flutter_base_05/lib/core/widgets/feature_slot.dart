@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../../utils/consts/theme_consts.dart';
-import '../managers/feature_registry_manager.dart';
-import '../managers/feature_contracts.dart';
-import '../../../tools/logging/logger.dart';
+import '../../utils/consts/theme_consts.dart';
+import '../../modules/recall_game/managers/feature_registry_manager.dart';
+import '../../modules/recall_game/managers/feature_contracts.dart';
+import '../../tools/logging/logger.dart';
 
 /// A visual template for a feature slot. Enforces padding, spacing, and theme.
 class SlotTemplate extends StatelessWidget {
@@ -83,7 +83,8 @@ class _FeatureSlotState extends State<FeatureSlot> {
     super.initState();
     _log.info('🎮 FeatureSlot initialized for scope: ${widget.scopeKey}, slot: ${widget.slotId}');
     _sub = _registry.changes.listen((scope) {
-      if (scope == widget.scopeKey && mounted) {
+      // Rebuild if the change is in our scope OR in the global scope
+      if ((scope == widget.scopeKey || scope == 'global_app_bar') && mounted) {
         _log.info('🎮 FeatureSlot rebuilding due to registry change for scope: $scope');
         setState(() {});
       }
@@ -103,51 +104,58 @@ class _FeatureSlotState extends State<FeatureSlot> {
       scopeKey: widget.scopeKey,
       slotId: widget.slotId,
     );
-    
+
     _log.info('🎮 FeatureSlot building with ${features.length} features for scope: ${widget.scopeKey}, slot: ${widget.slotId}');
 
     if (features.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    // If a contract is specified, enforce it
-    if (widget.contract == 'icon_action') {
-      final iconFeatures = features.whereType<IconActionFeatureDescriptor>().toList();
-      if (iconFeatures.isEmpty) return const SizedBox.shrink();
+    final widgets = features.map((feature) {
+      if (feature is IconActionFeatureDescriptor) {
+        return _buildIconActionFeature(feature);
+      } else {
+        return _buildGenericFeature(feature);
+      }
+    }).toList();
 
-      final row = Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: iconFeatures.map((f) {
-          final iconButton = InkWell(
-            onTap: f.onTap,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: widget.iconPadding,
-              child: Icon(f.icon, size: widget.iconSize, color: AppColors.white),
-            ),
-          );
-          return f.tooltip != null
-              ? Tooltip(message: f.tooltip!, child: iconButton)
-              : iconButton;
-        }).toList(),
+    if (widget.useTemplate && widget.title != null) {
+      return SlotTemplate(
+        title: widget.title!,
+        children: widgets,
       );
-
-      if (!widget.useTemplate) return row;
-      return SlotTemplate(title: widget.title ?? widget.slotId, children: [row]);
     }
 
-    final children = features.map((f) => f.builder(context)).toList();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: widgets,
+    );
+  }
 
-    if (!widget.useTemplate) {
-      return Column(children: children);
-    }
+  Widget _buildIconActionFeature(IconActionFeatureDescriptor feature) {
+    final color = feature.metadata?['color'] as Color?;
+    
+    return Padding(
+      padding: widget.iconPadding,
+      child: IconButton(
+        icon: Icon(
+          feature.icon,
+          size: widget.iconSize,
+          color: color,
+        ),
+        onPressed: feature.onTap,
+        tooltip: feature.tooltip,
+        style: IconButton.styleFrom(
+          foregroundColor: color,
+        ),
+      ),
+    );
+  }
 
-    return SlotTemplate(
-      title: widget.title ?? widget.slotId,
-      children: children,
+  Widget _buildGenericFeature(FeatureDescriptor feature) {
+    return Padding(
+      padding: widget.iconPadding,
+      child: feature.builder(context),
     );
   }
 }
-
-

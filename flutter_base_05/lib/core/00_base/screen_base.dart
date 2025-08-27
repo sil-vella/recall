@@ -7,7 +7,13 @@ import '../managers/module_manager.dart';
 import '../managers/navigation_manager.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
-import '../../modules/recall_game/widgets/feature_slot.dart';
+import '../widgets/feature_slot.dart';
+import '../../modules/recall_game/managers/feature_contracts.dart';
+import '../../modules/recall_game/managers/feature_registry_manager.dart';
+import '../widgets/state_aware_features/index.dart';
+import '../managers/websockets/websocket_manager.dart';
+import '../managers/websockets/websocket_events.dart';
+import 'dart:async';
 // Note: Do not import recall game types here to keep BaseScreen generic.
 
 abstract class BaseScreen extends StatefulWidget {
@@ -55,6 +61,63 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   final ModuleManager _moduleManager = ModuleManager();
   final Logger log = Logger();
   BannerAdModule? bannerAdModule;
+  
+  // WebSocket connection monitoring for global features
+  StreamSubscription<ConnectionStatusEvent>? _connectionSubscription;
+
+  /// Get the scope key for this screen's feature registry
+  String get featureScopeKey => widget.runtimeType.toString();
+
+  /// Build app bar action features using the feature slot system
+  Widget buildAppBarActionFeatures(BuildContext context) {
+    return FeatureSlot(
+      scopeKey: featureScopeKey,
+      slotId: 'app_bar_actions',
+      useTemplate: false,
+      contract: 'icon_action',
+      iconSize: 24,
+      iconPadding: const EdgeInsets.all(8),
+    );
+  }
+
+  /// Register an app bar action feature
+  void registerAppBarAction({
+    required String featureId,
+    required IconData icon,
+    required VoidCallback onTap,
+    String? tooltip,
+    int priority = 100,
+    Map<String, dynamic>? metadata,
+  }) {
+    final feature = IconActionFeatureDescriptor(
+      featureId: featureId,
+      slotId: 'app_bar_actions',
+      icon: icon,
+      onTap: onTap,
+      tooltip: tooltip,
+      priority: priority,
+      metadata: metadata,
+    );
+    
+    FeatureRegistryManager.instance.register(
+      scopeKey: featureScopeKey,
+      feature: feature,
+      context: context,
+    );
+  }
+
+  /// Unregister an app bar action feature
+  void unregisterAppBarAction(String featureId) {
+    FeatureRegistryManager.instance.unregister(
+      scopeKey: featureScopeKey,
+      featureId: featureId,
+    );
+  }
+
+  /// Clear all app bar action features
+  void clearAppBarActions() {
+    FeatureRegistryManager.instance.clearScope(featureScopeKey);
+  }
 
   // Layout components with automatic theme application
   Widget buildHeader(BuildContext context, {required Widget child}) {
@@ -291,22 +354,45 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   }
 
   @override
+  void dispose() {
+    // Note: State-aware features are automatically managed by StateManager
+    // No need to manually clean up subscriptions or unregister features
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     appManager = Provider.of<AppManager>(context, listen: false);
     bannerAdModule = _moduleManager.getModuleByType<BannerAdModule>();
 
-    if (bannerAdModule == null) {
-      log.error("❌ BannerAdModule not found.");
-    } else {
-      // Trigger hooks after the widget is built
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    // Trigger hooks after the widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Register global app bar features for this screen (ALWAYS)
+      _registerGlobalAppBarFeatures();
+      
+      // Trigger banner hooks if banner module is available
+      if (bannerAdModule != null) {
         appManager.triggerTopBannerBarHook(context);
         appManager.triggerBottomBannerBarHook(context);
         log.info('✅ Global banner bar hooks triggered.');
-      });
-    }
+      } else {
+        log.error("❌ BannerAdModule not found.");
+      }
+    });
   }
+
+  /// Register global app bar features that appear on all screens
+  void _registerGlobalAppBarFeatures() {
+    log.info('🌐 Registering state-aware global app bar features for screen: ${widget.runtimeType}');
+    
+    // Register state-aware features using the new system
+    StateAwareFeatureRegistry.registerGlobalAppBarFeatures(context);
+    
+    log.info('✅ State-aware global app bar features registered for screen: ${widget.runtimeType}');
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -331,7 +417,13 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
           ),
         ),
       ),
-      actions: widget.getAppBarActions(context),
+      actions: [
+        // Custom app bar actions from widget
+        if (widget.getAppBarActions(context) != null) 
+          ...widget.getAppBarActions(context)!,
+        // Feature slot for dynamic app bar actions
+        buildAppBarActionFeatures(context),
+      ],
     );
 
     final scaffold = Scaffold(

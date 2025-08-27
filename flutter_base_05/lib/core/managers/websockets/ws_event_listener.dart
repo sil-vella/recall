@@ -39,6 +39,7 @@ class WSEventListener {
     // Room events
     _registerRoomJoinedListener();
     _registerJoinRoomSuccessListener();
+    _registerAlreadyJoinedListener();
     _registerJoinRoomErrorListener();
     _registerCreateRoomSuccessListener();
     _registerRoomCreatedListener();
@@ -102,6 +103,14 @@ class WSEventListener {
     _socket?.on('join_room_success', (data) {
       _log.info("🔍 [JOIN_ROOM_SUCCESS] Join room success event received");
       _eventHandler.handleJoinRoomSuccess(data);
+    });
+  }
+
+  /// Register already joined listener
+  void _registerAlreadyJoinedListener() {
+    _socket?.on('already_joined', (data) {
+      _log.info("🔍 [ALREADY_JOINED] Already joined event received");
+      _eventHandler.handleAlreadyJoined(data);
     });
   }
 

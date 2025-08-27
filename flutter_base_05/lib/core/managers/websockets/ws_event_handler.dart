@@ -268,6 +268,77 @@ class WSEventHandler {
     }
   }
 
+  /// Handle already joined event
+  void handleAlreadyJoined(dynamic data) {
+    _log.info("🔧 [HANDLER-ALREADY_JOINED] Handling already joined event");
+    
+    try {
+      final roomId = data['room_id'] ?? '';
+      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      final ownerId = data['owner_id'] ?? '';
+      
+      // Get current user ID from login module state
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId'] ?? '';
+      
+      // Check if current user is the room owner
+      final isRoomOwner = currentUserId == ownerId;
+      
+      // Use validated state updater
+      WebSocketStateHelpers.updateRoomInfo(
+        roomId: roomId,
+        roomInfo: roomData,
+      );
+      
+      // Set room ownership and game state in recall game state (same as join success)
+      final maxSize = roomData['max_size']; // Extract max_size from room data
+      final minSize = roomData['min_players']; // Extract min_players from room data
+      
+      // Ensure we have the required data
+      if (maxSize == null || minSize == null) {
+        _log.error("❌ Missing room size data: max_size=$maxSize, min_players=$minSize");
+        return;
+      }
+      
+      RecallGameHelpers.updateUIState({
+        'isRoomOwner': isRoomOwner,
+        'currentRoomId': roomId,
+        'isGameActive': false,  // Ensure game is not active when joining room
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+        'maxSize': maxSize, // Update with actual max_size from backend
+        'minSize': minSize, // Update with actual min_players from backend
+      });
+      _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner) - already joined");
+      
+      // Trigger event callbacks for room management screen
+      _eventManager.triggerCallbacks('room', {
+        'action': 'already_joined',
+        'roomId': roomId,
+        'roomData': roomData,
+        'isOwner': isRoomOwner,
+      });
+      
+      // Trigger specific event callbacks
+      _eventManager.triggerCallbacks('already_joined', data);
+      
+      // 🎣 Trigger websocket_already_joined hook for other modules
+      _log.info("🎣 [HOOK] Triggering websocket_already_joined hook");
+      HooksManager().triggerHookWithData('websocket_already_joined', {
+        'status': 'already_joined',
+        'room_id': roomId,
+        'room_data': roomData,
+        'owner_id': ownerId,
+        'is_owner': isRoomOwner,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      _log.info("✅ Already joined handled successfully");
+    } catch (e) {
+      _log.error("❌ Error handling already joined: $e");
+    }
+  }
+
   /// Handle join room error event
   void handleJoinRoomError(dynamic data) {
     _log.info("🔧 [HANDLER-JOIN_ROOM_ERROR] Handling join room error event");

@@ -211,6 +211,38 @@ class RecallEventManager {
       }
     });
     
+    // Register websocket_user_joined_rooms hook callback
+    HooksManager().registerHookWithData('websocket_user_joined_rooms', (data) {
+      _log.info('🎣 [HOOK] RecallEventManager received websocket_user_joined_rooms hook');
+      
+      final status = data['status']?.toString() ?? 'unknown';
+      final sessionId = data['session_id']?.toString() ?? '';
+      final rooms = data['rooms'] as List<dynamic>? ?? [];
+      final totalRooms = data['total_rooms'] ?? 0;
+      
+      _log.info('🎣 [HOOK] User joined rooms update: session=$sessionId, total_rooms=$totalRooms');
+      
+              // Update recall game state to reflect the current room membership
+        // When user leaves a room, total_rooms will be 0, so we should clear the joined games
+        if (totalRooms == 0) {
+          // User is not in any rooms, clear the joined games state
+          RecallGameHelpers.updateUIState({
+            'joinedGames': <Map<String, dynamic>>[],
+            'totalJoinedGames': 0,
+            'joinedGamesTimestamp': DateTime.now().toIso8601String(),
+            'currentRoomId': '',
+            'isInRoom': false,
+            'lastUpdated': DateTime.now().toIso8601String(),
+          });
+        
+        _log.info('🎣 [HOOK] Cleared joined games state - user not in any rooms');
+      } else {
+        // User is still in some rooms, but we need to update the joined games
+        // This will be handled by the recall_joined_games event when it's sent
+        _log.info('🎣 [HOOK] User still in $totalRooms rooms, waiting for recall_joined_games event');
+      }
+    });
+    
     _log.info('✅ Hook callbacks registered successfully');
   }
 

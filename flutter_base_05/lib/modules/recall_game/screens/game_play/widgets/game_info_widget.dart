@@ -25,7 +25,6 @@ class GameInfoWidget extends StatelessWidget {
         final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
         final currentGameData = recallGameState['currentGameData'] as Map<String, dynamic>? ?? {};
         final isInGame = recallGameState['isInGame'] == true;
-        final gameStartedAt = recallGameState['gameStartedAt']?.toString() ?? '';
         
         _log.info('🎮 GameInfoWidget: isInGame=$isInGame, currentGameId=$currentGameId');
         
@@ -41,6 +40,8 @@ class GameInfoWidget extends StatelessWidget {
         final gamePhase = gameState['phase']?.toString() ?? 'waiting';
         final gameStatus = gameState['status']?.toString() ?? 'inactive';
         
+
+        
         _log.info('🎮 GameInfoWidget: Game data - roomName=$roomName, currentSize=$currentSize, maxSize=$maxSize, phase=$gamePhase, status=$gameStatus');
         
         return _buildGameInfoCard(
@@ -50,7 +51,6 @@ class GameInfoWidget extends StatelessWidget {
           maxSize: maxSize,
           gamePhase: gamePhase,
           gameStatus: gameStatus,
-          gameStartedAt: gameStartedAt,
         );
       },
     );
@@ -108,7 +108,6 @@ class GameInfoWidget extends StatelessWidget {
     required int maxSize,
     required String gamePhase,
     required String gameStatus,
-    required String gameStartedAt,
   }) {
     return Card(
       margin: const EdgeInsets.all(16),
@@ -168,22 +167,6 @@ class GameInfoWidget extends StatelessWidget {
               ],
             ),
             
-            if (gameStartedAt.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Started: ${_formatTimestamp(gameStartedAt)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ],
         ),
       ),
@@ -233,24 +216,5 @@ class GameInfoWidget extends StatelessWidget {
     );
   }
   
-  /// Format timestamp for display
-  String _formatTimestamp(String timestamp) {
-    try {
-      final dateTime = DateTime.parse(timestamp);
-      final now = DateTime.now();
-      final difference = now.difference(dateTime);
-      
-      if (difference.inMinutes < 1) {
-        return 'Just now';
-      } else if (difference.inMinutes < 60) {
-        return '${difference.inMinutes}m ago';
-      } else if (difference.inHours < 24) {
-        return '${difference.inHours}h ago';
-      } else {
-        return '${difference.inDays}d ago';
-      }
-    } catch (e) {
-      return 'Unknown';
-    }
-  }
+
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
-import '../lobby_room/widgets/connection_status_widget.dart';
 import 'widgets/game_info_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 
@@ -93,9 +92,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Connection Status
-          const ConnectionStatusWidget(),
-          const SizedBox(height: 20),
           
           // Game Information Widget
           const GameInfoWidget(),

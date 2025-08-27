@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
-import 'widgets/connection_status_widget.dart';
 import 'widgets/create_game_widget.dart';
 import 'widgets/join_game_widget.dart';
 import 'widgets/current_games_widget.dart';
@@ -205,9 +204,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Connection Status
-          const ConnectionStatusWidget(),
-          const SizedBox(height: 20),
           
           // Create and Join Room Section (Side by Side)
           Row(

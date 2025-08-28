@@ -164,7 +164,8 @@ class RecallGameMain extends ModuleBase {
           'joinedGames': <Map<String, dynamic>>[],
           'totalJoinedGames': 0,
           'joinedGamesTimestamp': '',
-          'gameState': <String, dynamic>{},
+          'currentGameId': '',
+          'games': <String, dynamic>{},
           
           // UI control state
           'showCreateRoom': true,

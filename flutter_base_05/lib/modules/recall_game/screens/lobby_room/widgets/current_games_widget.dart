@@ -318,7 +318,6 @@ class CurrentRoomWidget extends StatelessWidget {
       
       // Extract game state information
       final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-      final roomName = gameData['room_name']?.toString() ?? 'Game $gameId';
       final currentSize = gameState['playerCount'] ?? 0;
       final maxSize = gameData['max_players'] ?? 4;
       final gamePhase = gameState['phase']?.toString() ?? 'waiting';
@@ -329,20 +328,26 @@ class CurrentRoomWidget extends StatelessWidget {
       final currentUserId = loginState['userId']?.toString() ?? '';
       final isRoomOwner = gameData['owner_id']?.toString() == currentUserId;
       
+      // Get current games map
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final games = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      // Add/update the current game in the games map
+      games[gameId] = {
+        'gameData': gameData,
+        'playerCount': currentSize,
+        'maxSize': maxSize,
+        'gamePhase': gamePhase,
+        'gameStatus': gameStatus,
+        'isRoomOwner': isRoomOwner,
+        'isInGame': true,
+        'joinedAt': DateTime.now().toIso8601String(),
+      };
+      
       // Update recall game state with current game data
       StateManager().updateModuleState('recall_game', {
         'currentGameId': gameId,
-        'currentRoomId': roomId,
-        'currentGameData': gameData,
-        'isInGame': true,
-        'gameStartedAt': DateTime.now().toIso8601String(),
-        
-        // Set fields required by gameInfo slice
-        'isRoomOwner': isRoomOwner,
-        'gamePhase': gamePhase,
-        'gameStatus': gameStatus,
-        'playerCount': currentSize,
-        'maxSize': maxSize,
+        'games': games,
       });
       
       // Navigate to game play screen

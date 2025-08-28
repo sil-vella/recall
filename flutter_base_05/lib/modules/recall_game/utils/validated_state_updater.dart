@@ -106,41 +106,10 @@ class RecallGameStateUpdater {
       required: false,
       description: 'ID of currently active game',
     ),
-    'gamePhase': RecallStateFieldSpec(
-      type: String,
-      allowedValues: ['waiting', 'playing', 'finished'],
-      defaultValue: 'waiting',
-      description: 'Current phase of the game',
-    ),
-    'gameStatus': RecallStateFieldSpec(
-      type: String,
-      allowedValues: ['inactive', 'active', 'paused', 'ended'],
-      defaultValue: 'inactive',
-      description: 'Current status of the game',
-    ),
-    'isGameActive': RecallStateFieldSpec(
-      type: bool,
-      defaultValue: false,
-      description: 'Whether game is currently active',
-    ),
-    'turnNumber': RecallStateFieldSpec(
-      type: int,
-      min: 0,
-      defaultValue: 0,
-      description: 'Current turn number in the game',
-    ),
-    'roundNumber': RecallStateFieldSpec(
-      type: int,
-      min: 0,
-      defaultValue: 0,
-      description: 'Current round number in the game',
-    ),
-    'playerCount': RecallStateFieldSpec(
-      type: int,
-      min: 0,
-      max: 8,
-      defaultValue: 0,
-      description: 'Number of players in current game',
+    'games': RecallStateFieldSpec(
+      type: Map,
+      defaultValue: {},
+      description: 'Map of games by ID with their complete state data',
     ),
     
     // Room Lists
@@ -341,12 +310,12 @@ class RecallGameStateUpdater {
   
   /// Widget slice dependencies - only rebuild when these fields change
   static const Map<String, Set<String>> _widgetDependencies = {
-    'actionBar': {'isRoomOwner', 'isGameActive', 'isMyTurn', 'canCallRecall', 'canPlayCard'},
-    'statusBar': {'gamePhase', 'gameStatus', 'playerCount', 'turnNumber', 'roundNumber', 'isConnected'},
-    'myHand': {'playerId', 'isMyTurn', 'canPlayCard'},
-    'centerBoard': {'gamePhase', 'isGameActive', 'turnNumber', 'drawPileCount', 'discardPile'},
-    'opponentsPanel': {'playerCount', 'isMyTurn', 'gamePhase', 'opponentPlayers', 'currentPlayerIndex'},
-    'gameInfo': {'currentGameId', 'currentRoomId', 'isRoomOwner', 'gamePhase', 'gameStatus', 'playerCount', 'maxSize'},
+    'actionBar': {'currentGameId', 'games'},
+    'statusBar': {'currentGameId', 'games'},
+    'myHand': {'currentGameId', 'games'},
+    'centerBoard': {'currentGameId', 'games'},
+    'opponentsPanel': {'currentGameId', 'games'},
+    'gameInfo': {'currentGameId', 'games'},
     'joinedGamesSlice': {'joinedGames', 'totalJoinedGames', 'joinedGamesTimestamp'},
   };
   
@@ -615,10 +584,23 @@ class RecallGameStateUpdater {
   
   /// Compute center board widget slice
   Map<String, dynamic> _computeCenterBoardSlice(Map<String, dynamic> state) {
-    final gamePhase = state['gamePhase'] ?? 'waiting';
-    final isGameActive = state['isGameActive'] ?? false;
-    final drawPileCount = state['drawPileCount'] ?? 0;
-    final discardPile = state['discardPile'] as List<dynamic>? ?? [];
+    final currentGameId = state['currentGameId']?.toString() ?? '';
+    final games = state['games'] as Map<String, dynamic>? ?? {};
+    
+    // If no current game or game not found in games map
+    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
+      return {
+        'drawPileCount': 0,
+        'topDiscard': null,
+        'canDrawFromDeck': false,
+        'canTakeFromDiscard': false,
+      };
+    }
+    
+    // Get current game data from games map
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final drawPileCount = currentGame['drawPileCount'] ?? 0;
+    final discardPile = currentGame['discardPile'] as List<dynamic>? ?? [];
     
     return {
       'drawPileCount': drawPileCount,
@@ -630,10 +612,21 @@ class RecallGameStateUpdater {
   
   /// Compute opponents panel widget slice
   Map<String, dynamic> _computeOpponentsPanelSlice(Map<String, dynamic> state) {
-    final playerCount = state['playerCount'] ?? 0;
-    final gamePhase = state['gamePhase'] ?? 'waiting';
-    final opponentPlayers = state['opponentPlayers'] as List<dynamic>? ?? [];
-    final currentPlayerIndex = state['currentPlayerIndex'] ?? -1;
+    final currentGameId = state['currentGameId']?.toString() ?? '';
+    final games = state['games'] as Map<String, dynamic>? ?? {};
+    
+    // If no current game or game not found in games map
+    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
+      return {
+        'opponents': [],
+        'currentTurnIndex': -1,
+      };
+    }
+    
+    // Get current game data from games map
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final opponentPlayers = currentGame['opponentPlayers'] as List<dynamic>? ?? [];
+    final currentPlayerIndex = currentGame['currentPlayerIndex'] ?? -1;
     
     return {
       'opponents': opponentPlayers,
@@ -644,28 +637,40 @@ class RecallGameStateUpdater {
   /// Compute game info widget slice
   Map<String, dynamic> _computeGameInfoSlice(Map<String, dynamic> state) {
     final currentGameId = state['currentGameId']?.toString() ?? '';
-    final currentRoomId = state['currentRoomId']?.toString() ?? '';
-    final isRoomOwner = state['isRoomOwner'] ?? false;
-    final gamePhase = state['gamePhase'] ?? 'waiting';
-    final gameStatus = state['gameStatus'] ?? 'inactive';
-    final playerCount = state['playerCount'] ?? 0;
-    final maxSize = state['maxSize'] ?? 4;
-    final isInGame = state['isInGame'] ?? false;
+    final games = state['games'] as Map<String, dynamic>? ?? {};
     
-    // Get room name from currentGameData if available
-    String roomName = 'Game $currentGameId';
-    final currentGameData = state['currentGameData'] as Map<String, dynamic>?;
-    if (currentGameData != null) {
-      final gameState = currentGameData['game_state'] as Map<String, dynamic>?;
-      if (gameState != null) {
-        roomName = gameState['gameName']?.toString() ?? roomName;
-      }
+    // If no current game or game not found in games map
+    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
+      return {
+        'currentGameId': '',
+        'roomName': '',
+        'currentSize': 0,
+        'maxSize': 4,
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+        'isRoomOwner': false,
+        'isInGame': false,
+      };
     }
+    
+    // Get current game data from games map
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    // Extract game information
+    final roomName = gameState['gameName']?.toString() ?? 'Game $currentGameId';
+    final currentSize = currentGame['playerCount'] ?? 0;
+    final maxSize = currentGame['maxSize'] ?? 4;
+    final gamePhase = currentGame['gamePhase']?.toString() ?? 'waiting';
+    final gameStatus = currentGame['gameStatus']?.toString() ?? 'inactive';
+    final isRoomOwner = currentGame['isRoomOwner'] ?? false;
+    final isInGame = currentGame['isInGame'] ?? false;
     
     return {
       'currentGameId': currentGameId,
       'roomName': roomName,
-      'currentSize': playerCount,
+      'currentSize': currentSize,
       'maxSize': maxSize,
       'gamePhase': gamePhase,
       'gameStatus': gameStatus,

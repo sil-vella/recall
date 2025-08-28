@@ -34,8 +34,8 @@ class CurrentRoomWidget extends StatelessWidget {
         final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
         final currentUserId = loginState['userId']?.toString() ?? '';
         
-        // Extract joined games from the joinedGames state slice
-        final joinedGamesSlice = recallGameState['joinedGames'] as Map<String, dynamic>? ?? {};
+        // Extract joined games from the joinedGamesSlice state slice
+        final joinedGamesSlice = recallGameState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
         final joinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
         final totalJoinedGames = joinedGamesSlice['totalGames'] ?? 0;
         final joinedGamesTimestamp = joinedGamesSlice['timestamp']?.toString() ?? '';

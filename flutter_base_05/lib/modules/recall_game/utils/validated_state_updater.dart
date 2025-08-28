@@ -167,8 +167,13 @@ class RecallGameStateUpdater {
       description: 'List of available games that can be joined',
     ),
     
-    // 🎯 NEW: Joined Games Tracking
+    // 🎯 NEW: Joined Games Tracking (Raw Data)
     'joinedGames': RecallStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      description: 'List of games the user is currently in',
+    ),
+    'joinedGamesSlice': RecallStateFieldSpec(
       type: Map,
       defaultValue: {
         'games': [],
@@ -342,7 +347,7 @@ class RecallGameStateUpdater {
     'centerBoard': {'gamePhase', 'isGameActive', 'turnNumber', 'drawPileCount', 'discardPile'},
     'opponentsPanel': {'playerCount', 'isMyTurn', 'gamePhase', 'opponentPlayers', 'currentPlayerIndex'},
     'gameInfo': {'currentGameId', 'currentRoomId', 'isRoomOwner', 'gamePhase', 'gameStatus', 'playerCount', 'maxSize'},
-    'joinedGames': {'joinedGames', 'totalJoinedGames', 'joinedGamesTimestamp'},
+    'joinedGamesSlice': {'joinedGames', 'totalJoinedGames', 'joinedGamesTimestamp'},
   };
   
   /// Update state with validation
@@ -534,8 +539,8 @@ class RecallGameStateUpdater {
           case 'gameInfo':
             updatedState['gameInfo'] = _computeGameInfoSlice(newState);
             break;
-          case 'joinedGames':
-            updatedState['joinedGames'] = _computeJoinedGamesSlice(newState);
+          case 'joinedGamesSlice':
+            updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
             break;
         }
       }

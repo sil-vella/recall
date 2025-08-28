@@ -34,7 +34,8 @@ class AvailableGamesWidget extends StatelessWidget {
         
         // Extract games-related state
         final availableGames = recallState['availableGames'] as List<dynamic>? ?? [];
-        final joinedGames = recallState['joinedGames'] as List<dynamic>? ?? [];
+        final joinedGamesSlice = recallState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
+        final joinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
         final isLoading = recallState['isLoading'] == true;
         final lastUpdated = recallState['lastUpdated'];
         

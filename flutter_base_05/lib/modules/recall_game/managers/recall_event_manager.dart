@@ -70,13 +70,32 @@ class RecallEventManager {
       
       _log.info('🎧 [RECALL] Player ${joinedPlayer['name']} joined room $roomId');
       
-      // Update game state with new player information
-      RecallGameHelpers.updateUIState({
-        'gameState': gameState,
-        'playerCount': gameState['playerCount'] ?? 0,
-        'players': gameState['players'] ?? [],
-        'lastUpdated': DateTime.now().toIso8601String(),
-      });
+      // Get current state to update the games map
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      // Update the specific game in the games map with new player information
+      if (currentGames.containsKey(roomId)) {
+        final currentGame = currentGames[roomId] as Map<String, dynamic>? ?? {};
+        final currentGameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+        
+        // Update the game data with the new game state
+        final updatedGameData = Map<String, dynamic>.from(currentGameData);
+        updatedGameData['game_state'] = gameState;
+        
+        // Update the game in the games map
+        currentGames[roomId] = {
+          ...currentGame,
+          'gameData': updatedGameData,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        };
+        
+        // Update recall game state with new player information
+        RecallGameHelpers.updateUIState({
+          'games': currentGames,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+      }
       
       // Add session message about new player
       _addSessionMessage(
@@ -98,8 +117,39 @@ class RecallEventManager {
       
       _log.info('🎧 [RECALL] User $userId is in $totalGames games');
       
-      // Update recall game state with joined games information
+      // Get current state to update the games map
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      // Update the games map with the joined games data
+      for (final gameData in games) {
+        final gameId = gameData['game_id']?.toString() ?? '';
+        if (gameId.isNotEmpty) {
+          // Extract game state information
+          final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+          final gamePhase = gameState['phase']?.toString() ?? 'waiting';
+          final gameStatus = gameState['status']?.toString() ?? 'inactive';
+          
+          // Determine if current user is room owner
+          final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+          final currentUserId = loginState['userId']?.toString() ?? '';
+          final isRoomOwner = gameData['owner_id']?.toString() == currentUserId;
+          
+          // Add/update the game in the games map
+          currentGames[gameId] = {
+            'gameData': gameData,  // This is the single source of truth
+            'gamePhase': gamePhase,
+            'gameStatus': gameStatus,
+            'isRoomOwner': isRoomOwner,
+            'isInGame': true,
+            'joinedAt': DateTime.now().toIso8601String(),
+          };
+        }
+      }
+      
+      // Update recall game state with joined games information using nested structure
       RecallGameHelpers.updateUIState({
+        'games': currentGames,
         'joinedGames': games.cast<Map<String, dynamic>>(),
         'totalJoinedGames': totalGames,
         'joinedGamesTimestamp': DateTime.now().toIso8601String(),
@@ -147,41 +197,46 @@ class RecallEventManager {
       // Extract opponent players (excluding current user)
       final opponents = players.where((player) => player['id'] != currentUserId).toList();
       
-      // Update recall game state with game started information
-      final widgetUpdates = {
-        'gameState': gameState,
-        'gamePhase': gameState['phase'] ?? 'playing',
-        'gameStatus': gameState['status'] ?? 'active',
-        'isGameActive': true,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        
-        // Update currentGameData to reflect the new game state
-        'currentGameData': {
-          'game_id': gameId,
-          'room_id': gameId,
-          'owner_id': startedBy,
-          'game_state': gameState,
-        },
-        
-        // Update specific state slices for widgets
-        'myHand': {
-          'cards': myPlayer?['hand'] ?? [],
-          'selectedIndex': -1,
-          'selectedCard': null,
-        },
-        
-        // Update fields that the compute methods expect
-        'drawPileCount': drawPile.length,
-        'discardPile': discardPile,
-        'opponentPlayers': opponents.cast<Map<String, dynamic>>(),
-        'currentPlayerIndex': currentPlayer != null ? players.indexOf(currentPlayer) : -1,
-      };
+      // Get current state to update the games map
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       
-      _log.info('🎮 [GAME_STARTED] Updating widget state slices:');
-      _log.info('🎮 [GAME_STARTED] centerBoard: ${widgetUpdates['centerBoard']}');
-      _log.info('🎮 [GAME_STARTED] opponentsPanel: ${widgetUpdates['opponentsPanel']}');
-      
-      RecallGameHelpers.updateUIState(widgetUpdates);
+      // Update the specific game in the games map with game started information
+      if (currentGames.containsKey(gameId)) {
+        final currentGame = currentGames[gameId] as Map<String, dynamic>? ?? {};
+        final currentGameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+        
+        // Update the game data with the new game state
+        final updatedGameData = Map<String, dynamic>.from(currentGameData);
+        updatedGameData['game_state'] = gameState;
+        
+        // Update the game in the games map
+        currentGames[gameId] = {
+          ...currentGame,
+          'gameData': updatedGameData,
+          'gamePhase': gameState['phase'] ?? 'playing',
+          'gameStatus': gameState['status'] ?? 'active',
+          'isGameActive': true,
+          
+          // Update game-specific fields for widget slices
+          'drawPileCount': drawPile.length,
+          'discardPile': discardPile,
+          'opponentPlayers': opponents.cast<Map<String, dynamic>>(),
+          'currentPlayerIndex': currentPlayer != null ? players.indexOf(currentPlayer) : -1,
+          'myHandCards': myPlayer?['hand'] ?? [],
+          'selectedCardIndex': -1,
+          
+          'lastUpdated': DateTime.now().toIso8601String(),
+        };
+        
+        // Update recall game state with game started information using nested structure
+        RecallGameHelpers.updateUIState({
+          'games': currentGames,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+        
+        _log.info('🎮 [GAME_STARTED] Updated game $gameId in nested structure');
+      }
       
       // Add session message about game started
       _addSessionMessage(

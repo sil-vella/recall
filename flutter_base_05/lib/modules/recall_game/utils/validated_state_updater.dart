@@ -572,12 +572,26 @@ class RecallGameStateUpdater {
   
   /// Compute my hand widget slice
   Map<String, dynamic> _computeMyHandSlice(Map<String, dynamic> state) {
-    final isMyTurn = state['isMyTurn'] ?? false;
-    final canPlayCard = state['canPlayCard'] ?? false;
+    final currentGameId = state['currentGameId']?.toString() ?? '';
+    final games = state['games'] as Map<String, dynamic>? ?? {};
+    
+    // If no current game or game not found in games map
+    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
+      return {
+        'cards': [],
+        'selectedIndex': -1,
+        'canSelectCards': false,
+      };
+    }
+    
+    // Get current game data from games map
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final isMyTurn = currentGame['isMyTurn'] ?? false;
+    final canPlayCard = currentGame['canPlayCard'] ?? false;
     
     return {
-      'cards': state['myHandCards'] ?? [],
-      'selectedIndex': state['selectedCardIndex'],
+      'cards': currentGame['myHandCards'] ?? [],
+      'selectedIndex': currentGame['selectedCardIndex'] ?? -1,
       'canSelectCards': isMyTurn && canPlayCard,
     };
   }

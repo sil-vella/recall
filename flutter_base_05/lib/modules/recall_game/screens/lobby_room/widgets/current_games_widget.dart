@@ -3,6 +3,7 @@ import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/websockets/ws_event_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../utils/recall_game_helpers.dart';
 
 /// Widget to display all joined rooms with join functionality
 /// 
@@ -344,8 +345,8 @@ class CurrentRoomWidget extends StatelessWidget {
         'joinedAt': DateTime.now().toIso8601String(),
       };
       
-      // Update recall game state with current game data
-      StateManager().updateModuleState('recall_game', {
+      // Update recall game state with current game data using validated state updater
+      RecallGameHelpers.updateUIState({
         'currentGameId': gameId,
         'games': games,
       });

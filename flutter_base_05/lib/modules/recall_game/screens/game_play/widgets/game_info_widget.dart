@@ -23,26 +23,22 @@ class GameInfoWidget extends StatelessWidget {
       builder: (context, child) {
         final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         
-        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-        final currentGameData = recallGameState['currentGameData'] as Map<String, dynamic>? ?? {};
-        final isInGame = recallGameState['isInGame'] == true;
-        final isRoomOwner = recallGameState['isRoomOwner'] ?? false;
+        // Get gameInfo state slice
+        final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
+        final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
+        final roomName = gameInfo['roomName']?.toString() ?? 'Game $currentGameId';
+        final currentSize = gameInfo['currentSize'] ?? 0;
+        final maxSize = gameInfo['maxSize'] ?? 4;
+        final gamePhase = gameInfo['gamePhase']?.toString() ?? 'waiting';
+        final gameStatus = gameInfo['gameStatus']?.toString() ?? 'inactive';
+        final isRoomOwner = gameInfo['isRoomOwner'] ?? false;
+        final isInGame = gameInfo['isInGame'] ?? false;
         
         _log.info('🎮 GameInfoWidget: isInGame=$isInGame, currentGameId=$currentGameId');
         
         if (!isInGame || currentGameId.isEmpty) {
           return _buildEmptyState();
         }
-        
-        // Extract game state information
-        final gameState = currentGameData['game_state'] as Map<String, dynamic>? ?? {};
-        final roomName = gameState['gameName']?.toString() ?? 'Game $currentGameId';
-        final currentSize = gameState['playerCount'] ?? 0;
-        final maxSize = gameState['maxPlayers'] ?? 4;
-        final gamePhase = gameState['phase']?.toString() ?? 'waiting';
-        final gameStatus = gameState['status']?.toString() ?? 'inactive';
-        
-
         
         _log.info('🎮 GameInfoWidget: Game data - roomName=$roomName, currentSize=$currentSize, maxSize=$maxSize, phase=$gamePhase, status=$gameStatus');
         

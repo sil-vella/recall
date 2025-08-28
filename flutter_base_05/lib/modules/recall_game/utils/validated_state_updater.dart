@@ -234,6 +234,20 @@ class RecallGameStateUpdater {
       },
       description: 'Opponents panel widget state slice',
     ),
+    'gameInfo': RecallStateFieldSpec(
+      type: Map,
+      defaultValue: {
+        'currentGameId': '',
+        'roomName': '',
+        'currentSize': 0,
+        'maxSize': 4,
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+        'isRoomOwner': false,
+        'isInGame': false,
+      },
+      description: 'Game info widget state slice',
+    ),
     'gameState': RecallStateFieldSpec(
       type: Map,
       required: false,
@@ -322,6 +336,7 @@ class RecallGameStateUpdater {
     'myHand': {'playerId', 'isMyTurn', 'canPlayCard'},
     'centerBoard': {'gamePhase', 'isGameActive', 'turnNumber', 'drawPileCount', 'discardPile'},
     'opponentsPanel': {'playerCount', 'isMyTurn', 'gamePhase', 'opponentPlayers', 'currentPlayerIndex'},
+    'gameInfo': {'currentGameId', 'currentRoomId', 'isRoomOwner', 'gamePhase', 'gameStatus', 'playerCount', 'maxSize'},
   };
   
   /// Update state with validation
@@ -510,6 +525,9 @@ class RecallGameStateUpdater {
           case 'opponentsPanel':
             updatedState['opponentsPanel'] = _computeOpponentsPanelSlice(newState);
             break;
+          case 'gameInfo':
+            updatedState['gameInfo'] = _computeGameInfoSlice(newState);
+            break;
         }
       }
     }
@@ -606,6 +624,39 @@ class RecallGameStateUpdater {
     return {
       'opponents': opponentPlayers,
       'currentTurnIndex': currentPlayerIndex,
+    };
+  }
+
+  /// Compute game info widget slice
+  Map<String, dynamic> _computeGameInfoSlice(Map<String, dynamic> state) {
+    final currentGameId = state['currentGameId']?.toString() ?? '';
+    final currentRoomId = state['currentRoomId']?.toString() ?? '';
+    final isRoomOwner = state['isRoomOwner'] ?? false;
+    final gamePhase = state['gamePhase'] ?? 'waiting';
+    final gameStatus = state['gameStatus'] ?? 'inactive';
+    final playerCount = state['playerCount'] ?? 0;
+    final maxSize = state['maxSize'] ?? 4;
+    final isInGame = state['isInGame'] ?? false;
+    
+    // Get room name from currentGameData if available
+    String roomName = 'Game $currentGameId';
+    final currentGameData = state['currentGameData'] as Map<String, dynamic>?;
+    if (currentGameData != null) {
+      final gameState = currentGameData['game_state'] as Map<String, dynamic>?;
+      if (gameState != null) {
+        roomName = gameState['gameName']?.toString() ?? roomName;
+      }
+    }
+    
+    return {
+      'currentGameId': currentGameId,
+      'roomName': roomName,
+      'currentSize': playerCount,
+      'maxSize': maxSize,
+      'gamePhase': gamePhase,
+      'gameStatus': gameStatus,
+      'isRoomOwner': isRoomOwner,
+      'isInGame': isInGame,
     };
   }
   

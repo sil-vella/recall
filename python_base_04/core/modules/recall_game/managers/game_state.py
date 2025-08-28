@@ -226,6 +226,11 @@ class GameState:
         from .game_actions import GameActions
         return GameActions(self)
     
+    def get_round(self):
+        """Get the game round handler"""
+        from .game_round import GameRound
+        return GameRound(self)
+    
 
 
 
@@ -424,7 +429,7 @@ class GameStateManager:
             return False
 
     def on_player_action(self, session_id: str, data: Dict[str, Any]) -> bool:
-        """Handle player actions"""
+        """Handle player actions through the game round"""
         try:
             game_id = data.get('game_id') or data.get('room_id')
             action = data.get('action') or data.get('action_type')
@@ -440,32 +445,33 @@ class GameStateManager:
             session_data = self.websocket_manager.get_session_data(session_id) or {}
             user_id = str(session_data.get('user_id') or data.get('player_id') or session_id)
 
-            # Build action data for game engine
+            # Get the game round handler
+            game_round = game.get_round()
+            
+            # Build action data for the round
             action_data = {
-                'action_type': action,
-                'player_id': user_id,
-                'game_id': game_id,
                 'card_id': (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id'),
                 'replace_card_id': (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id'),
                 'replace_index': data.get('replaceIndex'),
                 'power_data': data.get('power_data'),
+                'indices': data.get('indices', []),
             }
 
-            # Process action through game engine
-            engine_result = self.game_logic_engine.process_player_action(game, action_data)
+            # Process action through game round
+            round_result = game_round.perform_action(user_id, action, action_data)
 
-            # Fallback for actions not in engine
-            if not engine_result or engine_result.get('error'):
-                engine_result = self._fallback_handle(game, action, user_id, data)
-
-            if engine_result.get('error'):
-                self._send_action_result(game_id, user_id, engine_result)
+            if round_result.get('error'):
+                self._send_action_result(game_id, user_id, round_result)
                 return False
             
             # Send results and updates
-            self._send_action_result(game_id, user_id, engine_result)
-            self._broadcast_game_action(game_id, action, {'action_type': action, 'player_id': user_id, 'result': engine_result}, user_id)
+            self._send_action_result(game_id, user_id, round_result)
+            self._broadcast_game_action(game_id, action, {'action_type': action, 'player_id': user_id, 'result': round_result}, user_id)
             self._send_game_state_update(game_id)
+            
+            # If round ended, send round completion event
+            if round_result.get('round_ended'):
+                self._send_round_completion_event(game_id, round_result)
             
             return True
         except Exception as e:
@@ -474,7 +480,7 @@ class GameStateManager:
             return False
 
     def on_start_match(self, session_id: str, data: Dict[str, Any]) -> bool:
-        """Handle game start"""
+        """Handle game start through the game round"""
         try:
             game_id = data.get('game_id') or data.get('room_id')
             if not game_id:
@@ -489,44 +495,45 @@ class GameStateManager:
             session_data = self.websocket_manager.get_session_data(session_id) or {}
             user_id = str(session_data.get('user_id') or session_id)
             
-            # Process start_match through game engine
-            action_data = {
-                'action_type': 'start_match',
-                'player_id': user_id,
-                'game_id': game_id,
-            }
+            # Get the game round handler
+            game_round = game.get_round()
             
-            engine_result = self.game_logic_engine.process_player_action(game, action_data)
+            # Start the round
+            round_result = game_round.start_round()
             
-            if engine_result.get('error'):
-                self._send_error(session_id, f"Start match failed: {engine_result['error']}")
+            if round_result.get('error'):
+                self._send_error(session_id, f"Start match failed: {round_result['error']}")
                 return False
             
-            # Process notifications from engine
-            for notification in engine_result.get('notifications', []):
-                event = notification.get('event')
-                event_data = notification.get('data', {})
-                
-                if event == 'game_started':
-                    payload = {
-                        'event_type': event,
-                        'game_id': game_id,
-                        'game_state': self._to_flutter_game_state(game),
-                        **event_data
-                    }
-                    self._send_to_all_players(game_id, event, payload)
-                elif event == 'turn_started':
-                    target_player_id = event_data.get('player_id')
-                    if target_player_id:
-                        payload = {
-                            'event_type': event,
-                            'game_id': game_id,
-                            'game_state': self._to_flutter_game_state(game),
-                            **event_data
-                        }
-                        self._send_to_player(game_id, target_player_id, event, payload)
+            # Send game started event to all players
+            payload = {
+                'event_type': 'game_started',
+                'game_id': game_id,
+                'game_state': self._to_flutter_game_state(game),
+                'started_by': user_id,
+                'round_number': round_result.get('round_number'),
+                'round_start_time': round_result.get('round_start_time'),
+                'current_player': round_result.get('current_player'),
+                'timestamp': datetime.now().isoformat()
+            }
+            self._send_to_all_players(game_id, 'game_started', payload)
             
+            # Send turn started event to current player
+            current_player_id = round_result.get('current_player')
+            if current_player_id:
+                turn_payload = {
+                    'event_type': 'turn_started',
+                    'game_id': game_id,
+                    'game_state': self._to_flutter_game_state(game),
+                    'player_id': current_player_id,
+                    'turn_timeout': game_round.turn_timeout_seconds,
+                    'timestamp': datetime.now().isoformat()
+                }
+                self._send_to_player(game_id, current_player_id, 'turn_started', turn_payload)
+            
+            custom_log(f"🎮 Game {game_id} started by {user_id}, round {round_result.get('round_number')}")
             return True
+            
         except Exception as e:
             custom_log(f"Error in on_start_match: {e}", level="ERROR")
             self._send_error(session_id, f'Start match failed: {str(e)}')
@@ -612,6 +619,24 @@ class GameStateManager:
                 'game_state': self._to_flutter_game_state(game),
             }
             self._send_to_all_players(game_id, 'game_state_updated', payload)
+    
+    def _send_round_completion_event(self, game_id: str, round_result: Dict[str, Any]):
+        """Send round completion event to all players"""
+        try:
+            payload = {
+                'event_type': 'round_completed',
+                'game_id': game_id,
+                'round_number': round_result.get('round_number'),
+                'round_duration': round_result.get('round_duration'),
+                'winner': round_result.get('winner'),
+                'final_action': round_result.get('final_action'),
+                'game_phase': round_result.get('game_phase'),
+                'timestamp': datetime.now().isoformat()
+            }
+            self._send_to_all_players(game_id, 'round_completed', payload)
+            custom_log(f"🏁 Round completion event sent for game {game_id}")
+        except Exception as e:
+            custom_log(f"❌ Error sending round completion event: {e}", level="ERROR")
 
     def _send_recall_player_joined_events(self, room_id: str, user_id: str, session_id: str, game):
         """Send recall-specific events when a player joins a room"""

@@ -427,7 +427,7 @@ class GameLogicEngine:
                 'hand': [self._to_flutter_card(c) for c in player.hand],
                 'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards],
                 'score': int(player.calculate_points()),  # Use calculate_points() method
-                'status': 'playing' if player_id == game_state.current_player_id else 'ready',
+                'status': player.status.value,  # Use the player's actual status
                 'isCurrentPlayer': player_id == game_state.current_player_id,
                 'hasCalledRecall': bool(player.has_called_recall),
             }

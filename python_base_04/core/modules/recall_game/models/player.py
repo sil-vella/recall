@@ -16,6 +16,15 @@ class PlayerType(Enum):
     COMPUTER = "computer"
 
 
+class PlayerStatus(Enum):
+    """Player status enumeration"""
+    WAITING = "waiting"      # Waiting for game to start
+    READY = "ready"          # Ready to play (waiting for turn)
+    PLAYING = "playing"      # Currently playing (active turn)
+    FINISHED = "finished"    # Game finished
+    DISCONNECTED = "disconnected"  # Disconnected from game
+
+
 class Player:
     """Base player class for the Recall game"""
     
@@ -31,6 +40,7 @@ class Player:
         self.has_called_recall = False
         self.last_action_time = None
         self.initial_peeks_remaining = 2
+        self.status = PlayerStatus.WAITING  # Player status
     
     def add_card_to_hand(self, card: Card):
         """Add a card to the player's hand"""
@@ -87,6 +97,50 @@ class Player:
         """Get cards that can be played out of turn"""
         return [card for card in self.hand if card.can_play_out_of_turn(played_card)]
     
+    def set_status(self, status: PlayerStatus):
+        """Set player status"""
+        self.status = status
+    
+    def set_playing(self):
+        """Set player status to playing (active turn)"""
+        self.status = PlayerStatus.PLAYING
+    
+    def set_ready(self):
+        """Set player status to ready (waiting for turn)"""
+        self.status = PlayerStatus.READY
+    
+    def set_waiting(self):
+        """Set player status to waiting (game not started)"""
+        self.status = PlayerStatus.WAITING
+    
+    def set_finished(self):
+        """Set player status to finished (game ended)"""
+        self.status = PlayerStatus.FINISHED
+    
+    def set_disconnected(self):
+        """Set player status to disconnected"""
+        self.status = PlayerStatus.DISCONNECTED
+    
+    def is_playing(self) -> bool:
+        """Check if player is currently playing (active turn)"""
+        return self.status == PlayerStatus.PLAYING
+    
+    def is_ready(self) -> bool:
+        """Check if player is ready (waiting for turn)"""
+        return self.status == PlayerStatus.READY
+    
+    def is_waiting(self) -> bool:
+        """Check if player is waiting (game not started)"""
+        return self.status == PlayerStatus.WAITING
+    
+    def is_finished(self) -> bool:
+        """Check if player has finished the game"""
+        return self.status == PlayerStatus.FINISHED
+    
+    def is_disconnected(self) -> bool:
+        """Check if player is disconnected"""
+        return self.status == PlayerStatus.DISCONNECTED
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert player to dictionary representation"""
         return {
@@ -100,6 +154,7 @@ class Player:
             "is_active": self.is_active,
             "has_called_recall": self.has_called_recall,
             "initial_peeks_remaining": self.initial_peeks_remaining,
+            "status": self.status.value,  # Include player status
         }
     
     @classmethod
@@ -123,6 +178,13 @@ class Player:
         player.is_active = data.get("is_active", True)
         player.has_called_recall = data.get("has_called_recall", False)
         player.initial_peeks_remaining = data.get("initial_peeks_remaining", 2)
+        
+        # Restore player status
+        status_str = data.get("status", "waiting")
+        try:
+            player.status = PlayerStatus(status_str)
+        except ValueError:
+            player.status = PlayerStatus.WAITING  # Default fallback
         
         return player
 

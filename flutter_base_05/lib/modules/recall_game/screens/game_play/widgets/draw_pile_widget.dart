@@ -54,7 +54,7 @@ class DrawPileWidget extends StatelessWidget {
     required bool isGameActive,
     required bool isMyTurn,
   }) {
-    final bool canDraw = canDrawFromDeck && isGameActive && isMyTurn && gamePhase == 'playing';
+    final bool canDraw = canDrawFromDeck && isGameActive && isMyTurn && (gamePhase == 'playing' || gamePhase == 'out_of_turn');
     
     return Card(
       margin: const EdgeInsets.all(8),

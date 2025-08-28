@@ -1067,7 +1067,7 @@ class GameStateManager:
             'waiting_for_players': 'waiting',
             'dealing_cards': 'setup',
             'player_turn': 'playing',
-            'out_of_turn_play': 'playing',
+            'out_of_turn_play': 'out_of_turn',
             'recall_called': 'recall',
             'game_ended': 'finished',
         }

@@ -54,7 +54,7 @@ class DiscardPileWidget extends StatelessWidget {
     required bool isGameActive,
     required bool isMyTurn,
   }) {
-    final bool canTake = canTakeFromDiscard && isGameActive && isMyTurn && gamePhase == 'playing';
+    final bool canTake = canTakeFromDiscard && isGameActive && isMyTurn && (gamePhase == 'playing' || gamePhase == 'out_of_turn');
     final bool hasCards = topDiscard != null;
     
     return Card(

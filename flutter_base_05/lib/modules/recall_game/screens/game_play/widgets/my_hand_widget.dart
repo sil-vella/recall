@@ -242,7 +242,7 @@ class MyHandWidget extends StatelessWidget {
 
   /// Build action buttons for selected card
   Widget _buildActionButtons(Map<String, dynamic> selectedCard, bool canPlayCard, bool isMyTurn, String gamePhase) {
-    final bool canPlay = canPlayCard && isMyTurn && gamePhase == 'playing';
+    final bool canPlay = canPlayCard && isMyTurn && (gamePhase == 'playing' || gamePhase == 'out_of_turn');
     
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,

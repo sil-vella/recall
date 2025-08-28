@@ -458,11 +458,16 @@ class CurrentRoomWidget extends StatelessWidget {
         chipText = 'Waiting';
         chipIcon = Icons.schedule;
         break;
-      case 'playing':
-        chipColor = Colors.green;
-        chipText = 'Playing';
-        chipIcon = Icons.play_arrow;
-        break;
+              case 'playing':
+          chipColor = Colors.green;
+          chipText = 'Playing';
+          chipIcon = Icons.play_arrow;
+          break;
+        case 'out_of_turn':
+          chipColor = Colors.blue;
+          chipText = 'Out of Turn';
+          chipIcon = Icons.flash_on;
+          break;
       case 'finished':
         chipColor = Colors.grey;
         chipText = 'Finished';

@@ -302,6 +302,8 @@ class AvailableGamesWidget extends StatelessWidget {
         return Colors.orange;
       case 'playing':
         return Colors.green;
+      case 'out_of_turn':
+        return Colors.blue;
       case 'finished':
         return Colors.grey;
       default:
@@ -316,6 +318,8 @@ class AvailableGamesWidget extends StatelessWidget {
         return Icons.schedule;
       case 'playing':
         return Icons.play_arrow;
+      case 'out_of_turn':
+        return Icons.flash_on;
       case 'finished':
         return Icons.stop;
       default:

@@ -135,8 +135,8 @@ class GameInfoWidget extends StatelessWidget {
             
             const SizedBox(height: 12),
             
-            // Game details - only show when not in active game (playing phase)
-            if (gamePhase != 'playing') ...[
+            // Game details - only show when not in active game (playing or out_of_turn phases)
+            if (gamePhase != 'playing' && gamePhase != 'out_of_turn') ...[
               Row(
                 children: [
                   Icon(Icons.tag, size: 16, color: Colors.grey[600]),
@@ -241,6 +241,11 @@ class GameInfoWidget extends StatelessWidget {
         chipColor = Colors.green;
         chipText = 'Playing';
         chipIcon = Icons.play_arrow;
+        break;
+      case 'out_of_turn':
+        chipColor = Colors.blue;
+        chipText = 'Out of Turn';
+        chipIcon = Icons.flash_on;
         break;
       case 'finished':
         chipColor = Colors.grey;

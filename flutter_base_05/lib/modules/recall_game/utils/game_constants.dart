@@ -10,6 +10,7 @@ class GameConstants {
   static const String PHASE_WAITING = 'waiting';
   static const String PHASE_SETUP = 'setup';
   static const String PHASE_PLAYING = 'playing';
+  static const String PHASE_OUT_OF_TURN = 'out_of_turn';
   static const String PHASE_RECALL = 'recall';
   static const String PHASE_FINISHED = 'finished';
   

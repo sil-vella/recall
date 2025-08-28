@@ -679,6 +679,10 @@ class RecallGameStateUpdater {
     final currentSize = gameState['playerCount'] ?? 0;
     final maxSize = gameState['maxPlayers'] ?? 4;  // This comes from the backend game_state data
     
+    // Debug logging to see what's in gameState
+    _log.info('🎮 [GameInfoSlice] gameState keys: ${gameState.keys.toList()}');
+    _log.info('🎮 [GameInfoSlice] playerCount: $currentSize, maxPlayers: ${gameState['maxPlayers']}');
+    
     // Use derived values for other fields (these are set during navigation)
     final gamePhase = currentGame['gamePhase']?.toString() ?? 'waiting';
     final gameStatus = currentGame['gameStatus']?.toString() ?? 'inactive';

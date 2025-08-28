@@ -259,6 +259,11 @@ class RecallGameStateUpdater {
       defaultValue: -1,
       description: 'Index of current player',
     ),
+    'currentGameData': RecallStateFieldSpec(
+      type: Map,
+      required: false,
+      description: 'Current game data object',
+    ),
     'myScore': RecallStateFieldSpec(
       type: int,
       defaultValue: 0,

@@ -155,6 +155,14 @@ class RecallEventManager {
         'isGameActive': true,
         'lastUpdated': DateTime.now().toIso8601String(),
         
+        // Update currentGameData to reflect the new game state
+        'currentGameData': {
+          'game_id': gameId,
+          'room_id': gameId,
+          'owner_id': startedBy,
+          'game_state': gameState,
+        },
+        
         // Update specific state slices for widgets
         'myHand': {
           'cards': myPlayer?['hand'] ?? [],

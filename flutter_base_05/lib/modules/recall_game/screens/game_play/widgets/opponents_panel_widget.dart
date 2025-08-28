@@ -79,15 +79,6 @@ class OpponentsPanelWidget extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  '${opponents.length} players',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -155,12 +146,7 @@ class OpponentsPanelWidget extends StatelessWidget {
   /// Build individual opponent card
   Widget _buildOpponentCard(Map<String, dynamic> player, bool isCurrentTurn, bool isGameActive) {
     final playerName = player['name']?.toString() ?? 'Unknown Player';
-    final handSize = player['hand']?.length ?? 0;
-    final visibleCards = player['visibleCards'] as List<dynamic>? ?? [];
-    final visibleCount = visibleCards.length;
-    final totalCards = handSize + visibleCount;
-    final status = player['status']?.toString() ?? 'waiting';
-    final score = player['score'] ?? 0;
+    final hand = player['hand'] as List<dynamic>? ?? [];
     final hasCalledRecall = player['hasCalledRecall'] ?? false;
     
     return Container(
@@ -180,152 +166,175 @@ class OpponentsPanelWidget extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Player info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      playerName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: isCurrentTurn ? Colors.yellow.shade800 : Colors.black87,
-                      ),
-                    ),
-                    if (isCurrentTurn) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.play_arrow,
-                        size: 16,
-                        color: Colors.yellow.shade700,
-                      ),
-                    ],
-                    if (hasCalledRecall) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.flag,
-                        size: 16,
-                        color: Colors.red,
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Score: $score | Status: ${_formatStatus(status)}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(width: 12),
-          
-          // Cards display
+          // Player name and turn indicator
           Row(
             children: [
-              // Hand cards (small card-like elements)
-              if (handSize > 0) ...[
-                _buildSmallCardStack(handSize, 'Hand'),
-                const SizedBox(width: 8),
-              ],
-              
-              // Visible cards (small card-like elements)
-              if (visibleCount > 0) ...[
-                _buildSmallCardStack(visibleCount, 'Visible'),
-                const SizedBox(width: 8),
-              ],
-              
-              // Total cards indicator
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade300),
-                ),
-                child: Text(
-                  '$totalCards total',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade700,
-                  ),
+              Text(
+                playerName,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isCurrentTurn ? Colors.yellow.shade800 : Colors.black87,
                 ),
               ),
+              if (isCurrentTurn) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.play_arrow,
+                  size: 16,
+                  color: Colors.yellow.shade700,
+                ),
+              ],
+              if (hasCalledRecall) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.flag,
+                  size: 16,
+                  color: Colors.red,
+                ),
+              ],
             ],
+          ),
+          const SizedBox(height: 8),
+          
+          // Cards display - horizontal layout like my hand
+          if (hand.isNotEmpty)
+            _buildCardsRow(hand)
+          else
+            _buildEmptyHand(),
+        ],
+      ),
+    );
+  }
+
+  /// Build cards row - horizontal layout like my hand
+  Widget _buildCardsRow(List<dynamic> cards) {
+    return Container(
+      height: 100,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: cards.length,
+        itemBuilder: (context, index) {
+          final card = cards[index] as Map<String, dynamic>;
+          return Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: _buildCardWidget(card),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Build individual card widget for opponents (smaller than my hand)
+  Widget _buildCardWidget(Map<String, dynamic> card) {
+    final rank = card['rank']?.toString() ?? '?';
+    final suit = card['suit']?.toString() ?? '?';
+    final color = _getCardColor(suit);
+    
+    return Container(
+      width: 50,
+      height: 70,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            rank,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _getSuitSymbol(suit),
+            style: TextStyle(
+              fontSize: 10,
+              color: color,
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// Build small card stack representation
-  Widget _buildSmallCardStack(int cardCount, String label) {
-    return Column(
-      children: [
-        // Small card stack
-        Container(
-          width: 30,
-          height: 20,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: Colors.grey.shade400, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 1,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              cardCount.toString(),
+  /// Build empty hand state
+  Widget _buildEmptyHand() {
+    return Container(
+      height: 70,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.style,
+              size: 20,
+              color: Colors.grey,
+            ),
+            SizedBox(height: 4),
+            Text(
+              'No cards',
               style: TextStyle(
                 fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade700,
+                color: Colors.grey,
+                fontWeight: FontWeight.w500,
               ),
             ),
-          ),
+          ],
         ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 8,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  /// Format player status for display
-  String _formatStatus(String status) {
-    switch (status.toLowerCase()) {
-      case 'waiting':
-        return 'Waiting';
-      case 'ready':
-        return 'Ready';
-      case 'playing':
-        return 'Playing';
-      case 'finished':
-        return 'Finished';
-      case 'disconnected':
-        return 'Disconnected';
+  /// Get card color based on suit
+  Color _getCardColor(String suit) {
+    switch (suit.toLowerCase()) {
+      case 'hearts':
+      case 'diamonds':
+        return Colors.red;
+      case 'clubs':
+      case 'spades':
+        return Colors.black;
       default:
-        return status;
+        return Colors.grey;
     }
   }
+
+  /// Get suit symbol
+  String _getSuitSymbol(String suit) {
+    switch (suit.toLowerCase()) {
+      case 'hearts':
+        return '♥';
+      case 'diamonds':
+        return '♦';
+      case 'clubs':
+        return '♣';
+      case 'spades':
+        return '♠';
+      default:
+        return '?';
+    }
+  }
+
+
 }

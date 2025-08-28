@@ -658,10 +658,14 @@ class RecallGameStateUpdater {
     final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     
-    // Extract game information
+    // Extract game information from the single source of truth (gameData)
     final roomName = gameState['gameName']?.toString() ?? 'Game $currentGameId';
-    final currentSize = currentGame['playerCount'] ?? 0;
-    final maxSize = currentGame['maxSize'] ?? 4;
+    
+    // Read player count and max players from the actual game data (single source of truth)
+    final currentSize = gameState['playerCount'] ?? 0;
+    final maxSize = gameData['max_players'] ?? 4;  // This comes from the backend game data
+    
+    // Use derived values for other fields (these are set during navigation)
     final gamePhase = currentGame['gamePhase']?.toString() ?? 'waiting';
     final gameStatus = currentGame['gameStatus']?.toString() ?? 'inactive';
     final isRoomOwner = currentGame['isRoomOwner'] ?? false;

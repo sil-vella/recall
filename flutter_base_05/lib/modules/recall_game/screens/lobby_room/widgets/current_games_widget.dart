@@ -319,8 +319,6 @@ class CurrentRoomWidget extends StatelessWidget {
       
       // Extract game state information
       final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-      final currentSize = gameState['playerCount'] ?? 0;
-      final maxSize = gameData['max_players'] ?? 4;
       final gamePhase = gameState['phase']?.toString() ?? 'waiting';
       final gameStatus = gameState['status']?.toString() ?? 'inactive';
       
@@ -334,10 +332,9 @@ class CurrentRoomWidget extends StatelessWidget {
       final games = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       
       // Add/update the current game in the games map
+      // Note: playerCount and maxSize are read directly from gameData in the widget slice computation
       games[gameId] = {
-        'gameData': gameData,
-        'playerCount': currentSize,
-        'maxSize': maxSize,
+        'gameData': gameData,  // This is the single source of truth
         'gamePhase': gamePhase,
         'gameStatus': gameStatus,
         'isRoomOwner': isRoomOwner,

@@ -135,37 +135,39 @@ class GameInfoWidget extends StatelessWidget {
             
             const SizedBox(height: 12),
             
-            // Game details
-            Row(
-              children: [
-                Icon(Icons.tag, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  'Game ID: $currentGameId',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontFamily: 'monospace',
+            // Game details - only show when not in active game (playing phase)
+            if (gamePhase != 'playing') ...[
+              Row(
+                children: [
+                  Icon(Icons.tag, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Game ID: $currentGameId',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontFamily: 'monospace',
+                    ),
                   ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 4),
-            
-            Row(
-              children: [
-                Icon(Icons.people, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  'Players: $currentSize/$maxSize',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
+                ],
+              ),
+              
+              const SizedBox(height: 4),
+              
+              Row(
+                children: [
+                  Icon(Icons.people, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Players: $currentSize/$maxSize',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
             
             const SizedBox(height: 16),
             

@@ -407,8 +407,8 @@ class RecallGameStateUpdater {
       
       // 🚨 Validate field value
       try {
-        final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
-        validatedUpdates[key] = validatedValue;
+      final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
+      validatedUpdates[key] = validatedValue;
         validFields.add(key);
         _log.info('✅ [VALIDATION] Field validation passed: $key = $validatedValue');
       } catch (e) {
@@ -675,19 +675,15 @@ class RecallGameStateUpdater {
     // Extract game information from the single source of truth (gameData)
     final roomName = gameState['gameName']?.toString() ?? 'Game $currentGameId';
     
-    // Read player count and max players from the actual game data (single source of truth)
-    final currentSize = gameState['playerCount'] ?? 0;
-    final maxSize = gameState['maxPlayers'] ?? 4;  // This comes from the backend game_state data
-    
-    // Debug logging to see what's in gameState
-    _log.info('🎮 [GameInfoSlice] gameState keys: ${gameState.keys.toList()}');
-    _log.info('🎮 [GameInfoSlice] playerCount: $currentSize, maxPlayers: ${gameState['maxPlayers']}');
-    
     // Use derived values for other fields (these are set during navigation)
     final gamePhase = currentGame['gamePhase']?.toString() ?? 'waiting';
     final gameStatus = currentGame['gameStatus']?.toString() ?? 'inactive';
     final isRoomOwner = currentGame['isRoomOwner'] ?? false;
     final isInGame = currentGame['isInGame'] ?? false;
+    
+    // Read player count and max players from the actual game data (single source of truth)
+    final currentSize = gameState['playerCount'] ?? 0;
+    final maxSize = gameState['maxPlayers'] ?? 4;
     
     return {
       'currentGameId': currentGameId,

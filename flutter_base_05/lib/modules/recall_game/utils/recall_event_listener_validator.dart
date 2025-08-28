@@ -262,40 +262,40 @@ class RecallGameEventListenerValidator {
     _log.info('🎧 [DirectEvent] Data size: ${data.length} fields');
     
     try {
-      // Validate event type
+        // Validate event type
       _log.info('🎧 [DirectEvent] Checking if event type exists in schema...');
       _log.info('🎧 [DirectEvent] Available schema types: ${_eventSchema.keys.toList()}');
       
       if (!_eventSchema.containsKey(eventType)) {
         _log.error('❌ [DirectEvent] Unknown game event type: $eventType');
         _log.error('❌ [DirectEvent] Available schema types: ${_eventSchema.keys.toList()}');
-        return;
-      }
+          return;
+        }
       
       _log.info('✅ [DirectEvent] Event type validated: $eventType');
 
-      // Validate event data against schema
+        // Validate event data against schema
       _log.info('🎧 [DirectEvent] Validating event data against schema...');
       final validatedData = _validateEventData(eventType, data);
-      if (validatedData == null) {
+        if (validatedData == null) {
         _log.error('❌ [DirectEvent] Invalid data for game event: $eventType');
         _log.error('❌ [DirectEvent] Validation failed - see validation logs above');
-        return;
-      }
+          return;
+        }
       
       _log.info('✅ [DirectEvent] Event data validation passed');
       _log.info('🎧 [DirectEvent] Validated data: $validatedData');
 
-      // Add minimal required context
-      final eventPayload = {
+        // Add minimal required context
+        final eventPayload = {
         'event_type': eventType,
-        'timestamp': DateTime.now().toIso8601String(),
-        ...validatedData,
-      };
+          'timestamp': DateTime.now().toIso8601String(),
+          ...validatedData,
+        };
       
       _log.info('🎧 [DirectEvent] Final event payload: $eventPayload');
 
-      // Log the event
+        // Log the event
       _logEvent(eventType, eventPayload);
 
       // Call all registered callbacks for this event type
@@ -307,7 +307,7 @@ class RecallGameEventListenerValidator {
           final callback = callbacks[i];
           _log.info('🎧 [DirectEvent] Executing callback ${i + 1}/${callbacks.length}');
           try {
-            callback(eventPayload);
+          callback(eventPayload);
             _log.info('✅ [DirectEvent] Callback ${i + 1} executed successfully');
           } catch (e) {
             _log.error('❌ [DirectEvent] Error in callback ${i + 1} for event type $eventType: $e');
@@ -317,12 +317,12 @@ class RecallGameEventListenerValidator {
       } else {
         _log.warning('⚠️ [DirectEvent] No callbacks registered for event type: $eventType');
         _log.info('🎧 [DirectEvent] Available callback types: ${_callbacks.keys.toList()}');
-      }
+        }
 
-    } catch (e) {
+      } catch (e) {
       _log.error('❌ [DirectEvent] Error handling direct game event: $e');
       _log.error('❌ [DirectEvent] Error stack trace: ${StackTrace.current}');
-    }
+      }
     
     _log.info('🎧 [DirectEvent] ===== END PROCESSING DIRECT GAME EVENT =====');
   }

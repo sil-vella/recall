@@ -677,7 +677,7 @@ class RecallGameStateUpdater {
     
     // Read player count and max players from the actual game data (single source of truth)
     final currentSize = gameState['playerCount'] ?? 0;
-    final maxSize = gameData['max_players'] ?? 4;  // This comes from the backend game data
+    final maxSize = gameState['maxPlayers'] ?? 4;  // This comes from the backend game_state data
     
     // Use derived values for other fields (these are set during navigation)
     final gamePhase = currentGame['gamePhase']?.toString() ?? 'waiting';

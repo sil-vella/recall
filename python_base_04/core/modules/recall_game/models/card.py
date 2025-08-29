@@ -114,10 +114,9 @@ class CardDeck:
     to create properly shuffled decks with deterministic card IDs.
     """
     
-    def __init__(self, include_jokers: bool = True, include_special_powers: bool = True):
+    def __init__(self, include_jokers: bool = True):
         self.cards = []
         self.include_jokers = include_jokers
-        self.include_special_powers = include_special_powers
         self._initialize_deck()
     
     def _initialize_deck(self):
@@ -143,9 +142,7 @@ class CardDeck:
                 card = Card("joker", "joker", 0, None, card_id)
                 self.cards.append(card)
         
-        # Add special power cards (if enabled)
-        if self.include_special_powers:
-            self._add_special_power_cards()
+
     
     def _get_point_value(self, rank: str, suit: str) -> int:
         """Get the point value for a card"""
@@ -175,22 +172,7 @@ class CardDeck:
         else:
             return None
     
-    def _add_special_power_cards(self):
-        """Add special power cards to the deck"""
-        special_powers = [
-            ("steal_card", 5),
-            ("draw_extra", 3),
-            ("protect_card", 4),
-            ("skip_turn", 6),
-            ("double_points", 8)
-        ]
-        
-        for power, points in special_powers:
-            # Create special power cards with unique suits
-            for i in range(2):  # 2 of each special power
-                card_id = f"temp-power_{power}-special_{i}"
-                card = Card(f"power_{power}", f"special_{i}", points, power, card_id)
-                self.cards.append(card)
+
     
     def shuffle(self):
         """Shuffle the deck - Note: Use DeckFactory for deterministic shuffling"""

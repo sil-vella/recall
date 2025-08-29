@@ -482,26 +482,49 @@ class GameStateManager:
     def on_start_match(self, session_id: str, data: Dict[str, Any]) -> bool:
         """Handle game start through the game round"""
         try:
+            custom_log(f"🎮 [START_MATCH] Starting match for session: {session_id}, data: {data}")
+            
             game_id = data.get('game_id') or data.get('room_id')
             if not game_id:
+                custom_log(f"❌ [START_MATCH] Missing game_id in data: {data}")
                 self._send_error(session_id, 'Missing game_id')
                 return False
-                
+            
+            custom_log(f"🎮 [START_MATCH] Looking for game: {game_id}")
             game = self.get_game(game_id)
             if not game:
+                custom_log(f"❌ [START_MATCH] Game not found: {game_id}")
                 self._send_error(session_id, f'Game not found: {game_id}')
                 return False
 
+            custom_log(f"✅ [START_MATCH] Game found: {game_id}")
             session_data = self.websocket_manager.get_session_data(session_id) or {}
             user_id = str(session_data.get('user_id') or session_id)
+            custom_log(f"🎮 [START_MATCH] User ID: {user_id}")
+            
+            # First, start the game (deal cards, set up deck, etc.)
+            custom_log(f"🎮 [START_MATCH] Getting game actions...")
+            game_actions = game.get_actions()
+            custom_log(f"🎮 [START_MATCH] Starting game...")
+            game_start_result = game_actions.start_game()
+            custom_log(f"🎮 [START_MATCH] Game start result: {game_start_result}")
+            
+            if game_start_result.get('error'):
+                custom_log(f"❌ [START_MATCH] Game start failed: {game_start_result['error']}")
+                self._send_error(session_id, f"Start match failed: {game_start_result['error']}")
+                return False
             
             # Get the game round handler
+            custom_log(f"🎮 [START_MATCH] Getting game round...")
             game_round = game.get_round()
             
-            # Start the round
+            # Start the first round
+            custom_log(f"🎮 [START_MATCH] Starting round...")
             round_result = game_round.start_round()
+            custom_log(f"🎮 [START_MATCH] Round start result: {round_result}")
             
             if round_result.get('error'):
+                custom_log(f"❌ [START_MATCH] Round start failed: {round_result['error']}")
                 self._send_error(session_id, f"Start match failed: {round_result['error']}")
                 return False
             
@@ -535,7 +558,9 @@ class GameStateManager:
             return True
             
         except Exception as e:
-            custom_log(f"Error in on_start_match: {e}", level="ERROR")
+            custom_log(f"❌ [START_MATCH] Exception in on_start_match: {e}", level="ERROR")
+            import traceback
+            custom_log(f"❌ [START_MATCH] Traceback: {traceback.format_exc()}", level="ERROR")
             self._send_error(session_id, f'Start match failed: {str(e)}')
             return False
 
@@ -700,31 +725,6 @@ class GameStateManager:
         except Exception as e:
             custom_log(f"❌ Error sending recall player joined events: {e}")
 
-    def _fallback_handle(self, game, action: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Fallback handler for actions not in game engine"""
-        game_actions = game.get_actions()
-        
-        if action == 'draw_from_deck':
-            return game_actions.draw_from_deck(user_id)
-        if action == 'take_from_discard':
-            return game_actions.take_from_discard(user_id)
-        if action in ('place_drawn_replace', 'place_drawn_card_replace'):
-            replace_id = (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id')
-            if not replace_id:
-                return {'error': 'Missing replace target'}
-            return game_actions.place_drawn_card_replace(user_id, replace_id)
-        if action in ('place_drawn_play', 'place_drawn_card_play'):
-            return game_actions.place_drawn_card_play(user_id)
-        if action == 'play_card':
-            card_id = (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id')
-            if not card_id:
-                return {'error': 'Missing card_id'}
-            return game_actions.play_card(user_id, card_id)
-        if action == 'call_recall':
-            return game_actions.call_recall(user_id)
-        if action == 'start_match':
-            return game_actions.start_game()
-        return {'error': 'Unsupported action'}
 
     def _to_flutter_card(self, card) -> Dict[str, Any]:
         """Convert card to Flutter format"""

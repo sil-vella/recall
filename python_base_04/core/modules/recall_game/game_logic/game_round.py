@@ -34,18 +34,6 @@ class GameRound:
         try:
             custom_log(f"🎮 Starting round {self.round_number} for game {self.game_state.game_id}")
             
-            # Validate game state
-            if self.game_state.phase != GamePhase.WAITING_FOR_PLAYERS:
-                return {"error": "Game is not in waiting phase"}
-            
-            if len(self.game_state.players) < 2:
-                return {"error": "Need at least 2 players to start"}
-            
-            # Start the game using game actions
-            start_result = self.game_actions.start_game()
-            if not start_result.get("success"):
-                return start_result
-            
             # Initialize round state
             self.round_start_time = time.time()
             self.current_turn_start_time = self.round_start_time
@@ -220,6 +208,8 @@ class GameRound:
             
             elif action_type == "end_game":
                 return self.game_actions.end_game()
+            
+
             
             else:
                 return {"error": f"Unknown action type: {action_type}"}

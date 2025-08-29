@@ -34,6 +34,7 @@ class Player:
         self.name = name
         self.hand = []  # 4 cards face down
         self.visible_cards = []  # Cards player has looked at
+        self.known_from_other_players = []  # Cards player knows from other players
         self.points = 0
         self.cards_remaining = 4
         self.is_active = True
@@ -92,10 +93,7 @@ class Player:
     def call_recall(self):
         """Player calls Recall to end the game"""
         self.has_called_recall = True
-    
-    def can_play_out_of_turn(self, played_card: Card) -> List[Card]:
-        """Get cards that can be played out of turn"""
-        return [card for card in self.hand if card.can_play_out_of_turn(played_card)]
+
     
     def set_status(self, status: PlayerStatus):
         """Set player status"""
@@ -230,17 +228,40 @@ class ComputerPlayer(Player):
     def __init__(self, player_id: str, name: str, difficulty: str = "medium"):
         super().__init__(player_id, PlayerType.COMPUTER, name)
         self.difficulty = difficulty
-        self.game_logic = self._load_game_logic()
-    
-    def _load_game_logic(self):
-        """Load AI game logic based on difficulty"""
-        # This will be implemented to load from YAML files
-        from ..game_logic.computer_player_logic import ComputerPlayerLogic
-        return ComputerPlayerLogic(self.difficulty)
     
     def make_decision(self, game_state: Dict[str, Any]) -> Dict[str, Any]:
-        """Make AI decision based on game state"""
-        return self.game_logic.make_decision(game_state, self.to_dict())
+        """Make AI decision based on game state using built-in logic"""
+        from tools.logger.custom_logging import custom_log
+        custom_log(f"🤖 Computer player {self.name} making decision with difficulty: {self.difficulty}")
+        
+        # Use built-in AI logic methods
+        best_card = self._select_best_card(game_state)
+        should_call_recall = self._should_call_recall(game_state)
+        
+        if should_call_recall:
+            return {
+                "action": "call_recall",
+                "reason": f"AI decided to call recall (difficulty: {self.difficulty})",
+                "player_id": self.player_id
+            }
+        
+        if best_card:
+            # Find the card index in hand
+            card_index = next((i for i, card in enumerate(self.hand) if card.card_id == best_card.card_id), 0)
+            return {
+                "action": "play_card",
+                "card_index": card_index,
+                "reason": f"AI selected best card (difficulty: {self.difficulty})",
+                "player_id": self.player_id
+            }
+        
+        # Fallback: play first card
+        return {
+            "action": "play_card",
+            "card_index": 0,
+            "reason": f"AI fallback decision (difficulty: {self.difficulty})",
+            "player_id": self.player_id
+        }
     
     def _evaluate_card_value(self, card: Card, game_state: Dict[str, Any]) -> float:
         """Evaluate the value of a card in the current game state"""
@@ -291,3 +312,6 @@ class ComputerPlayer(Player):
             return True
         
         return False 
+    
+    def _update_known_from_other_players(self, card: Card, game_state: Dict[str, Any]):
+        """Update the player's known cards from other players list"""

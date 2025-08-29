@@ -453,8 +453,7 @@ socket.emit('recall_use_special_power', power_data)
 # Game configuration
 game_config = {
     'max_players': 4,
-    'include_jokers': True,
-    'include_special_powers': True,
+    'include_jokers': True,  # Standard deck cards (including jokers, queens, jacks, kings)
     'ai_difficulty': 'medium'
 }
 ```

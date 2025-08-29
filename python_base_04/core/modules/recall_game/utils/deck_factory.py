@@ -44,11 +44,9 @@ class DeckFactory:
     def build_deck(
         self,
         include_jokers: bool = True,
-        include_special_powers: bool = True,
     ) -> List[Card]:
         deck = CardDeck(
             include_jokers=include_jokers,
-            include_special_powers=include_special_powers,
         )
 
         # Assign completely random IDs to each card

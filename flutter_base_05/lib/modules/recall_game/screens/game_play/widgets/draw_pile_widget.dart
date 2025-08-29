@@ -32,8 +32,9 @@ class DrawPileWidget extends StatelessWidget {
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
+        final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 DrawPileWidget: drawPileCount=$drawPileCount, canDrawFromDeck=$canDrawFromDeck, gamePhase=$gamePhase, isMyTurn=$isMyTurn');
+        _log.info('🎮 DrawPileWidget: drawPileCount=$drawPileCount, canDrawFromDeck=$canDrawFromDeck, gamePhase=$gamePhase, isMyTurn=$isMyTurn, playerStatus=$playerStatus');
         
         return _buildDrawPileCard(
           drawPileCount: drawPileCount,
@@ -41,6 +42,7 @@ class DrawPileWidget extends StatelessWidget {
           gamePhase: gamePhase,
           isGameActive: isGameActive,
           isMyTurn: isMyTurn,
+          playerStatus: playerStatus,
         );
       },
     );
@@ -53,8 +55,11 @@ class DrawPileWidget extends StatelessWidget {
     required String gamePhase,
     required bool isGameActive,
     required bool isMyTurn,
+    required String playerStatus,
   }) {
-    final bool canDraw = canDrawFromDeck && isGameActive && isMyTurn && (gamePhase == 'playing' || gamePhase == 'out_of_turn');
+    // Determine if player can draw based on status and game state
+    final bool canDraw = canDrawFromDeck && isGameActive && isMyTurn && 
+        (playerStatus == 'drawing_card' || gamePhase == 'playing' || gamePhase == 'out_of_turn');
     
     return Card(
       margin: const EdgeInsets.all(8),

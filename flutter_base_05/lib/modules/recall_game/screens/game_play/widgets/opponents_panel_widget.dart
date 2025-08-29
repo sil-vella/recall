@@ -40,14 +40,16 @@ class OpponentsPanelWidget extends StatelessWidget {
         // Get additional game state for context
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isGameActive = recallGameState['isGameActive'] ?? false;
+        final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 OpponentsPanelWidget: opponents=${otherPlayers.length}, currentTurnIndex=$currentTurnIndex, gamePhase=$gamePhase');
+        _log.info('🎮 OpponentsPanelWidget: opponents=${otherPlayers.length}, currentTurnIndex=$currentTurnIndex, gamePhase=$gamePhase, playerStatus=$playerStatus');
         
         return _buildOpponentsPanel(
           opponents: otherPlayers,
           currentTurnIndex: currentTurnIndex,
           gamePhase: gamePhase,
           isGameActive: isGameActive,
+          playerStatus: playerStatus,
         );
       },
     );
@@ -59,6 +61,7 @@ class OpponentsPanelWidget extends StatelessWidget {
     required int currentTurnIndex,
     required String gamePhase,
     required bool isGameActive,
+    required String playerStatus,
   }) {
     return Card(
       margin: const EdgeInsets.all(8),

@@ -32,8 +32,9 @@ class DiscardPileWidget extends StatelessWidget {
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
+        final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 DiscardPileWidget: topDiscard=${topDiscard != null}, canTakeFromDiscard=$canTakeFromDiscard, gamePhase=$gamePhase, isMyTurn=$isMyTurn');
+        _log.info('🎮 DiscardPileWidget: topDiscard=${topDiscard != null}, canTakeFromDiscard=$canTakeFromDiscard, gamePhase=$gamePhase, isMyTurn=$isMyTurn, playerStatus=$playerStatus');
         
         return _buildDiscardPileCard(
           topDiscard: topDiscard,
@@ -41,6 +42,7 @@ class DiscardPileWidget extends StatelessWidget {
           gamePhase: gamePhase,
           isGameActive: isGameActive,
           isMyTurn: isMyTurn,
+          playerStatus: playerStatus,
         );
       },
     );
@@ -53,8 +55,12 @@ class DiscardPileWidget extends StatelessWidget {
     required String gamePhase,
     required bool isGameActive,
     required bool isMyTurn,
+    required String playerStatus,
   }) {
-    final bool canTake = canTakeFromDiscard && isGameActive && isMyTurn && (gamePhase == 'playing' || gamePhase == 'out_of_turn');
+    // Determine if player can take from discard based on status and game state
+    final bool canTake = canTakeFromDiscard && isGameActive && isMyTurn && 
+        (playerStatus == 'drawing_card' || playerStatus == 'playing_card' || 
+         gamePhase == 'playing' || gamePhase == 'out_of_turn');
     final bool hasCards = topDiscard != null;
     
     return Card(

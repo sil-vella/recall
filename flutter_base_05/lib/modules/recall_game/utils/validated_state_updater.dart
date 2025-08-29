@@ -45,6 +45,16 @@ class RecallGameStateUpdater {
       defaultValue: false,
       description: 'Whether it is currently the user\'s turn',
     ),
+    'turnTimeout': RecallStateFieldSpec(
+      type: int,
+      defaultValue: 30,
+      description: 'Turn timeout duration in seconds',
+    ),
+    'turnStartTime': RecallStateFieldSpec(
+      type: String,
+      required: false,
+      description: 'ISO timestamp when the current turn started',
+    ),
     'canCallRecall': RecallStateFieldSpec(
       type: bool,
       defaultValue: false,

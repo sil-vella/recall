@@ -67,7 +67,7 @@ class GameActions:
         # Update player statuses
         for player_id, player in self.game_state.players.items():
             if player_id == self.game_state.current_player_id:
-                player.set_playing()  # Current player is playing
+                player.set_drawing_card()  # Current player needs to draw a card first
             else:
                 player.set_ready()    # Other players are ready
         
@@ -118,7 +118,7 @@ class GameActions:
         next_index = (current_index + 1) % len(player_ids)
         self.game_state.current_player_id = player_ids[next_index]
         
-        # Set next player to playing
+        # Set next player to drawing card (they need to draw first)
         next_player = self.game_state.players.get(self.game_state.current_player_id)
         if next_player:
-            next_player.set_playing()
+            next_player.set_drawing_card()

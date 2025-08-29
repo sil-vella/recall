@@ -427,12 +427,17 @@ class GameRound:
                 custom_log(f"⚠️ No session found for player {current_player_id}")
                 return
             
+            # Get current player object to access their status
+            current_player = self.game_state.players.get(current_player_id)
+            player_status = current_player.status.value if current_player else "unknown"
+            
             # Create turn started payload
             turn_payload = {
                 'event_type': 'turn_started',
                 'game_id': self.game_state.game_id,
                 'game_state': self._to_flutter_game_state(),
                 'player_id': current_player_id,
+                'player_status': player_status,
                 'turn_timeout': self.turn_timeout_seconds,
                 'timestamp': datetime.now().isoformat()
             }

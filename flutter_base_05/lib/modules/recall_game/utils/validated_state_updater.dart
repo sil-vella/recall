@@ -55,6 +55,11 @@ class RecallGameStateUpdater {
       required: false,
       description: 'ISO timestamp when the current turn started',
     ),
+    'playerStatus': RecallStateFieldSpec(
+      type: String,
+      required: false,
+      description: 'Current player status (waiting, ready, playing, drawing_card, etc.)',
+    ),
     'canCallRecall': RecallStateFieldSpec(
       type: bool,
       defaultValue: false,

@@ -57,7 +57,7 @@ class RecallGameEventListenerValidator {
       'round_number', 'timestamp',
     },
     'turn_started': {
-      'game_id', 'game_state', 'player_id', 'turn_timeout', 'timestamp',
+      'game_id', 'game_state', 'player_id', 'player_status', 'turn_timeout', 'timestamp',
     },
     'card_played': {
       'game_id', 'player_id', 'card', 'position', 'timestamp',

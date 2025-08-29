@@ -258,10 +258,11 @@ class RecallEventManager {
       final gameId = data['game_id']?.toString() ?? '';
       final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
       final playerId = data['player_id']?.toString() ?? '';
+      final playerStatus = data['player_status']?.toString() ?? 'unknown';
       final turnTimeout = data['turn_timeout'] as int? ?? 30;
       final timestamp = data['timestamp']?.toString() ?? '';
       
-      _log.info('🎧 [RECALL] Turn started for player $playerId in game $gameId (timeout: ${turnTimeout}s)');
+      _log.info('🎧 [RECALL] Turn started for player $playerId in game $gameId (status: $playerStatus, timeout: ${turnTimeout}s)');
       
       // Find the current user's player data
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -278,10 +279,12 @@ class RecallEventManager {
           'isMyTurn': true,
           'turnTimeout': turnTimeout,
           'turnStartTime': DateTime.now().toIso8601String(),
+          'playerStatus': playerStatus,
           'statusBar': {
             'currentPhase': 'my_turn',
             'turnTimer': turnTimeout,
             'turnStartTime': DateTime.now().toIso8601String(),
+            'playerStatus': playerStatus,
           },
         });
         

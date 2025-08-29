@@ -326,6 +326,46 @@ class RecallEventManager {
       }
     });
     
+    // Register game_state_updated event listener
+    RecallGameEventListenerValidator.instance.addListener('game_state_updated', (data) {
+      _log.info('🎧 [RECALL] Received game_state_updated event');
+      
+      final gameId = data['game_id']?.toString() ?? '';
+      final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
+      final roundNumber = data['round_number'] as int? ?? 1;
+      final currentPlayer = data['current_player']?.toString() ?? '';
+      final currentPlayerStatus = data['current_player_status']?.toString() ?? 'unknown';
+      final roundStatus = data['round_status']?.toString() ?? 'active';
+      final timestamp = data['timestamp']?.toString() ?? '';
+      
+      _log.info('🎧 [RECALL] Game state updated for game $gameId - Round: $roundNumber, Current Player: $currentPlayer ($currentPlayerStatus), Status: $roundStatus');
+      
+      // Update the main game state with the new information
+      RecallGameHelpers.updateUIState({
+        'gamePhase': gameState['phase'] ?? 'playing',
+        'isGameActive': true,
+        'roundNumber': roundNumber,
+        'currentPlayer': currentPlayer,
+        'currentPlayerStatus': currentPlayerStatus,
+        'roundStatus': roundStatus,
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      // Add session message about game state update
+      _addSessionMessage(
+        level: 'info',
+        title: 'Game State Updated',
+        message: 'Round $roundNumber - $currentPlayer is $currentPlayerStatus',
+        data: {
+          'game_id': gameId,
+          'round_number': roundNumber,
+          'current_player': currentPlayer,
+          'current_player_status': currentPlayerStatus,
+          'round_status': roundStatus,
+        },
+      );
+    });
+    
     _log.info('✅ Recall-specific event listeners registered');
   }
 

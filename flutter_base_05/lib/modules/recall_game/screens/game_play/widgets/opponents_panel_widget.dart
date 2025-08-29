@@ -90,7 +90,7 @@ class OpponentsPanelWidget extends StatelessWidget {
             if (opponents.isEmpty)
               _buildEmptyOpponents()
             else
-              _buildOpponentsGrid(opponents, currentTurnIndex, isGameActive),
+              _buildOpponentsGrid(opponents, currentTurnIndex, isGameActive, playerStatus),
           ],
         ),
       ),
@@ -131,23 +131,30 @@ class OpponentsPanelWidget extends StatelessWidget {
   }
 
   /// Build the opponents grid
-  Widget _buildOpponentsGrid(List<dynamic> opponents, int currentTurnIndex, bool isGameActive) {
+  Widget _buildOpponentsGrid(List<dynamic> opponents, int currentTurnIndex, bool isGameActive, String playerStatus) {
+    // Get current player information from state
+    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final currentPlayer = recallGameState['currentPlayer']?.toString() ?? '';
+    final currentPlayerStatus = recallGameState['currentPlayerStatus']?.toString() ?? 'unknown';
+    
     return Column(
       children: opponents.asMap().entries.map((entry) {
         final index = entry.key;
         final player = entry.value as Map<String, dynamic>;
+        final playerId = player['id']?.toString() ?? '';
         final isCurrentTurn = index == currentTurnIndex;
+        final isCurrentPlayer = playerId == currentPlayer;
         
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: _buildOpponentCard(player, isCurrentTurn, isGameActive),
+          child: _buildOpponentCard(player, isCurrentTurn, isGameActive, isCurrentPlayer, currentPlayerStatus),
         );
       }).toList(),
     );
   }
 
   /// Build individual opponent card
-  Widget _buildOpponentCard(Map<String, dynamic> player, bool isCurrentTurn, bool isGameActive) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus) {
     final playerName = player['name']?.toString() ?? 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
     final hasCalledRecall = player['hasCalledRecall'] ?? false;
@@ -172,15 +179,17 @@ class OpponentsPanelWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Player name and turn indicator
+          // Player name, turn indicator, and status
           Row(
             children: [
-              Text(
-                playerName,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isCurrentTurn ? Colors.yellow.shade800 : Colors.black87,
+              Expanded(
+                child: Text(
+                  playerName,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isCurrentTurn ? Colors.yellow.shade800 : Colors.black87,
+                  ),
                 ),
               ),
               if (isCurrentTurn) ...[
@@ -201,6 +210,16 @@ class OpponentsPanelWidget extends StatelessWidget {
               ],
             ],
           ),
+          
+          // Player status indicator (only show for current player)
+          if (isCurrentPlayer && currentPlayerStatus != 'unknown') ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                _buildStatusChip(currentPlayerStatus),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           
           // Cards display - horizontal layout like my hand
@@ -339,5 +358,75 @@ class OpponentsPanelWidget extends StatelessWidget {
     }
   }
 
+  /// Build status chip for player status
+  Widget _buildStatusChip(String status) {
+    Color chipColor;
+    String chipText;
+    IconData chipIcon;
+
+    switch (status) {
+      case 'waiting':
+        chipColor = Colors.grey;
+        chipText = 'Waiting';
+        chipIcon = Icons.schedule;
+        break;
+      case 'ready':
+        chipColor = Colors.blue;
+        chipText = 'Ready';
+        chipIcon = Icons.check_circle;
+        break;
+      case 'drawing_card':
+        chipColor = Colors.orange;
+        chipText = 'Drawing';
+        chipIcon = Icons.draw;
+        break;
+      case 'playing_card':
+        chipColor = Colors.green;
+        chipText = 'Playing';
+        chipIcon = Icons.play_arrow;
+        break;
+      case 'same_rank_window':
+        chipColor = Colors.purple;
+        chipText = 'Same Rank';
+        chipIcon = Icons.flash_on;
+        break;
+      case 'finished':
+        chipColor = Colors.red;
+        chipText = 'Finished';
+        chipIcon = Icons.stop;
+        break;
+      default:
+        chipColor = Colors.grey;
+        chipText = 'Unknown';
+        chipIcon = Icons.help;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: chipColor,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            chipIcon,
+            size: 12,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            chipText,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
 }

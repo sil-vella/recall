@@ -78,7 +78,7 @@ class RecallGameEventListenerValidator {
       'updated_game_state',
     },
     'game_state_updated': {
-      'game_id', 'game_state', 'timestamp', 'reason',
+      'game_id', 'game_state', 'round_number', 'current_player', 'current_player_status', 'round_status', 'timestamp', 'reason',
       'changes',
     },
     'room_event': {

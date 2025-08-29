@@ -29,11 +29,12 @@ class GamePhase(Enum):
 class GameState:
     """Represents the current state of a Recall game"""
     
-    def __init__(self, game_id: str, max_players: int = 4, min_players: int = 2, permission: str = 'public'):
+    def __init__(self, game_id: str, max_players: int = 4, min_players: int = 2, permission: str = 'public', app_manager=None):
         self.game_id = game_id
         self.max_players = max_players
         self.min_players = min_players
         self.permission = permission  # 'public' or 'private'
+        self.app_manager = app_manager  # Reference to app manager for WebSocket access
         self.players = {}  # player_id -> Player
         self.current_player_id = None
         self.phase = GamePhase.WAITING_FOR_PLAYERS
@@ -327,7 +328,7 @@ class GameStateManager:
     def create_game(self, max_players: int = 4, min_players: int = 2, permission: str = 'public') -> str:
         """Create a new game"""
         game_id = str(uuid.uuid4())
-        game_state = GameState(game_id, max_players, min_players, permission)
+        game_state = GameState(game_id, max_players, min_players, permission, self.app_manager)
         self.active_games[game_id] = game_state
         return game_id
     
@@ -342,7 +343,7 @@ class GameStateManager:
         existing = self.active_games.get(game_id)
         if existing is not None:
             return game_id
-        game_state = GameState(game_id, max_players, min_players, permission)
+        game_state = GameState(game_id, max_players, min_players, permission, self.app_manager)
         self.active_games[game_id] = game_state
         return game_id
     
@@ -540,19 +541,6 @@ class GameStateManager:
                 'timestamp': datetime.now().isoformat()
             }
             self._send_to_all_players(game_id, 'game_started', payload)
-            
-            # Send turn started event to current player
-            current_player_id = round_result.get('current_player')
-            if current_player_id:
-                turn_payload = {
-                    'event_type': 'turn_started',
-                    'game_id': game_id,
-                    'game_state': self._to_flutter_game_state(game),
-                    'player_id': current_player_id,
-                    'turn_timeout': game_round.turn_timeout_seconds,
-                    'timestamp': datetime.now().isoformat()
-                }
-                self._send_to_player(game_id, current_player_id, 'turn_started', turn_payload)
             
             custom_log(f"🎮 Game {game_id} started by {user_id}, round {round_result.get('round_number')}")
             return True

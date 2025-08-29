@@ -29,6 +29,14 @@ class GameRound:
         self.actions_performed = []
         self.round_status = "waiting"  # waiting, active, paused, completed
         
+        # Timed rounds configuration
+        self.timed_rounds_enabled = False
+        self.round_time_limit_seconds = 300  # 5 minutes default
+        self.round_time_remaining = None
+        
+        # WebSocket manager reference for sending events
+        self.websocket_manager = getattr(game_state, 'websocket_manager', None)
+        
     def start_round(self) -> Dict[str, Any]:
         """Start a new round of gameplay"""
         try:
@@ -40,6 +48,11 @@ class GameRound:
             self.round_status = "active"
             self.actions_performed = []
             
+            # Initialize timed rounds if enabled
+            if self.timed_rounds_enabled:
+                self.round_time_remaining = self.round_time_limit_seconds
+                custom_log(f"⏰ Round {self.round_number} started with {self.round_time_limit_seconds} second time limit")
+            
             # Log round start
             self._log_action("round_started", {
                 "round_number": self.round_number,
@@ -48,6 +61,12 @@ class GameRound:
             })
             
             custom_log(f"✅ Round {self.round_number} started successfully")
+            
+            # Log actions_performed at round start
+            custom_log(f"📋 Round {self.round_number} actions_performed initialized: {len(self.actions_performed)} actions")
+            
+            # Send turn started event to current player
+            self._send_turn_started_event()
             
             return {
                 "success": True,
@@ -135,6 +154,9 @@ class GameRound:
     
     def get_round_status(self) -> Dict[str, Any]:
         """Get current round status and information"""
+        # Get timed rounds status
+        timed_rounds_status = self.get_timed_rounds_status()
+        
         return {
             "round_number": self.round_number,
             "round_status": self.round_status,
@@ -145,7 +167,8 @@ class GameRound:
             "game_phase": self.game_state.phase.value,
             "turn_timeout_seconds": self.turn_timeout_seconds,
             "actions_performed_count": len(self.actions_performed),
-            "player_count": len(self.game_state.players)
+            "player_count": len(self.game_state.players),
+            **timed_rounds_status  # Include timed rounds information
         }
     
     def get_round_history(self) -> List[Dict[str, Any]]:
@@ -163,6 +186,62 @@ class GameRound:
         return {
             "success": True,
             "turn_timeout_seconds": self.turn_timeout_seconds
+        }
+    
+    def configure_timed_rounds(self, enabled: bool, time_limit_seconds: int = None) -> Dict[str, Any]:
+        """Configure timed rounds settings"""
+        if enabled:
+            if time_limit_seconds is None:
+                time_limit_seconds = 300  # Default 5 minutes
+            
+            if time_limit_seconds < 60 or time_limit_seconds > 1800:
+                return {"error": "Round time limit must be between 60 and 1800 seconds (1-30 minutes)"}
+            
+            self.timed_rounds_enabled = True
+            self.round_time_limit_seconds = time_limit_seconds
+            self.round_time_remaining = time_limit_seconds
+            
+            custom_log(f"⏰ Timed rounds enabled with {time_limit_seconds} second limit")
+            
+            return {
+                "success": True,
+                "timed_rounds_enabled": True,
+                "round_time_limit_seconds": self.round_time_limit_seconds,
+                "round_time_remaining": self.round_time_remaining
+            }
+        else:
+            self.timed_rounds_enabled = False
+            self.round_time_remaining = None
+            
+            custom_log("⏰ Timed rounds disabled")
+            
+            return {
+                "success": True,
+                "timed_rounds_enabled": False,
+                "round_time_limit_seconds": None,
+                "round_time_remaining": None
+            }
+    
+    def get_timed_rounds_status(self) -> Dict[str, Any]:
+        """Get current timed rounds configuration and status"""
+        if not self.timed_rounds_enabled:
+            return {
+                "timed_rounds_enabled": False,
+                "round_time_limit_seconds": None,
+                "round_time_remaining": None
+            }
+        
+        # Calculate remaining time if round is active
+        if self.round_status == "active" and self.round_start_time:
+            elapsed_time = time.time() - self.round_start_time
+            remaining_time = max(0, self.round_time_limit_seconds - elapsed_time)
+            self.round_time_remaining = remaining_time
+        
+        return {
+            "timed_rounds_enabled": True,
+            "round_time_limit_seconds": self.round_time_limit_seconds,
+            "round_time_remaining": self.round_time_remaining,
+            "round_time_elapsed": self.round_time_limit_seconds - self.round_time_remaining if self.round_time_remaining is not None else 0
         }
     
     # ========= Private Helper Methods =========
@@ -231,6 +310,13 @@ class GameRound:
         # Check if a player won (no cards left)
         if action_result.get("reason") == "player_empty_hand":
             return True
+        
+        # Check if round time limit exceeded (for timed rounds)
+        if self.timed_rounds_enabled and self.round_start_time:
+            elapsed_time = time.time() - self.round_start_time
+            if elapsed_time >= self.round_time_limit_seconds:
+                custom_log(f"⏰ Round {self.round_number} ended due to time limit ({self.round_time_limit_seconds} seconds)")
+                return True
         
         return False
     
@@ -316,3 +402,64 @@ class GameRound:
         
         # Regular actions require it to be the player's turn
         return self.is_player_turn(player_id)
+    
+    def _send_turn_started_event(self):
+        """Send turn started event to current player"""
+        try:
+            # Get WebSocket manager through the game state's app manager
+            if not self.game_state.app_manager:
+                custom_log("⚠️ No app manager available for turn event")
+                return
+                
+            ws_manager = self.game_state.app_manager.get_websocket_manager()
+            if not ws_manager:
+                custom_log("⚠️ No websocket manager available for turn event")
+                return
+            
+            current_player_id = self.game_state.current_player_id
+            if not current_player_id:
+                custom_log("⚠️ No current player for turn event")
+                return
+            
+            # Get player session ID
+            session_id = self._get_player_session_id(current_player_id)
+            if not session_id:
+                custom_log(f"⚠️ No session found for player {current_player_id}")
+                return
+            
+            # Create turn started payload
+            turn_payload = {
+                'event_type': 'turn_started',
+                'game_id': self.game_state.game_id,
+                'game_state': self._to_flutter_game_state(),
+                'player_id': current_player_id,
+                'turn_timeout': self.turn_timeout_seconds,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Send turn started event
+            ws_manager.send_to_session(session_id, 'turn_started', turn_payload)
+            custom_log(f"📡 Turn started event sent to player {current_player_id}")
+            
+        except Exception as e:
+            custom_log(f"❌ Error sending turn started event: {e}", level="ERROR")
+    
+    def _get_player_session_id(self, player_id: str) -> Optional[str]:
+        """Get session ID for a player"""
+        try:
+            # Access the player sessions directly from game state
+            return self.game_state.get_player_session(player_id)
+        except Exception as e:
+            custom_log(f"❌ Error getting player session: {e}", level="ERROR")
+            return None
+    
+    def _to_flutter_game_state(self) -> Dict[str, Any]:
+        """Convert game state to Flutter format"""
+        try:
+            # Access the game state conversion method directly from game state
+            if hasattr(self.game_state, '_to_flutter_game_state'):
+                return self.game_state._to_flutter_game_state(self.game_state)
+            return {}
+        except Exception as e:
+            custom_log(f"❌ Error converting game state: {e}", level="ERROR")
+            return {}

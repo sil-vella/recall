@@ -56,6 +56,9 @@ class RecallGameEventListenerValidator {
       'game_id', 'current_turn', 'previous_turn', 'turn_number',
       'round_number', 'timestamp',
     },
+    'turn_started': {
+      'game_id', 'game_state', 'player_id', 'turn_timeout', 'timestamp',
+    },
     'card_played': {
       'game_id', 'player_id', 'card', 'position', 'timestamp',
       'is_out_of_turn', 'remaining_cards',
@@ -233,7 +236,7 @@ class RecallGameEventListenerValidator {
       final directEvents = [
         'game_joined', 'game_left', 'player_joined', 'player_left',
         'game_started', 'game_phase_changed', 'game_ended', 'turn_changed',
-        'card_played', 'card_drawn', 'replace_drawn_card', 'play_drawn_card',
+        'turn_started', 'card_played', 'card_drawn', 'replace_drawn_card', 'play_drawn_card',
         'recall_called', 'game_state_updated', 'recall_new_player_joined',
         'recall_joined_games', 'recall_message'
       ];

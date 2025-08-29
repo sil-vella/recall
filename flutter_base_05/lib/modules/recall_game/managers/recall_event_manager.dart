@@ -251,6 +251,78 @@ class RecallEventManager {
       );
     });
     
+    // Register turn_started event listener
+    RecallGameEventListenerValidator.instance.addListener('turn_started', (data) {
+      _log.info('🎧 [RECALL] Received turn_started event');
+      
+      final gameId = data['game_id']?.toString() ?? '';
+      final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
+      final playerId = data['player_id']?.toString() ?? '';
+      final turnTimeout = data['turn_timeout'] as int? ?? 30;
+      final timestamp = data['timestamp']?.toString() ?? '';
+      
+      _log.info('🎧 [RECALL] Turn started for player $playerId in game $gameId (timeout: ${turnTimeout}s)');
+      
+      // Find the current user's player data
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId']?.toString() ?? '';
+      
+      // Check if this turn is for the current user
+      final isMyTurn = playerId == currentUserId;
+      
+      if (isMyTurn) {
+        _log.info('🎯 [TURN_STARTED] It\'s my turn! Timeout: ${turnTimeout}s');
+        
+        // Update UI state to show it's the current user's turn
+        RecallGameHelpers.updateUIState({
+          'isMyTurn': true,
+          'turnTimeout': turnTimeout,
+          'turnStartTime': DateTime.now().toIso8601String(),
+          'statusBar': {
+            'currentPhase': 'my_turn',
+            'turnTimer': turnTimeout,
+            'turnStartTime': DateTime.now().toIso8601String(),
+          },
+        });
+        
+        // Add session message about turn started
+        _addSessionMessage(
+          level: 'info',
+          title: 'Your Turn',
+          message: 'It\'s your turn! You have ${turnTimeout} seconds to play.',
+          data: {
+            'game_id': gameId,
+            'player_id': playerId,
+            'turn_timeout': turnTimeout,
+            'is_my_turn': true,
+          },
+        );
+      } else {
+        _log.info('🎯 [TURN_STARTED] Turn started for opponent $playerId');
+        
+        // Update UI state to show it's another player's turn
+        RecallGameHelpers.updateUIState({
+          'isMyTurn': false,
+          'statusBar': {
+            'currentPhase': 'opponent_turn',
+            'currentPlayer': playerId,
+          },
+        });
+        
+        // Add session message about opponent's turn
+        _addSessionMessage(
+          level: 'info',
+          title: 'Opponent\'s Turn',
+          message: 'It\'s $playerId\'s turn to play.',
+          data: {
+            'game_id': gameId,
+            'player_id': playerId,
+            'is_my_turn': false,
+          },
+        );
+      }
+    });
+    
     _log.info('✅ Recall-specific event listeners registered');
   }
 

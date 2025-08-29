@@ -34,8 +34,9 @@ class MyHandWidget extends StatelessWidget {
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final canPlayCard = recallGameState['canPlayCard'] ?? false;
+        final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 MyHandWidget: cards=${cards.length}, selectedIndex=$selectedIndex, gamePhase=$gamePhase, isMyTurn=$isMyTurn, canPlayCard=$canPlayCard');
+        _log.info('🎮 MyHandWidget: cards=${cards.length}, selectedIndex=$selectedIndex, gamePhase=$gamePhase, isMyTurn=$isMyTurn, canPlayCard=$canPlayCard, playerStatus=$playerStatus');
         
         return _buildMyHandCard(
           cards: cards,
@@ -45,6 +46,7 @@ class MyHandWidget extends StatelessWidget {
           isGameActive: isGameActive,
           isMyTurn: isMyTurn,
           canPlayCard: canPlayCard,
+          playerStatus: playerStatus,
         );
       },
     );
@@ -59,6 +61,7 @@ class MyHandWidget extends StatelessWidget {
     required bool isGameActive,
     required bool isMyTurn,
     required bool canPlayCard,
+    required String playerStatus,
   }) {
     return Card(
       margin: const EdgeInsets.all(8),
@@ -102,7 +105,7 @@ class MyHandWidget extends StatelessWidget {
             
             // Action buttons
             if (selectedIndex >= 0 && selectedIndex < cards.length)
-              _buildActionButtons(selectedCard!, canPlayCard, isMyTurn, gamePhase),
+              _buildActionButtons(selectedCard!, canPlayCard, isMyTurn, gamePhase, playerStatus),
           ],
         ),
       ),
@@ -241,8 +244,30 @@ class MyHandWidget extends StatelessWidget {
   }
 
   /// Build action buttons for selected card
-  Widget _buildActionButtons(Map<String, dynamic> selectedCard, bool canPlayCard, bool isMyTurn, String gamePhase) {
-    final bool canPlay = canPlayCard && isMyTurn && (gamePhase == 'playing' || gamePhase == 'out_of_turn');
+  Widget _buildActionButtons(Map<String, dynamic> selectedCard, bool canPlayCard, bool isMyTurn, String gamePhase, String playerStatus) {
+    // Determine if player can play based on status and game state
+    final bool canPlay = canPlayCard && isMyTurn && 
+        (playerStatus == 'playing_card' || playerStatus == 'same_rank_window' || 
+         gamePhase == 'playing' || gamePhase == 'out_of_turn');
+    
+    // Get status-specific message
+    String getStatusMessage() {
+      if (!isMyTurn) return 'Not your turn';
+      switch (playerStatus) {
+        case 'drawing_card':
+          return 'Draw a card first';
+        case 'waiting':
+          return 'Waiting for game';
+        case 'ready':
+          return 'Waiting for turn';
+        case 'playing_card':
+          return 'Can play card';
+        case 'same_rank_window':
+          return 'Can play same rank';
+        default:
+          return 'Cannot play';
+      }
+    }
     
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -268,7 +293,7 @@ class MyHandWidget extends StatelessWidget {
               border: Border.all(color: Colors.grey.shade300),
             ),
             child: Text(
-              !isMyTurn ? 'Not your turn' : 'Cannot play',
+              getStatusMessage(),
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey.shade600,

@@ -34,7 +34,10 @@ class GameInfoWidget extends StatelessWidget {
         final isRoomOwner = gameInfo['isRoomOwner'] ?? false;
         final isInGame = gameInfo['isInGame'] ?? false;
         
-        _log.info('🎮 GameInfoWidget: isInGame=$isInGame, currentGameId=$currentGameId');
+        // Get player status from main state
+        final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+        
+        _log.info('🎮 GameInfoWidget: isInGame=$isInGame, currentGameId=$currentGameId, playerStatus=$playerStatus');
         
         if (!isInGame || currentGameId.isEmpty) {
           return _buildEmptyState();
@@ -50,6 +53,7 @@ class GameInfoWidget extends StatelessWidget {
           gamePhase: gamePhase,
           gameStatus: gameStatus,
           isRoomOwner: isRoomOwner,
+          playerStatus: playerStatus,
         );
       },
     );
@@ -108,6 +112,7 @@ class GameInfoWidget extends StatelessWidget {
     required String gamePhase,
     required String gameStatus,
     required bool isRoomOwner,
+    required String playerStatus,
   }) {
     return Card(
       margin: const EdgeInsets.all(16),
@@ -165,6 +170,26 @@ class GameInfoWidget extends StatelessWidget {
                       color: Colors.grey[600],
                     ),
                   ),
+                ],
+              ),
+            ],
+            
+            const SizedBox(height: 12),
+            
+            // Player Status Indicator (only show during active game)
+            if (gamePhase == 'playing' || gamePhase == 'out_of_turn') ...[
+              Row(
+                children: [
+                  Icon(Icons.person, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Status: ',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  _buildPlayerStatusChip(playerStatus),
                 ],
               ),
             ],
@@ -273,5 +298,62 @@ class GameInfoWidget extends StatelessWidget {
     );
   }
   
+  /// Build player status chip based on player status
+  Widget _buildPlayerStatusChip(String playerStatus) {
+    Color chipColor;
+    String chipText;
+    IconData chipIcon;
+
+    switch (playerStatus) {
+      case 'waiting':
+        chipColor = Colors.grey;
+        chipText = 'Waiting';
+        chipIcon = Icons.schedule;
+        break;
+      case 'ready':
+        chipColor = Colors.blue;
+        chipText = 'Ready';
+        chipIcon = Icons.check_circle;
+        break;
+      case 'drawing_card':
+        chipColor = Colors.orange;
+        chipText = 'Drawing';
+        chipIcon = Icons.draw;
+        break;
+      case 'playing_card':
+        chipColor = Colors.green;
+        chipText = 'Playing';
+        chipIcon = Icons.play_arrow;
+        break;
+      case 'same_rank_window':
+        chipColor = Colors.purple;
+        chipText = 'Same Rank';
+        chipIcon = Icons.flash_on;
+        break;
+      case 'finished':
+        chipColor = Colors.red;
+        chipText = 'Finished';
+        chipIcon = Icons.stop;
+        break;
+      default:
+        chipColor = Colors.grey;
+        chipText = 'Unknown';
+        chipIcon = Icons.help;
+    }
+
+    return Chip(
+      avatar: Icon(chipIcon, size: 14, color: Colors.white),
+      label: Text(
+        chipText,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      backgroundColor: chipColor,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+  }
 
 }

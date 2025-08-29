@@ -21,6 +21,9 @@ class PlayerStatus(Enum):
     WAITING = "waiting"      # Waiting for game to start
     READY = "ready"          # Ready to play (waiting for turn)
     PLAYING = "playing"      # Currently playing (active turn)
+    SAME_RANK_WINDOW = "same_rank_window"  # Window for out-of-turn same rank plays
+    PLAYING_CARD = "playing_card"  # Player is in the process of playing a card
+    DRAWING_CARD = "drawing_card"  # Player is in the process of drawing a card
     FINISHED = "finished"    # Game finished
     DISCONNECTED = "disconnected"  # Disconnected from game
 
@@ -111,6 +114,18 @@ class Player:
         """Set player status to waiting (game not started)"""
         self.status = PlayerStatus.WAITING
     
+    def set_same_rank_window(self):
+        """Set player status to same rank window (can play out-of-turn)"""
+        self.status = PlayerStatus.SAME_RANK_WINDOW
+    
+    def set_playing_card(self):
+        """Set player status to playing card (in process of playing)"""
+        self.status = PlayerStatus.PLAYING_CARD
+    
+    def set_drawing_card(self):
+        """Set player status to drawing card (in process of drawing)"""
+        self.status = PlayerStatus.DRAWING_CARD
+    
     def set_finished(self):
         """Set player status to finished (game ended)"""
         self.status = PlayerStatus.FINISHED
@@ -130,6 +145,18 @@ class Player:
     def is_waiting(self) -> bool:
         """Check if player is waiting (game not started)"""
         return self.status == PlayerStatus.WAITING
+    
+    def is_same_rank_window(self) -> bool:
+        """Check if player is in same rank window (can play out-of-turn)"""
+        return self.status == PlayerStatus.SAME_RANK_WINDOW
+    
+    def is_playing_card(self) -> bool:
+        """Check if player is in process of playing a card"""
+        return self.status == PlayerStatus.PLAYING_CARD
+    
+    def is_drawing_card(self) -> bool:
+        """Check if player is in process of drawing a card"""
+        return self.status == PlayerStatus.DRAWING_CARD
     
     def is_finished(self) -> bool:
         """Check if player has finished the game"""

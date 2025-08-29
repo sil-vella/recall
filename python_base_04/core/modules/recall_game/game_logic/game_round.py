@@ -65,6 +65,9 @@ class GameRound:
             # Log actions_performed at round start
             custom_log(f"📋 Round {self.round_number} actions_performed initialized: {len(self.actions_performed)} actions")
             
+            # Send room-wide game state update to all players
+            self._send_room_game_state_update()
+            
             # Send turn started event to current player
             self._send_turn_started_event()
             
@@ -457,6 +460,38 @@ class GameRound:
         except Exception as e:
             custom_log(f"❌ Error getting player session: {e}", level="ERROR")
             return None
+    
+    def _send_room_game_state_update(self):
+        """Send room-wide game state update to all players"""
+        try:
+            # Get WebSocket manager through the game state's app manager
+            if not self.game_state.app_manager:
+                custom_log("⚠️ No app manager available for room game state update")
+                return
+                
+            ws_manager = self.game_state.app_manager.get_websocket_manager()
+            if not ws_manager:
+                custom_log("⚠️ No websocket manager available for room game state update")
+                return
+            
+            # Create room game state update payload
+            room_payload = {
+                'event_type': 'game_state_updated',
+                'game_id': self.game_state.game_id,
+                'game_state': self._to_flutter_game_state(),
+                'round_number': self.round_number,
+                'current_player': self.game_state.current_player_id,
+                'round_status': self.round_status,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Send to all players in the room
+            room_id = self.game_state.game_id
+            ws_manager.socketio.emit('game_state_updated', room_payload, room=room_id)
+            custom_log(f"📡 Room game state update sent to all players in game {self.game_state.game_id}")
+            
+        except Exception as e:
+            custom_log(f"❌ Error sending room game state update: {e}", level="ERROR")
     
     def _to_flutter_game_state(self) -> Dict[str, Any]:
         """Convert game state to Flutter format"""

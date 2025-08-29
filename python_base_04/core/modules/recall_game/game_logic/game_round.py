@@ -474,13 +474,19 @@ class GameRound:
                 custom_log("⚠️ No websocket manager available for room game state update")
                 return
             
+            # Get current player object to access their status
+            current_player_id = self.game_state.current_player_id
+            current_player = self.game_state.players.get(current_player_id)
+            current_player_status = current_player.status.value if current_player else "unknown"
+            
             # Create room game state update payload
             room_payload = {
                 'event_type': 'game_state_updated',
                 'game_id': self.game_state.game_id,
                 'game_state': self._to_flutter_game_state(),
                 'round_number': self.round_number,
-                'current_player': self.game_state.current_player_id,
+                'current_player': current_player_id,
+                'current_player_status': current_player_status,
                 'round_status': self.round_status,
                 'timestamp': datetime.now().isoformat()
             }
@@ -488,7 +494,7 @@ class GameRound:
             # Send to all players in the room
             room_id = self.game_state.game_id
             ws_manager.socketio.emit('game_state_updated', room_payload, room=room_id)
-            custom_log(f"📡 Room game state update sent to all players in game {self.game_state.game_id}")
+            custom_log(f"📡 Room game state update sent to all players in game {self.game_state.game_id} - Current player: {current_player_id} ({current_player_status})")
             
         except Exception as e:
             custom_log(f"❌ Error sending room game state update: {e}", level="ERROR")

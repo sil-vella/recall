@@ -24,6 +24,8 @@ class PlayerStatus(Enum):
     SAME_RANK_WINDOW = "same_rank_window"  # Window for out-of-turn same rank plays
     PLAYING_CARD = "playing_card"  # Player is in the process of playing a card
     DRAWING_CARD = "drawing_card"  # Player is in the process of drawing a card
+    QUEEN_PEEK = "queen_peek"      # Player used queen power to peek at a card
+    JACK_SWAP = "jack_swap"        # Player used jack power to swap cards
     FINISHED = "finished"    # Game finished
     DISCONNECTED = "disconnected"  # Disconnected from game
 
@@ -126,6 +128,14 @@ class Player:
         """Set player status to drawing card (in process of drawing)"""
         self.status = PlayerStatus.DRAWING_CARD
     
+    def set_queen_peek(self):
+        """Set player status to queen peek (used queen power)"""
+        self.status = PlayerStatus.QUEEN_PEEK
+    
+    def set_jack_swap(self):
+        """Set player status to jack swap (used jack power)"""
+        self.status = PlayerStatus.JACK_SWAP
+    
     def set_finished(self):
         """Set player status to finished (game ended)"""
         self.status = PlayerStatus.FINISHED
@@ -157,6 +167,14 @@ class Player:
     def is_drawing_card(self) -> bool:
         """Check if player is in process of drawing a card"""
         return self.status == PlayerStatus.DRAWING_CARD
+    
+    def is_queen_peek(self) -> bool:
+        """Check if player is in queen peek status (used queen power)"""
+        return self.status == PlayerStatus.QUEEN_PEEK
+    
+    def is_jack_swap(self) -> bool:
+        """Check if player is in jack swap status (used jack power)"""
+        return self.status == PlayerStatus.JACK_SWAP
     
     def is_finished(self) -> bool:
         """Check if player has finished the game"""

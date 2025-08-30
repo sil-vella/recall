@@ -33,10 +33,9 @@ class MyHandWidget extends StatelessWidget {
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
-        final canPlayCard = recallGameState['canPlayCard'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 MyHandWidget: cards=${cards.length}, selectedIndex=$selectedIndex, gamePhase=$gamePhase, isMyTurn=$isMyTurn, canPlayCard=$canPlayCard, playerStatus=$playerStatus');
+        _log.info('🎮 MyHandWidget: cards=${cards.length}, selectedIndex=$selectedIndex, gamePhase=$gamePhase, isMyTurn=$isMyTurn, playerStatus=$playerStatus');
         
         return _buildMyHandCard(
           cards: cards,
@@ -45,7 +44,6 @@ class MyHandWidget extends StatelessWidget {
           gamePhase: gamePhase,
           isGameActive: isGameActive,
           isMyTurn: isMyTurn,
-          canPlayCard: canPlayCard,
           playerStatus: playerStatus,
         );
       },
@@ -60,7 +58,6 @@ class MyHandWidget extends StatelessWidget {
     required String gamePhase,
     required bool isGameActive,
     required bool isMyTurn,
-    required bool canPlayCard,
     required String playerStatus,
   }) {
     return Card(
@@ -99,13 +96,9 @@ class MyHandWidget extends StatelessWidget {
             if (cards.isEmpty)
               _buildEmptyHand()
             else
-              _buildCardsGrid(cards, selectedIndex, canPlayCard),
+              _buildCardsGrid(cards, selectedIndex),
             
-            const SizedBox(height: 12),
-            
-            // Action buttons
-            if (selectedIndex >= 0 && selectedIndex < cards.length)
-              _buildActionButtons(selectedCard!, canPlayCard, isMyTurn, gamePhase, playerStatus),
+
           ],
         ),
       ),
@@ -146,7 +139,7 @@ class MyHandWidget extends StatelessWidget {
   }
 
   /// Build the cards grid
-  Widget _buildCardsGrid(List<dynamic> cards, int selectedIndex, bool canPlayCard) {
+  Widget _buildCardsGrid(List<dynamic> cards, int selectedIndex) {
     return Container(
       height: 140,
       child: ListView.builder(
@@ -160,7 +153,7 @@ class MyHandWidget extends StatelessWidget {
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
               onTap: () => _handleCardSelection(index, card),
-              child: _buildCardWidget(card, isSelected, canPlayCard),
+              child: _buildCardWidget(card, isSelected),
             ),
           );
         },
@@ -169,7 +162,7 @@ class MyHandWidget extends StatelessWidget {
   }
 
   /// Build individual card widget
-  Widget _buildCardWidget(Map<String, dynamic> card, bool isSelected, bool canPlayCard) {
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isSelected) {
     final rank = card['rank']?.toString() ?? '?';
     final suit = card['suit']?.toString() ?? '?';
     final color = _getCardColor(suit);
@@ -243,79 +236,7 @@ class MyHandWidget extends StatelessWidget {
     );
   }
 
-  /// Build action buttons for selected card
-  Widget _buildActionButtons(Map<String, dynamic> selectedCard, bool canPlayCard, bool isMyTurn, String gamePhase, String playerStatus) {
-    // Determine if player can play based on status and game state
-    final bool canPlay = canPlayCard && isMyTurn && 
-        (playerStatus == 'playing_card' || playerStatus == 'same_rank_window' || 
-         gamePhase == 'playing' || gamePhase == 'out_of_turn');
-    
-    // Get status-specific message
-    String getStatusMessage() {
-      if (!isMyTurn) return 'Not your turn';
-      switch (playerStatus) {
-        case 'drawing_card':
-          return 'Draw a card first';
-        case 'waiting':
-          return 'Waiting for game';
-        case 'ready':
-          return 'Waiting for turn';
-        case 'playing_card':
-          return 'Can play card';
-        case 'same_rank_window':
-          return 'Can play same rank';
-        default:
-          return 'Cannot play';
-      }
-    }
-    
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        // Play Card button
-        if (canPlay)
-          ElevatedButton.icon(
-            onPressed: () => _handlePlayCard(selectedCard),
-            icon: const Icon(Icons.play_arrow, size: 16),
-            label: const Text('Play Card'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-          )
-        else
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Text(
-              getStatusMessage(),
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        
-        // Discard Card button (always available when card is selected)
-        ElevatedButton.icon(
-          onPressed: () => _handleDiscardCard(selectedCard),
-          icon: const Icon(Icons.delete_outline, size: 16),
-          label: const Text('Discard'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orange,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          ),
-        ),
-      ],
-    );
-  }
+
 
   /// Get the color for a card suit
   Color _getCardColor(String suit) {
@@ -367,27 +288,5 @@ class MyHandWidget extends StatelessWidget {
     });
   }
 
-  /// Handle playing a card
-  void _handlePlayCard(Map<String, dynamic> card) {
-    _log.info('🎮 MyHandWidget: Play card action triggered: ${card['rank']} of ${card['suit']}');
-    
-    // TODO: Implement play card logic
-    // This will be connected to the game action system
-    // For now, just log the action
-    
-    // Example implementation:
-    // GameActionManager().playCard(card);
-  }
 
-  /// Handle discarding a card
-  void _handleDiscardCard(Map<String, dynamic> card) {
-    _log.info('🎮 MyHandWidget: Discard card action triggered: ${card['rank']} of ${card['suit']}');
-    
-    // TODO: Implement discard card logic
-    // This will be connected to the game action system
-    // For now, just log the action
-    
-    // Example implementation:
-    // GameActionManager().discardCard(card);
-  }
 }

@@ -424,57 +424,6 @@ class GameStateManager:
             self._send_error(session_id, f'Join game failed: {str(e)}')
             return False
 
-    def on_player_action(self, session_id: str, data: Dict[str, Any]) -> bool:
-        """Handle player actions through the game round"""
-        try:
-            game_id = data.get('game_id') or data.get('room_id')
-            action = data.get('action') or data.get('action_type')
-            if not game_id or not action:
-                self._send_error(session_id, 'Missing game_id or action')
-                return False
-                
-            game = self.get_game(game_id)
-            if not game:
-                self._send_error(session_id, f'Game not found: {game_id}')
-                return False
-
-            session_data = self.websocket_manager.get_session_data(session_id) or {}
-            user_id = str(session_data.get('user_id') or data.get('player_id') or session_id)
-
-            # Get the game round handler
-            game_round = game.get_round()
-            
-            # Build action data for the round
-            action_data = {
-                'card_id': (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id'),
-                'replace_card_id': (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id'),
-                'replace_index': data.get('replaceIndex'),
-                'power_data': data.get('power_data'),
-                'indices': data.get('indices', []),
-            }
-
-            # Process action through game round
-            round_result = game_round.perform_action(user_id, action, action_data)
-
-            if round_result.get('error'):
-                self._send_action_result(game_id, user_id, round_result)
-                return False
-            
-            # Send results and updates
-            self._send_action_result(game_id, user_id, round_result)
-            self._broadcast_game_action(game_id, action, {'action_type': action, 'player_id': user_id, 'result': round_result}, user_id)
-            self._send_game_state_update(game_id)
-            
-            # If round ended, send round completion event
-            if round_result.get('round_ended'):
-                self._send_round_completion_event(game_id, round_result)
-            
-            return True
-        except Exception as e:
-            custom_log(f"Error in on_player_action: {e}", level="ERROR")
-            self._send_error(session_id, f'Player action failed: {str(e)}')
-            return False
-
     def on_start_match(self, session_id: str, data: Dict[str, Any]) -> bool:
         """Handle game start through the game round"""
         try:

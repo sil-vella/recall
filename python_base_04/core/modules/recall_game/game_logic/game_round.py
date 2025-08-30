@@ -228,3 +228,42 @@ class GameRound:
         except Exception as e:
             custom_log(f"❌ Error converting game state: {e}", level="ERROR")
             return {}
+
+    def on_player_action(self, session_id: str, data: Dict[str, Any]) -> bool:
+        """Handle player actions through the game round"""
+        try:
+            custom_log(f"🎮 [PLAYER_ACTION] Handling player action for session: {session_id}, data: {data}")
+            
+            action = data.get('action') or data.get('action_type')
+            if not action:
+                custom_log(f"❌ [PLAYER_ACTION] Missing action in data: {data}")
+                return False
+                
+            # Get player ID from session data or request data
+            session_data = self.websocket_manager.get_session_data(session_id) if self.websocket_manager else {}
+            user_id = str(session_data.get('user_id') or data.get('player_id') or session_id)
+            
+            custom_log(f"🎮 [PLAYER_ACTION] User ID: {user_id}, Action: {action}")
+            
+            # Build action data for the round
+            action_data = {
+                'card_id': (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id'),
+                'replace_card_id': (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id'),
+                'replace_index': data.get('replaceIndex'),
+                'power_data': data.get('power_data'),
+                'indices': data.get('indices', []),
+                'source': data.get('source'),  # For draw actions (deck/discard)
+            }
+            
+            custom_log(f"🎮 [PLAYER_ACTION] Action data built: {action_data}")
+            
+            # TODO: Implement the actual action logic here
+            # This will call the appropriate method based on the action type
+            # For now, just log that we received the action
+            custom_log(f"🎮 [PLAYER_ACTION] Action '{action}' received for player {user_id}, ready for implementation")
+            
+            return True
+            
+        except Exception as e:
+            custom_log(f"❌ [PLAYER_ACTION] Error in on_player_action: {e}", level="ERROR")
+            return False

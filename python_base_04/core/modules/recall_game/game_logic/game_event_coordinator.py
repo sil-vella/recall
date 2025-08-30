@@ -69,29 +69,56 @@ class GameEventCoordinator:
             elif event_name == 'draw_card':
                 # Add action type to data payload for draw_card events
                 data_with_action = {**data, 'action': 'draw_from_deck'}
-                return self.game_state_manager.on_player_action(session_id, data_with_action)
+                return self._handle_player_action_through_round(session_id, data_with_action)
             elif event_name == 'play_card':
                 # Add action type to data payload for play_card events
                 data_with_action = {**data, 'action': 'play_card'}
-                return self.game_state_manager.on_player_action(session_id, data_with_action)
+                return self._handle_player_action_through_round(session_id, data_with_action)
             elif event_name == 'discard_card':
                 # Add action type to data payload for discard_card events
                 data_with_action = {**data, 'action': 'discard_card'}
-                return self.game_state_manager.on_player_action(session_id, data_with_action)
+                return self._handle_player_action_through_round(session_id, data_with_action)
             elif event_name == 'take_from_discard':
                 # Add action type to data payload for take_from_discard events
                 data_with_action = {**data, 'action': 'take_from_discard'}
-                return self.game_state_manager.on_player_action(session_id, data_with_action)
+                return self._handle_player_action_through_round(session_id, data_with_action)
             elif event_name == 'call_recall':
                 # Add action type to data payload for call_recall events
                 data_with_action = {**data, 'action': 'call_recall'}
-                return self.game_state_manager.on_player_action(session_id, data_with_action)
+                return self._handle_player_action_through_round(session_id, data_with_action)
             else:
                 custom_log(f"⚠️ [RECALL-GAME] Unknown game event: '{event_name}'")
                 return False
                 
         except Exception as e:
             custom_log(f"❌ [RECALL-GAME] Error handling game event: {e}", level="ERROR")
+            return False
+    
+    def _handle_player_action_through_round(self, session_id: str, data: dict) -> bool:
+        """Handle player actions through the game round"""
+        try:
+            game_id = data.get('game_id') or data.get('room_id')
+            if not game_id:
+                custom_log(f"❌ [RECALL-GAME] Missing game_id in player action data: {data}")
+                return False
+            
+            # Get the game from the game state manager
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                custom_log(f"❌ [RECALL-GAME] Game not found: {game_id}")
+                return False
+            
+            # Get the game round handler
+            game_round = game.get_round()
+            if not game_round:
+                custom_log(f"❌ [RECALL-GAME] Game round not found for game: {game_id}")
+                return False
+            
+            # Handle the player action through the game round
+            return game_round.on_player_action(session_id, data)
+            
+        except Exception as e:
+            custom_log(f"❌ [RECALL-GAME] Error handling player action through round: {e}", level="ERROR")
             return False
     
     def get_registered_events(self) -> list:

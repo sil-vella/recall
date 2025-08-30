@@ -2,7 +2,6 @@ import 'dart:async';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../tools/logging/logger.dart';
-import '../utils/validated_event_emitter.dart';
 
 /// PlayerAction class for handling individual player actions
 class PlayerAction {
@@ -65,6 +64,52 @@ class GameCoordinator {
   factory GameCoordinator() => _instance;
   GameCoordinator._internal();
   
+  /// Join a game
+  Future<bool> joinGame({
+    String? gameId,
+    required String playerName,
+    String playerType = 'human',
+    int maxPlayers = 4,
+  }) async {
+    _log.info('🎮 [GameCoordinator] Creating join game action');
+    
+    // Create game data for join game
+    final gameData = {
+      if (gameId != null) 'game_id': gameId,
+      'player_name': playerName,
+      'player_type': playerType,
+      'max_players': maxPlayers,
+    };
+    
+    // Create and execute the player action
+    final action = PlayerAction(
+      eventName: 'join_game',
+      gameData: gameData,
+    );
+    
+    return await action.execute();
+  }
+  
+  /// Leave a game
+  Future<bool> leaveGame({
+    required String gameId,
+  }) async {
+    _log.info('🎮 [GameCoordinator] Creating leave game action');
+    
+    // Create game data for leave game
+    final gameData = {
+      'game_id': gameId,
+    };
+    
+    // Create and execute the player action
+    final action = PlayerAction(
+      eventName: 'recall_leave_game',
+      gameData: gameData,
+    );
+    
+    return await action.execute();
+  }
+  
   /// Create and execute a start match action
   Future<bool> startMatch() async {
     _log.info('🎮 [GameCoordinator] Creating start match action');
@@ -86,168 +131,6 @@ class GameCoordinator {
     // Create and execute the player action
     final action = PlayerAction(
       eventName: 'start_match',
-      gameData: gameData,
-    );
-    
-    return await action.execute();
-  }
-  
-  /// Create and execute a draw card action
-  Future<bool> drawCard({String source = 'deck'}) async {
-    _log.info('🎮 [GameCoordinator] Creating draw card action');
-    
-    // Get current game state
-    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final playerId = loginState['userId']?.toString() ?? '';
-    
-    if (currentGameId.isEmpty) {
-      _log.error('❌ [GameCoordinator] No current game ID found for draw card action');
-      return false;
-    }
-    
-    if (playerId.isEmpty) {
-      _log.error('❌ [GameCoordinator] No player ID found for draw card action');
-      return false;
-    }
-    
-    // Create game data for draw card (using validated event emitter fields)
-    final gameData = {
-      'game_id': currentGameId,
-      'player_id': playerId,
-      'source': source, // 'deck' or 'discard'
-    };
-    
-    // Create and execute the player action
-    final action = PlayerAction(
-      eventName: 'draw_card',
-      gameData: gameData,
-    );
-    
-    return await action.execute();
-  }
-  
-  /// Create and execute a play card action
-  Future<bool> playCard(String cardId, {int? replaceIndex}) async {
-    _log.info('🎮 [GameCoordinator] Creating play card action');
-    
-    // Get current game state
-    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final playerId = loginState['userId']?.toString() ?? '';
-    
-    if (currentGameId.isEmpty) {
-      _log.error('❌ [GameCoordinator] No current game ID found for play card action');
-      return false;
-    }
-    
-    if (playerId.isEmpty) {
-      _log.error('❌ [GameCoordinator] No player ID found for play card action');
-      return false;
-    }
-    
-    if (cardId.isEmpty) {
-      _log.error('❌ [GameCoordinator] No card ID provided for play card action');
-      return false;
-    }
-    
-    // Create game data for play card (using validated event emitter fields)
-    final gameData = {
-      'game_id': currentGameId,
-      'card_id': cardId,
-      'player_id': playerId,
-      if (replaceIndex != null) 'replace_index': replaceIndex,
-    };
-    
-    // Create and execute the player action
-    final action = PlayerAction(
-      eventName: 'play_card',
-      gameData: gameData,
-    );
-    
-    return await action.execute();
-  }
-  
-  /// Create and execute a discard card action
-  Future<bool> discardCard(String cardId) async {
-    _log.info('🎮 [GameCoordinator] Creating discard card action');
-    
-    // Get current game state
-    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final playerId = loginState['userId']?.toString() ?? '';
-    
-    if (currentGameId.isEmpty) {
-      _log.error('❌ [GameCoordinator] No current game ID found for discard card action');
-      return false;
-    }
-    
-    if (playerId.isEmpty) {
-      _log.error('❌ [GameCoordinator] No player ID found for discard card action');
-      return false;
-    }
-    
-    if (cardId.isEmpty) {
-      _log.error('❌ [GameCoordinator] No card ID provided for discard card action');
-      return false;
-    }
-    
-    // Create game data for discard card (using validated event emitter fields)
-    final gameData = {
-      'game_id': currentGameId,
-      'card_id': cardId,
-      'player_id': playerId,
-    };
-    
-    // Create and execute the player action
-    final action = PlayerAction(
-      eventName: 'discard_card',
-      gameData: gameData,
-    );
-    
-    return await action.execute();
-  }
-  
-  /// Create and execute a take from discard action
-  Future<bool> takeFromDiscard() async {
-    _log.info('🎮 [GameCoordinator] Creating take from discard action');
-    
-    // Use the draw card action with 'discard' source
-    return await drawCard(source: 'discard');
-  }
-  
-  /// Create and execute a call recall action
-  Future<bool> callRecall() async {
-    _log.info('🎮 [GameCoordinator] Creating call recall action');
-    
-    // Get current game state
-    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final playerId = loginState['userId']?.toString() ?? '';
-    
-    if (currentGameId.isEmpty) {
-      _log.error('❌ [GameCoordinator] No current game ID found for call recall action');
-      return false;
-    }
-    
-    if (playerId.isEmpty) {
-      _log.error('❌ [GameCoordinator] No player ID found for call recall action');
-      return false;
-    }
-    
-    // Create game data for call recall (using validated event emitter fields)
-    final gameData = {
-      'game_id': currentGameId,
-      'player_id': playerId,
-    };
-    
-    // Create and execute the player action
-    final action = PlayerAction(
-      eventName: 'call_recall',
       gameData: gameData,
     );
     

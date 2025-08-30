@@ -1,14 +1,8 @@
 import '../../../tools/logging/logger.dart';
 import '../utils/validated_event_emitter.dart';
-import '../../../core/managers/state_manager.dart';
 
 /// Player action types for the Recall game
 enum PlayerActionType {
-  // Game flow actions
-  joinGame,
-  leaveGame,
-  startMatch,
-  
   // Card actions
   drawCard,
   playCard,
@@ -28,7 +22,6 @@ enum PlayerActionType {
 class PlayerAction {
   static final Logger _log = Logger();
   static final RecallGameEventEmitter _eventEmitter = RecallGameEventEmitter.instance;
-  static final StateManager _stateManager = StateManager();
 
   final PlayerActionType actionType;
   final String eventName;
@@ -62,109 +55,6 @@ class PlayerAction {
   }
 
   // ========= VALIDATION LOGIC =========
-
-
-
-  /// Get selected card from state manager
-  static Map<String, dynamic>? _getSelectedCard() {
-    final gamePlayState = _stateManager.getModuleState<Map<String, dynamic>>('game_play_screen') ?? {};
-    return gamePlayState['selectedCard'] as Map<String, dynamic>?;
-  }
-
-  /// Get pending drawn card from state manager
-  static Map<String, dynamic>? _getPendingDrawnCard() {
-    final gamePlayState = _stateManager.getModuleState<Map<String, dynamic>>('game_play_screen') ?? {};
-    return gamePlayState['pendingDrawnCard'] as Map<String, dynamic>?;
-  }
-
-  // ========= GAME FLOW ACTIONS =========
-
-  /// Join a game
-  static PlayerAction joinGame({
-    String? gameId,
-    required String playerName,
-    String playerType = 'human',
-    int maxPlayers = 4,
-  }) {
-    return PlayerAction._(
-      actionType: PlayerActionType.joinGame,
-      eventName: 'join_game',
-      payload: {
-        if (gameId != null) 'game_id': gameId,
-        'player_name': playerName,
-        'player_type': playerType,
-        'max_players': maxPlayers,
-      },
-    );
-  }
-
-  /// Leave a game
-  static PlayerAction leaveGame({
-    required String gameId,
-  }) {
-    return PlayerAction._(
-      actionType: PlayerActionType.leaveGame,
-      eventName: 'recall_leave_game',
-      payload: {
-        'game_id': gameId,
-      },
-    );
-  }
-
-  /// Start a match
-  static PlayerAction startMatch({
-    required String gameId,
-  }) {
-    return PlayerAction._(
-      actionType: PlayerActionType.startMatch,
-      eventName: 'start_match',
-      payload: {
-        'game_id': gameId,
-      },
-    );
-  }
-
-
-
-  /// Use a special power (Queen peek, Jack switch, etc.)
-  static PlayerAction useSpecialPower({
-    required String gameId,
-    required String cardId,
-    required String powerType,
-    String? targetPlayerId,
-    int? targetCardIndex,
-    int? sourceCardIndex,
-    Map<String, dynamic>? additionalData,
-  }) {
-    return PlayerAction._(
-      actionType: PlayerActionType.useSpecialPower,
-      eventName: 'recall_use_special_power',
-      payload: {
-        'game_id': gameId,
-        'card_id': cardId,
-        'power_type': powerType,
-        if (targetPlayerId != null) 'target_player_id': targetPlayerId,
-        if (targetCardIndex != null) 'target_card_index': targetCardIndex,
-        if (sourceCardIndex != null) 'source_card_index': sourceCardIndex,
-        if (additionalData != null) ...additionalData,
-      },
-    );
-  }
-
-  /// Peek at initial cards
-  static PlayerAction initialPeek({
-    required String gameId,
-    required List<int> cardIndices,
-  }) {
-    return PlayerAction._(
-      actionType: PlayerActionType.initialPeek,
-      eventName: 'recall_initial_peek',
-      payload: {
-        'game_id': gameId,
-        'card_indices': cardIndices,
-      },
-    );
-  }
 
   // ========= QUERY ACTIONS =========
 

@@ -114,8 +114,14 @@ class GameEventCoordinator:
                 custom_log(f"❌ [RECALL-GAME] Game round not found for game: {game_id}")
                 return False
             
-            # Handle the player action through the game round
-            return game_round.on_player_action(session_id, data)
+            # Handle the player action through the game round and store the result
+            action_result = game_round.on_player_action(session_id, data)
+            
+            # Call complete_round with the action data
+            game_round.complete_round(data)
+            
+            # Return the action result
+            return action_result
             
         except Exception as e:
             custom_log(f"❌ [RECALL-GAME] Error handling player action through round: {e}", level="ERROR")

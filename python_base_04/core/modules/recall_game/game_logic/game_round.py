@@ -319,59 +319,38 @@ class GameRound:
             
             # Update game state
             self.game_state.last_action_time = time.time()
-            
-            # Send updated game state to all players
-            self._send_room_game_state_update()
-            custom_log(f"🎮 [DRAW_FROM_DECK] Game state updated and broadcasted")
-            
-            # Send specific draw confirmation to the player
-            self._send_draw_confirmation(player_id, drawn_card)
-            
+                        
             custom_log(f"✅ [DRAW_FROM_DECK] Successfully drew card for player {player_id}")
             return True
             
         except Exception as e:
             custom_log(f"❌ [DRAW_FROM_DECK] Error handling draw from deck: {e}", level="ERROR")
             return False
-    
-    def _send_draw_confirmation(self, player_id: str, drawn_card):
-        """Send draw confirmation to the specific player"""
+
+    def complete_round(self, action_data: Dict[str, Any]) -> bool:
+        """Complete the current round after a player action"""
         try:
-            if not self.game_state.app_manager:
-                custom_log("⚠️ [DRAW_FROM_DECK] No app manager available for draw confirmation")
-                return
-                
-            ws_manager = self.game_state.app_manager.get_websocket_manager()
-            if not ws_manager:
-                custom_log("⚠️ [DRAW_FROM_DECK] No websocket manager available for draw confirmation")
-                return
+            custom_log(f"🎮 [COMPLETE_ROUND] Completing round after player action: {action_data}")
             
-            # Get player session ID
-            session_id = self._get_player_session_id(player_id)
-            if not session_id:
-                custom_log(f"⚠️ [DRAW_FROM_DECK] No session found for player {player_id}")
-                return
+            # Update round state
+            self.round_status = "active"
+            self.current_turn_start_time = time.time()
             
-            # Create draw confirmation payload
-            draw_payload = {
-                'event_type': 'card_drawn',
-                'game_id': self.game_state.game_id,
-                'player_id': player_id,
-                'card': {
-                    'card_id': drawn_card.card_id,
-                    'rank': drawn_card.rank,
-                    'suit': drawn_card.suit,
-                    'points': drawn_card.points,
-                    'special_power': drawn_card.special_power,
-                },
-                'hand_size': len(self.game_state.players[player_id].hand),
-                'draw_pile_size': len(self.game_state.draw_pile),
-                'timestamp': datetime.now().isoformat()
-            }
+            # Log the action for round tracking
+            self.actions_performed.append({
+                'action': action_data.get('action'),
+                'player_id': action_data.get('player_id'),
+                'timestamp': time.time(),
+                'data': action_data
+            })
             
-            # Send draw confirmation event
-            ws_manager.send_to_session(session_id, 'card_drawn', draw_payload)
-            custom_log(f"📡 [DRAW_FROM_DECK] Draw confirmation sent to player {player_id}")
+            # Send room-wide game state update to all players
+            self._send_room_game_state_update()
+            custom_log(f"🎮 [COMPLETE_ROUND] Round completed and game state updated")
+            
+            return True
             
         except Exception as e:
-            custom_log(f"❌ [DRAW_FROM_DECK] Error sending draw confirmation: {e}", level="ERROR")
+            custom_log(f"❌ [COMPLETE_ROUND] Error completing round: {e}", level="ERROR")
+            return False
+    

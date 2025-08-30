@@ -152,7 +152,7 @@ class MyHandWidget extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () => _handleCardSelection(index, card),
+              onTap: () => _handleCardSelection(context, index, card),
               child: _buildCardWidget(card, isSelected),
             ),
           );
@@ -268,24 +268,59 @@ class MyHandWidget extends StatelessWidget {
     }
   }
 
-  /// Handle card selection
-  void _handleCardSelection(int index, Map<String, dynamic> card) {
-    _log.info('🎮 MyHandWidget: Card selected at index $index: ${card['rank']} of ${card['suit']}');
+  /// Handle card selection with status validation
+  void _handleCardSelection(BuildContext context, int index, Map<String, dynamic> card) {
+    // Get current player status from state
+    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
     
-    // Update the selected card in the state
-    final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
+    _log.info('🎯 MyHand card clicked: index=$index, cardId=${card['cardId']}, current player status: $currentPlayerStatus');
     
-    final updatedMyHand = {
-      ...currentMyHand,
-      'selectedIndex': index,
-      'selectedCard': card,
-    };
-    
-    StateManager().updateModuleState('recall_game', {
-      ...currentState,
-      'myHand': updatedMyHand,
-    });
+    // Check if current player can interact with hand cards (playing_card, jack_swap, or queen_peek status)
+    if (currentPlayerStatus == 'playing_card' || 
+        currentPlayerStatus == 'jack_swap' || 
+        currentPlayerStatus == 'queen_peek') {
+      
+      // Update the selected card in the state
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
+      
+      final updatedMyHand = {
+        ...currentMyHand,
+        'selectedIndex': index,
+        'selectedCard': card,
+      };
+      
+      StateManager().updateModuleState('recall_game', {
+        ...currentState,
+        'myHand': updatedMyHand,
+      });
+      
+      _log.info('✅ Card selected: index=$index, cardId=${card['cardId']} (status: $currentPlayerStatus)');
+      
+      // Show success feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Card selected: ${card['rank']} of ${card['suit']}'
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      // Show invalid action feedback
+      _log.info('❌ Invalid card selection action: status=$currentPlayerStatus');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Invalid action: Cannot interact with hand cards while status is "$currentPlayerStatus"'
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
 

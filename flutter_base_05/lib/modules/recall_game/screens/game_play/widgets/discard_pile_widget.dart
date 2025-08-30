@@ -9,12 +9,23 @@ import '../../../managers/game_coordinator.dart';
 /// - Top card of the discard pile
 /// - Visual representation of the discard pile
 /// - Interaction capabilities (take from discard when it's player's turn)
+/// - Clickable pile for special power interactions (drawing_card status only)
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
-class DiscardPileWidget extends StatelessWidget {
+class DiscardPileWidget extends StatefulWidget {
   static final Logger _log = Logger();
   
   const DiscardPileWidget({Key? key}) : super(key: key);
+
+  @override
+  State<DiscardPileWidget> createState() => _DiscardPileWidgetState();
+}
+
+class _DiscardPileWidgetState extends State<DiscardPileWidget> {
+  static final Logger _log = Logger();
+  
+  // Internal state to store clicked pile type
+  String? _clickedPileType;
 
   @override
   Widget build(BuildContext context) {
@@ -87,26 +98,29 @@ class DiscardPileWidget extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             
-            // Discard pile visual representation
-            Container(
-              width: 80,
-              height: 120,
-              decoration: BoxDecoration(
-                color: hasCards ? Colors.red.shade100 : Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: hasCards ? Colors.red.shade300 : Colors.grey.shade400,
-                  width: 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+            // Discard pile visual representation (clickable)
+            GestureDetector(
+              onTap: _handlePileClick,
+              child: Container(
+                width: 80,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: hasCards ? Colors.red.shade100 : Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: hasCards ? Colors.red.shade300 : Colors.grey.shade400,
+                    width: 2,
                   ),
-                ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: hasCards ? _buildCardFace(topDiscard!) : _buildEmptyState(),
               ),
-              child: hasCards ? _buildCardFace(topDiscard!) : _buildEmptyState(),
             ),
             const SizedBox(height: 8),
             
@@ -301,22 +315,73 @@ class DiscardPileWidget extends StatelessWidget {
     }
   }
 
-            /// Handle taking a card from the discard pile
-          void _handleTakeFromDiscard() async {
-            _log.info('🎮 DiscardPileWidget: Take from discard action triggered');
-            
-            try {
-              // Import GameCoordinator
-              final gameCoordinator = GameCoordinator();
-              final success = await gameCoordinator.takeFromDiscard();
-              
-              if (success) {
-                _log.info('✅ DiscardPileWidget: Take from discard action sent successfully');
-              } else {
-                _log.error('❌ DiscardPileWidget: Failed to send take from discard action');
-              }
-            } catch (e) {
-              _log.error('❌ DiscardPileWidget: Error in take from discard action: $e');
-            }
-          }
+  /// Get the currently clicked pile type (for external access)
+  String? getClickedPileType() {
+    return _clickedPileType;
+  }
+
+  /// Clear the clicked pile type (for resetting state)
+  void clearClickedPileType() {
+    setState(() {
+      _clickedPileType = null;
+    });
+  }
+
+  /// Handle pile click for special power interactions
+  void _handlePileClick() {
+    // Get current player status from state
+    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+    
+    _log.info('🎯 Discard pile clicked, current player status: $currentPlayerStatus');
+    
+    // Check if current player can interact with discard pile (drawing_card status only)
+    if (currentPlayerStatus == 'drawing_card') {
+      setState(() {
+        _clickedPileType = 'discard_pile';
+      });
+      
+      _log.info('✅ Discard pile selected (status: $currentPlayerStatus)');
+      
+      // Show success feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Discard pile selected for card taking'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else {
+      // Show invalid action feedback
+      _log.info('❌ Invalid discard pile click action: status=$currentPlayerStatus');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Invalid action: Cannot interact with discard pile while status is "$currentPlayerStatus"'
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  /// Handle taking a card from the discard pile
+  void _handleTakeFromDiscard() async {
+    _log.info('🎮 DiscardPileWidget: Take from discard action triggered');
+    
+    try {
+      // Import GameCoordinator
+      final gameCoordinator = GameCoordinator();
+      final success = await gameCoordinator.takeFromDiscard();
+      
+      if (success) {
+        _log.info('✅ DiscardPileWidget: Take from discard action sent successfully');
+      } else {
+        _log.error('❌ DiscardPileWidget: Failed to send take from discard action');
+      }
+    } catch (e) {
+      _log.error('❌ DiscardPileWidget: Error in take from discard action: $e');
+    }
+  }
 }

@@ -56,6 +56,21 @@ class PlayerAction {
 
   // ========= VALIDATION LOGIC =========
 
+  // ========= CARD ACTIONS =========
+
+  /// Draw a card from the specified pile
+  static PlayerAction playerDraw({
+    required String pileType, // 'draw_pile' or 'discard_pile'
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.drawCard,
+      eventName: 'player_draw',
+      payload: {
+        'pile_type': pileType,
+      },
+    );
+  }
+
   // ========= QUERY ACTIONS =========
 
   /// Get list of public rooms

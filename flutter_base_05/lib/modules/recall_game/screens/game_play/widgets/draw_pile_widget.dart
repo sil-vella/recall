@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../managers/player_action.dart';
 import '../../../widgets/card_back_widget.dart';
 
 /// Widget to display the draw pile information
@@ -140,8 +141,8 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     });
   }
 
-  /// Handle pile click for special power interactions
-  void _handlePileClick() {
+  /// Handle pile click for card drawing
+  void _handlePileClick() async {
     // Get current player status from state
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
@@ -150,20 +151,35 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     
     // Check if current player can interact with draw pile (drawing_card status only)
     if (currentPlayerStatus == 'drawing_card') {
-      setState(() {
-        _clickedPileType = 'draw_pile';
-      });
-      
-      _log.info('✅ Draw pile selected (status: $currentPlayerStatus)');
-      
-      // Show success feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Draw pile selected for card drawing'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      try {
+        // Create and execute the draw action
+        final drawAction = PlayerAction.playerDraw(pileType: 'draw_pile');
+        await drawAction.execute();
+        
+        setState(() {
+          _clickedPileType = 'draw_pile';
+        });
+        
+        _log.info('✅ Draw action executed successfully (status: $currentPlayerStatus)');
+        
+        // Show success feedback
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Card drawn from draw pile'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } catch (e) {
+        _log.error('❌ Failed to execute draw action: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to draw card: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     } else {
       // Show invalid action feedback
       _log.info('❌ Invalid draw pile click action: status=$currentPlayerStatus');

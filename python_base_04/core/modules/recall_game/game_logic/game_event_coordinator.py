@@ -67,15 +67,25 @@ class GameEventCoordinator:
             if event_name == 'start_match':
                 return self.game_state_manager.on_start_match(session_id, data)
             elif event_name == 'draw_card':
-                return self.game_state_manager.on_player_action(session_id, 'draw_from_deck', data)
+                # Add action type to data payload for draw_card events
+                data_with_action = {**data, 'action': 'draw_from_deck'}
+                return self.game_state_manager.on_player_action(session_id, data_with_action)
             elif event_name == 'play_card':
-                return self.game_state_manager.on_player_action(session_id, 'play_card', data)
+                # Add action type to data payload for play_card events
+                data_with_action = {**data, 'action': 'play_card'}
+                return self.game_state_manager.on_player_action(session_id, data_with_action)
             elif event_name == 'discard_card':
-                return self.game_state_manager.on_player_action(session_id, 'discard_card', data)
+                # Add action type to data payload for discard_card events
+                data_with_action = {**data, 'action': 'discard_card'}
+                return self.game_state_manager.on_player_action(session_id, data_with_action)
             elif event_name == 'take_from_discard':
-                return self.game_state_manager.on_player_action(session_id, 'take_from_discard', data)
+                # Add action type to data payload for take_from_discard events
+                data_with_action = {**data, 'action': 'take_from_discard'}
+                return self.game_state_manager.on_player_action(session_id, data_with_action)
             elif event_name == 'call_recall':
-                return self.game_state_manager.on_player_action(session_id, 'call_recall', data)
+                # Add action type to data payload for call_recall events
+                data_with_action = {**data, 'action': 'call_recall'}
+                return self.game_state_manager.on_player_action(session_id, data_with_action)
             else:
                 custom_log(f"⚠️ [RECALL-GAME] Unknown game event: '{event_name}'")
                 return False

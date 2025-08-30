@@ -174,10 +174,25 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
           return;
         }
         
+        // Get current player ID from recall game state (consistent with other widgets)
+        final currentPlayerId = recallGameState['currentPlayer']?.toString() ?? '';
+        if (currentPlayerId.isEmpty) {
+          _log.error('❌ No current player ID found in recall game state');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error: No active player found'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
         // Create and execute the draw action
         final drawAction = PlayerAction.playerDraw(
           pileType: 'discard_pile',
           gameId: currentGameId,
+          playerId: currentPlayerId,
         );
         await drawAction.execute();
         

@@ -62,14 +62,14 @@ class PlayerAction {
   static PlayerAction playerDraw({
     required String pileType, // 'draw_pile' or 'discard_pile'
     required String gameId,
-    String? playerId, // Optional, will be resolved from session if not provided
+    required String playerId, // Required, backend needs this for validation
   }) {
     return PlayerAction._(
       actionType: PlayerActionType.drawCard,
       eventName: 'draw_card',
       payload: {
         'game_id': gameId,
-        'player_id': playerId, // Will be resolved from session if null
+        'player_id': playerId,
         'source': pileType, // Backend expects 'source' not 'pile_type'
       },
     );

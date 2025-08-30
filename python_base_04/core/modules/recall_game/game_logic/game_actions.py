@@ -27,78 +27,11 @@ class GameActions:
             return {"error": "Invalid phase for ending game"}
         return self._end_game_with_scoring()
 
-    def start_game(self) -> Dict[str, Any]:
-        """Start the game and deal cards"""
-        # Check if we have enough players, add computer players if needed
-        current_players = len(self.game_state.players)
-        min_players = self.game_state.min_players
-        
-        if current_players < min_players:
-            # Add computer players to reach minimum
-            players_needed = min_players - current_players
-            custom_log(f"🎮 Adding {players_needed} computer player(s) to reach minimum of {min_players}")
-            
-            for i in range(players_needed):
-                computer_id = f"computer_{self.game_state.game_id}_{i}"
-                computer_name = f"Computer_{i+1}"
-                from ..models.player import ComputerPlayer
-                computer_player = ComputerPlayer(computer_id, computer_name, difficulty="medium")
-                self.game_state.add_player(computer_player)
-                custom_log(f"✅ Added computer player: {computer_name} (ID: {computer_id})")
-        
-        self.game_state.phase = GamePhase.DEALING_CARDS
-        self.game_state.game_start_time = time.time()
-        
-        # Build deterministic deck from factory, then deal
-        from ..utils.deck_factory import DeckFactory
-        factory = DeckFactory(self.game_state.game_id)
-        self.game_state.deck.cards = factory.build_deck(
-            include_jokers=True,  # Standard deck cards (including jokers, queens, jacks, kings)
-        )
-        self._deal_cards()
-        
-        # Set up draw and discard piles
-        self._setup_piles()
-        
-        # Set first player and update player statuses
-        player_ids = list(self.game_state.players.keys())
-        self.game_state.current_player_id = player_ids[0]
-        
-        # Update player statuses
-        for player_id, player in self.game_state.players.items():
-            if player_id == self.game_state.current_player_id:
-                player.set_drawing_card()  # Current player needs to draw a card first
-            else:
-                player.set_ready()    # Other players are ready
-        
-        self.game_state.phase = GamePhase.PLAYER_TURN
-        self.game_state.last_action_time = time.time()
-        
-        return {
-            "success": True,
-            "game_started": True,
-            "current_player": self.game_state.current_player_id,
-            "phase": self.game_state.phase.value
-        }
+    # Note: start_game method logic moved to GameStateManager.on_start_match()
+    # as part of consolidating the start match flow
 
     # ========= Private Helper Methods =========
     
-    def _deal_cards(self):
-        """Deal 4 cards to each player"""
-        for player in self.game_state.players.values():
-            for _ in range(4):
-                card = self.game_state.deck.draw_card()
-                if card:
-                    player.add_card_to_hand(card)
-    
-    def _setup_piles(self):
-        """Set up draw and discard piles"""
-        # Move remaining cards to draw pile
-        self.game_state.draw_pile = self.game_state.deck.cards.copy()
-        self.game_state.deck.cards = []
-        
-        # Start discard pile with first card from draw pile
-        if self.game_state.draw_pile:
-            first_card = self.game_state.draw_pile.pop(0)
-            self.game_state.discard_pile.append(first_card)
+    # Note: _deal_cards and _setup_piles methods moved to GameStateManager
+    # as part of consolidating the start match flow
     

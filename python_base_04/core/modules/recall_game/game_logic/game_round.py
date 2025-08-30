@@ -257,13 +257,121 @@ class GameRound:
             
             custom_log(f"🎮 [PLAYER_ACTION] Action data built: {action_data}")
             
-            # TODO: Implement the actual action logic here
-            # This will call the appropriate method based on the action type
-            # For now, just log that we received the action
-            custom_log(f"🎮 [PLAYER_ACTION] Action '{action}' received for player {user_id}, ready for implementation")
-            
-            return True
+            # Route to appropriate action handler based on action type
+            if action == 'draw_from_deck':
+                return self._handle_draw_from_deck(user_id, action_data)
+            elif action == 'play_card':
+                custom_log(f"🎮 [PLAYER_ACTION] Play card action received - TODO: implement")
+                return True
+            elif action == 'discard_card':
+                custom_log(f"🎮 [PLAYER_ACTION] Discard card action received - TODO: implement")
+                return True
+            elif action == 'take_from_discard':
+                custom_log(f"🎮 [PLAYER_ACTION] Take from discard action received - TODO: implement")
+                return True
+            elif action == 'call_recall':
+                custom_log(f"🎮 [PLAYER_ACTION] Call recall action received - TODO: implement")
+                return True
+            else:
+                custom_log(f"❌ [PLAYER_ACTION] Unknown action type: {action}")
+                return False
             
         except Exception as e:
             custom_log(f"❌ [PLAYER_ACTION] Error in on_player_action: {e}", level="ERROR")
             return False
+
+    def _handle_draw_from_deck(self, player_id: str, action_data: Dict[str, Any]) -> bool:
+        """Handle drawing a card from the deck"""
+        try:
+            custom_log(f"🎮 [DRAW_FROM_DECK] Player {player_id} drawing from deck")
+            
+            # Validate that the player exists and it's their turn
+            if player_id not in self.game_state.players:
+                custom_log(f"❌ [DRAW_FROM_DECK] Player {player_id} not found in game")
+                return False
+            
+            if self.game_state.current_player_id != player_id:
+                custom_log(f"❌ [DRAW_FROM_DECK] Not player {player_id}'s turn (current: {self.game_state.current_player_id})")
+                return False
+            
+            # Check if player is in drawing status
+            player = self.game_state.players[player_id]
+            if player.status.value != 'drawing_card':
+                custom_log(f"❌ [DRAW_FROM_DECK] Player {player_id} not in drawing status (current: {player.status.value})")
+                return False
+            
+            # Check if draw pile has cards
+            if not self.game_state.draw_pile:
+                custom_log(f"❌ [DRAW_FROM_DECK] Draw pile is empty")
+                return False
+            
+            # Draw the top card from the draw pile
+            drawn_card = self.game_state.draw_pile.pop(0)
+            custom_log(f"🎮 [DRAW_FROM_DECK] Drawn card: {drawn_card.rank} of {drawn_card.suit} (ID: {drawn_card.card_id})")
+            
+            # Add card to player's hand
+            player.add_card_to_hand(drawn_card)
+            custom_log(f"🎮 [DRAW_FROM_DECK] Card added to player {player_id}'s hand. Hand size: {len(player.hand)}")
+            
+            # Update player status to playing (ready to play a card)
+            player.set_playing_card()
+            custom_log(f"🎮 [DRAW_FROM_DECK] Player {player_id} status updated to: {player.status.value}")
+            
+            # Update game state
+            self.game_state.last_action_time = time.time()
+            
+            # Send updated game state to all players
+            self._send_room_game_state_update()
+            custom_log(f"🎮 [DRAW_FROM_DECK] Game state updated and broadcasted")
+            
+            # Send specific draw confirmation to the player
+            self._send_draw_confirmation(player_id, drawn_card)
+            
+            custom_log(f"✅ [DRAW_FROM_DECK] Successfully drew card for player {player_id}")
+            return True
+            
+        except Exception as e:
+            custom_log(f"❌ [DRAW_FROM_DECK] Error handling draw from deck: {e}", level="ERROR")
+            return False
+    
+    def _send_draw_confirmation(self, player_id: str, drawn_card):
+        """Send draw confirmation to the specific player"""
+        try:
+            if not self.game_state.app_manager:
+                custom_log("⚠️ [DRAW_FROM_DECK] No app manager available for draw confirmation")
+                return
+                
+            ws_manager = self.game_state.app_manager.get_websocket_manager()
+            if not ws_manager:
+                custom_log("⚠️ [DRAW_FROM_DECK] No websocket manager available for draw confirmation")
+                return
+            
+            # Get player session ID
+            session_id = self._get_player_session_id(player_id)
+            if not session_id:
+                custom_log(f"⚠️ [DRAW_FROM_DECK] No session found for player {player_id}")
+                return
+            
+            # Create draw confirmation payload
+            draw_payload = {
+                'event_type': 'card_drawn',
+                'game_id': self.game_state.game_id,
+                'player_id': player_id,
+                'card': {
+                    'card_id': drawn_card.card_id,
+                    'rank': drawn_card.rank,
+                    'suit': drawn_card.suit,
+                    'points': drawn_card.points,
+                    'special_power': drawn_card.special_power,
+                },
+                'hand_size': len(self.game_state.players[player_id].hand),
+                'draw_pile_size': len(self.game_state.draw_pile),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Send draw confirmation event
+            ws_manager.send_to_session(session_id, 'card_drawn', draw_payload)
+            custom_log(f"📡 [DRAW_FROM_DECK] Draw confirmation sent to player {player_id}")
+            
+        except Exception as e:
+            custom_log(f"❌ [DRAW_FROM_DECK] Error sending draw confirmation: {e}", level="ERROR")

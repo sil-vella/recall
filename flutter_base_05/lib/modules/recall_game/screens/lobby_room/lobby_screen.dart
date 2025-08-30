@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
+import '../../../../core/managers/websockets/websocket_manager.dart';
+import '../../managers/game_coordinator.dart';
+import '../../utils/recall_game_helpers.dart';
 import 'widgets/create_game_widget.dart';
 import 'widgets/join_game_widget.dart';
 import 'widgets/current_games_widget.dart';
 import 'widgets/available_games_widget.dart';
 import 'features/lobby_features.dart';
-import '../../../../core/managers/state_manager.dart';
-import '../../../../core/managers/websockets/websocket_manager.dart';
-import '../../utils/recall_game_helpers.dart';
 
 
 class LobbyScreen extends BaseScreen {
@@ -119,16 +119,17 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         _showSnackBar('WebSocket connected! Joining room...', isError: false);
       }
       
-      // Now proceed with room joining using helper
-      final result = await RecallGameHelpers.joinRoom(
-        roomId: roomId,
+      // Now proceed with room joining using GameCoordinator
+      final gameCoordinator = GameCoordinator();
+      final success = await gameCoordinator.joinGame(
+        gameId: roomId,
+        playerName: 'Player', // TODO: Get actual player name from state
       );
       
-      if (result['success'] == true) {
+      if (success) {
         if (mounted) _showSnackBar('Successfully joined room!');
       } else {
-        final errorMessage = result['error'] ?? 'Failed to join room';
-        if (mounted) _showSnackBar(errorMessage, isError: true);
+        if (mounted) _showSnackBar('Failed to join room', isError: true);
       }
     } catch (e) {
       if (mounted) _showSnackBar('Failed to join room: $e', isError: true);

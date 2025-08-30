@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
-import '../../../../../core/managers/websockets/ws_event_manager.dart';
 import '../../../../../tools/logging/logger.dart';
-import '../../../utils/recall_game_helpers.dart';
+import '../../../managers/game_coordinator.dart';
 
 /// Widget to display available games with fetch functionality
 /// 
@@ -342,17 +341,18 @@ class AvailableGamesWidget extends StatelessWidget {
     }
   }
 
-  /// Join a game using the core WebSocket system
+  /// Join a game using GameCoordinator
   void _joinGame(String gameId) {
     try {
       _log.info('🎮 [AvailableGamesWidget] Joining game: $gameId');
       
-      // Use RecallGameHelpers to join the room
-      RecallGameHelpers.joinRoom(roomId: gameId).then((result) {
-        if (result['success'] == true) {
+      // Use GameCoordinator to join the game
+      final gameCoordinator = GameCoordinator();
+      gameCoordinator.joinGame(gameId: gameId, playerName: 'Player').then((success) {
+        if (success) {
           _log.info('✅ [AvailableGamesWidget] Successfully joined game: $gameId');
         } else {
-          _log.error('❌ [AvailableGamesWidget] Failed to join game: ${result['error']}');
+          _log.error('❌ [AvailableGamesWidget] Failed to join game');
         }
       }).catchError((e) {
         _log.error('❌ [AvailableGamesWidget] Error joining game: $e');
@@ -363,25 +363,21 @@ class AvailableGamesWidget extends StatelessWidget {
     }
   }
 
-  /// Leave a game using the core WebSocket system
+  /// Leave a game using GameCoordinator
   void _leaveGame(String gameId) {
     try {
       _log.info('🚪 [AvailableGamesWidget] Leaving game: $gameId');
       
-      // Use the core WebSocket event manager
-      final wsEventManager = WSEventManager.instance;
-      
-      // Leave room using the proper method
-      wsEventManager.leaveRoom(gameId).then((result) {
-        if (result['pending'] != null) {
-          _log.info('🚪 [AvailableGamesWidget] Leave room request sent, waiting for server response');
-        } else if (result['success'] != null) {
-          _log.info('✅ [AvailableGamesWidget] Left room successfully');
+      // Use GameCoordinator to leave the game
+      final gameCoordinator = GameCoordinator();
+      gameCoordinator.leaveGame(gameId: gameId).then((success) {
+        if (success) {
+          _log.info('✅ [AvailableGamesWidget] Left game successfully');
         } else {
-          _log.error('❌ [AvailableGamesWidget] Failed to leave room: ${result['error']}');
+          _log.error('❌ [AvailableGamesWidget] Failed to leave game');
         }
       }).catchError((e) {
-        _log.error('❌ [AvailableGamesWidget] Error leaving room: $e');
+        _log.error('❌ [AvailableGamesWidget] Error leaving game: $e');
       });
       
     } catch (e) {

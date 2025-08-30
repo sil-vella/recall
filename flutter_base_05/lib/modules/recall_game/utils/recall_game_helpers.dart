@@ -1,9 +1,8 @@
-import 'validated_event_emitter.dart';
-import 'validated_state_updater.dart';
-import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/module_manager.dart';
 import '../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../tools/logging/logger.dart';
+import 'validated_event_emitter.dart';
+import 'validated_state_updater.dart';
 
 /// Convenient helper methods for recall game operations
 /// Provides type-safe, validated methods for common game actions
@@ -120,46 +119,7 @@ class RecallGameHelpers {
   }
   
 
-  
-  /// Start a match with validation
-  static Future<Map<String, dynamic>> startMatch(String gameId) {
-    _log.info('🎮 [RecallGameHelpers.startMatch] Called with gameId: $gameId');
-    _log.info('🎮 [RecallGameHelpers.startMatch] gameId type: ${gameId.runtimeType}');
-    _log.info('🎮 [RecallGameHelpers.startMatch] gameId length: ${gameId.length}');
-    
-    // Log WebSocket connection debug info before starting match
-    final wsManager = WebSocketManager.instance;
-    wsManager.logConnectionDebugInfo('START_MATCH');
-    
-    try {
-      _log.info('🎮 [RecallGameHelpers.startMatch] About to emit start_match event');
-      _log.info('🎮 [RecallGameHelpers.startMatch] Event data: {game_id: $gameId}');
-      
-      final result = _eventEmitter.emit(
-        eventType: 'start_match',
-        data: {'game_id': gameId},
-      );
-      
-      _log.info('🎮 [RecallGameHelpers.startMatch] emit call completed');
-      _log.info('🎮 [RecallGameHelpers.startMatch] emit result: $result');
-      
-      // Log debug info again after emit
-      wsManager.logConnectionDebugInfo('POST_START_MATCH_EMIT');
-      
-      return result;
-    } catch (e) {
-      _log.error('❌ [RecallGameHelpers.startMatch] Error in emit: $e');
-      _log.error('❌ [RecallGameHelpers.startMatch] Error type: ${e.runtimeType}');
-      _log.error('❌ [RecallGameHelpers.startMatch] Stack trace: ${StackTrace.current}');
-      
-      // Log debug info on error too
-      wsManager.logConnectionDebugInfo('START_MATCH_ERROR');
-      
-      rethrow;
-    }
-  }
 
-  
   // ========================================
   // STATE UPDATE HELPERS
   // ========================================

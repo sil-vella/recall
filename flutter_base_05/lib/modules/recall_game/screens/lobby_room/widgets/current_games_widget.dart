@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
-import '../../../../../core/managers/websockets/ws_event_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../managers/game_coordinator.dart';
 import '../../../utils/recall_game_helpers.dart';
 
 /// Widget to display all joined rooms with join functionality
@@ -515,22 +515,18 @@ class CurrentRoomWidget extends StatelessWidget {
     }
   }
 
-  /// Leave room using core WebSocket system
+  /// Leave room using GameCoordinator
   void _leaveRoom(String roomId) {
     try {
       _log.info('🚪 [CurrentRoomWidget] Leaving room: $roomId');
       
-      // Use the core WebSocket event manager
-      final wsEventManager = WSEventManager.instance;
-      
-      // Leave room using the proper method
-      wsEventManager.leaveRoom(roomId).then((result) {
-        if (result['pending'] != null) {
-          _log.info('🚪 [CurrentRoomWidget] Leave room request sent, waiting for server response');
-        } else if (result['success'] != null) {
+      // Use GameCoordinator to leave the room
+      final gameCoordinator = GameCoordinator();
+      gameCoordinator.leaveGame(gameId: roomId).then((success) {
+        if (success) {
           _log.info('✅ [CurrentRoomWidget] Left room successfully');
         } else {
-          _log.error('❌ [CurrentRoomWidget] Failed to leave room: ${result['error']}');
+          _log.error('❌ [CurrentRoomWidget] Failed to leave room');
         }
       }).catchError((e) {
         _log.error('❌ [CurrentRoomWidget] Error leaving room: $e');

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../models/card_model.dart';
+import '../../../widgets/card_widget.dart';
+import '../../../widgets/card_back_widget.dart';
 
 /// Widget to display other players (opponents)
 /// 
@@ -261,69 +264,24 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     );
   }
 
-  /// Build individual card widget for opponents (smaller than my hand)
+  /// Build individual card widget for opponents using the new CardWidget system
   Widget _buildCardWidget(Map<String, dynamic> card) {
-    final rank = card['rank']?.toString() ?? '?';
-    final suit = card['suit']?.toString() ?? '?';
-    final color = _getCardColor(suit);
+    // Convert to CardModel
+    final cardModel = CardModel.fromMap(card);
     
     // Check if this card is currently selected
     final cardId = card['cardId']?.toString();
     final isSelected = cardId != null && _clickedCardId == cardId;
     
-    return GestureDetector(
+    // Update the card model with selection state
+    final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
+    
+    return CardWidget(
+      card: updatedCardModel,
+      size: CardSize.small,
+      isSelectable: true,
+      isSelected: isSelected,
       onTap: () => _handleCardClick(card),
-      child: Container(
-        width: 50,
-        height: 70,
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.shade50 : Colors.white,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300, 
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected 
-                ? Colors.blue.withOpacity(0.3)
-                : Colors.black.withOpacity(0.1),
-              blurRadius: isSelected ? 4 : 2,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              rank,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            const SizedBox(width: 2),
-            Text(
-              _getSuitSymbol(suit),
-              style: TextStyle(
-                fontSize: 10,
-                color: color,
-              ),
-            ),
-            // Selection indicator
-            if (isSelected) ...[
-              const SizedBox(height: 2),
-              Icon(
-                Icons.check_circle,
-                size: 12,
-                color: Colors.blue.shade600,
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 
@@ -360,35 +318,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     );
   }
 
-  /// Get card color based on suit
-  Color _getCardColor(String suit) {
-    switch (suit.toLowerCase()) {
-      case 'hearts':
-      case 'diamonds':
-        return Colors.red;
-      case 'clubs':
-      case 'spades':
-        return Colors.black;
-      default:
-        return Colors.grey;
-    }
-  }
 
-  /// Get suit symbol
-  String _getSuitSymbol(String suit) {
-    switch (suit.toLowerCase()) {
-      case 'hearts':
-        return '♥';
-      case 'diamonds':
-        return '♦';
-      case 'clubs':
-        return '♣';
-      case 'spades':
-        return '♠';
-      default:
-        return '?';
-    }
-  }
 
   /// Get the currently clicked card ID (for external access)
   String? getClickedCardId() {

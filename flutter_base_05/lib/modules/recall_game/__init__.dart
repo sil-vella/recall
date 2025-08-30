@@ -1,12 +1,6 @@
 // Core Recall Game Components
 // This file exports all the core Recall game components
 
-// Models
-export 'models/card.dart';
-export 'models/player.dart';
-export 'models/game_state.dart';
-export 'models/game_events.dart';
-
 // Managers
 export 'managers/recall_module_manager.dart';
 
@@ -24,4 +18,7 @@ export 'recall_game_main.dart';
 export 'utils/field_specifications.dart';
 export 'utils/validated_event_emitter.dart';
 export 'utils/validated_state_updater.dart';
-export 'utils/recall_game_helpers.dart'; 
+export 'utils/recall_game_helpers.dart';
+export 'models/card_model.dart';
+export 'widgets/card_widget.dart';
+export 'widgets/card_back_widget.dart'; 

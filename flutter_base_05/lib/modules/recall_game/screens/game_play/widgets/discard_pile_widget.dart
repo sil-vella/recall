@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../models/card_model.dart';
+import '../../../widgets/card_widget.dart';
+import '../../../widgets/card_back_widget.dart';
 
 /// Widget to display the discard pile information
 /// 
@@ -96,26 +99,20 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
             // Discard pile visual representation (clickable)
             GestureDetector(
               onTap: _handlePileClick,
-              child: Container(
-                width: 80,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: hasCards ? Colors.red.shade100 : Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: hasCards ? Colors.red.shade300 : Colors.grey.shade400,
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+              child: hasCards 
+                  ? CardWidget(
+                      card: CardModel.fromMap(topDiscard!),
+                      size: CardSize.medium,
+                      isSelectable: false,
+                      showPoints: false,
+                      showSpecialPower: false,
+                    )
+                  : CardBackWidget(
+                      size: CardSize.medium,
+                      customSymbol: '?',
+                      backgroundColor: Colors.grey.shade200,
+                      borderColor: Colors.grey.shade400,
                     ),
-                  ],
-                ),
-                child: hasCards ? _buildCardFace(topDiscard!) : _buildEmptyState(),
-              ),
             ),
             const SizedBox(height: 8),
             
@@ -135,116 +132,9 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
     );
   }
 
-  /// Build the card face when there's a top card
-  Widget _buildCardFace(Map<String, dynamic> card) {
-    final rank = card['rank']?.toString() ?? '?';
-    final suit = card['suit']?.toString() ?? '?';
-    final color = _getCardColor(suit);
-    
-    return Padding(
-      padding: const EdgeInsets.all(4),
-      child: Column(
-        children: [
-          // Top-left rank and suit
-          Align(
-            alignment: Alignment.topLeft,
-            child: Text(
-              '$rank\n${_getSuitSymbol(suit)}',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ),
-          
-          // Center suit symbol
-          Expanded(
-            child: Center(
-              child: Text(
-                _getSuitSymbol(suit),
-                style: TextStyle(
-                  fontSize: 24,
-                  color: color,
-                ),
-              ),
-            ),
-          ),
-          
-          // Bottom-right rank and suit (rotated)
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Transform.rotate(
-              angle: 3.14159, // 180 degrees
-              child: Text(
-                '$rank\n${_getSuitSymbol(suit)}',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  /// Build empty state when no cards in discard pile
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.delete_outline,
-            size: 32,
-            color: Colors.grey,
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Empty',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  /// Get the color for a card suit
-  Color _getCardColor(String suit) {
-    switch (suit.toLowerCase()) {
-      case 'hearts':
-      case 'diamonds':
-        return Colors.red;
-      case 'clubs':
-      case 'spades':
-        return Colors.black;
-      default:
-        return Colors.black;
-    }
-  }
 
-  /// Get the Unicode symbol for a card suit
-  String _getSuitSymbol(String suit) {
-    switch (suit.toLowerCase()) {
-      case 'hearts':
-        return '♥';
-      case 'diamonds':
-        return '♦';
-      case 'clubs':
-        return '♣';
-      case 'spades':
-        return '♠';
-      default:
-        return '?';
-    }
-  }
 
   /// Get the currently clicked pile type (for external access)
   String? getClickedPileType() {

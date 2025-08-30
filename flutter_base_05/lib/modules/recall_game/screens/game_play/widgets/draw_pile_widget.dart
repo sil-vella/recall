@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../widgets/card_back_widget.dart';
 
 /// Widget to display the draw pile information
 /// 
@@ -95,74 +96,25 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
             // Draw pile visual representation (clickable)
             GestureDetector(
               onTap: _handlePileClick,
-              child: Container(
-                width: 80,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: drawPileCount > 0 ? Colors.blue.shade100 : Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: drawPileCount > 0 ? Colors.blue.shade300 : Colors.grey.shade400,
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+              child: drawPileCount > 0
+                  ? CardBackWidget(
+                      size: CardSize.medium,
+                      customSymbol: '?',
+                      backgroundColor: Colors.blue.shade100,
+                      borderColor: Colors.blue.shade300,
+                    )
+                  : CardBackWidget(
+                      size: CardSize.medium,
+                      customSymbol: '?',
+                      backgroundColor: Colors.grey.shade200,
+                      borderColor: Colors.grey.shade400,
                     ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    // Card back pattern
-                    if (drawPileCount > 0) ...[
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        right: 8,
-                        child: Container(
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade200,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 8,
-                        left: 8,
-                        right: 8,
-                        child: Container(
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade200,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                    ],
-                    
-                    // Card count
-                    Center(
-                      child: Text(
-                        drawPileCount.toString(),
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: drawPileCount > 0 ? Colors.blue.shade800 : Colors.grey.shade600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
             const SizedBox(height: 8),
             
             // Card count text
             Text(
-              '$drawPileCount cards',
+              drawPileCount > 0 ? '$drawPileCount cards' : 'Empty',
               style: TextStyle(
                 fontSize: 14,
                 color: drawPileCount > 0 ? Colors.blue.shade700 : Colors.grey.shade600,

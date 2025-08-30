@@ -80,10 +80,6 @@ import '../../../core/managers/websockets/websocket_manager.dart';
 
 import '../../../tools/logging/logger.dart';
 
-import '../models/game_state.dart';
-import '../models/player.dart';
-import '../models/card.dart';
-import '../models/game_events.dart';
 import '../utils/recall_game_helpers.dart';
 
 import '../../../core/managers/hooks_manager.dart';
@@ -100,9 +96,7 @@ class RecallModuleManager {
   // Managers
   final WebSocketManager _wsManager = WebSocketManager.instance;
   final StateManager _stateManager = StateManager();
-  
-  // Current game state (moved from RecallStateManager)
-  GameState? _currentGameState;
+
 
   // Game state tracking
   String? _currentGameId;
@@ -111,12 +105,7 @@ class RecallModuleManager {
   bool _isInitialized = false;
   bool _isInitializing = false;  // Add initialization guard
   
-  // Event stream for UI updates (following core WebSocket pattern - single stream)
-  final StreamController<GameEvent> _gameEventController = StreamController<GameEvent>.broadcast();
-  
-  // Event listeners
-  StreamSubscription<GameEvent>? _gameEventSubscription;
-  StreamSubscription<GameState>? _gameStateSubscription;
+
   StreamSubscription<String>? _errorSubscription;
   
   // Getters
@@ -125,11 +114,9 @@ class RecallModuleManager {
   bool get isGameActive => _isGameActive;
   bool get isInitialized => _isInitialized;
   bool get isConnected => _wsManager.isConnected;
-  GameState? get currentGameState => _currentGameState;
-  bool get hasActiveGame => _currentGameState != null && _currentGameState!.isActive;
+
   
-  // Event stream for UI (following core WebSocket pattern - single stream)
-  Stream<GameEvent> get gameEvents => _gameEventController.stream;
+
 
   /// Connect to WebSocket when authentication becomes available
   Future<bool> connectWebSocket() async {
@@ -221,16 +208,10 @@ class RecallModuleManager {
   void dispose() {
     _log.info('🛑 Disposing RecallModuleManager...');
     
-    // Cancel subscriptions
-    _gameEventSubscription?.cancel();
-    _gameStateSubscription?.cancel();
+
     _errorSubscription?.cancel();
     
-    // Close stream controller
-    _gameEventController.close();
-    
     // Reset state
-    _currentGameState = null;
     _currentGameId = null;
     _currentPlayerId = null;
     _isGameActive = false;

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../models/card_model.dart';
+import '../../../widgets/card_widget.dart';
+import '../../../widgets/card_back_widget.dart';
 
 /// Widget to display the player's hand
 /// 
@@ -138,7 +141,7 @@ class MyHandWidget extends StatelessWidget {
     );
   }
 
-  /// Build the cards grid
+  /// Build the cards grid using the new CardWidget system
   Widget _buildCardsGrid(List<dynamic> cards, int selectedIndex) {
     return Container(
       height: 140,
@@ -149,11 +152,18 @@ class MyHandWidget extends StatelessWidget {
           final card = cards[index] as Map<String, dynamic>;
           final isSelected = index == selectedIndex;
           
+          // Convert to CardModel
+          final cardModel = CardModel.fromMap(card);
+          final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
+          
           return Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
+            child: CardWidget(
+              card: updatedCardModel,
+              size: CardSize.large,
+              isSelectable: true,
+              isSelected: isSelected,
               onTap: () => _handleCardSelection(context, index, card),
-              child: _buildCardWidget(card, isSelected),
             ),
           );
         },
@@ -161,112 +171,9 @@ class MyHandWidget extends StatelessWidget {
     );
   }
 
-  /// Build individual card widget
-  Widget _buildCardWidget(Map<String, dynamic> card, bool isSelected) {
-    final rank = card['rank']?.toString() ?? '?';
-    final suit = card['suit']?.toString() ?? '?';
-    final color = _getCardColor(suit);
-    
-    return Container(
-      width: 70,
-      height: 100,
-      decoration: BoxDecoration(
-        color: isSelected ? Colors.yellow.shade100 : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isSelected ? Colors.yellow.shade600 : Colors.grey.shade400,
-          width: isSelected ? 3 : 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Column(
-          children: [
-            // Top-left rank and suit
-            Align(
-              alignment: Alignment.topLeft,
-              child: Text(
-                '$rank\n${_getSuitSymbol(suit)}',
-                style: TextStyle(
-                  fontSize: 8,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-            ),
-            
-            // Center suit symbol
-            Expanded(
-              child: Center(
-                child: Text(
-                  _getSuitSymbol(suit),
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: color,
-                  ),
-                ),
-              ),
-            ),
-            
-            // Bottom-right rank and suit (rotated)
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Transform.rotate(
-                angle: 3.14159, // 180 degrees
-                child: Text(
-                  '$rank\n${_getSuitSymbol(suit)}',
-                  style: TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
 
 
-  /// Get the color for a card suit
-  Color _getCardColor(String suit) {
-    switch (suit.toLowerCase()) {
-      case 'hearts':
-      case 'diamonds':
-        return Colors.red;
-      case 'clubs':
-      case 'spades':
-        return Colors.black;
-      default:
-        return Colors.black;
-    }
-  }
-
-  /// Get the Unicode symbol for a card suit
-  String _getSuitSymbol(String suit) {
-    switch (suit.toLowerCase()) {
-      case 'hearts':
-        return '♥';
-      case 'diamonds':
-        return '♦';
-      case 'clubs':
-        return '♣';
-      case 'spades':
-        return '♠';
-      default:
-        return '?';
-    }
-  }
 
   /// Handle card selection with status validation
   void _handleCardSelection(BuildContext context, int index, Map<String, dynamic> card) {

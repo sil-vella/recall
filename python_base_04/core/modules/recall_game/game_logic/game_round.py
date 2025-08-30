@@ -10,7 +10,6 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import time
 from .game_state import GameState, GamePhase
-from .game_actions import GameActions
 from ..models.player import Player, PlayerStatus
 from tools.logger.custom_logging import custom_log
 
@@ -20,7 +19,6 @@ class GameRound:
     
     def __init__(self, game_state: GameState):
         self.game_state = game_state
-        self.game_actions = GameActions(game_state)
         self.round_number = 1
         self.round_start_time = None
         self.round_end_time = None

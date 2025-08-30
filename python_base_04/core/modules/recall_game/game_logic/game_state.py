@@ -222,11 +222,6 @@ class GameState:
         # Card not found anywhere
         return None
     
-    def get_actions(self):
-        """Get the game actions handler"""
-        from .game_actions import GameActions
-        return GameActions(self)
-    
     def get_round(self):
         """Get the game round handler"""
         from .game_round import GameRound

@@ -8,13 +8,24 @@ import '../../../../../tools/logging/logger.dart';
 /// - List of all opponent players
 /// - Small card-like elements showing number of cards in their hand
 /// - Player names and status
+/// - Clickable cards for special power interactions (queen_peek, jack_swap)
 /// - No card details (handled by backend for security)
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
-class OpponentsPanelWidget extends StatelessWidget {
+class OpponentsPanelWidget extends StatefulWidget {
   static final Logger _log = Logger();
   
   const OpponentsPanelWidget({Key? key}) : super(key: key);
+
+  @override
+  State<OpponentsPanelWidget> createState() => _OpponentsPanelWidgetState();
+}
+
+class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
+  static final Logger _log = Logger();
+  
+  // Internal state to store clicked card information
+  String? _clickedCardId;
 
   @override
   Widget build(BuildContext context) {
@@ -256,41 +267,65 @@ class OpponentsPanelWidget extends StatelessWidget {
     final suit = card['suit']?.toString() ?? '?';
     final color = _getCardColor(suit);
     
-    return Container(
-      width: 50,
-      height: 70,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey.shade300, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
+    // Get opponent name for click feedback
+    final opponentName = _getOpponentNameFromCard(card);
+    
+    // Check if this card is currently selected
+    final cardId = card['cardId']?.toString();
+    final isSelected = cardId != null && _clickedCardId == cardId;
+    
+    return GestureDetector(
+      onTap: () => _handleCardClick(card, opponentName),
+      child: Container(
+        width: 50,
+        height: 70,
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blue.shade50 : Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300, 
+            width: isSelected ? 2 : 1,
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            rank,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: color,
+          boxShadow: [
+            BoxShadow(
+              color: isSelected 
+                ? Colors.blue.withOpacity(0.3)
+                : Colors.black.withOpacity(0.1),
+              blurRadius: isSelected ? 4 : 2,
+              offset: const Offset(0, 1),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            _getSuitSymbol(suit),
-            style: TextStyle(
-              fontSize: 10,
-              color: color,
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              rank,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 2),
+            Text(
+              _getSuitSymbol(suit),
+              style: TextStyle(
+                fontSize: 10,
+                color: color,
+              ),
+            ),
+            // Selection indicator
+            if (isSelected) ...[
+              const SizedBox(height: 2),
+              Icon(
+                Icons.check_circle,
+                size: 12,
+                color: Colors.blue.shade600,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -358,6 +393,79 @@ class OpponentsPanelWidget extends StatelessWidget {
     }
   }
 
+  /// Get opponent name from card context
+  String _getOpponentNameFromCard(Map<String, dynamic> card) {
+    // Try to get opponent name from card owner or fallback to generic name
+    return card['ownerName']?.toString() ?? 'Opponent';
+  }
+
+  /// Get the currently clicked card ID (for external access)
+  String? getClickedCardId() {
+    return _clickedCardId;
+  }
+
+  /// Clear the clicked card ID (for resetting state)
+  void clearClickedCardId() {
+    setState(() {
+      _clickedCardId = null;
+    });
+  }
+
+  /// Handle card click for special power interactions
+  void _handleCardClick(Map<String, dynamic> card, String opponentName) {
+    // Get current player status from state
+    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+    
+    _log.info('🎯 Card clicked: ${card['cardId']} from opponent $opponentName, current player status: $currentPlayerStatus');
+    
+    // Check if current player can interact with cards (queen_peek or jack_swap status)
+    if (currentPlayerStatus == 'queen_peek' || currentPlayerStatus == 'jack_swap') {
+      final cardId = card['cardId']?.toString();
+      if (cardId != null) {
+        setState(() {
+          _clickedCardId = cardId;
+        });
+        
+        _log.info('✅ Card ID stored: $cardId (status: $currentPlayerStatus)');
+        
+        // Show success feedback
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              currentPlayerStatus == 'queen_peek' 
+                ? 'Card selected for Queen peek: ${card['rank']} of ${card['suit']}'
+                : 'Card selected for Jack swap: ${card['rank']} of ${card['suit']}'
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        _log.warning('⚠️ Card clicked but no cardId found: $card');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: Card information incomplete'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      // Show invalid action feedback
+      _log.info('❌ Invalid card click action: status=$currentPlayerStatus');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Invalid action: Cannot interact with cards while status is "$currentPlayerStatus"'
+          ),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   /// Build status chip for player status
   Widget _buildStatusChip(String status) {
     Color chipColor;
@@ -389,6 +497,16 @@ class OpponentsPanelWidget extends StatelessWidget {
         chipColor = Colors.purple;
         chipText = 'Same Rank';
         chipIcon = Icons.flash_on;
+        break;
+      case 'queen_peek':
+        chipColor = Colors.pink;
+        chipText = 'Queen Peek';
+        chipIcon = Icons.visibility;
+        break;
+      case 'jack_swap':
+        chipColor = Colors.indigo;
+        chipText = 'Jack Swap';
+        chipIcon = Icons.swap_horiz;
         break;
       case 'finished':
         chipColor = Colors.red;

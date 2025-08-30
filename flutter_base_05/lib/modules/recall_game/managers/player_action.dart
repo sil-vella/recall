@@ -62,15 +62,15 @@ class PlayerAction {
   static PlayerAction playerDraw({
     required String pileType, // 'draw_pile' or 'discard_pile'
     required String gameId,
-    required String playerId, // Required, backend needs this for validation
+    // playerId is now auto-added by RecallGameEventEmitter
   }) {
     return PlayerAction._(
       actionType: PlayerActionType.drawCard,
       eventName: 'draw_card',
       payload: {
         'game_id': gameId,
-        'player_id': playerId,
         'source': pileType, // Backend expects 'source' not 'pile_type'
+        // player_id will be automatically included by the event emitter
       },
     );
   }

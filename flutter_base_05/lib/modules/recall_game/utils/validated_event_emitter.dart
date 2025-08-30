@@ -1,4 +1,5 @@
 import '../../../core/managers/websockets/websocket_manager.dart';
+import '../../../core/managers/state_manager.dart';
 import 'field_specifications.dart';
 import '../../../tools/logging/logger.dart';
 
@@ -29,14 +30,14 @@ class RecallGameEventEmitter {
     'join_room': {'room_id'},
     'join_game': {'game_id', 'player_name', 'max_players'},
     'start_match': {'game_id'},
-    'play_card': {'game_id', 'card_id', 'player_id', 'replace_index'},
-    'replace_drawn_card': {'game_id', 'player_id', 'card_index'},
-    'play_drawn_card': {'game_id', 'player_id'},
-    'call_recall': {'game_id', 'player_id'},
+    'play_card': {'game_id', 'card_id', 'replace_index'}, // player_id auto-added
+    'replace_drawn_card': {'game_id', 'card_index'}, // player_id auto-added
+    'play_drawn_card': {'game_id'}, // player_id auto-added
+    'call_recall': {'game_id'}, // player_id auto-added
     'leave_game': {'game_id', 'reason'},
-    'draw_card': {'game_id', 'player_id', 'source'},
-    'play_out_of_turn': {'game_id', 'card_id', 'player_id'},
-    'use_special_power': {'game_id', 'card_id', 'player_id', 'power_data'},
+    'draw_card': {'game_id', 'source'}, // player_id auto-added
+    'play_out_of_turn': {'game_id', 'card_id'}, // player_id auto-added
+    'use_special_power': {'game_id', 'card_id', 'power_data'}, // player_id auto-added
   };
   
   /// Define validation rules for each field
@@ -183,14 +184,30 @@ class RecallGameEventEmitter {
         ...validatedData, // Only validated fields
       };
       
+      // 🎯 Auto-include user ID for events that need player_id
+      final eventsNeedingPlayerId = {
+        'play_card', 'replace_drawn_card', 'play_drawn_card', 
+        'call_recall', 'draw_card', 'play_out_of_turn', 'use_special_power'
+      };
+      
+      if (eventsNeedingPlayerId.contains(eventType)) {
+        final currentUserId = _getCurrentUserId();
+        if (currentUserId.isNotEmpty) {
+          eventPayload['player_id'] = currentUserId;
+          _log.info('🎯 [RecallEventEmitter.emit] Auto-included player_id: $currentUserId');
+        } else {
+          _log.warning('⚠️ [RecallEventEmitter.emit] Could not get current user ID for $eventType');
+        }
+      }
+      
       _log.info('🎯 [RecallEventEmitter.emit] Final payload keys: ${eventPayload.keys.join(', ')}');
       
       // Log the event for debugging
       _logEvent(eventType, eventPayload);
       
       // Send via WebSocket
-                _log.info('🎯 [RecallEventEmitter.emit] Sending via WebSocket...');
-          return await _wsManager.sendCustomEvent(eventType, eventPayload);
+      _log.info('🎯 [RecallEventEmitter.emit] Sending via WebSocket...');
+      return await _wsManager.sendCustomEvent(eventType, eventPayload);
       
     } catch (e) {
       // Log validation errors
@@ -344,6 +361,20 @@ class RecallGameEventEmitter {
       return _wsManager.socket?.id ?? 'unknown_session';
     } catch (e) {
       return 'unknown_session';
+    }
+  }
+  
+  /// Get current user ID from login state
+  String _getCurrentUserId() {
+    try {
+      // Import StateManager to access login state
+      // Note: This creates a dependency on StateManager, but it's needed for user identification
+      final stateManager = StateManager();
+      final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+      return loginState['userId']?.toString() ?? '';
+    } catch (e) {
+      _log.warning('⚠️ [RecallEventEmitter] Could not get current user ID: $e');
+      return '';
     }
   }
   

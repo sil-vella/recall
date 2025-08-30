@@ -174,26 +174,10 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
           return;
         }
         
-        // Get current user ID from login state (consistent with recall_event_manager pattern)
-        final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-        final currentUserId = loginState['userId']?.toString() ?? '';
-        if (currentUserId.isEmpty) {
-          _log.error('❌ No current user ID found in login state');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error: User not authenticated'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
-          return;
-        }
-        
-        // Create and execute the draw action
+        // Create and execute the draw action (playerId is auto-added by event emitter)
         final drawAction = PlayerAction.playerDraw(
           pileType: 'discard_pile',
           gameId: currentGameId,
-          playerId: currentUserId,
         );
         await drawAction.execute();
         

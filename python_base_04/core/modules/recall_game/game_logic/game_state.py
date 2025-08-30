@@ -3,7 +3,6 @@ Game State Models for Recall Game
 
 This module defines the game state management system for the Recall card game,
 including game phases, state transitions, game logic, and WebSocket communication.
-Consolidated from game_round.py and game_actions.py for simplicity.
 """
 
 from typing import List, Dict, Any, Optional
@@ -296,804 +295,6 @@ class GameState:
         return game_state
 
 
-# ========= GAME ROUND CLASS =========
-
-class GameRound:
-    """Manages a single round of gameplay in the Recall game"""
-    
-    def __init__(self, game_state: 'GameState'):
-        self.game_state = game_state
-        self.round_number = 1
-        self.round_start_time = None
-        self.round_end_time = None
-        self.current_turn_start_time = None
-        self.turn_timeout_seconds = 30  # 30 seconds per turn
-        self.actions_performed = []
-        self.round_status = "waiting"  # waiting, active, paused, completed
-        
-        # Timed rounds configuration
-        self.timed_rounds_enabled = False
-        self.round_time_limit_seconds = 300  # 5 minutes default
-        self.round_time_remaining = None
-        
-        # WebSocket manager reference for sending events
-        self.websocket_manager = getattr(game_state, 'websocket_manager', None)
-        
-    def start_round(self) -> Dict[str, Any]:
-        """Start a new round of gameplay"""
-        try:
-            custom_log(f"🎮 Starting round {self.round_number} for game {self.game_state.game_id}")
-            
-            # Initialize round state
-            self.round_start_time = time.time()
-            self.current_turn_start_time = self.round_start_time
-            self.round_status = "active"
-            self.actions_performed = []
-            
-            # Initialize timed rounds if enabled
-            if self.timed_rounds_enabled:
-                self.round_time_remaining = self.round_time_limit_seconds
-                custom_log(f"⏰ Round {self.round_number} started with {self.round_time_limit_seconds} second time limit")
-            
-            # Log round start
-            self._log_action("round_started", {
-                "round_number": self.round_number,
-                "current_player": self.game_state.current_player_id,
-                "player_count": len(self.game_state.players)
-            })
-            
-            custom_log(f"✅ Round {self.round_number} started successfully")
-            
-            # Log actions_performed at round start
-            custom_log(f"📋 Round {self.round_number} actions_performed initialized: {len(self.actions_performed)} actions")
-            
-            # Send room-wide game state update to all players
-            self._send_room_game_state_update()
-            
-            # Send turn started event to current player
-            self._send_turn_started_event()
-            
-            return {
-                "success": True,
-                "round_number": self.round_number,
-                "round_start_time": datetime.fromtimestamp(self.round_start_time).isoformat(),
-                "current_player": self.game_state.current_player_id,
-                "game_phase": self.game_state.phase.value,
-                "player_count": len(self.game_state.players)
-            }
-            
-        except Exception as e:
-            custom_log(f"❌ Error starting round: {e}", level="ERROR")
-            return {"error": f"Failed to start round: {str(e)}"}
-
-    def pause_round(self) -> Dict[str, Any]:
-        """Pause the current round"""
-        if self.round_status != "active":
-            return {"error": "Round is not active"}
-        
-        self.round_status = "paused"
-        custom_log(f"⏸️ Round {self.round_number} paused")
-        
-        return {
-            "success": True,
-            "round_status": self.round_status,
-            "pause_time": datetime.now().isoformat()
-        }
-    
-    def resume_round(self) -> Dict[str, Any]:
-        """Resume a paused round"""
-        if self.round_status != "paused":
-            return {"error": "Round is not paused"}
-        
-        self.round_status = "active"
-        self.current_turn_start_time = time.time()
-        custom_log(f"▶️ Round {self.round_number} resumed")
-        
-        return {
-            "success": True,
-            "round_status": self.round_status,
-            "resume_time": datetime.now().isoformat()
-        }
-
-    def perform_action(self, player_id: str, action_type: str, action_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a specific game action"""
-        try:
-            custom_log(f"🎮 [GameRound] Executing action: {action_type} for player: {player_id}")
-            
-            if action_type == "play_card":
-                card_id = action_data.get("card_id")
-                if not card_id:
-                    return {"error": "Missing card_id"}
-                return self.game_state.get_actions().play_card(player_id, card_id)
-            
-            elif action_type == "play_out_of_turn":
-                card_id = action_data.get("card_id")
-                if not card_id:
-                    return {"error": "Missing card_id"}
-                return self.game_state.get_actions().play_out_of_turn(player_id, card_id)
-            
-            elif action_type == "draw_from_deck":
-                return self.game_state.get_actions().draw_from_deck(player_id)
-            
-            elif action_type == "take_from_discard":
-                return self.game_state.get_actions().take_from_discard(player_id)
-            
-            elif action_type == "place_drawn_card_replace":
-                replace_card_id = action_data.get("replace_card_id")
-                if not replace_card_id:
-                    return {"error": "Missing replace_card_id"}
-                return self.game_state.get_actions().place_drawn_card_replace(player_id, replace_card_id)
-            
-            elif action_type == "place_drawn_card_play":
-                return self.game_state.get_actions().place_drawn_card_play(player_id)
-            
-            elif action_type == "initial_peek":
-                indices = action_data.get("indices", [])
-                if not indices:
-                    return {"error": "Missing indices"}
-                return self.game_state.get_actions().initial_peek(player_id, indices)
-            
-            elif action_type == "call_recall":
-                return self.game_state.get_actions().call_recall(player_id)
-            
-            elif action_type == "end_game":
-                return self.game_state.get_actions().end_game()
-            
-            else:
-                return {"error": f"Unknown action type: {action_type}"}
-                
-        except Exception as e:
-            custom_log(f"❌ [GameRound] Error executing action {action_type}: {e}", level="ERROR")
-            return {"error": f"Action execution failed: {str(e)}"}
-
-    def _log_action(self, action_type: str, action_data: Dict[str, Any]):
-        """Log an action performed during the round"""
-        log_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "action_type": action_type,
-            "round_number": self.round_number,
-            "data": action_data
-        }
-        self.actions_performed.append(log_entry)
-        
-        # Keep only last 100 actions to prevent memory bloat
-        if len(self.actions_performed) > 100:
-            self.actions_performed = self.actions_performed[-100:]
-    
-    def _send_turn_started_event(self):
-        """Send turn started event to current player"""
-        try:
-            # Get WebSocket manager through the game state's app manager
-            if not self.game_state.app_manager:
-                custom_log("⚠️ No app manager available for turn event")
-                return
-                
-            ws_manager = self.game_state.app_manager.get_websocket_manager()
-            if not ws_manager:
-                custom_log("⚠️ No websocket manager available for turn event")
-                return
-            
-            current_player_id = self.game_state.current_player_id
-            if not current_player_id:
-                custom_log("⚠️ No current player for turn event")
-                return
-            
-            # Get player session ID
-            session_id = self._get_player_session_id(current_player_id)
-            if not session_id:
-                custom_log(f"⚠️ No session found for player {current_player_id}")
-                return
-            
-            # Get current player object to access their status
-            current_player = self.game_state.players.get(current_player_id)
-            player_status = current_player.status.value if current_player else "unknown"
-            
-            # Create turn started payload
-            turn_payload = {
-                'event_type': 'turn_started',
-                'game_id': self.game_state.game_id,
-                'game_state': self._to_flutter_game_state(),
-                'player_id': current_player_id,
-                'player_status': player_status,
-                'turn_timeout': self.turn_timeout_seconds,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            # Send turn started event
-            ws_manager.send_to_session(session_id, 'turn_started', turn_payload)
-            custom_log(f"📡 Turn started event sent to player {current_player_id}")
-            
-        except Exception as e:
-            custom_log(f"❌ Error sending turn started event: {e}", level="ERROR")
-    
-    def _get_player_session_id(self, player_id: str) -> Optional[str]:
-        """Get session ID for a player"""
-        try:
-            # Access the player sessions directly from game state
-            return self.game_state.get_player_session(player_id)
-        except Exception as e:
-            custom_log(f"❌ Error getting player session: {e}", level="ERROR")
-            return None
-    
-    def _send_room_game_state_update(self):
-        """Send room-wide game state update to all players"""
-        try:
-            # Get WebSocket manager through the game state's app manager
-            if not self.game_state.app_manager:
-                custom_log("⚠️ No app manager available for room game state update")
-                return
-                
-            ws_manager = self.game_state.app_manager.get_websocket_manager()
-            if not ws_manager:
-                custom_log("⚠️ No websocket manager available for room game state update")
-                return
-            
-            # Get current player object to access their status
-            current_player_id = self.game_state.current_player_id
-            current_player = self.game_state.players.get(current_player_id)
-            current_player_status = current_player.status.value if current_player else "unknown"
-            
-            # Create room game state update payload
-            room_payload = {
-                'event_type': 'game_state_updated',
-                'game_id': self.game_state.game_id,
-                'game_state': self._to_flutter_game_state(),
-                'round_number': self.round_number,
-                'current_player': current_player_id,
-                'current_player_status': current_player_status,
-                'round_status': self.round_status,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            # Send to all players in the room
-            room_id = self.game_state.game_id
-            ws_manager.socketio.emit('game_state_updated', room_payload, room=room_id)
-            custom_log(f"📡 Room game state update sent to all players in game {self.game_state.game_id} - Current player: {current_player_id} ({current_player_status})")
-            
-        except Exception as e:
-            custom_log(f"❌ Error sending room game state update: {e}", level="ERROR")
-    
-    def _to_flutter_game_state(self) -> Dict[str, Any]:
-        """Convert game state to Flutter format"""
-        try:
-            # Access the game state conversion method directly from game state
-            if hasattr(self.game_state, '_to_flutter_game_state'):
-                return self.game_state._to_flutter_game_state(self.game_state)
-            return {}
-        except Exception as e:
-            custom_log(f"❌ Error converting game state: {e}", level="ERROR")
-            return {}
-
-    def get_timed_rounds_status(self) -> Dict[str, Any]:
-        """Get status of timed rounds"""
-        return {
-            "enabled": self.timed_rounds_enabled,
-            "time_limit": self.round_time_limit_seconds,
-            "time_remaining": self.round_time_remaining,
-            "round_status": self.round_status
-        }
-
-
-# ========= GAME ACTIONS CLASS =========
-
-class GameActions:
-    """Handles all game actions and logic during gameplay"""
-    
-    def __init__(self, game_state: GameState):
-        self.game_state = game_state
-    
-    def end_game(self) -> Dict[str, Any]:
-        """End the game and determine winner"""
-        # Allow scoring at recall or immediate end
-        if self.game_state.phase not in (GamePhase.RECALL_CALLED, GamePhase.GAME_ENDED, GamePhase.PLAYER_TURN, GamePhase.OUT_OF_TURN_PLAY):
-            return {"error": "Invalid phase for ending game"}
-        return self._end_game_with_scoring()
-
-    def start_game(self) -> Dict[str, Any]:
-        """Start the game and deal cards"""
-        # Check if we have enough players, add computer players if needed
-        current_players = len(self.game_state.players)
-        min_players = self.game_state.min_players
-        
-        if current_players < min_players:
-            # Add computer players to reach minimum
-            players_needed = min_players - current_players
-            custom_log(f"🎮 Adding {players_needed} computer player(s) to reach minimum of {min_players}")
-            
-            for i in range(players_needed):
-                computer_id = f"computer_{self.game_state.game_id}_{i}"
-                computer_name = f"Computer_{i+1}"
-                from ..models.player import ComputerPlayer
-                computer_player = ComputerPlayer(computer_id, computer_name, difficulty="medium")
-                self.game_state.add_player(computer_player)
-                custom_log(f"✅ Added computer player: {computer_name} (ID: {computer_id})")
-        
-        self.game_state.phase = GamePhase.DEALING_CARDS
-        self.game_state.game_start_time = time.time()
-        
-        # Build deterministic deck from factory, then deal
-        from ..utils.deck_factory import DeckFactory
-        factory = DeckFactory(self.game_state.game_id)
-        self.game_state.deck.cards = factory.build_deck(
-            include_jokers=True,  # Standard deck cards (including jokers, queens, jacks, kings)
-        )
-        self._deal_cards()
-        
-        # Set up draw and discard piles
-        self._setup_piles()
-        
-        # Set first player and update player statuses
-        player_ids = list(self.game_state.players.keys())
-        self.game_state.current_player_id = player_ids[0]
-        
-        # Update player statuses
-        for player_id, player in self.game_state.players.items():
-            if player_id == self.game_state.current_player_id:
-                player.set_drawing_card()  # Current player needs to draw a card first
-            else:
-                player.set_ready()    # Other players are ready
-        
-        self.game_state.phase = GamePhase.PLAYER_TURN
-        self.game_state.last_action_time = time.time()
-        
-        return {
-            "success": True,
-            "game_started": True,
-            "current_player": self.game_state.current_player_id,
-            "phase": self.game_state.phase.value
-        }
-
-    def draw_from_deck(self, player_id: str) -> Dict[str, Any]:
-        """Draw a card from the deck"""
-        try:
-            custom_log(f"🎮 [GameActions] Player {player_id} drawing from deck")
-            
-            # Check if it's the player's turn
-            if self.game_state.current_player_id != player_id:
-                return {"error": "Not your turn"}
-            
-            # Check if player is in drawing state
-            player = self.game_state.players.get(player_id)
-            if not player or player.status != PlayerStatus.DRAWING_CARD:
-                return {"error": "Player not in drawing state"}
-            
-            # Check if draw pile has cards
-            if not self.game_state.draw_pile:
-                return {"error": "Draw pile is empty"}
-            
-            # Draw the top card
-            drawn_card = self.game_state.draw_pile.pop(0)
-            drawn_card.owner_id = player_id
-            
-            # Add to player's pending draws
-            self.game_state.pending_draws[player_id] = drawn_card
-            
-            # Update player status to playing card
-            player.set_playing_card()
-            
-            # Update game state
-            self.game_state.last_action_time = time.time()
-            
-            custom_log(f"✅ Player {player_id} drew card: {drawn_card}")
-            
-            return {
-                "success": True,
-                "drawn_card": drawn_card.to_dict(),
-                "player_status": player.status.value,
-                "draw_pile_count": len(self.game_state.draw_pile)
-            }
-            
-        except Exception as e:
-            custom_log(f"❌ [GameActions] Error drawing from deck: {e}", level="ERROR")
-            return {"error": f"Draw failed: {str(e)}"}
-
-    def take_from_discard(self, player_id: str) -> Dict[str, Any]:
-        """Take the top card from the discard pile"""
-        try:
-            custom_log(f"🎮 [GameActions] Player {player_id} taking from discard")
-            
-            # Check if it's the player's turn
-            if self.game_state.current_player_id != player_id:
-                return {"error": "Not your turn"}
-            
-            # Check if player is in drawing state
-            player = self.game_state.players.get(player_id)
-            if not player or player.status != PlayerStatus.DRAWING_CARD:
-                return {"error": "Player not in drawing state"}
-            
-            # Check if discard pile has cards
-            if not self.game_state.discard_pile:
-                return {"error": "Discard pile is empty"}
-            
-            # Take the top card
-            top_card = self.game_state.discard_pile.pop()
-            top_card.owner_id = player_id
-            
-            # Add to player's pending draws
-            self.game_state.pending_draws[player_id] = top_card
-            
-            # Update player status to playing card
-            player.set_playing_card()
-            
-            # Update game state
-            self.game_state.last_action_time = time.time()
-            
-            custom_log(f"✅ Player {player_id} took card from discard: {top_card}")
-            
-            return {
-                "success": True,
-                "taken_card": top_card.to_dict(),
-                "player_status": player.status.value,
-                "discard_pile_count": len(self.game_state.discard_pile)
-            }
-            
-        except Exception as e:
-            custom_log(f"❌ [GameActions] Error taking from discard: {e}", level="ERROR")
-            return {"error": f"Take from discard failed: {str(e)}"}
-
-    def play_card(self, player_id: str, card_id: str) -> Dict[str, Any]:
-        """Play a card from the player's hand"""
-        try:
-            custom_log(f"🎮 [GameActions] Player {player_id} playing card: {card_id}")
-            
-            # Check if it's the player's turn
-            if self.game_state.current_player_id != player_id:
-                return {"error": "Not your turn"}
-            
-            # Check if player is in playing state
-            player = self.game_state.players.get(player_id)
-            if not player or player.status != PlayerStatus.PLAYING_CARD:
-                return {"error": "Player not in playing state"}
-            
-            # Find the card in player's hand
-            card = None
-            card_index = None
-            for i, c in enumerate(player.hand):
-                if c.card_id == card_id:
-                    card = c
-                    card_index = i
-                    break
-            
-            if not card:
-                return {"error": "Card not found in hand"}
-            
-            # Remove card from hand
-            player.hand.pop(card_index)
-            
-            # Add to discard pile
-            self.game_state.discard_pile.append(card)
-            
-            # Update last played card
-            self.game_state.last_played_card = card
-            
-            # Update game state
-            self.game_state.last_action_time = time.time()
-            
-            # Move to next player's turn
-            self._next_player_turn()
-            
-            custom_log(f"✅ Player {player_id} played card: {card}")
-            
-            return {
-                "success": True,
-                "played_card": card.to_dict(),
-                "next_player": self.game_state.current_player_id,
-                "discard_pile_count": len(self.game_state.discard_pile)
-            }
-            
-        except Exception as e:
-            custom_log(f"❌ [GameActions] Error playing card: {e}", level="ERROR")
-            return {"error": f"Play card failed: {str(e)}"}
-
-    def play_out_of_turn(self, player_id: str, card_id: str) -> Dict[str, Any]:
-        """Play a card out of turn (same rank)"""
-        try:
-            custom_log(f"🎮 [GameActions] Player {player_id} playing out of turn: {card_id}")
-            
-            # Check if out-of-turn play is allowed
-            if not self.game_state.out_of_turn_deadline or time.time() > self.game_state.out_of_turn_deadline:
-                return {"error": "Out-of-turn play not allowed"}
-            
-            # Check if player has the card
-            player = self.game_state.players.get(player_id)
-            if not player:
-                return {"error": "Player not found"}
-            
-            # Find the card in player's hand
-            card = None
-            card_index = None
-            for i, c in enumerate(player.hand):
-                if c.card_id == card_id:
-                    card = c
-                    card_index = i
-                    break
-            
-            if not card:
-                return {"error": "Card not found in hand"}
-            
-            # Check if card has same rank as last played card
-            if not self.game_state.last_played_card or card.rank != self.game_state.last_played_card.rank:
-                return {"error": "Card must have same rank for out-of-turn play"}
-            
-            # Remove card from hand
-            player.hand.pop(card_index)
-            
-            # Add to discard pile
-            self.game_state.discard_pile.append(card)
-            
-            # Update last played card
-            self.game_state.last_played_card = card
-            
-            # Update game state
-            self.game_state.last_action_time = time.time()
-            
-            # Move to next player's turn
-            self._next_player_turn()
-            
-            custom_log(f"✅ Player {player_id} played out of turn: {card}")
-            
-            return {
-                "success": True,
-                "played_card": card.to_dict(),
-                "next_player": self.game_state.current_player_id,
-                "discard_pile_count": len(self.game_state.discard_pile)
-            }
-            
-        except Exception as e:
-            custom_log(f"❌ [GameActions] Error playing out of turn: {e}", level="ERROR")
-            return {"error": f"Out-of-turn play failed: {str(e)}"}
-
-    def place_drawn_card_replace(self, player_id: str, replace_card_id: str) -> Dict[str, Any]:
-        """Place drawn card by replacing one in hand"""
-        try:
-            custom_log(f"🎮 [GameActions] Player {player_id} replacing card: {replace_card_id}")
-            
-            # Check if player has a pending draw
-            if player_id not in self.game_state.pending_draws:
-                return {"error": "No pending draw to place"}
-            
-            # Get the drawn card
-            drawn_card = self.game_state.pending_draws[player_id]
-            
-            # Find the card to replace in player's hand
-            player = self.game_state.players.get(player_id)
-            if not player:
-                return {"error": "Player not found"}
-            
-            card_index = None
-            for i, c in enumerate(player.hand):
-                if c.card_id == replace_card_id:
-                    card_index = i
-                    break
-            
-            if card_index is None:
-                return {"error": "Card to replace not found in hand"}
-            
-            # Replace the card
-            old_card = player.hand[card_index]
-            player.hand[card_index] = drawn_card
-            
-            # Add old card to discard pile
-            self.game_state.discard_pile.append(old_card)
-            
-            # Remove from pending draws
-            del self.game_state.pending_draws[player_id]
-            
-            # Update game state
-            self.game_state.last_action_time = time.time()
-            
-            # Move to next player's turn
-            self._next_player_turn()
-            
-            custom_log(f"✅ Player {player_id} replaced card: {old_card} with drawn card: {drawn_card}")
-            
-            return {
-                "success": True,
-                "replaced_card": old_card.to_dict(),
-                "drawn_card": drawn_card.to_dict(),
-                "next_player": self.game_state.current_player_id
-            }
-            
-        except Exception as e:
-            custom_log(f"❌ [GameActions] Error replacing card: {e}", level="ERROR")
-            return {"error": f"Replace card failed: {str(e)}"}
-
-    def place_drawn_card_play(self, player_id: str) -> Dict[str, Any]:
-        """Place drawn card by playing it directly"""
-        try:
-            custom_log(f"🎮 [GameActions] Player {player_id} playing drawn card")
-            
-            # Check if player has a pending draw
-            if player_id not in self.game_state.pending_draws:
-                return {"error": "No pending draw to place"}
-            
-            # Get the drawn card
-            drawn_card = self.game_state.pending_draws[player_id]
-            
-            # Add to discard pile
-            self.game_state.discard_pile.append(drawn_card)
-            
-            # Update last played card
-            self.game_state.last_played_card = drawn_card
-            
-            # Remove from pending draws
-            del self.game_state.pending_draws[player_id]
-            
-            # Update game state
-            self.game_state.last_action_time = time.time()
-            
-            # Move to next player's turn
-            self._next_player_turn()
-            
-            custom_log(f"✅ Player {player_id} played drawn card: {drawn_card}")
-            
-            return {
-                "success": True,
-                "played_card": drawn_card.to_dict(),
-                "next_player": self.game_state.current_player_id,
-                "discard_pile_count": len(self.game_state.discard_pile)
-            }
-            
-        except Exception as e:
-            custom_log(f"❌ [GameActions] Error playing drawn card: {e}", level="ERROR")
-            return {"error": f"Play drawn card failed: {str(e)}"}
-
-    def initial_peek(self, player_id: str, indices: List[int]) -> Dict[str, Any]:
-        """Allow player to peek at initial cards"""
-        try:
-            custom_log(f"🎮 [GameActions] Player {player_id} peeking at indices: {indices}")
-            
-            # Check if player is in waiting state
-            player = self.game_state.players.get(player_id)
-            if not player or player.status != PlayerStatus.WAITING:
-                return {"error": "Player not in waiting state"}
-            
-            # Check if player has peeks remaining
-            if player.initial_peeks_remaining <= 0:
-                return {"error": "No peeks remaining"}
-            
-            # Validate indices
-            if not indices or len(indices) > 2 or any(i < 0 or i >= len(player.hand) for i in indices):
-                return {"error": "Invalid indices for peeking"}
-            
-            # Peek at the cards
-            peeked_cards = []
-            for index in indices:
-                card = player.hand[index]
-                card.is_visible = True
-                if card not in player.visible_cards:
-                    player.visible_cards.append(card)
-                peeked_cards.append(card.to_dict())
-            
-            # Decrease peeks remaining
-            player.initial_peeks_remaining -= 1
-            
-            custom_log(f"✅ Player {player_id} peeked at {len(peeked_cards)} cards")
-            
-            return {
-                "success": True,
-                "peeked_cards": peeked_cards,
-                "peeks_remaining": player.initial_peeks_remaining
-            }
-            
-        except Exception as e:
-            custom_log(f"❌ [GameActions] Error peeking: {e}", level="ERROR")
-            return {"error": f"Peek failed: {str(e)}"}
-
-    def call_recall(self, player_id: str) -> Dict[str, Any]:
-        """Call recall to end the game"""
-        try:
-            custom_log(f"🎮 [GameActions] Player {player_id} calling recall")
-            
-            # Check if it's the player's turn
-            if self.game_state.current_player_id != player_id:
-                return {"error": "Not your turn"}
-            
-            # Check if player is in playing state
-            player = self.game_state.players.get(player_id)
-            if not player or player.status != PlayerStatus.PLAYING_CARD:
-                return {"error": "Player not in playing state"}
-            
-            # Set recall called
-            self.game_state.recall_called_by = player_id
-            player.has_called_recall = True
-            
-            # Change game phase
-            self.game_state.phase = GamePhase.RECALL_CALLED
-            
-            # Update game state
-            self.game_state.last_action_time = time.time()
-            
-            custom_log(f"✅ Player {player_id} called recall")
-            
-            return {
-                "success": True,
-                "recall_called_by": player_id,
-                "game_phase": self.game_state.phase.value
-            }
-            
-        except Exception as e:
-            custom_log(f"❌ [GameActions] Error calling recall: {e}", level="ERROR")
-            return {"error": f"Call recall failed: {str(e)}"}
-
-    def _end_game_with_scoring(self) -> Dict[str, Any]:
-        """End the game and calculate final scores"""
-        try:
-            custom_log(f"🎮 [GameActions] Ending game with scoring")
-            
-            # Calculate scores for all players
-            scores = {}
-            for player_id, player in self.game_state.players.items():
-                score = player.calculate_points()
-                scores[player_id] = score
-            
-            # Find winner (lowest score, then fewest cards)
-            winner_id = min(scores.keys(), key=lambda pid: (scores[pid], len(self.game_state.players[pid].hand)))
-            
-            # Update game state
-            self.game_state.winner = winner_id
-            self.game_state.phase = GamePhase.GAME_ENDED
-            self.game_state.game_ended = True
-            self.game_state.last_action_time = time.time()
-            
-            custom_log(f"✅ Game ended. Winner: {winner_id} with score: {scores[winner_id]}")
-            
-            return {
-                "success": True,
-                "game_ended": True,
-                "winner": winner_id,
-                "scores": scores,
-                "final_phase": self.game_state.phase.value
-            }
-            
-        except Exception as e:
-            custom_log(f"❌ [GameActions] Error ending game: {e}", level="ERROR")
-            return {"error": f"End game failed: {str(e)}"}
-
-    # ========= Private Helper Methods =========
-    
-    def _deal_cards(self):
-        """Deal 4 cards to each player"""
-        for player in self.game_state.players.values():
-            for _ in range(4):
-                card = self.game_state.deck.draw_card()
-                if card:
-                    player.add_card_to_hand(card)
-    
-    def _setup_piles(self):
-        """Set up draw and discard piles"""
-        # Move remaining cards to draw pile
-        self.game_state.draw_pile = self.game_state.deck.cards.copy()
-        self.game_state.deck.cards = []
-        
-        # Start discard pile with first card from draw pile
-        if self.game_state.draw_pile:
-            first_card = self.game_state.draw_pile.pop(0)
-            self.game_state.discard_pile.append(first_card)
-    
-    def _next_player_turn(self):
-        """Move to the next player's turn"""
-        player_ids = list(self.game_state.players.keys())
-        if not player_ids:
-            return
-        
-        current_index = player_ids.index(self.game_state.current_player_id)
-        next_index = (current_index + 1) % len(player_ids)
-        next_player_id = player_ids[next_index]
-        
-        # Update current player
-        self.game_state.current_player_id = next_player_id
-        
-        # Update player statuses
-        for player_id, player in self.game_state.players.items():
-            if player_id == next_player_id:
-                player.set_drawing_card()  # Next player needs to draw
-            else:
-                player.set_ready()  # Other players are ready
-        
-        custom_log(f"🔄 Turn moved to player: {next_player_id}")
-
-
 class GameStateManager:
     """Manages multiple game states with integrated WebSocket communication"""
     
@@ -1302,17 +503,56 @@ class GameStateManager:
             user_id = str(session_data.get('user_id') or session_id)
             custom_log(f"🎮 [START_MATCH] User ID: {user_id}")
             
-            # First, start the game (deal cards, set up deck, etc.)
-            custom_log(f"🎮 [START_MATCH] Getting game actions...")
-            game_actions = game.get_actions()
-            custom_log(f"🎮 [START_MATCH] Starting game...")
-            game_start_result = game_actions.start_game()
-            custom_log(f"🎮 [START_MATCH] Game start result: {game_start_result}")
+            # ========= CONSOLIDATED GAME START LOGIC =========
+            custom_log(f"🎮 [START_MATCH] Starting consolidated game start logic...")
             
-            if game_start_result.get('error'):
-                custom_log(f"❌ [START_MATCH] Game start failed: {game_start_result['error']}")
-                self._send_error(session_id, f"Start match failed: {game_start_result['error']}")
-                return False
+            # Check if we have enough players, add computer players if needed
+            current_players = len(game.players)
+            min_players = game.min_players
+            
+            if current_players < min_players:
+                # Add computer players to reach minimum
+                players_needed = min_players - current_players
+                custom_log(f"🎮 [START_MATCH] Adding {players_needed} computer player(s) to reach minimum of {min_players}")
+                
+                for i in range(players_needed):
+                    computer_id = f"computer_{game.game_id}_{i}"
+                    computer_name = f"Computer_{i+1}"
+                    from ..models.player import ComputerPlayer
+                    computer_player = ComputerPlayer(computer_id, computer_name, difficulty="medium")
+                    game.add_player(computer_player)
+                    custom_log(f"✅ [START_MATCH] Added computer player: {computer_name} (ID: {computer_id})")
+            
+            game.phase = GamePhase.DEALING_CARDS
+            game.game_start_time = time.time()
+            
+            # Build deterministic deck from factory, then deal
+            from ..utils.deck_factory import DeckFactory
+            factory = DeckFactory(game.game_id)
+            game.deck.cards = factory.build_deck(
+                include_jokers=True,  # Standard deck cards (including jokers, queens, jacks, kings)
+            )
+            self._deal_cards(game)
+            
+            # Set up draw and discard piles
+            self._setup_piles(game)
+            
+            # Set first player and update player statuses
+            player_ids = list(game.players.keys())
+            game.current_player_id = player_ids[0]
+            
+            # Update player statuses
+            for player_id, player in game.players.items():
+                if player_id == game.current_player_id:
+                    player.set_drawing_card()  # Current player needs to draw a card first
+                else:
+                    player.set_ready()    # Other players are ready
+            
+            game.phase = GamePhase.PLAYER_TURN
+            game.last_action_time = time.time()
+            
+            custom_log(f"✅ [START_MATCH] Game start logic completed successfully")
+            # ========= END CONSOLIDATED GAME START LOGIC =========
             
             # Get the game round handler
             custom_log(f"🎮 [START_MATCH] Getting game round...")
@@ -1350,6 +590,31 @@ class GameStateManager:
             custom_log(f"❌ [START_MATCH] Traceback: {traceback.format_exc()}", level="ERROR")
             self._send_error(session_id, f'Start match failed: {str(e)}')
             return False
+
+    # ========= CONSOLIDATED GAME START HELPER METHODS =========
+    
+    def _deal_cards(self, game: GameState):
+        """Deal 4 cards to each player - moved from GameActions"""
+        for player in game.players.values():
+            for _ in range(4):
+                card = game.deck.draw_card()
+                if card:
+                    player.add_card_to_hand(card)
+        custom_log(f"🎮 [START_MATCH] Dealt 4 cards to each of {len(game.players)} players")
+    
+    def _setup_piles(self, game: GameState):
+        """Set up draw and discard piles - moved from GameActions"""
+        # Move remaining cards to draw pile
+        game.draw_pile = game.deck.cards.copy()
+        game.deck.cards = []
+        
+        # Start discard pile with first card from draw pile
+        if game.draw_pile:
+            first_card = game.draw_pile.pop(0)
+            game.discard_pile.append(first_card)
+            custom_log(f"🎮 [START_MATCH] Set up piles: {len(game.draw_pile)} cards in draw pile, 1 card in discard pile")
+        else:
+            custom_log(f"⚠️ [START_MATCH] No cards available for pile setup")
 
     # ========= WebSocket Helper Methods =========
     

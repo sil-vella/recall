@@ -267,15 +267,12 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     final suit = card['suit']?.toString() ?? '?';
     final color = _getCardColor(suit);
     
-    // Get opponent name for click feedback
-    final opponentName = _getOpponentNameFromCard(card);
-    
     // Check if this card is currently selected
     final cardId = card['cardId']?.toString();
     final isSelected = cardId != null && _clickedCardId == cardId;
     
     return GestureDetector(
-      onTap: () => _handleCardClick(card, opponentName),
+      onTap: () => _handleCardClick(card),
       child: Container(
         width: 50,
         height: 70,
@@ -393,12 +390,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     }
   }
 
-  /// Get opponent name from card context
-  String _getOpponentNameFromCard(Map<String, dynamic> card) {
-    // Try to get opponent name from card owner or fallback to generic name
-    return card['ownerName']?.toString() ?? 'Opponent';
-  }
-
   /// Get the currently clicked card ID (for external access)
   String? getClickedCardId() {
     return _clickedCardId;
@@ -412,12 +403,12 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Handle card click for special power interactions
-  void _handleCardClick(Map<String, dynamic> card, String opponentName) {
+  void _handleCardClick(Map<String, dynamic> card) {
     // Get current player status from state
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
     
-    _log.info('🎯 Card clicked: ${card['cardId']} from opponent $opponentName, current player status: $currentPlayerStatus');
+    _log.info('🎯 Card clicked: ${card['cardId']}, current player status: $currentPlayerStatus');
     
     // Check if current player can interact with cards (queen_peek or jack_swap status)
     if (currentPlayerStatus == 'queen_peek' || currentPlayerStatus == 'jack_swap') {

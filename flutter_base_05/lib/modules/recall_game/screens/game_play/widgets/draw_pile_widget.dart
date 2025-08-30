@@ -152,8 +152,25 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     // Check if current player can interact with draw pile (drawing_card status only)
     if (currentPlayerStatus == 'drawing_card') {
       try {
+        // Get current game ID from state
+        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+        if (currentGameId.isEmpty) {
+          _log.error('❌ No current game ID found');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error: No active game found'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
         // Create and execute the draw action
-        final drawAction = PlayerAction.playerDraw(pileType: 'draw_pile');
+        final drawAction = PlayerAction.playerDraw(
+          pileType: 'draw_pile',
+          gameId: currentGameId,
+        );
         await drawAction.execute();
         
         setState(() {

@@ -61,12 +61,16 @@ class PlayerAction {
   /// Draw a card from the specified pile
   static PlayerAction playerDraw({
     required String pileType, // 'draw_pile' or 'discard_pile'
+    required String gameId,
+    String? playerId, // Optional, will be resolved from session if not provided
   }) {
     return PlayerAction._(
       actionType: PlayerActionType.drawCard,
-      eventName: 'player_draw',
+      eventName: 'draw_card',
       payload: {
-        'pile_type': pileType,
+        'game_id': gameId,
+        'player_id': playerId, // Will be resolved from session if null
+        'source': pileType, // Backend expects 'source' not 'pile_type'
       },
     );
   }

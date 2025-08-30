@@ -160,8 +160,25 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
     // Check if current player can interact with discard pile (drawing_card status only)
     if (currentPlayerStatus == 'drawing_card') {
       try {
+        // Get current game ID from state
+        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+        if (currentGameId.isEmpty) {
+          _log.error('❌ No current game ID found');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error: No active game found'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
         // Create and execute the draw action
-        final drawAction = PlayerAction.playerDraw(pileType: 'discard_pile');
+        final drawAction = PlayerAction.playerDraw(
+          pileType: 'discard_pile',
+          gameId: currentGameId,
+        );
         await drawAction.execute();
         
         setState(() {

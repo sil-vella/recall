@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
-import '../../../managers/game_coordinator.dart';
 
 /// Widget to display the draw pile information
 /// 
@@ -68,9 +67,6 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     required bool isMyTurn,
     required String playerStatus,
   }) {
-    // Determine if player can draw based on status and game state
-    final bool canDraw = canDrawFromDeck && isGameActive && isMyTurn && 
-        (playerStatus == 'drawing_card' || gamePhase == 'playing' || gamePhase == 'out_of_turn');
     
     return Card(
       margin: const EdgeInsets.all(8),
@@ -174,70 +170,6 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
               ),
             ),
             const SizedBox(height: 12),
-            
-            // Draw button (only show when it's the player's turn and they can draw)
-            if (canDraw)
-              ElevatedButton.icon(
-                onPressed: _handleDrawCard,
-                icon: const Icon(Icons.draw, size: 16),
-                label: const Text('Draw Card'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                ),
-              )
-            else if (drawPileCount == 0)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.shade300),
-                ),
-                child: Text(
-                  'Empty',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.orange.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              )
-            else if (!isGameActive)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Text(
-                  'Game not active',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              )
-            else if (!isMyTurn)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Text(
-                  'Not your turn',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -295,22 +227,5 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     }
   }
 
-  /// Handle drawing a card from the draw pile
-  void _handleDrawCard() async {
-    _log.info('🎮 DrawPileWidget: Draw card action triggered');
-    
-    try {
-      // Import GameCoordinator
-      final gameCoordinator = GameCoordinator();
-      final success = await gameCoordinator.drawCard(source: 'deck');
-      
-      if (success) {
-        _log.info('✅ DrawPileWidget: Draw card action sent successfully');
-      } else {
-        _log.error('❌ DrawPileWidget: Failed to send draw card action');
-      }
-    } catch (e) {
-      _log.error('❌ DrawPileWidget: Error in draw card action: $e');
-    }
-  }
+
 }

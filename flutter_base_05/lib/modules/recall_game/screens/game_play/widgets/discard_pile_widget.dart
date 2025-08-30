@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
-import '../../../managers/game_coordinator.dart';
 
 /// Widget to display the discard pile information
 /// 
@@ -68,10 +67,6 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
     required bool isMyTurn,
     required String playerStatus,
   }) {
-    // Determine if player can take from discard based on status and game state
-    final bool canTake = canTakeFromDiscard && isGameActive && isMyTurn && 
-        (playerStatus == 'drawing_card' || playerStatus == 'playing_card' || 
-         gamePhase == 'playing' || gamePhase == 'out_of_turn');
     final bool hasCards = topDiscard != null;
     
     return Card(
@@ -134,70 +129,6 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
               ),
             ),
             const SizedBox(height: 12),
-            
-            // Take button (only show when it's the player's turn and they can take)
-            if (canTake)
-              ElevatedButton.icon(
-                onPressed: _handleTakeFromDiscard,
-                icon: const Icon(Icons.handshake, size: 16),
-                label: const Text('Take Card'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                ),
-              )
-            else if (!hasCards)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Text(
-                  'Empty',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              )
-            else if (!isGameActive)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Text(
-                  'Game not active',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              )
-            else if (!isMyTurn)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Text(
-                  'Not your turn',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -366,22 +297,5 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
     }
   }
 
-  /// Handle taking a card from the discard pile
-  void _handleTakeFromDiscard() async {
-    _log.info('🎮 DiscardPileWidget: Take from discard action triggered');
-    
-    try {
-      // Import GameCoordinator
-      final gameCoordinator = GameCoordinator();
-      final success = await gameCoordinator.takeFromDiscard();
-      
-      if (success) {
-        _log.info('✅ DiscardPileWidget: Take from discard action sent successfully');
-      } else {
-        _log.error('❌ DiscardPileWidget: Failed to send take from discard action');
-      }
-    } catch (e) {
-      _log.error('❌ DiscardPileWidget: Error in take from discard action: $e');
-    }
-  }
+
 }

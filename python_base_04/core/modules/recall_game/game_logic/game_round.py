@@ -327,21 +327,25 @@ class GameRound:
             custom_log(f"❌ [DRAW_FROM_DECK] Error handling draw from deck: {e}", level="ERROR")
             return False
 
-    def complete_round(self, action_data: Dict[str, Any]) -> bool:
+    def complete_round(self, action_result: bool) -> bool:
         """Complete the current round after a player action"""
         try:
-            custom_log(f"🎮 [COMPLETE_ROUND] Completing round after player action: {action_data}")
+            custom_log(f"🎮 [COMPLETE_ROUND] Completing round after player action. Action result: {action_result}")
+            
+            # Only complete round if action was successful
+            if not action_result:
+                custom_log(f"⚠️ [COMPLETE_ROUND] Action failed, not completing round")
+                return False
             
             # Update round state
             self.round_status = "active"
             self.current_turn_start_time = time.time()
             
-            # Log the action for round tracking
+            # Log the successful action for round tracking
             self.actions_performed.append({
-                'action': action_data.get('action'),
-                'player_id': action_data.get('player_id'),
+                'action': 'player_action_completed',
                 'timestamp': time.time(),
-                'data': action_data
+                'result': action_result
             })
             
             # Send room-wide game state update to all players

@@ -117,8 +117,8 @@ class GameEventCoordinator:
             # Handle the player action through the game round and store the result
             action_result = game_round.on_player_action(session_id, data)
             
-            # Call complete_round with the action data
-            game_round.complete_round(data)
+            # Call complete_round with the action result
+            game_round.complete_round(action_result)
             
             # Return the action result
             return action_result

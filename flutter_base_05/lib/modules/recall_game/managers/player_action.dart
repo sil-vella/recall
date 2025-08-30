@@ -64,12 +64,25 @@ class PlayerAction {
     required String gameId,
     // playerId is now auto-added by RecallGameEventEmitter
   }) {
+    // Convert frontend pile type to backend source value
+    String source;
+    switch (pileType) {
+      case 'draw_pile':
+        source = 'deck';
+        break;
+      case 'discard_pile':
+        source = 'discard';
+        break;
+      default:
+        source = pileType; // Fallback for any other values
+    }
+    
     return PlayerAction._(
       actionType: PlayerActionType.drawCard,
       eventName: 'draw_card',
       payload: {
         'game_id': gameId,
-        'source': pileType, // Backend expects 'source' not 'pile_type'
+        'source': source, // Backend expects 'deck' or 'discard'
         // player_id will be automatically included by the event emitter
       },
     );

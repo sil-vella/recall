@@ -189,7 +189,7 @@ class GameEventCoordinator:
                 'game_id': game_id,
                 'action_type': action_type,
                 'action_data': action_data,
-                'game_state': self._to_flutter_game_state(game),
+                'game_state': self.game_state_manager._to_flutter_game_data(game),
             }
             for player_id, session_id in game.player_sessions.items():
                 if exclude_player_id and player_id == exclude_player_id:
@@ -205,7 +205,7 @@ class GameEventCoordinator:
             payload = {
                 'event_type': 'game_state_updated',
                 'game_id': game_id,
-                'game_state': self._to_flutter_game_state(game),
+                'game_state': self.game_state_manager._to_flutter_game_data(game),
             }
             self._send_to_all_players(game_id, 'game_state_updated', payload)
     
@@ -232,8 +232,8 @@ class GameEventCoordinator:
         try:
             custom_log(f"📡 [DEBUG] _send_recall_player_joined_events called for user {user_id} in room {room_id}, session {session_id}")
             
-            # Convert game to Flutter format
-            game_state = self._to_flutter_game_state(game)
+            # Convert game to Flutter format using GameStateManager (which has the proper conversion method)
+            game_state = self.game_state_manager._to_flutter_game_data(game)
             custom_log(f"🔍 [DEBUG] Game state converted to Flutter format")
             
             # 1. Send new_player_joined event to the room
@@ -267,7 +267,8 @@ class GameEventCoordinator:
                 # Check if user is in this game
                 if user_id in user_game.players:
                     custom_log(f"✅ [DEBUG] User {user_id} is in game {game_id}")
-                    user_game_state = self._to_flutter_game_state(user_game)
+                    # Use GameStateManager for data conversion
+                    user_game_state = self.game_state_manager._to_flutter_game_data(user_game)
                     
                     # Get the owner_id for this room from the WebSocket manager
                     owner_id = self.websocket_manager.get_room_creator(game_id)
@@ -305,16 +306,7 @@ class GameEventCoordinator:
             import traceback
             custom_log(f"❌ Traceback: {traceback.format_exc()}", level="ERROR")
     
-    def _to_flutter_game_state(self, game) -> Dict[str, Any]:
-        """Convert game state to Flutter format"""
-        try:
-            # Access the game state conversion method directly from game state
-            if hasattr(game, '_to_flutter_game_state'):
-                return game._to_flutter_game_state()
-            return {}
-        except Exception as e:
-            custom_log(f"❌ Error converting game state: {e}", level="ERROR")
-            return {}
+
     
     def get_registered_events(self) -> list:
         """Get list of registered event names"""

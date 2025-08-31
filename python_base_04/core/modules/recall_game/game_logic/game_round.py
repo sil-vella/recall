@@ -157,10 +157,11 @@ class GameRound:
             turn_payload = {
                 'event_type': 'turn_started',
                 'game_id': self.game_state.game_id,
-                'game_state': self._to_flutter_game_state(),
+                'game_state': self._to_flutter_game_data(),
                 'player_id': current_player_id,
                 'player_status': player_status,
                 'turn_timeout': self.turn_timeout_seconds,
+                'is_my_turn': True,  # Add missing field that frontend expects
                 'timestamp': datetime.now().isoformat()
             }
             
@@ -202,11 +203,17 @@ class GameRound:
             room_payload = {
                 'event_type': 'game_state_updated',
                 'game_id': self.game_state.game_id,
-                'game_state': self._to_flutter_game_state(),
+                'game_state': self._to_flutter_game_data(),
                 'round_number': self.round_number,
                 'current_player': current_player_id,
                 'current_player_status': current_player_status,
                 'round_status': self.round_status,
+                'reason': 'round_started',  # Add missing field that frontend expects
+                'changes': {  # Add missing field that frontend expects
+                    'round_number': self.round_number,
+                    'current_player': current_player_id,
+                    'round_status': self.round_status
+                },
                 'timestamp': datetime.now().isoformat()
             }
             
@@ -218,13 +225,25 @@ class GameRound:
         except Exception as e:
             custom_log(f"❌ Error sending room game state update: {e}", level="ERROR")
     
-    def _to_flutter_game_state(self) -> Dict[str, Any]:
-        """Convert game state to Flutter format"""
+    def _to_flutter_game_data(self) -> Dict[str, Any]:
+        """
+        Convert game state to Flutter format - delegates to game_state manager
+        
+        This method ensures all game data goes through the single source of truth
+        in the GameStateManager._to_flutter_game_data method.
+        """
         try:
-            # Access the game state conversion method directly from game state
-            if hasattr(self.game_state, '_to_flutter_game_state'):
-                return self.game_state._to_flutter_game_state(self.game_state)
-            return {}
+            # Use the GameStateManager for data conversion since it has the proper method
+            if hasattr(self.game_state, 'app_manager') and self.game_state.app_manager:
+                game_state_manager = getattr(self.game_state.app_manager, 'game_state_manager', None)
+                if game_state_manager:
+                    return game_state_manager._to_flutter_game_data(self.game_state)
+                else:
+                    custom_log(f"❌ GameStateManager not available", level="ERROR")
+                    return {}
+            else:
+                custom_log(f"❌ App manager not available", level="ERROR")
+                return {}
         except Exception as e:
             custom_log(f"❌ Error converting game state: {e}", level="ERROR")
             return {}

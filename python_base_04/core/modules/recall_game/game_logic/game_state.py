@@ -374,7 +374,7 @@ class GameStateManager:
                 if hasattr(self, 'app_manager') and self.app_manager:
                     coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                     if coordinator:
-                        game_data = coordinator._to_flutter_game_state(game)
+                        game_data = coordinator._to_flutter_game_data(game)
                         available_games.append(game_data)
                     else:
                         custom_log(f"⚠️ Coordinator not available for converting game state")
@@ -430,14 +430,14 @@ class GameStateManager:
                 'event_type': 'game_joined',
                 'game_id': game_id,
                 'game_state': None,  # Will be set by coordinator
-                'player': self._to_flutter_player(game.players[user_id], user_id == game.current_player_id),
+                'player': self._to_flutter_player_data(game.players[user_id], user_id == game.current_player_id),
             }
             
             # Get game state from coordinator
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    payload['game_state'] = coordinator._to_flutter_game_state(game)
+                    payload['game_state'] = coordinator._to_flutter_game_data(game)
                 else:
                     custom_log(f"⚠️ Coordinator not available for converting game state")
             else:
@@ -580,20 +580,45 @@ class GameStateManager:
                     custom_log(f"⚠️ App manager not available for sending error message")
                 return False
             
-            # Send game started event to all players
+            # Send game started event to all players with full game state
             payload = {
                 'event_type': 'game_started',
                 'game_id': game_id,
-                'round_number': round_result.get('round_number'),
-                'game_phase': game.phase.value,
-                'timestamp': datetime.now().isoformat()
+                'started_by': user_id,
+                'game_state': self._to_flutter_game_data(game),  # Include full game state
+                'timestamp': datetime.now().isoformat(),
+                'player_order': list(game.players.keys()),  # List of player IDs in order
+                'initial_hands': {pid: len(player.hand) for pid, player in game.players.items()}  # Initial hand sizes
             }
             
             # Use the coordinator to broadcast the event
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
+                    # Broadcast game started event to all players
                     coordinator._broadcast_event(game_id, payload)
+                    
+                    # Send turn event to the current player
+                    current_player_id = round_result.get('current_player')
+                    if current_player_id:
+                        # Get current player status
+                        current_player = game.players.get(current_player_id)
+                        player_status = current_player.status.value if current_player else 'ready'
+                        
+                        turn_payload = {
+                            'event_type': 'turn_started',
+                            'game_id': game_id,
+                            'player_id': current_player_id,
+                            'player_status': player_status,  # ✅ Add missing field
+                            'turn_timeout': 30,  # 30 seconds per turn
+                            'is_my_turn': True,
+                            'game_state': self._to_flutter_game_data(game),  # Include full game state
+                            'timestamp': datetime.now().isoformat()
+                        }
+                        coordinator._send_to_player(game_id, current_player_id, 'turn_started', turn_payload)
+                        custom_log(f"🎯 [START_MATCH] Turn event sent to current player {current_player_id}")
+                    else:
+                        custom_log(f"⚠️ [START_MATCH] No current player found in round result")
                 else:
                     custom_log(f"⚠️ Coordinator not available for broadcasting game started event")
             else:
@@ -661,8 +686,13 @@ class GameStateManager:
             'color': 'red' if card.suit in ['hearts', 'diamonds'] else 'black',
         }
 
-    def _to_flutter_player(self, player, is_current: bool = False) -> Dict[str, Any]:
-        """Convert player to Flutter format"""
+    def _to_flutter_player_data(self, player, is_current: bool = False) -> Dict[str, Any]:
+        """
+        Convert player to Flutter format - SINGLE SOURCE OF TRUTH for player data structure
+        
+        This method structures ALL player data that will be sent to the frontend.
+        The structure MUST match the Flutter frontend schema exactly.
+        """
         return {
             'id': player.player_id,
             'name': player.name,
@@ -675,8 +705,13 @@ class GameStateManager:
             'hasCalledRecall': bool(player.has_called_recall),
         }
 
-    def _to_flutter_game_state(self, game: GameState) -> Dict[str, Any]:
-        """Convert game state to Flutter format"""
+    def _to_flutter_game_data(self, game: GameState) -> Dict[str, Any]:
+        """
+        Convert game state to Flutter format - SINGLE SOURCE OF TRUTH for game data structure
+        
+        This method structures ALL game data that will be sent to the frontend.
+        The structure MUST match the Flutter frontend schema exactly.
+        """
         phase_mapping = {
             'waiting_for_players': 'waiting',
             'dealing_cards': 'setup',
@@ -686,28 +721,86 @@ class GameStateManager:
             'game_ended': 'finished',
         }
         
+        # Get current player data
         current_player = None
         if game.current_player_id and game.current_player_id in game.players:
-            current_player = self._to_flutter_player(game.players[game.current_player_id], True)
+            current_player = self._to_flutter_player_data(game.players[game.current_player_id], True)
 
-        return {
+        # Build complete game data structure matching Flutter schema
+        game_data = {
+            # Core game identification
             'gameId': game.game_id,
             'gameName': f"Recall Game {game.game_id}",
-            'players': [self._to_flutter_player(player, pid == game.current_player_id) for pid, player in game.players.items()],
+            
+            # Player information
+            'players': [self._to_flutter_player_data(player, pid == game.current_player_id) for pid, player in game.players.items()],
             'currentPlayer': current_player,
-            'phase': phase_mapping.get(game.phase.value, 'waiting'),
-            'status': 'active' if game.phase.value in ['player_turn', 'out_of_turn_play', 'recall_called'] else 'inactive',
-            'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],
-            'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
-            'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time else None,
-            'lastActivityTime': datetime.fromtimestamp(game.last_action_time).isoformat() if game.last_action_time else None,
-            'winner': game.winner,
             'playerCount': len(game.players),
             'maxPlayers': game.max_players,
             'minPlayers': game.min_players,
             'activePlayerCount': len([p for p in game.players.values() if p.is_active]),
+            
+            # Game state and phase
+            'phase': phase_mapping.get(game.phase.value, 'waiting'),
+            'status': 'active' if game.phase.value in ['player_turn', 'out_of_turn_play', 'recall_called'] else 'inactive',
+            
+            # Card piles
+            'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],
+            'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
+            
+            # Game timing
+            'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time else None,
+            'lastActivityTime': datetime.fromtimestamp(game.last_action_time).isoformat() if game.last_action_time else None,
+            
+            # Game completion
+            'winner': game.winner,
+            'gameEnded': game.game_ended,
+            
+            # Room settings
             'permission': game.permission,  # Include room permission
+            
+            # Additional game metadata
+            'recallCalledBy': game.recall_called_by,
+            'lastPlayedCard': self._to_flutter_card(game.last_played_card) if game.last_played_card else None,
+            'outOfTurnDeadline': game.out_of_turn_deadline,
+            'outOfTurnTimeoutSeconds': game.out_of_turn_timeout_seconds,
         }
+        
+        return game_data
+
+    # ========= DEPRECATED METHODS - REMOVE AFTER MIGRATION =========
+    
+    def _to_flutter_card(self, card) -> Dict[str, Any]:
+        """
+        DEPRECATED: Convert card to Flutter format
+        This method will be removed after migration to _to_flutter_game_data
+        """
+        rank_mapping = {
+            '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+            '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
+        }
+        return {
+            'cardId': card.card_id,
+            'suit': card.suit,
+            'rank': rank_mapping.get(card.rank, card.rank),
+            'points': card.points,
+            'displayName': str(card),
+            'color': 'red' if card.suit in ['hearts', 'diamonds'] else 'black',
+        }
+
+    def _to_flutter_player(self, player, is_current: bool = False) -> Dict[str, Any]:
+        """
+        DEPRECATED: Convert player to Flutter format
+        This method will be removed after migration to _to_flutter_player_data
+        """
+        return self._to_flutter_player_data(player, is_current)
+
+    def _to_flutter_game_state(self, game: GameState) -> Dict[str, Any]:
+        """
+        DEPRECATED: Convert game state to Flutter format
+        This method will be removed after migration to _to_flutter_game_data
+        """
+        return self._to_flutter_game_data(game)
 
     def cleanup_ended_games(self):
         """Remove games that have ended"""

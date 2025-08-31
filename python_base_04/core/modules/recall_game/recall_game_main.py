@@ -194,7 +194,7 @@ class RecallGameMain(BaseModule):
             if hasattr(self.game_state_manager, 'app_manager') and self.game_state_manager.app_manager:
                 coordinator = getattr(self.game_state_manager.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    game_info = coordinator._to_flutter_game_state(game)
+                    game_info = coordinator._to_flutter_game_data(game)
                 else:
                     custom_log(f"⚠️ Coordinator not available for converting game state")
             else:

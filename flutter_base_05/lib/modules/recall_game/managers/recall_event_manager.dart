@@ -214,6 +214,7 @@ class RecallEventManager {
           'gamePhase': gameState['phase'] ?? 'playing',
           'gameStatus': gameState['status'] ?? 'active',
           'isGameActive': true,
+          'isRoomOwner': startedBy == currentUserId,  // ✅ Set ownership based on who started the game
           
           // Update game-specific fields for widget slices
           'drawPileCount': drawPile.length,

@@ -392,7 +392,15 @@ class GameStateManager:
             # Game should already exist (created via room_created hook)
             game = self.get_game(game_id)
             if not game:
-                self._send_error(session_id, f'Game not found: {game_id} - games are auto-created when rooms are created')
+                # Use the coordinator to send error message
+                if hasattr(self, 'app_manager') and self.app_manager:
+                    coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                    if coordinator:
+                        coordinator._send_error(session_id, f'Game not found: {game_id} - games are auto-created when rooms are created')
+                    else:
+                        custom_log(f"⚠️ Coordinator not available for sending error message")
+                else:
+                    custom_log(f"⚠️ App manager not available for sending error message")
                 return False
 
             # Join the room (game and room have same ID)
@@ -410,18 +418,37 @@ class GameStateManager:
                 game.update_player_session(user_id, session_id)
                 custom_log(f"✅ Updated session for player {user_id} in game {game_id}")
 
-            # Broadcast join event
+            # Broadcast join event using coordinator
             payload = {
                 'event_type': 'game_joined',
                 'game_id': game_id,
                 'game_state': self._to_flutter_game_state(game),
                 'player': self._to_flutter_player(game.players[user_id], user_id == game.current_player_id),
             }
-            self._broadcast_event(game_id, payload)
+            
+            # Use the coordinator to broadcast the event
+            if hasattr(self, 'app_manager') and self.app_manager:
+                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._broadcast_event(game_id, payload)
+                else:
+                    custom_log(f"⚠️ Coordinator not available for broadcasting game joined event")
+            else:
+                custom_log(f"⚠️ App manager not available for broadcasting game joined event")
+            
             return True
+            
         except Exception as e:
             custom_log(f"Error in on_join_game: {e}", level="ERROR")
-            self._send_error(session_id, f'Join game failed: {str(e)}')
+            # Use the coordinator to send error message
+            if hasattr(self, 'app_manager') and self.app_manager:
+                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._send_error(session_id, f'Join game failed: {str(e)}')
+                else:
+                    custom_log(f"⚠️ Coordinator not available for sending error message")
+            else:
+                custom_log(f"⚠️ App manager not available for sending error message")
             return False
 
     def on_start_match(self, session_id: str, data: Dict[str, Any]) -> bool:
@@ -432,14 +459,30 @@ class GameStateManager:
             game_id = data.get('game_id') or data.get('room_id')
             if not game_id:
                 custom_log(f"❌ [START_MATCH] Missing game_id in data: {data}")
-                self._send_error(session_id, 'Missing game_id')
+                # Use the coordinator to send error message
+                if hasattr(self, 'app_manager') and self.app_manager:
+                    coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                    if coordinator:
+                        coordinator._send_error(session_id, 'Missing game_id')
+                    else:
+                        custom_log(f"⚠️ Coordinator not available for sending error message")
+                else:
+                    custom_log(f"⚠️ App manager not available for sending error message")
                 return False
             
             custom_log(f"🎮 [START_MATCH] Looking for game: {game_id}")
             game = self.get_game(game_id)
             if not game:
                 custom_log(f"❌ [START_MATCH] Game not found: {game_id}")
-                self._send_error(session_id, f'Game not found: {game_id}')
+                # Use the coordinator to send error message
+                if hasattr(self, 'app_manager') and self.app_manager:
+                    coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                    if coordinator:
+                        coordinator._send_error(session_id, f'Game not found: {game_id}')
+                    else:
+                        custom_log(f"⚠️ Coordinator not available for sending error message")
+                else:
+                    custom_log(f"⚠️ App manager not available for sending error message")
                 return False
 
             custom_log(f"✅ [START_MATCH] Game found: {game_id}")
@@ -509,7 +552,15 @@ class GameStateManager:
             
             if round_result.get('error'):
                 custom_log(f"❌ [START_MATCH] Round start failed: {round_result['error']}")
-                self._send_error(session_id, f"Start match failed: {round_result['error']}")
+                # Use the coordinator to send error message
+                if hasattr(self, 'app_manager') and self.app_manager:
+                    coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                    if coordinator:
+                        coordinator._send_error(session_id, f"Start match failed: {round_result['error']}")
+                    else:
+                        custom_log(f"⚠️ Coordinator not available for sending error message")
+                else:
+                    custom_log(f"⚠️ App manager not available for sending error message")
                 return False
             
             # Send game started event to all players
@@ -747,7 +798,15 @@ class GameStateManager:
                 # Game is ready but not started yet - will be started manually or via auto-start
             
             # 🎯 NEW: Send recall-specific events after player joins
-            self._send_recall_player_joined_events(room_id, user_id, session_id, game)
+            # Use the coordinator to send recall player joined events
+            if hasattr(self, 'app_manager') and self.app_manager:
+                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._send_recall_player_joined_events(room_id, user_id, session_id, game)
+                else:
+                    custom_log(f"⚠️ Coordinator not available for sending recall player joined events")
+            else:
+                custom_log(f"⚠️ App manager not available for sending recall player joined events")
             
         except Exception as e:
             custom_log(f"❌ Error in _on_room_joined callback: {e}", level="ERROR")

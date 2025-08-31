@@ -5,7 +5,6 @@ import '../hooks_manager.dart';
 import '../../../../tools/logging/logger.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
-import '../../../modules/recall_game/utils/recall_game_helpers.dart';
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -336,14 +335,6 @@ class WSEventHandler {
         _log.error("❌ Missing room size data: max_size=$maxSize, min_players=$minSize");
         return;
       }
-      
-      RecallGameHelpers.updateUIState({
-        'isRoomOwner': isRoomOwner,
-        'currentRoomId': roomId,
-        'maxSize': maxSize, // Update with actual max_size from backend
-        'minSize': minSize, // Update with actual min_players from backend
-      });
-      _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {

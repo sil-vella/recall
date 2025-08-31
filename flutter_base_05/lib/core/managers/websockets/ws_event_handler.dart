@@ -38,9 +38,6 @@ class WSEventHandler {
         sessionData: data is Map<String, dynamic> ? data : null,
       );
       
-      // Also update recall game state connection status
-      RecallGameHelpers.updateConnectionStatus(isConnected: true);
-      
       // 🎣 Trigger websocket_connect hook for other modules
       _log.info("🎣 [HOOK] Triggering websocket_connect hook");
       HooksManager().triggerHookWithData('websocket_connect', {
@@ -147,25 +144,7 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // Set room ownership and game state in recall game state
-      final maxSize = roomData['max_size']; // Extract max_size from room data
-      final minSize = roomData['min_players']; // Extract min_players from room data
-      
-      // Ensure we have the required data
-      if (maxSize == null || minSize == null) {
-        _log.error("❌ Missing room size data: max_size=$maxSize, min_players=$minSize");
-        return;
-      }
-      
-      RecallGameHelpers.updateUIState({
-        'isRoomOwner': isRoomOwner,
-        'currentRoomId': roomId,
-        'isGameActive': false,  // Ensure game is not active when joining room
-        'gamePhase': 'waiting',
-        'gameStatus': 'inactive',
-        'maxSize': maxSize, // Update with actual max_size from backend
-        'minSize': minSize, // Update with actual min_players from backend
-      });
+      // Note: State updates are handled by Recall module via hooks
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
@@ -219,25 +198,7 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // Set room ownership and game state in recall game state
-      final maxSize = roomData['max_size']; // Extract max_size from room data
-      final minSize = roomData['min_players']; // Extract min_players from room data
-      
-      // Ensure we have the required data
-      if (maxSize == null || minSize == null) {
-        _log.error("❌ Missing room size data: max_size=$maxSize, min_players=$minSize");
-        return;
-      }
-      
-      RecallGameHelpers.updateUIState({
-        'isRoomOwner': isRoomOwner,
-        'currentRoomId': roomId,
-        'isGameActive': false,  // Ensure game is not active when joining room
-        'gamePhase': 'waiting',
-        'gameStatus': 'inactive',
-        'maxSize': maxSize, // Update with actual max_size from backend
-        'minSize': minSize, // Update with actual min_players from backend
-      });
+      // Note: State updates are handled by Recall module via hooks
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner)");
       
       // Trigger event callbacks for room management screen
@@ -290,25 +251,7 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // Set room ownership and game state in recall game state (same as join success)
-      final maxSize = roomData['max_size']; // Extract max_size from room data
-      final minSize = roomData['min_players']; // Extract min_players from room data
-      
-      // Ensure we have the required data
-      if (maxSize == null || minSize == null) {
-        _log.error("❌ Missing room size data: max_size=$maxSize, min_players=$minSize");
-        return;
-      }
-      
-      RecallGameHelpers.updateUIState({
-        'isRoomOwner': isRoomOwner,
-        'currentRoomId': roomId,
-        'isGameActive': false,  // Ensure game is not active when joining room
-        'gamePhase': 'waiting',
-        'gameStatus': 'inactive',
-        'maxSize': maxSize, // Update with actual max_size from backend
-        'minSize': minSize, // Update with actual min_players from backend
-      });
+      // Note: State updates are handled by Recall module via hooks
       _log.info("${isRoomOwner ? '✅' : 'ℹ️'} Set room ownership for user: $currentUserId (isOwner: $isRoomOwner) - already joined");
       
       // Trigger event callbacks for room management screen
@@ -650,11 +593,7 @@ class WSEventHandler {
       
       _log.info("🎮 [NEW_PLAYER_JOINED] Room: $roomId, Player: ${joinedPlayer['name']}");
       
-      // Update recall game state with new game data
-      RecallGameHelpers.updateUIState({
-        'gameState': gameState,
-        'lastUpdated': DateTime.now().toIso8601String(),
-      });
+      // Note: State updates are handled by Recall module via hooks
       
       // Trigger event callbacks for game management
       _eventManager.triggerCallbacks('new_player_joined', {
@@ -699,13 +638,7 @@ class WSEventHandler {
       
       _log.info("🎮 [JOINED_GAMES] User: $userId, Session: $sessionId, Total games: $totalGames");
       
-      // Update recall game state with joined games information
-      RecallGameHelpers.updateUIState({
-        'joinedGames': games.cast<Map<String, dynamic>>(),
-        'totalJoinedGames': totalGames,
-        'joinedGamesTimestamp': timestamp,
-        'lastUpdated': DateTime.now().toIso8601String(),
-      });
+      // Note: State updates are handled by Recall module via hooks
       
       // Trigger event callbacks for game management
       _eventManager.triggerCallbacks('joined_games', {

@@ -37,9 +37,6 @@ class RecallEventManager {
         'lastUpdated': DateTime.now().toIso8601String(),
       });
 
-      // Hook to WS events (standard)
-      _wireWebsocketEvents();
-
       // Register hook callbacks for room events
       _registerHookCallbacks();
 
@@ -235,50 +232,7 @@ class RecallEventManager {
           'lastUpdated': DateTime.now().toIso8601String(),
         });
         
-        // Update widget slices to reflect the new game state
-        RecallGameHelpers.updateUIState({
-          'myHand': {
-            'cards': myPlayer?['hand'] ?? [],
-            'selectedIndex': -1,
-            'canSelectCards': gameState['phase'] == 'playing',
-          },
-          'centerBoard': {
-            'drawPileCount': drawPile.length,
-            'topDiscard': discardPile.isNotEmpty ? discardPile.first : null,
-            'canDrawFromDeck': gameState['phase'] == 'playing',
-            'canTakeFromDiscard': gameState['phase'] == 'playing',
-          },
-          'opponentsPanel': {
-            'opponents': opponents.cast<Map<String, dynamic>>(),
-            'currentTurnIndex': currentPlayer != null ? players.indexOf(currentPlayer) : -1,
-          },
-          'gameInfo': {
-            'currentGameId': gameId,
-            'roomName': gameState['gameName'] ?? 'Unknown Game',
-            'currentSize': players.length,
-            'maxSize': gameState['maxPlayers'] ?? 6,
-            'gamePhase': gameState['phase'] ?? 'waiting',
-            'gameStatus': gameState['status'] ?? 'inactive',
-            'isRoomOwner': true, // Assuming the starter is the owner
-            'isInGame': true,
-          },
-          'actionBar': {
-            'showStartButton': false, // Game is already started
-            'canPlayCard': gameState['phase'] == 'playing',
-            'canCallRecall': gameState['phase'] == 'playing',
-            'isGameStarted': true,
-          },
-          'statusBar': {
-            'currentPhase': gameState['phase'] ?? 'waiting',
-            'turnTimer': 30, // Default turn timer
-            'turnStartTime': DateTime.now().toIso8601String(),
-            'playerStatus': myPlayer?['status'] ?? 'unknown',
-          },
-          'currentGameId': gameId,
-          'isInRoom': true,
-        });
-        
-        _log.info('🎮 [GAME_STARTED] Updated game $gameId in nested structure and widget slices');
+        _log.info('🎮 [GAME_STARTED] Updated game $gameId in nested structure');
       }
       
       // Add session message about game started
@@ -415,6 +369,52 @@ class RecallEventManager {
   void _registerHookCallbacks() {
     _log.info('🎣 Registering hook callbacks for RecallEventManager...');
     
+    // Register websocket_connect hook callback
+    HooksManager().registerHookWithData('websocket_connect', (data) {
+      _log.info('🎣 [HOOK] RecallEventManager received websocket_connect hook: ${data['status']}');
+      
+      final status = data['status']?.toString() ?? 'unknown';
+      
+      if (status == 'connected') {
+        // Update recall game connection status
+        RecallGameHelpers.updateConnectionStatus(isConnected: true);
+        
+        _addSessionMessage(
+          level: 'success',
+          title: 'WebSocket Connected',
+          message: 'Successfully connected to game server',
+          data: data,
+        );
+        
+        _log.info('✅ [HOOK] WebSocket connection status updated to connected');
+      } else {
+        _log.warning('⚠️ [HOOK] Unexpected websocket_connect status: $status');
+      }
+    });
+    
+    // Register websocket_disconnect hook callback
+    HooksManager().registerHookWithData('websocket_disconnect', (data) {
+      _log.info('🎣 [HOOK] RecallEventManager received websocket_disconnect hook: ${data['status']}');
+      
+      final status = data['status']?.toString() ?? 'unknown';
+      
+      if (status == 'disconnected') {
+        // Update recall game connection status
+        RecallGameHelpers.updateConnectionStatus(isConnected: false);
+        
+        _addSessionMessage(
+          level: 'warning',
+          title: 'WebSocket Disconnected',
+          message: 'Disconnected from game server',
+          data: data,
+        );
+        
+        _log.info('✅ [HOOK] WebSocket connection status updated to disconnected');
+      } else {
+        _log.warning('⚠️ [HOOK] Unexpected websocket_disconnect status: $status');
+      }
+    });
+    
     // Register room_creation hook callback
     HooksManager().registerHookWithData('room_creation', (data) {
       _log.info('🎣 [HOOK] RecallEventManager received room_creation hook: ${data['status']}');
@@ -540,49 +540,6 @@ class RecallEventManager {
     _log.info('✅ Hook callbacks registered successfully');
   }
 
-  void _wireWebsocketEvents() {
-    // Use validated event listener for each message-related event type
-    final eventTypes = [
-      'connection_status', 'board_message', 'error',
-      'game_event', 
-    ];
-    
-    for (final eventType in eventTypes) {
-      RecallGameEventListenerExtension.onEvent(eventType, (data) {
-        switch (eventType) {
-          case 'connection_status':
-            final status = data['status']?.toString() ?? 'unknown';
-            _addSessionMessage(level: 'info', title: 'Connection', message: 'Status: $status', data: data);
-            break;
-            
-          case 'board_message':
-            final roomId = data['room_id']?.toString() ?? '';
-            final msg = data['message']?.toString() ?? '';
-            if (roomId.isNotEmpty) {
-              _addRoomMessage(roomId, level: 'info', title: 'Message', message: msg, data: data);
-            } else {
-              _addSessionMessage(level: 'info', title: 'Message', message: msg, data: data);
-            }
-            break;
-            
-          case 'error':
-            _addSessionMessage(level: 'error', title: 'Error', message: data['error']?.toString() ?? 'Error', data: data);
-            break;
-            
-          case 'game_event':
-            final scope = data['scope']?.toString();
-            if (scope == 'room') {
-              final roomId = data['target_id']?.toString() ?? '';
-              if (roomId.isNotEmpty) _addRoomMessage(roomId, level: data['level'], title: data['title'], message: data['message'], data: data);
-            } else {
-              _addSessionMessage(level: data['level'], title: data['title'], message: data['message'], data: data);
-            }
-            break;
-
-        }
-      });
-    }
-  }
 
   void _addRoomMessage(String roomId, {required String? level, required String? title, required String? message, Map<String, dynamic>? data}) {
     final entry = _entry(level, title, message, data);

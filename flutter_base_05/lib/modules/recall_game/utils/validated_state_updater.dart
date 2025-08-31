@@ -321,6 +321,38 @@ class RecallGameStateUpdater {
       required: false,
       description: 'Timestamp of last state update',
     ),
+    
+    // Game State Fields
+    'isGameActive': RecallStateFieldSpec(
+      type: bool,
+      defaultValue: false,
+      description: 'Whether a game is currently active',
+    ),
+    'playerCount': RecallStateFieldSpec(
+      type: int,
+      defaultValue: 0,
+      description: 'Number of players in current game',
+    ),
+    'roundNumber': RecallStateFieldSpec(
+      type: int,
+      defaultValue: 1,
+      description: 'Current round number in the game',
+    ),
+    'currentPlayer': RecallStateFieldSpec(
+      type: String,
+      required: false,
+      description: 'ID of current player',
+    ),
+    'currentPlayerStatus': RecallStateFieldSpec(
+      type: String,
+      required: false,
+      description: 'Status of current player',
+    ),
+    'roundStatus': RecallStateFieldSpec(
+      type: String,
+      required: false,
+      description: 'Status of current round',
+    ),
   };
   
   /// Widget slice dependencies - only rebuild when these fields change

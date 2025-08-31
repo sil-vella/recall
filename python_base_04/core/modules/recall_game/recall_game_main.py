@@ -49,9 +49,6 @@ class RecallGameMain(BaseModule):
             # Initialize game event coordinator
             self.game_event_coordinator = GameEventCoordinator(self.game_state_manager, self.websocket_manager)
             
-            # Attach coordinator to app manager so GameState can access it
-            self.app_manager.game_event_coordinator = self.game_event_coordinator
-            
             # Register WebSocket event listeners for game events
             self.game_event_coordinator.register_game_event_listeners()
             

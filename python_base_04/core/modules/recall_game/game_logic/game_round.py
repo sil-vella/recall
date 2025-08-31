@@ -63,8 +63,8 @@ class GameRound:
             # Log actions_performed at round start
             custom_log(f"📋 Round {self.round_number} actions_performed initialized: {len(self.actions_performed)} actions")
             
-            # Send room-wide game state update to all players using coordinator
-            self._send_game_state_update_via_coordinator()
+            # Send room-wide game state update to all players
+            self._send_room_game_state_update()
             
             # Send turn started event to current player
             self._send_turn_started_event()
@@ -82,69 +82,35 @@ class GameRound:
             custom_log(f"❌ Error starting round: {e}", level="ERROR")
             return {"error": f"Failed to start round: {str(e)}"}
 
+    def pause_round(self) -> Dict[str, Any]:
+        """Pause the current round"""
+        if self.round_status != "active":
+            return {"error": "Round is not active"}
+        
+        self.round_status = "paused"
+        custom_log(f"⏸️ Round {self.round_number} paused")
+        
+        return {
+            "success": True,
+            "round_status": self.round_status,
+            "pause_time": datetime.now().isoformat()
+        }
+    
+    def resume_round(self) -> Dict[str, Any]:
+        """Resume a paused round"""
+        if self.round_status != "paused":
+            return {"error": "Round is not paused"}
+        
+        self.round_status = "active"
+        self.current_turn_start_time = time.time()
+        custom_log(f"▶️ Round {self.round_number} resumed")
+        
+        return {
+            "success": True,
+            "round_status": self.round_status,
+            "resume_time": datetime.now().isoformat()
+        }
 
-    def complete_round(self, action_result: bool) -> bool:
-        """Complete the current round after a player action"""
-        try:
-            custom_log(f"🎮 [COMPLETE_ROUND] Completing round after player action. Action result: {action_result}")
-            
-            # Only complete round if action was successful
-            if not action_result:
-                custom_log(f"⚠️ [COMPLETE_ROUND] Action failed, not completing round")
-                return False
-            
-            # Log the successful action for round tracking
-            self.actions_performed.append({
-                'action': 'player_action_completed',
-                'timestamp': time.time(),
-                'result': action_result
-            })
-            
-            # Send room-wide game state update to all players using coordinator
-            self._send_game_state_update_via_coordinator()
-            custom_log(f"🎮 [COMPLETE_ROUND] Round completed and game state updated")
-            
-            return True
-            
-        except Exception as e:
-            custom_log(f"❌ [COMPLETE_ROUND] Error completing round: {e}", level="ERROR")
-            return False
-    
-    def _send_game_state_update_via_coordinator(self):
-        """Send game state update using the coordinator through the app manager"""
-        try:
-            if hasattr(self.game_state, 'app_manager') and self.game_state.app_manager:
-                # Try to get the coordinator through the app manager
-                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator.send_game_state_update(self.game_state.game_id)
-                    custom_log(f"📡 Game state update sent via coordinator for game {self.game_state.game_id}")
-                else:
-                    custom_log(f"⚠️ Coordinator not available for game state update in game {self.game_state.game_id}")
-            else:
-                custom_log(f"⚠️ App manager not available for game state update in game {self.game_state.game_id}")
-        except Exception as e:
-            custom_log(f"❌ Error sending game state update via coordinator: {e}", level="ERROR")
-    
-    def _send_turn_started_event_via_coordinator(self, current_player_id: str, player_status: str):
-        """Send turn started event using the coordinator through the app manager"""
-        try:
-            if hasattr(self.game_state, 'app_manager') and self.game_state.app_manager:
-                # Try to get the coordinator through the app manager
-                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator.send_game_state_update(
-                        self.game_state.game_id, 
-                        event_type='turn_started'
-                    )
-                    custom_log(f"📡 Turn started event sent via coordinator for game {self.game_state.game_id}")
-                else:
-                    custom_log(f"⚠️ Coordinator not available for turn started event in game {self.game_state.game_id}")
-            else:
-                custom_log(f"⚠️ App manager not available for turn started event in game {self.game_state.game_id}")
-        except Exception as e:
-            custom_log(f"❌ Error sending turn started event via coordinator: {e}", level="ERROR")
-    
     def _log_action(self, action_type: str, action_data: Dict[str, Any]):
         """Log an action performed during the round"""
         log_entry = {
@@ -177,8 +143,8 @@ class GameRound:
                 custom_log("⚠️ No current player for turn event")
                 return
             
-            # Get player session ID directly from game state
-            session_id = self.game_state.get_player_session(current_player_id)
+            # Get player session ID
+            session_id = self._get_player_session_id(current_player_id)
             if not session_id:
                 custom_log(f"⚠️ No session found for player {current_player_id}")
                 return
@@ -187,28 +153,81 @@ class GameRound:
             current_player = self.game_state.players.get(current_player_id)
             player_status = current_player.status.value if current_player else "unknown"
             
-            # Use the coordinator to send turn started event with game state
-            self._send_turn_started_event_via_coordinator(current_player_id, player_status)
-            
-            # Send additional turn-specific data to the current player
-            turn_data = {
+            # Create turn started payload
+            turn_payload = {
                 'event_type': 'turn_started',
                 'game_id': self.game_state.game_id,
+                'game_state': self._to_flutter_game_state(),
                 'player_id': current_player_id,
                 'player_status': player_status,
                 'turn_timeout': self.turn_timeout_seconds,
                 'timestamp': datetime.now().isoformat()
             }
-            ws_manager.send_to_session(session_id, 'turn_started', turn_data)
+            
+            # Send turn started event
+            ws_manager.send_to_session(session_id, 'turn_started', turn_payload)
             custom_log(f"📡 Turn started event sent to player {current_player_id}")
             
         except Exception as e:
             custom_log(f"❌ Error sending turn started event: {e}", level="ERROR")
     
-
+    def _get_player_session_id(self, player_id: str) -> Optional[str]:
+        """Get session ID for a player"""
+        try:
+            # Access the player sessions directly from game state
+            return self.game_state.get_player_session(player_id)
+        except Exception as e:
+            custom_log(f"❌ Error getting player session: {e}", level="ERROR")
+            return None
     
-
-
+    def _send_room_game_state_update(self):
+        """Send room-wide game state update to all players"""
+        try:
+            # Get WebSocket manager through the game state's app manager
+            if not self.game_state.app_manager:
+                custom_log("⚠️ No app manager available for room game state update")
+                return
+                
+            ws_manager = self.game_state.app_manager.get_websocket_manager()
+            if not ws_manager:
+                custom_log("⚠️ No websocket manager available for room game state update")
+                return
+            
+            # Get current player object to access their status
+            current_player_id = self.game_state.current_player_id
+            current_player = self.game_state.players.get(current_player_id)
+            current_player_status = current_player.status.value if current_player else "unknown"
+            
+            # Create room game state update payload
+            room_payload = {
+                'event_type': 'game_state_updated',
+                'game_id': self.game_state.game_id,
+                'game_state': self._to_flutter_game_state(),
+                'round_number': self.round_number,
+                'current_player': current_player_id,
+                'current_player_status': current_player_status,
+                'round_status': self.round_status,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Send to all players in the room
+            room_id = self.game_state.game_id
+            ws_manager.socketio.emit('game_state_updated', room_payload, room=room_id)
+            custom_log(f"📡 Room game state update sent to all players in game {self.game_state.game_id} - Current player: {current_player_id} ({current_player_status})")
+            
+        except Exception as e:
+            custom_log(f"❌ Error sending room game state update: {e}", level="ERROR")
+    
+    def _to_flutter_game_state(self) -> Dict[str, Any]:
+        """Convert game state to Flutter format"""
+        try:
+            # Access the game state conversion method directly from game state
+            if hasattr(self.game_state, '_to_flutter_game_state'):
+                return self.game_state._to_flutter_game_state(self.game_state)
+            return {}
+        except Exception as e:
+            custom_log(f"❌ Error converting game state: {e}", level="ERROR")
+            return {}
 
     def on_player_action(self, session_id: str, data: Dict[str, Any]) -> bool:
         """Handle player actions through the game round"""
@@ -261,11 +280,6 @@ class GameRound:
             custom_log(f"❌ [PLAYER_ACTION] Error in on_player_action: {e}", level="ERROR")
             return False
 
-
-
-    #========== PLAYER ACTION FUNCTIONS ==========#
-    
-    
     def _handle_draw_from_deck(self, player_id: str, action_data: Dict[str, Any]) -> bool:
         """Handle drawing a card from the deck"""
         try:
@@ -312,3 +326,35 @@ class GameRound:
         except Exception as e:
             custom_log(f"❌ [DRAW_FROM_DECK] Error handling draw from deck: {e}", level="ERROR")
             return False
+
+    def complete_round(self, action_result: bool) -> bool:
+        """Complete the current round after a player action"""
+        try:
+            custom_log(f"🎮 [COMPLETE_ROUND] Completing round after player action. Action result: {action_result}")
+            
+            # Only complete round if action was successful
+            if not action_result:
+                custom_log(f"⚠️ [COMPLETE_ROUND] Action failed, not completing round")
+                return False
+            
+            # Update round state
+            self.round_status = "active"
+            self.current_turn_start_time = time.time()
+            
+            # Log the successful action for round tracking
+            self.actions_performed.append({
+                'action': 'player_action_completed',
+                'timestamp': time.time(),
+                'result': action_result
+            })
+            
+            # Send room-wide game state update to all players
+            self._send_room_game_state_update()
+            custom_log(f"🎮 [COMPLETE_ROUND] Round completed and game state updated")
+            
+            return True
+            
+        except Exception as e:
+            custom_log(f"❌ [COMPLETE_ROUND] Error completing round: {e}", level="ERROR")
+            return False
+    

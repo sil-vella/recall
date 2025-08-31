@@ -7,7 +7,6 @@ including event registration, routing, and handling.
 
 from typing import Dict, Any, Optional
 from tools.logger.custom_logging import custom_log
-from datetime import datetime
 
 
 class GameEventCoordinator:
@@ -128,6 +127,13 @@ class GameEventCoordinator:
             custom_log(f"❌ [RECALL-GAME] Error handling player action through round: {e}", level="ERROR")
             return False
     
+    def get_registered_events(self) -> list:
+        """Get list of registered event names"""
+        return self.registered_events.copy()
+    
+    def is_event_registered(self, event_name: str) -> bool:
+        """Check if a specific event is registered"""
+        return event_name in self.registered_events
     
     def health_check(self) -> dict:
         """Perform health check on event coordinator"""
@@ -148,129 +154,3 @@ class GameEventCoordinator:
                 'component': 'game_event_coordinator',
                 'details': f'Health check failed: {str(e)}'
             }
-    
-    # ========= CONSOLIDATED GAME STATE COMMUNICATION METHODS =========
-    
-    def send_game_state_update(self, game_id: str, event_type: str = 'game_state_updated', additional_data: Dict[str, Any] = None):
-        """Send game state update to all players in a game, optionally with additional data"""
-        try:
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                custom_log(f"⚠️ Game not found for state update: {game_id}")
-                return False
-            
-            # Convert to Flutter format using our own conversion methods
-            flutter_state = self._game_state_converter(game)
-            
-            # Create payload
-            payload = {
-                'event_type': event_type,
-                'game_id': game_id,
-                'game_state': flutter_state,
-                'timestamp': self._get_timestamp()
-            }
-            
-            # Add additional data if provided
-            if additional_data:
-                payload.update(additional_data)
-                custom_log(f"📡 Event '{event_type}' with additional data sent to all players in game {game_id}")
-            else:
-                custom_log(f"📡 Game state update sent to all players in game {game_id}")
-            
-            # Send to all players
-            self._send_to_all_players(game_id, event_type, payload)
-            return True
-            
-        except Exception as e:
-            custom_log(f"❌ Error sending game state update: {e}", level="ERROR")
-            return False
-    
-    def _send_to_all_players(self, game_id: str, event: str, data: dict) -> bool:
-        """Send event to all players in a game using room broadcasting"""
-        try:
-            # Use the dedicated broadcast manager for proper room broadcasting
-            # Game ID is the same as room ID in our system
-            if hasattr(self.websocket_manager, 'broadcast_manager') and self.websocket_manager.broadcast_manager:
-                return self.websocket_manager.broadcast_manager.broadcast_to_room(game_id, event, data)
-            else:
-                # Fallback to direct socketio emit if broadcast manager not available
-                self.websocket_manager.socketio.emit(event, data, room=game_id)
-                custom_log(f"📡 Event '{event}' broadcasted to room {game_id} (fallback)")
-                return True
-        except Exception as e:
-            custom_log(f"❌ Error broadcasting to room: {e}")
-            return False
-    
-    def _get_timestamp(self) -> str:
-        """Get current timestamp in ISO format"""
-        from datetime import datetime
-        return datetime.now().isoformat()
-    
-
-    
-    # ========= FLUTTER CONVERSION METHODS =========
-    
-    def _card_converter(self, card) -> Dict[str, Any]:
-        """Convert card to Flutter format"""
-        rank_mapping = {
-            '2': 'two', '3': 'three', '4': 'four', '5': 'five',
-            '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
-        }
-        return {
-            'cardId': card.card_id,
-            'suit': card.suit,
-            'rank': rank_mapping.get(card.rank, card.rank),
-            'points': card.points,
-            'displayName': str(card),
-            'color': 'red' if card.suit in ['hearts', 'diamonds'] else 'black',
-        }
-
-    def _player_converter(self, player, is_current: bool = False) -> Dict[str, Any]:
-        """Convert player to Flutter format"""
-        return {
-            'id': player.player_id,
-            'name': player.name,
-            'type': 'human' if player.player_type.value == 'human' else 'computer',
-            'hand': [self._card_converter(c) for c in player.hand],
-            'visibleCards': [self._card_converter(c) for c in player.visible_cards],
-            'score': int(player.calculate_points()),
-            'status': player.status.value,  # Use the player's actual status
-            'isCurrentPlayer': is_current,
-            'hasCalledRecall': bool(player.has_called_recall),
-        }
-
-    def _game_state_converter(self, game) -> Dict[str, Any]:
-        """Convert game state to Flutter format"""
-        from datetime import datetime
-        
-        phase_mapping = {
-            'waiting_for_players': 'waiting',
-            'dealing_cards': 'setup',
-            'player_turn': 'playing',
-            'out_of_turn_play': 'out_of_turn',
-            'recall_called': 'recall',
-            'game_ended': 'finished',
-        }
-        
-        current_player = None
-        if game.current_player_id and game.current_player_id in game.players:
-            current_player = self._player_converter(game.players[game.current_player_id], True)
-
-        return {
-            'gameId': game.game_id,
-            'gameName': f"Recall Game {game.game_id}",
-            'players': [self._player_converter(player, pid == game.current_player_id) for pid, player in game.players.items()],
-            'currentPlayer': current_player,
-            'phase': phase_mapping.get(game.phase.value, 'waiting'),
-            'status': 'active' if game.phase.value in ['player_turn', 'out_of_turn_play', 'recall_called'] else 'inactive',
-            'drawPile': [self._card_converter(card) for card in game.draw_pile],
-            'discardPile': [self._card_converter(card) for card in game.discard_pile],
-            'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time else None,
-            'lastActivityTime': datetime.fromtimestamp(game.last_action_time).isoformat() if game.last_action_time else None,
-            'winner': game.winner,
-            'playerCount': len(game.players),
-            'maxPlayers': game.max_players,
-            'minPlayers': game.min_players,
-            'activePlayerCount': len([p for p in game.players.values() if p.is_active]),
-            'permission': game.permission,  # Include room permission
-        }

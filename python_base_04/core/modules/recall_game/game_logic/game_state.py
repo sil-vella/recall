@@ -370,17 +370,10 @@ class GameStateManager:
             
             # Only include PUBLIC games that are waiting for players
             if game.phase == GamePhase.WAITING_FOR_PLAYERS and game.permission == 'public':
-                # Convert to Flutter-compatible format using coordinator
-                if hasattr(self, 'app_manager') and self.app_manager:
-                    coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                    if coordinator:
-                        game_data = coordinator._to_flutter_game_state(game)
-                        available_games.append(game_data)
-                        public_games += 1
-                    else:
-                        custom_log(f"⚠️ Coordinator not available for game conversion in get_available_games")
-                else:
-                    custom_log(f"⚠️ App manager not available for game conversion in get_available_games")
+                # Convert to Flutter-compatible format
+                game_data = self._to_flutter_game_state(game)
+                available_games.append(game_data)
+                public_games += 1
             elif game.permission == 'private':
                 private_games += 1
         
@@ -417,17 +410,14 @@ class GameStateManager:
                 game.update_player_session(user_id, session_id)
                 custom_log(f"✅ Updated session for player {user_id} in game {game_id}")
 
-            # Use the coordinator to send the game state update
-            if hasattr(self, 'app_manager') and self.app_manager:
-                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator.send_game_state_update(game_id, 'player_joined')
-                    custom_log(f"📡 Player joined event sent via coordinator for game {game_id}")
-                else:
-                    custom_log(f"⚠️ Coordinator not available for player joined event in game {game_id}")
-            else:
-                custom_log(f"⚠️ App manager not available for player joined event in game {game_id}")
-            
+            # Broadcast join event
+            payload = {
+                'event_type': 'game_joined',
+                'game_id': game_id,
+                'game_state': self._to_flutter_game_state(game),
+                'player': self._to_flutter_player(game.players[user_id], user_id == game.current_player_id),
+            }
+            self._broadcast_event(game_id, payload)
             return True
         except Exception as e:
             custom_log(f"Error in on_join_game: {e}", level="ERROR")
@@ -522,18 +512,18 @@ class GameStateManager:
                 self._send_error(session_id, f"Start match failed: {round_result['error']}")
                 return False
             
-            # Use the coordinator to send the game state update
-            if hasattr(self, 'app_manager') and self.app_manager:
-                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    # Send both game_started and game_state_updated events
-                    coordinator.send_game_state_update(game_id, 'game_started')
-                    coordinator.send_game_state_update(game_id, 'game_state_updated')
-                    custom_log(f"📡 Game started and game state updated events sent via coordinator for game {game_id}")
-                else:
-                    custom_log(f"⚠️ Coordinator not available for game started event in game {game_id}")
-            else:
-                custom_log(f"⚠️ App manager not available for game started event in game {game_id}")
+            # Send game started event to all players
+            payload = {
+                'event_type': 'game_started',
+                'game_id': game_id,
+                'game_state': self._to_flutter_game_state(game),
+                'started_by': user_id,
+                'round_number': round_result.get('round_number'),
+                'round_start_time': round_result.get('round_start_time'),
+                'current_player': round_result.get('current_player'),
+                'timestamp': datetime.now().isoformat()
+            }
+            self._send_to_all_players(game_id, 'game_started', payload)
             
             custom_log(f"🎮 Game {game_id} started by {user_id}, round {round_result.get('round_number')}")
             return True
@@ -603,19 +593,16 @@ class GameStateManager:
             return False
 
     def _send_to_all_players(self, game_id: str, event: str, data: dict) -> bool:
-        """Send event to all players in game using room broadcasting"""
+        """Send event to all players in game"""
         try:
-            # Use the dedicated broadcast manager for proper room broadcasting
-            # Game ID is the same as room ID in our system
-            if hasattr(self.websocket_manager, 'broadcast_manager') and self.websocket_manager.broadcast_manager:
-                return self.websocket_manager.broadcast_manager.broadcast_to_room(game_id, event, data)
-            else:
-                # Fallback to direct socketio emit if broadcast manager not available
-                self.websocket_manager.socketio.emit(event, data, room=game_id)
-                custom_log(f"📡 Event '{event}' broadcasted to room {game_id} (fallback)")
-                return True
+            game = self.get_game(game_id)
+            if not game:
+                return False
+            for player_id, session_id in game.player_sessions.items():
+                self.websocket_manager.send_to_session(session_id, event, data)
+            return True
         except Exception as e:
-            custom_log(f"❌ Error broadcasting to room: {e}")
+            custom_log(f"❌ Error broadcasting to players: {e}")
             return False
 
     def _send_action_result(self, game_id: str, player_id: str, result: Dict[str, Any]):
@@ -626,86 +613,57 @@ class GameStateManager:
     def _broadcast_game_action(self, game_id: str, action_type: str, action_data: Dict[str, Any], exclude_player_id: str = None):
         """Broadcast game action to other players"""
         try:
-            # Use the coordinator to send the event
-            if hasattr(self, 'app_manager') and self.app_manager:
-                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator.send_game_state_update(
-                        game_id, 
-                        'game_action', 
-                        {
-                            'action_type': action_type,
-                            'action_data': action_data,
-                            'exclude_player_id': exclude_player_id
-                        }
-                    )
-                    custom_log(f"📡 Game action '{action_type}' sent via coordinator for game {game_id}")
-                else:
-                    custom_log(f"⚠️ Coordinator not available for game action broadcast in game {game_id}")
-            else:
-                custom_log(f"⚠️ App manager not available for game action broadcast in game {game_id}")
-            
+            game = self.get_game(game_id)
+            if not game:
+                return
+            data = {
+                'event_type': 'game_action',
+                'game_id': game_id,
+                'action_type': action_type,
+                'action_data': action_data,
+                'game_state': self._to_flutter_game_state(game),
+            }
+            for player_id, session_id in game.player_sessions.items():
+                if exclude_player_id and player_id == exclude_player_id:
+                    continue
+                self.websocket_manager.send_to_session(session_id, 'game_action', data)
         except Exception as e:
             custom_log(f"❌ Error broadcasting game action: {e}")
 
-    def _send_game_state_update(self, game_id: str, event_type: str = 'game_state_updated'):
-        """Convert game state to Flutter format AND send to all players"""
-        try:
-            # Use the coordinator to send the game state update
-            if hasattr(self, 'app_manager') and self.app_manager:
-                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    return coordinator.send_game_state_update(game_id, event_type)
-                else:
-                    custom_log(f"⚠️ Coordinator not available for game state update in game {game_id}")
-                    return False
-            else:
-                custom_log(f"⚠️ App manager not available for game state update in game {game_id}")
-                return False
-            
-        except Exception as e:
-            custom_log(f"❌ Error sending game state update: {e}", level="ERROR")
-            return False
-    
-
+    def _send_game_state_update(self, game_id: str):
+        """Send game state update to all players"""
+        game = self.get_game(game_id)
+        if game:
+            payload = {
+                'event_type': 'game_state_updated',
+                'game_id': game_id,
+                'game_state': self._to_flutter_game_state(game),
+            }
+            self._send_to_all_players(game_id, 'game_state_updated', payload)
     
     def _send_round_completion_event(self, game_id: str, round_result: Dict[str, Any]):
         """Send round completion event to all players"""
         try:
-            # Use the coordinator to send the event
-            if hasattr(self, 'app_manager') and self.app_manager:
-                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator.send_game_state_update(
-                        game_id, 
-                        'round_completed', 
-                        {'round_result': round_result}
-                    )
-                    custom_log(f"🏁 Round completion event sent via coordinator for game {game_id}")
-                else:
-                    custom_log(f"⚠️ Coordinator not available for round completion event in game {game_id}")
-            else:
-                custom_log(f"⚠️ App manager not available for round completion event in game {game_id}")
+            payload = {
+                'event_type': 'round_completed',
+                'game_id': game_id,
+                'round_number': round_result.get('round_number'),
+                'round_duration': round_result.get('round_duration'),
+                'winner': round_result.get('winner'),
+                'final_action': round_result.get('final_action'),
+                'game_phase': round_result.get('game_phase'),
+                'timestamp': datetime.now().isoformat()
+            }
+            self._send_to_all_players(game_id, 'round_completed', payload)
+            custom_log(f"🏁 Round completion event sent for game {game_id}")
         except Exception as e:
             custom_log(f"❌ Error sending round completion event: {e}", level="ERROR")
 
     def _send_recall_player_joined_events(self, room_id: str, user_id: str, session_id: str, game):
         """Send recall-specific events when a player joins a room"""
         try:
-            # Convert game to Flutter format using coordinator
-            game_state = None
-            if hasattr(self, 'app_manager') and self.app_manager:
-                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    game_state = coordinator._game_state_converter(game)
-                else:
-                    custom_log(f"⚠️ Coordinator not available for game conversion in _send_recall_player_joined_events")
-            else:
-                custom_log(f"⚠️ App manager not available for game conversion in _send_recall_player_joined_events")
-            
-            if not game_state:
-                custom_log(f"❌ Could not convert game to Flutter format")
-                return
+            # Convert game to Flutter format
+            game_state = self._to_flutter_game_state(game)
             
             # 1. Send new_player_joined event to the room
             # Get the owner_id for this room from the WebSocket manager
@@ -734,30 +692,18 @@ class GameStateManager:
             for game_id, user_game in self.active_games.items():
                 # Check if user is in this game
                 if user_id in user_game.players:
-                    # Use coordinator for game conversion
-                    user_game_state = None
-                    if hasattr(self, 'app_manager') and self.app_manager:
-                        coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                        if coordinator:
-                            user_game_state = coordinator._game_state_converter(user_game)
-                        else:
-                            custom_log(f"⚠️ Coordinator not available for user game conversion")
-                    else:
-                        custom_log(f"⚠️ App manager not available for user game conversion")
+                    user_game_state = self._to_flutter_game_state(user_game)
                     
-                    if user_game_state:
-                        # Get the owner_id for this room from the WebSocket manager
-                        owner_id = self.websocket_manager.get_room_creator(game_id)
-                        
-                        user_games.append({
-                            'game_id': game_id,
-                            'room_id': game_id,  # Game ID is the same as room ID
-                            'owner_id': owner_id,  # Include owner_id for ownership determination
-                            'game_state': user_game_state,
-                            'joined_at': datetime.now().isoformat()
-                        })
-                    else:
-                        custom_log(f"⚠️ Could not convert user game {game_id} to Flutter format")
+                    # Get the owner_id for this room from the WebSocket manager
+                    owner_id = self.websocket_manager.get_room_creator(game_id)
+                    
+                    user_games.append({
+                        'game_id': game_id,
+                        'room_id': game_id,  # Game ID is the same as room ID
+                        'owner_id': owner_id,  # Include owner_id for ownership determination
+                        'game_state': user_game_state,
+                        'joined_at': datetime.now().isoformat()
+                    })
             
             user_payload = {
                 'event_type': 'recall_joined_games',
@@ -776,8 +722,68 @@ class GameStateManager:
             custom_log(f"❌ Error sending recall player joined events: {e}")
 
 
-    # Note: Flutter conversion methods moved to GameEventCoordinator
-    # Use coordinator.send_game_state_update() with optional additional_data parameter
+    def _to_flutter_card(self, card) -> Dict[str, Any]:
+        """Convert card to Flutter format"""
+        rank_mapping = {
+            '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+            '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
+        }
+        return {
+            'cardId': card.card_id,
+            'suit': card.suit,
+            'rank': rank_mapping.get(card.rank, card.rank),
+            'points': card.points,
+            'displayName': str(card),
+            'color': 'red' if card.suit in ['hearts', 'diamonds'] else 'black',
+        }
+
+    def _to_flutter_player(self, player, is_current: bool = False) -> Dict[str, Any]:
+        """Convert player to Flutter format"""
+        return {
+            'id': player.player_id,
+            'name': player.name,
+            'type': 'human' if player.player_type.value == 'human' else 'computer',
+            'hand': [self._to_flutter_card(c) for c in player.hand],
+            'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards],
+            'score': int(player.calculate_points()),
+            'status': player.status.value,  # Use the player's actual status
+            'isCurrentPlayer': is_current,
+            'hasCalledRecall': bool(player.has_called_recall),
+        }
+
+    def _to_flutter_game_state(self, game: GameState) -> Dict[str, Any]:
+        """Convert game state to Flutter format"""
+        phase_mapping = {
+            'waiting_for_players': 'waiting',
+            'dealing_cards': 'setup',
+            'player_turn': 'playing',
+            'out_of_turn_play': 'out_of_turn',
+            'recall_called': 'recall',
+            'game_ended': 'finished',
+        }
+        
+        current_player = None
+        if game.current_player_id and game.current_player_id in game.players:
+            current_player = self._to_flutter_player(game.players[game.current_player_id], True)
+
+        return {
+            'gameId': game.game_id,
+            'gameName': f"Recall Game {game.game_id}",
+            'players': [self._to_flutter_player(player, pid == game.current_player_id) for pid, player in game.players.items()],
+            'currentPlayer': current_player,
+            'phase': phase_mapping.get(game.phase.value, 'waiting'),
+            'status': 'active' if game.phase.value in ['player_turn', 'out_of_turn_play', 'recall_called'] else 'inactive',
+            'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],
+            'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
+            'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time else None,
+            'lastActivityTime': datetime.fromtimestamp(game.last_action_time).isoformat() if game.last_action_time else None,
+            'winner': game.winner,
+            'playerCount': len(game.players),
+            'maxPlayers': game.max_players,
+            'minPlayers': game.min_players,
+            'activePlayerCount': len([p for p in game.players.values() if p.is_active]),
+            'permission': game.permission,  # Include room permission
+        }
 
     def cleanup_ended_games(self):
         """Remove games that have ended"""

@@ -209,6 +209,48 @@ class GameEventCoordinator:
             }
             self._send_to_all_players(game_id, 'game_state_updated', payload)
     
+    def _send_player_state_update(self, game_id: str, player_id: str):
+        """Send player state update including hand to the specific player"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                custom_log(f"❌ Game {game_id} not found for player state update")
+                return
+            
+            if player_id not in game.players:
+                custom_log(f"❌ Player {player_id} not found in game {game_id}")
+                return
+            
+            player = game.players[player_id]
+            
+            # Get player session ID
+            session_id = game.player_sessions.get(player_id)
+            if not session_id:
+                custom_log(f"⚠️ No session found for player {player_id} in game {game_id}")
+                return
+            
+            # Convert player to Flutter format using GameStateManager
+            player_data = self.game_state_manager._to_flutter_player_data(
+                player, 
+                is_current=(game.current_player_id == player_id)
+            )
+            
+            # Create player state update payload
+            payload = {
+                'event_type': 'player_state_updated',
+                'game_id': game_id,
+                'player_id': player_id,
+                'player_data': player_data,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Send to the specific player
+            self.websocket_manager.send_to_session(session_id, 'player_state_updated', payload)
+            custom_log(f"📡 Player state update sent to player {player_id} in game {game_id}")
+            
+        except Exception as e:
+            custom_log(f"❌ Error sending player state update: {e}", level="ERROR")
+    
     def _send_round_completion_event(self, game_id: str, round_result: Dict[str, Any]):
         """Send round completion event to all players"""
         try:

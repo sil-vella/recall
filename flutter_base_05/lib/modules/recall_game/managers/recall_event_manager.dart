@@ -235,7 +235,50 @@ class RecallEventManager {
           'lastUpdated': DateTime.now().toIso8601String(),
         });
         
-        _log.info('🎮 [GAME_STARTED] Updated game $gameId in nested structure');
+        // Update widget slices to reflect the new game state
+        RecallGameHelpers.updateUIState({
+          'myHand': {
+            'cards': myPlayer?['hand'] ?? [],
+            'selectedIndex': -1,
+            'canSelectCards': gameState['phase'] == 'playing',
+          },
+          'centerBoard': {
+            'drawPileCount': drawPile.length,
+            'topDiscard': discardPile.isNotEmpty ? discardPile.first : null,
+            'canDrawFromDeck': gameState['phase'] == 'playing',
+            'canTakeFromDiscard': gameState['phase'] == 'playing',
+          },
+          'opponentsPanel': {
+            'opponents': opponents.cast<Map<String, dynamic>>(),
+            'currentTurnIndex': currentPlayer != null ? players.indexOf(currentPlayer) : -1,
+          },
+          'gameInfo': {
+            'currentGameId': gameId,
+            'roomName': gameState['gameName'] ?? 'Unknown Game',
+            'currentSize': players.length,
+            'maxSize': gameState['maxPlayers'] ?? 6,
+            'gamePhase': gameState['phase'] ?? 'waiting',
+            'gameStatus': gameState['status'] ?? 'inactive',
+            'isRoomOwner': true, // Assuming the starter is the owner
+            'isInGame': true,
+          },
+          'actionBar': {
+            'showStartButton': false, // Game is already started
+            'canPlayCard': gameState['phase'] == 'playing',
+            'canCallRecall': gameState['phase'] == 'playing',
+            'isGameStarted': true,
+          },
+          'statusBar': {
+            'currentPhase': gameState['phase'] ?? 'waiting',
+            'turnTimer': 30, // Default turn timer
+            'turnStartTime': DateTime.now().toIso8601String(),
+            'playerStatus': myPlayer?['status'] ?? 'unknown',
+          },
+          'currentGameId': gameId,
+          'isInRoom': true,
+        });
+        
+        _log.info('🎮 [GAME_STARTED] Updated game $gameId in nested structure and widget slices');
       }
       
       // Add session message about game started

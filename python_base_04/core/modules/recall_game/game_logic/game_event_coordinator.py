@@ -7,6 +7,7 @@ including event registration, routing, and handling.
 
 from typing import Dict, Any, Optional
 from tools.logger.custom_logging import custom_log
+from datetime import datetime
 
 
 class GameEventCoordinator:
@@ -126,6 +127,178 @@ class GameEventCoordinator:
         except Exception as e:
             custom_log(f"❌ [RECALL-GAME] Error handling player action through round: {e}", level="ERROR")
             return False
+    
+    # ========= COMMUNICATION METHODS =========
+    
+    def _send_error(self, session_id: str, message: str):
+        """Send error message to session"""
+        if self.websocket_manager:
+            self.websocket_manager.send_to_session(session_id, 'recall_error', {'message': message})
+
+    def _broadcast_event(self, room_id: str, payload: Dict[str, Any]):
+        """Broadcast event to room"""
+        try:
+            event_type = payload.get('event_type')
+            if event_type and self.websocket_manager:
+                event_payload = {k: v for k, v in payload.items() if k != 'event_type'}
+                self.websocket_manager.socketio.emit(event_type, event_payload, room=room_id)
+        except Exception as e:
+            custom_log(f"❌ Error broadcasting event: {e}")
+
+    def _send_to_player(self, game_id: str, player_id: str, event: str, data: dict) -> bool:
+        """Send event to specific player"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                return False
+            session_id = game.get_player_session(player_id)
+            if not session_id:
+                return False
+            self.websocket_manager.send_to_session(session_id, event, data)
+            return True
+        except Exception as e:
+            custom_log(f"❌ Error sending to player: {e}")
+            return False
+
+    def _send_to_all_players(self, game_id: str, event: str, data: dict) -> bool:
+        """Send event to all players in game"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                return False
+            for player_id, session_id in game.player_sessions.items():
+                self.websocket_manager.send_to_session(session_id, event, data)
+            return True
+        except Exception as e:
+            custom_log(f"❌ Error broadcasting to players: {e}")
+            return False
+
+    def _send_action_result(self, game_id: str, player_id: str, result: Dict[str, Any]):
+        """Send action result to player"""
+        data = {'event_type': 'action_result', 'game_id': game_id, 'action_result': result}
+        self._send_to_player(game_id, player_id, 'action_result', data)
+
+    def _broadcast_game_action(self, game_id: str, action_type: str, action_data: Dict[str, Any], exclude_player_id: str = None):
+        """Broadcast game action to other players"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                return
+            data = {
+                'event_type': 'game_action',
+                'game_id': game_id,
+                'action_type': action_type,
+                'action_data': action_data,
+                'game_state': self._to_flutter_game_state(game),
+            }
+            for player_id, session_id in game.player_sessions.items():
+                if exclude_player_id and player_id == exclude_player_id:
+                    continue
+                self.websocket_manager.send_to_session(session_id, 'game_action', data)
+        except Exception as e:
+            custom_log(f"❌ Error broadcasting game action: {e}")
+
+    def _send_game_state_update(self, game_id: str):
+        """Send game state update to all players"""
+        game = self.game_state_manager.get_game(game_id)
+        if game:
+            payload = {
+                'event_type': 'game_state_updated',
+                'game_id': game_id,
+                'game_state': self._to_flutter_game_state(game),
+            }
+            self._send_to_all_players(game_id, 'game_state_updated', payload)
+    
+    def _send_round_completion_event(self, game_id: str, round_result: Dict[str, Any]):
+        """Send round completion event to all players"""
+        try:
+            payload = {
+                'event_type': 'round_completed',
+                'game_id': game_id,
+                'round_number': round_result.get('round_number'),
+                'round_duration': round_result.get('round_duration'),
+                'winner': round_result.get('winner'),
+                'final_action': round_result.get('final_action'),
+                'game_phase': round_result.get('game_phase'),
+                'timestamp': datetime.now().isoformat()
+            }
+            self._send_to_all_players(game_id, 'round_completed', payload)
+            custom_log(f"🏁 Round completion event sent for game {game_id}")
+        except Exception as e:
+            custom_log(f"❌ Error sending round completion event: {e}", level="ERROR")
+
+    def _send_recall_player_joined_events(self, room_id: str, user_id: str, session_id: str, game):
+        """Send recall-specific events when a player joins a room"""
+        try:
+            # Convert game to Flutter format
+            game_state = self._to_flutter_game_state(game)
+            
+            # 1. Send new_player_joined event to the room
+            # Get the owner_id for this room from the WebSocket manager
+            owner_id = self.websocket_manager.get_room_creator(room_id)
+            
+            room_payload = {
+                'event_type': 'recall_new_player_joined',
+                'room_id': room_id,
+                'owner_id': owner_id,  # Include owner_id for ownership determination
+                'joined_player': {
+                    'user_id': user_id,
+                    'session_id': session_id,
+                    'name': f"Player_{user_id[:8]}",
+                    'joined_at': datetime.now().isoformat()
+                },
+                'game_state': game_state,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Send as direct event to the room
+            self.websocket_manager.socketio.emit('recall_new_player_joined', room_payload, room=room_id)
+            custom_log(f"📡 [RECALL] recall_new_player_joined event sent to room {room_id} for player {user_id}")
+            
+            # 2. Send joined_games event to the joined user
+            user_games = []
+            for game_id, user_game in self.game_state_manager.active_games.items():
+                # Check if user is in this game
+                if user_id in user_game.players:
+                    user_game_state = self._to_flutter_game_state(user_game)
+                    
+                    # Get the owner_id for this room from the WebSocket manager
+                    owner_id = self.websocket_manager.get_room_creator(game_id)
+                    
+                    user_games.append({
+                        'game_id': game_id,
+                        'room_id': game_id,  # Game ID is the same as room ID
+                        'owner_id': owner_id,  # Include owner_id for ownership determination
+                        'game_state': user_game_state,
+                        'joined_at': datetime.now().isoformat()
+                    })
+            
+            user_payload = {
+                'event_type': 'recall_joined_games',
+                'user_id': user_id,
+                'session_id': session_id,
+                'games': user_games,
+                'total_games': len(user_games),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Send as direct event to the specific user's session
+            self.websocket_manager.send_to_session(session_id, 'recall_joined_games', user_payload)
+            custom_log(f"📡 [RECALL] recall_joined_games event sent to session {session_id} with {len(user_games)} games")
+            
+        except Exception as e:
+            custom_log(f"❌ Error sending recall player joined events: {e}")
+    
+    def _to_flutter_game_state(self, game) -> Dict[str, Any]:
+        """Convert game state to Flutter format"""
+        try:
+            # Access the game state conversion method directly from game state
+            if hasattr(game, '_to_flutter_game_state'):
+                return game._to_flutter_game_state(game)
+            return {}
+        except Exception as e:
+            custom_log(f"❌ Error converting game state: {e}", level="ERROR")
+            return {}
     
     def get_registered_events(self) -> list:
         """Get list of registered event names"""

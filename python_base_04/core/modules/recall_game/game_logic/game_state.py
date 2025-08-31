@@ -732,18 +732,30 @@ class GameStateManager:
             for game_id, user_game in self.active_games.items():
                 # Check if user is in this game
                 if user_id in user_game.players:
-                    user_game_state = self._to_flutter_game_state(user_game)
+                    # Use coordinator for game conversion
+                    user_game_state = None
+                    if hasattr(self, 'app_manager') and self.app_manager:
+                        coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                        if coordinator:
+                            user_game_state = coordinator._game_state_converter(user_game)
+                        else:
+                            custom_log(f"⚠️ Coordinator not available for user game conversion")
+                    else:
+                        custom_log(f"⚠️ App manager not available for user game conversion")
                     
-                    # Get the owner_id for this room from the WebSocket manager
-                    owner_id = self.websocket_manager.get_room_creator(game_id)
-                    
-                    user_games.append({
-                        'game_id': game_id,
-                        'room_id': game_id,  # Game ID is the same as room ID
-                        'owner_id': owner_id,  # Include owner_id for ownership determination
-                        'game_state': user_game_state,
-                        'joined_at': datetime.now().isoformat()
-                    })
+                    if user_game_state:
+                        # Get the owner_id for this room from the WebSocket manager
+                        owner_id = self.websocket_manager.get_room_creator(game_id)
+                        
+                        user_games.append({
+                            'game_id': game_id,
+                            'room_id': game_id,  # Game ID is the same as room ID
+                            'owner_id': owner_id,  # Include owner_id for ownership determination
+                            'game_state': user_game_state,
+                            'joined_at': datetime.now().isoformat()
+                        })
+                    else:
+                        custom_log(f"⚠️ Could not convert user game {game_id} to Flutter format")
             
             user_payload = {
                 'event_type': 'recall_joined_games',

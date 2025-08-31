@@ -774,6 +774,7 @@ class GameStateManager:
             current_size = room_data.get('current_size', 1)
             
             custom_log(f"🎮 [HOOK] Player {user_id} joined room {room_id}, session: {session_id}, current size: {current_size}")
+            custom_log(f"🔍 [DEBUG] _on_room_joined callback triggered with room_data: {room_data}")
             
             # Check if game exists for this room
             game = self.get_game(room_id)
@@ -815,11 +816,16 @@ class GameStateManager:
                 # Game is ready but not started yet - will be started manually or via auto-start
             
             # 🎯 NEW: Send recall-specific events after player joins
+            custom_log(f"🔍 [DEBUG] About to send recall player joined events for {user_id} in room {room_id}")
+            
             # Use the coordinator to send recall player joined events
             if hasattr(self, 'app_manager') and self.app_manager:
+                custom_log(f"🔍 [DEBUG] App manager is available")
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
+                    custom_log(f"🔍 [DEBUG] Coordinator is available, calling _send_recall_player_joined_events")
                     coordinator._send_recall_player_joined_events(room_id, user_id, session_id, game)
+                    custom_log(f"✅ [DEBUG] _send_recall_player_joined_events called successfully")
                 else:
                     custom_log(f"⚠️ Coordinator not available for sending recall player joined events")
             else:
@@ -827,6 +833,8 @@ class GameStateManager:
             
         except Exception as e:
             custom_log(f"❌ Error in _on_room_joined callback: {e}", level="ERROR")
+            import traceback
+            custom_log(f"❌ Traceback: {traceback.format_exc()}", level="ERROR")
     
     def _on_room_closed(self, room_data: Dict[str, Any]):
         """Callback for room_closed hook - cleanup game when room is closed"""

@@ -230,12 +230,16 @@ class GameEventCoordinator:
     def _send_recall_player_joined_events(self, room_id: str, user_id: str, session_id: str, game):
         """Send recall-specific events when a player joins a room"""
         try:
+            custom_log(f"📡 [DEBUG] _send_recall_player_joined_events called for user {user_id} in room {room_id}, session {session_id}")
+            
             # Convert game to Flutter format
             game_state = self._to_flutter_game_state(game)
+            custom_log(f"🔍 [DEBUG] Game state converted to Flutter format")
             
             # 1. Send new_player_joined event to the room
             # Get the owner_id for this room from the WebSocket manager
             owner_id = self.websocket_manager.get_room_creator(room_id)
+            custom_log(f"🔍 [DEBUG] Room owner_id: {owner_id}")
             
             room_payload = {
                 'event_type': 'recall_new_player_joined',
@@ -256,10 +260,13 @@ class GameEventCoordinator:
             custom_log(f"📡 [RECALL] recall_new_player_joined event sent to room {room_id} for player {user_id}")
             
             # 2. Send joined_games event to the joined user
+            custom_log(f"🔍 [DEBUG] Building joined games list for user {user_id}")
             user_games = []
             for game_id, user_game in self.game_state_manager.active_games.items():
+                custom_log(f"🔍 [DEBUG] Checking game {game_id}, players: {list(user_game.players.keys())}")
                 # Check if user is in this game
                 if user_id in user_game.players:
+                    custom_log(f"✅ [DEBUG] User {user_id} is in game {game_id}")
                     user_game_state = self._to_flutter_game_state(user_game)
                     
                     # Get the owner_id for this room from the WebSocket manager
@@ -272,6 +279,10 @@ class GameEventCoordinator:
                         'game_state': user_game_state,
                         'joined_at': datetime.now().isoformat()
                     })
+                else:
+                    custom_log(f"❌ [DEBUG] User {user_id} is NOT in game {game_id}")
+            
+            custom_log(f"🔍 [DEBUG] Found {len(user_games)} games for user {user_id}")
             
             user_payload = {
                 'event_type': 'recall_joined_games',
@@ -282,12 +293,17 @@ class GameEventCoordinator:
                 'timestamp': datetime.now().isoformat()
             }
             
+            custom_log(f"🔍 [DEBUG] About to send recall_joined_games event to session {session_id}")
+            custom_log(f"🔍 [DEBUG] User payload: {user_payload}")
+            
             # Send as direct event to the specific user's session
             self.websocket_manager.send_to_session(session_id, 'recall_joined_games', user_payload)
             custom_log(f"📡 [RECALL] recall_joined_games event sent to session {session_id} with {len(user_games)} games")
             
         except Exception as e:
-            custom_log(f"❌ Error sending recall player joined events: {e}")
+            custom_log(f"❌ Error sending recall player joined events: {e}", level="ERROR")
+            import traceback
+            custom_log(f"❌ Traceback: {traceback.format_exc()}", level="ERROR")
     
     def _to_flutter_game_state(self, game) -> Dict[str, Any]:
         """Convert game state to Flutter format"""

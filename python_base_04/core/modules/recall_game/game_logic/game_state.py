@@ -370,9 +370,16 @@ class GameStateManager:
             
             # Only include PUBLIC games that are waiting for players
             if game.phase == GamePhase.WAITING_FOR_PLAYERS and game.permission == 'public':
-                # Convert to Flutter-compatible format
-                game_data = self._to_flutter_game_state(game)
-                available_games.append(game_data)
+                # Convert to Flutter-compatible format using coordinator
+                if hasattr(self, 'app_manager') and self.app_manager:
+                    coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                    if coordinator:
+                        game_data = coordinator._to_flutter_game_state(game)
+                        available_games.append(game_data)
+                    else:
+                        custom_log(f"⚠️ Coordinator not available for converting game state")
+                else:
+                    custom_log(f"⚠️ App manager not available for converting game state")
                 public_games += 1
             elif game.permission == 'private':
                 private_games += 1
@@ -422,9 +429,19 @@ class GameStateManager:
             payload = {
                 'event_type': 'game_joined',
                 'game_id': game_id,
-                'game_state': self._to_flutter_game_state(game),
+                'game_state': None,  # Will be set by coordinator
                 'player': self._to_flutter_player(game.players[user_id], user_id == game.current_player_id),
             }
+            
+            # Get game state from coordinator
+            if hasattr(self, 'app_manager') and self.app_manager:
+                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    payload['game_state'] = coordinator._to_flutter_game_state(game)
+                else:
+                    custom_log(f"⚠️ Coordinator not available for converting game state")
+            else:
+                custom_log(f"⚠️ App manager not available for converting game state")
             
             # Use the coordinator to broadcast the event
             if hasattr(self, 'app_manager') and self.app_manager:

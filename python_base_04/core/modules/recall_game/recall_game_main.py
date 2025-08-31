@@ -185,8 +185,16 @@ class RecallGameMain(BaseModule):
                     "error": "Game does not exist"
                 }), 404
             
-            # Convert game to Flutter-compatible format
-            game_info = self.game_state_manager._to_flutter_game_state(game)
+            # Convert game to Flutter-compatible format using coordinator
+            game_info = {}
+            if hasattr(self.game_state_manager, 'app_manager') and self.game_state_manager.app_manager:
+                coordinator = getattr(self.game_state_manager.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    game_info = coordinator._to_flutter_game_state(game)
+                else:
+                    custom_log(f"⚠️ Coordinator not available for converting game state")
+            else:
+                custom_log(f"⚠️ App manager not available for converting game state")
             
             # Get room info from WebSocket manager to include permission and password requirement
             room_info = self.websocket_manager.get_room_info(room_id)

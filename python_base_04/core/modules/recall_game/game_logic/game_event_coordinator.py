@@ -206,11 +206,7 @@ class GameEventCoordinator:
         from datetime import datetime
         return datetime.now().isoformat()
     
-    # ========= PUBLIC INTERFACE FOR GAME STATE =========
-    
-    def send_game_state_update_from_game_state(self, game_id: str, event_type: str = 'game_state_updated', additional_data: Dict[str, Any] = None):
-        """Public method for game state to request sending updates (with optional additional data)"""
-        return self.send_game_state_update(game_id, event_type, additional_data)
+
     
     # ========= FLUTTER CONVERSION METHODS =========
     

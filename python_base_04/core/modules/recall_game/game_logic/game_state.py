@@ -421,7 +421,7 @@ class GameStateManager:
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    coordinator.send_game_state_update_from_game_state(game_id, 'player_joined')
+                    coordinator.send_game_state_update(game_id, 'player_joined')
                     custom_log(f"📡 Player joined event sent via coordinator for game {game_id}")
                 else:
                     custom_log(f"⚠️ Coordinator not available for player joined event in game {game_id}")
@@ -526,7 +526,7 @@ class GameStateManager:
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    coordinator.send_game_state_update_from_game_state(game_id, 'game_started')
+                    coordinator.send_game_state_update(game_id, 'game_started')
                     custom_log(f"📡 Game started event sent via coordinator for game {game_id}")
                 else:
                     custom_log(f"⚠️ Coordinator not available for game started event in game {game_id}")
@@ -628,7 +628,7 @@ class GameStateManager:
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    coordinator.send_game_state_update_from_game_state(
+                    coordinator.send_game_state_update(
                         game_id, 
                         'game_action', 
                         {
@@ -653,7 +653,7 @@ class GameStateManager:
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    return coordinator.send_game_state_update_from_game_state(game_id, event_type)
+                    return coordinator.send_game_state_update(game_id, event_type)
                 else:
                     custom_log(f"⚠️ Coordinator not available for game state update in game {game_id}")
                     return False
@@ -674,7 +674,7 @@ class GameStateManager:
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    coordinator.send_game_state_update_from_game_state(
+                    coordinator.send_game_state_update(
                         game_id, 
                         'round_completed', 
                         {'round_result': round_result}
@@ -763,7 +763,7 @@ class GameStateManager:
 
 
     # Note: Flutter conversion methods moved to GameEventCoordinator
-    # Use coordinator.send_game_state_update_from_game_state() with optional additional_data parameter
+    # Use coordinator.send_game_state_update() with optional additional_data parameter
 
     def cleanup_ended_games(self):
         """Remove games that have ended"""

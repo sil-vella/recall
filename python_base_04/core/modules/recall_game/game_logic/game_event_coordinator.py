@@ -128,13 +128,6 @@ class GameEventCoordinator:
             custom_log(f"❌ [RECALL-GAME] Error handling player action through round: {e}", level="ERROR")
             return False
     
-    def get_registered_events(self) -> list:
-        """Get list of registered event names"""
-        return self.registered_events.copy()
-    
-    def is_event_registered(self, event_name: str) -> bool:
-        """Check if a specific event is registered"""
-        return event_name in self.registered_events
     
     def health_check(self) -> dict:
         """Perform health check on event coordinator"""
@@ -158,8 +151,8 @@ class GameEventCoordinator:
     
     # ========= CONSOLIDATED GAME STATE COMMUNICATION METHODS =========
     
-    def send_game_state_update(self, game_id: str, event_type: str = 'game_state_updated'):
-        """Send game state update to all players in a game"""
+    def send_game_state_update(self, game_id: str, event_type: str = 'game_state_updated', additional_data: Dict[str, Any] = None):
+        """Send game state update to all players in a game, optionally with additional data"""
         try:
             game = self.game_state_manager.get_game(game_id)
             if not game:
@@ -167,37 +160,9 @@ class GameEventCoordinator:
                 return False
             
             # Convert to Flutter format using our own conversion methods
-            flutter_state = self._to_flutter_game_state(game)
+            flutter_state = self._game_state_converter(game)
             
             # Create payload
-            payload = {
-                'event_type': event_type,
-                'game_id': game_id,
-                'game_state': flutter_state,
-                'timestamp': self._get_timestamp()
-            }
-            
-            # Send to all players
-            self._send_to_all_players(game_id, event_type, payload)
-            custom_log(f"📡 Game state update sent to all players in game {game_id}")
-            return True
-            
-        except Exception as e:
-            custom_log(f"❌ Error sending game state update: {e}", level="ERROR")
-            return False
-    
-    def send_event_with_game_state(self, game_id: str, event_type: str, additional_data: Dict[str, Any] = None):
-        """Send an event with game state AND additional data to all players"""
-        try:
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                custom_log(f"⚠️ Game not found for event: {game_id}")
-                return False
-            
-            # Convert to Flutter format using our own conversion methods
-            flutter_state = self._to_flutter_game_state(game)
-            
-            # Create payload with game state and additional data
             payload = {
                 'event_type': event_type,
                 'game_id': game_id,
@@ -208,14 +173,16 @@ class GameEventCoordinator:
             # Add additional data if provided
             if additional_data:
                 payload.update(additional_data)
+                custom_log(f"📡 Event '{event_type}' with additional data sent to all players in game {game_id}")
+            else:
+                custom_log(f"📡 Game state update sent to all players in game {game_id}")
             
             # Send to all players
             self._send_to_all_players(game_id, event_type, payload)
-            custom_log(f"📡 Event '{event_type}' with game state sent to all players in game {game_id}")
             return True
             
         except Exception as e:
-            custom_log(f"❌ Error sending event with game state: {e}", level="ERROR")
+            custom_log(f"❌ Error sending game state update: {e}", level="ERROR")
             return False
     
     def _send_to_all_players(self, game_id: str, event: str, data: dict) -> bool:
@@ -241,17 +208,13 @@ class GameEventCoordinator:
     
     # ========= PUBLIC INTERFACE FOR GAME STATE =========
     
-    def send_game_state_update_from_game_state(self, game_id: str, event_type: str = 'game_state_updated'):
-        """Public method for game state to request sending updates"""
-        return self.send_game_state_update(game_id, event_type)
-    
-    def send_event_with_game_state_from_game_state(self, game_id: str, event_type: str, additional_data: Dict[str, Any] = None):
-        """Public method for game state to request sending events with game state"""
-        return self.send_event_with_game_state(game_id, event_type, additional_data)
+    def send_game_state_update_from_game_state(self, game_id: str, event_type: str = 'game_state_updated', additional_data: Dict[str, Any] = None):
+        """Public method for game state to request sending updates (with optional additional data)"""
+        return self.send_game_state_update(game_id, event_type, additional_data)
     
     # ========= FLUTTER CONVERSION METHODS =========
     
-    def _to_flutter_card(self, card) -> Dict[str, Any]:
+    def _card_converter(self, card) -> Dict[str, Any]:
         """Convert card to Flutter format"""
         rank_mapping = {
             '2': 'two', '3': 'three', '4': 'four', '5': 'five',
@@ -266,21 +229,21 @@ class GameEventCoordinator:
             'color': 'red' if card.suit in ['hearts', 'diamonds'] else 'black',
         }
 
-    def _to_flutter_player(self, player, is_current: bool = False) -> Dict[str, Any]:
+    def _player_converter(self, player, is_current: bool = False) -> Dict[str, Any]:
         """Convert player to Flutter format"""
         return {
             'id': player.player_id,
             'name': player.name,
             'type': 'human' if player.player_type.value == 'human' else 'computer',
-            'hand': [self._to_flutter_card(c) for c in player.hand],
-            'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards],
+            'hand': [self._card_converter(c) for c in player.hand],
+            'visibleCards': [self._card_converter(c) for c in player.visible_cards],
             'score': int(player.calculate_points()),
             'status': player.status.value,  # Use the player's actual status
             'isCurrentPlayer': is_current,
             'hasCalledRecall': bool(player.has_called_recall),
         }
 
-    def _to_flutter_game_state(self, game) -> Dict[str, Any]:
+    def _game_state_converter(self, game) -> Dict[str, Any]:
         """Convert game state to Flutter format"""
         from datetime import datetime
         
@@ -295,17 +258,17 @@ class GameEventCoordinator:
         
         current_player = None
         if game.current_player_id and game.current_player_id in game.players:
-            current_player = self._to_flutter_player(game.players[game.current_player_id], True)
+            current_player = self._player_converter(game.players[game.current_player_id], True)
 
         return {
             'gameId': game.game_id,
             'gameName': f"Recall Game {game.game_id}",
-            'players': [self._to_flutter_player(player, pid == game.current_player_id) for pid, player in game.players.items()],
+            'players': [self._player_converter(player, pid == game.current_player_id) for pid, player in game.players.items()],
             'currentPlayer': current_player,
             'phase': phase_mapping.get(game.phase.value, 'waiting'),
             'status': 'active' if game.phase.value in ['player_turn', 'out_of_turn_play', 'recall_called'] else 'inactive',
-            'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],
-            'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
+            'drawPile': [self._card_converter(card) for card in game.draw_pile],
+            'discardPile': [self._card_converter(card) for card in game.discard_pile],
             'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time else None,
             'lastActivityTime': datetime.fromtimestamp(game.last_action_time).isoformat() if game.last_action_time else None,
             'winner': game.winner,

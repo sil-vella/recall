@@ -628,7 +628,7 @@ class GameStateManager:
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    coordinator.send_event_with_game_state_from_game_state(
+                    coordinator.send_game_state_update_from_game_state(
                         game_id, 
                         'game_action', 
                         {
@@ -674,7 +674,7 @@ class GameStateManager:
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    coordinator.send_event_with_game_state_from_game_state(
+                    coordinator.send_game_state_update_from_game_state(
                         game_id, 
                         'round_completed', 
                         {'round_result': round_result}
@@ -695,7 +695,7 @@ class GameStateManager:
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    game_state = coordinator._to_flutter_game_state(game)
+                    game_state = coordinator._game_state_converter(game)
                 else:
                     custom_log(f"⚠️ Coordinator not available for game conversion in _send_recall_player_joined_events")
             else:
@@ -763,7 +763,7 @@ class GameStateManager:
 
 
     # Note: Flutter conversion methods moved to GameEventCoordinator
-    # Use coordinator.send_game_state_update_from_game_state() or coordinator.send_event_with_game_state_from_game_state()
+    # Use coordinator.send_game_state_update_from_game_state() with optional additional_data parameter
 
     def cleanup_ended_games(self):
         """Remove games that have ended"""

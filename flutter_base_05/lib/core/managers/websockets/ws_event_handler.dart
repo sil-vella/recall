@@ -62,9 +62,6 @@ class WSEventHandler {
         isConnected: false,
       );
       
-      // Also update recall game state connection status
-      RecallGameHelpers.updateConnectionStatus(isConnected: false);
-      
       // 🎣 Trigger websocket_disconnect hook for other modules
       _log.info("🎣 [HOOK] Triggering websocket_disconnect hook");
       HooksManager().triggerHookWithData('websocket_disconnect', {
@@ -88,10 +85,7 @@ class WSEventHandler {
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: false,
       );
-      
-      // Also update recall game state connection status
-      RecallGameHelpers.updateConnectionStatus(isConnected: false);
-      
+            
       // 🎣 Trigger websocket_connect_error hook for other modules
       _log.info("🎣 [HOOK] Triggering websocket_connect_error hook");
       HooksManager().triggerHookWithData('websocket_connect_error', {

@@ -415,6 +415,29 @@ class RecallEventManager {
       }
     });
     
+    // Register websocket_connect_error hook callback
+    HooksManager().registerHookWithData('websocket_connect_error', (data) {
+      _log.info('🎣 [HOOK] RecallEventManager received websocket_connect_error hook: ${data['status']}');
+      
+      final status = data['status']?.toString() ?? 'unknown';
+      
+      if (status == 'error') {
+        // Update recall game connection status
+        RecallGameHelpers.updateConnectionStatus(isConnected: false);
+        
+        _addSessionMessage(
+          level: 'error',
+          title: 'WebSocket Connection Error',
+          message: 'Failed to connect to game server',
+          data: data,
+        );
+        
+        _log.info('✅ [HOOK] WebSocket connection status updated to error (disconnected)');
+      } else {
+        _log.warning('⚠️ [HOOK] Unexpected websocket_connect_error status: $status');
+      }
+    });
+    
     // Register room_creation hook callback
     HooksManager().registerHookWithData('room_creation', (data) {
       _log.info('🎣 [HOOK] RecallEventManager received room_creation hook: ${data['status']}');

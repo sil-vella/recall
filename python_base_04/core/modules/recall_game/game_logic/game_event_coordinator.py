@@ -310,7 +310,7 @@ class GameEventCoordinator:
         try:
             # Access the game state conversion method directly from game state
             if hasattr(game, '_to_flutter_game_state'):
-                return game._to_flutter_game_state(game)
+                return game._to_flutter_game_state()
             return {}
         except Exception as e:
             custom_log(f"❌ Error converting game state: {e}", level="ERROR")

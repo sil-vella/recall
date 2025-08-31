@@ -526,8 +526,10 @@ class GameStateManager:
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
+                    # Send both game_started and game_state_updated events
                     coordinator.send_game_state_update(game_id, 'game_started')
-                    custom_log(f"📡 Game started event sent via coordinator for game {game_id}")
+                    coordinator.send_game_state_update(game_id, 'game_state_updated')
+                    custom_log(f"📡 Game started and game state updated events sent via coordinator for game {game_id}")
                 else:
                     custom_log(f"⚠️ Coordinator not available for game started event in game {game_id}")
             else:

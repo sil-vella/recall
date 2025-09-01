@@ -749,8 +749,8 @@ class GameStateManager:
             'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
             
             # Game timing
-            'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time else None,
-            'lastActivityTime': datetime.fromtimestamp(game.last_action_time).isoformat() if game.last_action_time else None,
+            'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time and isinstance(game.game_start_time, (int, float)) else (game.game_start_time.isoformat() if hasattr(game.game_start_time, 'isoformat') else None),
+            'lastActivityTime': datetime.fromtimestamp(game.last_action_time).isoformat() if game.last_action_time and isinstance(game.last_action_time, (int, float)) else (game.last_action_time.isoformat() if hasattr(game.last_action_time, 'isoformat') else None),
             
             # Game completion
             'winner': game.winner,

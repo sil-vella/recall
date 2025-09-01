@@ -4,6 +4,7 @@ import '../../../core/managers/hooks_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../utils/recall_game_helpers.dart';
 import '../utils/recall_event_listener_validator.dart';
+import '../utils/validated_state_updater.dart';
 
 class RecallEventManager {
   static final Logger _log = Logger();
@@ -338,6 +339,14 @@ class RecallEventManager {
       
       _log.info('🎧 [RECALL] Game state updated for game $gameId - Round: $roundNumber, Current Player: $currentPlayer ($currentPlayerStatus), Status: $roundStatus');
       
+      // Extract pile information from game state
+      final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+      final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+      final drawPileCount = drawPile.length;
+      final discardPileCount = discardPile.length;
+      
+      _log.info('🎧 [RECALL] Pile counts - Draw: $drawPileCount, Discard: $discardPileCount');
+      
       // Update the main game state with the new information
       RecallGameHelpers.updateUIState({
         'gamePhase': gameState['phase'] ?? 'playing',
@@ -348,6 +357,30 @@ class RecallEventManager {
         'roundStatus': roundStatus,
         'lastUpdated': DateTime.now().toIso8601String(),
       });
+      
+      // Update the games map with pile information (this is what the widgets need)
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      if (currentGames.containsKey(gameId)) {
+        final currentGame = currentGames[gameId] as Map<String, dynamic>? ?? {};
+        
+        // Update the game with pile information
+        currentGames[gameId] = {
+          ...currentGame,
+          'drawPileCount': drawPileCount,
+          'discardPileCount': discardPileCount,
+          'discardPile': discardPile,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        };
+        
+        // Update recall game state with games map using validated state updater
+        RecallGameStateUpdater.instance.updateState({
+          'games': currentGames,
+        });
+        
+        _log.info('🎯 [GAME_STATE_UPDATE] Updated pile counts for game $gameId - Draw: $drawPileCount, Discard: $discardPileCount');
+      }
       
       // Add session message about game state update
       _addSessionMessage(
@@ -362,6 +395,126 @@ class RecallEventManager {
           'round_status': roundStatus,
         },
       );
+    });
+    
+    // Register player_state_updated event listener
+    RecallGameEventListenerValidator.instance.addListener('player_state_updated', (data) {
+      _log.info('🎧 [RECALL] Received player_state_updated event');
+      
+      final gameId = data['game_id']?.toString() ?? '';
+      final playerId = data['player_id']?.toString() ?? '';
+      final playerData = data['player_data'] as Map<String, dynamic>? ?? {};
+      final timestamp = data['timestamp']?.toString() ?? '';
+      
+      _log.info('🎧 [RECALL] Player state updated for player $playerId in game $gameId');
+      
+      // Find the current user's player data
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId']?.toString() ?? '';
+      
+      // Check if this update is for the current user
+      final isMyUpdate = playerId == currentUserId;
+      
+      if (isMyUpdate) {
+        _log.info('🎯 [PLAYER_STATE_UPDATE] Updating my player state');
+        
+        // Extract player data fields
+        final hand = playerData['hand'] as List<dynamic>? ?? [];
+        final visibleCards = playerData['visibleCards'] as List<dynamic>? ?? [];
+        final score = playerData['score'] as int? ?? 0;
+        final status = playerData['status']?.toString() ?? 'unknown';
+        final isCurrentPlayer = playerData['isCurrentPlayer'] == true;
+        final hasCalledRecall = playerData['hasCalledRecall'] == true;
+        
+        // Update the main game state with player information using validated state updater
+        RecallGameStateUpdater.instance.updateState({
+          'playerStatus': status,
+          'myScore': score,
+          'isMyTurn': isCurrentPlayer,
+        });
+        
+        // Update the games map with hand information (this is the proper structure)
+        final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+        
+        if (currentGames.containsKey(gameId)) {
+          final currentGame = currentGames[gameId] as Map<String, dynamic>? ?? {};
+          
+          // Update the game with hand information
+          currentGames[gameId] = {
+            ...currentGame,
+            'myHandCards': hand,
+            'selectedCardIndex': -1,
+            'isMyTurn': isCurrentPlayer,
+            'lastUpdated': DateTime.now().toIso8601String(),
+          };
+          
+          // Update recall game state with games map using validated state updater
+          RecallGameStateUpdater.instance.updateState({
+            'games': currentGames,
+          });
+        }
+        
+        _log.info('✅ [PLAYER_STATE_UPDATE] My player state updated - Hand: ${hand.length} cards, Score: $score, Status: $status');
+        
+        // Add session message about player state update
+        _addSessionMessage(
+          level: 'info',
+          title: 'Player State Updated',
+          message: 'Hand: ${hand.length} cards, Score: $score, Status: $status',
+          data: {
+            'game_id': gameId,
+            'player_id': playerId,
+            'hand_size': hand.length,
+            'score': score,
+            'status': status,
+            'is_current_player': isCurrentPlayer,
+          },
+        );
+      } else {
+        _log.info('👥 [PLAYER_STATE_UPDATE] Updating opponent player state for player $playerId');
+        
+        // Update opponent information in the games map
+        final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+        
+        if (currentGames.containsKey(gameId)) {
+          final currentGame = currentGames[gameId] as Map<String, dynamic>? ?? {};
+          final currentGameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+          final currentOpponents = currentGameData['opponentPlayers'] as List<dynamic>? ?? [];
+          
+          // Find and update the opponent player
+          final updatedOpponents = currentOpponents.map((opponent) {
+            if (opponent['id'] == playerId) {
+              return {
+                ...opponent,
+                'hand': playerData['hand'] ?? [],
+                'score': playerData['score'] ?? 0,
+                'status': playerData['status'] ?? 'unknown',
+                'hasCalledRecall': playerData['hasCalledRecall'] ?? false,
+              };
+            }
+            return opponent;
+          }).toList();
+          
+          // Update the game data
+          final updatedGameData = Map<String, dynamic>.from(currentGameData);
+          updatedGameData['opponentPlayers'] = updatedOpponents;
+          
+          // Update the game in the games map
+          currentGames[gameId] = {
+            ...currentGame,
+            'gameData': updatedGameData,
+          };
+          
+          // Update recall game state with opponent information using validated state updater
+          RecallGameStateUpdater.instance.updateState({
+            'games': currentGames,
+          });
+          
+          _log.info('✅ [PLAYER_STATE_UPDATE] Opponent player state updated for player $playerId');
+        }
+      }
     });
     
     _log.info('✅ Recall-specific event listeners registered');
@@ -538,7 +691,7 @@ class RecallEventManager {
       final rooms = data['rooms'] as List<dynamic>? ?? [];
       final totalRooms = data['total_rooms'] ?? 0;
       
-      _log.info('🎣 [HOOK] User joined rooms update: session=$sessionId, total_rooms=$totalRooms');
+      _log.info('�� [HOOK] User joined rooms update: session=$sessionId, total_rooms=$totalRooms');
       
               // Update recall game state to reflect the current room membership
         // When user leaves a room, total_rooms will be 0, so we should clear the joined games

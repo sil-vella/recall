@@ -353,6 +353,20 @@ class RecallGameStateUpdater {
       required: false,
       description: 'Status of current round',
     ),
+    
+    // Game Phase Field - Add this missing field
+    'gamePhase': RecallStateFieldSpec(
+      type: String,
+      defaultValue: 'waiting',
+      description: 'Current game phase (waiting, playing, finished, etc.)',
+    ),
+    
+    // Game Status Field - Add this missing field
+    'gameStatus': RecallStateFieldSpec(
+      type: String,
+      defaultValue: 'inactive',
+      description: 'Current game status (inactive, active, finished, etc.)',
+    ),
   };
   
   /// Widget slice dependencies - only rebuild when these fields change

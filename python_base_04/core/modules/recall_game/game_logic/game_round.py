@@ -103,6 +103,7 @@ class GameRound:
                 'result': action_result
             })
             
+            self._send_game_state_update()
             # Send player state update for the current player via GameEventCoordinator
             self._send_player_state_update()
             
@@ -366,7 +367,7 @@ class GameRound:
             custom_log(f"🎮 [DRAW_FROM_PILE] Added card {drawn_card.card_id} to player {player_id}'s hand. Hand size: {len(player.hand)}")
             
             # Update game state
-            self.game_state.last_action_time = datetime.now()
+            self.game_state.last_action_time = time.time()
             
             # Log the action
             custom_log(f"✅ [DRAW_FROM_PILE] Successfully drew card {drawn_card.card_id} from {source} for player {player_id}")

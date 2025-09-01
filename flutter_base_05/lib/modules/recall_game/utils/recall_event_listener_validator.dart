@@ -81,6 +81,9 @@ class RecallGameEventListenerValidator {
       'game_id', 'game_state', 'round_number', 'current_player', 'current_player_status', 'round_status', 'timestamp', 'reason',
       'changes',
     },
+    'player_state_updated': {
+      'event_type', 'game_id', 'player_id', 'player_data', 'timestamp',
+    },
     'room_event': {
       'action', 'room_id', 'room_data', 'timestamp',
     },
@@ -237,7 +240,7 @@ class RecallGameEventListenerValidator {
         'game_joined', 'game_left', 'player_joined', 'player_left',
         'game_started', 'game_phase_changed', 'game_ended', 'turn_changed',
         'turn_started', 'card_played', 'card_drawn', 'replace_drawn_card', 'play_drawn_card',
-        'recall_called', 'game_state_updated', 'recall_new_player_joined',
+        'recall_called', 'game_state_updated', 'player_state_updated', 'recall_new_player_joined',
         'recall_joined_games', 'recall_message'
       ];
       

@@ -449,7 +449,12 @@ class RecallEventHandlerCallbacks {
         'myDrawnCard': drawnCard,
       });
       
-      _log.info('✅ [PLAYER_STATE_UPDATE] My player state updated - Hand: ${hand.length} cards, Score: $score, Status: $status');
+      _log.info('✅ [PLAYER_STATE_UPDATE] My player state updated - Hand: ${hand.length} cards, Score: $score, Status: $status, DrawnCard: $drawnCard');
+      
+      // Debug: Check what the state looks like after update
+      final updatedState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final updatedDrawnCard = updatedState['myDrawnCard'];
+      _log.info('🔍 [PLAYER_STATE_UPDATE] State after update - myDrawnCard: $updatedDrawnCard');
       
       // Add session message about player state update
       _addSessionMessage(

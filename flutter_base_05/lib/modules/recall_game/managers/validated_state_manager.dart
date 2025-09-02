@@ -789,3 +789,145 @@ class RecallGameStateUpdater {
     _log.error('   Attempted fields: ${originalUpdates.keys.join(', ')}');
   }
 }
+
+/// Centralized game state accessor for recall game operations
+/// Provides type-safe methods to retrieve game state for specific game IDs
+class RecallGameStateAccessor {
+  static final Logger _log = Logger();
+  static RecallGameStateAccessor? _instance;
+  static RecallGameStateAccessor get instance {
+    _instance ??= RecallGameStateAccessor._internal();
+    return _instance!;
+  }
+  
+  RecallGameStateAccessor._internal();
+  
+  // Dependencies
+  final StateManager _stateManager = StateManager();
+  
+  /// Get the complete state for a specific game ID
+  /// Returns null if the game is not found
+  Map<String, dynamic>? getGameStateForId(String gameId) {
+    try {
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final games = currentState['games'] as Map<String, dynamic>? ?? {};
+      
+      if (!games.containsKey(gameId)) {
+        _log.debug('🔍 Game $gameId not found in games map');
+        return null;
+      }
+      
+      final gameState = games[gameId] as Map<String, dynamic>? ?? {};
+      _log.debug('🔍 Retrieved game state for game $gameId');
+      return gameState;
+      
+    } catch (e) {
+      _log.error('❌ Error retrieving game state for game $gameId: $e');
+      return null;
+    }
+  }
+  
+  /// Get the game data for a specific game ID
+  /// This contains the backend game data structure
+  Map<String, dynamic>? getGameDataForId(String gameId) {
+    try {
+      final game = getGameStateForId(gameId);
+      if (game == null) return null;
+      
+      final gameData = game['gameData'] as Map<String, dynamic>? ?? {};
+      _log.debug('🔍 Retrieved game data for game $gameId');
+      return gameData;
+      
+    } catch (e) {
+      _log.error('❌ Error retrieving game data for game $gameId: $e');
+      return null;
+    }
+  }
+  
+  /// Get the game state data for a specific game ID
+  /// This contains the core game state (gameType, phase, status, etc.)
+  Map<String, dynamic>? getGameStateDataForId(String gameId) {
+    try {
+      final gameData = getGameDataForId(gameId);
+      if (gameData == null) return null;
+      
+      final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+      _log.debug('🔍 Retrieved game state data for game $gameId');
+      return gameState;
+      
+    } catch (e) {
+      _log.error('❌ Error retrieving game state data for game $gameId: $e');
+      return null;
+    }
+  }
+  
+  /// Get the current active game ID
+  String getCurrentGameId() {
+    try {
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGameId = currentState['currentGameId']?.toString() ?? '';
+      _log.debug('🔍 Current game ID: $currentGameId');
+      return currentGameId;
+      
+    } catch (e) {
+      _log.error('❌ Error retrieving current game ID: $e');
+      return '';
+    }
+  }
+  
+  /// Get the current active game state
+  Map<String, dynamic>? getCurrentGameState() {
+    final currentGameId = getCurrentGameId();
+    if (currentGameId.isEmpty) return null;
+    return getGameStateForId(currentGameId);
+  }
+  
+  /// Get the current active game data
+  Map<String, dynamic>? getCurrentGameData() {
+    final currentGameId = getCurrentGameId();
+    if (currentGameId.isEmpty) return null;
+    return getGameDataForId(currentGameId);
+  }
+  
+  /// Get the current active game state data
+  Map<String, dynamic>? getCurrentGameStateData() {
+    final currentGameId = getCurrentGameId();
+    if (currentGameId.isEmpty) return null;
+    return getGameStateDataForId(currentGameId);
+  }
+  
+  /// Check if a specific game ID is the current active game
+  bool isCurrentGame(String gameId) {
+    final currentGameId = getCurrentGameId();
+    return currentGameId == gameId;
+  }
+  
+  /// Get the game type for a specific game ID
+  String getGameType(String gameId) {
+    try {
+      final gameState = getGameStateDataForId(gameId);
+      if (gameState == null) return 'normal';
+      
+      final gameType = gameState['gameType']?.toString() ?? 'normal';
+      _log.debug('🔍 Game $gameId type: $gameType');
+      return gameType;
+      
+    } catch (e) {
+      _log.error('❌ Error retrieving game type for game $gameId: $e');
+      return 'normal';
+    }
+  }
+  
+  /// Check if a specific game is a practice game
+  bool isPracticeGame(String gameId) {
+    final gameType = getGameType(gameId);
+    return gameType == 'practice';
+  }
+  
+  /// Check if the current active game is a practice game
+  bool isCurrentGamePractice() {
+    final currentGameId = getCurrentGameId();
+    if (currentGameId.isEmpty) return false;
+    return isPracticeGame(currentGameId);
+  }
+}

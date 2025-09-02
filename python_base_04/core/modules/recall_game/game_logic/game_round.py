@@ -265,7 +265,7 @@ class GameRound:
             
             # Build action data for the round
             action_data = {
-                'card_id': (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id'),
+                'card_id': data.get('card_id') or (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id'),
                 'replace_card_id': (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id'),
                 'replace_index': data.get('replaceIndex'),
                 'power_data': data.get('power_data'),
@@ -281,9 +281,7 @@ class GameRound:
             if action == 'draw_from_deck':
                 action_result = self._handle_draw_from_pile(user_id, action_data)
             elif action == 'play_card':
-                custom_log(f"🎮 [PLAYER_ACTION] Play card action received - TODO: implement")
-                # TODO: When implementing play_card, clear the drawn_card property if the played card was the drawn card
-                action_result = True  # Placeholder - will be False when implemented
+                action_result = self._handle_play_card(user_id, action_data)  # Placeholder - will be False when implemented
             elif action == 'discard_card':
                 custom_log(f"🎮 [PLAYER_ACTION] Discard card action received - TODO: implement")
                 action_result = True  # Placeholder - will be False when implemented
@@ -387,5 +385,105 @@ class GameRound:
             
         except Exception as e:
             custom_log(f"❌ [DRAW_FROM_PILE] Error handling draw action: {e}", level="ERROR")
+            return False
+
+    def _handle_play_card(self, player_id: str, action_data: Dict[str, Any]) -> bool:
+        """Handle playing a card from the player's hand"""
+        try:
+            custom_log(f"🎮 [PLAY_CARD] Handling play card action for player: {player_id}, action_data: {action_data}")
+            
+            # Log the complete payload for debugging
+            custom_log(f"📋 [PLAY_CARD] Full payload: {action_data}")
+            
+            # Extract key information from action_data
+            card_id = action_data.get('card_id', 'unknown')
+            game_id = action_data.get('game_id', 'unknown')
+            
+            custom_log(f"🎯 [PLAY_CARD] Card ID: {card_id}, Game ID: {game_id}, Player ID: {player_id}")
+            
+            # Validate the card exists in player's hand
+            if player_id not in self.game_state.players:
+                custom_log(f"❌ [PLAY_CARD] Player not found: {player_id}")
+                return False
+            
+            player = self.game_state.players[player_id]
+            
+            # Find the card in the player's hand
+            card_to_play = None
+            card_index = -1
+            
+            for i, card in enumerate(player.hand):
+                if card.card_id == card_id:
+                    card_to_play = card
+                    card_index = i
+                    break
+            
+            if not card_to_play:
+                custom_log(f"❌ [PLAY_CARD] Card {card_id} not found in player {player_id}'s hand")
+                return False
+            
+            custom_log(f"🎮 [PLAY_CARD] Found card {card_id} at index {card_index} in player's hand")
+            
+            # Handle drawn card repositioning BEFORE removing the played card
+            drawn_card = player.get_drawn_card()
+            drawn_card_original_index = -1
+            
+            if drawn_card and drawn_card.card_id != card_id:
+                # The played card was NOT the drawn card, so we need to reposition the drawn card
+                # Find the drawn card in the hand BEFORE removing the played card
+                for i, card in enumerate(player.hand):
+                    if card.card_id == drawn_card.card_id:
+                        drawn_card_original_index = i
+                        break
+                
+                custom_log(f"🎮 [PLAY_CARD] Found drawn card {drawn_card.card_id} at original index {drawn_card_original_index}")
+            
+            # Remove card from player's hand
+            removed_card = player.hand.pop(card_index)
+            custom_log(f"🎮 [PLAY_CARD] Removed card {removed_card.card_id} from player's hand. New hand size: {len(player.hand)}")
+            
+            # Add card to discard pile
+            self.game_state.discard_pile.append(removed_card)
+            custom_log(f"🎮 [PLAY_CARD] Added card {removed_card.card_id} to discard pile. Discard pile size: {len(self.game_state.discard_pile)}")
+            
+            # Now handle drawn card repositioning with correct indexes
+            if drawn_card and drawn_card.card_id != card_id and drawn_card_original_index != -1:
+                # Calculate the new index for the drawn card after the played card removal
+                if drawn_card_original_index > card_index:
+                    # Drawn card was after the played card, so its index decreased by 1
+                    new_drawn_card_index = drawn_card_original_index - 1
+                else:
+                    # Drawn card was before the played card, so its index stayed the same
+                    new_drawn_card_index = drawn_card_original_index
+                
+                # Find the drawn card at its new position
+                drawn_card_obj = player.hand.pop(new_drawn_card_index)
+                # Insert drawn card at the vacated index (where the played card was)
+                player.hand.insert(card_index, drawn_card_obj)
+                custom_log(f"🎮 [PLAY_CARD] Repositioned drawn card {drawn_card.card_id} from original index {drawn_card_original_index} (new index {new_drawn_card_index}) to index {card_index}")
+                
+                # IMPORTANT: After repositioning, the drawn card becomes a regular hand card
+                # Clear the drawn card property since it's no longer "drawn"
+                player.clear_drawn_card()
+                custom_log(f"🎮 [PLAY_CARD] Cleared drawn_card property for player {player_id} after repositioning")
+                
+            elif drawn_card and drawn_card.card_id == card_id:
+                # The played card WAS the drawn card, so no repositioning needed
+                custom_log(f"🎮 [PLAY_CARD] Played card {card_id} was the drawn card - no repositioning needed")
+                # Clear the drawn card property since it's now in the discard pile
+                player.clear_drawn_card()
+                custom_log(f"🎮 [PLAY_CARD] Cleared drawn_card property for player {player_id}")
+            else:
+                # No drawn card, so no repositioning needed
+                custom_log(f"🎮 [PLAY_CARD] No drawn card to reposition")
+            
+            # Update game state
+            self.game_state.last_action_time = time.time()
+            
+            custom_log(f"✅ [PLAY_CARD] Successfully moved card {card_id} from hand to discard pile for player {player_id}")
+            return True
+            
+        except Exception as e:
+            custom_log(f"❌ [PLAY_CARD] Error handling play card action: {e}", level="ERROR")
             return False  
     

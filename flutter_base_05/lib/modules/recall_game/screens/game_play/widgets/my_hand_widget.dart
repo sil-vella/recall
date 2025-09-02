@@ -4,6 +4,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../widgets/card_back_widget.dart';
+import '../../../managers/player_action.dart';
 
 /// Widget to display the player's hand
 /// 
@@ -150,6 +151,12 @@ class MyHandWidget extends StatelessWidget {
         final drawnCard = recallGameState['myDrawnCard'] as Map<String, dynamic>?;
         final drawnCardId = drawnCard?['cardId']?.toString();
         
+        // Debug logging for drawn card state
+        _log.info('🎯 [DRAWN_CARD_DEBUG] myDrawnCard: $drawnCard, drawnCardId: $drawnCardId');
+        
+        // Debug: Check if this is a rebuild after state update
+        _log.info('🎯 [DRAWN_CARD_DEBUG] Widget rebuilding at ${DateTime.now().toIso8601String()}');
+        
         return Container(
           height: 140,
           child: ListView.builder(
@@ -159,6 +166,11 @@ class MyHandWidget extends StatelessWidget {
               final card = cards[index] as Map<String, dynamic>;
               final isSelected = index == selectedIndex;
               final isDrawnCard = drawnCardId != null && card['cardId']?.toString() == drawnCardId;
+              
+              // Debug logging for card identification
+              if (isDrawnCard) {
+                _log.info('🎯 [DRAWN_CARD_DEBUG] Card at index $index (${card['cardId']}) is identified as drawn card');
+              }
               
               // Convert to CardModel
               final cardModel = CardModel.fromMap(card);
@@ -202,11 +214,12 @@ class MyHandWidget extends StatelessWidget {
 
 
   /// Handle card selection with status validation
-  void _handleCardSelection(BuildContext context, int index, Map<String, dynamic> card) {
+  void _handleCardSelection(BuildContext context, int index, Map<String, dynamic> card) async {
     // Get current player status from state
-    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
-    
+    final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final currentPlayerStatus = currentState['playerStatus']?.toString() ?? 'unknown';
+    final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
+      
     _log.info('🎯 MyHand card clicked: index=$index, cardId=${card['cardId']}, current player status: $currentPlayerStatus');
     
     // Check if current player can interact with hand cards (playing_card, jack_swap, or queen_peek status)
@@ -215,9 +228,7 @@ class MyHandWidget extends StatelessWidget {
         currentPlayerStatus == 'queen_peek') {
       
       // Update the selected card in the state
-      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
-      
+
       final updatedMyHand = {
         ...currentMyHand,
         'selectedIndex': index,
@@ -231,16 +242,52 @@ class MyHandWidget extends StatelessWidget {
       
       _log.info('✅ Card selected: index=$index, cardId=${card['cardId']} (status: $currentPlayerStatus)');
       
-      // Show success feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Card selected: ${card['rank']} of ${card['suit']}'
+      // Execute the play card action for any valid status
+      try {
+        // Get current game ID from state
+        final currentGameId = currentState['currentGameId']?.toString() ?? '';
+        if (currentGameId.isEmpty) {
+          _log.error('❌ No current game ID found');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error: No active game found'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
+        // Create and execute the play card action (playerId is auto-added by event emitter)
+        final playAction = PlayerAction.playerPlayCard(
+          gameId: currentGameId,
+          cardId: card['cardId']?.toString() ?? '',
+        );
+        await playAction.execute();
+        
+        _log.info('✅ Play card action executed successfully for card: ${card['rank']} of ${card['suit']}');
+        
+        // Show success feedback
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Playing card: ${card['rank']} of ${card['suit']}'
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+        );
+        
+      } catch (e) {
+        _log.error('❌ Failed to execute play card action: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to play card: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     } else {
       // Show invalid action feedback
       _log.info('❌ Invalid card selection action: status=$currentPlayerStatus');

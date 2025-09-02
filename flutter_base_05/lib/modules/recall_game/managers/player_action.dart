@@ -1,7 +1,6 @@
 import '../../../tools/logging/logger.dart';
-import '../../../core/managers/state_manager.dart';
 import 'validated_event_emitter.dart';
-import 'validated_state_updater.dart';
+import 'validated_state_manager.dart';
 
 /// Player action types for the Recall game
 enum PlayerActionType {
@@ -42,6 +41,8 @@ class PlayerAction {
   Future<void> execute() async {
     try {
       _log.info('🎮 Executing ${actionType.name}: $eventName with payload: $payload');
+            // Set status to waiting after action execution to prevent multiple selections
+      _setPlayerStatusToWaiting();
       
       // Check if this is a practice game
       final isPracticeGame = _checkIfPracticeGame();
@@ -51,9 +52,6 @@ class PlayerAction {
         // TODO: Implement practice game logic (local simulation, etc.)
         return;
       }
-      
-      // Set status to waiting after action execution to prevent multiple selections
-      _setPlayerStatusToWaiting();
       
       await _eventEmitter.emit(
         eventType: eventName,
@@ -71,33 +69,11 @@ class PlayerAction {
   /// Check if the current game is a practice game
   bool _checkIfPracticeGame() {
     try {
-      final stateManager = StateManager();
-      final recallGameState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      // Use the centralized game state accessor
+      final gameAccessor = RecallGameStateAccessor.instance;
+      final isPractice = gameAccessor.isCurrentGamePractice();
       
-      // Get current game ID
-      final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-      if (currentGameId.isEmpty) {
-        _log.warning('⚠️ No current game ID found, assuming not practice game');
-        return false;
-      }
-      
-      // Get games map
-      final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
-      if (!games.containsKey(currentGameId)) {
-        _log.warning('⚠️ Current game not found in games map, assuming not practice game');
-        return false;
-      }
-      
-      // Get current game data
-      final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-      final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-      final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-      
-      // Check if game type is 'practice'
-      final gameType = gameState['gameType']?.toString() ?? 'normal';
-      final isPractice = gameType == 'practice';
-      
-      _log.info('🔍 Game type check: gameId=$currentGameId, gameType=$gameType, isPractice=$isPractice');
+      _log.info('🔍 Game type check: isPractice=$isPractice');
       
       return isPractice;
       
@@ -164,15 +140,14 @@ class PlayerAction {
   static PlayerAction playerPlayCard({
     required String gameId,
     required String cardId,
-    int? replaceIndex, // Optional: if replacing a drawn card
+
   }) {
     return PlayerAction._(
       actionType: PlayerActionType.playCard,
       eventName: 'play_card',
       payload: {
         'game_id': gameId,
-        'card_id': cardId,
-        if (replaceIndex != null) 'replace_index': replaceIndex,
+        'card_id': cardId
         // player_id will be automatically included by the event emitter
       },
     );

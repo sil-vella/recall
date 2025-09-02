@@ -369,8 +369,12 @@ class GameRound:
             # Set the drawn card property
             player.set_drawn_card(drawn_card)
             
+            # Change player status from DRAWING_CARD to PLAYING_CARD after successful draw
+            player.set_playing_card()
+            
             custom_log(f"🎮 [DRAW_FROM_PILE] Added card {drawn_card.card_id} to player {player_id}'s hand. Hand size: {len(player.hand)}")
             custom_log(f"🎮 [DRAW_FROM_PILE] Set drawn_card property to {drawn_card.card_id}")
+            custom_log(f"🎮 [DRAW_FROM_PILE] Changed player status from DRAWING_CARD to PLAYING_CARD")
             
             # Update game state
             self.game_state.last_action_time = time.time()

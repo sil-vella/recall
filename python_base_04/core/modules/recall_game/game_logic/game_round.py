@@ -456,6 +456,19 @@ class GameRound:
             
             custom_log(f"🎮 [PLAY_CARD] Found card {card_id} at index {card_index} in player's hand")
             
+            # Check for special cards (Jack/Queen) and log them
+            card_rank = card_to_play.rank
+            card_suit = card_to_play.suit
+            
+            custom_log(f"🎮 [PLAY_CARD] Card details: {card_rank} of {card_suit} (ID: {card_id})")
+            
+            if card_rank == 'jack':
+                custom_log(f"🎭 [PLAY_CARD] Jack played! Suit: {card_suit} - Player can switch any two cards between players")
+            elif card_rank == 'queen':
+                custom_log(f"👑 [PLAY_CARD] Queen played! Suit: {card_suit} - Player can look at any one card from any player's hand")
+            else:
+                custom_log(f"🃏 [PLAY_CARD] Regular card played: {card_rank} of {card_suit}")
+            
             # Handle drawn card repositioning BEFORE removing the played card
             drawn_card = player.get_drawn_card()
             drawn_card_original_index = -1

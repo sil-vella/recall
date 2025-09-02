@@ -185,6 +185,57 @@ class GameRound:
             custom_log(f"❌ Error getting player session: {e}", level="ERROR")
             return None
     
+    def _get_player(self, player_id: str) -> Optional[Player]:
+        """Get player object from game state"""
+        try:
+            return self.game_state.players.get(player_id)
+        except Exception as e:
+            custom_log(f"❌ Error getting player object: {e}", level="ERROR")
+            return None
+    
+    def _build_action_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Build standardized action data from incoming request data"""
+        return {
+            'card_id': data.get('card_id') or (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id'),
+            'replace_card_id': (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id'),
+            'replace_index': data.get('replaceIndex'),
+            'power_data': data.get('power_data'),
+            'indices': data.get('indices', []),
+            'source': data.get('source'),  # For draw actions (deck/discard)
+        }
+    
+    def _extract_user_id(self, session_id: str, data: Dict[str, Any]) -> str:
+        """Extract user ID from session data or request data"""
+        try:
+            session_data = self.websocket_manager.get_session_data(session_id) if self.websocket_manager else {}
+            return str(session_data.get('user_id') or data.get('player_id') or session_id)
+        except Exception as e:
+            custom_log(f"❌ Error extracting user ID: {e}", level="ERROR")
+            return session_id
+    
+    def _route_action(self, action: str, user_id: str, action_data: Dict[str, Any]) -> bool:
+        """Route action to appropriate handler and return result"""
+        try:
+            if action == 'draw_from_deck':
+                return self._handle_draw_from_pile(user_id, action_data)
+            elif action == 'play_card':
+                return self._handle_play_card(user_id, action_data)
+            elif action == 'discard_card':
+                custom_log(f"🎮 [PLAYER_ACTION] Discard card action received - TODO: implement")
+                return True  # Placeholder - will be False when implemented
+            elif action == 'take_from_discard':
+                custom_log(f"🎮 [PLAYER_ACTION] Take from discard action received - TODO: implement")
+                return True  # Placeholder - will be False when implemented
+            elif action == 'call_recall':
+                custom_log(f"🎮 [PLAYER_ACTION] Call recall action received - TODO: implement")
+                return True  # Placeholder - will be False when implemented
+            else:
+                custom_log(f"❌ [PLAYER_ACTION] Unknown action type: {action}")
+                return False
+        except Exception as e:
+            custom_log(f"❌ [PLAYER_ACTION] Error routing action {action}: {e}", level="ERROR")
+            return False
+    
     def _to_flutter_game_data(self) -> Dict[str, Any]:
         """
         Convert game state to Flutter format - delegates to game_state manager
@@ -258,45 +309,30 @@ class GameRound:
                 return False
                 
             # Get player ID from session data or request data
-            session_data = self.websocket_manager.get_session_data(session_id) if self.websocket_manager else {}
-            user_id = str(session_data.get('user_id') or data.get('player_id') or session_id)
+            user_id = self._extract_user_id(session_id, data)
             
             custom_log(f"🎮 [PLAYER_ACTION] User ID: {user_id}, Action: {action}")
             
+            # Validate player exists before proceeding with any action
+            if user_id not in self.game_state.players:
+                custom_log(f"❌ [PLAYER_ACTION] Player not found: {user_id}")
+                return False
+            
             # Build action data for the round
-            action_data = {
-                'card_id': data.get('card_id') or (data.get('card') or {}).get('card_id') or (data.get('card') or {}).get('id'),
-                'replace_card_id': (data.get('replace_card') or {}).get('card_id') or data.get('replace_card_id'),
-                'replace_index': data.get('replaceIndex'),
-                'power_data': data.get('power_data'),
-                'indices': data.get('indices', []),
-                'source': data.get('source'),  # For draw actions (deck/discard)
-            }
+            action_data = self._build_action_data(data)
             
             custom_log(f"🎮 [PLAYER_ACTION] Action data built: {action_data}")
             
             # Route to appropriate action handler based on action type and wait for completion
-            action_result = False
-            
-            if action == 'draw_from_deck':
-                action_result = self._handle_draw_from_pile(user_id, action_data)
-            elif action == 'play_card':
-                action_result = self._handle_play_card(user_id, action_data)  # Placeholder - will be False when implemented
-            elif action == 'discard_card':
-                custom_log(f"🎮 [PLAYER_ACTION] Discard card action received - TODO: implement")
-                action_result = True  # Placeholder - will be False when implemented
-            elif action == 'take_from_discard':
-                custom_log(f"🎮 [PLAYER_ACTION] Take from discard action received - TODO: implement")
-                action_result = True  # Placeholder - will be False when implemented
-            elif action == 'call_recall':
-                custom_log(f"🎮 [PLAYER_ACTION] Call recall action received - TODO: implement")
-                action_result = True  # Placeholder - will be False when implemented
-            else:
-                custom_log(f"❌ [PLAYER_ACTION] Unknown action type: {action}")
-                action_result = False
+            action_result = self._route_action(action, user_id, action_data)
             
             # Log the action result
             custom_log(f"🎮 [PLAYER_ACTION] Action '{action}' completed with result: {action_result}")
+            
+            # Update game state timestamp after successful action
+            if action_result:
+                self.game_state.last_action_time = time.time()
+                custom_log(f"🎮 [PLAYER_ACTION] Updated game state timestamp after successful {action}")
             
             # Complete the round with the action result to continue game logic
             round_completion_result = self.complete_round(action_result)
@@ -324,12 +360,11 @@ class GameRound:
                 custom_log(f"❌ [DRAW_FROM_PILE] Invalid source: {source}. Must be 'deck' or 'discard'")
                 return False
             
-            # Get the player
-            if player_id not in self.game_state.players:
-                custom_log(f"❌ [DRAW_FROM_PILE] Player not found: {player_id}")
+            # Player validation already done in on_player_action
+            player = self._get_player(player_id)
+            if not player:
+                custom_log(f"❌ [DRAW_FROM_PILE] Failed to get player object for {player_id}")
                 return False
-            
-            player = self.game_state.players[player_id]
             
             # Draw card based on source
             drawn_card = None
@@ -374,13 +409,11 @@ class GameRound:
             custom_log(f"🎮 [DRAW_FROM_PILE] Set drawn_card property to {drawn_card.card_id}")
             custom_log(f"🎮 [DRAW_FROM_PILE] Changed player status from DRAWING_CARD to PLAYING_CARD")
             
-            # Update game state
-            self.game_state.last_action_time = time.time()
+            # Game state timestamp update already done in on_player_action
             
             # Log the action
             custom_log(f"✅ [DRAW_FROM_PILE] Successfully drew card {drawn_card.card_id} from {source} for player {player_id}")
             
-
             return True
             
         except Exception as e:
@@ -401,12 +434,11 @@ class GameRound:
             
             custom_log(f"🎯 [PLAY_CARD] Card ID: {card_id}, Game ID: {game_id}, Player ID: {player_id}")
             
-            # Validate the card exists in player's hand
-            if player_id not in self.game_state.players:
-                custom_log(f"❌ [PLAY_CARD] Player not found: {player_id}")
+            # Player validation already done in on_player_action
+            player = self._get_player(player_id)
+            if not player:
+                custom_log(f"❌ [PLAY_CARD] Failed to get player object for {player_id}")
                 return False
-            
-            player = self.game_state.players[player_id]
             
             # Find the card in the player's hand
             card_to_play = None
@@ -477,8 +509,7 @@ class GameRound:
                 # No drawn card, so no repositioning needed
                 custom_log(f"🎮 [PLAY_CARD] No drawn card to reposition")
             
-            # Update game state
-            self.game_state.last_action_time = time.time()
+            # Game state timestamp update already done in on_player_action
             
             custom_log(f"✅ [PLAY_CARD] Successfully moved card {card_id} from hand to discard pile for player {player_id}")
             return True

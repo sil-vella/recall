@@ -1,4 +1,5 @@
 import '../../../tools/logging/logger.dart';
+import '../../../core/managers/state_manager.dart';
 import 'validated_event_emitter.dart';
 import 'validated_state_updater.dart';
 
@@ -42,19 +43,67 @@ class PlayerAction {
     try {
       _log.info('🎮 Executing ${actionType.name}: $eventName with payload: $payload');
       
+      // Check if this is a practice game
+      final isPracticeGame = _checkIfPracticeGame();
+      if (isPracticeGame) {
+        _log.info('🎯 [PRACTICE GAME] Action ${actionType.name} would be executed in practice mode - logging only');
+        // For practice games, we just log the action without sending to backend
+        // TODO: Implement practice game logic (local simulation, etc.)
+        return;
+      }
+      
+      // Set status to waiting after action execution to prevent multiple selections
+      _setPlayerStatusToWaiting();
+      
       await _eventEmitter.emit(
         eventType: eventName,
         data: payload,
       );
       
       _log.info('✅ Action ${actionType.name} sent successfully');
-      
-      // Set status to waiting after action execution to prevent multiple selections
-      _setPlayerStatusToWaiting();
-      
+
     } catch (e) {
       _log.error('❌ Failed to execute action ${actionType.name}: $e');
       rethrow;
+    }
+  }
+
+  /// Check if the current game is a practice game
+  bool _checkIfPracticeGame() {
+    try {
+      final stateManager = StateManager();
+      final recallGameState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      
+      // Get current game ID
+      final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+      if (currentGameId.isEmpty) {
+        _log.warning('⚠️ No current game ID found, assuming not practice game');
+        return false;
+      }
+      
+      // Get games map
+      final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+      if (!games.containsKey(currentGameId)) {
+        _log.warning('⚠️ Current game not found in games map, assuming not practice game');
+        return false;
+      }
+      
+      // Get current game data
+      final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+      final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+      final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+      
+      // Check if game type is 'practice'
+      final gameType = gameState['gameType']?.toString() ?? 'normal';
+      final isPractice = gameType == 'practice';
+      
+      _log.info('🔍 Game type check: gameId=$currentGameId, gameType=$gameType, isPractice=$isPractice');
+      
+      return isPractice;
+      
+    } catch (e) {
+      _log.warning('⚠️ Error checking game type, assuming not practice game: $e');
+      return false;
     }
   }
 

@@ -464,10 +464,16 @@ class GameRound:
             
             if card_rank == 'jack':
                 custom_log(f"🎭 [PLAY_CARD] Jack played! Suit: {card_suit} - Player can switch any two cards between players")
+                player.set_jack_swap()
+                custom_log(f"🎭 [PLAY_CARD] Player {player_id} status set to JACK_SWAP")
             elif card_rank == 'queen':
+                custom_log(f"👑 [PLAY_CARD] Queen played! Suit: {card_suit} - Player can look at one card from any player's hand")
+                player.set_queen_peek()
+                custom_log(f"👑 [PLAY_CARD] Player {player_id} status set to QUEEN_PEEK")
                 custom_log(f"👑 [PLAY_CARD] Queen played! Suit: {card_suit} - Player can look at any one card from any player's hand")
             else:
                 custom_log(f"🃏 [PLAY_CARD] Regular card played: {card_rank} of {card_suit}")
+                # Keep player in PLAYING_CARD status for regular cards
             
             # Handle drawn card repositioning BEFORE removing the played card
             drawn_card = player.get_drawn_card()

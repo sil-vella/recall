@@ -178,6 +178,7 @@ class RecallGameMain extends ModuleBase {
           'myHand': <String, dynamic>{},
           'centerBoard': <String, dynamic>{},
           'opponentsPanel': <String, dynamic>{},
+          'myDrawnCard': null,
           
           // Metadata
           'lastUpdated': DateTime.now().toIso8601String(),

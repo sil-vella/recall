@@ -171,6 +171,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   Widget _buildOpponentCard(Map<String, dynamic> player, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus) {
     final playerName = player['name']?.toString() ?? 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
+    final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
     final hasCalledRecall = player['hasCalledRecall'] ?? false;
     
     return Container(
@@ -241,6 +242,12 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             _buildCardsRow(hand)
           else
             _buildEmptyHand(),
+          
+          // Drawn card display (if any)
+          if (drawnCard != null) ...[
+            const SizedBox(height: 8),
+            _buildDrawnCardRow(drawnCard),
+          ],
         ],
       ),
     );
@@ -282,6 +289,43 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       isSelectable: true,
       isSelected: isSelected,
       onTap: () => _handleCardClick(card),
+    );
+  }
+
+  /// Build drawn card row for opponents
+  Widget _buildDrawnCardRow(Map<String, dynamic> drawnCard) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Drawn card label
+        Row(
+          children: [
+            Icon(Icons.draw, size: 14, color: Colors.blue),
+            const SizedBox(width: 4),
+            Text(
+              'Drawn',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.blue,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        
+        // Drawn card display
+        Container(
+          height: 60,
+          child: CardWidget(
+            card: CardModel.fromMap(drawnCard),
+            size: CardSize.small,
+            isSelectable: false,
+            isSelected: false,
+            onTap: null,
+          ),
+        ),
+      ],
     );
   }
 

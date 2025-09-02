@@ -1,5 +1,5 @@
 import '../../../core/managers/state_manager.dart';
-import 'field_specifications.dart';
+import '../utils/field_specifications.dart';
 import '../../../tools/logging/logger.dart';
 
 /// Validated state updater for recall game state management
@@ -276,6 +276,11 @@ class RecallGameStateUpdater {
       type: int,
       defaultValue: 0,
       description: 'Current player\'s total score',
+    ),
+    'myDrawnCard': RecallStateFieldSpec(
+      type: Map,
+      required: false,
+      description: 'Most recently drawn card for current player',
     ),
     
     // Message State

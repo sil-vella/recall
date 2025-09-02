@@ -282,6 +282,7 @@ class GameRound:
                 action_result = self._handle_draw_from_pile(user_id, action_data)
             elif action == 'play_card':
                 custom_log(f"🎮 [PLAYER_ACTION] Play card action received - TODO: implement")
+                # TODO: When implementing play_card, clear the drawn_card property if the played card was the drawn card
                 action_result = True  # Placeholder - will be False when implemented
             elif action == 'discard_card':
                 custom_log(f"🎮 [PLAYER_ACTION] Discard card action received - TODO: implement")
@@ -364,7 +365,12 @@ class GameRound:
             
             # Add card to player's hand
             player.add_card_to_hand(drawn_card)
+            
+            # Set the drawn card property
+            player.set_drawn_card(drawn_card)
+            
             custom_log(f"🎮 [DRAW_FROM_PILE] Added card {drawn_card.card_id} to player {player_id}'s hand. Hand size: {len(player.hand)}")
+            custom_log(f"🎮 [DRAW_FROM_PILE] Set drawn_card property to {drawn_card.card_id}")
             
             # Update game state
             self.game_state.last_action_time = time.time()

@@ -47,6 +47,7 @@ class Player:
         self.last_action_time = None
         self.initial_peeks_remaining = 2
         self.status = PlayerStatus.WAITING  # Player status
+        self.drawn_card = None  # Most recently drawn card (Card object)
     
     def add_card_to_hand(self, card: Card):
         """Add a card to the player's hand"""
@@ -54,12 +55,29 @@ class Player:
         self.hand.append(card)
         self.cards_remaining = len(self.hand)
     
+    def set_drawn_card(self, card: Card):
+        """Set the most recently drawn card"""
+        self.drawn_card = card
+    
+    def get_drawn_card(self) -> Optional[Card]:
+        """Get the most recently drawn card"""
+        return self.drawn_card
+    
+    def clear_drawn_card(self):
+        """Clear the drawn card (e.g., after playing it)"""
+        self.drawn_card = None
+    
     def remove_card_from_hand(self, card_id: str) -> Optional[Card]:
         """Remove a card from the player's hand"""
         for i, card in enumerate(self.hand):
             if card.card_id == card_id:
                 removed_card = self.hand.pop(i)
                 self.cards_remaining = len(self.hand)
+                
+                # Clear drawn card if the removed card was the drawn card
+                if self.drawn_card and self.drawn_card.card_id == card_id:
+                    self.clear_drawn_card()
+                
                 return removed_card
         return None
     
@@ -198,6 +216,7 @@ class Player:
             "has_called_recall": self.has_called_recall,
             "initial_peeks_remaining": self.initial_peeks_remaining,
             "status": self.status.value,  # Include player status
+            "drawn_card": self.drawn_card.to_dict() if self.drawn_card else None,  # Include drawn card
         }
     
     @classmethod
@@ -221,6 +240,13 @@ class Player:
         player.is_active = data.get("is_active", True)
         player.has_called_recall = data.get("has_called_recall", False)
         player.initial_peeks_remaining = data.get("initial_peeks_remaining", 2)
+        
+        # Restore drawn card
+        drawn_card_data = data.get("drawn_card")
+        if drawn_card_data:
+            player.drawn_card = Card.from_dict(drawn_card_data)
+        else:
+            player.drawn_card = None
         
         # Restore player status
         status_str = data.get("status", "waiting")

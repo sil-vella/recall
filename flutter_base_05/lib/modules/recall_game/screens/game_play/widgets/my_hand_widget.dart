@@ -143,31 +143,57 @@ class MyHandWidget extends StatelessWidget {
 
   /// Build the cards grid using the new CardWidget system
   Widget _buildCardsGrid(List<dynamic> cards, int selectedIndex) {
-    return Container(
-      height: 140,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: cards.length,
-        itemBuilder: (context, index) {
-          final card = cards[index] as Map<String, dynamic>;
-          final isSelected = index == selectedIndex;
-          
-          // Convert to CardModel
-          final cardModel = CardModel.fromMap(card);
-          final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
-          
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: CardWidget(
-              card: updatedCardModel,
-              size: CardSize.large,
-              isSelectable: true,
-              isSelected: isSelected,
-              onTap: () => _handleCardSelection(context, index, card),
-            ),
-          );
-        },
-      ),
+    return ListenableBuilder(
+      listenable: StateManager(),
+      builder: (context, child) {
+        final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final drawnCard = recallGameState['myDrawnCard'] as Map<String, dynamic>?;
+        final drawnCardId = drawnCard?['cardId']?.toString();
+        
+        return Container(
+          height: 140,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: cards.length,
+            itemBuilder: (context, index) {
+              final card = cards[index] as Map<String, dynamic>;
+              final isSelected = index == selectedIndex;
+              final isDrawnCard = drawnCardId != null && card['cardId']?.toString() == drawnCardId;
+              
+              // Convert to CardModel
+              final cardModel = CardModel.fromMap(card);
+              final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
+              
+              return Padding(
+                padding: EdgeInsets.only(
+                  right: 8,
+                  left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
+                ),
+                child: Container(
+                  decoration: isDrawnCard ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 0),
+                      ),
+                    ],
+                  ) : null,
+                  child: CardWidget(
+                    card: updatedCardModel,
+                    size: CardSize.large,
+                    isSelectable: true,
+                    isSelected: isSelected,
+                    onTap: () => _handleCardSelection(context, index, card),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 

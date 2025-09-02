@@ -689,6 +689,7 @@ class GameStateManager:
             'status': player.status.value,  # Use the player's actual status
             'isCurrentPlayer': is_current,
             'hasCalledRecall': bool(player.has_called_recall),
+            'drawnCard': self._to_flutter_card(player.drawn_card) if player.drawn_card else None,  # Include drawn card
         }
 
     def _to_flutter_game_data(self, game: GameState) -> Dict[str, Any]:

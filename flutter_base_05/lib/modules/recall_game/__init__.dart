@@ -16,8 +16,8 @@ export 'recall_game_main.dart';
 
 // Validated Event/State System
 export 'utils/field_specifications.dart';
-export 'utils/validated_event_emitter.dart';
-export 'utils/validated_state_updater.dart';
+export 'managers/validated_event_emitter.dart';
+export 'managers/validated_state_updater.dart';
 export 'utils/recall_game_helpers.dart';
 export 'models/card_model.dart';
 export 'widgets/card_widget.dart';

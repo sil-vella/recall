@@ -1,5 +1,5 @@
 import '../../../tools/logging/logger.dart';
-import '../utils/validated_event_emitter.dart';
+import 'validated_event_emitter.dart';
 
 /// Player action types for the Recall game
 enum PlayerActionType {

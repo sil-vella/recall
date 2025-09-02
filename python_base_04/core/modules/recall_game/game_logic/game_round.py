@@ -470,7 +470,6 @@ class GameRound:
                 custom_log(f"👑 [PLAY_CARD] Queen played! Suit: {card_suit} - Player can look at one card from any player's hand")
                 player.set_queen_peek()
                 custom_log(f"👑 [PLAY_CARD] Player {player_id} status set to QUEEN_PEEK")
-                custom_log(f"👑 [PLAY_CARD] Queen played! Suit: {card_suit} - Player can look at any one card from any player's hand")
             else:
                 custom_log(f"🃏 [PLAY_CARD] Regular card played: {card_rank} of {card_suit}")
                 # Keep player in PLAYING_CARD status for regular cards

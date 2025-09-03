@@ -519,7 +519,7 @@ class GameRound:
         """Handle same rank window action - sets all players to same_rank_window status"""
         try:
             custom_log(f"🎮 [SAME_RANK_WINDOW] Handling same rank window action: {action_data}")
-            
+                        
             # Set game state phase to SAME_RANK_WINDOW
             self.game_state.phase = GamePhase.SAME_RANK_WINDOW
             custom_log(f"🎮 [SAME_RANK_WINDOW] Set game state phase to SAME_RANK_WINDOW")
@@ -561,6 +561,15 @@ class GameRound:
         try:
             custom_log(f"⏰ [SAME_RANK_TIMER] Timer expired - ending same rank window")
             
+            # Log the same_rank_data before clearing it
+            if self.same_rank_data:
+                custom_log(f"📊 [SAME_RANK_TIMER] Same rank data collected during window:")
+                for player_id, play_data in self.same_rank_data.items():
+                    custom_log(f"📊 [SAME_RANK_TIMER] Player {player_id}: {play_data['rank']} of {play_data['suit']} (order: {play_data['play_order']}, timestamp: {play_data['timestamp']})")
+                custom_log(f"📊 [SAME_RANK_TIMER] Total same rank plays: {len(self.same_rank_data)}")
+            else:
+                custom_log(f"📊 [SAME_RANK_TIMER] No same rank plays collected during window")
+            
             # Reset all players' status to WAITING using unified method
             success = self.update_all_players_state_and_send(PlayerStatus.WAITING)
             if success:
@@ -571,6 +580,13 @@ class GameRound:
             # Set game state to ENDING_ROUND
             self.game_state.phase = GamePhase.ENDING_ROUND
             custom_log(f"⏰ [SAME_RANK_TIMER] Set game phase to ENDING_ROUND")
+            
+            # Clear same_rank_data after changing game phase
+            if self.same_rank_data:
+                custom_log(f"🧹 [SAME_RANK_TIMER] Clearing same rank data: {len(self.same_rank_data)} plays")
+                self.same_rank_data.clear()
+            else:
+                custom_log(f"🧹 [SAME_RANK_TIMER] No same rank data to clear")
             
             # Send game state update to all players
             self._send_game_state_update()
@@ -774,17 +790,30 @@ class GameRound:
             return False  
     
     def _handle_same_rank_play(self, user_id: str, action_data: Dict[str, Any]) -> bool:
-        """Handle same rank play action - stores the play in same_rank_data for multiple players"""
+        """Handle same rank play action - validates rank match and stores the play in same_rank_data for multiple players"""
         try:
             custom_log(f"🎮 [SAME_RANK_PLAY] Handling same rank play action for player {user_id}: {action_data}")
-            
-            # Check for special cards (Jack/Queen) and store data if applicable
-            special_card_data = self._check_special_card(user_id, action_data)
             
             # Extract card details from action_data
             card_id = action_data.get('card_id', 'unknown')
             card_rank = action_data.get('rank', 'unknown')  # Use 'rank' not 'card_rank'
             card_suit = action_data.get('suit', 'unknown')  # Use 'suit' not 'card_suit'
+            
+            # Validate that this is actually a same rank play
+            if not self._validate_same_rank_play(card_rank):
+                custom_log(f"❌ [SAME_RANK_PLAY] Invalid same rank play: {card_rank} does not match last played card rank")
+                
+                # Apply penalty: draw a card from the draw pile
+                penalty_card = self._apply_same_rank_penalty(user_id)
+                if penalty_card:
+                    custom_log(f"🎯 [SAME_RANK_PLAY] Applied penalty: player {user_id} drew card {penalty_card.card_id} from draw pile")
+                else:
+                    custom_log(f"⚠️ [SAME_RANK_PLAY] Failed to apply penalty: could not draw card for player {user_id}")
+                
+                return False
+            
+            # Check for special cards (Jack/Queen) and store data if applicable
+            special_card_data = self._check_special_card(user_id, action_data)
             
             # Create play data structure
             play_data = {
@@ -811,6 +840,78 @@ class GameRound:
         except Exception as e:
             custom_log(f"❌ [SAME_RANK_PLAY] Error handling same rank play action: {e}", level="ERROR")
             return False
+    
+    def _validate_same_rank_play(self, card_rank: str) -> bool:
+        """Validate that the played card has the same rank as the last card in the discard pile"""
+        try:
+            # Check if there are any cards in the discard pile
+            if not self.game_state.discard_pile:
+                custom_log(f"❌ [VALIDATE_SAME_RANK] No cards in discard pile to compare against")
+                return False
+            
+            # Get the last card from the discard pile
+            last_card = self.game_state.discard_pile[-1]
+            last_card_rank = last_card.rank
+            
+            custom_log(f"🎯 [VALIDATE_SAME_RANK] Comparing played card rank '{card_rank}' with last played card rank '{last_card_rank}'")
+            
+            # Handle special case: first card of the game (no previous card to match)
+            if len(self.game_state.discard_pile) == 1:
+                custom_log(f"🎯 [VALIDATE_SAME_RANK] First card of the game - no rank matching required")
+                return True
+            
+            # Check if ranks match (case-insensitive for safety)
+            if card_rank.lower() == last_card_rank.lower():
+                custom_log(f"✅ [VALIDATE_SAME_RANK] Rank match confirmed: {card_rank} matches {last_card_rank}")
+                return True
+            else:
+                custom_log(f"❌ [VALIDATE_SAME_RANK] Rank mismatch: {card_rank} does not match {last_card_rank}")
+                return False
+                
+        except Exception as e:
+            custom_log(f"❌ [VALIDATE_SAME_RANK] Error validating same rank play: {e}", level="ERROR")
+            return False
+    
+    def _apply_same_rank_penalty(self, player_id: str) -> Optional[Card]:
+        """Apply penalty for invalid same rank play - draw a card from the draw pile"""
+        try:
+            custom_log(f"🎯 [SAME_RANK_PENALTY] Applying penalty for player {player_id}")
+            
+            # Check if draw pile has cards
+            if not self.game_state.draw_pile:
+                custom_log(f"❌ [SAME_RANK_PENALTY] Draw pile is empty - cannot apply penalty")
+                return None
+            
+            # Get player object
+            player = self._get_player(player_id)
+            if not player:
+                custom_log(f"❌ [SAME_RANK_PENALTY] Player {player_id} not found")
+                return None
+            
+            # Draw penalty card from draw pile
+            penalty_card = self.game_state.draw_pile.pop()  # Remove last card
+            custom_log(f"🎯 [SAME_RANK_PENALTY] Drew penalty card {penalty_card.card_id} from draw pile. Remaining: {len(self.game_state.draw_pile)}")
+            
+            # Add penalty card to player's hand
+            player.add_card_to_hand(penalty_card)
+            custom_log(f"🎯 [SAME_RANK_PENALTY] Added penalty card {penalty_card.card_id} to player {player_id}'s hand. New hand size: {len(player.hand)}")
+            
+            # Update player status to indicate they received a penalty
+            success = self.update_player_state_and_send(
+                player_id=player_id,
+                new_status=PlayerStatus.WAITING  # Reset to waiting after penalty
+            )
+            
+            if success:
+                custom_log(f"🎯 [SAME_RANK_PENALTY] Updated player {player_id} status to WAITING after penalty")
+            else:
+                custom_log(f"⚠️ [SAME_RANK_PENALTY] Failed to update player {player_id} status after penalty")
+            
+            return penalty_card
+            
+        except Exception as e:
+            custom_log(f"❌ [SAME_RANK_PENALTY] Error applying penalty for player {player_id}: {e}", level="ERROR")
+            return None
     
     def _check_special_card(self, player_id: str, action_data: Dict[str, Any]) -> None:
         """Check if a played card has special powers (Jack/Queen) and set player status accordingly"""

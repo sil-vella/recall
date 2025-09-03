@@ -36,7 +36,8 @@ class GameEventCoordinator:
                 'play_card',
                 'discard_card',
                 'take_from_discard',
-                'call_recall'
+                'call_recall',
+                'same_rank_play'
             ]
             
             # Register each event listener
@@ -86,6 +87,10 @@ class GameEventCoordinator:
             elif event_name == 'call_recall':
                 # Add action type to data payload for call_recall events
                 data_with_action = {**data, 'action': 'call_recall'}
+                return self._handle_player_action_through_round(session_id, data_with_action)
+            elif event_name == 'same_rank_play':
+                # Add action type to data payload for same_rank_play events
+                data_with_action = {**data, 'action': 'same_rank_play'}
                 return self._handle_player_action_through_round(session_id, data_with_action)
             else:
                 custom_log(f"⚠️ [RECALL-GAME] Unknown game event: '{event_name}'")

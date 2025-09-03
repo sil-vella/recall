@@ -1,4 +1,4 @@
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, join_room, leave_room
 from flask import request
 from typing import Dict, Any, Set, Callable, Optional, List
 from tools.logger.custom_logging import custom_log
@@ -418,7 +418,7 @@ class WebSocketManager:
             session_data = self.get_session_data(session_id)
             if not session_data:
                 custom_log(f"❌ No session data found for session: {session_id}")
-                emit('error', {'error': 'Authentication required'})
+                self.socketio.emit('error', {'error': 'Authentication required'})
                 return
             
             # Validate JWT token if JWT manager is available
@@ -434,7 +434,7 @@ class WebSocketManager:
                         payload = self._jwt_manager.validate_token(token, TokenType.ACCESS)
                         if not payload:
                             custom_log(f"❌ Invalid JWT token for session: {session_id}")
-                            emit('error', {'error': 'Invalid token'})
+                            self.socketio.emit('error', {'error': 'Invalid token'})
                             return
                         
                         # Update session data with user info
@@ -449,11 +449,11 @@ class WebSocketManager:
                         
                     except Exception as e:
                         custom_log(f"❌ JWT validation error for session {session_id}: {str(e)}")
-                        emit('error', {'error': 'Token validation failed'})
+                        self.socketio.emit('error', {'error': 'Token validation failed'})
                         return
                 else:
                     custom_log(f"❌ No token provided for session: {session_id}")
-                    emit('error', {'error': 'No token provided'})
+                    self.socketio.emit('error', {'error': 'No token provided'})
                     return
             
             # Call the original handler
@@ -808,7 +808,8 @@ class WebSocketManager:
     async def broadcast_to_room(self, room_id: str, event: str, data: Any):
         """Broadcast message to a specific room."""
         try:
-            emit(event, data, room=room_id)
+            # Use socketio.emit instead of direct emit to work from background threads
+            self.socketio.emit(event, data, room=room_id)
             custom_log(f"✅ Broadcasted {event} to room {room_id}")
         except Exception as e:
             custom_log(f"❌ Error broadcasting to room {room_id}: {str(e)}")
@@ -816,7 +817,8 @@ class WebSocketManager:
     async def send_to_session(self, session_id: str, event: str, data: Any):
         """Send message to a specific session."""
         try:
-            emit(event, data, room=session_id)
+            # Use socketio.emit instead of direct emit to work from background threads
+            self.socketio.emit(event, data, room=session_id)
             custom_log(f"✅ Sent {event} to session {session_id}")
         except Exception as e:
             custom_log(f"❌ Error sending to session {session_id}: {str(e)}")
@@ -824,7 +826,8 @@ class WebSocketManager:
     def broadcast_to_all(self, event: str, data: Dict[str, Any]):
         """Broadcast message to all connected clients."""
         try:
-            emit(event, data)
+            # Use socketio.emit instead of direct emit to work from background threads
+            self.socketio.emit(event, data)
             custom_log(f"✅ Broadcasted {event} to all clients")
         except Exception as e:
             custom_log(f"❌ Error broadcasting to all: {str(e)}")
@@ -832,7 +835,8 @@ class WebSocketManager:
     def send_to_session(self, session_id: str, event: str, data: Any):
         """Send message to a specific session."""
         try:
-            emit(event, data, room=session_id)
+            # Use socketio.emit instead of direct emit to work from background threads
+            self.socketio.emit(event, data, room=session_id)
             custom_log(f"✅ Sent {event} to session {session_id}")
         except Exception as e:
             custom_log(f"❌ Error sending to session {session_id}: {str(e)}")
@@ -1070,14 +1074,14 @@ class WebSocketManager:
                 error = self.validator.validate_event(event)
                 if error:
                     custom_log(f"Event validation failed for session {sid}: {error}")
-                    emit('error', {'message': error}, room=sid)
+                    self.socketio.emit('error', {'message': error}, room=sid)
                     return
                     
                 # Validate payload
                 error = self.validator.validate_payload(payload)
                 if error:
                     custom_log(f"Payload validation failed for session {sid}: {error}")
-                    emit('error', {'message': error}, room=sid)
+                    self.socketio.emit('error', {'message': error}, room=sid)
                     return
                     
                 # Handle specific events
@@ -1102,7 +1106,7 @@ class WebSocketManager:
                 
         except Exception as e:
             custom_log(f"Error handling message from session {sid}: {str(e)}")
-            emit('error', {'message': 'Internal server error'}, room=sid)
+            self.socketio.emit('error', {'message': 'Internal server error'}, room=sid)
 
     def broadcast_message(self, room_id: str, message: str, sender_id: str = None):
         """Broadcast a message to all users in a room."""
@@ -1132,7 +1136,7 @@ class WebSocketManager:
             }
             
             # Broadcast to room
-            emit('message', message_data, room=room_id)
+            self.socketio.emit('message', message_data, room=room_id)
             
             custom_log(f"✅ Broadcasted message to room {room_id}: {message}")
             

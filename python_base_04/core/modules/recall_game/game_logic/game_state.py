@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 from enum import Enum
 from ..models.card import Card, CardDeck
 from ..utils.deck_factory import DeckFactory
-from ..models.player import Player, HumanPlayer, ComputerPlayer, PlayerType
+from ..models.player import Player, HumanPlayer, ComputerPlayer, PlayerType, PlayerStatus
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
 import time
@@ -21,7 +21,8 @@ class GamePhase(Enum):
     WAITING_FOR_PLAYERS = "waiting_for_players"
     DEALING_CARDS = "dealing_cards"
     PLAYER_TURN = "player_turn"
-    OUT_OF_TURN_PLAY = "out_of_turn_play"
+    SAME_RANK_WINDOW = "same_rank_window"
+    ENDING_ROUND = "ending_round"
     RECALL_CALLED = "recall_called"
     GAME_ENDED = "game_ended"
 
@@ -527,16 +528,9 @@ class GameStateManager:
             # Set up draw and discard piles
             self._setup_piles(game)
             
-            # Set first player and update player statuses
+            # Set first player
             player_ids = list(game.players.keys())
             game.current_player_id = player_ids[0]
-            
-            # Update player statuses
-            for player_id, player in game.players.items():
-                if player_id == game.current_player_id:
-                    player.set_drawing_card()  # Current player needs to draw a card first
-                else:
-                    player.set_ready()    # Other players are ready
             
             game.phase = GamePhase.PLAYER_TURN
             game.last_action_time = time.time()
@@ -547,6 +541,10 @@ class GameStateManager:
             # Get the game round handler
             custom_log(f"🎮 [START_MATCH] Getting game round...")
             game_round = game.get_round()
+            
+            # Update player statuses using unified method in game round
+            game_round.update_all_players_state_and_send(PlayerStatus.READY)
+            game_round.update_player_state_and_send(game.current_player_id, PlayerStatus.DRAWING_CARD)
             
             # Start the first round
             custom_log(f"🎮 [START_MATCH] Starting round...")
@@ -703,7 +701,8 @@ class GameStateManager:
             'waiting_for_players': 'waiting',
             'dealing_cards': 'setup',
             'player_turn': 'playing',
-            'out_of_turn_play': 'out_of_turn',
+            'same_rank_window': 'same_rank_window',
+            'ending_round': 'ending_round',
             'recall_called': 'recall',
             'game_ended': 'finished',
         }
@@ -729,7 +728,7 @@ class GameStateManager:
             
             # Game state and phase
             'phase': phase_mapping.get(game.phase.value, 'waiting'),
-            'status': 'active' if game.phase.value in ['player_turn', 'out_of_turn_play', 'recall_called'] else 'inactive',
+            'status': 'active' if game.phase.value in ['player_turn', 'same_rank_window', 'ending_round', 'recall_called'] else 'inactive',
             
             # Card piles
             'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],

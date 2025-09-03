@@ -122,45 +122,18 @@ class Player:
         """Set player status"""
         self.status = status
     
-    def set_playing(self):
-        """Set player status to playing (active turn)"""
-        self.status = PlayerStatus.PLAYING
-    
-    def set_ready(self):
-        """Set player status to ready (waiting for turn)"""
-        self.status = PlayerStatus.READY
-    
-    def set_waiting(self):
-        """Set player status to waiting (game not started)"""
-        self.status = PlayerStatus.WAITING
-    
-    def set_same_rank_window(self):
-        """Set player status to same rank window (can play out-of-turn)"""
-        self.status = PlayerStatus.SAME_RANK_WINDOW
-    
-    def set_playing_card(self):
-        """Set player status to playing card (in process of playing)"""
-        self.status = PlayerStatus.PLAYING_CARD
-    
-    def set_drawing_card(self):
-        """Set player status to drawing card (in process of drawing)"""
-        self.status = PlayerStatus.DRAWING_CARD
-    
-    def set_queen_peek(self):
-        """Set player status to queen peek (used queen power)"""
-        self.status = PlayerStatus.QUEEN_PEEK
-    
-    def set_jack_swap(self):
-        """Set player status to jack swap (used jack power)"""
-        self.status = PlayerStatus.JACK_SWAP
-    
-    def set_finished(self):
-        """Set player status to finished (game ended)"""
-        self.status = PlayerStatus.FINISHED
-    
-    def set_disconnected(self):
-        """Set player status to disconnected"""
-        self.status = PlayerStatus.DISCONNECTED
+    # Individual setter methods removed - now use set_status() with PlayerStatus enum
+    # Examples:
+    # player.set_status(PlayerStatus.PLAYING)
+    # player.set_status(PlayerStatus.READY)
+    # player.set_status(PlayerStatus.WAITING)
+    # player.set_status(PlayerStatus.SAME_RANK_WINDOW)
+    # player.set_status(PlayerStatus.PLAYING_CARD)
+    # player.set_status(PlayerStatus.DRAWING_CARD)
+    # player.set_status(PlayerStatus.QUEEN_PEEK)
+    # player.set_status(PlayerStatus.JACK_SWAP)
+    # player.set_status(PlayerStatus.FINISHED)
+    # player.set_status(PlayerStatus.DISCONNECTED)
     
     def is_playing(self) -> bool:
         """Check if player is currently playing (active turn)"""

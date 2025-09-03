@@ -118,9 +118,6 @@ class GameEventCoordinator:
             # Handle the player action through the game round and store the result
             action_result = game_round.on_player_action(session_id, data)
             
-            # Call complete_round with the action result
-            game_round.complete_round(action_result)
-            
             # Return the action result
             return action_result
             
@@ -250,6 +247,43 @@ class GameEventCoordinator:
             
         except Exception as e:
             custom_log(f"❌ Error sending player state update: {e}", level="ERROR")
+    
+    def _send_player_state_update_to_all(self, game_id: str):
+        """Send player state update to all players in the game"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                custom_log(f"❌ Game {game_id} not found for player state update to all")
+                return
+            
+            # Send player state update to each player
+            for player_id, session_id in game.player_sessions.items():
+                if player_id in game.players:
+                    player = game.players[player_id]
+                    
+                    # Convert player to Flutter format using GameStateManager
+                    player_data = self.game_state_manager._to_flutter_player_data(
+                        player, 
+                        is_current=(game.current_player_id == player_id)
+                    )
+                    
+                    # Create player state update payload
+                    payload = {
+                        'event_type': 'player_state_updated',
+                        'game_id': game_id,
+                        'player_id': player_id,
+                        'player_data': player_data,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                    
+                    # Send to the specific player
+                    self.websocket_manager.send_to_session(session_id, 'player_state_updated', payload)
+                    custom_log(f"📡 Player state update sent to player {player_id} in game {game_id}")
+            
+            custom_log(f"📡 Player state updates sent to all players in game {game_id}")
+            
+        except Exception as e:
+            custom_log(f"❌ Error sending player state update to all: {e}", level="ERROR")
     
     def _send_round_completion_event(self, game_id: str, round_result: Dict[str, Any]):
         """Send round completion event to all players"""

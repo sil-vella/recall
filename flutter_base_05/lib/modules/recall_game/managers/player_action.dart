@@ -11,7 +11,7 @@ enum PlayerActionType {
   
   // Special actions
   callRecall,
-  playOutOfTurn,
+  playSameRank,
   useSpecialPower,
   initialPeek,
   
@@ -145,6 +145,23 @@ class PlayerAction {
     return PlayerAction._(
       actionType: PlayerActionType.playCard,
       eventName: 'play_card',
+      payload: {
+        'game_id': gameId,
+        'card_id': cardId
+        // player_id will be automatically included by the event emitter
+      },
+    );
+  }
+
+    /// Play a card from the player's hand
+  static PlayerAction sameRankPlay({
+    required String gameId,
+    required String cardId,
+
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.playSameRank,
+      eventName: 'same_rank_play',
       payload: {
         'game_id': gameId,
         'card_id': cardId

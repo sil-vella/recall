@@ -222,10 +222,11 @@ class MyHandWidget extends StatelessWidget {
       
     _log.info('🎯 MyHand card clicked: index=$index, cardId=${card['cardId']}, current player status: $currentPlayerStatus');
     
-    // Check if current player can interact with hand cards (playing_card, jack_swap, or queen_peek status)
+    // Check if current player can interact with hand cards (playing_card, jack_swap, queen_peek, or same_rank_window status)
     if (currentPlayerStatus == 'playing_card' || 
         currentPlayerStatus == 'jack_swap' || 
-        currentPlayerStatus == 'queen_peek') {
+        currentPlayerStatus == 'queen_peek' ||
+        currentPlayerStatus == 'same_rank_window') {
       
       // Update the selected card in the state
 
@@ -242,47 +243,68 @@ class MyHandWidget extends StatelessWidget {
       
       _log.info('✅ Card selected: index=$index, cardId=${card['cardId']} (status: $currentPlayerStatus)');
       
-      // Execute the play card action for any valid status
-      try {
-        // Get current game ID from state
-        final currentGameId = currentState['currentGameId']?.toString() ?? '';
-        if (currentGameId.isEmpty) {
-          _log.error('❌ No current game ID found');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error: No active game found'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
-          return;
-        }
-        
-        // Create and execute the play card action (playerId is auto-added by event emitter)
-        final playAction = PlayerAction.playerPlayCard(
-          gameId: currentGameId,
-          cardId: card['cardId']?.toString() ?? '',
-        );
-        await playAction.execute();
-        
-        _log.info('✅ Play card action executed successfully for card: ${card['rank']} of ${card['suit']}');
-        
-        // Show success feedback
+      // Get current game ID from state
+      final currentGameId = currentState['currentGameId']?.toString() ?? '';
+      if (currentGameId.isEmpty) {
+        _log.error('❌ No current game ID found');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Playing card: ${card['rank']} of ${card['suit']}'
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+          const SnackBar(
+            content: Text('Error: No active game found'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
           ),
         );
-        
+        return;
+      }
+      
+      // Execute the appropriate action based on player status
+      try {
+        if (currentPlayerStatus == 'same_rank_window') {
+          // Use same rank play action for same rank window
+          final sameRankAction = PlayerAction.sameRankPlay(
+            gameId: currentGameId,
+            cardId: card['cardId']?.toString() ?? '',
+          );
+          await sameRankAction.execute();
+          
+          _log.info('✅ Same rank play action executed successfully for card: ${card['rank']} of ${card['suit']}');
+          
+          // Show success feedback for same rank play
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Same Rank Play: ${card['rank']} of ${card['suit']}'
+              ),
+              backgroundColor: Colors.blue,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+          // Use regular play card action for other states
+          final playAction = PlayerAction.playerPlayCard(
+            gameId: currentGameId,
+            cardId: card['cardId']?.toString() ?? '',
+          );
+          await playAction.execute();
+          
+          _log.info('✅ Play card action executed successfully for card: ${card['rank']} of ${card['suit']}');
+          
+          // Show success feedback for regular play
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Playing card: ${card['rank']} of ${card['suit']}'
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       } catch (e) {
-        _log.error('❌ Failed to execute play card action: $e');
+        _log.error('❌ Failed to execute action: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to play card: $e'),
+            content: Text('Failed to execute action: $e'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
           ),

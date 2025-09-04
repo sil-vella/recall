@@ -23,6 +23,7 @@ class GamePhase(Enum):
     PLAYER_TURN = "player_turn"
     SAME_RANK_WINDOW = "same_rank_window"
     ENDING_ROUND = "ending_round"
+    ENDING_TURN = "ending_turn"
     RECALL_CALLED = "recall_called"
     GAME_ENDED = "game_ended"
 
@@ -703,6 +704,7 @@ class GameStateManager:
             'player_turn': 'playing',
             'same_rank_window': 'same_rank_window',
             'ending_round': 'ending_round',
+            'ending_turn': 'ending_turn',
             'recall_called': 'recall',
             'game_ended': 'finished',
         }
@@ -728,7 +730,7 @@ class GameStateManager:
             
             # Game state and phase
             'phase': phase_mapping.get(game.phase.value, 'waiting'),
-            'status': 'active' if game.phase.value in ['player_turn', 'same_rank_window', 'ending_round', 'recall_called'] else 'inactive',
+            'status': 'active' if game.phase.value in ['player_turn', 'same_rank_window', 'ending_round', 'ending_turn', 'recall_called'] else 'inactive',
             
             # Card piles
             'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],

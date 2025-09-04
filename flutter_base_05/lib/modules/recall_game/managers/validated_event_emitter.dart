@@ -38,6 +38,7 @@ class RecallGameEventEmitter {
     'draw_card': {'game_id', 'source'}, // player_id auto-added
     'play_out_of_turn': {'game_id', 'card_id'}, // player_id auto-added
     'use_special_power': {'game_id', 'card_id', 'power_data'}, // player_id auto-added
+    'same_rank_play': {'game_id', 'card_id'}, // player_id auto-added
   };
   
   /// Define validation rules for each field
@@ -187,7 +188,7 @@ class RecallGameEventEmitter {
       // 🎯 Auto-include user ID for events that need player_id
       final eventsNeedingPlayerId = {
         'play_card', 'replace_drawn_card', 'play_drawn_card', 
-        'call_recall', 'draw_card', 'play_out_of_turn', 'use_special_power'
+        'call_recall', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play'
       };
       
       if (eventsNeedingPlayerId.contains(eventType)) {

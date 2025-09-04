@@ -51,6 +51,9 @@ class GameRound:
             self.current_turn_start_time = self.round_start_time
             self.round_status = "active"
             self.actions_performed = []
+
+            self.game_state.phase = GamePhase.PLAYER_TURN
+            custom_log(f"🎮 [complete_round] Reset game phase from ENDING_ROUND to PLAYER_TURN")
             
             # Initialize timed rounds if enabled
             if self.timed_rounds_enabled:
@@ -111,8 +114,7 @@ class GameRound:
             
             self._send_game_state_update()
 
-            if self.game_state.phase == GamePhase.ENDING_ROUND:
-                return self._complete_round(action_result)
+            self._end_player_turn(action_result)
             
             return True
             
@@ -120,7 +122,7 @@ class GameRound:
             custom_log(f"❌ [continue_round] Error completing round: {e}", level="ERROR")
             return False
     
-    def _complete_round(self, action_result: bool) -> bool:
+    def _end_player_turn(self, action_result):
         """Complete the round"""
         try:
             custom_log(f"🎮 [complete_round] Completing round")
@@ -137,22 +139,6 @@ class GameRound:
             
             # Move to next player
             self._move_to_next_player()
-            
-            # Reset game state phase to player turn if it was in same rank window
-            if self.game_state.phase == GamePhase.SAME_RANK_WINDOW:
-                self.game_state.phase = GamePhase.PLAYER_TURN
-                custom_log(f"🎮 [complete_round] Reset game phase from SAME_RANK_WINDOW to PLAYER_TURN")
-            
-            custom_log(f"🎮 [complete_round] Round completed successfully")
-            
-            # Start the next round
-            custom_log(f"🎮 [complete_round] Starting next round")
-            next_round_result = self.start_round()
-            
-            if next_round_result.get('success'):
-                custom_log(f"🎮 [complete_round] Next round started successfully: {next_round_result}")
-            else:
-                custom_log(f"⚠️ [complete_round] Failed to start next round: {next_round_result}")
             
             return True
             
@@ -189,6 +175,20 @@ class GameRound:
             
             custom_log(f"🎮 [MOVE_TO_NEXT_PLAYER] Moved from player {old_player_id} to {next_player_id}")
             
+            # Check if recall has been called
+            if hasattr(self.game_state, 'recall_called_by') and self.game_state.recall_called_by:
+                custom_log(f"📢 [MOVE_TO_NEXT_PLAYER] Recall called by player: {self.game_state.recall_called_by}")
+                
+                # Check if current player is the one who called recall
+                if self.game_state.current_player_id == self.game_state.recall_called_by:
+                    custom_log(f"🏁 [MOVE_TO_NEXT_PLAYER] Current player {self.game_state.current_player_id} is the recall caller - ending match")
+                    self._handle_end_of_match()
+                    return
+                else:
+                    custom_log(f"🔄 [MOVE_TO_NEXT_PLAYER] Current player {self.game_state.current_player_id} is not the recall caller - continuing game")
+            else:
+                custom_log("📢 [MOVE_TO_NEXT_PLAYER] No recall called yet")
+            
             # Update turn start time
             self.current_turn_start_time = time.time()
             
@@ -197,6 +197,13 @@ class GameRound:
             
         except Exception as e:
             custom_log(f"❌ [MOVE_TO_NEXT_PLAYER] Error moving to next player: {e}", level="ERROR")
+    
+    def _handle_end_of_match(self):
+        """Handle the end of the match"""
+        try:
+            custom_log(f"🎮 [HANDLE_END_OF_MATCH] Handling end of match")
+        except Exception as e:
+            custom_log(f"❌ [HANDLE_END_OF_MATCH] Error handling end of match: {e}", level="ERROR")
     
     def _log_action(self, action_type: str, action_data: Dict[str, Any]):
         """Log an action performed during the round"""

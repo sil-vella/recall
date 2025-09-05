@@ -176,6 +176,15 @@ class GameRound:
             
             custom_log(f"🎮 [MOVE_TO_NEXT_PLAYER] Moved from player {old_player_id} to {next_player_id}")
             
+            # Set the previous player's status to READY (if they exist)
+            if old_player_id and old_player_id in self.game_state.players:
+                self.update_player_state_and_send(old_player_id, PlayerStatus.READY)
+                custom_log(f"🎮 [MOVE_TO_NEXT_PLAYER] Set previous player {old_player_id} status to READY")
+            
+            # Set the new current player's status to DRAWING_CARD
+            self.update_player_state_and_send(next_player_id, PlayerStatus.DRAWING_CARD)
+            custom_log(f"🎮 [MOVE_TO_NEXT_PLAYER] Set player {next_player_id} status to DRAWING_CARD")
+            
             # Check if recall has been called
             if hasattr(self.game_state, 'recall_called_by') and self.game_state.recall_called_by:
                 custom_log(f"📢 [MOVE_TO_NEXT_PLAYER] Recall called by player: {self.game_state.recall_called_by}")

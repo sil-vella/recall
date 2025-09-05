@@ -733,7 +733,9 @@ class RecallGameStateUpdater {
     final currentUserId = globalState['userId']?.toString() ?? '';
     
     // Get current player ID (whose turn it is - could be current user or any opponent)
-    final currentPlayer = state['currentPlayer'] as Map<String, dynamic>?;
+    // Get currentPlayer from the root state (most up-to-date), fallback to game state
+    final currentPlayer = state['currentPlayer'] as Map<String, dynamic>? ?? 
+                         gameState['currentPlayer'] as Map<String, dynamic>?;
     final currentPlayerId = currentPlayer?['id']?.toString() ?? '';
     
     _log.info('🔍 [OPPONENTS_PANEL] currentUserId: $currentUserId');

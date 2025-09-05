@@ -165,18 +165,19 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: _buildOpponentCard(player, isCurrentTurn, isGameActive, isCurrentPlayer, currentPlayerStatus),
+          child: _buildOpponentCard(player, isCurrentTurn, isGameActive, isCurrentPlayer),
         );
       }).toList(),
     );
   }
 
   /// Build individual opponent card
-  Widget _buildOpponentCard(Map<String, dynamic> player, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer) {
     final playerName = player['name']?.toString() ?? 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
     final hasCalledRecall = player['hasCalledRecall'] ?? false;
+    final playerStatus = player['status']?.toString() ?? 'unknown';  // Get each player's individual status
     
     return Container(
       padding: const EdgeInsets.all(12),
@@ -259,12 +260,12 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             ],
           ),
           
-          // Player status indicator (only show for current player)
-          if (isCurrentPlayer && currentPlayerStatus != 'unknown') ...[
+          // Player status indicator (show for all players)
+          if (playerStatus != 'unknown') ...[
             const SizedBox(height: 4),
             Row(
               children: [
-                _buildStatusChip(currentPlayerStatus),
+                _buildStatusChip(playerStatus),
               ],
             ),
           ],

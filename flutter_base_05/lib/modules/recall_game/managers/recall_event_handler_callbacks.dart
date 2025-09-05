@@ -482,6 +482,9 @@ class RecallEventHandlerCallbacks {
         'myDrawnCard': drawnCard,
       });
       
+      // Update the player's status in the game state's players array
+      _updatePlayerStatusInGameState(gameId, playerId, status);
+      
       _log.info('✅ [PLAYER_STATE_UPDATE] My player state updated - Hand: ${hand.length} cards, Score: $score, Status: $status, DrawnCard: $drawnCard');
       
       // Debug: Check what the state looks like after update
@@ -535,5 +538,39 @@ class RecallEventHandlerCallbacks {
       
       _log.info('✅ [PLAYER_STATE_UPDATE] Opponent player state updated for player $playerId');
     }
+  }
+  
+  /// Helper method to update a player's status in the game state's players array
+  static void _updatePlayerStatusInGameState(String gameId, String playerId, String status) {
+    final stateManager = StateManager();
+    final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final games = currentState['games'] as Map<String, dynamic>? ?? {};
+    final game = games[gameId] as Map<String, dynamic>? ?? {};
+    final gameData = game['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    
+    // Find and update the player's status
+    final updatedPlayers = players.map((player) {
+      final playerMap = player as Map<String, dynamic>;
+      if (playerMap['id']?.toString() == playerId) {
+        return {...playerMap, 'status': status};
+      }
+      return player;
+    }).toList();
+    
+    // Update the game state with the updated players
+    final updatedGameState = {...gameState, 'players': updatedPlayers};
+    final updatedGameData = {...gameData, 'game_state': updatedGameState};
+    final updatedGame = {...game, 'gameData': updatedGameData};
+    final updatedGames = {...games, gameId: updatedGame};
+    
+    // Update the state
+    stateManager.updateModuleState('recall_game', {
+      ...currentState,
+      'games': updatedGames,
+    });
+    
+    _log.info('🔄 [PLAYER_STATUS_UPDATE] Updated player $playerId status to $status in game state');
   }
 }

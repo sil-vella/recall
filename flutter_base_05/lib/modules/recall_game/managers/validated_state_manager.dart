@@ -376,12 +376,12 @@ class RecallGameStateUpdater {
   
   /// Widget slice dependencies - only rebuild when these fields change
   static const Map<String, Set<String>> _widgetDependencies = {
-    'actionBar': {'currentGameId', 'games'},
-    'statusBar': {'currentGameId', 'games'},
-    'myHand': {'currentGameId', 'games'},
-    'centerBoard': {'currentGameId', 'games'},
-    'opponentsPanel': {'currentGameId', 'games'},
-    'gameInfo': {'currentGameId', 'games'},
+    'actionBar': {'currentGameId', 'games', 'isRoomOwner', 'isGameActive', 'isMyTurn'},
+    'statusBar': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'playerStatus'},
+    'myHand': {'currentGameId', 'games', 'isMyTurn', 'playerStatus'},
+    'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
+    'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'currentPlayerStatus'},
+    'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
     'joinedGamesSlice': {'joinedGames', 'totalJoinedGames', 'joinedGamesTimestamp'},
   };
   
@@ -697,8 +697,13 @@ class RecallGameStateUpdater {
     
     // Get current game data from games map
     final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final drawPileCount = currentGame['drawPileCount'] ?? 0;
-    final discardPile = currentGame['discardPile'] as List<dynamic>? ?? [];
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    // Get pile information from game state
+    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+    final drawPileCount = drawPile.length;
     
     return {
       'drawPileCount': drawPileCount,
@@ -730,7 +735,7 @@ class RecallGameStateUpdater {
     final allPlayers = gameState['players'] as List<dynamic>? ?? [];
     
     // Get current user ID to filter out self from opponents
-    final loginState = state['login'] as Map<String, dynamic>? ?? {};
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final currentUserId = loginState['userId']?.toString() ?? '';
     
     // Filter out current player from opponents list

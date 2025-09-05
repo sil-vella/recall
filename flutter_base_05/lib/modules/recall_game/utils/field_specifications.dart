@@ -65,6 +65,7 @@ class RecallEventFieldSpec {
 class RecallStateFieldSpec {
   final Type type;
   final bool required;
+  final bool nullable;
   final dynamic defaultValue;
   final List<dynamic>? allowedValues;
   final int? min;
@@ -74,6 +75,7 @@ class RecallStateFieldSpec {
   const RecallStateFieldSpec({
     required this.type,
     this.required = false,
+    this.nullable = false,
     this.defaultValue,
     this.allowedValues,
     this.min,

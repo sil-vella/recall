@@ -346,6 +346,7 @@ class RecallGameStateUpdater {
     'currentPlayer': RecallStateFieldSpec(
       type: Map,
       required: false,
+      nullable: true,
       description: 'Current player object with id, name, etc.',
     ),
     'currentPlayerStatus': RecallStateFieldSpec(
@@ -503,6 +504,10 @@ class RecallGameStateUpdater {
           'Field "$key" is required and cannot be null',
           fieldName: key,
         );
+      }
+      // If field is nullable, allow null values
+      if (spec.nullable == true) {
+        return null;
       }
       return spec.defaultValue;
     }

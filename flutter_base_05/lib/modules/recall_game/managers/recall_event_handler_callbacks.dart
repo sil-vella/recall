@@ -380,7 +380,7 @@ class RecallEventHandlerCallbacks {
     final gameId = data['game_id']?.toString() ?? '';
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final roundNumber = data['round_number'] as int? ?? 1;
-    final currentPlayer = data['current_player']?.toString() ?? '';
+    final currentPlayer = data['current_player'];
     final currentPlayerStatus = data['current_player_status']?.toString() ?? 'unknown';
     final roundStatus = data['round_status']?.toString() ?? 'active';
     // final timestamp = data['timestamp']?.toString() ?? '';

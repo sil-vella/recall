@@ -87,6 +87,11 @@ class GameRound:
             # Send game state update to all players
             self._send_game_state_update()
             
+            # Set current player status to DRAWING_CARD
+            if self.game_state.current_player_id:
+                self.update_player_state_and_send(self.game_state.current_player_id, PlayerStatus.DRAWING_CARD)
+                custom_log(f"🎮 [START_TURN] Set current player {self.game_state.current_player_id} status to DRAWING_CARD")
+            
             # Send turn started event to current player
             self._send_turn_started_event()
             
@@ -170,20 +175,16 @@ class GameRound:
             next_index = (current_index + 1) % len(active_player_ids)
             next_player_id = active_player_ids[next_index]
             
+            # Set current player status to READY before moving to next player
+            if self.game_state.current_player_id:
+                self.update_player_state_and_send(self.game_state.current_player_id, PlayerStatus.READY)
+                custom_log(f"🎮 [MOVE_TO_NEXT_PLAYER] Set current player {self.game_state.current_player_id} status to READY")
+            
             # Update current player
             old_player_id = self.game_state.current_player_id
             self.game_state.current_player_id = next_player_id
             
             custom_log(f"🎮 [MOVE_TO_NEXT_PLAYER] Moved from player {old_player_id} to {next_player_id}")
-            
-            # Set the previous player's status to READY (if they exist)
-            if old_player_id and old_player_id in self.game_state.players:
-                self.update_player_state_and_send(old_player_id, PlayerStatus.READY)
-                custom_log(f"🎮 [MOVE_TO_NEXT_PLAYER] Set previous player {old_player_id} status to READY")
-            
-            # Set the new current player's status to DRAWING_CARD
-            self.update_player_state_and_send(next_player_id, PlayerStatus.DRAWING_CARD)
-            custom_log(f"🎮 [MOVE_TO_NEXT_PLAYER] Set player {next_player_id} status to DRAWING_CARD")
             
             # Check if recall has been called
             if hasattr(self.game_state, 'recall_called_by') and self.game_state.recall_called_by:

@@ -545,7 +545,6 @@ class GameStateManager:
             
             # Update player statuses using unified method in game round
             game_round.update_all_players_state_and_send(PlayerStatus.READY)
-            game_round.update_player_state_and_send(game.current_player_id, PlayerStatus.DRAWING_CARD)
             
             # Start the first round
             custom_log(f"🎮 [START_MATCH] Starting round...")

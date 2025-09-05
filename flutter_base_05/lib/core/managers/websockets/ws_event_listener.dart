@@ -213,19 +213,9 @@ class WSEventListener {
         _log.info("🔍 [SOCKET-RECEIVE] Data size: ${data.length} fields");
       }
       
-      // Log full data for critical events and game state updates
-      if (['game_started', 'game_phase_changed', 'game_joined', 'create_room_success', 'game_state_updated', 'player_state_updated', 'turn_started'].contains(eventName)) {
+      // Log full data for critical events
+      if (['game_started', 'game_phase_changed', 'game_joined', 'create_room_success'].contains(eventName)) {
         _log.info("🔍 [SOCKET-RECEIVE] Full data: $data");
-        
-        // Additional detailed logging for game_state_updated events
-        if (eventName == 'game_state_updated' && data is Map) {
-          final gameState = data['game_state'] as Map<String, dynamic>?;
-          if (gameState != null) {
-            _log.info("🔍 [SOCKET-RECEIVE] Game state structure: $gameState");
-            final currentPlayer = gameState['currentPlayer'];
-            _log.info("🔍 [SOCKET-RECEIVE] currentPlayer field: $currentPlayer (type: ${currentPlayer.runtimeType})");
-          }
-        }
       }
       
       _log.info("🔍 [SOCKET-RECEIVE] Calling handler...");

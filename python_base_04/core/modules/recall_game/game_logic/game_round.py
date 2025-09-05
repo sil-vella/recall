@@ -64,6 +64,11 @@ class GameRound:
             self.game_state.phase = GamePhase.PLAYER_TURN
             custom_log(f"🎮 [complete_round] Reset game phase from ENDING_ROUND to PLAYER_TURN")
             
+            # Set current player status to drawing_card (they need to draw a card)
+            if self.game_state.current_player_id:
+                self.update_player_state_and_send(self.game_state.current_player_id, PlayerStatus.DRAWING_CARD)
+                custom_log(f"🎮 [START_TURN] Set current player {self.game_state.current_player_id} status to DRAWING_CARD")
+            
             # Initialize timed rounds if enabled
             if self.timed_rounds_enabled:
                 self.round_time_remaining = self.round_time_limit_seconds
@@ -87,11 +92,6 @@ class GameRound:
             # Send game state update to all players
             self._send_game_state_update()
             
-            # Set current player status to DRAWING_CARD
-            if self.game_state.current_player_id:
-                self.update_player_state_and_send(self.game_state.current_player_id, PlayerStatus.DRAWING_CARD)
-                custom_log(f"🎮 [START_TURN] Set current player {self.game_state.current_player_id} status to DRAWING_CARD")
-            
             # Send turn started event to current player
             self._send_turn_started_event()
             
@@ -108,48 +108,19 @@ class GameRound:
             custom_log(f"❌ Error starting round: {e}", level="ERROR")
             return {"error": f"Failed to start round: {str(e)}"}
 
-    def continue_turn(self, action_result: bool) -> bool:
+    def continue_turn(self):
         """Complete the current round after a player action"""
         try:
-            custom_log(f"🎮 [continue_turn] Completing round after player action. Action result: {action_result}")
-            
-            # Only complete round if action was successful
-            if not action_result:
-                custom_log(f"⚠️ [continue_turn] Action failed, not completing round")
-                return False
-            
-            # Update round state
-            self.round_status = "active"
-            self.current_turn_start_time = time.time()
-            
-            # Log the successful action for round tracking
-            self.actions_performed.append({
-                'action': 'player_action_completed',
-                'timestamp': time.time(),
-                'result': action_result
-            })
-            
+            custom_log(f"🎮 [continue_turn] Completing round after player action")
+
             self._send_game_state_update()
 
-            self._end_player_turn(action_result)
-            
-            return True
-            
-        except Exception as e:
-            custom_log(f"❌ [continue_turn] Error completing round: {e}", level="ERROR")
-            return False
-    
-    def _end_player_turn(self, action_result):
-        """Complete the round"""
-        try:
-            custom_log(f"🎮 [complete_round] Completing round")            
-            # Move to next player
             self._move_to_next_player()
             
             return True
             
         except Exception as e:
-            custom_log(f"❌ [complete_round] Error completing round: {e}", level="ERROR")
+            custom_log(f"❌ [continue_turn] Error completing round: {e}", level="ERROR")
             return False
     
     def _move_to_next_player(self):
@@ -166,6 +137,11 @@ class GameRound:
                 custom_log("⚠️ [MOVE_TO_NEXT_PLAYER] No active players")
                 return
             
+            # Set current player status to ready before moving to next player
+            if self.game_state.current_player_id:
+                self.update_player_state_and_send(self.game_state.current_player_id, PlayerStatus.READY)
+                custom_log(f"🎮 [MOVE_TO_NEXT_PLAYER] Set current player {self.game_state.current_player_id} status to READY")
+            
             # Find current player index
             current_index = -1
             if self.game_state.current_player_id in active_player_ids:
@@ -174,11 +150,6 @@ class GameRound:
             # Move to next player (or first if at end)
             next_index = (current_index + 1) % len(active_player_ids)
             next_player_id = active_player_ids[next_index]
-            
-            # Set current player status to READY before moving to next player
-            if self.game_state.current_player_id:
-                self.update_player_state_and_send(self.game_state.current_player_id, PlayerStatus.READY)
-                custom_log(f"🎮 [MOVE_TO_NEXT_PLAYER] Set current player {self.game_state.current_player_id} status to READY")
             
             # Update current player
             old_player_id = self.game_state.current_player_id
@@ -636,11 +607,8 @@ class GameRound:
                 self.game_state.last_action_time = time.time()
                 custom_log(f"🎮 [PLAYER_ACTION] Updated game state timestamp after successful {action}")
             
-            # Complete the round with the action result to continue game logic
-            round_continue_result = self.continue_turn(action_result)
-            
             # Return the round completion result
-            return round_continue_result
+            return True
             
         except Exception as e:
             custom_log(f"❌ [PLAYER_ACTION] Error in on_player_action: {e}", level="ERROR")
@@ -722,6 +690,8 @@ class GameRound:
             
             # Send game state update to all players
             self._send_game_state_update()
+
+            self.continue_turn()
             
             custom_log(f"⏰ [SAME_RANK_TIMER] Same rank window ended successfully")
             

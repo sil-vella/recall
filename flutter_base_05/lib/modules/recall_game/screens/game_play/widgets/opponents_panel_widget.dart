@@ -40,15 +40,24 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
         final currentTurnIndex = opponentsPanel['currentTurnIndex'] ?? -1;
         
+        // Get current user ID to filter out self from opponents
+        final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+        final currentUserId = loginState['userId']?.toString() ?? '';
+        
+        // Filter out current player from opponents list
+        final otherPlayers = opponents.where((player) => 
+          player['id']?.toString() != currentUserId
+        ).toList();
+        
         // Get additional game state for context
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 OpponentsPanelWidget: opponents=${opponents.length}, currentTurnIndex=$currentTurnIndex, gamePhase=$gamePhase, playerStatus=$playerStatus');
+        _log.info('🎮 OpponentsPanelWidget: opponents=${otherPlayers.length}, currentTurnIndex=$currentTurnIndex, gamePhase=$gamePhase, playerStatus=$playerStatus');
         
         return _buildOpponentsPanel(
-          opponents: opponents,
+          opponents: otherPlayers,
           currentTurnIndex: currentTurnIndex,
           gamePhase: gamePhase,
           isGameActive: isGameActive,
@@ -165,19 +174,19 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: _buildOpponentCard(player, isCurrentTurn, isGameActive, isCurrentPlayer),
+          child: _buildOpponentCard(player, isCurrentTurn, isGameActive, isCurrentPlayer, currentPlayerStatus),
         );
       }).toList(),
     );
   }
 
   /// Build individual opponent card
-  Widget _buildOpponentCard(Map<String, dynamic> player, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus) {
     final playerName = player['name']?.toString() ?? 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
     final hasCalledRecall = player['hasCalledRecall'] ?? false;
-    final playerStatus = player['status']?.toString() ?? 'unknown';  // Get each player's individual status
+    final playerStatus = player['status']?.toString() ?? 'unknown';
     
     return Container(
       padding: const EdgeInsets.all(12),
@@ -212,35 +221,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                   ),
                 ),
               ),
-              if (isCurrentPlayer) ...[
-                const SizedBox(width: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.person,
-                        size: 12,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Current',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
               if (isCurrentTurn && !isCurrentPlayer) ...[
                 const SizedBox(width: 4),
                 Icon(

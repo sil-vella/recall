@@ -355,7 +355,7 @@ class RecallEventHandlerCallbacks {
         'isMyTurn': false,
         'statusBar': {
           'currentPhase': 'opponent_turn',
-          'currentPlayerId': playerId,
+          'currentPlayer': playerId,
         },
       });
       
@@ -380,19 +380,12 @@ class RecallEventHandlerCallbacks {
     final gameId = data['game_id']?.toString() ?? '';
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final roundNumber = data['round_number'] as int? ?? 1;
-    
-    // Get currentPlayer from the game state (Map object) instead of from the root data
-    final currentPlayerFromGameState = gameState['currentPlayer'] as Map<String, dynamic>?;
-    final currentPlayerId = currentPlayerFromGameState?['id']?.toString() ?? '';
-    final currentPlayerName = currentPlayerFromGameState?['name']?.toString() ?? '';
-    final currentPlayerStatus = currentPlayerFromGameState?['status']?.toString() ?? 'unknown';
-    
-    _log.info('🔍 [GAME_STATE_UPDATE] currentPlayerFromGameState: $currentPlayerFromGameState');
-    _log.info('🔍 [GAME_STATE_UPDATE] currentPlayerId: $currentPlayerId, currentPlayerName: $currentPlayerName');
+    final currentPlayer = data['current_player']?.toString() ?? '';
+    final currentPlayerStatus = data['current_player_status']?.toString() ?? 'unknown';
     final roundStatus = data['round_status']?.toString() ?? 'active';
     // final timestamp = data['timestamp']?.toString() ?? '';
     
-    _log.info('🎧 [RECALL] Game state updated for game $gameId - Round: $roundNumber, Current Player: $currentPlayerName ($currentPlayerStatus), Status: $roundStatus');
+    _log.info('🎧 [RECALL] Game state updated for game $gameId - Round: $roundNumber, Current Player: $currentPlayer ($currentPlayerStatus), Status: $roundStatus');
     
     // Extract pile information from game state
     final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
@@ -407,7 +400,7 @@ class RecallEventHandlerCallbacks {
       'gamePhase': gameState['phase'] ?? 'playing',
       'isGameActive': true,
       'roundNumber': roundNumber,
-      'currentPlayer': currentPlayerFromGameState,  // Use the Map object instead of string
+      'currentPlayer': currentPlayer,
       'currentPlayerStatus': currentPlayerStatus,
       'roundStatus': roundStatus,
     });
@@ -425,11 +418,11 @@ class RecallEventHandlerCallbacks {
     _addSessionMessage(
       level: 'info',
       title: 'Game State Updated',
-      message: 'Round $roundNumber - $currentPlayerName is $currentPlayerStatus',
+      message: 'Round $roundNumber - $currentPlayer is $currentPlayerStatus',
       data: {
         'game_id': gameId,
         'round_number': roundNumber,
-        'current_player': currentPlayerFromGameState,
+        'current_player': currentPlayer,
         'current_player_status': currentPlayerStatus,
         'round_status': roundStatus,
       },
@@ -481,9 +474,6 @@ class RecallEventHandlerCallbacks {
         'isMyTurn': isCurrentPlayer,
         'myDrawnCard': drawnCard,
       });
-      
-      // Update the player's status in the game state's players array
-      _updatePlayerStatusInGameState(gameId, playerId, status);
       
       _log.info('✅ [PLAYER_STATE_UPDATE] My player state updated - Hand: ${hand.length} cards, Score: $score, Status: $status, DrawnCard: $drawnCard');
       
@@ -538,44 +528,5 @@ class RecallEventHandlerCallbacks {
       
       _log.info('✅ [PLAYER_STATE_UPDATE] Opponent player state updated for player $playerId');
     }
-  }
-  
-  /// Helper method to update a player's status in the game state's players array
-  static void _updatePlayerStatusInGameState(String gameId, String playerId, String status) {
-    _log.info('🔄 [PLAYER_STATUS_UPDATE] Starting update for player $playerId status to $status in game $gameId');
-    
-    final stateManager = StateManager();
-    final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final games = currentState['games'] as Map<String, dynamic>? ?? {};
-    final game = games[gameId] as Map<String, dynamic>? ?? {};
-    final gameData = game['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-    final players = gameState['players'] as List<dynamic>? ?? [];
-    
-    _log.info('🔄 [PLAYER_STATUS_UPDATE] Found ${players.length} players in game state');
-    
-    // Find and update the player's status
-    final updatedPlayers = players.map((player) {
-      final playerMap = player as Map<String, dynamic>;
-      if (playerMap['id']?.toString() == playerId) {
-        _log.info('🔄 [PLAYER_STATUS_UPDATE] Found player $playerId, updating status from ${playerMap['status']} to $status');
-        return {...playerMap, 'status': status};
-      }
-      return player;
-    }).toList();
-    
-    // Update the game state with the updated players
-    final updatedGameState = {...gameState, 'players': updatedPlayers};
-    final updatedGameData = {...gameData, 'game_state': updatedGameState};
-    final updatedGame = {...game, 'gameData': updatedGameData};
-    final updatedGames = {...games, gameId: updatedGame};
-    
-    // Update the state
-    stateManager.updateModuleState('recall_game', {
-      ...currentState,
-      'games': updatedGames,
-    });
-    
-    _log.info('🔄 [PLAYER_STATUS_UPDATE] Successfully updated player $playerId status to $status in game state');
   }
 }

@@ -725,46 +725,28 @@ class RecallGameStateUpdater {
     final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
     final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    // Get all players from game state (includes full player data with status)
     final allPlayers = gameState['players'] as List<dynamic>? ?? [];
     
-    // Get current user ID (the person using this app instance)
-    // Access login state from global state manager since it's in a different module
-    final globalState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserId = globalState['userId']?.toString() ?? '';
+    // Get current user ID to filter out self from opponents
+    final loginState = state['login'] as Map<String, dynamic>? ?? {};
+    final currentUserId = loginState['userId']?.toString() ?? '';
     
-    // Get current player ID (whose turn it is - could be current user or any opponent)
-    // Get currentPlayer from the root state (most up-to-date), fallback to game state
-    final currentPlayer = state['currentPlayer'] as Map<String, dynamic>? ?? 
-                         gameState['currentPlayer'] as Map<String, dynamic>?;
-    final currentPlayerId = currentPlayer?['id']?.toString() ?? '';
+    // Filter out current player from opponents list
+    final opponents = allPlayers.where((player) => 
+      player['id']?.toString() != currentUserId
+    ).toList();
     
-    _log.info('🔍 [OPPONENTS_PANEL] currentUserId: $currentUserId');
-    _log.info('🔍 [OPPONENTS_PANEL] currentPlayer: $currentPlayer');
-    _log.info('🔍 [OPPONENTS_PANEL] currentPlayerId: $currentPlayerId');
-    _log.info('🔍 [OPPONENTS_PANEL] allPlayers count: ${allPlayers.length}');
-    
-    // Filter out current user to get opponents only (everyone except the current user)
-    final opponents = allPlayers.where((player) {
-      final playerData = player as Map<String, dynamic>? ?? {};
-      final playerId = playerData['id']?.toString() ?? '';
-      final isNotCurrentUser = playerId != currentUserId;
-      _log.info('🔍 [OPPONENTS_PANEL] Checking player: $playerId vs currentUserId: $currentUserId -> isNotCurrentUser: $isNotCurrentUser');
-      return isNotCurrentUser;
-    }).toList();
-    
-    _log.info('🔍 [OPPONENTS_PANEL] opponents count after filtering: ${opponents.length}');
-    
-    // Find which opponent is the current player (whose turn it is)
+    // Find current player index in the opponents list
+    final currentPlayer = gameState['currentPlayer'];
     int currentTurnIndex = -1;
-    for (int i = 0; i < opponents.length; i++) {
-      final opponent = opponents[i] as Map<String, dynamic>? ?? {};
-      if (opponent['id']?.toString() == currentPlayerId) {
-        currentTurnIndex = i;
-        break;
-      }
+    if (currentPlayer != null) {
+      final currentPlayerId = currentPlayer['id']?.toString() ?? '';
+      currentTurnIndex = opponents.indexWhere((player) => 
+        player['id']?.toString() == currentPlayerId
+      );
     }
-    
-    _log.info('🔍 [OPPONENTS_PANEL] currentTurnIndex: $currentTurnIndex');
     
     return {
       'opponents': opponents,

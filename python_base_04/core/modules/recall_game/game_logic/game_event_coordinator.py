@@ -228,8 +228,13 @@ class GameEventCoordinator:
             # Get player session ID
             session_id = game.player_sessions.get(player_id)
             if not session_id:
-                custom_log(f"⚠️ No session found for player {player_id} in game {game_id}")
-                return
+                # Computer players don't have session IDs, but their status should still be updated in game state
+                if player_id.startswith('computer_'):
+                    custom_log(f"🤖 Computer player {player_id} status updated in game state (no WebSocket session)")
+                    return
+                else:
+                    custom_log(f"⚠️ No session found for human player {player_id} in game {game_id}")
+                    return
             
             # Convert player to Flutter format using GameStateManager
             player_data = self.game_state_manager._to_flutter_player_data(

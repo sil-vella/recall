@@ -542,6 +542,8 @@ class RecallEventHandlerCallbacks {
   
   /// Helper method to update a player's status in the game state's players array
   static void _updatePlayerStatusInGameState(String gameId, String playerId, String status) {
+    _log.info('🔄 [PLAYER_STATUS_UPDATE] Starting update for player $playerId status to $status in game $gameId');
+    
     final stateManager = StateManager();
     final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final games = currentState['games'] as Map<String, dynamic>? ?? {};
@@ -550,10 +552,13 @@ class RecallEventHandlerCallbacks {
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     final players = gameState['players'] as List<dynamic>? ?? [];
     
+    _log.info('🔄 [PLAYER_STATUS_UPDATE] Found ${players.length} players in game state');
+    
     // Find and update the player's status
     final updatedPlayers = players.map((player) {
       final playerMap = player as Map<String, dynamic>;
       if (playerMap['id']?.toString() == playerId) {
+        _log.info('🔄 [PLAYER_STATUS_UPDATE] Found player $playerId, updating status from ${playerMap['status']} to $status');
         return {...playerMap, 'status': status};
       }
       return player;
@@ -571,6 +576,6 @@ class RecallEventHandlerCallbacks {
       'games': updatedGames,
     });
     
-    _log.info('🔄 [PLAYER_STATUS_UPDATE] Updated player $playerId status to $status in game state');
+    _log.info('🔄 [PLAYER_STATUS_UPDATE] Successfully updated player $playerId status to $status in game state');
   }
 }

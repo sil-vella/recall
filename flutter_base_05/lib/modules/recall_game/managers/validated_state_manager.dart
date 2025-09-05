@@ -728,7 +728,9 @@ class RecallGameStateUpdater {
     final allPlayers = gameState['players'] as List<dynamic>? ?? [];
     
     // Get current user ID (the person using this app instance)
-    final currentUserId = state['userId']?.toString() ?? '';
+    // Access login state from global state manager since it's in a different module
+    final globalState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    final currentUserId = globalState['userId']?.toString() ?? '';
     
     // Get current player ID (whose turn it is - could be current user or any opponent)
     final currentPlayer = state['currentPlayer'] as Map<String, dynamic>?;
@@ -742,7 +744,10 @@ class RecallGameStateUpdater {
     // Filter out current user to get opponents only (everyone except the current user)
     final opponents = allPlayers.where((player) {
       final playerData = player as Map<String, dynamic>? ?? {};
-      return playerData['id']?.toString() != currentUserId;
+      final playerId = playerData['id']?.toString() ?? '';
+      final isNotCurrentUser = playerId != currentUserId;
+      _log.info('🔍 [OPPONENTS_PANEL] Checking player: $playerId vs currentUserId: $currentUserId -> isNotCurrentUser: $isNotCurrentUser');
+      return isNotCurrentUser;
     }).toList();
     
     _log.info('🔍 [OPPONENTS_PANEL] opponents count after filtering: ${opponents.length}');

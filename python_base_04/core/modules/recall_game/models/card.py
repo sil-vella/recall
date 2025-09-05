@@ -152,14 +152,8 @@ class CardDeck:
             return 1
         elif rank in ["2", "3", "4", "5", "6", "7", "8", "9", "10"]:
             return int(rank)
-        elif rank in ["jack", "queen"]:
+        elif rank in ["jack", "queen", "king"]:
             return 10
-        elif rank == "king":
-            # Red kings (hearts, diamonds) are 0 points
-            if suit in ["hearts", "diamonds"]:
-                return 0
-            else:
-                return 10
         else:
             return 0
     

@@ -41,11 +41,20 @@ class GameRound:
         # WebSocket manager reference for sending events
         self.websocket_manager = getattr(game_state, 'websocket_manager', None)
         
-    def start_round(self) -> Dict[str, Any]:
+    def start_turn(self) -> Dict[str, Any]:
         """Start a new round of gameplay"""
         try:
             custom_log(f"🎮 Starting round {self.round_number} for game {self.game_state.game_id}")
+                        # Clear same rank data
+            if self.same_rank_data:
+                custom_log(f"🎮 [complete_round] Clearing same rank data: {len(self.same_rank_data)} plays")
+                self.same_rank_data.clear()
             
+            # Clear special card data
+            if self.special_card_data:
+                custom_log(f"🎮 [complete_round] Clearing special card data: {len(self.special_card_data)} cards")
+                self.special_card_data.clear()
+                
             # Initialize round state
             self.round_start_time = time.time()
             self.current_turn_start_time = self.round_start_time
@@ -72,6 +81,9 @@ class GameRound:
             # Log actions_performed at round start
             custom_log(f"📋 Round {self.round_number} actions_performed initialized: {len(self.actions_performed)} actions")
             
+                        # Update turn start time
+            self.current_turn_start_time = time.time()
+            
             # Send game state update to all players
             self._send_game_state_update()
             
@@ -91,14 +103,14 @@ class GameRound:
             custom_log(f"❌ Error starting round: {e}", level="ERROR")
             return {"error": f"Failed to start round: {str(e)}"}
 
-    def continue_round(self, action_result: bool) -> bool:
+    def continue_turn(self, action_result: bool) -> bool:
         """Complete the current round after a player action"""
         try:
-            custom_log(f"🎮 [continue_round] Completing round after player action. Action result: {action_result}")
+            custom_log(f"🎮 [continue_turn] Completing round after player action. Action result: {action_result}")
             
             # Only complete round if action was successful
             if not action_result:
-                custom_log(f"⚠️ [continue_round] Action failed, not completing round")
+                custom_log(f"⚠️ [continue_turn] Action failed, not completing round")
                 return False
             
             # Update round state
@@ -119,24 +131,13 @@ class GameRound:
             return True
             
         except Exception as e:
-            custom_log(f"❌ [continue_round] Error completing round: {e}", level="ERROR")
+            custom_log(f"❌ [continue_turn] Error completing round: {e}", level="ERROR")
             return False
     
     def _end_player_turn(self, action_result):
         """Complete the round"""
         try:
-            custom_log(f"🎮 [complete_round] Completing round")
-            
-            # Clear same rank data
-            if self.same_rank_data:
-                custom_log(f"🎮 [complete_round] Clearing same rank data: {len(self.same_rank_data)} plays")
-                self.same_rank_data.clear()
-            
-            # Clear special card data
-            if self.special_card_data:
-                custom_log(f"🎮 [complete_round] Clearing special card data: {len(self.special_card_data)} cards")
-                self.special_card_data.clear()
-            
+            custom_log(f"🎮 [complete_round] Completing round")            
             # Move to next player
             self._move_to_next_player()
             
@@ -189,11 +190,8 @@ class GameRound:
             else:
                 custom_log("📢 [MOVE_TO_NEXT_PLAYER] No recall called yet")
             
-            # Update turn start time
-            self.current_turn_start_time = time.time()
-            
             # Send turn started event to new player
-            self._send_turn_started_event()
+            self.start_turn()
             
         except Exception as e:
             custom_log(f"❌ [MOVE_TO_NEXT_PLAYER] Error moving to next player: {e}", level="ERROR")
@@ -202,8 +200,125 @@ class GameRound:
         """Handle the end of the match"""
         try:
             custom_log(f"🎮 [HANDLE_END_OF_MATCH] Handling end of match")
+            
+            # Collect all player data for scoring
+            player_results = {}
+            
+            for player_id, player in self.game_state.players.items():
+                if not player.is_active:
+                    continue
+                    
+                # Get hand cards
+                hand_cards = player.hand
+                card_count = len(hand_cards)
+                
+                # Calculate total points
+                total_points = sum(card.get_point_value() for card in hand_cards)
+                
+                # Store player data
+                player_results[player_id] = {
+                    'player_id': player_id,
+                    'player_name': player.name,
+                    'hand_cards': [card.to_dict() for card in hand_cards],
+                    'card_count': card_count,
+                    'total_points': total_points
+                }
+                
+                custom_log(f"📊 [HANDLE_END_OF_MATCH] Player {player.name} ({player_id}): {card_count} cards, {total_points} points")
+            
+            # Log all results
+            custom_log(f"📊 [HANDLE_END_OF_MATCH] Final results for {len(player_results)} players:")
+            for player_id, data in player_results.items():
+                custom_log(f"📊 [HANDLE_END_OF_MATCH] - {data['player_name']}: {data['card_count']} cards, {data['total_points']} points")
+            
+            # Determine winner based on Recall game rules
+            winner_data = self._determine_winner(player_results)
+            
+            # Log winner
+            if winner_data['is_tie']:
+                custom_log(f"🏆 [HANDLE_END_OF_MATCH] TIE! Winners: {', '.join(winner_data['winners'])}")
+            else:
+                custom_log(f"🏆 [HANDLE_END_OF_MATCH] WINNER: {winner_data['winner_name']} ({winner_data['winner_id']})")
+            
+            # TODO: Send results to all players
+            # TODO: Update game state to ended
+            
         except Exception as e:
             custom_log(f"❌ [HANDLE_END_OF_MATCH] Error handling end of match: {e}", level="ERROR")
+    
+    def _determine_winner(self, player_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Determine the winner based on Recall game rules"""
+        try:
+            # Rule 1: Check for player with 0 cards (automatic win)
+            for player_id, data in player_results.items():
+                if data['card_count'] == 0:
+                    custom_log(f"🏆 [DETERMINE_WINNER] Player {data['player_name']} has 0 cards - automatic winner!")
+                    return {
+                        'is_tie': False,
+                        'winner_id': player_id,
+                        'winner_name': data['player_name'],
+                        'win_reason': 'no_cards',
+                        'winners': []
+                    }
+            
+            # Rule 2: Find player(s) with lowest points
+            min_points = min(data['total_points'] for data in player_results.values())
+            lowest_point_players = [
+                (player_id, data) for player_id, data in player_results.items() 
+                if data['total_points'] == min_points
+            ]
+            
+            custom_log(f"🏆 [DETERMINE_WINNER] Lowest points: {min_points}, Players with lowest: {len(lowest_point_players)}")
+            
+            # Rule 3: If only one player with lowest points, they win
+            if len(lowest_point_players) == 1:
+                winner_id, winner_data = lowest_point_players[0]
+                custom_log(f"🏆 [DETERMINE_WINNER] Single lowest points winner: {winner_data['player_name']}")
+                return {
+                    'is_tie': False,
+                    'winner_id': winner_id,
+                    'winner_name': winner_data['player_name'],
+                    'win_reason': 'lowest_points',
+                    'winners': []
+                }
+            
+            # Rule 4: Multiple players with lowest points - check for recall caller
+            recall_caller_id = getattr(self.game_state, 'recall_called_by', None)
+            if recall_caller_id:
+                custom_log(f"🏆 [DETERMINE_WINNER] Recall called by: {recall_caller_id}")
+                
+                # Check if recall caller is among the lowest point players
+                for player_id, data in lowest_point_players:
+                    if player_id == recall_caller_id:
+                        custom_log(f"🏆 [DETERMINE_WINNER] Recall caller {data['player_name']} has lowest points - they win!")
+                        return {
+                            'is_tie': False,
+                            'winner_id': player_id,
+                            'winner_name': data['player_name'],
+                            'win_reason': 'recall_caller_lowest_points',
+                            'winners': []
+                        }
+            
+            # Rule 5: Multiple players with lowest points, none are recall callers - TIE
+            winner_names = [data['player_name'] for _, data in lowest_point_players]
+            custom_log(f"🏆 [DETERMINE_WINNER] TIE! Multiple players with lowest points: {', '.join(winner_names)}")
+            return {
+                'is_tie': True,
+                'winner_id': None,
+                'winner_name': None,
+                'win_reason': 'tie_lowest_points',
+                'winners': winner_names
+            }
+            
+        except Exception as e:
+            custom_log(f"❌ [DETERMINE_WINNER] Error determining winner: {e}", level="ERROR")
+            return {
+                'is_tie': False,
+                'winner_id': None,
+                'winner_name': 'Error',
+                'win_reason': 'error',
+                'winners': []
+            }
     
     def _log_action(self, action_type: str, action_data: Dict[str, Any]):
         """Log an action performed during the round"""
@@ -512,7 +627,7 @@ class GameRound:
                 custom_log(f"🎮 [PLAYER_ACTION] Updated game state timestamp after successful {action}")
             
             # Complete the round with the action result to continue game logic
-            round_continue_result = self.continue_round(action_result)
+            round_continue_result = self.continue_turn(action_result)
             
             # Return the round completion result
             return round_continue_result
@@ -803,8 +918,26 @@ class GameRound:
             
             # Extract card details from action_data
             card_id = action_data.get('card_id', 'unknown')
-            card_rank = action_data.get('rank', 'unknown')  # Use 'rank' not 'card_rank'
-            card_suit = action_data.get('suit', 'unknown')  # Use 'suit' not 'card_suit'
+            
+            # Get player and find the card to get its rank and suit
+            player = self.game_state.players.get(user_id)
+            if not player:
+                custom_log(f"❌ [SAME_RANK_PLAY] Player {user_id} not found")
+                return False
+            
+            # Find the card in player's hand
+            played_card = None
+            for card in player.hand:
+                if card.card_id == card_id:
+                    played_card = card
+                    break
+            
+            if not played_card:
+                custom_log(f"❌ [SAME_RANK_PLAY] Card {card_id} not found in player {user_id}'s hand")
+                return False
+            
+            card_rank = played_card.rank
+            card_suit = played_card.suit
             
             # Validate that this is actually a same rank play
             if not self._validate_same_rank_play(card_rank):

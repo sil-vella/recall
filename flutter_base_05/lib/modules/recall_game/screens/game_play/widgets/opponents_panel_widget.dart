@@ -16,8 +16,6 @@ import '../../../widgets/card_back_widget.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class OpponentsPanelWidget extends StatefulWidget {
-  static final Logger _log = Logger();
-  
   const OpponentsPanelWidget({Key? key}) : super(key: key);
 
   @override
@@ -42,24 +40,15 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
         final currentTurnIndex = opponentsPanel['currentTurnIndex'] ?? -1;
         
-        // Get current user ID to filter out self from opponents
-        final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-        final currentUserId = loginState['userId']?.toString() ?? '';
-        
-        // Filter out current player from opponents list
-        final otherPlayers = opponents.where((player) => 
-          player['id']?.toString() != currentUserId
-        ).toList();
-        
         // Get additional game state for context
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 OpponentsPanelWidget: opponents=${otherPlayers.length}, currentTurnIndex=$currentTurnIndex, gamePhase=$gamePhase, playerStatus=$playerStatus');
+        _log.info('🎮 OpponentsPanelWidget: opponents=${opponents.length}, currentTurnIndex=$currentTurnIndex, gamePhase=$gamePhase, playerStatus=$playerStatus');
         
         return _buildOpponentsPanel(
-          opponents: otherPlayers,
+          opponents: opponents,
           currentTurnIndex: currentTurnIndex,
           gamePhase: gamePhase,
           isGameActive: isGameActive,
@@ -146,10 +135,25 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
 
   /// Build the opponents grid
   Widget _buildOpponentsGrid(List<dynamic> opponents, int currentTurnIndex, bool isGameActive, String playerStatus) {
-    // Get current player information from state
+    // Get current player information from state (following standard pattern)
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentPlayer = recallGameState['currentPlayer']?.toString() ?? '';
+    final currentPlayerRaw = recallGameState['currentPlayer'];
+    
+    // Handle different types of currentPlayer data (null, string "null", or actual Map)
+    Map<String, dynamic>? currentPlayerData;
+    if (currentPlayerRaw == null || currentPlayerRaw == 'null' || currentPlayerRaw == '') {
+      currentPlayerData = null;
+    } else if (currentPlayerRaw is Map<String, dynamic>) {
+      currentPlayerData = currentPlayerRaw;
+    } else {
+      currentPlayerData = null;
+    }
+    
+    final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
     final currentPlayerStatus = recallGameState['currentPlayerStatus']?.toString() ?? 'unknown';
+    
+    _log.info('🎯 [OPPONENTS] currentPlayerRaw: $currentPlayerRaw (type: ${currentPlayerRaw.runtimeType})');
+    _log.info('🎯 [OPPONENTS] currentPlayerId: $currentPlayerId, currentPlayerStatus: $currentPlayerStatus');
     
     return Column(
       children: opponents.asMap().entries.map((entry) {
@@ -157,7 +161,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final player = entry.value as Map<String, dynamic>;
         final playerId = player['id']?.toString() ?? '';
         final isCurrentTurn = index == currentTurnIndex;
-        final isCurrentPlayer = playerId == currentPlayer;
+        final isCurrentPlayer = playerId == currentPlayerId;
         
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
@@ -177,16 +181,16 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isCurrentTurn ? Colors.yellow.shade50 : Colors.white,
+        color: isCurrentPlayer ? Colors.blue.shade50 : (isCurrentTurn ? Colors.yellow.shade50 : Colors.white),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isCurrentTurn ? Colors.yellow.shade400 : Colors.grey.shade300,
-          width: isCurrentTurn ? 2 : 1,
+          color: isCurrentPlayer ? Colors.blue.shade400 : (isCurrentTurn ? Colors.yellow.shade400 : Colors.grey.shade300),
+          width: (isCurrentPlayer || isCurrentTurn) ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 2,
+            color: isCurrentPlayer ? Colors.blue.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+            blurRadius: isCurrentPlayer ? 4 : 2,
             offset: const Offset(0, 1),
           ),
         ],
@@ -203,11 +207,40 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: isCurrentTurn ? Colors.yellow.shade800 : Colors.black87,
+                    color: isCurrentPlayer ? Colors.blue.shade800 : Colors.black87,
                   ),
                 ),
               ),
-              if (isCurrentTurn) ...[
+              if (isCurrentPlayer) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.person,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Current',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (isCurrentTurn && !isCurrentPlayer) ...[
                 const SizedBox(width: 4),
                 Icon(
                   Icons.play_arrow,

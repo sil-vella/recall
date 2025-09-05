@@ -344,9 +344,9 @@ class RecallGameStateUpdater {
       description: 'Current round number in the game',
     ),
     'currentPlayer': RecallStateFieldSpec(
-      type: String,
+      type: Map,
       required: false,
-      description: 'ID of current player',
+      description: 'Current player object with id, name, etc.',
     ),
     'currentPlayerStatus': RecallStateFieldSpec(
       type: String,
@@ -581,6 +581,24 @@ class RecallGameStateUpdater {
       }
     }
     
+    // Extract currentPlayer from current game data and put it in main state
+    final currentGameId = updatedState['currentGameId']?.toString() ?? '';
+    final games = updatedState['games'] as Map<String, dynamic>? ?? {};
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    
+    // Look for currentPlayer in the nested gameData.game_state structure
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final currentPlayer = gameState['currentPlayer'];
+    
+    if (currentPlayer != null) {
+      updatedState['currentPlayer'] = currentPlayer;
+      _log.info('🔍 [STATE] Extracted currentPlayer from current game: ${currentPlayer['id']}');
+    } else {
+      updatedState['currentPlayer'] = null;
+      _log.info('🔍 [STATE] No currentPlayer in current game');
+    }
+    
     return updatedState;
   }
   
@@ -705,12 +723,45 @@ class RecallGameStateUpdater {
     
     // Get current game data from games map
     final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final opponentPlayers = currentGame['opponentPlayers'] as List<dynamic>? ?? [];
-    final currentPlayerIndex = currentGame['currentPlayerIndex'] ?? -1;
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final allPlayers = gameState['players'] as List<dynamic>? ?? [];
+    
+    // Get current user ID (the person using this app instance)
+    final currentUserId = state['userId']?.toString() ?? '';
+    
+    // Get current player ID (whose turn it is - could be current user or any opponent)
+    final currentPlayer = state['currentPlayer'] as Map<String, dynamic>?;
+    final currentPlayerId = currentPlayer?['id']?.toString() ?? '';
+    
+    _log.info('🔍 [OPPONENTS_PANEL] currentUserId: $currentUserId');
+    _log.info('🔍 [OPPONENTS_PANEL] currentPlayer: $currentPlayer');
+    _log.info('🔍 [OPPONENTS_PANEL] currentPlayerId: $currentPlayerId');
+    _log.info('🔍 [OPPONENTS_PANEL] allPlayers count: ${allPlayers.length}');
+    
+    // Filter out current user to get opponents only (everyone except the current user)
+    final opponents = allPlayers.where((player) {
+      final playerData = player as Map<String, dynamic>? ?? {};
+      return playerData['id']?.toString() != currentUserId;
+    }).toList();
+    
+    _log.info('🔍 [OPPONENTS_PANEL] opponents count after filtering: ${opponents.length}');
+    
+    // Find which opponent is the current player (whose turn it is)
+    int currentTurnIndex = -1;
+    for (int i = 0; i < opponents.length; i++) {
+      final opponent = opponents[i] as Map<String, dynamic>? ?? {};
+      if (opponent['id']?.toString() == currentPlayerId) {
+        currentTurnIndex = i;
+        break;
+      }
+    }
+    
+    _log.info('🔍 [OPPONENTS_PANEL] currentTurnIndex: $currentTurnIndex');
     
     return {
-      'opponents': opponentPlayers,
-      'currentTurnIndex': currentPlayerIndex,
+      'opponents': opponents,
+      'currentTurnIndex': currentTurnIndex,
     };
   }
 

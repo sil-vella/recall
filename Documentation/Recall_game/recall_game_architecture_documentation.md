@@ -290,51 +290,112 @@ static final Map<String, Map<String, FieldSpec>> _allowedEventFields = {
 ### State Validation Schema
 
 ```dart
-static final Map<String, FieldSpec> _stateSchema = {
+static final Map<String, RecallStateFieldSpec> _stateSchema = {
   // Core Game Fields
-  'gameId': FieldSpec(type: String),
-  'playerId': FieldSpec(type: String),
-  'isGameStarted': FieldSpec(type: bool),
-  'gamePhase': FieldSpec(type: String, allowedValues: ['waiting', 'active', 'finished']),
+  'gameId': RecallStateFieldSpec(type: String, required: true),
+  'playerId': RecallStateFieldSpec(type: String, required: true),
+  'isGameStarted': RecallStateFieldSpec(type: bool, defaultValue: false),
+  'gamePhase': RecallStateFieldSpec(type: String, defaultValue: 'waiting'),
   
   // Room Fields
-  'roomId': FieldSpec(type: String),
-  'roomName': FieldSpec(type: String),
-  'isRoomOwner': FieldSpec(type: bool),
+  'roomId': RecallStateFieldSpec(type: String, required: false),
+  'roomName': RecallStateFieldSpec(type: String, required: false),
+  'isRoomOwner': RecallStateFieldSpec(type: bool, defaultValue: false),
   
   // Player Fields
-  'currentTurn': FieldSpec(type: String),
-  'playerCount': FieldSpec(type: int, min: 1, max: 6),
-  'isMyTurn': FieldSpec(type: bool),
+  'currentPlayer': RecallStateFieldSpec(
+    type: Map, 
+    required: false, 
+    description: 'Current player object with id, name, etc.'
+  ),
+  'currentPlayerStatus': RecallStateFieldSpec(
+    type: String, 
+    required: false, 
+    description: 'Status of current player'
+  ),
+  'playerCount': RecallStateFieldSpec(type: int, defaultValue: 0),
+  'isMyTurn': RecallStateFieldSpec(type: bool, defaultValue: false),
   
   // Connection Fields
-  'isConnected': FieldSpec(type: bool),
-  'lastPing': FieldSpec(type: int),
+  'isConnected': RecallStateFieldSpec(type: bool, defaultValue: false),
+  'lastPing': RecallStateFieldSpec(type: int, defaultValue: 0),
   
   // Game State Fields
-  'gameState': FieldSpec(type: Map),
-  'players': FieldSpec(type: List),
-  'myHand': FieldSpec(type: List),
-  'discardPile': FieldSpec(type: List),
-  'drawPile': FieldSpec(type: List),
-  'centerPile': FieldSpec(type: List),
+  'games': RecallStateFieldSpec(type: Map, defaultValue: {}),
+  'currentGameId': RecallStateFieldSpec(type: String, required: false),
+  'gameState': RecallStateFieldSpec(type: Map, defaultValue: {}),
+  'players': RecallStateFieldSpec(type: List, defaultValue: []),
+  'myHand': RecallStateFieldSpec(type: List, defaultValue: []),
+  'discardPile': RecallStateFieldSpec(type: List, defaultValue: []),
+  'drawPile': RecallStateFieldSpec(type: List, defaultValue: []),
+  'centerPile': RecallStateFieldSpec(type: List, defaultValue: []),
   
   // UI State Fields
-  'selectedCard': FieldSpec(type: Map),
-  'selectedCardIndex': FieldSpec(type: int),
-  'drawnCard': FieldSpec(type: Map),
+  'selectedCard': RecallStateFieldSpec(type: Map, required: false),
+  'selectedCardIndex': RecallStateFieldSpec(type: int, defaultValue: -1),
+  'drawnCard': RecallStateFieldSpec(type: Map, required: false),
   
-  // Widget State Slices (not validated - for UI performance)
-  'actionBar': FieldSpec(type: Map),
-  'statusBar': FieldSpec(type: Map),
-  'myHand': FieldSpec(type: Map),
-  'centerBoard': FieldSpec(type: Map),
-  'opponentsPanel': FieldSpec(type: Map),
-  'messageBoard': FieldSpec(type: Map),
-  'roomList': FieldSpec(type: Map),
-  'connectionStatus': FieldSpec(type: Map),
+  // Widget State Slices (pre-computed for UI performance)
+  'actionBar': RecallStateFieldSpec(
+    type: Map, 
+    defaultValue: {'showStartButton': false, 'canPlayCard': false},
+    description: 'Action bar widget state slice'
+  ),
+  'statusBar': RecallStateFieldSpec(
+    type: Map, 
+    defaultValue: {'currentPhase': 'waiting', 'playerCount': 0},
+    description: 'Status bar widget state slice'
+  ),
+  'myHand': RecallStateFieldSpec(
+    type: Map, 
+    defaultValue: {'cards': [], 'selectedIndex': -1},
+    description: 'My hand widget state slice'
+  ),
+  'centerBoard': RecallStateFieldSpec(
+    type: Map, 
+    defaultValue: {'discardPile': [], 'currentCard': null},
+    description: 'Center board widget state slice'
+  ),
+  'opponentsPanel': RecallStateFieldSpec(
+    type: Map, 
+    defaultValue: {'opponents': [], 'currentTurnIndex': -1},
+    description: 'Opponents panel widget state slice'
+  ),
+  'gameInfo': RecallStateFieldSpec(
+    type: Map, 
+    defaultValue: {'currentGameId': '', 'roomName': '', 'currentSize': 0},
+    description: 'Game info widget state slice'
+  ),
+  'joinedGamesSlice': RecallStateFieldSpec(
+    type: Map, 
+    defaultValue: {'joinedGames': [], 'totalJoinedGames': 0},
+    description: 'Joined games widget state slice'
+  ),
 };
 ```
+
+### State Extraction and Propagation
+
+**Critical Implementation Detail**: The state manager automatically extracts `currentPlayer` from the current game data and propagates it to the main state level for consistent widget access.
+
+```dart
+// In _updateWidgetSlices method
+// Extract currentPlayer from current game data and put it in main state
+final currentGameId = updatedState['currentGameId']?.toString() ?? '';
+final games = updatedState['games'] as Map<String, dynamic>? ?? {};
+final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+final currentPlayer = currentGame['currentPlayer'];
+
+if (currentPlayer != null) {
+  updatedState['currentPlayer'] = currentPlayer;
+  _log.info('🔍 [STATE] Extracted currentPlayer from current game: ${currentPlayer['id']}');
+} else {
+  updatedState['currentPlayer'] = null;
+  _log.info('🔍 [STATE] No currentPlayer in current game');
+}
+```
+
+This ensures that all widgets can access `currentPlayer` from the main state level (`recallGameState['currentPlayer']`) following the standard pattern, rather than having to dig into the game data structure.
 
 ### Incoming Event Validation Schema
 

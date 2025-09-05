@@ -549,7 +549,7 @@ class GameStateManager:
             
             # Start the first round
             custom_log(f"🎮 [START_MATCH] Starting round...")
-            round_result = game_round.start_round()
+            round_result = game_round.start_turn()
             custom_log(f"🎮 [START_MATCH] Round start result: {round_result}")
             
             if round_result.get('error'):
@@ -711,8 +711,16 @@ class GameStateManager:
         
         # Get current player data
         current_player = None
+        custom_log(f"[DEBUG] Current player ID: {game.current_player_id}", level="DEBUG")
+        custom_log(f"[DEBUG] Available players: {list(game.players.keys())}", level="DEBUG")
         if game.current_player_id and game.current_player_id in game.players:
             current_player = self._to_flutter_player_data(game.players[game.current_player_id], True)
+            custom_log(f"[DEBUG] Created current player object: {current_player['id'] if current_player else 'None'}", level="DEBUG")
+        else:
+            custom_log(f"[DEBUG] No current player found - ID: {game.current_player_id}, in players: {game.current_player_id in game.players if game.current_player_id else False}", level="DEBUG")
+        
+        # Debug what we're sending as currentPlayer
+        custom_log(f"[DEBUG] Sending currentPlayer: {current_player} (type: {type(current_player)})", level="DEBUG")
 
         # Build complete game data structure matching Flutter schema
         game_data = {

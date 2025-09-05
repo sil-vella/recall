@@ -188,11 +188,19 @@ class RecallEventHandlerCallbacks {
       }
     }
     
+    // Set currentGameId to the first joined game (if any)
+    String? currentGameId;
+    if (games.isNotEmpty) {
+      currentGameId = games.first['game_id']?.toString();
+      _log.info('🎧 [RECALL] Setting currentGameId to: $currentGameId');
+    }
+    
     // Update recall game state with joined games information using helper method
     _updateMainGameState({
       'joinedGames': games.cast<Map<String, dynamic>>(),
       'totalJoinedGames': totalGames,
       'joinedGamesTimestamp': DateTime.now().toIso8601String(),
+      if (currentGameId != null) 'currentGameId': currentGameId,
     });
     
     // Add session message about joined games
@@ -217,7 +225,25 @@ class RecallEventHandlerCallbacks {
     
     // Extract player data
     final players = gameState['players'] as List<dynamic>? ?? [];
-    final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+    
+    // Handle currentPlayer - it might be a Map (player object) or String (player ID) or null
+    Map<String, dynamic>? currentPlayer;
+    final currentPlayerRaw = gameState['currentPlayer'];
+    if (currentPlayerRaw is Map<String, dynamic>) {
+      currentPlayer = currentPlayerRaw;
+    } else if (currentPlayerRaw is String && currentPlayerRaw.isNotEmpty) {
+      // If currentPlayer is a string (player ID), find the player object in the players list
+      currentPlayer = players.cast<Map<String, dynamic>>().firstWhere(
+        (player) => player['id'] == currentPlayerRaw,
+        orElse: () => <String, dynamic>{},
+      );
+      if (currentPlayer.isEmpty) {
+        currentPlayer = null;
+      }
+    } else {
+      currentPlayer = null;
+    }
+    
     final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
     
@@ -329,7 +355,7 @@ class RecallEventHandlerCallbacks {
         'isMyTurn': false,
         'statusBar': {
           'currentPhase': 'opponent_turn',
-          'currentPlayer': playerId,
+          'currentPlayerId': playerId,
         },
       });
       
@@ -354,12 +380,19 @@ class RecallEventHandlerCallbacks {
     final gameId = data['game_id']?.toString() ?? '';
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final roundNumber = data['round_number'] as int? ?? 1;
-    final currentPlayer = data['current_player']?.toString() ?? '';
-    final currentPlayerStatus = data['current_player_status']?.toString() ?? 'unknown';
+    
+    // Get currentPlayer from the game state (Map object) instead of from the root data
+    final currentPlayerFromGameState = gameState['currentPlayer'] as Map<String, dynamic>?;
+    final currentPlayerId = currentPlayerFromGameState?['id']?.toString() ?? '';
+    final currentPlayerName = currentPlayerFromGameState?['name']?.toString() ?? '';
+    final currentPlayerStatus = currentPlayerFromGameState?['status']?.toString() ?? 'unknown';
+    
+    _log.info('🔍 [GAME_STATE_UPDATE] currentPlayerFromGameState: $currentPlayerFromGameState');
+    _log.info('🔍 [GAME_STATE_UPDATE] currentPlayerId: $currentPlayerId, currentPlayerName: $currentPlayerName');
     final roundStatus = data['round_status']?.toString() ?? 'active';
     // final timestamp = data['timestamp']?.toString() ?? '';
     
-    _log.info('🎧 [RECALL] Game state updated for game $gameId - Round: $roundNumber, Current Player: $currentPlayer ($currentPlayerStatus), Status: $roundStatus');
+    _log.info('🎧 [RECALL] Game state updated for game $gameId - Round: $roundNumber, Current Player: $currentPlayerName ($currentPlayerStatus), Status: $roundStatus');
     
     // Extract pile information from game state
     final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
@@ -374,7 +407,7 @@ class RecallEventHandlerCallbacks {
       'gamePhase': gameState['phase'] ?? 'playing',
       'isGameActive': true,
       'roundNumber': roundNumber,
-      'currentPlayer': currentPlayer,
+      'currentPlayer': currentPlayerFromGameState,  // Use the Map object instead of string
       'currentPlayerStatus': currentPlayerStatus,
       'roundStatus': roundStatus,
     });
@@ -392,11 +425,11 @@ class RecallEventHandlerCallbacks {
     _addSessionMessage(
       level: 'info',
       title: 'Game State Updated',
-      message: 'Round $roundNumber - $currentPlayer is $currentPlayerStatus',
+      message: 'Round $roundNumber - $currentPlayerName is $currentPlayerStatus',
       data: {
         'game_id': gameId,
         'round_number': roundNumber,
-        'current_player': currentPlayer,
+        'current_player': currentPlayerFromGameState,
         'current_player_status': currentPlayerStatus,
         'round_status': roundStatus,
       },

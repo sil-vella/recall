@@ -61,10 +61,8 @@ class DatabaseManager:
         try:
             self._setup_mongodb_connection()
             self.available = True
-            custom_log("✅ DatabaseManager initialized successfully")
         except Exception as e:
-            custom_log(f"⚠️ DatabaseManager initialized but database unavailable: {e}")
-            custom_log("⚠️ Database operations will be skipped - suitable for local development")
+            pass
         
         # Start queue worker
         self._start_queue_worker()
@@ -76,7 +74,6 @@ class DatabaseManager:
         """Start background worker to process database requests."""
         self.worker_thread = threading.Thread(target=self._process_queue, daemon=True)
         self.worker_thread.start()
-        custom_log("✅ Database queue worker started")
 
     def _process_queue(self):
         """Background worker that processes queued database requests."""
@@ -85,17 +82,14 @@ class DatabaseManager:
                 # Get request from queue with timeout
                 request = self.request_queue.get(timeout=self.worker_timeout)
                 
-                # Log the operation being processed
-                custom_log(f"🔄 Processing queued operation: {request['operation']} on {request['collection']}")
-                
                 # Process the request
                 result = self._execute_queued_operation(request)
                 
                 # Log the result
                 if result.get('success'):
-                    custom_log(f"✅ Queued operation completed: {request['operation']} on {request['collection']}")
+                    pass
                 else:
-                    custom_log(f"❌ Queued operation failed: {request['operation']} on {request['collection']} - {result.get('error')}")
+                    pass
                 
                 # Store result
                 with self.queue_lock:
@@ -112,7 +106,6 @@ class DatabaseManager:
                             'error': str(e),
                             'completed': True
                         }
-                custom_log(f"❌ Queue worker error: {e}", level="ERROR")
 
     def _execute_queued_operation(self, request: Dict) -> Dict:
         """Execute a queued database operation."""
@@ -140,9 +133,7 @@ class DatabaseManager:
             else:
                 return {'success': False, 'error': f'Unknown operation: {operation}', 'completed': True}
         except Exception as e:
-            custom_log(f"❌ Error in _execute_queued_operation: {e}", level="ERROR")
             import traceback
-            custom_log(f"❌ Traceback: {traceback.format_exc()}", level="ERROR")
             return {'success': False, 'error': str(e), 'completed': True}
 
     def queue_operation(self, operation: str, collection: str, query: Dict = None, data: Dict = None, timeout: int = None) -> Dict:
@@ -170,8 +161,6 @@ class DatabaseManager:
         }
         
         try:
-            # Log the queued operation
-            custom_log(f"📝 Queuing operation: {operation} on {collection}")
             
             # Queue the operation
             self.request_queue.put(request, timeout=5)
@@ -197,7 +186,6 @@ class DatabaseManager:
     def insert(self, collection: str, data: Dict[str, Any]) -> Optional[str]:
         """Insert a document using queue system."""
         if not self.available:
-            custom_log("⚠️ Database unavailable - skipping insert operation")
             return None
             
         if self.role == "read_only":
@@ -212,7 +200,6 @@ class DatabaseManager:
     def find(self, collection: str, query: Dict[str, Any]) -> list:
         """Find documents using queue system."""
         if not self.available:
-            custom_log("⚠️ Database unavailable - skipping find operation")
             return []
             
         result = self.queue_operation('find', collection, query=query)
@@ -224,7 +211,6 @@ class DatabaseManager:
     def find_one(self, collection: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Find one document using queue system."""
         if not self.available:
-            custom_log("⚠️ Database unavailable - skipping find operation")
             return None
             
         result = self.queue_operation('find_one', collection, query=query)
@@ -236,7 +222,6 @@ class DatabaseManager:
     def update(self, collection: str, query: Dict[str, Any], data: Dict[str, Any]) -> int:
         """Update documents using queue system."""
         if not self.available:
-            custom_log("⚠️ Database unavailable - skipping update operation")
             return 0
             
         if self.role == "read_only":
@@ -251,7 +236,6 @@ class DatabaseManager:
     def delete(self, collection: str, query: Dict[str, Any]) -> int:
         """Delete documents using queue system."""
         if not self.available:
-            custom_log("⚠️ Database unavailable - skipping delete operation")
             return 0
             
         if self.role == "read_only":
@@ -364,16 +348,12 @@ class DatabaseManager:
         # Encrypt sensitive fields in the query to match encrypted data in database
         encrypted_query = self._encrypt_sensitive_fields(converted_query)
         
-        custom_log(f"[DEBUG] _execute_find_one - Collection: {collection}, Original query: {query}, Converted query: {converted_query}, Encrypted query: {encrypted_query}")
-        
         # Execute the query directly without expensive operations
         result = self.db[collection].find_one(encrypted_query)
-        custom_log(f"[DEBUG] _execute_find_one - Result found: {result is not None}")
         
         if result:
             decrypted_result = self._decrypt_sensitive_fields(result)
             final_result = self._convert_objectid_to_string(decrypted_result)
-            custom_log(f"[DEBUG] _execute_find_one - Final result: {final_result.get('email') if final_result else None}")
             return final_result
         return None
 
@@ -409,12 +389,10 @@ class DatabaseManager:
     def enable_queue(self):
         """Enable the queue system."""
         self.queue_enabled = True
-        custom_log("✅ Database queue system enabled")
 
     def disable_queue(self):
         """Disable the queue system."""
         self.queue_enabled = False
-        custom_log("⚠️ Database queue system disabled")
 
     def _get_password_from_file(self, password_file_path: str) -> str:
         """Read password from a file."""
@@ -422,7 +400,6 @@ class DatabaseManager:
             with open(password_file_path, 'r') as f:
                 return f.read().strip()
         except Exception as e:
-            custom_log(f"Failed to read password file: {e}", level="ERROR")
             raise
 
     def _setup_mongodb_connection(self):
@@ -495,9 +472,6 @@ class DatabaseManager:
                         decrypted_data[field]
                     )
                 except Exception as e:
-                    # If decryption fails (e.g., data was encrypted with different key),
-                    # keep the original data and log the issue
-                    custom_log(f"⚠️ Failed to decrypt field '{field}': {e}", level="WARNING")
                     # Keep the original value - it might be already decrypted or encrypted with different key
                     decrypted_data[field] = data[field]
         return decrypted_data
@@ -527,7 +501,6 @@ class DatabaseManager:
             self.client.server_info()
             return True
         except Exception as e:
-            custom_log(f"Database connection check failed: {e}", level="ERROR")
             self.available = False
             return False
 
@@ -544,16 +517,13 @@ class DatabaseManager:
             # If we don't have permission for serverStatus, just return a default value
             # This is expected for application users who don't have admin privileges
             if "not authorized" in str(e).lower():
-                custom_log(f"Application user doesn't have permission for serverStatus command (this is normal)", level="DEBUG")
                 return 0
             else:
-                custom_log(f"Failed to get connection count: {e}", level="ERROR")
                 return 0
 
     def get_all_database_data(self) -> Dict[str, Any]:
         """Get all data from all collections in the database."""
         if not self.available:
-            custom_log("⚠️ Database unavailable - cannot retrieve data")
             return {"error": "Database unavailable"}
             
         try:
@@ -561,7 +531,6 @@ class DatabaseManager:
             
             # Get list of all collections
             collections = self.db.list_collection_names()
-            custom_log(f"📊 Found {len(collections)} collections: {collections}")
             
             for collection_name in collections:
                 try:
@@ -581,21 +550,15 @@ class DatabaseManager:
                         "documents": converted_documents
                     }
                     
-                    custom_log(f"📋 Retrieved {len(converted_documents)} documents from collection '{collection_name}'")
-                    
                 except Exception as e:
-                    custom_log(f"❌ Error retrieving data from collection '{collection_name}': {e}", level="ERROR")
                     all_data[collection_name] = {
                         "error": str(e),
                         "count": 0,
                         "documents": []
                     }
-            
-            custom_log(f"✅ Successfully retrieved data from {len(collections)} collections")
             return all_data
             
         except Exception as e:
-            custom_log(f"❌ Error retrieving all database data: {e}", level="ERROR")
             return {"error": f"Failed to retrieve database data: {str(e)}"}
 
 # ... existing code ... 

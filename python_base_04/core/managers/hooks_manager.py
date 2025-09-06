@@ -6,7 +6,6 @@ class HooksManager:
         self.hooks = {
             "app_startup": [],  # Predefined default hook
         }
-        custom_log("HooksManager instance created.")
 
     @log_function_call
     def register_hook(self, hook_name):
@@ -18,7 +17,6 @@ class HooksManager:
             raise ValueError(f"Hook '{hook_name}' is already registered.")
         
         self.hooks[hook_name] = []
-        custom_log(f"Hook '{hook_name}' registered successfully.")
 
     @log_function_call
     def register_hook_callback(self, hook_name, callback, priority=10, context=None):
@@ -45,7 +43,6 @@ class HooksManager:
         # Detailed logging of the callback registration
         context_info = f" (context: {context})" if context else ""
         callback_name = callback.__name__ if hasattr(callback, "__name__") else str(callback)
-        custom_log(f"Callback '{callback_name}' registered to hook '{hook_name}' with priority {priority}{context_info}.")
 
     @log_function_call
     def trigger_hook(self, hook_name, data=None, context=None):
@@ -58,15 +55,11 @@ class HooksManager:
         """
         # Auto-register hook if it doesn't exist
         if hook_name not in self.hooks:
-            custom_log(f"🎣 Auto-registering hook '{hook_name}' before triggering")
             self.register_hook(hook_name)
-        
-        custom_log(f"Triggering hook '{hook_name}' with context: {context} and data: {data}")
 
         for entry in self.hooks[hook_name]:
             # Execute only callbacks matching the context or global callbacks (no context)
             if context is None or entry["context"] == context:
-                custom_log(f"Executing callback for hook '{hook_name}' with priority {entry['priority']} (context: {entry['context']}).")
                 entry["callback"](data)
 
     @log_function_call
@@ -77,9 +70,8 @@ class HooksManager:
         """
         if hook_name in self.hooks:
             self.hooks[hook_name] = []
-            custom_log(f"Cleared all callbacks for hook '{hook_name}'.")
         else:
-            custom_log(f"Warning: Hook '{hook_name}' is not registered. Nothing to clear.")
+            pass
 
     @log_function_call
     def dispose(self):
@@ -87,4 +79,3 @@ class HooksManager:
         Dispose of all hooks and their callbacks.
         """
         self.hooks.clear()
-        custom_log("All hooks have been disposed of.")

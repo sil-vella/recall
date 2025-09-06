@@ -30,8 +30,6 @@ class UserManagementModule(BaseModule):
             self.db_manager = DatabaseManager(role="read_write")
             self.analytics_db = DatabaseManager(role="read_only")
             self.redis_manager = RedisManager()
-        
-        custom_log("UserManagementModule created with shared managers")
 
     def initialize(self, app_manager):
         """Initialize the UserManagementModule with AppManager."""
@@ -40,7 +38,6 @@ class UserManagementModule(BaseModule):
         self.initialize_database()
         self.register_routes()
         self._initialized = True
-        custom_log("UserManagementModule initialized")
 
     def register_routes(self):
         """Register user management routes with clean authentication-aware system."""
@@ -59,25 +56,18 @@ class UserManagementModule(BaseModule):
         
         # Public routes (no authentication required)
         self._register_auth_route_helper("/public/refresh", self.refresh_token, methods=["POST"])
-        
-
-        
-        custom_log(f"UserManagementModule registered {len(self.registered_routes)} routes with clean auth system")
 
     def initialize_database(self):
         """Verify database connection for user operations."""
         try:
             # Check if database is available
             if not self.analytics_db.available:
-                custom_log("⚠️ Database unavailable for user operations - running with limited functionality")
                 return
                 
             # Simple connection test
             self.analytics_db.db.command('ping')
-            custom_log("✅ User database connection verified")
         except Exception as e:
-            custom_log(f"⚠️ User database connection verification failed: {e}")
-            custom_log("⚠️ User operations will be limited - suitable for local development")
+            pass
 
     def create_user(self):
         """Create a new user account with comprehensive setup."""
@@ -224,11 +214,6 @@ class UserManagementModule(BaseModule):
                     'source': 'external_app'
                 }
                 self.app_manager.trigger_hook("user_created", hook_data)
-                custom_log(f"🎣 Triggered user_created hook for user: {username} ({email})")
-                custom_log(f"   - App: {Config.APP_NAME} ({Config.APP_ID})")
-                custom_log(f"   - User ID: {user_id}")
-            
-            custom_log(f"✅ User created successfully: {username} ({email})")
             
             return jsonify({
                 "success": True,
@@ -239,7 +224,6 @@ class UserManagementModule(BaseModule):
             }), 201
             
         except Exception as e:
-            custom_log(f"❌ Error creating user: {e}")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -257,7 +241,6 @@ class UserManagementModule(BaseModule):
             return jsonify(user), 200
             
         except Exception as e:
-            custom_log(f"Error getting user: {e}")
             return jsonify({'error': 'Failed to get user'}), 500
 
     def update_user(self, user_id):
@@ -285,7 +268,6 @@ class UserManagementModule(BaseModule):
                 return jsonify({'error': 'User not found or no changes made'}), 404
                 
         except Exception as e:
-            custom_log(f"Error updating user: {e}")
             return jsonify({'error': 'Failed to update user'}), 500
 
     def delete_user(self, user_id):
@@ -304,7 +286,6 @@ class UserManagementModule(BaseModule):
                 return jsonify({'error': 'User not found'}), 404
                 
         except Exception as e:
-            custom_log(f"Error deleting user: {e}")
             return jsonify({'error': 'Failed to delete user'}), 500
 
     def search_users(self):
@@ -330,7 +311,6 @@ class UserManagementModule(BaseModule):
             return jsonify({'users': users}), 200
             
         except Exception as e:
-            custom_log(f"Error searching users: {e}")
             return jsonify({'error': 'Failed to search users'}), 500
 
 
@@ -352,17 +332,10 @@ class UserManagementModule(BaseModule):
             email = data.get("email")
             password = data.get("password")
             
-            # Find user by email using direct query (more efficient)
-            custom_log(f"[DEBUG] Login attempt for {email}")
-            custom_log(f"[DEBUG] Using db_manager: {self.db_manager}")
-            custom_log(f"[DEBUG] Database available: {self.db_manager.available}")
-            
             # Use direct email query instead of fetching all users
             user = self.db_manager.find_one("users", {"email": email})
-            custom_log(f"[DEBUG] User lookup result: {'Found' if user else 'Not found'}")
             
             if not user:
-                custom_log(f"[DEBUG] No user found for email: {email}")
                 return jsonify({
                     "success": False,
                     "error": "Invalid email or password"
@@ -377,15 +350,12 @@ class UserManagementModule(BaseModule):
             
             # Verify password
             stored_password = user.get("password", "")
-            custom_log(f"[DEBUG] Password verification for user: {user.get('username')}")
             try:
                 check_result = bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8'))
             except Exception as e:
-                custom_log(f"[DEBUG] bcrypt.checkpw error: {e}")
                 check_result = False
             
             if not check_result:
-                custom_log(f"[DEBUG] Password verification failed for user: {user.get('username')}")
                 return jsonify({
                     "success": False,
                     "error": "Invalid email or password"
@@ -421,8 +391,6 @@ class UserManagementModule(BaseModule):
             # Remove password from response
             user.pop('password', None)
             
-            custom_log(f"✅ User logged in successfully: {user['username']} ({email})")
-            
             return jsonify({
                 "success": True,
                 "message": "Login successful",
@@ -437,7 +405,6 @@ class UserManagementModule(BaseModule):
             }), 200
             
         except Exception as e:
-            custom_log(f"❌ Error during login: {e}")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -471,7 +438,6 @@ class UserManagementModule(BaseModule):
             success = jwt_manager.revoke_token(token)
             
             if success:
-                custom_log(f"✅ User logged out successfully: {payload.get('username', 'unknown')}")
                 return jsonify({
                     "success": True,
                     "message": "Logout successful"
@@ -483,7 +449,6 @@ class UserManagementModule(BaseModule):
                 }), 500
             
         except Exception as e:
-            custom_log(f"❌ Error during logout: {e}")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -551,8 +516,6 @@ class UserManagementModule(BaseModule):
             # Remove password from response
             user.pop('password', None)
             
-            custom_log(f"✅ Token refreshed successfully for user: {user['username']} (with rotation)")
-            
             return jsonify({
                 "success": True,
                 "message": "Token refreshed successfully",
@@ -567,7 +530,6 @@ class UserManagementModule(BaseModule):
             }), 200
             
         except Exception as e:
-            custom_log(f"❌ Error refreshing token: {e}")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -622,7 +584,6 @@ class UserManagementModule(BaseModule):
             }), 200
             
         except Exception as e:
-            custom_log(f"❌ Error getting current user: {e}")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -707,7 +668,6 @@ class UserManagementModule(BaseModule):
             return jsonify(profile_data), 200
             
         except Exception as e:
-            custom_log(f"Error getting user profile: {e}")
             return jsonify({'error': 'Failed to get user profile'}), 500
 
     def update_user_profile(self):
@@ -738,7 +698,6 @@ class UserManagementModule(BaseModule):
                 return jsonify({'error': 'Failed to update profile'}), 500
                 
         except Exception as e:
-            custom_log(f"Error updating user profile: {e}")
             return jsonify({'error': 'Failed to update profile'}), 500
 
     def get_user_settings(self):
@@ -761,7 +720,6 @@ class UserManagementModule(BaseModule):
             return jsonify(settings_data), 200
             
         except Exception as e:
-            custom_log(f"Error getting user settings: {e}")
             return jsonify({'error': 'Failed to get user settings'}), 500
 
     def update_user_settings(self):
@@ -790,7 +748,6 @@ class UserManagementModule(BaseModule):
                 return jsonify({'error': 'Failed to update settings'}), 500
                 
         except Exception as e:
-            custom_log(f"Error updating user settings: {e}")
             return jsonify({'error': 'Failed to update settings'}), 500
 
 

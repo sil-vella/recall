@@ -33,8 +33,6 @@ class JWTManager:
         
         # Flask app reference for route registration
         self.app = None
-        
-        custom_log("JWTManager initialized with state change listener")
 
     def _get_client_fingerprint(self) -> str:
         """Generate a unique client fingerprint based on IP and User-Agent."""
@@ -46,10 +44,8 @@ class JWTManager:
                 ip = ip.split(',')[0].strip()
             user_agent = request.headers.get('User-Agent', '')
             fingerprint = hashlib.sha256(f"{ip}-{user_agent}".encode()).hexdigest()
-            custom_log(f"Generated fingerprint: {fingerprint[:16]}... for IP: {ip}")
             return fingerprint
         except Exception as e:
-            custom_log(f"Error generating client fingerprint: {str(e)}")
             return ""
 
     def create_token(self, data: Dict[str, Any], token_type: TokenType, expires_in: Optional[int] = None) -> str:
@@ -96,12 +92,10 @@ class JWTManager:
             try:
                 payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             except InvalidTokenError as e:
-                custom_log(f"JWT decode failed: {str(e)}")
                 return None
                 
             # Check if token is revoked
             if self._is_token_revoked(token):
-                custom_log(f"Token revoked: {token[:10]}...")
                 return None
                 
             # Verify fingerprint if present in token
@@ -109,18 +103,15 @@ class JWTManager:
             if token_fingerprint:
                 current_fingerprint = self._get_client_fingerprint()
                 if current_fingerprint and token_fingerprint != current_fingerprint:
-                    custom_log(f"Fingerprint mismatch. Token: {token_fingerprint[:16]}..., Current: {current_fingerprint[:16]}...")
                     return None
                 
             # Verify token type if specified
             if expected_type:
                 token_type = payload.get("type")
                 if not token_type:
-                    custom_log("Token type missing in payload")
                     return None
                     
                 if token_type != expected_type.value:
-                    custom_log(f"Invalid token type. Expected: {expected_type.value}, Got: {token_type}")
                     return None
             
             # Comprehensive claims validation
@@ -130,19 +121,14 @@ class JWTManager:
             return payload
             
         except ExpiredSignatureError:
-            custom_log("Token has expired")
             return None
         except InvalidSignatureError:
-            custom_log("Invalid token signature")
             return None
         except InvalidAudienceError:
-            custom_log("Invalid token audience")
             return None
         except InvalidIssuerError:
-            custom_log("Invalid token issuer")
             return None
         except Exception as e:
-            custom_log(f"Token verification failed: {str(e)}")
             return None
 
     def _validate_token_claims(self, payload: Dict[str, Any]) -> bool:
@@ -152,7 +138,6 @@ class JWTManager:
             required_claims = ['exp', 'iat', 'type']
             for claim in required_claims:
                 if claim not in payload:
-                    custom_log(f"Missing required claim: {claim}")
                     return False
             
             # Validate expiration (exp)
@@ -162,10 +147,8 @@ class JWTManager:
                     exp_timestamp = int(exp)
                     current_timestamp = int(datetime.utcnow().timestamp())
                     if exp_timestamp <= current_timestamp:
-                        custom_log("Token has expired")
                         return False
                 except (ValueError, TypeError):
-                    custom_log("Invalid expiration claim format")
                     return False
             
             # Validate issued at (iat)
@@ -176,12 +159,8 @@ class JWTManager:
                     current_timestamp = int(datetime.utcnow().timestamp())
                     # Token should not be issued in the future (with 5 minute tolerance)
                     if iat_timestamp > (current_timestamp + 300):
-                        custom_log(f"Token issued in the future - iat: {iat_timestamp}, current: {current_timestamp}, diff: {iat_timestamp - current_timestamp}s")
-                        # Temporarily allow future tokens for development
-                        custom_log("⚠️ Temporarily allowing future tokens for development")
-                        # return False  # Commented out for development
+                        pass
                 except (ValueError, TypeError):
-                    custom_log("Invalid issued at claim format")
                     return False
             
             # Validate not before (nbf) if present
@@ -191,25 +170,19 @@ class JWTManager:
                     nbf_timestamp = int(nbf)
                     current_timestamp = int(datetime.utcnow().timestamp())
                     if nbf_timestamp > current_timestamp:
-                        custom_log("Token not yet valid")
                         return False
                 except (ValueError, TypeError):
-                    custom_log("Invalid not before claim format")
                     return False
             
             # Validate audience (aud) if present
             aud = payload.get('aud')
             if aud:
-                # Add your audience validation logic here
-                # For now, we'll just log it
-                custom_log(f"Token audience: {aud}")
+                pass
             
             # Validate issuer (iss) if present
             iss = payload.get('iss')
             if iss:
-                # Add your issuer validation logic here
-                # For now, we'll just log it
-                custom_log(f"Token issuer: {iss}")
+                pass
             
             # Validate custom claims
             if not self._validate_custom_claims(payload):
@@ -218,7 +191,6 @@ class JWTManager:
             return True
             
         except Exception as e:
-            custom_log(f"Error validating token claims: {str(e)}")
             return False
 
     def _validate_custom_claims(self, payload: Dict[str, Any]) -> bool:
@@ -228,45 +200,37 @@ class JWTManager:
             user_id = payload.get('user_id')
             if user_id:
                 if not isinstance(user_id, (str, int)):
-                    custom_log("Invalid user_id claim format")
                     return False
             
             # Validate username if present
             username = payload.get('username')
             if username:
                 if not isinstance(username, str):
-                    custom_log("Invalid username claim format")
                     return False
             
             # Validate email if present
             email = payload.get('email')
             if email:
-                custom_log(f"DEBUG: Validating email claim: {email} (type: {type(email)})")
                 if not isinstance(email, str):
-                    custom_log("Invalid email claim format")
                     return False
                 # Basic email format validation
                 if '@' not in email or '.' not in email:
-                    custom_log(f"Invalid email format in token: '{email}'")
                     return False
             else:
-                custom_log("DEBUG: No email claim found in token")
+                pass
             
             # Validate roles if present
             roles = payload.get('roles')
             if roles:
                 if not isinstance(roles, (list, set)):
-                    custom_log("Invalid roles claim format")
                     return False
                 for role in roles:
                     if not isinstance(role, str):
-                        custom_log("Invalid role format in token")
                         return False
             
             return True
             
         except Exception as e:
-            custom_log(f"Error validating custom claims: {str(e)}")
             return False
 
     def validate_token(self, token: str, expected_type: Optional[TokenType] = None) -> Optional[Dict[str, Any]]:
@@ -281,28 +245,23 @@ class JWTManager:
                 payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
                 token_type = payload.get("type")
                 if not token_type:
-                    custom_log("Token type missing in payload")
                     return False
             except InvalidTokenError:
-                custom_log("Invalid token format")
                 return False
                 
             # Revoke token using Redis manager's token methods
             return self.redis_manager.revoke_token(token_type, token)
             
         except Exception as e:
-            custom_log(f"Error revoking token: {str(e)}")
             return False
 
     def refresh_token(self, refresh_token: str) -> Optional[str]:
         """Create a new access token using a refresh token."""
         # Check if we should delay refresh during game states
         if self.should_delay_token_refresh():
-            custom_log("🎮 App in game state - delaying token refresh")
             # Track this token for later refresh when game ends
             token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()[:16]
             self._pending_refresh_tokens.add(token_hash)
-            custom_log(f"📝 Added token {token_hash} to pending refresh list")
             return None  # Return None to indicate refresh should be delayed
         
         payload = self.verify_token(refresh_token, TokenType.REFRESH)
@@ -321,12 +280,10 @@ class JWTManager:
             
             # Store token using Redis manager's token methods
             if not self.redis_manager.store_token(token_type.value, token, expire=ttl):
-                custom_log(f"Failed to store {token_type.value} token")
+                pass
             
         except Exception as e:
-            custom_log(f"Error storing token: {str(e)}")
-            # Don't raise the exception, just log it
-            # This allows the token to still be used even if Redis storage fails
+            pass
 
     def _is_token_revoked(self, token: str) -> bool:
         """Check if a token is revoked using prefix-based lookup."""
@@ -336,7 +293,6 @@ class JWTManager:
                 payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
                 token_type = payload.get("type")
                 if not token_type:
-                    custom_log("Token type missing in payload")
                     return True
             except InvalidTokenError:
                 # If we can't decode the token, consider it revoked
@@ -346,22 +302,18 @@ class JWTManager:
             return not self.redis_manager.is_token_valid(token_type, token)
             
         except Exception as e:
-            custom_log(f"Error checking token revocation: {str(e)}")
             return True  # Fail safe: consider token revoked on error
 
     def cleanup_expired_tokens(self):
         """Clean up expired tokens from Redis."""
         try:
-            custom_log("Starting expired token cleanup")
             
             for token_type in TokenType:
                 if not self.redis_manager.cleanup_expired_tokens(token_type.value):
-                    custom_log(f"Failed to cleanup expired {token_type.value} tokens")
-                    
-            custom_log("Completed expired token cleanup")
+                    pass
             
         except Exception as e:
-            custom_log(f"Error during token cleanup: {str(e)}")
+            pass
 
     def schedule_token_cleanup(self, interval_minutes: int = 60):
         """Schedule periodic token cleanup (optional enhancement)."""
@@ -375,15 +327,14 @@ class JWTManager:
                         time.sleep(interval_minutes * 60)  # Convert to seconds
                         self.cleanup_expired_tokens()
                     except Exception as e:
-                        custom_log(f"Error in token cleanup worker: {str(e)}")
+                        pass
             
             # Start cleanup thread
             cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
             cleanup_thread.start()
-            custom_log(f"✅ Token cleanup scheduled (every {interval_minutes} minutes)")
             
         except Exception as e:
-            custom_log(f"Error scheduling token cleanup: {str(e)}")
+            pass
 
     # Convenience methods for specific use cases
     def create_access_token(self, data: Dict[str, Any], expires_in: Optional[int] = None) -> str:
@@ -406,14 +357,11 @@ class JWTManager:
             # Always use normal TTL - we don't extend TTL anymore
             # Instead, we delay refresh and resume when game ends
             if expires_in:
-                custom_log(f"📱 App in state '{main_state}', using custom TTL: {expires_in}s for {token_type.value} token")
                 return expires_in
             else:
-                custom_log(f"📱 App in state '{main_state}', using default TTL for {token_type.value} token")
                 return None
                     
         except Exception as e:
-            custom_log(f"❌ Error getting state-dependent TTL: {e}", level="ERROR")
             # Fallback to default TTL
             return None
 
@@ -427,12 +375,10 @@ class JWTManager:
             game_states = ["active_game", "pre_game", "post_game"]
             
             should_delay = current_state in game_states
-            custom_log(f"🎮 Checking token refresh delay - State: {current_state}, Delay: {should_delay}")
             
             return should_delay
             
         except Exception as e:
-            custom_log(f"❌ Error checking token refresh delay: {e}", level="ERROR")
             return False  # Fail safe: allow refresh on error
 
     def _register_state_change_callback(self):
@@ -442,10 +388,9 @@ class JWTManager:
             
             state_manager = StateManager()
             state_manager.register_callback("main_state", self._on_main_state_changed)
-            custom_log("✅ JWT state change callback registered")
             
         except Exception as e:
-            custom_log(f"❌ Failed to register JWT state change callback: {e}", level="ERROR")
+            pass
 
     def _on_main_state_changed(self, state_id: str, transition: str, data: Dict[str, Any]):
         """
@@ -459,8 +404,6 @@ class JWTManager:
             new_state = data.get("app_status", "unknown")
             old_state = self._previous_state
             
-            custom_log(f"🔄 JWT State change detected: {old_state} → {new_state}")
-            
             # Check if we're transitioning from game state to normal state
             game_states = ["active_game", "pre_game", "post_game"]
             normal_states = ["idle", "busy", "maintenance"]
@@ -469,35 +412,30 @@ class JWTManager:
             is_now_normal = new_state in normal_states
             
             if was_in_game and is_now_normal:
-                custom_log("🎮 Game ended - resuming token refresh for pending tokens")
                 self._resume_pending_token_refresh()
             
             # Update previous state
             self._previous_state = new_state
             
         except Exception as e:
-            custom_log(f"❌ Error in JWT state change callback: {e}", level="ERROR")
+            pass
 
     def _resume_pending_token_refresh(self):
         """Resume token refresh for all pending tokens when game state ends."""
         try:
             if not self._pending_refresh_tokens:
-                custom_log("📝 No pending tokens to refresh")
                 return
                 
-            custom_log(f"🔄 Resuming refresh for {len(self._pending_refresh_tokens)} pending tokens")
             
             # Process pending tokens (in a real implementation, you'd store the actual tokens)
             # For now, we just log that refresh should be resumed
             for token_id in self._pending_refresh_tokens:
-                custom_log(f"🔄 Resuming refresh for token: {token_id}")
-                
+                pass
             # Clear pending tokens
             self._pending_refresh_tokens.clear()
-            custom_log("✅ All pending token refreshes resumed")
             
         except Exception as e:
-            custom_log(f"❌ Error resuming pending token refresh: {e}", level="ERROR")
+            pass
 
     def _get_main_app_state(self) -> str:
         """
@@ -513,12 +451,9 @@ class JWTManager:
             
             if main_state and main_state.get("data"):
                 app_status = main_state["data"].get("app_status", "unknown")
-                custom_log(f"📊 Main app state: {app_status}")
                 return app_status
             else:
-                custom_log("⚠️ Main app state not found, using 'unknown'")
                 return "unknown"
                 
         except Exception as e:
-            custom_log(f"❌ Error getting main app state: {e}", level="ERROR")
             return "unknown" 

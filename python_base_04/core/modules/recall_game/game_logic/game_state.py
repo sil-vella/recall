@@ -309,17 +309,14 @@ class GameStateManager:
             self.websocket_manager = app_manager.get_websocket_manager()
             self.game_logic_engine = game_logic_engine
             if not self.websocket_manager:
-                custom_log("❌ WebSocket manager not available for GameStateManager", level="ERROR")
                 return False
             
             # Register hook callbacks for automatic game creation
             self._register_hook_callbacks()
             
             self._initialized = True
-            custom_log("✅ GameStateManager initialized with WebSocket support")
             return True
         except Exception as e:
-            custom_log(f"❌ Failed to initialize GameStateManager: {e}", level="ERROR")
             return False
     
     def create_game(self, max_players: int = 4, min_players: int = 2, permission: str = 'public') -> str:
@@ -367,8 +364,6 @@ class GameStateManager:
         private_games = 0
         
         for game_id, game in self.active_games.items():
-            # Log game details for debugging
-            custom_log(f"🎮 [DEBUG] Game {game_id}: phase={game.phase.value}, permission={game.permission}, players={len(game.players)}")
             
             # Only include PUBLIC games that are waiting for players
             if game.phase == GamePhase.WAITING_FOR_PLAYERS and game.permission == 'public':
@@ -378,8 +373,6 @@ class GameStateManager:
                 public_games += 1
             elif game.permission == 'private':
                 private_games += 1
-        
-        custom_log(f"🎮 Found {len(available_games)} available PUBLIC games out of {total_games} total games ({public_games} public, {private_games} private)")
         return available_games
     
     # ========= WebSocket Event Handlers =========
@@ -400,9 +393,9 @@ class GameStateManager:
                     if coordinator:
                         coordinator._send_error(session_id, f'Game not found: {game_id} - games are auto-created when rooms are created')
                     else:
-                        custom_log(f"⚠️ Coordinator not available for sending error message")
+                        pass
                 else:
-                    custom_log(f"⚠️ App manager not available for sending error message")
+                    pass
                 return False
 
             # Join the room (game and room have same ID)
@@ -415,10 +408,8 @@ class GameStateManager:
             if user_id not in game.players:
                 player = ComputerPlayer(user_id, player_name) if player_type == 'computer' else HumanPlayer(user_id, player_name)
                 game.add_player(player, session_id)
-                custom_log(f"✅ Added player {user_id} to game {game_id}")
             else:
                 game.update_player_session(user_id, session_id)
-                custom_log(f"✅ Updated session for player {user_id} in game {game_id}")
 
             # Broadcast join event using coordinator
             payload = {
@@ -437,66 +428,54 @@ class GameStateManager:
                 if coordinator:
                     coordinator._broadcast_event(game_id, payload)
                 else:
-                    custom_log(f"⚠️ Coordinator not available for broadcasting game joined event")
+                    pass
             else:
-                custom_log(f"⚠️ App manager not available for broadcasting game joined event")
+                pass
             
             return True
             
         except Exception as e:
-            custom_log(f"Error in on_join_game: {e}", level="ERROR")
             # Use the coordinator to send error message
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
                     coordinator._send_error(session_id, f'Join game failed: {str(e)}')
                 else:
-                    custom_log(f"⚠️ Coordinator not available for sending error message")
+                    pass
             else:
-                custom_log(f"⚠️ App manager not available for sending error message")
+                pass
             return False
 
     def on_start_match(self, session_id: str, data: Dict[str, Any]) -> bool:
         """Handle game start through the game round"""
         try:
-            custom_log(f"🎮 [START_MATCH] Starting match for session: {session_id}, data: {data}")
             
             game_id = data.get('game_id') or data.get('room_id')
             if not game_id:
-                custom_log(f"❌ [START_MATCH] Missing game_id in data: {data}")
                 # Use the coordinator to send error message
                 if hasattr(self, 'app_manager') and self.app_manager:
                     coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                     if coordinator:
                         coordinator._send_error(session_id, 'Missing game_id')
                     else:
-                        custom_log(f"⚠️ Coordinator not available for sending error message")
+                        pass
                 else:
-                    custom_log(f"⚠️ App manager not available for sending error message")
+                    pass
                 return False
-            
-            custom_log(f"🎮 [START_MATCH] Looking for game: {game_id}")
             game = self.get_game(game_id)
             if not game:
-                custom_log(f"❌ [START_MATCH] Game not found: {game_id}")
                 # Use the coordinator to send error message
                 if hasattr(self, 'app_manager') and self.app_manager:
                     coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                     if coordinator:
                         coordinator._send_error(session_id, f'Game not found: {game_id}')
                     else:
-                        custom_log(f"⚠️ Coordinator not available for sending error message")
+                        pass
                 else:
-                    custom_log(f"⚠️ App manager not available for sending error message")
+                    pass
                 return False
-
-            custom_log(f"✅ [START_MATCH] Game found: {game_id}")
             session_data = self.websocket_manager.get_session_data(session_id) or {}
             user_id = str(session_data.get('user_id') or session_id)
-            custom_log(f"🎮 [START_MATCH] User ID: {user_id}")
-            
-            # ========= CONSOLIDATED GAME START LOGIC =========
-            custom_log(f"🎮 [START_MATCH] Starting consolidated game start logic...")
             
             # Check if we have enough players, add computer players if needed
             current_players = len(game.players)
@@ -505,7 +484,6 @@ class GameStateManager:
             if current_players < min_players:
                 # Add computer players to reach minimum
                 players_needed = min_players - current_players
-                custom_log(f"🎮 [START_MATCH] Adding {players_needed} computer player(s) to reach minimum of {min_players}")
                 
                 for i in range(players_needed):
                     computer_id = f"computer_{game.game_id}_{i}"
@@ -513,7 +491,6 @@ class GameStateManager:
                     from ..models.player import ComputerPlayer
                     computer_player = ComputerPlayer(computer_id, computer_name, difficulty="medium")
                     game.add_player(computer_player)
-                    custom_log(f"✅ [START_MATCH] Added computer player: {computer_name} (ID: {computer_id})")
             
             game.phase = GamePhase.DEALING_CARDS
             game.game_start_time = time.time()
@@ -535,33 +512,22 @@ class GameStateManager:
             
             game.phase = GamePhase.PLAYER_TURN
             game.last_action_time = time.time()
-            
-            custom_log(f"✅ [START_MATCH] Game start logic completed successfully")
-            # ========= END CONSOLIDATED GAME START LOGIC =========
-            
-            # Get the game round handler
-            custom_log(f"🎮 [START_MATCH] Getting game round...")
             game_round = game.get_round()
             
             # Update player statuses using unified method in game round
             game_round.update_all_players_state_and_send(PlayerStatus.READY)
-            
-            # Start the first round
-            custom_log(f"🎮 [START_MATCH] Starting round...")
             round_result = game_round.start_turn()
-            custom_log(f"🎮 [START_MATCH] Round start result: {round_result}")
             
             if round_result.get('error'):
-                custom_log(f"❌ [START_MATCH] Round start failed: {round_result['error']}")
                 # Use the coordinator to send error message
                 if hasattr(self, 'app_manager') and self.app_manager:
                     coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                     if coordinator:
                         coordinator._send_error(session_id, f"Start match failed: {round_result['error']}")
                     else:
-                        custom_log(f"⚠️ Coordinator not available for sending error message")
+                        pass
                 else:
-                    custom_log(f"⚠️ App manager not available for sending error message")
+                    pass
                 return False
             
             # Send game started event to all players with full game state
@@ -600,30 +566,25 @@ class GameStateManager:
                             'timestamp': datetime.now().isoformat()
                         }
                         coordinator._send_to_player(game_id, current_player_id, 'turn_started', turn_payload)
-                        custom_log(f"🎯 [START_MATCH] Turn event sent to current player {current_player_id}")
                     else:
-                        custom_log(f"⚠️ [START_MATCH] No current player found in round result")
+                        pass
                 else:
-                    custom_log(f"⚠️ Coordinator not available for broadcasting game started event")
+                    pass
             else:
-                custom_log(f"⚠️ App manager not available for broadcasting game started event")
-            
-            custom_log(f"🎮 Game {game_id} started by {user_id}, round {round_result.get('round_number')}")
+                pass
             return True
             
         except Exception as e:
-            custom_log(f"❌ [START_MATCH] Exception in on_start_match: {e}", level="ERROR")
             import traceback
-            custom_log(f"❌ [START_MATCH] Traceback: {traceback.format_exc()}", level="ERROR")
             # Use the coordinator to send error message
             if hasattr(self, 'app_manager') and self.app_manager:
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
                     coordinator._send_error(session_id, f'Start match failed: {str(e)}')
                 else:
-                    custom_log(f"⚠️ Coordinator not available for sending error message")
+                    pass
             else:
-                custom_log(f"⚠️ App manager not available for sending error message")
+                pass
             return False
 
     # ========= CONSOLIDATED GAME START HELPER METHODS =========
@@ -635,7 +596,6 @@ class GameStateManager:
                 card = game.deck.draw_card()
                 if card:
                     player.add_card_to_hand(card)
-        custom_log(f"🎮 [START_MATCH] Dealt 4 cards to each of {len(game.players)} players")
     
     def _setup_piles(self, game: GameState):
         """Set up draw and discard piles - moved from GameActions"""
@@ -647,9 +607,8 @@ class GameStateManager:
         if game.draw_pile:
             first_card = game.draw_pile.pop(0)
             game.discard_pile.append(first_card)
-            custom_log(f"🎮 [START_MATCH] Set up piles: {len(game.draw_pile)} cards in draw pile, 1 card in discard pile")
         else:
-            custom_log(f"⚠️ [START_MATCH] No cards available for pile setup")
+            pass
 
 
 
@@ -710,16 +669,10 @@ class GameStateManager:
         
         # Get current player data
         current_player = None
-        custom_log(f"[DEBUG] Current player ID: {game.current_player_id}", level="DEBUG")
-        custom_log(f"[DEBUG] Available players: {list(game.players.keys())}", level="DEBUG")
         if game.current_player_id and game.current_player_id in game.players:
             current_player = self._to_flutter_player_data(game.players[game.current_player_id], True)
-            custom_log(f"[DEBUG] Created current player object: {current_player['id'] if current_player else 'None'}", level="DEBUG")
         else:
-            custom_log(f"[DEBUG] No current player found - ID: {game.current_player_id}, in players: {game.current_player_id in game.players if game.current_player_id else False}", level="DEBUG")
-        
-        # Debug what we're sending as currentPlayer
-        custom_log(f"[DEBUG] Sending currentPlayer: {current_player} (type: {type(current_player)})", level="DEBUG")
+            pass
 
         # Build complete game data structure matching Flutter schema
         game_data = {
@@ -812,22 +765,18 @@ class GameStateManager:
         try:
             # Register callback for room_created hook
             self.app_manager.register_hook_callback('room_created', self._on_room_created)
-            custom_log("🎣 [HOOK] Registered room_created callback in GameStateManager")
             
             # Register callback for room_joined hook
             self.app_manager.register_hook_callback('room_joined', self._on_room_joined)
-            custom_log("🎣 [HOOK] Registered room_joined callback in GameStateManager")
             
             # Register callback for room_closed hook
             self.app_manager.register_hook_callback('room_closed', self._on_room_closed)
-            custom_log("🎣 [HOOK] Registered room_closed callback in GameStateManager")
             
             # Register callback for leave_room hook
             self.app_manager.register_hook_callback('leave_room', self._on_leave_room)
-            custom_log("🎣 [HOOK] Registered leave_room callback in GameStateManager")
             
         except Exception as e:
-            custom_log(f"❌ Error registering hook callbacks: {e}", level="ERROR")
+            pass
     
     def _on_room_created(self, room_data: Dict[str, Any]):
         """Callback for room_created hook - automatically create game"""
@@ -837,8 +786,6 @@ class GameStateManager:
             min_players = room_data.get('min_players', 2)
             permission = room_data.get('permission', 'public')  # Extract room permission
             
-            custom_log(f"🎮 [HOOK] Room created: {room_id}, creating game automatically with permission: {permission}")
-            
             # Create game with room_id as game_id and room permission
             game_id = self.create_game_with_id(room_id, max_players=max_players, min_players=min_players, permission=permission)
             
@@ -846,12 +793,10 @@ class GameStateManager:
             game = self.get_game(game_id)
             if game:
                 game.phase = GamePhase.WAITING_FOR_PLAYERS
-                custom_log(f"✅ Game {game_id} created and initialized for room {room_id} with permission: {permission}")
             else:
-                custom_log(f"❌ Failed to create game for room {room_id}")
-                
+                pass
         except Exception as e:
-            custom_log(f"❌ Error in _on_room_created callback: {e}", level="ERROR")
+            pass
     
     def _on_room_joined(self, room_data: Dict[str, Any]):
         """Callback for room_joined hook - handle player joining existing game"""
@@ -861,13 +806,9 @@ class GameStateManager:
             session_id = room_data.get('session_id')  # Get session_id from room_data
             current_size = room_data.get('current_size', 1)
             
-            custom_log(f"🎮 [HOOK] Player {user_id} joined room {room_id}, session: {session_id}, current size: {current_size}")
-            custom_log(f"🔍 [DEBUG] _on_room_joined callback triggered with room_data: {room_data}")
-            
             # Check if game exists for this room
             game = self.get_game(room_id)
             if not game:
-                custom_log(f"⚠️ No game found for room {room_id}, this shouldn't happen")
                 return
             
             # Add player to the game if they don't exist
@@ -878,14 +819,12 @@ class GameStateManager:
                 player = HumanPlayer(user_id, f"Player_{user_id[:8]}")
                 game.add_player(player)
                 player_added = True
-                custom_log(f"✅ Added player {user_id} to game {room_id}")
             else:
-                custom_log(f"ℹ️ Player {user_id} already exists in game {room_id}")
+                pass
             
             # Set up session mapping for the player
             if session_id and user_id:
                 game.update_player_session(user_id, session_id)
-                custom_log(f"🔗 Session mapping created: session {session_id} -> player {user_id}")
             
             # Update room size in WebSocket manager (if player was newly added)
             if player_added:
@@ -894,35 +833,25 @@ class GameStateManager:
                     ws_manager = WebSocketManager.instance
                     if ws_manager:
                         ws_manager.update_room_size(room_id, 1)  # Increase room size by 1
-                        custom_log(f"📊 Updated room {room_id} size after player {user_id} joined")
                 except Exception as e:
-                    custom_log(f"⚠️ Failed to update room size: {e}")
+                    pass
             
             # Update game state based on player count
             if current_size >= game.min_players and game.phase == GamePhase.WAITING_FOR_PLAYERS:
-                custom_log(f"🎮 Room {room_id} has enough players ({current_size}), ready to start")
-                # Game is ready but not started yet - will be started manually or via auto-start
-            
-            # 🎯 NEW: Send recall-specific events after player joins
-            custom_log(f"🔍 [DEBUG] About to send recall player joined events for {user_id} in room {room_id}")
+                pass
             
             # Use the coordinator to send recall player joined events
             if hasattr(self, 'app_manager') and self.app_manager:
-                custom_log(f"🔍 [DEBUG] App manager is available")
                 coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                 if coordinator:
-                    custom_log(f"🔍 [DEBUG] Coordinator is available, calling _send_recall_player_joined_events")
                     coordinator._send_recall_player_joined_events(room_id, user_id, session_id, game)
-                    custom_log(f"✅ [DEBUG] _send_recall_player_joined_events called successfully")
                 else:
-                    custom_log(f"⚠️ Coordinator not available for sending recall player joined events")
+                    pass
             else:
-                custom_log(f"⚠️ App manager not available for sending recall player joined events")
+                pass
             
         except Exception as e:
-            custom_log(f"❌ Error in _on_room_joined callback: {e}", level="ERROR")
             import traceback
-            custom_log(f"❌ Traceback: {traceback.format_exc()}", level="ERROR")
     
     def _on_room_closed(self, room_data: Dict[str, Any]):
         """Callback for room_closed hook - cleanup game when room is closed"""
@@ -930,17 +859,13 @@ class GameStateManager:
             room_id = room_data.get('room_id')
             reason = room_data.get('reason', 'unknown')
             
-            custom_log(f"🎮 [HOOK] Room closed: {room_id}, reason: {reason}, cleaning up game")
-            
             # Remove game if it exists
             if room_id in self.active_games:
                 del self.active_games[room_id]
-                custom_log(f"✅ Game {room_id} removed due to room closure")
             else:
-                custom_log(f"ℹ️ No game found for closed room {room_id}")
-                
+                pass
         except Exception as e:
-            custom_log(f"❌ Error in _on_room_closed callback: {e}", level="ERROR")
+            pass
     
     def _on_leave_room(self, room_data: Dict[str, Any]):
         """Callback for leave_room hook - handle player leaving game"""
@@ -949,12 +874,9 @@ class GameStateManager:
             session_id = room_data.get('session_id')
             user_id = room_data.get('user_id')  # Get user_id from room_data
             
-            custom_log(f"🎮 [HOOK] Player left room: {room_id}, session: {session_id}, user: {user_id}")
-            
             # Check if game exists for this room
             game = self.get_game(room_id)
             if not game:
-                custom_log(f"ℹ️ No game found for room {room_id}")
                 return
             
             # Try to find player by session_id first
@@ -962,23 +884,20 @@ class GameStateManager:
             if session_id:
                 player_id = game.get_session_player(session_id)
                 if player_id:
-                    custom_log(f"🔍 Found player {player_id} by session {session_id}")
+                    pass
             
             # Fallback: try to find player by user_id if session lookup failed
             if not player_id and user_id:
                 if user_id in game.players:
                     player_id = user_id
-                    custom_log(f"🔍 Found player {player_id} by user_id {user_id}")
             
             # Remove player if found
             if player_id:
                 game.remove_player(player_id)
-                custom_log(f"✅ Player {player_id} removed from game {room_id}")
                 
                 # Clean up session mapping
                 if session_id:
                     game.remove_session(session_id)
-                    custom_log(f"🧹 Session mapping cleaned up for session {session_id}")
                 
                 # Update room size in WebSocket manager
                 try:
@@ -986,15 +905,10 @@ class GameStateManager:
                     ws_manager = WebSocketManager.instance
                     if ws_manager:
                         ws_manager.update_room_size(room_id, -1)  # Decrease room size by 1
-                        custom_log(f"📊 Updated room {room_id} size after player {player_id} left")
                 except Exception as e:
-                    custom_log(f"⚠️ Failed to update room size: {e}")
-                
-                # Note: Game phase remains WAITING_FOR_PLAYERS even when empty
-                # Games are only cleaned up when rooms are closed (via TTL or stale cleanup)
-                custom_log(f"🎮 Game {room_id} now has {len(game.players)} players, but remains available for joining")
+                    pass
             else:
-                custom_log(f"⚠️ No player found for session {session_id} or user {user_id} in game {room_id}")
+                pass
             
         except Exception as e:
-            custom_log(f"❌ Error in _on_leave_room callback: {e}", level="ERROR")
+            pass

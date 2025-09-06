@@ -21,12 +21,10 @@ class GameEventCoordinator:
     def register_game_event_listeners(self):
         """Register WebSocket event listeners for Recall game events"""
         try:
-            custom_log("🎮 Registering Recall game WebSocket event listeners...")
             
             # Get the WebSocket event listeners from the WebSocket manager
             event_listeners = self.websocket_manager.event_listeners
             if not event_listeners:
-                custom_log("❌ WebSocket event listeners not available", level="ERROR")
                 return False
             
             # Define all game events
@@ -50,20 +48,14 @@ class GameEventCoordinator:
                 
                 event_listeners.register_custom_listener(event_name, create_event_handler(event_name))
                 self.registered_events.append(event_name)
-                custom_log(f"✅ Registered game event listener: {event_name}")
-            
-            custom_log(f"✅ Registered {len(game_events)} Recall game event listeners")
             return True
             
         except Exception as e:
-            custom_log(f"❌ Error registering Recall game WebSocket listeners: {e}", level="ERROR")
             return False
     
     def handle_game_event(self, session_id: str, event_name: str, data: dict) -> bool:
         """Handle incoming game events and route to appropriate handlers"""
         try:
-            custom_log(f"🎮 [RECALL-GAME] Handling game event: '{event_name}' for session: {session_id}")
-            custom_log(f"🎮 [RECALL-GAME] Event data: {data}")
             
             # Route to appropriate game state manager method
             if event_name == 'start_match':
@@ -93,11 +85,9 @@ class GameEventCoordinator:
                 data_with_action = {**data, 'action': 'same_rank_play'}
                 return self._handle_player_action_through_round(session_id, data_with_action)
             else:
-                custom_log(f"⚠️ [RECALL-GAME] Unknown game event: '{event_name}'")
                 return False
                 
         except Exception as e:
-            custom_log(f"❌ [RECALL-GAME] Error handling game event: {e}", level="ERROR")
             return False
     
     def _handle_player_action_through_round(self, session_id: str, data: dict) -> bool:
@@ -105,19 +95,16 @@ class GameEventCoordinator:
         try:
             game_id = data.get('game_id') or data.get('room_id')
             if not game_id:
-                custom_log(f"❌ [RECALL-GAME] Missing game_id in player action data: {data}")
                 return False
             
             # Get the game from the game state manager
             game = self.game_state_manager.get_game(game_id)
             if not game:
-                custom_log(f"❌ [RECALL-GAME] Game not found: {game_id}")
                 return False
             
             # Get the game round handler
             game_round = game.get_round()
             if not game_round:
-                custom_log(f"❌ [RECALL-GAME] Game round not found for game: {game_id}")
                 return False
             
             # Handle the player action through the game round and store the result
@@ -127,7 +114,6 @@ class GameEventCoordinator:
             return action_result
             
         except Exception as e:
-            custom_log(f"❌ [RECALL-GAME] Error handling player action through round: {e}", level="ERROR")
             return False
     
     # ========= COMMUNICATION METHODS =========
@@ -145,7 +131,7 @@ class GameEventCoordinator:
                 event_payload = {k: v for k, v in payload.items() if k != 'event_type'}
                 self.websocket_manager.socketio.emit(event_type, event_payload, room=room_id)
         except Exception as e:
-            custom_log(f"❌ Error broadcasting event: {e}")
+            pass
 
     def _send_to_player(self, game_id: str, player_id: str, event: str, data: dict) -> bool:
         """Send event to specific player"""
@@ -159,7 +145,6 @@ class GameEventCoordinator:
             self.websocket_manager.send_to_session(session_id, event, data)
             return True
         except Exception as e:
-            custom_log(f"❌ Error sending to player: {e}")
             return False
 
     def _send_to_all_players(self, game_id: str, event: str, data: dict) -> bool:
@@ -172,7 +157,6 @@ class GameEventCoordinator:
                 self.websocket_manager.send_to_session(session_id, event, data)
             return True
         except Exception as e:
-            custom_log(f"❌ Error broadcasting to players: {e}")
             return False
 
     def _send_action_result(self, game_id: str, player_id: str, result: Dict[str, Any]):
@@ -198,7 +182,7 @@ class GameEventCoordinator:
                     continue
                 self.websocket_manager.send_to_session(session_id, 'game_action', data)
         except Exception as e:
-            custom_log(f"❌ Error broadcasting game action: {e}")
+            pass
 
     def _send_game_state_update(self, game_id: str):
         """Send game state update to all players"""
@@ -216,11 +200,9 @@ class GameEventCoordinator:
         try:
             game = self.game_state_manager.get_game(game_id)
             if not game:
-                custom_log(f"❌ Game {game_id} not found for player state update")
                 return
             
             if player_id not in game.players:
-                custom_log(f"❌ Player {player_id} not found in game {game_id}")
                 return
             
             player = game.players[player_id]
@@ -230,10 +212,8 @@ class GameEventCoordinator:
             if not session_id:
                 # Computer players don't have session IDs, but their status should still be updated in game state
                 if player_id.startswith('computer_'):
-                    custom_log(f"🤖 Computer player {player_id} status updated in game state (no WebSocket session)")
                     return
                 else:
-                    custom_log(f"⚠️ No session found for human player {player_id} in game {game_id}")
                     return
             
             # Convert player to Flutter format using GameStateManager
@@ -253,17 +233,15 @@ class GameEventCoordinator:
             
             # Send to the specific player
             self.websocket_manager.send_to_session(session_id, 'player_state_updated', payload)
-            custom_log(f"📡 Player state update sent to player {player_id} in game {game_id}")
             
         except Exception as e:
-            custom_log(f"❌ Error sending player state update: {e}", level="ERROR")
+            pass
     
     def _send_player_state_update_to_all(self, game_id: str):
         """Send player state update to all players in the game"""
         try:
             game = self.game_state_manager.get_game(game_id)
             if not game:
-                custom_log(f"❌ Game {game_id} not found for player state update to all")
                 return
             
             # Send player state update to each player
@@ -288,12 +266,9 @@ class GameEventCoordinator:
                     
                     # Send to the specific player
                     self.websocket_manager.send_to_session(session_id, 'player_state_updated', payload)
-                    custom_log(f"📡 Player state update sent to player {player_id} in game {game_id}")
-            
-            custom_log(f"📡 Player state updates sent to all players in game {game_id}")
             
         except Exception as e:
-            custom_log(f"❌ Error sending player state update to all: {e}", level="ERROR")
+            pass
     
     def _send_round_completion_event(self, game_id: str, round_result: Dict[str, Any]):
         """Send round completion event to all players"""
@@ -309,23 +284,19 @@ class GameEventCoordinator:
                 'timestamp': datetime.now().isoformat()
             }
             self._send_to_all_players(game_id, 'round_completed', payload)
-            custom_log(f"🏁 Round completion event sent for game {game_id}")
         except Exception as e:
-            custom_log(f"❌ Error sending round completion event: {e}", level="ERROR")
+            pass
 
     def _send_recall_player_joined_events(self, room_id: str, user_id: str, session_id: str, game):
         """Send recall-specific events when a player joins a room"""
         try:
-            custom_log(f"📡 [DEBUG] _send_recall_player_joined_events called for user {user_id} in room {room_id}, session {session_id}")
             
             # Convert game to Flutter format using GameStateManager (which has the proper conversion method)
             game_state = self.game_state_manager._to_flutter_game_data(game)
-            custom_log(f"🔍 [DEBUG] Game state converted to Flutter format")
             
             # 1. Send new_player_joined event to the room
             # Get the owner_id for this room from the WebSocket manager
             owner_id = self.websocket_manager.get_room_creator(room_id)
-            custom_log(f"🔍 [DEBUG] Room owner_id: {owner_id}")
             
             room_payload = {
                 'event_type': 'recall_new_player_joined',
@@ -343,16 +314,10 @@ class GameEventCoordinator:
             
             # Send as direct event to the room
             self.websocket_manager.socketio.emit('recall_new_player_joined', room_payload, room=room_id)
-            custom_log(f"📡 [RECALL] recall_new_player_joined event sent to room {room_id} for player {user_id}")
-            
-            # 2. Send joined_games event to the joined user
-            custom_log(f"🔍 [DEBUG] Building joined games list for user {user_id}")
             user_games = []
             for game_id, user_game in self.game_state_manager.active_games.items():
-                custom_log(f"🔍 [DEBUG] Checking game {game_id}, players: {list(user_game.players.keys())}")
                 # Check if user is in this game
                 if user_id in user_game.players:
-                    custom_log(f"✅ [DEBUG] User {user_id} is in game {game_id}")
                     # Use GameStateManager for data conversion
                     user_game_state = self.game_state_manager._to_flutter_game_data(user_game)
                     
@@ -367,9 +332,7 @@ class GameEventCoordinator:
                         'joined_at': datetime.now().isoformat()
                     })
                 else:
-                    custom_log(f"❌ [DEBUG] User {user_id} is NOT in game {game_id}")
-            
-            custom_log(f"🔍 [DEBUG] Found {len(user_games)} games for user {user_id}")
+                    pass
             
             user_payload = {
                 'event_type': 'recall_joined_games',
@@ -380,17 +343,11 @@ class GameEventCoordinator:
                 'timestamp': datetime.now().isoformat()
             }
             
-            custom_log(f"🔍 [DEBUG] About to send recall_joined_games event to session {session_id}")
-            custom_log(f"🔍 [DEBUG] User payload: {user_payload}")
-            
             # Send as direct event to the specific user's session
             self.websocket_manager.send_to_session(session_id, 'recall_joined_games', user_payload)
-            custom_log(f"📡 [RECALL] recall_joined_games event sent to session {session_id} with {len(user_games)} games")
             
         except Exception as e:
-            custom_log(f"❌ Error sending recall player joined events: {e}", level="ERROR")
             import traceback
-            custom_log(f"❌ Traceback: {traceback.format_exc()}", level="ERROR")
     
 
     

@@ -22,12 +22,10 @@ class RateLimiterManager:
             self.redis_manager = redis_manager if redis_manager else RedisManager()
             self._setup_config()
             RateLimiterManager._initialized = True
-            custom_log("RateLimiterManager initialized")
 
     def set_redis_manager(self, redis_manager):
         """Set the Redis manager instance (for dependency injection)."""
         self.redis_manager = redis_manager
-        custom_log("RateLimiterManager Redis manager updated")
 
     def _setup_config(self):
         """Set up rate limiting configuration from Config."""
@@ -75,20 +73,16 @@ class RateLimiterManager:
                 if payload:
                     user_id = payload.get('user_id')
                     if user_id:
-                        custom_log(f"Extracted user_id {user_id} from JWT token for rate limiting")
                         return str(user_id)
                     else:
-                        custom_log("JWT token valid but no user_id found")
                         return None
                 else:
-                    custom_log("Invalid JWT token in rate limiting check")
                     return None
             else:
-                custom_log("No Authorization header found for rate limiting")
                 return None
                 
         except Exception as e:
-            custom_log(f"Error extracting user_id from JWT token: {str(e)}", level="ERROR")
+            pass
         return None
 
     def _get_api_key(self) -> Optional[str]:
@@ -117,7 +111,6 @@ class RateLimiterManager:
         try:
             return self.redis_manager.exists(ban_key)
         except RedisError as e:
-            custom_log(f"Redis error checking ban status: {str(e)}", level="ERROR")
             return False
 
     def _track_violation(self, identifier: str, limit_type: str) -> bool:
@@ -140,7 +133,6 @@ class RateLimiterManager:
                 
             return False
         except RedisError as e:
-            custom_log(f"Redis error tracking violation: {str(e)}", level="ERROR")
             return False
 
     def _ban_identifier(self, identifier: str, limit_type: str) -> None:
@@ -148,12 +140,8 @@ class RateLimiterManager:
         ban_key = self._generate_ban_key(identifier, limit_type)
         try:
             self.redis_manager.set(ban_key, 1, expire=Config.AUTO_BAN_DURATION)
-            custom_log(
-                f"Banned {limit_type} {identifier} for {Config.AUTO_BAN_DURATION} seconds",
-                level="WARNING"
-            )
         except RedisError as e:
-            custom_log(f"Redis error setting ban: {str(e)}", level="ERROR")
+            pass
 
     def check_rate_limit(self, limit_types: Union[str, List[str]] = 'ip', 
                         identifiers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
@@ -252,7 +240,6 @@ class RateLimiterManager:
                 result['reset_time'][limit_type] = int(time.time()) + self.redis_manager.ttl(key)
 
         except RedisError as e:
-            custom_log(f"Redis error in rate limiting: {str(e)}", level="ERROR")
             # On Redis error, allow the request but log the error
             return {
                 'allowed': True,

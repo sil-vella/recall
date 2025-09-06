@@ -83,8 +83,6 @@ class StateManager:
         
         # Initialize main app state
         self._initialize_main_app_state()
-        
-        custom_log("✅ StateManager singleton initialized")
     
     @classmethod
     def get_instance(cls, redis_manager: Optional[RedisManager] = None, 
@@ -157,8 +155,6 @@ class StateManager:
                     'allowed': allowed_transitions,
                     'current': StateTransition.CREATE.value
                 }
-            
-            custom_log(f"✅ State {state_id} registered successfully")
             return True
             
         except Exception as e:
@@ -245,8 +241,6 @@ class StateManager:
             
             # Trigger callbacks
             self._trigger_state_callbacks(state_id, transition_type, new_data)
-            
-            custom_log(f"✅ State {state_id} updated successfully")
             return True
             
         except Exception as e:
@@ -287,8 +281,6 @@ class StateManager:
                 del self._transition_rules[state_id]
             if state_id in self._state_callbacks:
                 del self._state_callbacks[state_id]
-            
-            custom_log(f"✅ State {state_id} deleted successfully")
             return True
             
         except Exception as e:
@@ -332,7 +324,6 @@ class StateManager:
                 self._state_callbacks[state_id] = []
             
             self._state_callbacks[state_id].append(callback)
-            custom_log(f"✅ Callback registered for state {state_id}")
             return True
             
         except Exception as e:
@@ -474,7 +465,6 @@ class StateManager:
             # Check if main state already exists
             existing_state = self.get_state("main_state")
             if existing_state:
-                custom_log("✅ Main app state already exists")
                 return
             
             # Create main app state
@@ -505,12 +495,11 @@ class StateManager:
             )
             
             if success:
-                custom_log("✅ Main app state initialized with status: idle")
+                pass
             else:
-                custom_log("❌ Failed to initialize main app state")
-                
+                pass
         except Exception as e:
-            custom_log(f"❌ Error initializing main app state: {e}", level="ERROR")
+            pass
 
     def health_check(self) -> Dict[str, Any]:
         """Perform health check on the state manager."""

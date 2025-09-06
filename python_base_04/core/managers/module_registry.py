@@ -61,19 +61,13 @@ class ModuleRegistry:
                             # Use directory name as module key (remove '_module' suffix if present)
                             module_key = item.replace('_module', '')
                             modules[module_key] = module_class
-                            custom_log(f"✅ Discovered module: {module_key} -> {module_class.__name__}")
                         else:
-                            custom_log(f"⚠️ No module class found in {item}")
-                            
+                            pass
                     except Exception as e:
-                        custom_log(f"❌ Error importing module {item}: {e}")
                         continue
-            
-            custom_log(f"Auto-discovered {len(modules)} modules: {list(modules.keys())}")
             return modules
             
         except Exception as e:
-            custom_log(f"❌ Error scanning modules directory: {e}")
             return {}
     
     @staticmethod
@@ -92,8 +86,6 @@ class ModuleRegistry:
             "transactions": ["user_management", "wallet"],  # Needs users and wallet
             "recall_game": ["user_management"],  # Needs user management for JWT auth
         }
-        
-        custom_log(f"Module dependencies defined: {dependencies}")
         return dependencies
     
     @staticmethod
@@ -143,24 +135,18 @@ class ModuleRegistry:
             # Check if all dependency references exist
             for module_key, deps in dependencies.items():
                 if module_key not in modules:
-                    custom_log(f"❌ Module {module_key} in dependencies but not in modules registry")
                     return False
                     
                 for dep in deps:
                     if dep not in modules:
-                        custom_log(f"❌ Dependency {dep} for module {module_key} not found in modules registry")
                         return False
             
             # Check for circular dependencies (basic check)
             if ModuleRegistry._has_circular_dependency(dependencies):
-                custom_log("❌ Circular dependency detected in module registry")
                 return False
-            
-            custom_log("✅ Module registry validation passed")
             return True
             
         except Exception as e:
-            custom_log(f"❌ Module registry validation failed: {e}")
             return False
     
     @staticmethod
@@ -229,6 +215,4 @@ class ModuleRegistry:
         
         if len(load_order) != len(modules):
             raise RuntimeError("Circular dependency detected in module dependencies")
-        
-        custom_log(f"Module load order resolved: {load_order}")
         return load_order 

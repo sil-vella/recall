@@ -37,7 +37,6 @@ class RecallGameMain(BaseModule):
             self.websocket_manager = app_manager.get_websocket_manager()
             
             if not self.websocket_manager:
-                custom_log("❌ WebSocket manager not available for Recall game", level="ERROR")
                 return False
             
             # Initialize core components
@@ -52,7 +51,6 @@ class RecallGameMain(BaseModule):
             # Attach coordinator and game state manager to app_manager so other modules can access them
             setattr(self.app_manager, 'game_event_coordinator', self.game_event_coordinator)
             setattr(self.app_manager, 'game_state_manager', self.game_state_manager)
-            custom_log("🔗 GameEventCoordinator and GameStateManager attached to app_manager")
             
             # Register WebSocket event listeners for game events
             self.game_event_coordinator.register_game_event_listeners()
@@ -61,24 +59,19 @@ class RecallGameMain(BaseModule):
             self.register_routes()
             
             self._initialized = True
-            custom_log("✅ Recall Game backend initialized successfully")
             return True
             
         except Exception as e:
-            custom_log(f"❌ Failed to initialize Recall Game backend: {str(e)}", level="ERROR")
             return False
     
     def register_routes(self):
         """Register all Recall game routes."""
-        custom_log("Registering Recall game routes...")
         
         # Register the get-available-games endpoint with JWT authentication
         self._register_route_helper("/userauth/recall/get-available-games", self.get_available_games, methods=["GET"], auth="jwt")
         
         # Register the find-room endpoint with JWT authentication
         self._register_route_helper("/userauth/recall/find-room", self.find_room, methods=["POST"], auth="jwt")
-        
-        custom_log(f"Recall game module registered {len(self.registered_routes)} routes")
     
 
     
@@ -125,12 +118,9 @@ class RecallGameMain(BaseModule):
                 "count": len(available_games),
                 "timestamp": time.time()
             }
-            
-            custom_log(f"✅ Available games retrieved successfully for user: {payload.get('user_id')}, found {len(available_games)} games")
             return jsonify(response_data), 200
             
         except Exception as e:
-            custom_log(f"❌ Error in get_available_games endpoint: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "message": "Failed to retrieve available games",
@@ -208,12 +198,9 @@ class RecallGameMain(BaseModule):
                 "game": game_info,
                 "timestamp": time.time()
             }
-            
-            custom_log(f"✅ Game '{room_id}' found successfully for user: {payload.get('user_id')}")
             return jsonify(response_data), 200
             
         except Exception as e:
-            custom_log(f"❌ Error in find_room endpoint: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "message": "Failed to find game",
@@ -267,10 +254,9 @@ class RecallGameMain(BaseModule):
     def cleanup(self):
         """Clean up Recall game resources"""
         try:
-            custom_log("✅ Recall Game backend cleaned up successfully")
-            
+            pass
         except Exception as e:
-            custom_log(f"❌ Error cleaning up Recall Game backend: {str(e)}", level="ERROR")
+            pass
 
 
 # Global instance for easy access
@@ -286,14 +272,11 @@ def initialize_recall_game(app_manager) -> Optional[RecallGameMain]:
         success = _recall_game_main.initialize(app_manager)
         
         if success:
-            custom_log("✅ Recall Game backend initialized successfully")
             return _recall_game_main
         else:
-            custom_log("❌ Failed to initialize Recall Game backend", level="ERROR")
             return None
             
     except Exception as e:
-        custom_log(f"❌ Error initializing Recall Game backend: {str(e)}", level="ERROR")
         return None
 
 

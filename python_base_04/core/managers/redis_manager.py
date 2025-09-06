@@ -67,9 +67,6 @@ class RedisManager:
             redis_port = Config.REDIS_PORT
             redis_password = Config.REDIS_PASSWORD
 
-            # Log configuration for debugging
-            custom_log(f"🔍 Redis connection config - Host: {redis_host}, Port: {redis_port}, Password: {'***' if redis_password else 'EMPTY'}")
-
             # Base connection pool settings
             pool_settings = {
                 'host': redis_host,
@@ -100,9 +97,7 @@ class RedisManager:
             # Initialize Redis client (but don't test connection during startup)
             self.redis = redis.Redis(connection_pool=self.connection_pool)
             self._initialized = True
-            custom_log(f"✅ Redis connection pool initialized (host={redis_host}, port={redis_port}) - connection will be tested on first use")
         except Exception as e:
-            custom_log(f"❌ Error initializing Redis connection pool: {e}")
             self._initialized = False
             raise
 
@@ -130,7 +125,6 @@ class RedisManager:
             # Encrypt the data
             return self.cipher_suite.encrypt(data.encode()).decode()
         except Exception as e:
-            custom_log(f"Error encrypting data: {str(e)}")
             raise
 
     def _convert_sets_to_lists(self, data):
@@ -169,8 +163,6 @@ class RedisManager:
                 
             return data
         except Exception as e:
-            # Log the error but don't fail the application
-            custom_log(f"⚠️ Error decrypting data (this is normal for non-encrypted data): {str(e)}")
             # Return None instead of failing - this allows the application to continue
             return None
 
@@ -198,12 +190,9 @@ class RedisManager:
                 if decrypted_value is not None:
                     return decrypted_value
                 else:
-                    # If decryption failed, try to return the raw value as fallback
-                    custom_log(f"⚠️ Decryption failed for key {secure_key}, returning raw value")
                     return value
             return None
         except Exception as e:
-            custom_log(f"❌ Error getting value from Redis: {e}")
             return None
 
     def set(self, key, value, expire=None, *args):
@@ -220,7 +209,6 @@ class RedisManager:
                 self.redis.set(secure_key, encrypted_value)
             return True
         except Exception as e:
-            custom_log(f"❌ Error setting value in Redis: {e}")
             return False
 
     def delete(self, key, *args):
@@ -230,7 +218,6 @@ class RedisManager:
             self.redis.delete(secure_key)
             return True
         except Exception as e:
-            custom_log(f"❌ Error deleting value from Redis: {e}")
             return False
 
     def exists(self, key, *args):
@@ -239,7 +226,6 @@ class RedisManager:
             secure_key = self._generate_secure_key(key, *args)
             return self.redis.exists(secure_key)
         except Exception as e:
-            custom_log(f"❌ Error checking key existence in Redis: {e}")
             return False
 
     def expire(self, key, seconds, *args):
@@ -248,7 +234,6 @@ class RedisManager:
             secure_key = self._generate_secure_key(key, *args)
             return self.redis.expire(secure_key, seconds)
         except Exception as e:
-            custom_log(f"❌ Error setting expiration in Redis: {e}")
             return False
 
     def ttl(self, key, *args):
@@ -257,7 +242,6 @@ class RedisManager:
             secure_key = self._generate_secure_key(key, *args)
             return self.redis.ttl(secure_key)
         except Exception as e:
-            custom_log(f"❌ Error getting TTL from Redis: {e}")
             return -1
 
     def incr(self, key, *args):
@@ -282,12 +266,9 @@ class RedisManager:
                     # If successful, increment it
                     return self.redis.incr(secure_key)
                 except (ValueError, TypeError):
-                    # If the value is not an integer, reset it to 1
-                    custom_log(f"⚠️ Redis key {secure_key} has non-integer value '{current_value}', resetting to 1")
                     self.redis.set(secure_key, 1)
                     return 1
         except Exception as e:
-            custom_log(f"❌ Error incrementing value in Redis: {e}")
             return None
 
     def decr(self, key, *args):
@@ -296,7 +277,6 @@ class RedisManager:
             secure_key = self._generate_secure_key(key, *args)
             return self.redis.decr(secure_key)
         except Exception as e:
-            custom_log(f"❌ Error decrementing value in Redis: {e}")
             return None
 
     def hset(self, key, field, value, *args):
@@ -306,7 +286,6 @@ class RedisManager:
             encrypted_value = self._encrypt_data(value)
             return self.redis.hset(secure_key, field, encrypted_value)
         except Exception as e:
-            custom_log(f"❌ Error setting hash field in Redis: {e}")
             return False
 
     def hget(self, key, field, *args):
@@ -318,7 +297,6 @@ class RedisManager:
                 return self._decrypt_data(value)
             return None
         except Exception as e:
-            custom_log(f"❌ Error getting hash field from Redis: {e}")
             return None
 
     def hdel(self, key, field, *args):
@@ -327,7 +305,6 @@ class RedisManager:
             secure_key = self._generate_secure_key(key, *args)
             return self.redis.hdel(secure_key, field)
         except Exception as e:
-            custom_log(f"❌ Error deleting hash field from Redis: {e}")
             return False
 
     def hgetall(self, key, *args):
@@ -337,7 +314,6 @@ class RedisManager:
             values = self.redis.hgetall(secure_key)
             return {k: self._decrypt_data(v) for k, v in values.items()}
         except Exception as e:
-            custom_log(f"❌ Error getting all hash fields from Redis: {e}")
             return {}
 
     def lpush(self, key, value, *args):
@@ -347,7 +323,6 @@ class RedisManager:
             encrypted_value = self._encrypt_data(value)
             return self.redis.lpush(secure_key, encrypted_value)
         except Exception as e:
-            custom_log(f"❌ Error pushing to list in Redis: {e}")
             return False
 
     def rpush(self, key, value, *args):
@@ -357,7 +332,6 @@ class RedisManager:
             encrypted_value = self._encrypt_data(value)
             return self.redis.rpush(secure_key, encrypted_value)
         except Exception as e:
-            custom_log(f"❌ Error pushing to end of list in Redis: {e}")
             return False
 
     def lpop(self, key, *args):
@@ -369,7 +343,6 @@ class RedisManager:
                 return self._decrypt_data(value)
             return None
         except Exception as e:
-            custom_log(f"❌ Error popping from list in Redis: {e}")
             return None
 
     def rpop(self, key, *args):
@@ -381,7 +354,6 @@ class RedisManager:
                 return self._decrypt_data(value)
             return None
         except Exception as e:
-            custom_log(f"❌ Error popping from end of list in Redis: {e}")
             return None
 
     def lrange(self, key, start, end, *args):
@@ -391,7 +363,6 @@ class RedisManager:
             values = self.redis.lrange(secure_key, start, end)
             return [self._decrypt_data(v) for v in values]
         except Exception as e:
-            custom_log(f"❌ Error getting range from list in Redis: {e}")
             return []
 
     def dispose(self):
@@ -399,9 +370,8 @@ class RedisManager:
         try:
             if self.connection_pool:
                 self.connection_pool.disconnect()
-                custom_log("✅ Redis connection pool disposed")
         except Exception as e:
-            custom_log(f"❌ Error disposing Redis connection pool: {e}")
+            pass
 
     def set_room_size(self, room_id: str, size: int, expire: int = 3600) -> bool:
         """Set room size in Redis without encryption."""
@@ -410,10 +380,8 @@ class RedisManager:
             self.redis.set(key, str(size))  # Convert int to string
             if expire:
                 self.redis.expire(key, expire)
-            custom_log(f"Set room size for {room_id} to {size}")
             return True
         except Exception as e:
-            custom_log(f"Error setting room size for {room_id}: {str(e)}")
             return False
 
     def get_room_size(self, room_id: str) -> int:
@@ -422,10 +390,8 @@ class RedisManager:
             key = f"room:size:{room_id}"
             value = self.redis.get(key)
             size = int(value) if value is not None else 0
-            custom_log(f"Got room size for {room_id}: {size}")
             return size
         except Exception as e:
-            custom_log(f"Error getting room size from Redis: {str(e)}")
             return 0
 
     def update_room_size(self, room_id: str, delta: int):
@@ -457,15 +423,13 @@ class RedisManager:
                             
                         # Execute transaction
                         pipe.execute()
-                        custom_log(f"Updated room {room_id} size from {current_size} to {new_size}")
                         return
                         
                     except Exception as e:
-                        custom_log(f"Error in room size update transaction: {str(e)}")
                         continue
                         
         except Exception as e:
-            custom_log(f"Error updating room size: {str(e)}")
+            pass
 
     def check_and_increment_room_size(self, room_id: str, room_size_limit: int = 100) -> bool:
         """Atomically check and increment room size if under limit."""
@@ -485,7 +449,6 @@ class RedisManager:
                         
                         # Check if we've hit the limit
                         if current_size >= room_size_limit:
-                            custom_log(f"Room {room_id} has reached size limit of {room_size_limit}")
                             return False
                             
                         # Increment size - ensure key exists first
@@ -500,15 +463,12 @@ class RedisManager:
                         
                         # Execute transaction
                         pipe.execute()
-                        custom_log(f"Incremented room {room_id} size to {current_size + 1}")
                         return True
                         
                     except Exception as e:
-                        custom_log(f"Error in room size transaction: {str(e)}")
                         continue
                         
         except Exception as e:
-            custom_log(f"Error checking and incrementing room size: {str(e)}")
             return False
 
     def reset_room_size(self, room_id: str):
@@ -516,9 +476,8 @@ class RedisManager:
         try:
             key = f"room:size:{room_id}"
             self.redis.delete(key)
-            custom_log(f"Reset room size for {room_id}")
         except Exception as e:
-            custom_log(f"Error resetting room size: {str(e)}")
+            pass
 
     def cleanup_room_keys(self, room_id: str) -> bool:
         """Clean up all Redis keys related to a room using pattern matching."""
@@ -531,19 +490,15 @@ class RedisManager:
             while True:
                 cursor, keys = self.redis.scan(cursor, match=pattern, count=100)
                 for key in keys:
-                    custom_log(f"Found room key: {key}")
                     self.redis.delete(key)
                     cleaned += 1
-                    custom_log(f"Deleted room key: {key}")
                     
                 if cursor == 0:
                     break
                     
-            custom_log(f"Cleaned up {cleaned} keys for room {room_id}")
             return True
             
         except Exception as e:
-            custom_log(f"Error cleaning up room keys for {room_id}: {str(e)}")
             return False
 
     def cleanup_pattern_keys(self, pattern: str, batch_size: int = 100) -> int:
@@ -551,8 +506,6 @@ class RedisManager:
         try:
             cursor = 0
             cleaned = 0
-            
-            custom_log(f"🧹 Starting pattern cleanup for: {pattern}")
             
             while True:
                 cursor, keys = self.redis.scan(cursor, match=pattern, count=batch_size)
@@ -567,17 +520,13 @@ class RedisManager:
                     # Execute deletions atomically
                     results = pipeline.execute()
                     successful_deletions = sum(1 for result in results if result == 1)
-                    
-                    custom_log(f"🗑️ Batch deleted {successful_deletions}/{len(keys)} keys")
                 
                 if cursor == 0:
                     break
                     
-            custom_log(f"✅ Pattern cleanup completed - {cleaned} total keys processed")
             return cleaned
             
         except Exception as e:
-            custom_log(f"❌ Error during pattern cleanup: {e}", level="ERROR")
             return 0
 
     def atomic_key_operations(self, operations: list) -> bool:
@@ -609,12 +558,9 @@ class RedisManager:
             
             # Execute all operations atomically
             results = pipeline.execute()
-            
-            custom_log(f"✅ Atomic operations completed - {len(results)} operations executed")
             return True
             
         except Exception as e:
-            custom_log(f"❌ Error during atomic operations: {e}", level="ERROR")
             return False
 
     def get_keys_by_pattern(self, pattern: str, max_keys: int = 1000) -> list:
@@ -629,18 +575,14 @@ class RedisManager:
                 
                 if cursor == 0:
                     break
-            
-            custom_log(f"🔍 Found {len(keys)} keys matching pattern: {pattern}")
             return keys[:max_keys]
             
         except Exception as e:
-            custom_log(f"❌ Error getting keys by pattern: {e}", level="ERROR")
             return []
 
     def cleanup_api_key_cache(self, app_id: str) -> int:
         """Specialized cleanup for API key cache with comprehensive pattern matching."""
         try:
-            custom_log(f"🧹 Starting API key cache cleanup for app_id: {app_id}")
             
             patterns_to_clean = [
                 f"api_key:*",  # Direct API key entries
@@ -673,17 +615,13 @@ class RedisManager:
                             pipeline.delete(key)
                         results = pipeline.execute()
                         total_cleaned += sum(1 for result in results if result == 1)
-                        custom_log(f"🗑️ Deleted {len(keys_to_delete)} API key entries for app_id: {app_id}")
                 else:
                     # For other patterns, direct deletion
                     cleaned = self.cleanup_pattern_keys(pattern)
                     total_cleaned += cleaned
-            
-            custom_log(f"✅ API key cache cleanup completed - {total_cleaned} total keys cleared")
             return total_cleaned
             
         except Exception as e:
-            custom_log(f"❌ Error during API key cache cleanup: {e}", level="ERROR")
             return 0
 
     def health_check_cache(self) -> Dict[str, Any]:
@@ -731,7 +669,6 @@ class RedisManager:
                 self._initialize_connection_pool()
             return True
         except Exception as e:
-            custom_log(f"❌ Redis connection check failed: {e}")
             return False
 
     def _generate_token_key(self, token_type: str, token: str) -> str:
@@ -761,7 +698,6 @@ class RedisManager:
             
             return True
         except Exception as e:
-            custom_log(f"❌ Error storing token: {e}")
             return False
 
     def is_token_valid(self, token_type: str, token: str) -> bool:
@@ -773,7 +709,6 @@ class RedisManager:
             token_key = self._generate_token_key(token_type, token)
             return self.redis.exists(token_key)
         except Exception as e:
-            custom_log(f"❌ Error checking token validity: {e}")
             return False
 
     def revoke_token(self, token_type: str, token: str) -> bool:
@@ -792,7 +727,6 @@ class RedisManager:
 
             return True
         except Exception as e:
-            custom_log(f"❌ Error revoking token: {e}")
             return False
 
     def cleanup_expired_tokens(self, token_type: str) -> bool:
@@ -809,11 +743,9 @@ class RedisManager:
                 if not self.redis.exists(token_key):
                     # Token has expired, remove from set
                     self.redis.srem(set_key, token)
-                    custom_log(f"Cleaned up expired {token_type} token")
 
             return True
         except Exception as e:
-            custom_log(f"❌ Error cleaning up expired tokens: {e}")
             return False
 
     def get_token_ttl(self, token_type: str, token: str) -> int:
@@ -825,7 +757,6 @@ class RedisManager:
             token_key = self._generate_token_key(token_type, token)
             return self.redis.ttl(token_key)
         except Exception as e:
-            custom_log(f"❌ Error getting token TTL: {e}")
             return -1
 
     def extend_token_ttl(self, token_type: str, token: str, seconds: int) -> bool:
@@ -837,7 +768,6 @@ class RedisManager:
             token_key = self._generate_token_key(token_type, token)
             return self.redis.expire(token_key, seconds)
         except Exception as e:
-            custom_log(f"❌ Error extending token TTL: {e}")
             return False
 
     def ping(self):
@@ -847,7 +777,6 @@ class RedisManager:
                 self._initialize_connection_pool()
             return self.redis.ping()
         except Exception as e:
-            custom_log(f"❌ Redis ping failed: {e}")
             self._initialized = False
             return False
 
@@ -861,7 +790,6 @@ class RedisManager:
         """Close all connections in the pool."""
         if self.connection_pool:
             self.connection_pool.disconnect()
-            custom_log("✅ Redis connection pool closed")
 
     def get_connection_count(self):
         """Get the number of active connections in the pool."""
@@ -876,7 +804,6 @@ class RedisManager:
             secure_key = self._generate_secure_key(key, *args)
             return self.redis.zadd(secure_key, mapping)
         except Exception as e:
-            custom_log(f"Error in zadd: {str(e)}")
             raise
 
     def zrangebyscore(self, key, min_score, max_score, start=0, num=None, *args):
@@ -888,7 +815,6 @@ class RedisManager:
             else:
                 return self.redis.zrangebyscore(secure_key, min_score, max_score, start=start)
         except Exception as e:
-            custom_log(f"Error in zrangebyscore: {str(e)}")
             raise
 
     def zrem(self, key, *members, **kwargs):
@@ -897,7 +823,6 @@ class RedisManager:
             secure_key = self._generate_secure_key(key, *kwargs.get('args', []))
             return self.redis.zrem(secure_key, *members)
         except Exception as e:
-            custom_log(f"Error in zrem: {str(e)}")
             raise
 
     def zcard(self, key, *args):
@@ -906,7 +831,6 @@ class RedisManager:
             secure_key = self._generate_secure_key(key, *args)
             return self.redis.zcard(secure_key)
         except Exception as e:
-            custom_log(f"Error in zcard: {str(e)}")
             raise
 
     def keys(self, pattern, *args):
@@ -918,5 +842,4 @@ class RedisManager:
             # a mapping of patterns to actual keys
             return self.redis.keys(pattern)
         except Exception as e:
-            custom_log(f"Error in keys: {str(e)}")
             raise 

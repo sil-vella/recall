@@ -23,8 +23,6 @@ class BaseModule(ABC):
         self.module_name = self.__class__.__name__
         self.logger = logging.getLogger(f"modules.{self.module_name}")
         self._initialized = False
-        
-        custom_log(f"Module {self.module_name} created")
     
     @abstractmethod
     def initialize(self, app_manager):
@@ -42,21 +40,18 @@ class BaseModule(ABC):
         Register module-specific routes with the Flask application.
         Override this method to add custom routes.
         """
-        custom_log(f"No routes to register for module {self.module_name}")
     
     def configure(self):
         """
         Configure module-specific settings.
         Override this method for custom configuration.
         """
-        custom_log(f"No configuration needed for module {self.module_name}")
     
     def dispose(self):
         """
         Cleanup module resources.
         Override this method for custom cleanup logic.
         """
-        custom_log(f"Disposing module {self.module_name}")
         self._initialized = False
     
     def declare_dependencies(self) -> List[str]:
@@ -126,7 +121,6 @@ class BaseModule(ABC):
         
         auth_info = f" (auth: {auth})" if auth else " (public)"
         self.logger.info(f"Registered route: {route} with methods {methods}{auth_info}")
-        custom_log(f"Module {self.module_name} registered route: {route}{auth_info}")
     
     def _register_auth_route_helper(self, route: str, view_func, methods: List[str] = None):
         """

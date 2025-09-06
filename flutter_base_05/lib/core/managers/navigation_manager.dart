@@ -30,17 +30,10 @@ class RegisteredRoute {
     final route = GoRoute(
       path: path,
       builder: (context, state) {
-        Logger().info('🔍 Building route: $path');
-        Logger().info('🔍 Route state: $state');
-        Logger().info('🔍 Route parameters: ${state.uri.queryParameters}');
-        Logger().info('🔍 Route path: ${state.uri.path}');
-        Logger().info('🔍 Route full path: ${state.uri.toString()}');
         final widget = screen(context);
-        Logger().info('🔍 Built widget for route: $path');
         return widget;
       },
     );
-    Logger().info('🔍 Created GoRoute for path: $path');
     return route;
   }
 
@@ -133,20 +126,16 @@ class NavigationManager extends ChangeNotifier {
   void setRouterInstance(GoRouter router) {
     _routerInstance = router;
     _isRouterInitialized = true;
-    _log.info('🧭 Router instance set: $router');
-    _log.info('🧭 Router initialized, processing pending navigations');
     _processPendingNavigations();
   }
   
   /// ✅ Mark router as initialized
   void markRouterInitialized() {
     if (_isRouterInitialized) {
-      _log.info('⏸️ Router already initialized, skipping duplicate call');
       return;
     }
     
     _isRouterInitialized = true;
-    _log.info('🧭 Router marked as initialized');
     _processPendingNavigations();
     
     // Trigger router initialized hook only once
@@ -154,7 +143,6 @@ class NavigationManager extends ChangeNotifier {
       final hooksManager = HooksManager();
       hooksManager.triggerHook('router_initialized');
       _hasTriggeredRouterHook = true;
-      _log.info('🔔 Router initialized hook triggered');
     }
   }
 
@@ -178,7 +166,6 @@ class NavigationManager extends ChangeNotifier {
     int drawerPosition = 999, // ✅ Default low priority
   }) {
     if (_routes.any((r) => r.path == path)) {
-      _log.info('⏸️ Route $path already registered, skipping duplicate');
       return; // Prevent duplicates
     }
 
@@ -191,7 +178,6 @@ class NavigationManager extends ChangeNotifier {
     );
 
     _routes.add(newRoute);
-    _log.info('✅ Registered route: $path');
 
     notifyListeners();
   }
@@ -204,7 +190,6 @@ class NavigationManager extends ChangeNotifier {
   GoRouter get router {
     // If we already have a router instance, return it
     if (_routerInstance != null) {
-      _log.info('🧭 Returning existing router instance: $_routerInstance');
       return _routerInstance!;
     }
     
@@ -212,8 +197,6 @@ class NavigationManager extends ChangeNotifier {
       GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
       ...routes, // ✅ Include dynamically registered plugin routes
     ];
-    
-    _log.info('🧭 Router created with ${allRoutes.length} routes: ${allRoutes.map((r) => r.path).join(', ')}');
     
     final newRouter = GoRouter(
       navigatorKey: _navigatorKey,
@@ -223,7 +206,6 @@ class NavigationManager extends ChangeNotifier {
     
     // Store the router instance
     _routerInstance = newRouter;
-    _log.info('🧭 Stored new router instance: $_routerInstance');
     
     return newRouter;
   }
@@ -235,51 +217,30 @@ class NavigationManager extends ChangeNotifier {
     if (_lastNavigationRoute == route && 
         _lastNavigationTime != null && 
         now.difference(_lastNavigationTime!).inMilliseconds < 1000) {
-      _log.info('⏸️ Duplicate navigation to $route within 1 second, skipping...');
       return;
     }
     
     _lastNavigationRoute = route;
     _lastNavigationTime = now;
     
-    _log.info('🧭 Navigation requested to: $route');
-    if (parameters != null) {
-      _log.info('🧭 With parameters: $parameters');
-    }
-    
     try {
       if (_routerInstance != null) {
-        _log.info('🧭 Using stored router instance for navigation to: $route');
-        _log.info('🧭 Router instance: $_routerInstance');
-        _log.info('🧭 Current location before navigation: ${_routerInstance!.routerDelegate.currentConfiguration.uri}');
         _routerInstance!.go(route);
-        _log.info('✅ Successfully navigated to: $route');
-        _log.info('🧭 Current location after navigation: ${_routerInstance!.routerDelegate.currentConfiguration.uri}');
       } else if (_navigationCallback != null) {
-        _log.info('🧭 Executing navigation callback for route: $route');
         _navigationCallback!(route);
-        _log.info('✅ Successfully navigated to: $route');
-      } else {
-        _log.error('❌ No router instance or callback available for route: $route');
       }
     } catch (e) {
-      _log.error('❌ Navigation failed to $route: $e');
+      // Navigation failed
     }
   }
   
   /// ✅ Navigate to a specific route (queues if router not ready)
   void navigateToWithDelay(String route, {Map<String, dynamic>? parameters}) {
-    _log.info('🧭 Navigation requested to: $route');
-    if (parameters != null) {
-      _log.info('🧭 With parameters: $parameters');
-    }
-    
     if (_isRouterInitialized && _routerInstance != null) {
       // Router is ready, navigate immediately
       navigateTo(route, parameters: parameters);
     } else {
       // Router not ready, queue the navigation
-      _log.info('🧭 Router not ready, queuing navigation to: $route');
       _pendingNavigations.add(() {
         navigateTo(route, parameters: parameters);
       });
@@ -289,12 +250,10 @@ class NavigationManager extends ChangeNotifier {
   /// ✅ Process pending navigations
   void _processPendingNavigations() {
     if (_pendingNavigations.isNotEmpty) {
-      _log.info('🧭 Processing ${_pendingNavigations.length} pending navigations');
       for (final navigation in _pendingNavigations) {
         navigation();
       }
       _pendingNavigations.clear();
-      _log.info('🧭 All pending navigations processed');
     }
   }
 

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
-import '../../managers/game_coordinator.dart';
-import '../../utils/recall_game_helpers.dart';
 
 class PracticeScreen extends BaseScreen {
   const PracticeScreen({Key? key}) : super(key: key);

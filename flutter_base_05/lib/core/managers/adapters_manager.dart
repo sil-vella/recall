@@ -1,12 +1,10 @@
 import '../00_base/adapter_base.dart';
 import 'app_manager.dart';
 import 'adapter_registry.dart';
-import '../../tools/logging/logger.dart';
 
 /// Manages external service adapters (RevenueCat, etc.)
 /// Similar to ModuleManager but for external integrations
 class AdaptersManager {
-  static final Logger _log = Logger();
   static final AdaptersManager _instance = AdaptersManager._internal();
   
   final Map<String, AdapterBase> _adapters = {};
@@ -30,25 +28,20 @@ class AdaptersManager {
       _initializedAdapters[adapter.adapterKey] = false;
     }
     
-    _log.info('🔧 AdaptersManager initialized with ${_adapters.length} adapters');
   }
 
   /// Register an adapter (for manual registration if needed)
   void registerAdapter(AdapterBase adapter) {
     if (_adapters.containsKey(adapter.adapterKey)) {
-      _log.warning('⚠️ Adapter ${adapter.adapterKey} already registered');
       return;
     }
     
     _adapters[adapter.adapterKey] = adapter;
     _initializedAdapters[adapter.adapterKey] = false;
-    _log.info('📝 Adapter manually registered: ${adapter.adapterKey}');
   }
 
   /// Initialize all registered adapters
   Future<void> initializeAdapters() async {
-    _log.info('🚀 Initializing adapters...');
-    
     // Initialize adapters in dependency order
     final sortedAdapters = _sortAdaptersByDependencies();
     
@@ -56,14 +49,10 @@ class AdaptersManager {
       try {
         await adapter.initialize(_appManager);
         _initializedAdapters[adapter.adapterKey] = true;
-        _log.info('✅ Adapter initialized: ${adapter.adapterKey}');
       } catch (e) {
-        _log.error('❌ Failed to initialize adapter ${adapter.adapterKey}: $e');
         _initializedAdapters[adapter.adapterKey] = false;
       }
     }
-    
-    _log.info('✅ Adapters initialization complete');
   }
 
   /// Sort adapters by dependencies
@@ -136,15 +125,11 @@ class AdaptersManager {
 
   /// Dispose all adapters
   void dispose() {
-    _log.info('🛑 Disposing all adapters...');
-    
     for (final adapter in _adapters.values) {
       adapter.dispose();
     }
     
     _adapters.clear();
     _initializedAdapters.clear();
-    
-    _log.info('✅ All adapters disposed');
   }
 } 

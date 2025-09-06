@@ -21,7 +21,6 @@ class ServicesManager extends ChangeNotifier {
     if (!_services.containsKey(key)) {
       _services[key] = service;
       await service.initialize();
-      _log.info('✅ Service registered: $key');
       notifyListeners();
     }
   }
@@ -32,7 +31,6 @@ class ServicesManager extends ChangeNotifier {
     if (service is T) {
       return service;
     }
-    _log.error("❌ Service [$key] not found.");
     return null;
   }
 

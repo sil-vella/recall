@@ -7,11 +7,9 @@ import '../../core/managers/module_manager.dart';
 import '../../core/managers/services_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../core/services/shared_preferences.dart';
-import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
 
 class MainHelperModule extends ModuleBase {
-  static final Logger _log = Logger();
   static final Random _random = Random();
 
   Timer? _activeTimer;
@@ -25,13 +23,11 @@ class MainHelperModule extends ModuleBase {
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
-    _log.info('✅ MainHelperModule initialized with context.');
   }
 
   /// Retrieve background by index (looping if out of range)
   static String getBackground(int index) {
     if (AppBackgrounds.backgrounds.isEmpty) {
-      _log.error('No backgrounds available.');
       return '';
     }
     return AppBackgrounds.backgrounds[index % AppBackgrounds.backgrounds.length];
@@ -40,7 +36,6 @@ class MainHelperModule extends ModuleBase {
   /// Retrieve a random background
   static String getRandomBackground() {
     if (AppBackgrounds.backgrounds.isEmpty) {
-      _log.error('No backgrounds available.');
       return '';
     }
     return AppBackgrounds.backgrounds[_random.nextInt(AppBackgrounds.backgrounds.length)];
@@ -61,15 +56,11 @@ class MainHelperModule extends ModuleBase {
         } else if (value is double) {
           await sharedPref.setDouble(key, value);
         } else {
-          _log.error('Unsupported value type for key: $key');
           return;
         }
-        _log.info('Updated $key: $value');
       } catch (e) {
-        _log.error('Error updating user info: $e');
+        // Handle error silently
       }
-    } else {
-      _log.error('SharedPrefManager not available.');
     }
   }
 
@@ -85,13 +76,10 @@ class MainHelperModule extends ModuleBase {
         } else {
           value = sharedPref.getString(key);
         }
-        _log.info('Retrieved $key: $value');
         return value;
       } catch (e) {
-        _log.error('Error retrieving user info: $e');
+        // Handle error silently
       }
-    } else {
-      _log.error('SharedPrefManager not available.');
     }
     return null;
   }

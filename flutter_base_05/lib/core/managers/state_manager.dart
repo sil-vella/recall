@@ -31,9 +31,7 @@ class StateManager with ChangeNotifier {
   }; // Default main app state
 
 
-  StateManager._internal() {
-    _log.info('StateManager instance created.');
-  }
+  StateManager._internal();
 
   /// Factory method to provide the singleton instance
   factory StateManager() {
@@ -51,13 +49,8 @@ class StateManager with ChangeNotifier {
   void registerModuleState(String moduleKey, Map<String, dynamic> initialState) {
     if (!_moduleStates.containsKey(moduleKey)) {
       _moduleStates[moduleKey] = ModuleState(state: initialState);
-      _log.info("✅ Registered module state for key: $moduleKey");
-      _log.info("📊 Current app state after registration:");
-      _logAppState();
       // Use Future.microtask to avoid calling notifyListeners during build
       Future.microtask(() => notifyListeners());
-    } else {
-      _log.error("⚠️ Module state for '$moduleKey' is already registered.");
     }
   }
 
@@ -65,13 +58,8 @@ class StateManager with ChangeNotifier {
   void unregisterModuleState(String moduleKey) {
     if (_moduleStates.containsKey(moduleKey)) {
       _moduleStates.remove(moduleKey);
-      _log.info("🗑 Unregistered state for key: $moduleKey");
-      _log.info("📊 Current app state after unregistration:");
-      _logAppState();
       // Use Future.microtask to avoid calling notifyListeners during build
       Future.microtask(() => notifyListeners());
-    } else {
-      _log.error("⚠️ Module state for '$moduleKey' does not exist.");
     }
   }
 
@@ -91,23 +79,16 @@ class StateManager with ChangeNotifier {
       return storedState.state as T;
     }
 
-    _log.error("❌ Type mismatch: Requested '$T' but found '${storedState.state.runtimeType}' for module '$moduleKey'");
     return null;
   }
 
   /// Log the entire app state for debugging
   void _logAppState() {
-    final allStates = getAllStates();
-    _log.info("📊 Complete App State:");
-    _log.info("🔧 Module States: ${allStates['module_states']}");
-    _log.info("📱 Main App State: ${allStates['main_app_state']}");
-    _log.info("📈 Total Module States: ${getModuleStateCount()}");
-    _log.info("🔑 Registered Keys: ${getRegisteredModuleKeys()}");
+    // Logging functionality removed
   }
 
   void updateModuleState(String moduleKey, Map<String, dynamic> newState, {bool force = false}) {
     if (!_moduleStates.containsKey(moduleKey)) {
-      _log.error("❌ Cannot update state for '$moduleKey' - it is not registered.");
       return;
     }
 
@@ -117,13 +98,8 @@ class StateManager with ChangeNotifier {
       // ✅ Ensure `merge` exists (assuming it's a custom method)
       final newMergedState = existingState.merge(newState);
       _moduleStates[moduleKey] = newMergedState;
-      _log.info("✅ Updated state for module '$moduleKey'");
-      _log.info("📊 Current app state after update:");
-      _logAppState();
       // Use Future.microtask to avoid calling notifyListeners during build
       Future.microtask(() => notifyListeners());
-    } else {
-      _log.error("❌ Cannot update state for '$moduleKey' - existing state is null");
     }
   }
 
@@ -163,9 +139,6 @@ class StateManager with ChangeNotifier {
       'main_state': 'idle',    // Main app state (idle, active, busy, etc.)
       ...initialState
     };
-    _log.info("📌 Main app state initialized: $_mainAppState");
-    _log.info("📊 Current app state after main app state initialization:");
-    _logAppState();
     // Use Future.microtask to avoid calling notifyListeners during build
     Future.microtask(() => notifyListeners());
   }
@@ -174,9 +147,6 @@ class StateManager with ChangeNotifier {
 
   void updateMainAppState(String key, dynamic value) {
     _mainAppState[key] = value;
-    _log.info("📌 Main app state updated: key=$key, value=$value");
-    _log.info("📊 Current app state after main app state update:");
-    _logAppState();
     // Use Future.microtask to avoid calling notifyListeners during build
     Future.microtask(() => notifyListeners());
   }

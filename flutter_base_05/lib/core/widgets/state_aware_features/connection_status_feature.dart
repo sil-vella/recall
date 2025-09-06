@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../managers/state_manager.dart';
 import '../../managers/websockets/websocket_manager.dart';
-import '../../../tools/logging/logger.dart';
 
 /// State-aware connection status feature widget
 /// 
@@ -9,8 +8,6 @@ import '../../../tools/logging/logger.dart';
 /// when the connection status changes. It follows the same pattern as other
 /// widgets in the app using ListenableBuilder.
 class StateAwareConnectionStatusFeature extends StatelessWidget {
-  static final Logger _log = Logger();
-  
   const StateAwareConnectionStatusFeature({Key? key}) : super(key: key);
 
   @override
@@ -25,8 +22,6 @@ class StateAwareConnectionStatusFeature extends StatelessWidget {
         // Get connecting state from WebSocketManager
         final websocketManager = WebSocketManager.instance;
         final isConnecting = websocketManager.isConnecting;
-        
-        _log.info('🔌 StateAwareConnectionStatusFeature: isConnected=$isConnected, isConnecting=$isConnecting');
         
         // Determine icon and color based on state
         IconData icon;
@@ -63,7 +58,6 @@ class StateAwareConnectionStatusFeature extends StatelessWidget {
             : () async {
                 if (isConnected) {
                   // Disconnect if currently connected
-                  _log.info('🔌 User requested WebSocket disconnect');
                   websocketManager.disconnect();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -73,7 +67,6 @@ class StateAwareConnectionStatusFeature extends StatelessWidget {
                   );
                 } else {
                   // Connect if currently disconnected
-                  _log.info('🔌 User requested WebSocket connect');
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('WebSocket: Connecting...'),

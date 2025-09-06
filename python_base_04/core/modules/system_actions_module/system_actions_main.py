@@ -1,4 +1,5 @@
 from core.modules.base_module import BaseModule
+from tools.logger.custom_logging import custom_log
 from typing import Dict, Any
 from flask import request, jsonify
 from datetime import datetime
@@ -12,7 +13,9 @@ class SystemActionsModule(BaseModule):
         # Set dependencies
         self.dependencies = []
         
-        def initialize(self, app_manager):
+        custom_log("SystemActionsModule created")
+
+    def initialize(self, app_manager):
         """Initialize the SystemActionsModule with AppManager."""
         self.app_manager = app_manager
         self.app = app_manager.flask_app
@@ -22,11 +25,13 @@ class SystemActionsModule(BaseModule):
         self._register_module_actions()
         
         self._initialized = True
-        def register_routes(self):
+        custom_log("SystemActionsModule initialized")
+
+    def register_routes(self):
         """Register system actions routes."""
         # No routes needed - actions are handled by the single wildcard route in main app
         # /actions/<action_name>/<args> handles all actions
-        ")
+        custom_log("SystemActionsModule: No routes to register (using single wildcard route)")
 
     def _register_module_actions(self):
         """Register this module's actions with the UserActionsManager."""
@@ -46,7 +51,11 @@ class SystemActionsModule(BaseModule):
             self.register_module_actions(actions_config, handlers)
             
         except Exception as e:
-            def _get_system_info(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+            custom_log(f"❌ Error registering module actions: {e}", level="ERROR")
+
+
+
+    def _get_system_info(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """Get detailed system information."""
         try:
             include_details = request_data.get("include_details", False)
@@ -76,6 +85,7 @@ class SystemActionsModule(BaseModule):
             return info
             
         except Exception as e:
+            custom_log(f"❌ Error getting system info: {e}", level="ERROR")
             return {"error": f"Failed to get system info: {str(e)}"}
 
     def _log_system_event(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -100,12 +110,15 @@ class SystemActionsModule(BaseModule):
                 "module": "system_actions"
             }
             
+            custom_log(f"📝 System event logged: {event_type} - {message}")
+            
             return {
                 "success": True,
                 "event_logged": log_entry
             }
             
         except Exception as e:
+            custom_log(f"❌ Error logging system event: {e}", level="ERROR")
             return {"error": f"Failed to log system event: {str(e)}"}
 
     def _validate_system_permissions(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -138,6 +151,7 @@ class SystemActionsModule(BaseModule):
             }
             
         except Exception as e:
+            custom_log(f"❌ Error validating system permissions: {e}", level="ERROR")
             return {"error": f"Failed to validate permissions: {str(e)}"}
 
     def _get_module_status(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -178,6 +192,7 @@ class SystemActionsModule(BaseModule):
                 return {"error": "AppManager not available"}
                 
         except Exception as e:
+            custom_log(f"❌ Error getting module status: {e}", level="ERROR")
             return {"error": f"Failed to get module status: {str(e)}"}
 
     def health_check(self) -> Dict[str, Any]:

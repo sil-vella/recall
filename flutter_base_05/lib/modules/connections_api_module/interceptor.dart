@@ -1,10 +1,8 @@
 import 'package:http_interceptor/http_interceptor.dart';
 import 'package:http/http.dart';
 import '../../core/managers/auth_manager.dart';
-import '../../tools/logging/logger.dart';
 
 class AuthInterceptor implements InterceptorContract {
-  static final Logger _log = Logger();
   AuthManager? _authManager;
   bool _isRefreshing = false;
 
@@ -51,7 +49,6 @@ class AuthInterceptor implements InterceptorContract {
         _authManager = AuthManager();
       }
       // Don't clear tokens here - let AuthManager handle it
-      _log.info('⚠️ 401 Unauthorized detected in interceptor');
     }
     return response;
   }

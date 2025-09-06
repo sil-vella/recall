@@ -29,13 +29,11 @@ class ModuleRegistry {
   /// ✅ Register a module factory with optional dependencies
   void registerModule(String moduleKey, ModuleBase Function() factory, {List<String> dependencies = const []}) {
     if (_moduleFactories.containsKey(moduleKey)) {
-      _log.error('❌ Module with key "$moduleKey" is already registered.');
       return;
     }
 
     _moduleFactories[moduleKey] = factory;
     _moduleDependencies[moduleKey] = dependencies;
-    _log.info('✅ Module factory registered: $moduleKey');
   }
 
   /// ✅ Get all registered module keys
@@ -48,8 +46,6 @@ class ModuleRegistry {
 
   /// ✅ Create and register all modules with ModuleManager
   void registerAllModules(ModuleManager moduleManager) {
-    _log.info('🚀 Registering all modules with ModuleManager...');
-
     // Register modules in dependency order
     final registeredModules = <String>{};
     final modulesToRegister = _moduleFactories.keys.toList();
@@ -69,9 +65,7 @@ class ModuleRegistry {
             registeredModules.add(moduleKey);
             modulesToRegister.remove(moduleKey);
             progress = true;
-            _log.info('✅ Module registered: $moduleKey');
           } catch (e) {
-            _log.error('❌ Failed to register module $moduleKey: $e');
             modulesToRegister.remove(moduleKey);
           }
         }
@@ -79,29 +73,23 @@ class ModuleRegistry {
 
       // If no progress was made, there might be a circular dependency
       if (!progress && modulesToRegister.isNotEmpty) {
-        _log.error('❌ Circular dependency detected or missing dependencies for modules: $modulesToRegister');
         // Register remaining modules anyway
         for (final moduleKey in modulesToRegister) {
           try {
             final moduleFactory = _moduleFactories[moduleKey]!;
             final module = moduleFactory();
             moduleManager.registerModule(moduleKey, module);
-            _log.info('✅ Module registered (with dependency issues): $moduleKey');
           } catch (e) {
-            _log.error('❌ Failed to register module $moduleKey: $e');
+            // Continue with next module
           }
         }
         break;
       }
     }
-
-    _log.info('✅ All modules registered successfully');
   }
 
   /// ✅ Initialize the registry with all available modules
   void initializeRegistry() {
-    _log.info('🔧 Initializing module registry...');
-
     // Register all available modules
     registerModule('main_helper', () => MainHelperModule());
     
@@ -126,8 +114,6 @@ class ModuleRegistry {
     // registerModule('admobs_rewarded_ad_module', () => RewardedAdModule(Config.admobsRewarded01));
 
     registerModule('recall_game', () => RecallGameMain());
-    
-    _log.info('✅ Module registry initialized with ${_moduleFactories.length} modules');
   }
 
   /// ✅ Get module status information

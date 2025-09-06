@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart' as launcher;
 import 'dart:async';
 import 'dart:convert';
@@ -9,12 +8,10 @@ import 'package:http_interceptor/http_interceptor.dart';
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/auth_manager.dart';
-import '../../tools/logging/logger.dart';
 import '../../utils/consts/config.dart';
 import 'interceptor.dart';
 
 class ConnectionsApiModule extends ModuleBase {
-  static final Logger _log = Logger();
   final String baseUrl;
   AuthManager? _authManager;
 
@@ -31,7 +28,6 @@ class ConnectionsApiModule extends ModuleBase {
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
     _authManager = AuthManager();
-    _log.info('✅ ConnectionsApiModule initialized with context.');
     _sendTestRequest();
   }
 
@@ -52,7 +48,6 @@ class ConnectionsApiModule extends ModuleBase {
         mode: launcher.LaunchMode.externalApplication
       );
     } catch (e) {
-      _log.error('❌ Failed to launch URL: $url', error: e);
       return false;
     }
   }
@@ -63,7 +58,6 @@ class ConnectionsApiModule extends ModuleBase {
 
     try {
       final response = await client.get(url);
-      _log.info('📡 GET Request: $url | Status: ${response.statusCode}');
       return _processResponse(response);
     } catch (e) {
       return _handleError('GET', url, e);
@@ -111,7 +105,6 @@ class ConnectionsApiModule extends ModuleBase {
           throw Exception('❌ Unsupported HTTP method: $method');
       }
 
-      _log.info('📡 $method Request: $url | Status: ${response.statusCode}');
       return _processResponse(response);
     } catch (e) {
       return _handleError(method, url, e);
@@ -122,20 +115,16 @@ class ConnectionsApiModule extends ModuleBase {
   dynamic _processResponse(http.Response response) {
     if (response.body.isNotEmpty) {
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        _log.debug('📥 Response Body: [Redacted for Security]');
       } else {
-        _log.error('📥 Error Response Body: ${response.body}');
       }
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body);
     } else if (response.statusCode == 401) {
-      _log.error('⚠️ Unauthorized: Letting AuthManager handle token clearing...');
       // Don't clear tokens here - let AuthManager handle it through its own logic
       return {"message": "Session expired. Please log in again.", "error": "Unauthorized"};
     } else {
-      _log.error('⚠️ Server Error: ${response.statusCode}');
       try {
         final decodedResponse = jsonDecode(response.body);
         // Ensure we always have a message field for errors
@@ -144,7 +133,6 @@ class ConnectionsApiModule extends ModuleBase {
         }
         return decodedResponse;
       } catch (e) {
-        _log.error('❌ Failed to parse error response: $e');
         return {
           "message": "An unexpected error occurred",
           "error": "Server error",
@@ -156,7 +144,6 @@ class ConnectionsApiModule extends ModuleBase {
 
   /// ✅ Handle Errors with Detailed Logging
   Map<String, dynamic> _handleError(String method, Uri url, Object e) {
-    _log.error('❌ $method request failed for $url: $e');
     return {
       "message": "Failed to connect to server. Please check your internet connection.",
       "error": "$method request failed",
@@ -166,11 +153,8 @@ class ConnectionsApiModule extends ModuleBase {
 
   /// ✅ Send test request to verify connection
   void _sendTestRequest() {
-    _log.info('🔍 Testing API connection to: $baseUrl');
     sendGetRequest('/health').then((response) {
-      _log.info('✅ API connection test successful: $response');
     }).catchError((error) {
-      _log.error('❌ API connection test failed: $error');
     });
   }
 }

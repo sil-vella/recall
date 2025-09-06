@@ -101,8 +101,10 @@ def _to_flutter_game_data(self, game) -> Dict[str, Any]:
             # Fallback to deprecated method during migration
             return game._to_flutter_game_state()
         else:
+            custom_log(f"❌ Game object has no data conversion method", level="ERROR")
             return {}
     except Exception as e:
+        custom_log(f"❌ Error converting game state: {e}", level="ERROR")
         return {}
 ```
 
@@ -117,8 +119,10 @@ def _to_flutter_game_data(self) -> Dict[str, Any]:
             # Fallback to deprecated method during migration
             return self.game_state._to_flutter_game_state(self.game_state)
         else:
+            custom_log(f"❌ Game state has no data conversion method", level="ERROR")
             return {}
     except Exception as e:
+        custom_log(f"❌ Error converting game state: {e}", level="ERROR")
         return {}
 ```
 

@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../00_base/service_base.dart';
 
 class TickerTimer extends ServicesBase with ChangeNotifier {
-  static final Logger _log = Logger();
-
   Ticker? _ticker;
   int _elapsedSeconds = 0;
   bool _isRunning = false;
@@ -22,7 +19,7 @@ class TickerTimer extends ServicesBase with ChangeNotifier {
 
   @override
   Future<void> initialize() async {
-    _log.info('✅ TickerTimer [$id] initialized.');
+    // TickerTimer initialized
   }
 
   void startTimer() {
@@ -37,7 +34,6 @@ class TickerTimer extends ServicesBase with ChangeNotifier {
     });
 
     _ticker?.start();
-    _log.info('▶ Timer [$id] resumed from ${_pausedDuration.inSeconds}s.');
   }
 
   void pauseTimer() {
@@ -47,7 +43,6 @@ class TickerTimer extends ServicesBase with ChangeNotifier {
     _ticker?.stop();
     _pausedDuration = Duration(seconds: _elapsedSeconds); // ✅ Save elapsed time
     notifyListeners();
-    _log.info('⏸ Timer [$id] paused at ${_pausedDuration.inSeconds}s.');
   }
 
 
@@ -59,14 +54,12 @@ class TickerTimer extends ServicesBase with ChangeNotifier {
     _isPaused = false;
     _pausedDuration = Duration.zero;
     notifyListeners();
-    _log.info('⏹ Timer [$id] stopped.');
   }
 
   void resetTimer() {
     stopTimer();
     _elapsedSeconds = 0;
     notifyListeners();
-    _log.info('🔄 Timer [$id] reset.');
   }
 
   @override

@@ -1,4 +1,3 @@
-import '../../../tools/logging/logger.dart';
 import 'validated_event_emitter.dart';
 import 'validated_state_manager.dart';
 
@@ -21,7 +20,6 @@ enum PlayerActionType {
 
 /// Centralized player action class for all game interactions
 class PlayerAction {
-  static final Logger _log = Logger();
   static final RecallGameEventEmitter _eventEmitter = RecallGameEventEmitter.instance;
   static final RecallGameStateUpdater _stateUpdater = RecallGameStateUpdater.instance;
 
@@ -40,14 +38,12 @@ class PlayerAction {
   /// Execute the player action with validation and state management
   Future<void> execute() async {
     try {
-      _log.info('🎮 Executing ${actionType.name}: $eventName with payload: $payload');
-            // Set status to waiting after action execution to prevent multiple selections
+      // Set status to waiting after action execution to prevent multiple selections
       _setPlayerStatusToWaiting();
       
       // Check if this is a practice game
       final isPracticeGame = _checkIfPracticeGame();
       if (isPracticeGame) {
-        _log.info('🎯 [PRACTICE GAME] Action ${actionType.name} would be executed in practice mode - logging only');
         // For practice games, we just log the action without sending to backend
         // TODO: Implement practice game logic (local simulation, etc.)
         return;
@@ -57,11 +53,8 @@ class PlayerAction {
         eventType: eventName,
         data: payload,
       );
-      
-      _log.info('✅ Action ${actionType.name} sent successfully');
 
     } catch (e) {
-      _log.error('❌ Failed to execute action ${actionType.name}: $e');
       rethrow;
     }
   }
@@ -73,12 +66,9 @@ class PlayerAction {
       final gameAccessor = RecallGameStateAccessor.instance;
       final isPractice = gameAccessor.isCurrentGamePractice();
       
-      _log.info('🔍 Game type check: isPractice=$isPractice');
-      
       return isPractice;
       
     } catch (e) {
-      _log.warning('⚠️ Error checking game type, assuming not practice game: $e');
       return false;
     }
   }
@@ -87,17 +77,12 @@ class PlayerAction {
   /// This prevents players from making multiple selections while waiting for backend response
   void _setPlayerStatusToWaiting() {
     try {
-      _log.info('⏳ Setting player status to waiting after action ${actionType.name}');
-      
       // Use the dedicated state updater to properly update the player status
       _stateUpdater.updateState({
         'playerStatus': 'waiting',
       });
       
-      _log.info('✅ Player status successfully set to waiting');
-      
     } catch (e) {
-      _log.warning('⚠️ Failed to set player status to waiting: $e');
       // Don't rethrow - this is not critical for the main action execution
     }
   }

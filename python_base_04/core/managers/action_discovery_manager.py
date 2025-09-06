@@ -2,6 +2,7 @@ import os
 import yaml
 import importlib
 from typing import Dict, Any, List, Optional, Callable
+from tools.logger.custom_logging import custom_log
 from datetime import datetime
 
 
@@ -19,10 +20,15 @@ class ActionDiscoveryManager:
         self.modules_dir = os.path.join(os.path.dirname(__file__), "..", "modules")
         self.last_scan = None
         
-        def discover_all_actions(self):
+        custom_log("ActionDiscoveryManager initialized")
+
+    def discover_all_actions(self):
         """Scan all modules for YAML declarations and cache them."""
         try:
+            custom_log("🔍 Starting action discovery...")
+            
             if not os.path.exists(self.modules_dir):
+                custom_log(f"⚠️ Modules directory not found: {self.modules_dir}")
                 return
             
             # Clear existing registry
@@ -39,13 +45,15 @@ class ActionDiscoveryManager:
                         actions = self._load_yaml_actions(yaml_path, module_dir)
                         self.actions_registry.update(actions)
                         self.yaml_files.append(yaml_path)
-                        } actions")
+                        custom_log(f"✅ Loaded actions from {module_dir}: {len(actions)} actions")
             
             self.last_scan = datetime.utcnow()
-            } total actions")
+            custom_log(f"🎯 Action discovery complete: {len(self.actions_registry)} total actions")
             
         except Exception as e:
-            def _load_yaml_actions(self, yaml_path: str, module_name: str) -> Dict[str, Any]:
+            custom_log(f"❌ Error during action discovery: {e}", level="ERROR")
+
+    def _load_yaml_actions(self, yaml_path: str, module_name: str) -> Dict[str, Any]:
         """Load actions from YAML file and prefix with module name."""
         try:
             with open(yaml_path, 'r') as f:
@@ -64,6 +72,7 @@ class ActionDiscoveryManager:
             return actions
             
         except Exception as e:
+            custom_log(f"❌ Error loading YAML from {yaml_path}: {e}", level="ERROR")
             return {}
 
     def find_action(self, action_name: str) -> Optional[Dict[str, Any]]:
@@ -86,6 +95,7 @@ class ActionDiscoveryManager:
             return None
             
         except Exception as e:
+            custom_log(f"❌ Error finding action {action_name}: {e}", level="ERROR")
             return None
 
     def parse_url_args(self, args_string: str) -> Dict[str, Any]:
@@ -111,6 +121,7 @@ class ActionDiscoveryManager:
             return parsed_args
             
         except Exception as e:
+            custom_log(f"❌ Error parsing URL args {args_string}: {e}", level="ERROR")
             return {}
 
     def validate_action_args(self, action_info: Dict[str, Any], parsed_args: Dict[str, Any]) -> Dict[str, Any]:
@@ -146,6 +157,7 @@ class ActionDiscoveryManager:
             }
             
         except Exception as e:
+            custom_log(f"❌ Error validating action args: {e}", level="ERROR")
             return {
                 'valid': False,
                 'errors': [f"Validation error: {str(e)}"]
@@ -193,6 +205,7 @@ class ActionDiscoveryManager:
                 raise ValueError("AppManager or ModuleManager not available")
                 
         except Exception as e:
+            custom_log(f"❌ Error executing action logic: {e}", level="ERROR")
             raise
 
     def list_all_actions(self) -> Dict[str, Any]:
@@ -221,6 +234,7 @@ class ActionDiscoveryManager:
             }
             
         except Exception as e:
+            custom_log(f"❌ Error listing actions: {e}", level="ERROR")
             return {
                 'success': False,
                 'error': f'Failed to list actions: {str(e)}'
@@ -250,6 +264,8 @@ class ActionDiscoveryManager:
     def refresh_cache(self):
         """Refresh the action cache by re-scanning YAML files."""
         try:
+            custom_log("🔄 Refreshing action cache...")
             self.discover_all_actions()
-            except Exception as e:
-            
+            custom_log("✅ Action cache refreshed")
+        except Exception as e:
+            custom_log(f"❌ Error refreshing cache: {e}", level="ERROR") 

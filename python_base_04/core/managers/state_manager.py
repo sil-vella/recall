@@ -2,6 +2,7 @@ from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 from enum import Enum
 import logging
+from tools.logger.custom_logging import custom_log
 from core.managers.redis_manager import RedisManager
 from core.managers.database_manager import DatabaseManager
 
@@ -83,7 +84,9 @@ class StateManager:
         # Initialize main app state
         self._initialize_main_app_state()
         
-        @classmethod
+        custom_log("✅ StateManager singleton initialized")
+    
+    @classmethod
     def get_instance(cls, redis_manager: Optional[RedisManager] = None, 
                     database_manager: Optional[DatabaseManager] = None) -> 'StateManager':
         """
@@ -155,6 +158,7 @@ class StateManager:
                     'current': StateTransition.CREATE.value
                 }
             
+            custom_log(f"✅ State {state_id} registered successfully")
             return True
             
         except Exception as e:
@@ -242,6 +246,7 @@ class StateManager:
             # Trigger callbacks
             self._trigger_state_callbacks(state_id, transition_type, new_data)
             
+            custom_log(f"✅ State {state_id} updated successfully")
             return True
             
         except Exception as e:
@@ -283,6 +288,7 @@ class StateManager:
             if state_id in self._state_callbacks:
                 del self._state_callbacks[state_id]
             
+            custom_log(f"✅ State {state_id} deleted successfully")
             return True
             
         except Exception as e:
@@ -326,6 +332,7 @@ class StateManager:
                 self._state_callbacks[state_id] = []
             
             self._state_callbacks[state_id].append(callback)
+            custom_log(f"✅ Callback registered for state {state_id}")
             return True
             
         except Exception as e:
@@ -467,6 +474,7 @@ class StateManager:
             # Check if main state already exists
             existing_state = self.get_state("main_state")
             if existing_state:
+                custom_log("✅ Main app state already exists")
                 return
             
             # Create main app state
@@ -497,9 +505,14 @@ class StateManager:
             )
             
             if success:
-                else:
-                except Exception as e:
-            def health_check(self) -> Dict[str, Any]:
+                custom_log("✅ Main app state initialized with status: idle")
+            else:
+                custom_log("❌ Failed to initialize main app state")
+                
+        except Exception as e:
+            custom_log(f"❌ Error initializing main app state: {e}", level="ERROR")
+
+    def health_check(self) -> Dict[str, Any]:
         """Perform health check on the state manager."""
         try:
             active_states = len(self.get_active_states())

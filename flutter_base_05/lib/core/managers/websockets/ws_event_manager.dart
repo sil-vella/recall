@@ -40,13 +40,11 @@ class WSEventManager {
 
   // Static getter for easy access
   static WSEventManager get instance {
-    _log.info("🔍 WSEventManager.instance getter called");
     return _instance;
   }
 
   /// Initialize the event manager
   void initialize() {
-    _log.info('🔌 Initializing WebSocket Event Manager');
     _setupEventListeners();
     _registerWithStateManager();
   }
@@ -60,7 +58,6 @@ class WSEventManager {
       "currentRoomInfo": _currentRoomInfo,
       "sessionData": _sessionData,
     });
-    _log.info('✅ Registered with StateManager');
   }
 
   /// Set up event listeners for all WebSocket events
@@ -89,8 +86,6 @@ class WSEventManager {
 
   /// Handle incoming WebSocket events
   void _handleIncomingEvent(WebSocketEvent event) {
-    _log.info('📨 Received WebSocket event: ${event.runtimeType}');
-    
     switch (event.runtimeType) {
       case ConnectionStatusEvent:
         _handleConnectionEvent(event as ConnectionStatusEvent);
@@ -111,13 +106,13 @@ class WSEventManager {
         _handleCustomEvent(event as CustomEvent);
         break;
       default:
-        _log.info('⚠️ Unknown event type: ${event.runtimeType}');
+        // Unknown event type
+        break;
     }
   }
 
   /// Handle connection status events
   void _handleConnectionEvent(ConnectionStatusEvent event) {
-    _log.info('🔌 Connection status: ${event.status}');
     _isConnected = event.status == ConnectionStatus.connected;
     _connectionEventController.add(event);
     
@@ -134,7 +129,6 @@ class WSEventManager {
 
   /// Handle session data events
   void _handleSessionEvent(SessionDataEvent event) {
-    _log.info('📋 Session data updated');
     _sessionData = event.sessionData;
     _sessionEventController.add(event);
     
@@ -147,28 +141,24 @@ class WSEventManager {
 
   /// Handle room events
   void _handleRoomEvent(RoomEvent event) {
-    _log.info('🏠 Room event: ${event.action} for room ${event.roomId}');
-    
     switch (event.action) {
       case 'joined':
         _currentRoomId = event.roomId;
         _currentRoomInfo = event.roomData;
-        _log.info('✅ User joined room: ${event.roomId}');
         break;
       case 'left':
         if (_currentRoomId == event.roomId) {
           _currentRoomId = null;
           _currentRoomInfo = null;
         }
-        _log.info('🚪 User left room: ${event.roomId}');
         break;
       case 'created':
-        _log.info('🏠 Room created: ${event.roomId}');
         // After room creation, the user is automatically joined
         // The room_joined event will handle setting current room
         break;
       default:
-        _log.info('⚠️ Unknown room action: ${event.action}');
+        // Unknown room action
+        break;
     }
     
     // Update StateManager
@@ -186,7 +176,6 @@ class WSEventManager {
 
   /// Handle message events
   void _handleMessageEvent(MessageEvent event) {
-    _log.info('💬 Message received in room ${event.roomId}: ${event.message}');
     _messageEventController.add(event);
     
     // Trigger message callbacks
@@ -200,7 +189,6 @@ class WSEventManager {
 
   /// Handle error events
   void _handleErrorEvent(ErrorEvent event) {
-    _log.error('🚨 Error event: ${event.error}');
     _errorEventController.add(event);
     
     // Trigger error callbacks
@@ -212,7 +200,6 @@ class WSEventManager {
 
   /// Handle custom events
   void _handleCustomEvent(CustomEvent event) {
-    _log.info('📨 Custom event: ${event.eventName}');
     _customEventController.add(event);
     
     // Trigger custom event callbacks
@@ -227,7 +214,7 @@ class WSEventManager {
         try {
           callback(data);
         } catch (e) {
-          _log.error('❌ Error in event callback for $eventType: $e');
+          // Error in event callback
         }
       }
     }
@@ -241,7 +228,6 @@ class WSEventManager {
       _eventCallbacks[eventType] = [];
     }
     _eventCallbacks[eventType]!.add(callback);
-    _log.info('📝 Registered callback for event: $eventType');
   }
 
   /// Unregister a callback for a specific event type
@@ -249,7 +235,6 @@ class WSEventManager {
     final callbacks = _eventCallbacks[eventType];
     if (callbacks != null) {
       callbacks.remove(callback);
-      _log.info('🗑️ Unregistered callback for event: $eventType');
     }
   }
 
@@ -272,106 +257,79 @@ class WSEventManager {
 
   /// Create a room
   Future<Map<String, dynamic>> createRoom(String userId, [Map<String, dynamic>? roomData]) async {
-    _log.info('🏠 Creating room for user: $userId');
-    
     try {
       final result = await _websocketManager.createRoom(userId, roomData);
       
       if (result['success'] != null) {
-        _log.info('✅ Room created successfully');
-        
         // The server will automatically join the user to the room
         // and send a 'room_joined' event, which will update our state
         return result;
       } else {
-        _log.error('❌ Failed to create room: ${result['error']}');
         return result;
       }
     } catch (e) {
-      _log.error('❌ Error creating room: $e');
       return {'error': 'Failed to create room: $e'};
     }
   }
 
   /// Join a room
   Future<Map<String, dynamic>> joinRoom(String roomId, String userId) async {
-    _log.info('🚪 Joining room: $roomId for user: $userId');
-    
     try {
       final result = await _websocketManager.joinRoom(roomId, userId);
       
       if (result['success'] != null) {
-        _log.info('✅ Joined room successfully');
         return result;
       } else {
-        _log.error('❌ Failed to join room: ${result['error']}');
         return result;
       }
     } catch (e) {
-      _log.error('❌ Error joining room: $e');
       return {'error': 'Failed to join room: $e'};
     }
   }
 
   /// Leave a room
   Future<Map<String, dynamic>> leaveRoom(String roomId) async {
-    _log.info('🚪 Leaving room: $roomId');
-    
     try {
       final result = await _websocketManager.leaveRoom(roomId);
       
       if (result['pending'] != null) {
-        _log.info('📤 Leave room request sent, waiting for server response');
         return result;
       } else if (result['success'] != null) {
-        _log.info('✅ Left room successfully');
         return result;
       } else {
-        _log.error('❌ Failed to leave room: ${result['error']}');
         return result;
       }
     } catch (e) {
-      _log.error('❌ Error leaving room: $e');
       return {'error': 'Failed to leave room: $e'};
     }
   }
 
   /// Send a message to a room
   Future<Map<String, dynamic>> sendMessage(String roomId, String message) async {
-    _log.info('💬 Sending message to room: $roomId');
-    
     try {
       final result = await _websocketManager.sendMessage(roomId, message);
       
       if (result['success'] != null) {
-        _log.info('✅ Message sent successfully');
         return result;
       } else {
-        _log.error('❌ Failed to send message: ${result['error']}');
         return result;
       }
     } catch (e) {
-      _log.error('❌ Error sending message: $e');
       return {'error': 'Failed to send message: $e'};
     }
   }
 
   /// Broadcast a message to all rooms
   Future<Map<String, dynamic>> broadcastMessage(String message) async {
-    _log.info('📢 Broadcasting message: $message');
-    
     try {
       final result = await _websocketManager.broadcastMessage(message);
       
       if (result['success'] != null) {
-        _log.info('✅ Message broadcasted successfully');
         return result;
       } else {
-        _log.error('❌ Failed to broadcast message: ${result['error']}');
         return result;
       }
     } catch (e) {
-      _log.error('❌ Error broadcasting message: $e');
       return {'error': 'Failed to broadcast message: $e'};
     }
   }
@@ -425,7 +383,6 @@ class WSEventManager {
         "sessionData": _sessionData,
       });
     } catch (e) {
-      _log.error('❌ Failed to update WebSocket state via validated system: $e');
       // Fallback to direct state manager update
       final stateManager = StateManager();
       stateManager.updateModuleState("websocket", {
@@ -440,7 +397,6 @@ class WSEventManager {
   /// Clear all event callbacks
   void clearCallbacks() {
     _eventCallbacks.clear();
-    _log.info('🗑️ Cleared all event callbacks');
   }
 
   /// Dispose of the event manager
@@ -452,6 +408,5 @@ class WSEventManager {
     _errorEventController.close();
     _customEventController.close();
     clearCallbacks();
-    _log.info('🛑 WebSocket Event Manager disposed');
   }
 } 

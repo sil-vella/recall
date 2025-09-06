@@ -12,6 +12,9 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.managers.state_manager import StateManager, StateTransition
+from tools.logger.custom_logging import custom_log
+
+
 def update_app_state(new_state: str):
     """Update the main app state."""
     try:

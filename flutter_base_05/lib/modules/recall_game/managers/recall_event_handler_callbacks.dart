@@ -1,11 +1,9 @@
 import '../../../core/managers/state_manager.dart';
-import '../../../tools/logging/logger.dart';
 import '../utils/recall_game_helpers.dart';
 
 /// Dedicated event handlers for Recall game events
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
-  static final Logger _log = Logger();
 
   // ========================================
   // HELPER METHODS TO REDUCE DUPLICATION
@@ -35,10 +33,6 @@ class RecallEventHandlerCallbacks {
       RecallGameHelpers.updateUIState({
         'games': currentGames,
       });
-      
-      _log.info('🎯 [HELPER] Updated game $gameId with: ${updates.keys.join(', ')}');
-    } else {
-      _log.warning('⚠️ [HELPER] Game $gameId not found in current games map');
     }
   }
   
@@ -58,8 +52,6 @@ class RecallEventHandlerCallbacks {
       _updateGameInMap(gameId, {
         'gameData': updatedGameData,
       });
-      
-      _log.info('🎯 [HELPER] Updated game data for game $gameId with: ${dataUpdates.keys.join(', ')}');
     }
   }
   
@@ -98,8 +90,6 @@ class RecallEventHandlerCallbacks {
     RecallGameHelpers.updateUIState({
       'games': currentGames,
     });
-    
-    _log.info('🎯 [HELPER] Added/updated game $gameId to games map');
   }
   
   /// Update main game state (non-game-specific fields)
@@ -108,8 +98,6 @@ class RecallEventHandlerCallbacks {
       ...updates,
       'lastUpdated': DateTime.now().toIso8601String(),
     });
-    
-    _log.info('🎯 [HELPER] Updated main game state with: ${updates.keys.join(', ')}');
   }
 
   /// Add a session message to the message board
@@ -146,13 +134,9 @@ class RecallEventHandlerCallbacks {
 
   /// Handle recall_new_player_joined event
   static void handleRecallNewPlayerJoined(Map<String, dynamic> data) {
-    _log.info('🎧 [RECALL] Received recall_new_player_joined event');
-    
     final roomId = data['room_id']?.toString() ?? '';
     final joinedPlayer = data['joined_player'] as Map<String, dynamic>? ?? {};
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
-    
-    _log.info('🎧 [RECALL] Player ${joinedPlayer['name']} joined room $roomId');
     
     // Update the game data with the new game state using helper method
     _updateGameData(roomId, {
@@ -170,14 +154,9 @@ class RecallEventHandlerCallbacks {
 
   /// Handle recall_joined_games event
   static void handleRecallJoinedGames(Map<String, dynamic> data) {
-    _log.info('🎧 [RECALL] Received recall_joined_games event');
-    
-    final userId = data['user_id']?.toString() ?? '';
     // final sessionId = data['session_id']?.toString() ?? '';
     final games = data['games'] as List<dynamic>? ?? [];
     final totalGames = data['total_games'] ?? 0;
-    
-    _log.info('🎧 [RECALL] User $userId is in $totalGames games');
     
     // Update the games map with the joined games data using helper methods
     for (final gameData in games) {
@@ -192,7 +171,6 @@ class RecallEventHandlerCallbacks {
     String? currentGameId;
     if (games.isNotEmpty) {
       currentGameId = games.first['game_id']?.toString();
-      _log.info('🎧 [RECALL] Setting currentGameId to: $currentGameId');
     }
     
     // Update recall game state with joined games information using helper method
@@ -214,14 +192,10 @@ class RecallEventHandlerCallbacks {
 
   /// Handle game_started event
   static void handleGameStarted(Map<String, dynamic> data) {
-    _log.info('🎧 [RECALL] Received game_started event');
-    
     final gameId = data['game_id']?.toString() ?? '';
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final startedBy = data['started_by']?.toString() ?? '';
     // final timestamp = data['timestamp']?.toString() ?? '';
-    
-    _log.info('🎧 [RECALL] Game $gameId started by $startedBy');
     
     // Extract player data
     final players = gameState['players'] as List<dynamic>? ?? [];
@@ -283,8 +257,6 @@ class RecallEventHandlerCallbacks {
       'selectedCardIndex': -1,
     });
     
-    _log.info('🎮 [GAME_STARTED] Updated game $gameId using helper methods');
-    
     // Add session message about game started
     _addSessionMessage(
       level: 'success',
@@ -300,16 +272,12 @@ class RecallEventHandlerCallbacks {
 
   /// Handle turn_started event
   static void handleTurnStarted(Map<String, dynamic> data) {
-    _log.info('🎧 [RECALL] Received turn_started event');
-    
     final gameId = data['game_id']?.toString() ?? '';
     // final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final playerId = data['player_id']?.toString() ?? '';
     final playerStatus = data['player_status']?.toString() ?? 'unknown';
     final turnTimeout = data['turn_timeout'] as int? ?? 30;
     // final timestamp = data['timestamp']?.toString() ?? '';
-    
-    _log.info('🎧 [RECALL] Turn started for player $playerId in game $gameId (status: $playerStatus, timeout: ${turnTimeout}s)');
     
     // Find the current user's player data
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -319,7 +287,6 @@ class RecallEventHandlerCallbacks {
     final isMyTurn = playerId == currentUserId;
     
     if (isMyTurn) {
-      _log.info('🎯 [TURN_STARTED] It\'s my turn! Timeout: ${turnTimeout}s');
       
       // Update UI state to show it's the current user's turn using helper method
       _updateMainGameState({
@@ -348,7 +315,6 @@ class RecallEventHandlerCallbacks {
         },
       );
     } else {
-      _log.info('🎯 [TURN_STARTED] Turn started for opponent $playerId');
       
       // Update UI state to show it's another player's turn using helper method
       _updateMainGameState({
@@ -375,8 +341,6 @@ class RecallEventHandlerCallbacks {
 
   /// Handle game_state_updated event
   static void handleGameStateUpdated(Map<String, dynamic> data) {
-    _log.info('🎧 [RECALL] Received game_state_updated event');
-    
     final gameId = data['game_id']?.toString() ?? '';
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final roundNumber = data['round_number'] as int? ?? 1;
@@ -385,15 +349,11 @@ class RecallEventHandlerCallbacks {
     final roundStatus = data['round_status']?.toString() ?? 'active';
     // final timestamp = data['timestamp']?.toString() ?? '';
     
-    _log.info('🎧 [RECALL] Game state updated for game $gameId - Round: $roundNumber, Current Player: $currentPlayer ($currentPlayerStatus), Status: $roundStatus');
-    
     // Extract pile information from game state
     final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
     final drawPileCount = drawPile.length;
     final discardPileCount = discardPile.length;
-    
-    _log.info('🎧 [RECALL] Pile counts - Draw: $drawPileCount, Discard: $discardPileCount');
     
     // Update the main game state with the new information using helper method
     _updateMainGameState({
@@ -412,8 +372,6 @@ class RecallEventHandlerCallbacks {
       'discardPile': discardPile,
     });
     
-    _log.info('🎯 [GAME_STATE_UPDATE] Updated pile counts for game $gameId - Draw: $drawPileCount, Discard: $discardPileCount');
-    
     // Add session message about game state update
     _addSessionMessage(
       level: 'info',
@@ -431,14 +389,10 @@ class RecallEventHandlerCallbacks {
 
   /// Handle player_state_updated event
   static void handlePlayerStateUpdated(Map<String, dynamic> data) {
-    _log.info('🎧 [RECALL] Received player_state_updated event');
-    
     final gameId = data['game_id']?.toString() ?? '';
     final playerId = data['player_id']?.toString() ?? '';
     final playerData = data['player_data'] as Map<String, dynamic>? ?? {};
     // final timestamp = data['timestamp']?.toString() ?? '';
-    
-    _log.info('🎧 [RECALL] Player state updated for player $playerId in game $gameId');
     
     // Find the current user's player data
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -448,7 +402,6 @@ class RecallEventHandlerCallbacks {
     final isMyUpdate = playerId == currentUserId;
     
     if (isMyUpdate) {
-      _log.info('🎯 [PLAYER_STATE_UPDATE] Updating my player state');
       
       // Extract player data fields
       final hand = playerData['hand'] as List<dynamic>? ?? [];
@@ -475,13 +428,6 @@ class RecallEventHandlerCallbacks {
         'myDrawnCard': drawnCard,
       });
       
-      _log.info('✅ [PLAYER_STATE_UPDATE] My player state updated - Hand: ${hand.length} cards, Score: $score, Status: $status, DrawnCard: $drawnCard');
-      
-      // Debug: Check what the state looks like after update
-      final updatedState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final updatedDrawnCard = updatedState['myDrawnCard'];
-      _log.info('🔍 [PLAYER_STATE_UPDATE] State after update - myDrawnCard: $updatedDrawnCard');
-      
       // Add session message about player state update
       _addSessionMessage(
         level: 'info',
@@ -497,7 +443,6 @@ class RecallEventHandlerCallbacks {
         },
       );
     } else {
-      _log.info('👥 [PLAYER_STATE_UPDATE] Updating opponent player state for player $playerId');
       
       // Get current opponents and update them using helper method
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
@@ -525,8 +470,6 @@ class RecallEventHandlerCallbacks {
           }).toList(),
         });
       }
-      
-      _log.info('✅ [PLAYER_STATE_UPDATE] Opponent player state updated for player $playerId');
     }
   }
 }

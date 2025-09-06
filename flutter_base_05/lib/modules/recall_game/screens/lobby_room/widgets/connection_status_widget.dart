@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 
 class ConnectionStatusWidget extends StatelessWidget {
-  static final Logger _log = Logger();
-  
   const ConnectionStatusWidget({Key? key}) : super(key: key);
 
   @override
@@ -17,7 +14,6 @@ class ConnectionStatusWidget extends StatelessWidget {
         final isConnected = (ws['connected'] ?? ws['isConnected']) == true;
         final isLoading = recall['isLoading'] == true || ws['connecting'] == true;
 
-        _log.info('🔌 ConnectionStatusWidget: Connected=$isConnected, Loading=$isLoading');
 
         return Container(
           padding: const EdgeInsets.all(16),

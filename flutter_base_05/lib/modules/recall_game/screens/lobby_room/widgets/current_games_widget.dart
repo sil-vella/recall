@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../managers/game_coordinator.dart';
 import '../../../utils/recall_game_helpers.dart';
 
@@ -14,8 +13,6 @@ import '../../../utils/recall_game_helpers.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class CurrentRoomWidget extends StatelessWidget {
-  static final Logger _log = Logger();
-  
   final Function(String)? onJoinRoom;
   
   const CurrentRoomWidget({
@@ -41,17 +38,6 @@ class CurrentRoomWidget extends StatelessWidget {
         final totalJoinedGames = joinedGamesSlice['totalGames'] ?? 0;
         final joinedGamesTimestamp = joinedGamesSlice['timestamp']?.toString() ?? '';
         
-        _log.info('🎮 CurrentRoomWidget: Found $totalJoinedGames joined games');
-        _log.info('🎮 CurrentRoomWidget: Joined games data: $joinedGames');
-        
-        if (joinedGames.isNotEmpty) {
-          final firstGame = joinedGames.first as Map<String, dynamic>;
-          _log.info('🎮 CurrentRoomWidget: First game data: $firstGame');
-          if (firstGame.containsKey('game_state')) {
-            final gameState = firstGame['game_state'] as Map<String, dynamic>;
-            _log.info('🎮 CurrentRoomWidget: First game state: $gameState');
-          }
-        }
 
         // If not in any games, show empty state
         if (totalJoinedGames == 0 || joinedGames.isEmpty) {
@@ -181,8 +167,6 @@ class CurrentRoomWidget extends StatelessWidget {
     
     // Get game state from the nested game_state object (this is the actual game data from backend)
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-    _log.info('🎮 [CurrentRoomWidget] Game state for $gameId: $gameState');
-    
     // Extract data from the game_state object (this is what the backend sends)
     final roomName = gameState['gameName']?.toString() ?? 'Game $gameId';
     final currentSize = gameState['playerCount'] ?? 0;
@@ -195,11 +179,6 @@ class CurrentRoomWidget extends StatelessWidget {
     // Determine if user is game owner by comparing current user ID with owner_id
     final ownerId = gameData['owner_id']?.toString() ?? '';
     final isGameOwner = currentUserId.isNotEmpty && ownerId.isNotEmpty && currentUserId == ownerId;
-    final isInGame = true; // If we're showing this game, user is in it
-    
-    _log.info('🎮 [CurrentRoomWidget] Ownership check for $gameId: currentUserId=$currentUserId, ownerId=$ownerId, isGameOwner=$isGameOwner');
-    
-    _log.info('🎮 [CurrentRoomWidget] Extracted data for $gameId: currentSize=$currentSize, maxSize=$maxSize, minSize=$minSize, permission=$permission, gamePhase=$gamePhase, gameStatus=$gameStatus');
     
     final canStartGame = isGameOwner && 
                         gamePhase == 'waiting' && 
@@ -255,7 +234,6 @@ class CurrentRoomWidget extends StatelessWidget {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        _log.info('🎮 [CurrentRoomWidget] Start game button pressed for room: $roomId');
                         // TODO: Implement start game logic
                       },
                       icon: const Icon(Icons.play_arrow),
@@ -272,10 +250,9 @@ class CurrentRoomWidget extends StatelessWidget {
                 // Enter Game Room button - navigate to game play screen
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: isInGame ? () {
-                      _log.info('🎮 [CurrentRoomWidget] Enter Game Room button pressed for game: $gameId');
+                    onPressed: () {
                       _enterGameRoom(context, gameData);
-                    } : null,
+                    },
                     icon: const Icon(Icons.games),
                     label: const Text('Enter Game Room'),
                     style: ElevatedButton.styleFrom(
@@ -290,7 +267,6 @@ class CurrentRoomWidget extends StatelessWidget {
                 // Leave Game button
                 ElevatedButton.icon(
                   onPressed: () {
-                    _log.info('🚪 [CurrentRoomWidget] Leave game button pressed for game: $gameId');
                     _leaveRoom(roomId);
                   },
                   icon: const Icon(Icons.exit_to_app),
@@ -311,11 +287,8 @@ class CurrentRoomWidget extends StatelessWidget {
   /// Navigate to game play screen with game data
   void _enterGameRoom(BuildContext context, Map<String, dynamic> gameData) {
     try {
-      _log.info('🎮 [CurrentRoomWidget] Navigating to game play screen with game data: $gameData');
-      
       // Store game data in state for the game play screen to access
       final gameId = gameData['game_id']?.toString() ?? '';
-      final roomId = gameData['room_id']?.toString() ?? gameId;
       
       // Extract game state information
       final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
@@ -351,10 +324,8 @@ class CurrentRoomWidget extends StatelessWidget {
       // Navigate to game play screen
       NavigationManager().navigateTo('/recall/game-play');
       
-      _log.info('✅ [CurrentRoomWidget] Successfully navigated to game play screen');
-      
     } catch (e) {
-      _log.error('❌ [CurrentRoomWidget] Error navigating to game play screen: $e');
+      // Handle error silently
     }
   }
 
@@ -518,22 +489,11 @@ class CurrentRoomWidget extends StatelessWidget {
   /// Leave room using GameCoordinator
   void _leaveRoom(String roomId) {
     try {
-      _log.info('🚪 [CurrentRoomWidget] Leaving room: $roomId');
-      
       // Use GameCoordinator to leave the room
       final gameCoordinator = GameCoordinator();
-      gameCoordinator.leaveGame(gameId: roomId).then((success) {
-        if (success) {
-          _log.info('✅ [CurrentRoomWidget] Left room successfully');
-        } else {
-          _log.error('❌ [CurrentRoomWidget] Failed to leave room');
-        }
-      }).catchError((e) {
-        _log.error('❌ [CurrentRoomWidget] Error leaving room: $e');
-      });
-      
+      gameCoordinator.leaveGame(gameId: roomId);
     } catch (e) {
-      _log.error('❌ [CurrentRoomWidget] Error leaving room: $e');
+      // Handle error silently
     }
   }
 }

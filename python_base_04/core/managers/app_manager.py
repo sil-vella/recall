@@ -5,7 +5,7 @@ from core.managers.hooks_manager import HooksManager
 from core.managers.module_manager import ModuleManager
 from core.managers.rate_limiter_manager import RateLimiterManager
 from jinja2 import ChoiceLoader, FileSystemLoader
-, function_log, game_play_log, log_function_call
+from tools.logger.custom_logging import custom_log, function_log, game_play_log, log_function_call
 import os
 from flask import request, jsonify
 import time
@@ -44,7 +44,9 @@ class AppManager:
         self.action_discovery_manager = None
         self._initialized = False
 
-        def is_initialized(self):
+        custom_log("AppManager instance created.")
+
+    def is_initialized(self):
         """Check if the AppManager is properly initialized."""
         return self._initialized
 
@@ -56,6 +58,7 @@ class AppManager:
             # Try to execute a simple query to check connection
             return self.db_manager.check_connection()
         except Exception as e:
+            custom_log(f"Database health check failed: {e}", level="ERROR")
             return False
 
     def check_redis_connection(self):
@@ -66,6 +69,7 @@ class AppManager:
             # Try to execute a PING command
             return self.redis_manager.ping()
         except Exception as e:
+            custom_log(f"Redis health check failed: {e}", level="ERROR")
             return False
 
     def get_db_manager(self, role="read_write"):
@@ -103,6 +107,8 @@ class AppManager:
             raise RuntimeError("AppManager requires a valid Flask app instance.")
 
         self.flask_app = app
+        custom_log(f"AppManager initialized with Flask app: {self.flask_app}")
+
         # Initialize scheduler
         self.scheduler = BackgroundScheduler()
         self.scheduler.start()
@@ -135,6 +141,8 @@ class AppManager:
         self.websocket_manager.set_app_manager(self)
         self.websocket_manager.initialize(app, use_builtin_handlers=True)
         
+        custom_log("✅ Centralized database, Redis, State, JWT, UserActions, ActionDiscovery, and WebSocket managers initialized")
+
         # Initialize services
         self.services_manager.initialize_services()
 
@@ -142,6 +150,7 @@ class AppManager:
         self._register_common_hooks()
 
         # Initialize modules (replaces plugin system)
+        custom_log("Initializing modules...")
         self.module_manager.initialize_modules(self)
 
         # Update the Jinja loader with template directories
@@ -177,7 +186,9 @@ class AppManager:
         """
         if template_dir not in self.template_dirs:
             self.template_dirs.append(template_dir)
-            @log_function_call
+            custom_log(f"Template directory '{template_dir}' registered.")
+
+    @log_function_call
     def _update_jinja_loader(self):
         """
         Update the Flask app's Jinja2 loader to include all registered template directories.
@@ -188,7 +199,9 @@ class AppManager:
         self.flask_app.jinja_loader = ChoiceLoader([
             FileSystemLoader(template_dir) for template_dir in self.template_dirs
         ])
-        def _setup_rate_limiting(self):
+        custom_log("Flask Jinja loader updated with registered template directories.")
+
+    def _setup_rate_limiting(self):
         """Set up rate limiting middleware for the Flask app."""
         if not self.flask_app:
             return
@@ -213,7 +226,10 @@ class AppManager:
                 if not result['allowed']:
                     # Log rate limit hit with details
                     exceeded_types = result['exceeded_types']
-                    }, "
+                    custom_log(
+                        f"Rate limit exceeded for types: {exceeded_types}. "
+                        f"IP: {request.remote_addr}, "
+                        f"User: {self.rate_limiter_manager._get_user_id()}, "
                         f"API Key: {self.rate_limiter_manager._get_api_key()}",
                         level="WARNING"
                     )
@@ -249,16 +265,22 @@ class AppManager:
                 # Log rate limit warnings for monitoring
                 for limit_type in limit_types:
                     if limit_type in result['remaining'] and result['remaining'][limit_type] < 10:
-                        # Store the result in request context for after_request
+                        custom_log(
+                            f"Rate limit warning for {limit_type}. "
+                            f"Remaining: {result['remaining'][limit_type]}",
+                            level="WARNING"
+                        )
+
+                # Store the result in request context for after_request
                 request.rate_limit_result = result
 
             except RedisError as e:
                 # Log Redis errors but allow the request to proceed
-                }", level="ERROR")
+                custom_log(f"Redis error in rate limiting: {str(e)}", level="ERROR")
                 return None
             except Exception as e:
                 # Log other errors but allow the request to proceed
-                }", level="ERROR")
+                custom_log(f"Error in rate limiting: {str(e)}", level="ERROR")
                 return None
 
     def _setup_rate_limit_headers(self):
@@ -284,7 +306,7 @@ class AppManager:
                             response.headers[f'X-RateLimit-{prefix}-Remaining'] = str(result['remaining'][limit_type])
                             response.headers[f'X-RateLimit-{prefix}-Reset'] = str(result['reset_time'][limit_type])
             except Exception as e:
-                }", level="ERROR")
+                custom_log(f"Error adding rate limit headers: {str(e)}", level="ERROR")
             return response
     
     def _setup_module_endpoints(self):
@@ -299,6 +321,7 @@ class AppManager:
                 status = self.module_manager.get_module_status()
                 return status, 200
             except Exception as e:
+                custom_log(f"Error getting module status: {e}", level="ERROR")
                 return {'error': 'Failed to get module status'}, 500
 
         @self.flask_app.route('/modules/<module_key>/health')
@@ -312,9 +335,12 @@ class AppManager:
                 health = module.health_check()
                 return health, 200
             except Exception as e:
+                custom_log(f"Error getting module health: {e}", level="ERROR")
                 return {'error': 'Failed to get module health'}, 500
 
-        def _setup_authentication(self):
+        custom_log("Module management endpoints registered")
+
+    def _setup_authentication(self):
         """Set up global authentication middleware for the Flask app."""
         if not self.flask_app:
             return
@@ -386,10 +412,11 @@ class AppManager:
                     request.user_id = payload.get('user_id')
                     request.user_payload = payload
                     
+                    custom_log(f"✅ JWT authenticated request for user: {request.user_id}")
                     return None
                     
                 except Exception as e:
-                    }", level="ERROR")
+                    custom_log(f"❌ JWT authentication error: {str(e)}", level="ERROR")
                     return jsonify({
                         'error': 'Token validation failed',
                         'message': 'Please login again.',
@@ -421,17 +448,21 @@ class AppManager:
                 request.app_permissions = api_key_data.get('permissions', [])
                 request.api_key_data = api_key_data
                 
-                ")
+                custom_log(f"✅ API key authenticated for app: {request.app_name} ({request.app_id})")
                 return None
 
-        @log_function_call
+        custom_log("✅ Clean authentication middleware configured with security headers")
+
+    @log_function_call
     def register_hook(self, hook_name):
         """
         Register a new hook by delegating to the HooksManager.
         :param hook_name: str - The name of the hook.
         """
         self.hooks_manager.register_hook(hook_name)
-        @log_function_call
+        custom_log(f"Hook '{hook_name}' registered via AppManager.")
+
+    @log_function_call
     def register_hook_callback(self, hook_name, callback, priority=10, context=None):
         """
         Register a callback for a specific hook by delegating to the HooksManager.
@@ -442,7 +473,7 @@ class AppManager:
         """
         self.hooks_manager.register_hook_callback(hook_name, callback, priority, context)
         callback_name = callback.__name__ if hasattr(callback, "__name__") else str(callback)
-        .")
+        custom_log(f"Callback '{callback_name}' registered for hook '{hook_name}' (priority: {priority}, context: {context}).")
 
     @log_function_call
     def trigger_hook(self, hook_name, data=None, context=None):
@@ -452,6 +483,7 @@ class AppManager:
         :param data: Any - Data to pass to the callback.
         :param context: str - Optional context to filter callbacks.
         """
+        custom_log(f"Triggering hook '{hook_name}' with data: {data} and context: {context}.")
         self.hooks_manager.trigger_hook(hook_name, data, context)
 
     def _setup_monitoring(self):
@@ -482,7 +514,9 @@ class AppManager:
                     size=getattr(request, 'request_size', 0)
                 )
             except Exception as e:
-                return response
+                custom_log(f"Error in after_request monitoring: {e}", level="ERROR")
+            
+            return response
             
         # Set up periodic system metrics collection
         self._setup_system_metrics()
@@ -492,18 +526,24 @@ class AppManager:
         try:
             # Register user_created hook
             self.register_hook("user_created")
+            custom_log("✅ Registered common hook: user_created")
+            
             # Register room management hooks
             self.register_hook("room_created")
             self.register_hook("room_joined")
             self.register_hook("room_closed")
             self.register_hook("leave_room")
+            custom_log("✅ Registered common hooks: room_created, room_joined, room_closed, leave_room")
+            
             # Add more common hooks here as needed
             # self.register_hook("payment_processed")
             # self.register_hook("user_login")
             # self.register_hook("user_logout")
             
         except Exception as e:
-            def _setup_system_metrics(self):
+            custom_log(f"❌ Error registering common hooks: {e}", level="ERROR")
+
+    def _setup_system_metrics(self):
         """Set up periodic collection of system metrics."""
         def update_system_metrics():
             try:
@@ -519,7 +559,9 @@ class AppManager:
                         self.redis_manager.get_connection_count()
                     )
             except Exception as e:
-                # Schedule periodic updates
+                custom_log(f"Error updating system metrics: {e}", level="ERROR")
+        
+        # Schedule periodic updates
         self.scheduler.add_job(
             update_system_metrics,
             'interval',

@@ -1,5 +1,4 @@
 import '../../00_base/adapter_base.dart';
-import '../../../tools/logging/logger.dart';
 import '../../ext_plugins/revenuecat/main.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
@@ -7,7 +6,6 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 /// This adapter acts as a bridge between RevenueCat and your existing StateManager
 /// without requiring changes to either system.
 class RevenueCatAdapter extends AdapterBase {
-  static final Logger _log = Logger();
   static RevenueCatAdapter? _instance;
 
   // RevenueCat SDK instance (will be initialized when dependency is added)
@@ -25,8 +23,6 @@ class RevenueCatAdapter extends AdapterBase {
 
   @override
   Future<void> _initializeAdapter() async {
-    _log.info('🔗 Initializing RevenueCat adapter...');
-
     try {
       // Initialize RevenueCat SDK (when dependency is added)
       await _initializeRevenueCatSDK();
@@ -37,10 +33,7 @@ class RevenueCatAdapter extends AdapterBase {
       // Set up listeners for automatic state updates
       _setupStateListeners();
 
-      _log.info('✅ RevenueCat adapter initialized successfully');
-
     } catch (e) {
-      _log.error('❌ Error initializing RevenueCat adapter: $e');
       // Continue without RevenueCat - app will work with free features
     }
   }
@@ -56,20 +49,14 @@ class RevenueCatAdapter extends AdapterBase {
       final userId = userData['userId'];
       final isLoggedIn = userData['isLoggedIn'] ?? false;
       
-      _log.info('🔍 User authentication status: ${isLoggedIn ? "logged in" : "not logged in"}');
-      _log.info('🔍 User ID: ${userId ?? "none"}');
-      
       if (isLoggedIn && userId != null) {
         // Link RevenueCat to authenticated user
         await Purchases.logIn(userId);
-        _log.info('✅ RevenueCat linked to authenticated user: $userId');
       } else {
         // Let RevenueCat create anonymous ID for guest users
-        _log.info('ℹ️ No authenticated user, RevenueCat will create anonymous ID');
       }
 
     } catch (e) {
-      _log.error('❌ RevenueCat SDK initialization failed: $e');
       rethrow;
     }
   }
@@ -84,14 +71,10 @@ class RevenueCatAdapter extends AdapterBase {
       "isLoading": false,
       "lastUpdated": DateTime.now().toIso8601String(),
     });
-
-    _log.info('✅ Subscription state registered with StateManager');
   }
 
   /// Set up listeners for automatic state synchronization
   void _setupStateListeners() {
-    _log.info('👂 RevenueCat state listeners setup');
-
     // Set up real RevenueCat listener
     Purchases.addCustomerInfoUpdateListener((customerInfo) {
       _updateStateManager({
@@ -122,10 +105,8 @@ class RevenueCatAdapter extends AdapterBase {
         "lastUpdated": DateTime.now().toIso8601String(),
       });
 
-      _log.info('🔄 Subscription state updated: $plan');
-
     } catch (e) {
-      _log.error('❌ Error updating subscription state: $e');
+      // Error updating subscription state
     }
   }
 
@@ -145,10 +126,8 @@ class RevenueCatAdapter extends AdapterBase {
         });
       }
 
-      _log.info('🎣 Subscription hooks triggered');
-
     } catch (e) {
-      _log.error('❌ Error triggering subscription hooks: $e');
+      // Error triggering subscription hooks
     }
   }
 
@@ -161,11 +140,9 @@ class RevenueCatAdapter extends AdapterBase {
       final features = subscriptionState['features'] as List<dynamic>? ?? [];
       final hasAccess = features.contains(feature);
 
-      _log.info('🔍 Feature access check - Feature: $feature, Access: $hasAccess');
       return hasAccess;
 
     } catch (e) {
-      _log.error('❌ Error checking feature access: $e');
       return false;
     }
   }
@@ -181,7 +158,6 @@ class RevenueCatAdapter extends AdapterBase {
       };
 
     } catch (e) {
-      _log.error('❌ Error getting subscription status: $e');
       return {
         "isSubscribed": false,
         "plan": "free",
@@ -193,8 +169,6 @@ class RevenueCatAdapter extends AdapterBase {
   /// Purchase a product (seamless integration)
   Future<Map<String, dynamic>> purchaseProduct(String productId) async {
     try {
-      _log.info('💳 Purchasing product: $productId');
-
       // Get offerings from RevenueCat plugin
       final offerings = await Purchases.getOfferings();
       final offering = offerings.current;
@@ -230,13 +204,11 @@ class RevenueCatAdapter extends AdapterBase {
         });
       } else {
         // Handle failed purchase
-        _log.warning('⚠️ Purchase completed but no customer info returned');
       }
 
       return {"success": true, "message": "Product purchased successfully"};
 
     } catch (e) {
-      _log.error('❌ Error purchasing product: $e');
       return {"success": false, "error": "Purchase failed: $e"};
     }
   }
@@ -244,8 +216,6 @@ class RevenueCatAdapter extends AdapterBase {
   /// Restore purchases (seamless integration)
   Future<Map<String, dynamic>> restorePurchases() async {
     try {
-      _log.info('🔄 Restoring purchases...');
-
       // Restore purchases using RevenueCat plugin
       final customerInfo = await Purchases.restorePurchases();
       
@@ -259,7 +229,6 @@ class RevenueCatAdapter extends AdapterBase {
       return {"success": true, "message": "Purchases restored"};
 
     } catch (e) {
-      _log.error('❌ Error restoring purchases: $e');
       return {"success": false, "error": "Restore failed: $e"};
     }
   }
@@ -285,7 +254,6 @@ class RevenueCatAdapter extends AdapterBase {
       }).toList();
 
     } catch (e) {
-      _log.error('❌ Error getting products: $e');
       return [];
     }
   }
@@ -293,7 +261,6 @@ class RevenueCatAdapter extends AdapterBase {
   /// Handle user authentication changes (called when user logs in/out)
   Future<void> handleUserAuthChange() async {
     if (!isInitialized) {
-      _log.info('⏸️ RevenueCat adapter not initialized, skipping auth change');
       return;
     }
 
@@ -302,21 +269,15 @@ class RevenueCatAdapter extends AdapterBase {
       final userId = userData['userId'];
       final isLoggedIn = userData['isLoggedIn'] ?? false;
       
-      _log.info('🔄 Handling user authentication change');
-      _log.info('🔍 User logged in: $isLoggedIn');
-      _log.info('🔍 User ID: ${userId ?? "none"}');
-      
       if (isLoggedIn && userId != null) {
         // Link RevenueCat to authenticated user
         await Purchases.logIn(userId);
-        _log.info('✅ RevenueCat linked to authenticated user: $userId');
       } else {
         // Log out from RevenueCat (creates new anonymous ID)
         await Purchases.logOut();
-        _log.info('ℹ️ RevenueCat logged out, will create new anonymous ID');
       }
     } catch (e) {
-      _log.error('❌ Error handling user authentication change: $e');
+      // Error handling user authentication change
     }
   }
 

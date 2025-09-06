@@ -1,13 +1,11 @@
 import '../../../core/managers/module_manager.dart';
 import '../../../modules/connections_api_module/connections_api_module.dart';
-import '../../../tools/logging/logger.dart';
 import '../managers/validated_event_emitter.dart';
 import '../managers/validated_state_manager.dart';
 
 /// Convenient helper methods for recall game operations
 /// Provides type-safe, validated methods for common game actions
 class RecallGameHelpers {
-  static final Logger _log = Logger();
   // Singleton instances
   static final _eventEmitter = RecallGameEventEmitter.instance;
   static final _stateUpdater = RecallGameStateUpdater.instance;
@@ -64,26 +62,16 @@ class RecallGameHelpers {
 
   /// Fetch available games from the backend API
   static Future<Map<String, dynamic>> fetchAvailableGames() async {
-    _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] Fetching available games from API');
-    
     try {
       // Get the ConnectionsApiModule instance from the global module manager
       // Note: This requires the module to be initialized in the app context
       final moduleManager = ModuleManager();
-      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] ModuleManager instance: $moduleManager');
       
       final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
-      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] ConnectionsApiModule: $connectionsModule');
       
       if (connectionsModule == null) {
-        _log.error('❌ [RecallGameHelpers.fetchAvailableGames] ConnectionsApiModule not available');
         throw Exception('ConnectionsApiModule not available - ensure it is initialized');
       }
-      
-      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] ConnectionsApiModule baseUrl: ${connectionsModule.baseUrl}');
-
-      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] Making API call to /userauth/recall/get-available-games');
-      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] Full URL will be: ${connectionsModule.baseUrl}/userauth/recall/get-available-games');
       
       // Make API call to fetch available games
       // The endpoint is JWT protected, but AuthInterceptor handles tokens automatically
@@ -98,8 +86,6 @@ class RecallGameHelpers {
       final games = response['games'] ?? [];
       final message = response['message'] ?? 'Games fetched successfully';
       
-      _log.info('🎮 [RecallGameHelpers.fetchAvailableGames] Successfully fetched ${games.length} games');
-      
       return {
         'success': true,
         'games': games,
@@ -108,7 +94,6 @@ class RecallGameHelpers {
       };
       
     } catch (e) {
-      _log.error('❌ [RecallGameHelpers.fetchAvailableGames] Error: $e');
       return {
         'success': false,
         'error': 'Failed to fetch available games: $e',
@@ -142,37 +127,20 @@ class RecallGameHelpers {
 
   /// Update UI state using validated state updater
   static void updateUIState(Map<String, dynamic> updates) {
-    _log.info('🎯 [RecallGameHelpers] updateUIState called with: ${updates.keys.join(', ')}');
-    
-    // Debug specific fields
-    if (updates.containsKey('isRoomOwner')) {
-      _log.info('  - isRoomOwner: ${updates['isRoomOwner']}');
-    }
-    if (updates.containsKey('isGameActive')) {
-      _log.info('  - isGameActive: ${updates['isGameActive']}');
-    }
-    
     _stateUpdater.updateState(updates);
   }
 
   /// Find a specific game by room ID via API call
   static Future<Map<String, dynamic>> findRoom(String roomId) async {
-    _log.info('🎮 [RecallGameHelpers.findRoom] Finding game: $roomId');
-    
     try {
       // Get the ConnectionsApiModule instance from the global module manager
       final moduleManager = ModuleManager();
-      _log.info('🎮 [RecallGameHelpers.findRoom] ModuleManager instance: $moduleManager');
       
       final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
-      _log.info('🎮 [RecallGameHelpers.findRoom] ConnectionsApiModule: $connectionsModule');
       
       if (connectionsModule == null) {
-        _log.error('❌ [RecallGameHelpers.findRoom] ConnectionsApiModule not available');
         throw Exception('ConnectionsApiModule not available - ensure it is initialized');
       }
-      
-      _log.info('🎮 [RecallGameHelpers.findRoom] Making API call to /userauth/recall/find-room');
       
       // Make API call to find game
       final response = await connectionsModule.sendPostRequest(
@@ -189,8 +157,6 @@ class RecallGameHelpers {
       final game = response['game'];
       final message = response['message'] ?? 'Game found successfully';
       
-      _log.info('✅ [RecallGameHelpers.findRoom] Game found: $roomId');
-      
       return {
         'success': true,
         'message': message,
@@ -198,7 +164,6 @@ class RecallGameHelpers {
         'timestamp': DateTime.now().toIso8601String(),
       };
     } catch (e) {
-      _log.error('❌ [RecallGameHelpers.findRoom] Error: $e');
       return {
         'success': false,
         'error': e.toString(),

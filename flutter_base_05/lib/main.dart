@@ -10,10 +10,6 @@ import 'tools/logging/logger.dart';
 void main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Add a simple print to see if the app is even starting
-  print('🚀 FLUTTER APP MAIN FUNCTION STARTED');
-  debugPrint('🚀 FLUTTER APP MAIN FUNCTION STARTED');
 
   // Initialize platform-specific implementations
   await Future.wait([
@@ -50,29 +46,24 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  static final Logger _log = Logger();
   bool _isInitializing = false;
+  final Logger _logger = Logger();
+  final bool _enableTestLog = true;
 
   @override
   void initState() {
     super.initState();
-    _log.info('🚀 MyApp initState called');
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _log.info('📅 PostFrameCallback executing, calling _initializeApp');
       _initializeApp();
     });
   }
 
   Future<void> _initializeApp() async {
-    _log.info('🔍 _initializeApp called, _isInitializing: $_isInitializing');
-    
     if (_isInitializing) {
-      _log.info('⏳ Already initializing, returning early');
       return;
     }
     
-    _log.info('🎯 Setting _isInitializing to true and starting initialization');
     setState(() {
       _isInitializing = true;
     });
@@ -84,10 +75,7 @@ class _MyAppState extends State<MyApp> {
       // Set up navigation callback first
       navigationManager.setNavigationCallback((route) {
         final router = navigationManager.router;
-        _log.info('🧭 Navigation callback executing for route: $route');
-        _log.info('🧭 Router instance: $router');
         router.go(route);
-        _log.info('🧭 Router.go() called for route: $route');
       });
       
       // Mark router as initialized after MaterialApp is built
@@ -98,9 +86,7 @@ class _MyAppState extends State<MyApp> {
       
       // Initialize the app and wait for completion
       if (!appManager.isInitialized) {
-        _log.info('🚀 Starting app initialization from MyApp...');
         await appManager.initializeApp(context);
-        _log.info('✅ App initialization completed in MyApp');
       }
 
       // Trigger rebuild after initialization is complete
@@ -108,10 +94,12 @@ class _MyAppState extends State<MyApp> {
         setState(() {
           _isInitializing = false;
         });
+        
+        // Test log after app is fully loaded
+        _logger.info('🚀 App fully loaded and initialized successfully!', isOn: _enableTestLog);
       }
 
     } catch (e) {
-      _log.error('❌ App initialization failed in MyApp: $e');
       if (mounted) {
         setState(() {
           _isInitializing = false;
@@ -122,14 +110,8 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    print('🏗️ MyApp build() called');
-    debugPrint('🏗️ MyApp build() called');
-    
     final appManager = Provider.of<AppManager>(context);
     final navigationManager = Provider.of<NavigationManager>(context, listen: false);
-    
-    print('📊 AppManager isInitialized: ${appManager.isInitialized}');
-    debugPrint('📊 AppManager isInitialized: ${appManager.isInitialized}');
 
     // Show loading screen while initializing
     if (_isInitializing || !appManager.isInitialized) {
@@ -150,7 +132,6 @@ class _MyAppState extends State<MyApp> {
     }
 
     final router = navigationManager.router;
-    _log.info('🧭 MaterialApp.router using router: $router');
     
     // Set the router instance in NavigationManager
     navigationManager.setRouterInstance(router);

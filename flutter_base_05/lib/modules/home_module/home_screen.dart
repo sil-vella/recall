@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:async';
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/app_manager.dart';
 import '../../core/managers/navigation_manager.dart';
 import '../../core/managers/websockets/websocket_manager.dart';
-import '../../core/managers/websockets/websocket_events.dart';
 import '../../utils/consts/theme_consts.dart';
 
 class HomeScreen extends BaseScreen {

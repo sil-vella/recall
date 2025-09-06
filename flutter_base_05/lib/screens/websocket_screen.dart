@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../core/00_base/screen_base.dart';
-import '../utils/consts/config.dart';
-import '../modules/login_module/login_module.dart';
 import '../core/managers/module_manager.dart';
 import '../core/managers/websockets/websocket_manager.dart';
 import '../core/managers/websockets/websocket_events.dart';
@@ -43,20 +41,17 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
   void initState() {
     super.initState();
     // Don't auto-connect - let user press connect button
-    log.info('🔌 WebSocket screen initialized (no auto-connection)');
   }
 
   void _connect() async {
     // Check if already connected first
     if (_websocketManager.isConnected) {
-      log.info('✅ WebSocket already connected');
       setState(() {
         messages.add('✅ WebSocket already connected');
       });
       return;
     }
     
-    log.info('🚀 Attempting to connect to WebSocket server...');
     final success = await _websocketManager.connect();
     if (success) {
       setState(() {
@@ -70,7 +65,6 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
   }
 
   void _disconnect() {
-    log.info('🔌 Manually disconnecting WebSocket...');
     _websocketManager.disconnect();
     setState(() {
       messages.add('🔌 Disconnected from WebSocket server');
@@ -84,7 +78,6 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
       return;
     }
     
-    log.info('💬 Sending WebSocket message: $message');
     final result = await _websocketManager.broadcastMessage(message);
     if (result['success'] != null) {
       messages.add('💬 Sent message: $message');
@@ -101,7 +94,6 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
       return;
     }
     
-    log.info('💬 Sending test WebSocket message: $message');
     final result = await _websocketManager.broadcastMessage(message);
     if (result['success'] != null) {
       messages.add('💬 Sent test message: $message');
@@ -119,9 +111,7 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
 
   @override
   void dispose() {
-    log.info('🔌 Disposing WebSocket screen (keeping connection alive)');
-    log.info('🔍 WebSocket state before dispose: connected=${_websocketManager.isConnected}');
-    
+
     // Don't disconnect the WebSocket manager - keep it alive for other screens
     _messageController.dispose();
     _customMessageController.dispose();

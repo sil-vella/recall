@@ -1,5 +1,4 @@
 import 'dart:async';
-import '../../../tools/logging/logger.dart';
 
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/websockets/websocket_events.dart';
@@ -16,7 +15,6 @@ class EventConfig {
 /// Recall Game Event Listener Validator
 /// Ensures all incoming events follow the defined schema and validation rules
 class RecallGameEventListenerValidator {
-  static final Logger _log = Logger();
   static RecallGameEventListenerValidator? _instance;
   
   static RecallGameEventListenerValidator get instance {
@@ -113,7 +111,6 @@ class RecallGameEventListenerValidator {
       // Register the Socket.IO listener when WebSocket is connected
       _registerSocketIOListener();
       _isListenerRegistered = true;
-      _log.info('📝 RecallGameEventListenerValidator initialized');
     }
   }
   
@@ -121,22 +118,13 @@ class RecallGameEventListenerValidator {
   void _registerSocketIOListener() {
     final wsManager = WebSocketManager.instance;
     
-    // Use the core WebSocket system's connection logic - same as connection widget
-    _log.info('🔌 Using core WebSocket connection monitoring for recall_game_event listener');
-    
     // Check if WebSocket is already connected
     if (wsManager.isConnected && wsManager.eventListener != null) {
-      _log.info('✅ WebSocket already connected, registering recall_game_event listener immediately');
       _registerListenerNow();
     } else {
-      _log.info('⏳ WebSocket not connected yet, will register listener when connected');
-      
       // Use the core WebSocket system's connection status stream - same as connection widget
       wsManager.connectionStatus.listen((event) {
-        _log.info('🔌 Connection status event received: ${event.status}');
-        
         if (event.status == ConnectionStatus.connected && !_socketIOListenerRegistered) {
-          _log.info('🔌 WebSocket connected, registering recall_game_event listener');
           _registerListenerNow();
         }
       });
@@ -156,7 +144,6 @@ class RecallGameEventListenerValidator {
       
       final wsManager = WebSocketManager.instance;
       if (wsManager.isConnected && wsManager.eventListener != null) {
-        _log.info('🔌 Periodic check: WebSocket connected, registering recall_game_event listener');
         _registerListenerNow();
         timer.cancel();
       }
@@ -176,33 +163,25 @@ class RecallGameEventListenerValidator {
       
       for (final eventName in eventNames) {
         wsManager.eventListener!.registerCustomListener(eventName, (data) {
-          _log.info('🎧 [DirectEvent] Raw event received: $eventName');
           _handleDirectEvent(eventName, data);
         });
       }
       
       _socketIOListenerRegistered = true;
-      _log.info('📝 Registered Socket.IO listeners for ${eventNames.length} direct game events via core WebSocket system');
-    } else {
-      _log.error('❌ WebSocket event listener not available, cannot register direct game event listeners');
     }
   }
   
   /// Handle direct game events and route to RecallEventManager
   void _handleDirectEvent(String eventType, Map<String, dynamic> data) {
-    _log.info('🎧 [DirectEvent] Processing: $eventType');
-    
     try {
         // Validate event type
       if (!_eventConfigs.containsKey(eventType)) {
-        _log.error('❌ [DirectEvent] Unknown game event type: $eventType');
           return;
         }
 
         // Validate event data against schema
       final validatedData = _validateEventData(eventType, data);
         if (validatedData == null) {
-        _log.error('❌ [DirectEvent] Invalid data for game event: $eventType');
           return;
         }
 
@@ -213,14 +192,10 @@ class RecallGameEventListenerValidator {
           ...validatedData,
         };
 
-        // Log the event
-      _logEvent(eventType, eventPayload);
-
       // Route directly to RecallEventManager based on event type
       _routeEventToManager(eventType, eventPayload);
 
       } catch (e) {
-      _log.error('❌ [DirectEvent] Error handling direct game event: $e');
     }
   }
 
@@ -230,7 +205,6 @@ class RecallGameEventListenerValidator {
     final handlerMethod = eventConfig?.handlerMethod;
     
     if (handlerMethod == null) {
-      _log.info('ℹ️ [DirectEvent] No handler configured for event type: $eventType (validation only)');
       return;
     }
     
@@ -255,14 +229,10 @@ class RecallGameEventListenerValidator {
           RecallEventHandlerCallbacks.handlePlayerStateUpdated(eventPayload);
           break;
         default:
-          _log.warning('⚠️ [DirectEvent] Unknown handler method: $handlerMethod');
           return;
       }
       
-      _log.info('✅ [DirectEvent] Successfully routed $eventType to $handlerMethod');
-      
     } catch (e) {
-      _log.error('❌ [DirectEvent] Error routing $eventType to $handlerMethod: $e');
     }
   }
 
@@ -271,7 +241,6 @@ class RecallGameEventListenerValidator {
     try {
       final eventConfig = _eventConfigs[eventType];
       if (eventConfig == null) {
-        _log.error('❌ [VALIDATION] No schema found for event type: $eventType');
         return null;
       }
       
@@ -293,22 +262,11 @@ class RecallGameEventListenerValidator {
         validatedData['metadata'] = data['metadata'];
       }
 
-      if (missingFields.isNotEmpty) {
-        _log.warning('⚠️ [VALIDATION] Missing fields for $eventType: $missingFields');
-      }
-      
-      _log.debug('✅ [VALIDATION] Validated $eventType: ${validatedData.length}/${schema.length} fields');
       return validatedData;
 
     } catch (e) {
-      _log.error('❌ [VALIDATION] Error validating $eventType: $e');
       return null;
     }
   }
 
-  /// Log validated event
-  void _logEvent(String eventType, Map<String, dynamic> data) {
-    _log.info('✅ [RecallGameEvent] $eventType');
-    _log.debug('   Fields: ${data.keys.where((k) => k != 'timestamp').join(', ')}');
-  }
 }

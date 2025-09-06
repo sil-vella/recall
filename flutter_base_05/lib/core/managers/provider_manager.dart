@@ -30,10 +30,7 @@ class ProviderManager {
     
     if (name != null) {
       _namedProviders[name] = provider;
-      _log.info('📦 Registered named provider: $name');
     }
-    
-    _log.info('📦 Registered provider: ${T.toString()}');
   }
 
   /// Register a provider with a factory function
@@ -56,8 +53,6 @@ class ProviderManager {
 
   /// Register core providers (AppManager, StateManager, etc.)
   void registerCoreProviders() {
-    _log.info('📦 Registering core providers...');
-    
     // Register core managers as providers
     registerProviderCreate(
       () => AppManager(),
@@ -88,8 +83,6 @@ class ProviderManager {
       () => AuthManager(),
       name: 'auth_manager',
     );
-    
-    _log.info('✅ Core providers registered');
   }
 
   /// Get all registered providers
@@ -114,7 +107,6 @@ class ProviderManager {
   void clearProviders() {
     _registeredProviders.clear();
     _namedProviders.clear();
-    _log.info('🗑️ Cleared all registered providers');
   }
 
   /// Get provider count
@@ -125,17 +117,6 @@ class ProviderManager {
 
   /// Log all registered providers
   void logRegisteredProviders() {
-    _log.info('📦 Registered Providers (${_registeredProviders.length}):');
-    for (int i = 0; i < _registeredProviders.length; i++) {
-      final provider = _registeredProviders[i];
-      _log.info('  ${i + 1}. ${provider.runtimeType}');
-    }
-    
-    if (_namedProviders.isNotEmpty) {
-      _log.info('📦 Named Providers:');
-      _namedProviders.forEach((name, provider) {
-        _log.info('  - $name: ${provider.runtimeType}');
-      });
-    }
+    // Logging functionality removed
   }
 } 

@@ -1,5 +1,4 @@
 import 'dart:async';
-import '../../tools/logging/logger.dart';
 
 /// A type definition for event handlers
 typedef EventHandler<T> = void Function(T event);
@@ -15,7 +14,6 @@ class Event {
 
 /// The EventBus manages event streams and subscriptions
 class EventBus {
-  static final Logger _log = Logger();
   static final EventBus _instance = EventBus._internal();
   
   factory EventBus() => _instance;
@@ -29,7 +27,6 @@ class EventBus {
   Stream<T> on<T extends Event>() {
     if (!_controllers.containsKey(T)) {
       _controllers[T] = StreamController<T>.broadcast();
-      _log.info('Created new stream for event type: ${T.toString()}');
     }
     return _controllers[T]!.stream.cast<T>();
   }
@@ -39,17 +36,14 @@ class EventBus {
     final Type eventType = event.runtimeType;
     
     if (!_controllers.containsKey(eventType)) {
-      _log.info('No listeners registered for event type: ${eventType.toString()}');
       return;
     }
 
-    _log.info('Firing event: ${eventType.toString()}');
     _controllers[eventType]!.add(event);
   }
 
   /// Subscribe to an event type with a handler
   StreamSubscription<T> subscribe<T extends Event>(EventHandler<T> handler) {
-    _log.info('Subscribing to event type: ${T.toString()}');
     return on<T>().listen(handler);
   }
 
@@ -59,7 +53,6 @@ class EventBus {
       controller.close();
     }
     _controllers.clear();
-    _log.info('EventBus disposed');
   }
 
   /// Clear a specific event type's stream and subscriptions
@@ -67,7 +60,6 @@ class EventBus {
     if (_controllers.containsKey(T)) {
       _controllers[T]!.close();
       _controllers.remove(T);
-      _log.info('Cleared event type: ${T.toString()}');
     }
   }
 } 

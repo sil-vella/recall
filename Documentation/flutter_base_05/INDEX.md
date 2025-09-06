@@ -380,6 +380,7 @@ final token = await authManager.getCurrentValidToken();
 - [VALIDATED_EVENT_STATE_SYSTEM.md](./VALIDATED_EVENT_STATE_SYSTEM.md) - **NEW** Validated Event/State System
 - [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment guide
 - [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) - Troubleshooting
+- [LOGGING_SYSTEM.md](./LOGGING_SYSTEM.md) - **NEW** Logging System Documentation
 
 ### External Resources
 - [Flutter Documentation](https://docs.flutter.dev/)

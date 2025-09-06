@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../widgets/card_back_widget.dart';
@@ -16,8 +15,6 @@ import '../../../managers/player_action.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class MyHandWidget extends StatelessWidget {
-  static final Logger _log = Logger();
-  
   const MyHandWidget({Key? key}) : super(key: key);
 
   @override
@@ -39,7 +36,6 @@ class MyHandWidget extends StatelessWidget {
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 MyHandWidget: cards=${cards.length}, selectedIndex=$selectedIndex, gamePhase=$gamePhase, isMyTurn=$isMyTurn, playerStatus=$playerStatus');
         
         return _buildMyHandCard(
           cards: cards,
@@ -151,11 +147,6 @@ class MyHandWidget extends StatelessWidget {
         final drawnCard = recallGameState['myDrawnCard'] as Map<String, dynamic>?;
         final drawnCardId = drawnCard?['cardId']?.toString();
         
-        // Debug logging for drawn card state
-        _log.info('🎯 [DRAWN_CARD_DEBUG] myDrawnCard: $drawnCard, drawnCardId: $drawnCardId');
-        
-        // Debug: Check if this is a rebuild after state update
-        _log.info('🎯 [DRAWN_CARD_DEBUG] Widget rebuilding at ${DateTime.now().toIso8601String()}');
         
         return Container(
           height: 140,
@@ -167,10 +158,6 @@ class MyHandWidget extends StatelessWidget {
               final isSelected = index == selectedIndex;
               final isDrawnCard = drawnCardId != null && card['cardId']?.toString() == drawnCardId;
               
-              // Debug logging for card identification
-              if (isDrawnCard) {
-                _log.info('🎯 [DRAWN_CARD_DEBUG] Card at index $index (${card['cardId']}) is identified as drawn card');
-              }
               
               // Convert to CardModel
               final cardModel = CardModel.fromMap(card);
@@ -220,8 +207,6 @@ class MyHandWidget extends StatelessWidget {
     final currentPlayerStatus = currentState['playerStatus']?.toString() ?? 'unknown';
     final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
       
-    _log.info('🎯 MyHand card clicked: index=$index, cardId=${card['cardId']}, current player status: $currentPlayerStatus');
-    
     // Check if current player can interact with hand cards (playing_card, jack_swap, queen_peek, or same_rank_window status)
     if (currentPlayerStatus == 'playing_card' || 
         currentPlayerStatus == 'jack_swap' || 
@@ -241,12 +226,9 @@ class MyHandWidget extends StatelessWidget {
         'myHand': updatedMyHand,
       });
       
-      _log.info('✅ Card selected: index=$index, cardId=${card['cardId']} (status: $currentPlayerStatus)');
-      
       // Get current game ID from state
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
       if (currentGameId.isEmpty) {
-        _log.error('❌ No current game ID found');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Error: No active game found'),
@@ -267,8 +249,6 @@ class MyHandWidget extends StatelessWidget {
           );
           await sameRankAction.execute();
           
-          _log.info('✅ Same rank play action executed successfully for card: ${card['rank']} of ${card['suit']}');
-          
           // Show success feedback for same rank play
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -287,8 +267,6 @@ class MyHandWidget extends StatelessWidget {
           );
           await playAction.execute();
           
-          _log.info('✅ Play card action executed successfully for card: ${card['rank']} of ${card['suit']}');
-          
           // Show success feedback for regular play
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -301,7 +279,6 @@ class MyHandWidget extends StatelessWidget {
           );
         }
       } catch (e) {
-        _log.error('❌ Failed to execute action: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to execute action: $e'),
@@ -312,7 +289,6 @@ class MyHandWidget extends StatelessWidget {
       }
     } else {
       // Show invalid action feedback
-      _log.info('❌ Invalid card selection action: status=$currentPlayerStatus');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

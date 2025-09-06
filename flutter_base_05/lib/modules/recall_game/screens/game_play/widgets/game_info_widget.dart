@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../managers/game_coordinator.dart';
 
 /// Widget to display current game information
@@ -12,8 +11,6 @@ import '../../../managers/game_coordinator.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class GameInfoWidget extends StatelessWidget {
-  static final Logger _log = Logger();
-  
   const GameInfoWidget({Key? key}) : super(key: key);
 
   @override
@@ -37,13 +34,9 @@ class GameInfoWidget extends StatelessWidget {
         // Get player status from main state
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 GameInfoWidget: isInGame=$isInGame, currentGameId=$currentGameId, playerStatus=$playerStatus');
-        
         if (!isInGame || currentGameId.isEmpty) {
           return _buildEmptyState();
         }
-        
-        _log.info('🎮 GameInfoWidget: Game data - roomName=$roomName, currentSize=$currentSize, maxSize=$maxSize, phase=$gamePhase, status=$gameStatus');
         
         return _buildGameInfoCard(
           currentGameId: currentGameId,
@@ -233,20 +226,12 @@ class GameInfoWidget extends StatelessWidget {
   
   /// Handle start match button press
   void _handleStartMatch() async {
-    _log.info('🎮 GameInfoWidget: Start match button pressed');
-    
     try {
       // Call GameCoordinator to start the match
       final gameCoordinator = GameCoordinator();
-      final success = await gameCoordinator.startMatch();
-      
-      if (success) {
-        _log.info('✅ GameInfoWidget: Start match action sent successfully');
-      } else {
-        _log.error('❌ GameInfoWidget: Failed to send start match action');
-      }
+      await gameCoordinator.startMatch();
     } catch (e) {
-      _log.error('❌ GameInfoWidget: Error in start match action: $e');
+      // Handle error silently
     }
   }
   

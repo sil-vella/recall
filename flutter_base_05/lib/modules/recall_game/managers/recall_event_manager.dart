@@ -1,14 +1,12 @@
 import 'dart:async';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/hooks_manager.dart';
-import '../../../tools/logging/logger.dart';
 import '../utils/recall_game_helpers.dart';
 import 'recall_event_listener_validator.dart';
 import 'recall_event_handler_callbacks.dart';
 
 
 class RecallEventManager {
-  static final Logger _log = Logger();
   static final RecallEventManager _instance = RecallEventManager._internal();
   factory RecallEventManager() => _instance;
   RecallEventManager._internal();
@@ -32,8 +30,6 @@ class RecallEventManager {
 
   Future<bool> initialize() async {
     try {
-      _log.info('📨 Initializing RecallEventManager...');
-      
       // Register state domains
       _stateManager.registerModuleState("recall_messages", {
         'session': <Map<String, dynamic>>[],
@@ -49,24 +45,16 @@ class RecallEventManager {
 
       // Recall-specific Socket.IO listeners are centralized in RecallGameCoordinator.
       // We subscribe only via WSEventManager callbacks here.
-      _log.info('✅ RecallEventManager initialized successfully');
       return true;
       
     } catch (e) {
-      _log.error('❌ RecallEventManager initialization failed: $e');
       return false;
     }
   }
 
   void _registerRecallEventListeners() {
-    _log.info('🎧 Registering recall-specific event listeners...');
-    
     // Initialize the event listener validator
     RecallGameEventListenerValidator.instance.initialize();
-    
-    _log.info('✅ Event listener validator initialized');
-    
-    _log.info('✅ Recall-specific event listeners registered');
   }
 
   // ========================================
@@ -104,12 +92,8 @@ class RecallEventManager {
   }
 
   void _registerHookCallbacks() {
-    _log.info('🎣 Registering hook callbacks for RecallEventManager...');
-    
     // Register websocket_connect hook callback
     HooksManager().registerHookWithData('websocket_connect', (data) {
-      _log.info('🎣 [HOOK] RecallEventManager received websocket_connect hook: ${data['status']}');
-      
       final status = data['status']?.toString() ?? 'unknown';
       
       if (status == 'connected') {
@@ -122,17 +106,11 @@ class RecallEventManager {
           message: 'Successfully connected to game server',
           data: data,
         );
-        
-        _log.info('✅ [HOOK] WebSocket connection status updated to connected');
-      } else {
-        _log.warning('⚠️ [HOOK] Unexpected websocket_connect status: $status');
       }
     });
     
     // Register websocket_disconnect hook callback
     HooksManager().registerHookWithData('websocket_disconnect', (data) {
-      _log.info('🎣 [HOOK] RecallEventManager received websocket_disconnect hook: ${data['status']}');
-      
       final status = data['status']?.toString() ?? 'unknown';
       
       if (status == 'disconnected') {
@@ -145,17 +123,11 @@ class RecallEventManager {
           message: 'Disconnected from game server',
           data: data,
         );
-        
-        _log.info('✅ [HOOK] WebSocket connection status updated to disconnected');
-      } else {
-        _log.warning('⚠️ [HOOK] Unexpected websocket_disconnect status: $status');
       }
     });
     
     // Register websocket_connect_error hook callback
     HooksManager().registerHookWithData('websocket_connect_error', (data) {
-      _log.info('🎣 [HOOK] RecallEventManager received websocket_connect_error hook: ${data['status']}');
-      
       final status = data['status']?.toString() ?? 'unknown';
       
       if (status == 'error') {
@@ -168,17 +140,11 @@ class RecallEventManager {
           message: 'Failed to connect to game server',
           data: data,
         );
-        
-        _log.info('✅ [HOOK] WebSocket connection status updated to error (disconnected)');
-      } else {
-        _log.warning('⚠️ [HOOK] Unexpected websocket_connect_error status: $status');
       }
     });
     
     // Register room_creation hook callback
     HooksManager().registerHookWithData('room_creation', (data) {
-      _log.info('🎣 [HOOK] RecallEventManager received room_creation hook: ${data['status']}');
-      
       final status = data['status']?.toString() ?? 'unknown';
       final roomId = data['room_id']?.toString() ?? '';
       final isOwner = data['is_owner'] == true;
@@ -267,15 +233,11 @@ class RecallEventManager {
     
     // Register websocket_user_joined_rooms hook callback
     HooksManager().registerHookWithData('websocket_user_joined_rooms', (data) {
-      _log.info('🎣 [HOOK] RecallEventManager received websocket_user_joined_rooms hook');
       
       // final status = data['status']?.toString() ?? 'unknown';
-      final sessionId = data['session_id']?.toString() ?? '';
       // final rooms = data['rooms'] as List<dynamic>? ?? [];
       final totalRooms = data['total_rooms'] ?? 0;
-      
-      _log.info('�� [HOOK] User joined rooms update: session=$sessionId, total_rooms=$totalRooms');
-      
+            
               // Update recall game state to reflect the current room membership
         // When user leaves a room, total_rooms will be 0, so we should clear the joined games
         if (totalRooms == 0) {
@@ -289,15 +251,12 @@ class RecallEventManager {
             'lastUpdated': DateTime.now().toIso8601String(),
           });
         
-        _log.info('🎣 [HOOK] Cleared joined games state - user not in any rooms');
       } else {
         // User is still in some rooms, but we need to update the joined games
         // This will be handled by the recall_joined_games event when it's sent
-        _log.info('🎣 [HOOK] User still in $totalRooms rooms, waiting for recall_joined_games event');
       }
     });
     
-    _log.info('✅ Hook callbacks registered successfully');
   }
 
 

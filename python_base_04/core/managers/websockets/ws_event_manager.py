@@ -1,4 +1,5 @@
 from typing import Dict, Any, List, Callable, Optional
+from tools.logger.custom_logging import custom_log
 from datetime import datetime
 import json
 from enum import Enum
@@ -33,22 +34,30 @@ class WSEventManager:
             'session_data': None,
             'connection_status': ConnectionStatus.DISCONNECTED
         }
-        def register_handler(self, event_type: str, handler: Callable) -> None:
+        custom_log("WSEventManager initialized")
+
+    def register_handler(self, event_type: str, handler: Callable) -> None:
         """Register a handler for a specific event type."""
         if event_type not in self._event_handlers:
             self._event_handlers[event_type] = []
         self._event_handlers[event_type].append(handler)
-        def unregister_handler(self, event_type: str, handler: Callable) -> None:
+        custom_log(f"Registered handler for event: {event_type}")
+
+    def unregister_handler(self, event_type: str, handler: Callable) -> None:
         """Unregister a handler for a specific event type."""
         if event_type in self._event_handlers:
             if handler in self._event_handlers[event_type]:
                 self._event_handlers[event_type].remove(handler)
-                def register_one_time_handler(self, event_type: str, handler: Callable) -> None:
+                custom_log(f"Unregistered handler for event: {event_type}")
+
+    def register_one_time_handler(self, event_type: str, handler: Callable) -> None:
         """Register a one-time handler for a specific event type."""
         if event_type not in self._one_time_handlers:
             self._one_time_handlers[event_type] = []
         self._one_time_handlers[event_type].append(handler)
-        def emit_event(self, event_type: str, data: Dict[str, Any]) -> None:
+        custom_log(f"Registered one-time handler for event: {event_type}")
+
+    def emit_event(self, event_type: str, data: Dict[str, Any]) -> None:
         """Emit an event to all registered handlers."""
         try:
             # Add timestamp to event data
@@ -58,13 +67,15 @@ class WSEventManager:
                 'timestamp': datetime.now().isoformat()
             }
             
+            custom_log(f"Emitting event: {event_type} with data: {data}")
+            
             # Call regular handlers
             if event_type in self._event_handlers:
                 for handler in self._event_handlers[event_type]:
                     try:
                         handler(event_data)
                     except Exception as e:
-                        }")
+                        custom_log(f"Error in event handler for {event_type}: {str(e)}")
             
             # Call one-time handlers and remove them
             if event_type in self._one_time_handlers:
@@ -74,7 +85,7 @@ class WSEventManager:
                         handler(event_data)
                         handlers_to_remove.append(handler)
                     except Exception as e:
-                        }")
+                        custom_log(f"Error in one-time event handler for {event_type}: {str(e)}")
                         handlers_to_remove.append(handler)
                 
                 # Remove called handlers
@@ -85,7 +96,7 @@ class WSEventManager:
             self._update_state(event_type, data)
             
         except Exception as e:
-            }")
+            custom_log(f"Error emitting event {event_type}: {str(e)}")
 
     def _update_state(self, event_type: str, data: Dict[str, Any]) -> None:
         """Update internal state based on event type."""
@@ -113,7 +124,7 @@ class WSEventManager:
                 self._state['session_data'] = data
                 
         except Exception as e:
-            }")
+            custom_log(f"Error updating state for event {event_type}: {str(e)}")
 
     def get_state(self) -> Dict[str, Any]:
         """Get current state."""
@@ -146,10 +157,13 @@ class WSEventManager:
                 del self._event_handlers[event_type]
             if event_type in self._one_time_handlers:
                 del self._one_time_handlers[event_type]
-            else:
+            custom_log(f"Cleared handlers for event: {event_type}")
+        else:
             self._event_handlers.clear()
             self._one_time_handlers.clear()
-            def get_handler_count(self, event_type: str) -> int:
+            custom_log("Cleared all event handlers")
+
+    def get_handler_count(self, event_type: str) -> int:
         """Get the number of handlers for a specific event type."""
         regular_count = len(self._event_handlers.get(event_type, []))
         one_time_count = len(self._one_time_handlers.get(event_type, []))
@@ -288,7 +302,7 @@ class WSEventManager:
                 # Custom event
                 return isinstance(data, dict)
         except Exception as e:
-            }")
+            custom_log(f"Error validating event data: {str(e)}")
             return False
 
     def get_event_statistics(self) -> Dict[str, Any]:
@@ -317,8 +331,10 @@ class WSEventManager:
             'session_data': None,
             'connection_status': ConnectionStatus.DISCONNECTED
         }
-        def cleanup(self) -> None:
+        custom_log("Event manager state reset")
+
+    def cleanup(self) -> None:
         """Clean up the event manager."""
         self.clear_handlers()
         self.reset_state()
-        
+        custom_log("Event manager cleaned up") 

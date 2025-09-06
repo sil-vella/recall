@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../../tools/logging/logger.dart';
 import '../../../../modules/recall_game/managers/feature_registry_manager.dart';
-import '../../../../modules/recall_game/managers/feature_contracts.dart';
 import 'connection_status_feature.dart';
 import 'profile_feature.dart';
 
 /// Helper class to register state-aware features
 class StateAwareFeatureRegistry {
-  static final Logger _log = Logger();
-  
   /// Register state-aware global app bar features
   static void registerGlobalAppBarFeatures(BuildContext context) {
-    _log.info('🌐 Registering state-aware global app bar features');
     
     // Register connection status feature
     final connectionFeature = FeatureDescriptor(
@@ -41,14 +36,10 @@ class StateAwareFeatureRegistry {
       feature: profileFeature,
       context: context,
     );
-    
-    _log.info('✅ State-aware global app bar features registered');
   }
   
   /// Unregister global app bar features
   static void unregisterGlobalAppBarFeatures() {
-    _log.info('🗑️ Unregistering state-aware global app bar features');
-    
     FeatureRegistryManager.instance.unregister(
       scopeKey: 'global_app_bar',
       featureId: 'global_connection_status',
@@ -58,7 +49,5 @@ class StateAwareFeatureRegistry {
       scopeKey: 'global_app_bar',
       featureId: 'global_profile',
     );
-    
-    _log.info('✅ State-aware global app bar features unregistered');
   }
 }

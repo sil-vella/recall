@@ -3,12 +3,10 @@ import '../managers/app_manager.dart';
 import '../managers/state_manager.dart';
 import '../managers/hooks_manager.dart';
 import '../managers/auth_manager.dart';
-import '../../tools/logging/logger.dart';
 
 /// Base class for all adapters that integrate external services
 /// Provides access to AppManager and common functionality
 abstract class AdapterBase {
-  static final Logger _log = Logger();
   
   late AppManager _appManager;
   bool _isInitialized = false;
@@ -27,14 +25,11 @@ abstract class AdapterBase {
     if (_isInitialized) return;
     
     _appManager = appManager;
-    _log.info('🔧 Initializing adapter: $adapterKey');
     
     try {
       await _initializeAdapter();
       _isInitialized = true;
-      _log.info('✅ Adapter initialized: $adapterKey');
     } catch (e) {
-      _log.error('❌ Error initializing adapter $adapterKey: $e');
       rethrow;
     }
   }
@@ -65,7 +60,6 @@ abstract class AdapterBase {
   
   /// Dispose adapter resources
   void dispose() {
-    _log.info('🛑 Disposing adapter: $adapterKey');
     _isInitialized = false;
   }
 } 

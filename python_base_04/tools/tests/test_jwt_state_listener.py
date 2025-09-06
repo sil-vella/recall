@@ -17,6 +17,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from core.managers.jwt_manager import JWTManager
 from core.managers.state_manager import StateManager, StateType, StateTransition
+from tools.logger.custom_logging import custom_log
+
 def test_state_change_listener():
     """Test the JWT state change listener functionality."""
     

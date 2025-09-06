@@ -6,11 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
-import '../../core/managers/services_manager.dart';
-import '../../tools/logging/logger.dart';
 
 class AudioModule extends ModuleBase {
-  static final Logger _log = Logger();
   static bool _isMuted = false;
   final Map<String, AudioPlayer> _audioPlayers = {};
   final Map<String, AudioPlayer> _preloadedPlayers = {};
@@ -23,7 +20,7 @@ class AudioModule extends ModuleBase {
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
-    _log.info('✅ AudioModule initialized with context.');
+
   }
 
   /// ✅ Getter for global mute state
@@ -53,8 +50,7 @@ class AudioModule extends ModuleBase {
 
   /// ✅ Preload all sounds
   Future<void> preloadAllSounds() async {
-    _log.info('🎵 Preloading all sounds...');
-    
+ 
     final allSounds = <String, String>{};
     allSounds.addAll(correctSounds);
     allSounds.addAll(incorrectSounds);
@@ -65,7 +61,6 @@ class AudioModule extends ModuleBase {
       await preloadSound(entry.key, entry.value);
     }
     
-    _log.info('✅ All sounds preloaded successfully');
   }
 
   /// ✅ Preload a specific sound
@@ -74,16 +69,13 @@ class AudioModule extends ModuleBase {
       final player = AudioPlayer();
       await player.setAsset(assetPath);
       _preloadedPlayers[soundKey] = player;
-      _log.info('✅ Preloaded sound: $soundKey');
     } catch (e) {
-      _log.error('❌ Failed to preload sound $soundKey: $e');
     }
   }
 
   /// ✅ Play a sound
   Future<void> playSound(String soundKey) async {
     if (_isMuted) {
-      _log.info('🔇 Sound muted, skipping: $soundKey');
       return;
     }
 
@@ -100,7 +92,6 @@ class AudioModule extends ModuleBase {
         if (assetPath != null) {
           await player!.setAsset(assetPath);
         } else {
-          _log.error('❌ Sound not found: $soundKey');
           return;
         }
       }
@@ -117,10 +108,8 @@ class AudioModule extends ModuleBase {
           }
         });
         
-        _log.info('🎵 Playing sound: $soundKey');
       }
     } catch (e) {
-      _log.error('❌ Error playing sound $soundKey: $e');
     }
   }
 
@@ -131,7 +120,6 @@ class AudioModule extends ModuleBase {
       await player.stop();
       _currentlyPlaying.remove(soundKey);
       _audioPlayers.remove(soundKey);
-      _log.info('⏹️ Stopped sound: $soundKey');
     }
   }
 
@@ -142,19 +130,16 @@ class AudioModule extends ModuleBase {
     }
     _audioPlayers.clear();
     _currentlyPlaying.clear();
-    _log.info('⏹️ Stopped all sounds');
   }
 
   /// ✅ Toggle mute state
   static void toggleMute() {
     _isMuted = !_isMuted;
-    _log.info('🔇 Audio ${_isMuted ? "muted" : "unmuted"}');
   }
 
   /// ✅ Set mute state
   static void setMute(bool muted) {
     _isMuted = muted;
-    _log.info('🔇 Audio ${_isMuted ? "muted" : "unmuted"}');
   }
 
   /// ✅ Get asset path for sound key
@@ -190,9 +175,7 @@ class AudioModule extends ModuleBase {
   }
 
   @override
-  void dispose() {
-    _log.info('🗑️ Disposing AudioModule...');
-    
+  void dispose() { 
     // Stop and dispose all players
     for (final player in _audioPlayers.values) {
       player.stop();

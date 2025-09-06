@@ -90,7 +90,7 @@ class _PaywallState extends State<Paywall> {
                           widget.onPurchaseComplete?.call(false);
                         }
                       } catch (e) {
-                        print('Purchase error: $e');
+                        // Purchase error
                       }
 
                       setState(() {});

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../managers/game_coordinator.dart';
 
 /// Widget to display available games with fetch functionality
@@ -12,8 +11,6 @@ import '../../../managers/game_coordinator.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class AvailableGamesWidget extends StatelessWidget {
-  static final Logger _log = Logger();
-  
   final Function()? onFetchGames;
   
   const AvailableGamesWidget({
@@ -44,9 +41,6 @@ class AvailableGamesWidget extends StatelessWidget {
             .where((id) => id.isNotEmpty)
             .toSet();
         
-        _log.info('🎮 AvailableGamesWidget: ${availableGames.length} games available, user in ${userJoinedGameIds.length} games');
-
-        _log.info('🎮 AvailableGamesWidget: ${availableGames.length} games available, loading=$isLoading');
 
         return Card(
           margin: const EdgeInsets.all(16),
@@ -255,7 +249,6 @@ class AvailableGamesWidget extends StatelessWidget {
                     button: true,
                     child: ElevatedButton(
                       onPressed: () {
-                        _log.info('🎮 [AvailableGamesWidget] Leave game button pressed for game: $gameId');
                         _leaveGame(gameId);
                       },
                       style: ElevatedButton.styleFrom(
@@ -274,7 +267,6 @@ class AvailableGamesWidget extends StatelessWidget {
                     button: true,
                     child: ElevatedButton(
                       onPressed: () {
-                        _log.info('🎮 [AvailableGamesWidget] Join game button pressed for game: $gameId');
                         _joinGame(gameId);
                       },
                       style: ElevatedButton.styleFrom(
@@ -344,44 +336,22 @@ class AvailableGamesWidget extends StatelessWidget {
   /// Join a game using GameCoordinator
   void _joinGame(String gameId) {
     try {
-      _log.info('🎮 [AvailableGamesWidget] Joining game: $gameId');
-      
       // Use GameCoordinator to join the game
       final gameCoordinator = GameCoordinator();
-      gameCoordinator.joinGame(gameId: gameId, playerName: 'Player').then((success) {
-        if (success) {
-          _log.info('✅ [AvailableGamesWidget] Successfully joined game: $gameId');
-        } else {
-          _log.error('❌ [AvailableGamesWidget] Failed to join game');
-        }
-      }).catchError((e) {
-        _log.error('❌ [AvailableGamesWidget] Error joining game: $e');
-      });
-      
+      gameCoordinator.joinGame(gameId: gameId, playerName: 'Player');
     } catch (e) {
-      _log.error('❌ [AvailableGamesWidget] Error joining game: $e');
+      // Handle error silently
     }
   }
 
   /// Leave a game using GameCoordinator
   void _leaveGame(String gameId) {
     try {
-      _log.info('🚪 [AvailableGamesWidget] Leaving game: $gameId');
-      
       // Use GameCoordinator to leave the game
       final gameCoordinator = GameCoordinator();
-      gameCoordinator.leaveGame(gameId: gameId).then((success) {
-        if (success) {
-          _log.info('✅ [AvailableGamesWidget] Left game successfully');
-        } else {
-          _log.error('❌ [AvailableGamesWidget] Failed to leave game');
-        }
-      }).catchError((e) {
-        _log.error('❌ [AvailableGamesWidget] Error leaving game: $e');
-      });
-      
+      gameCoordinator.leaveGame(gameId: gameId);
     } catch (e) {
-      _log.error('❌ [AvailableGamesWidget] Error leaving game: $e');
+      // Handle error silently
     }
   }
 }

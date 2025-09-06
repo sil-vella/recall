@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../managers/player_action.dart';
 import '../../../widgets/card_back_widget.dart';
 
@@ -14,8 +13,6 @@ import '../../../widgets/card_back_widget.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class DrawPileWidget extends StatefulWidget {
-  static final Logger _log = Logger();
-  
   const DrawPileWidget({Key? key}) : super(key: key);
 
   @override
@@ -23,8 +20,6 @@ class DrawPileWidget extends StatefulWidget {
 }
 
 class _DrawPileWidgetState extends State<DrawPileWidget> {
-  static final Logger _log = Logger();
-  
   // Internal state to store clicked pile type
   String? _clickedPileType;
 
@@ -46,7 +41,6 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 DrawPileWidget: drawPileCount=$drawPileCount, canDrawFromDeck=$canDrawFromDeck, gamePhase=$gamePhase, isMyTurn=$isMyTurn, playerStatus=$playerStatus');
         
         return _buildDrawPileCard(
           drawPileCount: drawPileCount,
@@ -147,15 +141,12 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
     
-    _log.info('🎯 Draw pile clicked, current player status: $currentPlayerStatus');
-    
     // Check if current player can interact with draw pile (drawing_card status only)
     if (currentPlayerStatus == 'drawing_card') {
       try {
         // Get current game ID from state
         final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
         if (currentGameId.isEmpty) {
-          _log.error('❌ No current game ID found');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Error: No active game found'),
@@ -177,8 +168,6 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
           _clickedPileType = 'draw_pile';
         });
         
-        _log.info('✅ Draw action executed successfully (status: $currentPlayerStatus)');
-        
         // Show success feedback
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -188,7 +177,6 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
           ),
         );
       } catch (e) {
-        _log.error('❌ Failed to execute draw action: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to draw card: $e'),
@@ -199,7 +187,6 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
       }
     } else {
       // Show invalid action feedback
-      _log.info('❌ Invalid draw pile click action: status=$currentPlayerStatus');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

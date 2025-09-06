@@ -4,6 +4,7 @@ import time
 import os
 import requests
 from typing import Dict, Any, Optional, List
+from tools.logger.custom_logging import custom_log
 from utils.config.config import Config
 from core.managers.redis_manager import RedisManager
 from flask import request, jsonify
@@ -31,7 +32,9 @@ class APIKeyManager:
             'app_metadata': 'app_metadata:{app_id}',
             'cred_sys_key': 'cred_sys_key'
         }
-        def _get_secret_file_path(self, app_id: str, app_name: str = None) -> str:
+        custom_log("Unified APIKeyManager initialized with generation and management capabilities")
+
+    def _get_secret_file_path(self, app_id: str, app_name: str = None) -> str:
         """Get the secret file path for an app."""
         # For external app, always use CRED_SYS prefix for credit system API keys
         if app_id == "credit_system" or app_name == "Credit System":
@@ -54,9 +57,11 @@ class APIKeyManager:
             with open(secret_file, 'w') as f:
                 f.write(api_key)
             
+            custom_log(f"✅ Saved API key to file: {secret_file}")
             return True
             
         except Exception as e:
+            custom_log(f"❌ Error saving API key to file: {e}", level="ERROR")
             return False
 
     def _load_api_key_from_file(self, app_id: str) -> Optional[str]:
@@ -67,11 +72,14 @@ class APIKeyManager:
             if os.path.exists(secret_file):
                 with open(secret_file, 'r') as f:
                     api_key = f.read().strip()
+                custom_log(f"✅ Loaded API key from file: {secret_file}")
                 return api_key
             else:
+                custom_log(f"⚠️ API key file not found: {secret_file}")
                 return None
                 
         except Exception as e:
+            custom_log(f"❌ Error loading API key from file: {e}", level="ERROR")
             return None
 
     def _get_redis_keys_for_app(self, app_id: str) -> List[str]:
@@ -118,19 +126,23 @@ class APIKeyManager:
                     keys = self.redis_manager.redis.keys(pattern)
                     keys_to_clear.extend(keys)
             
-            } Redis keys to clear for app_id: {app_id}")
+            custom_log(f"🔍 Found {len(keys_to_clear)} Redis keys to clear for app_id: {app_id}")
             return keys_to_clear
             
         except Exception as e:
+            custom_log(f"❌ Error getting Redis keys for app_id {app_id}: {e}", level="ERROR")
             return []
 
     def invalidate_api_key_cache(self, app_id: str):
         """Enhanced cache invalidation with atomic operations and comprehensive cleanup."""
         try:
+            custom_log(f"🧹 Starting comprehensive cache invalidation for app_id: {app_id}")
+            
             # Get all keys to clear
             keys_to_clear = self._get_redis_keys_for_app(app_id)
             
             if not keys_to_clear:
+                custom_log(f"ℹ️ No cache keys found for app_id: {app_id}")
                 return
             
             # Use Redis pipeline for atomic operations
@@ -140,21 +152,30 @@ class APIKeyManager:
             for key in keys_to_clear:
                 pipeline.delete(key)
                 cleared_count += 1
-                # Execute all deletions atomically
+                custom_log(f"🗑️ Queued deletion for key: {key}")
+            
+            # Execute all deletions atomically
             results = pipeline.execute()
             
             # Log results
             successful_deletions = sum(1 for result in results if result == 1)
+            custom_log(f"✅ Cache invalidation completed - {successful_deletions}/{cleared_count} keys cleared for app_id: {app_id}")
+            
             # Clear any file-based caches
             self._clear_file_cache(app_id)
             
         except Exception as e:
-            def _clear_file_cache(self, app_id: str):
+            custom_log(f"❌ Error during cache invalidation for app_id {app_id}: {e}", level="ERROR")
+
+    def _clear_file_cache(self, app_id: str):
         """Clear any file-based caches for the app."""
         try:
             # This could be extended to clear any file-based caching mechanisms
-            except Exception as e:
-            def _atomic_key_replacement(self, old_key: str, new_key: str, key_data: Dict[str, Any]) -> bool:
+            custom_log(f"📁 File cache cleared for app_id: {app_id}")
+        except Exception as e:
+            custom_log(f"❌ Error clearing file cache for app_id {app_id}: {e}", level="ERROR")
+
+    def _atomic_key_replacement(self, old_key: str, new_key: str, key_data: Dict[str, Any]) -> bool:
         """Atomically replace an API key in Redis."""
         try:
             pipeline = self.redis_manager.redis.pipeline()
@@ -168,9 +189,11 @@ class APIKeyManager:
                 # Execute the deletion
                 pipeline.execute()
             
+            custom_log(f"✅ Atomic key replacement completed - New key stored, old key removed")
             return True
             
         except Exception as e:
+            custom_log(f"❌ Error during atomic key replacement: {e}", level="ERROR")
             return False
 
     # === UNIFIED API KEY GENERATION METHODS ===
@@ -186,7 +209,10 @@ class APIKeyManager:
             # Check if we already have an API key for this app
             existing_key = self.get_api_key_for_app(target_app_id)
             if existing_key:
+                custom_log(f"✅ API key already exists for {target_app_id}, skipping generation")
                 return existing_key
+            
+            custom_log(f"🔄 No API key found for {target_app_id}, generating from credit system...")
             
             # Prepare request to credit system
             payload = {
@@ -212,6 +238,8 @@ class APIKeyManager:
                 response_data = response.json()
                 if response_data.get('success') and response_data.get('api_key'):
                     api_key = response_data['api_key']
+                    custom_log(f"✅ Successfully generated API key for {target_app_id}: {api_key[:16]}...")
+                    
                     # Save the API key
                     if target_app_id == "credit_system":
                         self.save_credit_system_api_key(api_key)
@@ -224,13 +252,17 @@ class APIKeyManager:
                     
                     return api_key
                 else:
+                    custom_log(f"❌ Credit system response missing API key: {response_data}")
                     return None
             else:
+                custom_log(f"❌ Failed to generate API key. Status: {response.status_code}, Response: {response.text}")
                 return None
                 
         except requests.exceptions.RequestException as e:
+            custom_log(f"❌ Network error generating API key: {e}")
             return None
         except Exception as e:
+            custom_log(f"❌ Unexpected error generating API key: {e}")
             return None
 
     def validate_api_key_with_credit_system(self, api_key: str) -> bool:
@@ -250,9 +282,11 @@ class APIKeyManager:
                 response_data = response.json()
                 return response_data.get('valid', False)
             else:
+                custom_log(f"❌ Failed to validate API key. Status: {response.status_code}")
                 return False
                 
         except Exception as e:
+            custom_log(f"❌ Error validating API key: {e}")
             return False
 
     def generate_api_key(self, app_id: str, app_name: str, permissions: list = None) -> str:
@@ -266,6 +300,8 @@ class APIKeyManager:
     def save_credit_system_api_key(self, api_key: str) -> bool:
         """Save credit system API key to CRED_SYS_api_key file with enhanced cache management."""
         try:
+            custom_log(f"🔑 Saving credit system API key with enhanced cache management")
+            
             # Clear any existing credit system cache
             self.invalidate_api_key_cache("credit_system")
             
@@ -281,9 +317,11 @@ class APIKeyManager:
             # Store metadata in Redis
             self._store_credit_system_metadata(api_key)
             
+            custom_log(f"✅ Saved credit system API key to file: {secret_file}")
             return True
             
         except Exception as e:
+            custom_log(f"❌ Error saving credit system API key to file: {e}", level="ERROR")
             return False
 
     def _store_credit_system_metadata(self, api_key: str):
@@ -300,8 +338,12 @@ class APIKeyManager:
             metadata_key = "cred_sys_metadata"
             self.redis_manager.set(metadata_key, metadata, expire=2592000)
             
-            except Exception as e:
-            def load_credit_system_api_key(self) -> Optional[str]:
+            custom_log(f"📊 Stored credit system metadata")
+            
+        except Exception as e:
+            custom_log(f"❌ Error storing credit system metadata: {e}", level="ERROR")
+
+    def load_credit_system_api_key(self) -> Optional[str]:
         """Load credit system API key from CRED_SYS_api_key file."""
         try:
             secret_file = os.path.join(self.secrets_dir, "CRED_SYS_api_key")
@@ -309,11 +351,14 @@ class APIKeyManager:
             if os.path.exists(secret_file):
                 with open(secret_file, 'r') as f:
                     api_key = f.read().strip()
+                custom_log(f"✅ Loaded credit system API key from file: {secret_file}")
                 return api_key
             else:
+                custom_log(f"⚠️ Credit system API key file not found: {secret_file}")
                 return None
                 
         except Exception as e:
+            custom_log(f"❌ Error loading credit system API key from file: {e}", level="ERROR")
             return None
 
     def list_stored_api_keys(self) -> Dict[str, str]:
@@ -332,6 +377,7 @@ class APIKeyManager:
             return stored_keys
             
         except Exception as e:
+            custom_log(f"❌ Error listing stored API keys: {e}", level="ERROR")
             return {}
 
     def validate_api_key(self, api_key: str) -> Optional[Dict[str, Any]]:
@@ -345,20 +391,23 @@ class APIKeyManager:
             key_data = self.redis_manager.get(redis_key)
             
             if not key_data:
+                custom_log(f"❌ API key not found: {api_key[:16]}...")
                 return None
             
             # Check if key is active
             if not key_data.get('is_active', False):
+                custom_log(f"❌ API key inactive: {api_key[:16]}...")
                 return None
             
             # Update last used timestamp
             key_data['last_used'] = str(int(time.time()))
             self.redis_manager.set(redis_key, key_data, expire=2592000)
             
-            }")
+            custom_log(f"✅ Validated API key for app: {key_data.get('app_name', 'Unknown')}")
             return key_data
             
         except Exception as e:
+            custom_log(f"❌ Error validating API key: {e}", level="ERROR")
             return None
 
     def revoke_api_key(self, api_key: str) -> bool:
@@ -381,12 +430,14 @@ class APIKeyManager:
                 # Comprehensive cache invalidation
                 self.invalidate_api_key_cache(app_id)
                 
-                }")
+                custom_log(f"✅ Revoked API key for app: {key_data.get('app_name', 'Unknown')}")
                 return True
             else:
+                custom_log(f"❌ API key not found for revocation: {api_key[:16]}...")
                 return False
                 
         except Exception as e:
+            custom_log(f"❌ Error revoking API key: {e}", level="ERROR")
             return False
 
     def list_api_keys(self) -> list:
@@ -414,6 +465,7 @@ class APIKeyManager:
             return keys
             
         except Exception as e:
+            custom_log(f"❌ Error listing API keys: {e}", level="ERROR")
             return []
 
     def get_app_by_api_key(self, api_key: str) -> Optional[str]:
@@ -422,6 +474,7 @@ class APIKeyManager:
             key_data = self.validate_api_key(api_key)
             return key_data.get('app_id') if key_data else None
         except Exception as e:
+            custom_log(f"❌ Error getting app by API key: {e}", level="ERROR")
             return None
 
     def health_check(self) -> Dict[str, Any]:
@@ -523,6 +576,7 @@ class APIKeyManager:
                 }), 200
             
         except Exception as e:
+            custom_log(f"❌ Error validating API key: {e}", level="ERROR")
             return jsonify({
                 'success': False,
                 'error': f'Failed to validate API key: {str(e)}'
@@ -554,6 +608,7 @@ class APIKeyManager:
                 }), 400
             
         except Exception as e:
+            custom_log(f"❌ Error revoking API key: {e}", level="ERROR")
             return jsonify({
                 'success': False,
                 'error': f'Failed to revoke API key: {str(e)}'
@@ -571,6 +626,7 @@ class APIKeyManager:
             }), 200
             
         except Exception as e:
+            custom_log(f"❌ Error listing stored API keys: {e}", level="ERROR")
             return jsonify({
                 'success': False,
                 'error': f'Failed to list stored API keys: {str(e)}'
@@ -586,17 +642,20 @@ class APIKeyManager:
                 # Save the API key
                 self.save_credit_system_api_key(api_key)
                 
+                custom_log(f"✅ Generated and saved API key for external app: {api_key[:16]}...")
                 return jsonify({
                     'success': True,
                     'api_key': api_key
                 }), 201
             else:
+                custom_log("❌ Failed to generate API key from credit system")
                 return jsonify({
                     'success': False,
                     'error': 'Failed to generate API key from credit system'
                 }), 500
                 
         except Exception as e:
+            custom_log(f"❌ Error requesting API key from credit system: {e}")
             return jsonify({
                 'success': False,
                 'error': f'Failed to request API key: {str(e)}'
@@ -607,16 +666,24 @@ class APIKeyManager:
         try:
             # Check if external app API key exists
             if not Config.CREDIT_SYSTEM_API_KEY or Config.CREDIT_SYSTEM_API_KEY == "":
+                custom_log("🔄 External app API key not found, generating...")
+                
                 # Generate API key for external app
                 api_key = self.generate_api_key_from_credit_system()
                 
                 if api_key:
                     # Set the API key in config
                     Config.set_credit_system_api_key(api_key)
-                    else:
-                    else:
-                except Exception as e:
-            def generate_external_app_api_key(self):
+                    custom_log("✅ External app API key generated and configured")
+                else:
+                    custom_log("⚠️ Failed to generate external app API key")
+            else:
+                custom_log("✅ External app API key already configured")
+                
+        except Exception as e:
+            custom_log(f"❌ Error ensuring external app API key: {e}")
+
+    def generate_external_app_api_key(self):
         """Generate API key specifically for this external app."""
         try:
             # Generate API key for external app
@@ -626,9 +693,12 @@ class APIKeyManager:
                 # Save the API key
                 self.save_credit_system_api_key(api_key)
                 
+                custom_log(f"✅ Generated and saved API key for external app: {api_key[:16]}...")
                 return api_key
             else:
+                custom_log("❌ Failed to generate API key from credit system")
                 return None
             
         except Exception as e:
+            custom_log(f"❌ Error generating external app API key: {e}")
             return None 

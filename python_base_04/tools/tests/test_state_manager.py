@@ -13,6 +13,9 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from core.managers.state_manager import StateManager, StateType, StateTransition
+from tools.logger.custom_logging import custom_log
+
+
 def test_basic_state_operations():
     """Test basic state operations."""
     print("\n" + "="*50)

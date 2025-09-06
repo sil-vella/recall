@@ -75,15 +75,11 @@
 
 import 'dart:async';
 
-import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
-
-import '../../../tools/logging/logger.dart';
 
 /// Recall Module Manager
 /// Main orchestrator for the Recall game functionality
 class RecallModuleManager {
-  static final Logger _log = Logger();
   static final RecallModuleManager _instance = RecallModuleManager._internal();
   
   factory RecallModuleManager() => _instance;
@@ -91,7 +87,6 @@ class RecallModuleManager {
 
   // Managers
   final WebSocketManager _wsManager = WebSocketManager.instance;
-  final StateManager _stateManager = StateManager();
 
 
   // Game state tracking
@@ -117,17 +112,13 @@ class RecallModuleManager {
   /// Connect to WebSocket when authentication becomes available
   Future<bool> connectWebSocket() async {
     if (_wsManager.isConnected) {
-      _log.info('✅ WebSocket already connected');
       return true;
     }
     
-    _log.info('🔌 Attempting to connect WebSocket with authentication...');
     final connected = await _wsManager.connect();
     if (connected) {
-      _log.info('✅ WebSocket connected successfully');
       return true;
     } else {
-      _log.warning('⚠️ WebSocket connection failed, will retry later');
       return false;
     }
   }
@@ -135,12 +126,10 @@ class RecallModuleManager {
   /// Initialize the Recall Module manager
   Future<bool> initialize() async {
     if (_isInitialized) {
-      _log.info('✅ Recall Module Manager already initialized');
       return true;
     }
     
     if (_isInitializing) {
-      _log.info('⏳ Recall Module Manager initialization already in progress, waiting...');
       // Wait for initialization to complete
       while (_isInitializing && !_isInitialized) {
         await Future.delayed(Duration(milliseconds: 100));
@@ -151,50 +140,30 @@ class RecallModuleManager {
     _isInitializing = true;
 
     try {
-      _log.info('🎮 Initializing Recall Module Manager');
-      
       // Check WebSocket connection but don't require it for initialization
       if (!_wsManager.isConnected) {
-        _log.info('🔌 WebSocket not connected, will connect later when authentication is available');
         // Don't attempt to connect during initialization - this should happen after auth
-      } else {
-        _log.info('✅ WebSocket already connected');
       }
-      
-      // State manager is already initialized globally
-      _log.info('📊 Using global StateManager instance');
 
       // Register recall-specific Socket.IO events in one place and fan out via WSEventManager
-      _log.info('🔌 Starting Socket.IO event relay setup...');
       try {
         final socket = _wsManager.socket;
-        _log.info('🔌 Socket obtained: ${socket != null ? 'not null' : 'null'}');
         if (socket != null) {
-          _log.info('🔌 Setting up Socket.IO event relays...');
           // Event relays are now handled by the validated event listener system
-          _log.info('🔌 Event relays will be set up by validated system');
-          _log.info('✅ Socket.IO event relays set up');
-        } else {
-          _log.warning('⚠️ Socket is null, cannot set up event relays');
         }
       } catch (e) {
-        _log.error('❌ Error setting up Socket.IO event relays: $e');
         throw e;
       }
-      _log.info('✅ Socket.IO event relay setup completed');
       
       // State registration is now handled by recall_game_main.dart
       // Manager will use the existing state registration
-      _log.info('📊 Using existing recall_game state registration from main module');
       
       _isInitialized = true;
       _isInitializing = false;  // Clear initialization flag
       
-      _log.info('✅ Recall Module Manager initialized successfully');
       return true;
       
     } catch (e) {
-      _log.error('❌ Error initializing Recall Module Manager: $e');
       _isInitializing = false;  // Clear initialization flag on error
       return false;
     }
@@ -202,9 +171,6 @@ class RecallModuleManager {
 
   /// Dispose of resources and cleanup
   void dispose() {
-    _log.info('🛑 Disposing RecallModuleManager...');
-    
-
     _errorSubscription?.cancel();
     
     // Reset state
@@ -213,7 +179,5 @@ class RecallModuleManager {
     _isGameActive = false;
     _isInitialized = false;
     _isInitializing = false;
-    
-    _log.info('✅ RecallModuleManager disposed');
   }
 }

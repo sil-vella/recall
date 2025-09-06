@@ -3,6 +3,7 @@ import yaml
 import json
 from typing import Dict, Any, List, Optional, Callable
 from flask import request, jsonify
+from tools.logger.custom_logging import custom_log
 from core.modules.base_module import BaseModule
 from datetime import datetime
 
@@ -20,7 +21,9 @@ class UserActionsManager:
         self.action_handlers = {}     # {action_name: handler_function}
         self.declarations_dir = os.path.join(os.path.dirname(__file__), "..", "modules")
         
-        def register_module_actions(self, module_name: str, actions_config: Dict[str, Any], 
+        custom_log("UserActionsManager initialized")
+
+    def register_module_actions(self, module_name: str, actions_config: Dict[str, Any], 
                               handlers: Dict[str, Callable] = None):
         """
         Register actions for a specific module.
@@ -51,10 +54,14 @@ class UserActionsManager:
                 # Track action for this module
                 self.module_actions[module_name].append(full_action_name)
                 
-                } actions")
+                custom_log(f"✅ Registered action '{full_action_name}' for module '{module_name}'")
+            
+            custom_log(f"✅ Module '{module_name}' registered {len(actions_config)} actions")
             
         except Exception as e:
-            def load_module_declarations(self, module_name: str) -> Dict[str, Any]:
+            custom_log(f"❌ Error registering actions for module '{module_name}': {e}", level="ERROR")
+
+    def load_module_declarations(self, module_name: str) -> Dict[str, Any]:
         """
         Load action declarations from a module's declarations directory.
         
@@ -71,12 +78,14 @@ class UserActionsManager:
                     config = yaml.safe_load(f)
                 
                 actions = config.get('actions', {})
-                } action declarations from {declarations_file}")
+                custom_log(f"✅ Loaded {len(actions)} action declarations from {declarations_file}")
                 return actions
             else:
+                custom_log(f"⚠️ No declarations file found for module '{module_name}': {declarations_file}")
                 return {}
                 
         except Exception as e:
+            custom_log(f"❌ Error loading declarations for module '{module_name}': {e}", level="ERROR")
             return {}
 
     def execute_action(self, action_name: str, request_data: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -122,6 +131,7 @@ class UserActionsManager:
             }
             
         except Exception as e:
+            custom_log(f"❌ Error executing action '{action_name}': {e}", level="ERROR")
             return {
                 'success': False,
                 'error': f'Failed to execute action: {str(e)}'
@@ -225,6 +235,7 @@ class UserActionsManager:
             }
             
         except Exception as e:
+            custom_log(f"Error validating user permissions: {e}")
             return {
                 "valid": False,
                 "error": f"Permission validation error: {str(e)}"
@@ -286,6 +297,7 @@ class UserActionsManager:
             }
             
         except Exception as e:
+            custom_log(f"❌ Error listing actions: {e}", level="ERROR")
             return {
                 'success': False,
                 'error': f'Failed to list actions: {str(e)}'
@@ -308,10 +320,14 @@ class UserActionsManager:
                 # Remove module entry
                 del self.module_actions[module_name]
                 
-                } actions for module '{module_name}'")
+                custom_log(f"✅ Unregistered {len(actions_to_remove)} actions for module '{module_name}'")
             else:
-                except Exception as e:
-            def health_check(self) -> Dict[str, Any]:
+                custom_log(f"⚠️ No actions found for module '{module_name}'")
+                
+        except Exception as e:
+            custom_log(f"❌ Error unregistering actions for module '{module_name}': {e}", level="ERROR")
+
+    def health_check(self) -> Dict[str, Any]:
         """Perform health check for UserActionsManager."""
         try:
             total_actions = len(self.registered_actions)
@@ -366,8 +382,12 @@ def register_module_actions(self, actions_config: Dict[str, Any], handlers: Dict
         if user_actions_manager:
             user_actions_manager.register_module_actions(self.module_name, actions_config, handlers)
         else:
-            else:
-        def load_module_declarations(self) -> Dict[str, Any]:
+            custom_log(f"⚠️ UserActionsManager not available in app_manager for module {self.module_name}")
+    else:
+        custom_log(f"⚠️ AppManager not available for module {self.module_name}")
+
+
+def load_module_declarations(self) -> Dict[str, Any]:
     """
     Load action declarations for this module.
     

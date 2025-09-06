@@ -38,7 +38,7 @@ class _UserScreenState extends State<UserScreen> {
       _isLoggedIn = _currentUserID.isNotEmpty;
       setState(() {});
     } catch (e) {
-      print('Error loading current user: $e');
+      // Error loading current user
     }
   }
 

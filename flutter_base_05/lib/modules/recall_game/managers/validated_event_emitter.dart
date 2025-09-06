@@ -1,12 +1,10 @@
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/state_manager.dart';
 import '../utils/field_specifications.dart';
-import '../../../tools/logging/logger.dart';
 
 /// Validated event emitter for recall game WebSocket events
 /// Ensures all events follow consistent structure and validation rules
 class RecallGameEventEmitter {
-  static final Logger _log = Logger();
   static RecallGameEventEmitter? _instance;
   static RecallGameEventEmitter get instance {
     _instance ??= RecallGameEventEmitter._internal();
@@ -169,13 +167,8 @@ class RecallGameEventEmitter {
     required Map<String, dynamic> data,
   }) async {
     try {
-      _log.info('🎯 [RecallEventEmitter.emit] Starting validation for $eventType');
-      _log.info('🎯 [RecallEventEmitter.emit] Input data: ${data.keys.join(', ')}');
-      
       // 🎯 Validate event type and fields
       final validatedData = _validateAndParseEventData(eventType, data);
-      
-      _log.info('🎯 [RecallEventEmitter.emit] Validation passed, validated data: ${validatedData.keys.join(', ')}');
       
       // Add minimal required context
       final eventPayload = {
@@ -195,28 +188,13 @@ class RecallGameEventEmitter {
         final currentUserId = _getCurrentUserId();
         if (currentUserId.isNotEmpty) {
           eventPayload['player_id'] = currentUserId;
-          _log.info('🎯 [RecallEventEmitter.emit] Auto-included player_id: $currentUserId');
-        } else {
-          _log.warning('⚠️ [RecallEventEmitter.emit] Could not get current user ID for $eventType');
         }
       }
       
-      _log.info('🎯 [RecallEventEmitter.emit] Final payload keys: ${eventPayload.keys.join(', ')}');
-      
-      // Log the event for debugging
-      _logEvent(eventType, eventPayload);
-      
       // Send via WebSocket
-      _log.info('🎯 [RecallEventEmitter.emit] Sending via WebSocket...');
       return await _wsManager.sendCustomEvent(eventType, eventPayload);
       
     } catch (e) {
-      // Log validation errors
-      _log.error('❌ [RecallEventEmitter.emit] Validation failed for $eventType:');
-      _log.error('❌ [RecallEventEmitter.emit] Error: $e');
-      _log.error('❌ [RecallEventEmitter.emit] Error type: ${e.runtimeType}');
-      _log.error('❌ [RecallEventEmitter.emit] Original data: ${data.keys.join(', ')}');
-      _logEventError(eventType, data, e);
       rethrow;
     }
   }
@@ -374,21 +352,8 @@ class RecallGameEventEmitter {
       final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
       return loginState['userId']?.toString() ?? '';
     } catch (e) {
-      _log.warning('⚠️ [RecallEventEmitter] Could not get current user ID: $e');
       return '';
     }
   }
   
-  /// Log successful event emission
-  void _logEvent(String eventType, Map<String, dynamic> payload) {
-    _log.info('🎯 [RecallEventEmitter] Emitting $eventType with ${payload.length} fields');
-    _log.info('   Fields: ${payload.keys.where((k) => k != 'session_id' && k != 'timestamp').join(', ')}');
-  }
-  
-  /// Log validation errors
-  void _logEventError(String eventType, Map<String, dynamic> originalData, dynamic error) {
-    _log.error('❌ [RecallEventEmitter] Validation failed for $eventType:');
-    _log.error('   Error: $error');
-    _log.error('   Original data: ${originalData.keys.join(', ')}');
-  }
 }

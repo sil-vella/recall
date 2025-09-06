@@ -1,11 +1,9 @@
 import '../../../core/managers/state_manager.dart';
 import '../utils/field_specifications.dart';
-import '../../../tools/logging/logger.dart';
 
 /// Validated state updater for recall game state management
 /// Ensures all state updates follow consistent structure and validation rules
 class RecallGameStateUpdater {
-  static final Logger _log = Logger();
   static RecallGameStateUpdater? _instance;
   static RecallGameStateUpdater get instance {
     _instance ??= RecallGameStateUpdater._internal();
@@ -388,22 +386,12 @@ class RecallGameStateUpdater {
   
   /// Update state with validation
   void updateState(Map<String, dynamic> updates) {
-    _log.info('🎯 [RecallStateUpdater] ===== UPDATING RECALL GAME STATE =====');
-    _log.info('🎯 [RecallStateUpdater] Input updates: $updates');
-    _log.info('🎯 [RecallStateUpdater] Update keys: ${updates.keys.toList()}');
-    _log.info('🎯 [RecallStateUpdater] Update count: ${updates.length} fields');
-    
     try {
       // 🎯 Validate each field before updating
-      _log.info('🔍 [RecallStateUpdater] Starting field validation...');
       final validatedUpdates = _validateAndParseStateUpdates(updates);
-      _log.info('✅ [RecallStateUpdater] Field validation completed');
-      _log.info('🔍 [RecallStateUpdater] Validated updates: $validatedUpdates');
       
       // Get current state
-      _log.info('🔍 [RecallStateUpdater] Getting current state...');
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      _log.info('🔍 [RecallStateUpdater] Current state keys: ${currentState.keys.toList()}');
       
       // Apply only the validated updates
       final newState = {
@@ -411,44 +399,24 @@ class RecallGameStateUpdater {
         ...validatedUpdates,
         'lastUpdated': DateTime.now().toIso8601String(),
       };
-      _log.info('🔍 [RecallStateUpdater] New state created with timestamp');
-      _log.info('🔍 [RecallStateUpdater] New state keys: ${newState.keys.toList()}');
       
       // Rebuild dependent widget slices only if relevant fields changed
-      _log.info('🔍 [RecallStateUpdater] Updating widget slices...');
       final updatedStateWithSlices = _updateWidgetSlices(
         currentState,
         newState,
         validatedUpdates.keys.toSet(),
       );
-      _log.info('✅ [RecallStateUpdater] Widget slices updated');
       
       // Update StateManager
-      _log.info('🔍 [RecallStateUpdater] Calling StateManager.updateModuleState...');
       _stateManager.updateModuleState('recall_game', updatedStateWithSlices);
-      _log.info('✅ [RecallStateUpdater] StateManager updated successfully');
-      
-      // Log successful update
-      _logStateUpdate(validatedUpdates);
-      _log.info('🎯 [RecallStateUpdater] ===== END STATE UPDATE (SUCCESS) =====');
       
     } catch (e) {
-      // Log validation errors
-      _logStateError(updates, e);
-      _log.error('❌ [RecallStateUpdater] State update failed: $e');
-      _log.error('❌ [RecallStateUpdater] Error type: ${e.runtimeType}');
-      _log.error('❌ [RecallStateUpdater] Stack trace: ${StackTrace.current}');
-      _log.info('🎯 [RecallStateUpdater] ===== END STATE UPDATE (ERROR) =====');
       rethrow;
     }
   }
   
   /// Validate and parse state updates
   Map<String, dynamic> _validateAndParseStateUpdates(Map<String, dynamic> updates) {
-    _log.info('🔍 [VALIDATION] ===== VALIDATING STATE UPDATES =====');
-    _log.info('🔍 [VALIDATION] Input updates: $updates');
-    _log.info('🔍 [VALIDATION] Available schema fields: ${_stateSchema.keys.toList()}');
-    
     final validatedUpdates = <String, dynamic>{};
     final validFields = <String>[];
     final invalidFields = <String>[];
@@ -457,40 +425,24 @@ class RecallGameStateUpdater {
       final key = entry.key;
       final value = entry.value;
       
-      _log.info('🔍 [VALIDATION] Processing field: $key = $value');
-      _log.info('🔍 [VALIDATION] Field type: ${value.runtimeType}');
-      
       // 🚨 Check if field exists in schema
       final fieldSpec = _stateSchema[key];
       if (fieldSpec == null) {
         final error = 'Unknown state field: "$key". Allowed fields: ${_stateSchema.keys.join(', ')}';
-        _log.error('❌ [VALIDATION] $error');
         invalidFields.add(key);
         throw RecallStateException(error, fieldName: key);
       }
-      
-      _log.info('✅ [VALIDATION] Field exists in schema: $key');
-      _log.info('🔍 [VALIDATION] Field spec: type=${fieldSpec.type}, required=${fieldSpec.required}, description=${fieldSpec.description}');
       
       // 🚨 Validate field value
       try {
       final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
       validatedUpdates[key] = validatedValue;
         validFields.add(key);
-        _log.info('✅ [VALIDATION] Field validation passed: $key = $validatedValue');
       } catch (e) {
-        _log.error('❌ [VALIDATION] Field validation failed: $key - $e');
         invalidFields.add(key);
         rethrow;
       }
     }
-    
-    _log.info('🔍 [VALIDATION] Validation summary:');
-    _log.info('🔍 [VALIDATION] Valid fields: $validFields');
-    _log.info('🔍 [VALIDATION] Invalid fields: $invalidFields');
-    _log.info('🔍 [VALIDATION] Valid field count: ${validFields.length}/${updates.length}');
-    _log.info('🔍 [VALIDATION] Final validated updates: $validatedUpdates');
-    _log.info('🔍 [VALIDATION] ===== END VALIDATION =====');
     
     return validatedUpdates;
   }
@@ -598,10 +550,8 @@ class RecallGameStateUpdater {
     
     if (currentPlayer != null) {
       updatedState['currentPlayer'] = currentPlayer;
-      _log.info('🔍 [STATE] Extracted currentPlayer from current game: ${currentPlayer['id']}');
     } else {
       updatedState['currentPlayer'] = null;
-      _log.info('🔍 [STATE] No currentPlayer in current game');
     }
     
     return updatedState;
@@ -620,11 +570,6 @@ class RecallGameStateUpdater {
     final showStartButton = isRoomOwner && gamePhase == 'waiting';
     
     // Debug logging for action bar computation
-    _log.info('🎯 [ActionBar] Computing slice:');
-    _log.info('  - isRoomOwner: $isRoomOwner');
-    _log.info('  - isGameActive: $isGameActive');
-    _log.info('  - gamePhase: $gamePhase');
-    _log.info('  - showStartButton: $showStartButton (${isRoomOwner} && ${gamePhase} == waiting)');
     
     return {
       'showStartButton': showStartButton,
@@ -827,23 +772,11 @@ class RecallGameStateUpdater {
     };
   }
   
-  /// Log successful state update
-  void _logStateUpdate(Map<String, dynamic> updates) {
-    _log.info('🎯 [RecallStateUpdater] Updated ${updates.length} fields: ${updates.keys.join(', ')}');
-  }
-  
-  /// Log validation errors
-  void _logStateError(Map<String, dynamic> originalUpdates, dynamic error) {
-    _log.error('❌ [RecallStateUpdater] Validation failed:');
-    _log.error('   Error: $error');
-    _log.error('   Attempted fields: ${originalUpdates.keys.join(', ')}');
-  }
 }
 
 /// Centralized game state accessor for recall game operations
 /// Provides type-safe methods to retrieve game state for specific game IDs
 class RecallGameStateAccessor {
-  static final Logger _log = Logger();
   static RecallGameStateAccessor? _instance;
   static RecallGameStateAccessor get instance {
     _instance ??= RecallGameStateAccessor._internal();
@@ -863,16 +796,13 @@ class RecallGameStateAccessor {
       final games = currentState['games'] as Map<String, dynamic>? ?? {};
       
       if (!games.containsKey(gameId)) {
-        _log.debug('🔍 Game $gameId not found in games map');
         return null;
       }
       
       final gameState = games[gameId] as Map<String, dynamic>? ?? {};
-      _log.debug('🔍 Retrieved game state for game $gameId');
       return gameState;
       
     } catch (e) {
-      _log.error('❌ Error retrieving game state for game $gameId: $e');
       return null;
     }
   }
@@ -885,11 +815,9 @@ class RecallGameStateAccessor {
       if (game == null) return null;
       
       final gameData = game['gameData'] as Map<String, dynamic>? ?? {};
-      _log.debug('🔍 Retrieved game data for game $gameId');
       return gameData;
       
     } catch (e) {
-      _log.error('❌ Error retrieving game data for game $gameId: $e');
       return null;
     }
   }
@@ -902,11 +830,9 @@ class RecallGameStateAccessor {
       if (gameData == null) return null;
       
       final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-      _log.debug('🔍 Retrieved game state data for game $gameId');
       return gameState;
       
     } catch (e) {
-      _log.error('❌ Error retrieving game state data for game $gameId: $e');
       return null;
     }
   }
@@ -916,11 +842,9 @@ class RecallGameStateAccessor {
     try {
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
-      _log.debug('🔍 Current game ID: $currentGameId');
       return currentGameId;
       
     } catch (e) {
-      _log.error('❌ Error retrieving current game ID: $e');
       return '';
     }
   }
@@ -959,11 +883,9 @@ class RecallGameStateAccessor {
       if (gameState == null) return 'normal';
       
       final gameType = gameState['gameType']?.toString() ?? 'normal';
-      _log.debug('🔍 Game $gameId type: $gameType');
       return gameType;
       
     } catch (e) {
-      _log.error('❌ Error retrieving game type for game $gameId: $e');
       return 'normal';
     }
   }

@@ -1,7 +1,6 @@
 import 'package:recall/modules/admobs/banner/banner_ad.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../tools/logging/logger.dart';
 import '../managers/app_manager.dart';
 import '../managers/module_manager.dart';
 import '../managers/navigation_manager.dart';
@@ -59,7 +58,6 @@ abstract class BaseScreen extends StatefulWidget {
 abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   late final AppManager appManager;
   final ModuleManager _moduleManager = ModuleManager();
-  final Logger log = Logger();
   BannerAdModule? bannerAdModule;
   
   // WebSocket connection monitoring for global features
@@ -375,21 +373,14 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       if (bannerAdModule != null) {
         appManager.triggerTopBannerBarHook(context);
         appManager.triggerBottomBannerBarHook(context);
-        log.info('✅ Global banner bar hooks triggered.');
-      } else {
-        log.error("❌ BannerAdModule not found.");
       }
     });
   }
 
   /// Register global app bar features that appear on all screens
   void _registerGlobalAppBarFeatures() {
-    log.info('🌐 Registering state-aware global app bar features for screen: ${widget.runtimeType}');
-    
     // Register state-aware features using the new system
     StateAwareFeatureRegistry.registerGlobalAppBarFeatures(context);
-    
-    log.info('✅ State-aware global app bar features registered for screen: ${widget.runtimeType}');
   }
 
 

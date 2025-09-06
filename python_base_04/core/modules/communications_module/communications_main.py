@@ -1,6 +1,6 @@
 import os
 import json
-, log_function_call
+from tools.logger.custom_logging import custom_log, log_function_call
 from utils.config.config import Config
 from core.managers.redis_manager import RedisManager
 from core.managers.jwt_manager import JWTManager, TokenType
@@ -38,10 +38,14 @@ class CommunicationsModule(BaseModule):
         # Initialize API key manager for external app
         self.api_key_manager = APIKeyManager(self.redis_manager)
 
-        def initialize(self, app_manager):
+        custom_log(f"CommunicationsModule module created with shared managers")
+
+    def initialize(self, app_manager):
         """Initialize the CommunicationsModule with AppManager."""
         self.app_manager = app_manager
         self.app = app_manager.flask_app
+        custom_log(f"CommunicationsModule initialized with AppManager")
+        
         # Ensure collections exist in the database
         self.initialize_database()
         
@@ -62,8 +66,12 @@ class CommunicationsModule(BaseModule):
         if self.app_manager:
             # Note: Welcome notifications are now handled in CreditSystemModule callback
             # No need for separate communications hook callback
-            def register_routes(self):
+            custom_log("🎣 CommunicationsModule: Welcome notifications handled in CreditSystemModule - no hook callback needed")
+
+    def register_routes(self):
         """Register all CommunicationsModule routes."""
+        custom_log("Registering CommunicationsModule routes...")
+        
         # Register core routes
         self._register_route_helper("/", self.home, methods=["GET"])
         self._register_route_helper("/get-db-data", self.get_all_database_data, methods=["GET"])
@@ -77,23 +85,31 @@ class CommunicationsModule(BaseModule):
         # Register JWT test route
         self._register_route_helper("/test-jwt", self.test_jwt, methods=["POST"])
         
-        } routes")
+        custom_log(f"CommunicationsModule registered {len(self.registered_routes)} routes")
 
     def initialize_database(self):
         """Verify database connection without creating collections or indexes."""
+        custom_log("⚙️ Verifying database connection...")
         if self._verify_database_connection():
-            else:
-            def _verify_database_connection(self) -> bool:
+            custom_log("✅ Database connection verified.")
+        else:
+            custom_log("⚠️ Database connection unavailable - running with limited functionality")
+
+    def _verify_database_connection(self) -> bool:
         """Verify database connection without creating anything."""
         try:
             # Check if database is available
             if not self.admin_db.available:
+                custom_log("⚠️ Database unavailable - connection verification skipped")
                 return False
                 
             # Simple connection test - just ping the database
             self.admin_db.db.command('ping')
+            custom_log("✅ Database connection verified successfully")
             return True
         except Exception as e:
+            custom_log(f"⚠️ Database connection verification failed: {e}")
+            custom_log("⚠️ Database operations will be limited - suitable for local development")
             return False
 
     def home(self):
@@ -110,6 +126,7 @@ class CommunicationsModule(BaseModule):
             return all_data
             
         except Exception as e:
+            custom_log(f"❌ Error in get_all_database_data endpoint: {e}", level="ERROR")
             return {"error": f"Failed to retrieve database data: {str(e)}"}, 500
 
     def test_jwt(self):
@@ -162,11 +179,11 @@ class CommunicationsModule(BaseModule):
                 }
             }
             
-            }")
+            custom_log(f"JWT test successful for user: {payload.get('user_id')}")
             return jsonify(token_info), 200
             
         except Exception as e:
-            }", level="ERROR")
+            custom_log(f"JWT test failed: {str(e)}", level="ERROR")
             return jsonify({
                 "success": False,
                 "message": "JWT test failed",
@@ -208,11 +225,11 @@ class CommunicationsModule(BaseModule):
                 }
             }
             
-            }")
+            custom_log(f"JWT test successful for user: {payload.get('user_id')}")
             return jsonify(token_info), 200
             
         except Exception as e:
-            }", level="ERROR")
+            custom_log(f"JWT test failed: {str(e)}", level="ERROR")
             return jsonify({
                 "success": False,
                 "message": "JWT test failed",

@@ -1,4 +1,6 @@
 import os
+from tools.logger.custom_logging import custom_log
+
 # Global VaultManager instance (initialized once)
 _vault_manager = None
 
@@ -9,7 +11,9 @@ def get_vault_manager():
         try:
             from core.managers.vault_manager import VaultManager
             _vault_manager = VaultManager()
-            except Exception as e:
+            custom_log("✅ VaultManager initialized successfully for config")
+        except Exception as e:
+            custom_log(f"⚠️ VaultManager initialization failed: {e}", level="WARNING")
             _vault_manager = False  # Mark as failed to avoid retrying
     return _vault_manager if _vault_manager is not False else None
 
@@ -35,10 +39,12 @@ def read_secret_file(secret_name: str) -> str:
             with open(path, 'r') as f:
                 content = f.read().strip()
                 if content:  # Only return non-empty content
+                    custom_log(f"✅ Found secret '{secret_name}' in {path}")
                     return content
         except Exception:
             continue
     
+    custom_log(f"🔍 Secret '{secret_name}' not found in any location")
     return None
 
 def get_vault_secret(path: str, key: str) -> str:
@@ -48,7 +54,8 @@ def get_vault_secret(path: str, key: str) -> str:
         if vault:
             return vault.get_secret_value(path, key)
     except Exception as e:
-        return None
+        custom_log(f"Failed to get vault secret {path}/{key}: {e}")
+    return None
 
 def get_config_value(vault_path: str, vault_key: str, file_name: str = None, env_name: str = None, default_value: str = ""):
     """
@@ -68,7 +75,9 @@ def get_config_value(vault_path: str, vault_key: str, file_name: str = None, env
         if file_value is not None and file_value != "vault_required":
             return file_value
         elif file_value == "vault_required":
-            # 2. Try Vault (production secure source)
+            custom_log(f"Secret file {file_name} requires Vault - continuing to Vault")
+    
+    # 2. Try Vault (production secure source)
     if vault_path and vault_key:
         try:
             vault_value = get_vault_secret(vault_path, vault_key)
@@ -83,9 +92,12 @@ def get_config_value(vault_path: str, vault_key: str, file_name: str = None, env
         if env_value is not None and env_value != "vault_required":
             return env_value
         elif env_value == "vault_required":
-            # 4. Check if we have a security requirement
+            custom_log(f"Environment variable {env_name} requires Vault - skipping env fallback")
+    
+    # 4. Check if we have a security requirement
     if ((file_name and read_secret_file(file_name) == "vault_required") or 
         (env_name and os.getenv(env_name) == "vault_required")):
+        custom_log(f"🚨 CRITICAL: {file_name or env_name} requires Vault but Vault is unavailable!", level="ERROR")
         # For critical security values, don't fall back to defaults
         if env_name in ["MONGODB_ROOT_PASSWORD", "JWT_SECRET_KEY", "ENCRYPTION_KEY", "REDIS_PASSWORD"]:
             return "VAULT_REQUIRED_BUT_UNAVAILABLE"
@@ -112,29 +124,39 @@ def get_sensitive_config_value(vault_path: str, vault_key: str, file_name: str =
         try:
             vault_value = get_vault_secret(vault_path, vault_key)
             if vault_value is not None:
+                custom_log(f"✅ Sensitive config '{vault_key}' retrieved from Vault")
                 return vault_value
         except Exception as e:
-            # 2. Try secret files (Kubernetes + local development)
+            custom_log(f"Vault lookup failed for {vault_path}/{vault_key}: {e}")
+    
+    # 2. Try secret files (Kubernetes + local development)
     if file_name:
         file_value = read_secret_file(file_name)
         if file_value is not None and file_value != "vault_required":
+            custom_log(f"✅ Sensitive config '{file_name}' retrieved from secret file")
             return file_value
         elif file_value == "vault_required":
-            # 3. Try environment variable (skip if it's a security placeholder)
+            custom_log(f"⚠️ Secret file {file_name} requires Vault but Vault unavailable - checking other sources", level="WARNING")
+    
+    # 3. Try environment variable (skip if it's a security placeholder)
     if env_name:
         env_value = os.getenv(env_name)
         if env_value is not None and env_value != "vault_required":
-            ", level="WARNING")
+            custom_log(f"⚠️ Sensitive config '{env_name}' using environment variable (less secure)", level="WARNING")
             return env_value
         elif env_value == "vault_required":
-            # 4. Check if we have a security requirement failure
+            custom_log(f"Environment variable {env_name} requires Vault - skipping env fallback")
+    
+    # 4. Check if we have a security requirement failure
     if ((file_name and read_secret_file(file_name) == "vault_required") or 
         (env_name and os.getenv(env_name) == "vault_required")):
+        custom_log(f"🚨 CRITICAL: {file_name or env_name} requires Vault but Vault is unavailable!", level="ERROR")
         return "VAULT_REQUIRED_BUT_UNAVAILABLE"
     
     # 5. Return default value (with warning for sensitive data)
     if default_value:
-        return default_value
+        custom_log(f"⚠️ Sensitive config using default value - NOT SECURE for production", level="WARNING")
+    return default_value
 
 def get_file_first_config_value(file_name: str, env_name: str, default_value: str = ""):
     """
@@ -151,11 +173,13 @@ def get_file_first_config_value(file_name: str, env_name: str, default_value: st
     # 1. Try secret files first (Kubernetes + local development)
     file_value = read_secret_file(file_name)
     if file_value is not None:
+        custom_log(f"✅ Config '{file_name}' retrieved from secret file")
         return file_value
     
     # 2. Try environment variable
     env_value = os.getenv(env_name)
     if env_value is not None:
+        custom_log(f"✅ Config '{env_name}' retrieved from environment")
         return env_value
     
     # 3. Return default value
@@ -186,8 +210,11 @@ def validate_critical_config():
             critical_failures.append(f"⚠️ {description}: Waiting for Vault initialization")
     
     if critical_failures:
+        custom_log("🚨 CRITICAL CONFIGURATION ISSUES DETECTED:", level="ERROR")
         for failure in critical_failures:
-            # Check if Vault is accessible
+            custom_log(f"   {failure}")
+        
+        # Check if Vault is accessible
         vault_status = False
         try:
             vault = get_vault_manager()
@@ -196,6 +223,8 @@ def validate_critical_config():
             pass
             
         if not vault_status:
+            custom_log("🚨 VAULT IS UNAVAILABLE - APPLICATION CANNOT START SECURELY", level="ERROR")
+            custom_log("🔧 RESOLUTION: Ensure Vault is accessible and AppRole credentials are valid")
             return False
     
     return True
@@ -512,6 +541,7 @@ class Config:
         try:
             vault = get_vault_manager()
             if not vault:
+                custom_log("VaultManager not available for refresh")
                 return False
             
             # Refresh MongoDB config
@@ -524,35 +554,46 @@ class Config:
                 cls.MONGODB_PASSWORD = mongodb_secrets.get('user_password', cls.MONGODB_PASSWORD)
                 cls.MONGODB_DB_NAME = mongodb_secrets.get('database_name', cls.MONGODB_DB_NAME)
                 cls.MONGODB_PORT = int(mongodb_secrets.get('port', cls.MONGODB_PORT))
-                # Refresh Redis config
+                custom_log("✅ MongoDB config refreshed from Vault")
+            
+            # Refresh Redis config
             redis_secrets = vault.get_redis_secrets()
             if redis_secrets:
                 cls.REDIS_SERVICE_NAME = redis_secrets.get('service_name', cls.REDIS_SERVICE_NAME)
                 cls.REDIS_HOST = redis_secrets.get('host', cls.REDIS_HOST)
                 cls.REDIS_PORT = int(redis_secrets.get('port', cls.REDIS_PORT))
                 cls.REDIS_PASSWORD = redis_secrets.get('password', cls.REDIS_PASSWORD)
-                # Refresh Flask app config
+                custom_log("✅ Redis config refreshed from Vault")
+            
+            # Refresh Flask app config
             app_secrets = vault.get_app_secrets()
             if app_secrets:
                 cls.JWT_SECRET_KEY = app_secrets.get('secret_key', cls.JWT_SECRET_KEY)
                 cls.FLASK_ENV = app_secrets.get('environment', cls.FLASK_ENV)
                 cls.DEBUG = app_secrets.get('debug', str(cls.DEBUG)).lower() in ('true', '1')
-                # Refresh Stripe config
+                custom_log("✅ Flask app config refreshed from Vault")
+            
+            # Refresh Stripe config
             stripe_secrets = vault.get_stripe_secrets()
             if stripe_secrets:
                 cls.STRIPE_SECRET_KEY = stripe_secrets.get('secret_key', cls.STRIPE_SECRET_KEY)
                 cls.STRIPE_PUBLISHABLE_KEY = stripe_secrets.get('publishable_key', cls.STRIPE_PUBLISHABLE_KEY)
                 cls.STRIPE_WEBHOOK_SECRET = stripe_secrets.get('webhook_secret', cls.STRIPE_WEBHOOK_SECRET)
-                return True
+                custom_log("✅ Stripe config refreshed from Vault")
+            
+            return True
             
         except Exception as e:
+            custom_log(f"Failed to refresh config from Vault: {e}")
             return False
 
     @classmethod
     def set_credit_system_api_key(cls, api_key: str):
         """Dynamically set the credit system API key."""
         cls.CREDIT_SYSTEM_API_KEY = api_key
-        @classmethod
+        custom_log(f"✅ Credit system API key set: {api_key[:16]}...")
+    
+    @classmethod
     def get_credit_system_api_key(cls) -> str:
         """Get the credit system API key, generate if empty."""
         if not cls.CREDIT_SYSTEM_API_KEY or cls.CREDIT_SYSTEM_API_KEY == "":
@@ -564,6 +605,7 @@ class Config:
                 cls.set_credit_system_api_key(api_key)
                 return api_key
             else:
+                custom_log("⚠️ Failed to generate API key automatically")
                 return ""
         return cls.CREDIT_SYSTEM_API_KEY
 

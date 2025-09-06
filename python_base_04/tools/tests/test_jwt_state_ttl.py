@@ -14,6 +14,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.managers.state_manager import StateManager, StateType, StateTransition
 from core.managers.jwt_manager import JWTManager, TokenType
+from tools.logger.custom_logging import custom_log
+
+
 def test_token_refresh_delay_in_game_state():
     """Test that token refresh is delayed during game states."""
     print("\n" + "="*60)

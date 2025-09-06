@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
-import '../../../../../tools/logging/logger.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../widgets/card_back_widget.dart';
@@ -23,8 +22,6 @@ class OpponentsPanelWidget extends StatefulWidget {
 }
 
 class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
-  static final Logger _log = Logger();
-  
   // Internal state to store clicked card information
   String? _clickedCardId;
 
@@ -54,7 +51,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        _log.info('🎮 OpponentsPanelWidget: opponents=${otherPlayers.length}, currentTurnIndex=$currentTurnIndex, gamePhase=$gamePhase, playerStatus=$playerStatus');
         
         return _buildOpponentsPanel(
           opponents: otherPlayers,
@@ -161,8 +157,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
     final currentPlayerStatus = recallGameState['currentPlayerStatus']?.toString() ?? 'unknown';
     
-    _log.info('🎯 [OPPONENTS] currentPlayerRaw: $currentPlayerRaw (type: ${currentPlayerRaw.runtimeType})');
-    _log.info('🎯 [OPPONENTS] currentPlayerId: $currentPlayerId, currentPlayerStatus: $currentPlayerStatus');
     
     return Column(
       children: opponents.asMap().entries.map((entry) {
@@ -396,8 +390,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
     
-    _log.info('🎯 Card clicked: ${card['cardId']}, current player status: $currentPlayerStatus');
-    
     // Check if current player can interact with cards (queen_peek or jack_swap status)
     if (currentPlayerStatus == 'queen_peek' || currentPlayerStatus == 'jack_swap') {
       final cardId = card['cardId']?.toString();
@@ -405,8 +397,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         setState(() {
           _clickedCardId = cardId;
         });
-        
-        _log.info('✅ Card ID stored: $cardId (status: $currentPlayerStatus)');
         
         // Show success feedback
         ScaffoldMessenger.of(context).showSnackBar(
@@ -421,7 +411,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           ),
         );
       } else {
-        _log.warning('⚠️ Card clicked but no cardId found: $card');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Error: Card information incomplete'),
@@ -432,7 +421,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       }
     } else {
       // Show invalid action feedback
-      _log.info('❌ Invalid card click action: status=$currentPlayerStatus');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

@@ -1,4 +1,4 @@
-, function_log, game_play_log, log_function_call
+from tools.logger.custom_logging import custom_log, function_log, game_play_log, log_function_call
 from typing import Dict, List, Type, Any, Optional
 from core.managers.module_registry import ModuleRegistry
 from core.modules.base_module import BaseModule
@@ -9,7 +9,9 @@ class ModuleManager:
         self.modules = {}
         self.module_load_order = []
         self.initialization_errors = {}
-        @log_function_call
+        custom_log("ModuleManager instance created - now serving as primary orchestrator")
+
+    @log_function_call
     def register_module(self, module_key, module_class, app_manager=None, *args, **kwargs):
         """
         Register and initialize a module.
@@ -29,14 +31,19 @@ class ModuleManager:
         # Instantiate the module
         module_instance = module_class(*args, **kwargs)
         self.modules[module_key] = module_instance
+        custom_log(f"Module '{module_key}' registered successfully.")
+
         # Initialize the module if it has an initialize method
         if hasattr(module_instance, 'initialize'):
+            custom_log(f"🔄 Initializing module '{module_key}'...")
             try:
                 if app_manager:
                     module_instance.initialize(app_manager)
-                    else:
-                    except Exception as e:
-                }")
+                    custom_log(f"✅ Module '{module_key}' initialized successfully")
+                else:
+                    custom_log(f"❌ Cannot initialize module '{module_key}': Missing required app_manager")
+            except Exception as e:
+                custom_log(f"❌ Error initializing module '{module_key}': {str(e)}")
                 raise
 
     @log_function_call
@@ -48,8 +55,10 @@ class ModuleManager:
         """
         module = self.modules.get(module_key)
         if not module:
-            else:
-            return module
+            custom_log(f"Error: Module '{module_key}' is not registered.")
+        else:
+            custom_log(f"Retrieved module '{module_key}': {module}")
+        return module
 
     @log_function_call
     def call_module_method(self, module_key, method_name, *args, **kwargs):
@@ -67,7 +76,9 @@ class ModuleManager:
         if not hasattr(module, method_name):
             raise AttributeError(f"Module '{module_key}' has no method '{method_name}'.")
 
+        custom_log(f"Calling method '{method_name}' on module '{module_key}' with args: {args}, kwargs: {kwargs}")
         result = getattr(module, method_name)(*args, **kwargs)
+        custom_log(f"Method '{method_name}' on module '{module_key}' returned: {result}")
         return result
 
     @log_function_call
@@ -79,9 +90,10 @@ class ModuleManager:
         """
         try:
             modules = ModuleRegistry.get_modules()
-            } modules via ModuleRegistry")
+            custom_log(f"Discovered {len(modules)} modules via ModuleRegistry")
             return modules
         except Exception as e:
+            custom_log(f"❌ Error discovering modules: {e}")
             return {}
     
     @log_function_call
@@ -94,8 +106,10 @@ class ModuleManager:
         try:
             load_order = ModuleRegistry.get_module_load_order()
             self.module_load_order = load_order
+            custom_log(f"Module load order resolved: {load_order}")
             return load_order
         except Exception as e:
+            custom_log(f"❌ Error resolving module dependencies: {e}")
             return []
     
     @log_function_call
@@ -106,6 +120,8 @@ class ModuleManager:
         
         :param app_manager: AppManager instance
         """
+        custom_log("🚀 Starting module initialization process...")
+        
         # Validate module registry first
         if not ModuleRegistry.validate_module_registry():
             raise RuntimeError("Module registry validation failed")
@@ -116,11 +132,13 @@ class ModuleManager:
         # Discover available modules
         modules = self.discover_modules()
         if not modules:
+            custom_log("❌ No modules discovered - aborting initialization")
             return
         
         # Resolve dependencies and get load order
         load_order = self.resolve_dependencies()
         if not load_order:
+            custom_log("❌ Failed to resolve module dependencies - aborting initialization")
             return
         
         # Initialize modules in dependency order
@@ -130,17 +148,21 @@ class ModuleManager:
                     module_class = modules[module_key]
                     self.register_and_initialize_module(module_key, module_class, app_manager)
                 else:
-                    except Exception as e:
+                    custom_log(f"❌ Module {module_key} in load order but not in discovered modules")
+            except Exception as e:
                 error_msg = f"Failed to initialize module {module_key}: {e}"
+                custom_log(f"❌ {error_msg}")
                 self.initialization_errors[module_key] = str(e)
                 # Continue with other modules rather than failing completely
         
         # Summary
         initialized_count = len([m for m in self.modules.values() if m.is_initialized()])
-        } modules initialized")
+        custom_log(f"✅ Module initialization complete: {initialized_count}/{len(load_order)} modules initialized")
         
         if self.initialization_errors:
-            @log_function_call
+            custom_log(f"⚠️ Initialization errors: {self.initialization_errors}")
+    
+    @log_function_call
     def register_and_initialize_module(self, module_key: str, module_class: Type[BaseModule], app_manager):
         """
         Register and initialize a single module.
@@ -152,21 +174,30 @@ class ModuleManager:
         try:
             # Check if module is already registered
             if module_key in self.modules:
+                custom_log(f"⚠️ Module {module_key} already registered - skipping")
                 return
             
             # Instantiate the module
+            custom_log(f"📦 Creating module instance: {module_key}")
             module_instance = module_class(app_manager=app_manager)
             
             # Register the module
             self.modules[module_key] = module_instance
+            custom_log(f"✅ Module {module_key} registered successfully")
+            
             # Initialize the module
             if hasattr(module_instance, 'initialize'):
+                custom_log(f"🔄 Initializing module: {module_key}")
                 module_instance.initialize(app_manager)
                 
                 # Mark as initialized
                 module_instance._initialized = True
-                else:
-                except Exception as e:
+                custom_log(f"✅ Module {module_key} initialized successfully")
+            else:
+                custom_log(f"❌ Cannot initialize module {module_key} - missing initialize method")
+                
+        except Exception as e:
+            custom_log(f"❌ Error registering/initializing module {module_key}: {e}")
             raise
     
     @log_function_call
@@ -205,9 +236,12 @@ class ModuleManager:
                 module = self.modules[module_key]
                 try:
                     if hasattr(module, "dispose"):
+                        custom_log(f"Disposing module: {module_key}")
                         module.dispose()
                 except Exception as e:
-                    self.modules.clear()
+                    custom_log(f"❌ Error disposing module {module_key}: {e}")
+
+        self.modules.clear()
         self.module_load_order.clear()
         self.initialization_errors.clear()
-        
+        custom_log("All modules have been disposed of.")

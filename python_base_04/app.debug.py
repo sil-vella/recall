@@ -8,6 +8,9 @@ from core.metrics import init_metrics
 from utils.config.config import Config
 from tools.logger.custom_logging import custom_log
 
+# Test logging control
+LOGGING_SWITCH = True
+
 # Clear Python's import cache to prevent stale imports
 importlib.invalidate_caches()
 
@@ -179,6 +182,9 @@ if __name__ == "__main__":
     # Use environment variables for host and port
     host = os.getenv('FLASK_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_PORT', 5001))
+    
+    # Test custom_log with isOn parameter
+    custom_log("App debug server starting up", level="INFO", isOn=LOGGING_SWITCH)
     
     # WebSocket functionality is now handled by app_manager
     if app_manager.websocket_manager:

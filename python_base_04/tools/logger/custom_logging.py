@@ -83,8 +83,8 @@ def sanitize_log_message(message):
     return message
 
 
-def custom_log(message, level="DEBUG"):
-    if CUSTOM_LOGGING_ENABLED:
+def custom_log(message, level="DEBUG", isOn=False):
+    if CUSTOM_LOGGING_ENABLED and isOn:
         message = sanitize_log_message(message)
         # Get the frame of the caller
         frame = inspect.currentframe()

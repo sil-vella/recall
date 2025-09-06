@@ -1,5 +1,4 @@
 from typing import Dict, Any, Optional, Set, List
-from tools.logger.custom_logging import custom_log
 from datetime import datetime
 from core.managers.redis_manager import RedisManager
 from core.managers.jwt_manager import JWTManager, TokenType
@@ -11,9 +10,7 @@ class WSSessionManager:
     def __init__(self, redis_manager: RedisManager, jwt_manager: JWTManager):
         self.redis_manager = redis_manager
         self.jwt_manager = jwt_manager
-        custom_log("WSSessionManager initialized")
-
-    def create_session(self, session_id: str, user_id: str, username: str, token: str, 
+        def create_session(self, session_id: str, user_id: str, username: str, token: str, 
                       client_id: str = None, origin: str = None) -> Dict[str, Any]:
         """Create a new session."""
         try:
@@ -34,7 +31,6 @@ class WSSessionManager:
             # Store session data
             self.store_session_data(session_id, session_data)
             
-            custom_log(f"✅ Session created: {session_id} for user {user_id}")
             return {
                 'success': True,
                 'session_id': session_id,
@@ -42,7 +38,7 @@ class WSSessionManager:
             }
             
         except Exception as e:
-            custom_log(f"❌ Error creating session {session_id}: {str(e)}")
+            }")
             return {
                 'success': False,
                 'error': f'Failed to create session: {str(e)}'
@@ -98,10 +94,8 @@ class WSSessionManager:
             session_key = self.redis_manager._generate_secure_key("session", session_id)
             self.redis_manager.set(session_key, data_to_store, expire=Config.WS_SESSION_TTL)
             
-            custom_log(f"✅ Session data stored for session {session_id}")
-            
-        except Exception as e:
-            custom_log(f"❌ Error storing session data: {str(e)}")
+            except Exception as e:
+            }")
             raise
 
     def get_session_data(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -150,7 +144,7 @@ class WSSessionManager:
             return None
             
         except Exception as e:
-            custom_log(f"❌ Error getting session data: {str(e)}")
+            }")
             return None
 
     def get_client_session_data(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -171,7 +165,7 @@ class WSSessionManager:
             return None
             
         except Exception as e:
-            custom_log(f"❌ Error getting client session data: {str(e)}")
+            }")
             return None
 
     def update_session_activity(self, session_id: str) -> None:
@@ -181,9 +175,8 @@ class WSSessionManager:
             if session_data:
                 session_data['last_activity'] = datetime.now().isoformat()
                 self.store_session_data(session_id, session_data)
-                custom_log(f"✅ Updated session activity for session: {session_id}")
-        except Exception as e:
-            custom_log(f"❌ Error updating session activity: {str(e)}")
+                except Exception as e:
+            }")
 
     def add_room_to_session(self, session_id: str, room_id: str) -> bool:
         """Add a room to a session."""
@@ -195,11 +188,10 @@ class WSSessionManager:
                 session_data['rooms'].add(room_id)
                 session_data['last_activity'] = datetime.now().isoformat()
                 self.store_session_data(session_id, session_data)
-                custom_log(f"✅ Added room {room_id} to session {session_id}")
                 return True
             return False
         except Exception as e:
-            custom_log(f"❌ Error adding room to session: {str(e)}")
+            }")
             return False
 
     def remove_room_from_session(self, session_id: str, room_id: str) -> bool:
@@ -210,11 +202,10 @@ class WSSessionManager:
                 session_data['rooms'].discard(room_id)
                 session_data['last_activity'] = datetime.now().isoformat()
                 self.store_session_data(session_id, session_data)
-                custom_log(f"✅ Removed room {room_id} from session {session_id}")
                 return True
             return False
         except Exception as e:
-            custom_log(f"❌ Error removing room from session: {str(e)}")
+            }")
             return False
 
     def update_user_roles(self, session_id: str, roles: Set[str]) -> bool:
@@ -225,11 +216,10 @@ class WSSessionManager:
                 session_data['user_roles'] = roles
                 session_data['last_activity'] = datetime.now().isoformat()
                 self.store_session_data(session_id, session_data)
-                custom_log(f"✅ Updated user roles for session {session_id}: {roles}")
                 return True
             return False
         except Exception as e:
-            custom_log(f"❌ Error updating user roles: {str(e)}")
+            }")
             return False
 
     def validate_session(self, session_id: str) -> bool:
@@ -241,7 +231,7 @@ class WSSessionManager:
                 return status == 'active'
             return False
         except Exception as e:
-            custom_log(f"❌ Error validating session: {str(e)}")
+            }")
             return False
 
     def cleanup_session(self, session_id: str) -> None:
@@ -249,9 +239,8 @@ class WSSessionManager:
         try:
             session_key = self.redis_manager._generate_secure_key("session", session_id)
             self.redis_manager.delete(session_key)
-            custom_log(f"✅ Cleaned up session: {session_id}")
-        except Exception as e:
-            custom_log(f"❌ Error cleaning up session: {str(e)}")
+            except Exception as e:
+            }")
 
     def get_all_sessions(self) -> List[Dict[str, Any]]:
         """Get all active sessions."""
@@ -266,7 +255,7 @@ class WSSessionManager:
             
             return sessions
         except Exception as e:
-            custom_log(f"❌ Error getting all sessions: {str(e)}")
+            }")
             return []
 
     def get_sessions_for_user(self, user_id: str) -> List[Dict[str, Any]]:
@@ -281,7 +270,7 @@ class WSSessionManager:
             
             return user_sessions
         except Exception as e:
-            custom_log(f"❌ Error getting sessions for user: {str(e)}")
+            }")
             return []
 
     def get_session_count(self) -> int:
@@ -290,7 +279,7 @@ class WSSessionManager:
             session_keys = self.redis_manager.get_keys("session:*")
             return len(session_keys)
         except Exception as e:
-            custom_log(f"❌ Error getting session count: {str(e)}")
+            }")
             return 0
 
     def cleanup_stale_sessions(self, max_inactive_hours: int = 24) -> int:
@@ -312,16 +301,13 @@ class WSSessionManager:
                         if inactive_time.total_seconds() > max_inactive:
                             self.cleanup_session(session_id)
                             cleaned_count += 1
-                            custom_log(f"Cleaned up stale session: {session_id}")
-                            
-                    except Exception as e:
-                        custom_log(f"Error parsing session activity time: {str(e)}")
+                            except Exception as e:
+                        }")
             
-            custom_log(f"Cleaned up {cleaned_count} stale sessions")
             return cleaned_count
             
         except Exception as e:
-            custom_log(f"❌ Error cleaning up stale sessions: {str(e)}")
+            }")
             return 0
 
     def authenticate_session(self, session_id: str, token: str) -> bool:
@@ -332,13 +318,11 @@ class WSSessionManager:
                      self.jwt_manager.verify_token(token, TokenType.WEBSOCKET)
             
             if not payload:
-                custom_log(f"❌ Invalid token for session {session_id}")
                 return False
             
             # Get session data
             session_data = self.get_session_data(session_id)
             if not session_data:
-                custom_log(f"❌ No session data found for session {session_id}")
                 return False
             
             # Update session with user info
@@ -350,11 +334,10 @@ class WSSessionManager:
             # Store updated session data
             self.store_session_data(session_id, session_data)
             
-            custom_log(f"✅ Authenticated session {session_id} for user {session_data['user_id']}")
             return True
             
         except Exception as e:
-            custom_log(f"❌ Error authenticating session: {str(e)}")
+            }")
             return False
 
     def get_session_stats(self, session_id: str) -> Dict[str, Any]:
@@ -378,5 +361,5 @@ class WSSessionManager:
             return stats
             
         except Exception as e:
-            custom_log(f"❌ Error getting session stats: {str(e)}")
+            }")
             return {} 

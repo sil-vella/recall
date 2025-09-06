@@ -2,7 +2,6 @@ from core.modules.base_module import BaseModule
 from core.managers.database_manager import DatabaseManager
 from core.managers.jwt_manager import JWTManager, TokenType
 from core.managers.redis_manager import RedisManager
-from tools.logger.custom_logging import custom_log
 from flask import request, jsonify
 from datetime import datetime
 from typing import Dict, Any
@@ -37,9 +36,7 @@ class CreditSystemModule(BaseModule):
         # Use dynamic API key getter that generates if empty
         self.api_key = Config.get_credit_system_api_key()
         
-        custom_log("CreditSystemModule created with shared managers")
-
-    def initialize(self, app_manager):
+        def initialize(self, app_manager):
         """Initialize the CreditSystemModule with AppManager."""
         self.app_manager = app_manager
         self.app = app_manager.flask_app
@@ -50,9 +47,7 @@ class CreditSystemModule(BaseModule):
         self._register_hooks()
         
         self._initialized = True
-        custom_log("CreditSystemModule initialized")
-
-    def _register_hooks(self):
+        def _register_hooks(self):
         """Register hooks for user-related events."""
         if self.app_manager:
             # Register callback for user creation
@@ -62,9 +57,7 @@ class CreditSystemModule(BaseModule):
                 priority=15, 
                 context="credit_system"
             )
-            custom_log("🎣 CreditSystemModule registered user_created hook callback")
-
-    def _on_user_created(self, hook_data):
+            def _on_user_created(self, hook_data):
         """Handle user creation event - forward to credit system."""
         try:
             user_id = hook_data.get('user_id')
@@ -75,10 +68,8 @@ class CreditSystemModule(BaseModule):
             app_name = hook_data.get('app_name')
             source = hook_data.get('source', 'external_app')
             
-            custom_log(f"🎣 CreditSystemModule: Processing user creation for {username} ({email})")
-            custom_log(f"   - Source App: {app_name} ({app_id})")
-            custom_log(f"   - User ID: {user_id}")
-            
+            ")
+            ")
             # Prepare data for credit system with multi-tenant structure
             credit_system_user_data = {
                 # Core user fields
@@ -129,9 +120,6 @@ class CreditSystemModule(BaseModule):
                 
                 target_url = f"{self.credit_system_url}/users/create"
                 
-                custom_log(f"🔄 Forwarding user creation to credit system: {target_url}")
-                custom_log(f"🔄 User data: {credit_system_user_data}")
-                
                 response = requests.post(
                     url=target_url,
                     headers=headers,
@@ -141,25 +129,14 @@ class CreditSystemModule(BaseModule):
                 
                 if response.status_code == 200 or response.status_code == 201:
                     response_data = response.json()
-                    custom_log(f"✅ CreditSystemModule: User {username} synced to credit system successfully")
-                    custom_log(f"   - Credit system response: {response_data}")
-                    
                     # Create welcome notification in external app
                     self._create_welcome_notification(user_id, username, email, app_name)
                     
                 else:
-                    custom_log(f"⚠️ CreditSystemModule: User {username} sync failed - status {response.status_code}")
-                    custom_log(f"   - Response: {response.text}")
-                    
-            except requests.exceptions.RequestException as e:
-                custom_log(f"❌ CreditSystemModule: Failed to sync user {username} to credit system: {e}")
-            except Exception as e:
-                custom_log(f"❌ CreditSystemModule: Unexpected error syncing user {username}: {e}")
-                
-        except Exception as e:
-            custom_log(f"❌ CreditSystemModule: Error processing user creation hook: {e}")
-
-    def _create_welcome_notification(self, user_id, username, email, app_name):
+                    except requests.exceptions.RequestException as e:
+                except Exception as e:
+                except Exception as e:
+            def _create_welcome_notification(self, user_id, username, email, app_name):
         """Create welcome notification for new user."""
         try:
             notification_data = {
@@ -181,19 +158,12 @@ class CreditSystemModule(BaseModule):
             notification_id = self.db_manager.insert("notifications", notification_data)
             
             if notification_id:
-                custom_log(f"✅ Welcome notification created for {username}: {notification_id}")
-            else:
-                custom_log(f"⚠️ Failed to create welcome notification for {username}")
-                
-        except Exception as e:
-            custom_log(f"❌ Error creating welcome notification for {username}: {e}")
-
-    def register_routes(self):
+                else:
+                except Exception as e:
+            def register_routes(self):
         """Register wildcard routes that capture all user-related requests."""
         
-        custom_log(f"CreditSystemModule 0 routes for user forwarding")
-
-    def forward_user_request(self, subpath=None):
+        def forward_user_request(self, subpath=None):
         """Forward user management requests to credit system with API key."""
         try:
             # Get the current request path and method
@@ -234,15 +204,8 @@ class CreditSystemModule(BaseModule):
             # Build target URL
             target_url = f"{self.credit_system_url}{target_path}"
             
-            custom_log(f"🔄 Forwarding {method} request to credit system: {target_url}")
-            custom_log(f"🔄 Original path: {path}")
-            custom_log(f"🔄 Target path: {target_path}")
-            custom_log(f"🔄 Subpath parameter: {subpath}")
-            custom_log(f"🔄 Headers: {headers}")
             if data:
-                custom_log(f"🔄 Data: {data}")
-            
-            # Make request to credit system
+                # Make request to credit system
             response = requests.request(
                 method=method,
                 url=target_url,
@@ -255,12 +218,9 @@ class CreditSystemModule(BaseModule):
             response_data = response.json() if response.content else {}
             status_code = response.status_code
             
-            custom_log(f"✅ Credit system response: {status_code} - {response_data}")
-            
             return jsonify(response_data), status_code
             
         except requests.exceptions.RequestException as e:
-            custom_log(f"❌ Error forwarding request to credit system: {e}")
             return jsonify({
                 "success": False,
                 "error": "Credit system unavailable",
@@ -268,7 +228,6 @@ class CreditSystemModule(BaseModule):
             }), 503
             
         except Exception as e:
-            custom_log(f"❌ Unexpected error in forward_user_request: {e}")
             return jsonify({
                 "success": False,
                 "error": "Internal server error",
@@ -315,17 +274,12 @@ class CreditSystemModule(BaseModule):
         try:
             # Check if database is available
             if not self.analytics_db.available:
-                custom_log("⚠️ Database unavailable for user operations - running with limited functionality")
                 return
                 
             # Simple connection test
             self.analytics_db.db.command('ping')
-            custom_log("✅ User database connection verified")
-        except Exception as e:
-            custom_log(f"⚠️ User database connection verification failed: {e}")
-            custom_log("⚠️ User operations will be limited - suitable for local development")
-
-    def test_debug(self):
+            except Exception as e:
+            def test_debug(self):
         """Test endpoint to verify debug logging works."""
         print("[DEBUG] Test endpoint called!")
         print(f"[DEBUG] Database manager: {self.db_manager}")

@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional
 from datetime import datetime
 import traceback
 import re
-from tools.logger.custom_logging import custom_log
 import psycopg2
 
 class ValidationError(Exception):
@@ -132,7 +131,7 @@ class ErrorHandler:
         self.track_error(operation, error)
         
         # Log the full error for debugging
-        custom_log(f"❌ Database error in {operation}: {str(error)}")
+        }")
         
         # Return sanitized error for client
         return {
@@ -153,7 +152,7 @@ class ErrorHandler:
         self.track_error(operation, error)
         
         # Log the full error for debugging
-        custom_log(f"❌ Redis error in {operation}: {str(error)}")
+        }")
         
         # Return sanitized error for client
         return {
@@ -225,4 +224,4 @@ class ErrorHandler:
             "event_type": event_type,
             "details": details
         }
-        custom_log(f"🔒 Security Event: {event_type} - {details}") 
+        

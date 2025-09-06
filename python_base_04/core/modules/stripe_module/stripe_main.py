@@ -1,6 +1,5 @@
 from core.modules.base_module import BaseModule
 from core.managers.database_manager import DatabaseManager
-from tools.logger.custom_logging import custom_log
 from flask import request, jsonify, current_app
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -23,9 +22,7 @@ class StripeModule(BaseModule):
         self.webhook_secret = None
         self._initialize_stripe()
         
-        custom_log("StripeModule created")
-
-    def _initialize_stripe(self):
+        def _initialize_stripe(self):
         """Initialize Stripe with secure configuration."""
         try:
             # Get Stripe keys from Config (Vault > Files > Environment > Default)
@@ -36,7 +33,6 @@ class StripeModule(BaseModule):
             self.webhook_secret = Config.STRIPE_WEBHOOK_SECRET
             
             if not stripe_secret_key:
-                custom_log("⚠️ STRIPE_SECRET_KEY not found - Stripe module will be disabled")
                 return
                 
             # Initialize Stripe
@@ -44,10 +40,7 @@ class StripeModule(BaseModule):
             stripe.api_version = Config.STRIPE_API_VERSION
             self.stripe = stripe
             
-            custom_log("✅ Stripe initialized successfully")
-            
-        except Exception as e:
-            custom_log(f"❌ Error initializing Stripe: {e}", level="ERROR")
+            except Exception as e:
             self.stripe = None
 
     def initialize(self, app_manager):
@@ -60,9 +53,7 @@ class StripeModule(BaseModule):
         
         self.register_routes()
         self._initialized = True
-        custom_log("StripeModule initialized")
-
-    def register_routes(self):
+        def register_routes(self):
         """Register Stripe-related routes."""
         self._register_route_helper("/stripe/create-payment-intent", self.create_payment_intent, methods=["POST"])
         self._register_route_helper("/stripe/confirm-payment", self.confirm_payment, methods=["POST"])
@@ -73,7 +64,7 @@ class StripeModule(BaseModule):
         self._register_route_helper("/stripe/customers/<customer_id>", self.get_customer, methods=["GET"])
         self._register_route_helper("/stripe/payment-methods", self.list_payment_methods, methods=["GET"])
         self._register_route_helper("/stripe/payment-methods/<payment_method_id>", self.get_payment_method, methods=["GET"])
-        custom_log(f"StripeModule registered {len(self.registered_routes)} routes")
+        } routes")
 
     def create_payment_intent(self):
         """Create a Stripe payment intent for credit purchase."""
@@ -133,8 +124,6 @@ class StripeModule(BaseModule):
             )
 
             # Log payment intent creation
-            custom_log(f"✅ Payment intent created for user {user_id}: {payment_intent.id}")
-
             return jsonify({
                 "success": True,
                 "client_secret": payment_intent.client_secret,
@@ -144,7 +133,6 @@ class StripeModule(BaseModule):
             }), 200
 
         except stripe.error.CardError as e:
-            custom_log(f"❌ Stripe card error: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Card declined",
@@ -153,7 +141,6 @@ class StripeModule(BaseModule):
                 "message": str(e)
             }), 402
         except stripe.error.InvalidRequestError as e:
-            custom_log(f"❌ Stripe invalid request: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Invalid request parameters",
@@ -162,28 +149,24 @@ class StripeModule(BaseModule):
                 "message": str(e)
             }), 400
         except stripe.error.AuthenticationError as e:
-            custom_log(f"❌ Stripe authentication error: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Authentication failed",
                 "message": "Invalid API key"
             }), 401
         except stripe.error.APIConnectionError as e:
-            custom_log(f"❌ Stripe API connection error: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Network error",
                 "message": "Unable to connect to Stripe"
             }), 503
         except stripe.error.StripeError as e:
-            custom_log(f"❌ Stripe error creating payment intent: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": f"Payment processing error: {str(e)}",
                 "error_code": getattr(e, 'code', None)
             }), 400
         except Exception as e:
-            custom_log(f"❌ Error creating payment intent: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -248,8 +231,6 @@ class StripeModule(BaseModule):
             # Update user wallet through transactions module
             self._update_user_credits(user_id, credit_amount)
 
-            custom_log(f"✅ Payment confirmed for user {user_id}: {payment_intent_id}")
-
             return jsonify({
                 "success": True,
                 "message": "Payment confirmed and credits added",
@@ -262,13 +243,11 @@ class StripeModule(BaseModule):
             }), 200
 
         except stripe.error.StripeError as e:
-            custom_log(f"❌ Stripe error confirming payment: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": f"Payment confirmation error: {str(e)}"
             }), 400
         except Exception as e:
-            custom_log(f"❌ Error confirming payment: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -299,10 +278,8 @@ class StripeModule(BaseModule):
                     payload, sig_header, self.webhook_secret
                 )
             except ValueError as e:
-                custom_log(f"❌ Invalid payload: {e}", level="ERROR")
                 return jsonify({"error": "Invalid payload"}), 400
             except stripe.error.SignatureVerificationError as e:
-                custom_log(f"❌ Invalid signature: {e}", level="ERROR")
                 return jsonify({"error": "Invalid signature"}), 400
 
             # Handle the event
@@ -313,12 +290,9 @@ class StripeModule(BaseModule):
             elif event['type'] == 'charge.dispute.created':
                 self._handle_dispute_created(event['data']['object'])
             else:
-                custom_log(f"ℹ️ Unhandled event type: {event['type']}")
-
-            return jsonify({"success": True}), 200
+                return jsonify({"success": True}), 200
 
         except Exception as e:
-            custom_log(f"❌ Error handling webhook: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Webhook processing error"
@@ -331,22 +305,16 @@ class StripeModule(BaseModule):
             payment_intent_id = payment_intent.id
             amount_usd = float(payment_intent.metadata.get('amount_usd', 0))
             
-            custom_log(f"✅ Webhook: Payment succeeded for user {user_id}: {payment_intent_id}")
-            
             # Process credits through queue system
             credit_amount = self._calculate_credits_from_usd(amount_usd)
             self._update_user_credits(user_id, credit_amount)
             
         except Exception as e:
-            custom_log(f"❌ Error handling payment succeeded webhook: {e}", level="ERROR")
-
-    def _handle_payment_failed(self, payment_intent):
+            def _handle_payment_failed(self, payment_intent):
         """Handle failed payment webhook."""
         try:
             user_id = payment_intent.metadata.get('user_id')
             payment_intent_id = payment_intent.id
-            
-            custom_log(f"❌ Webhook: Payment failed for user {user_id}: {payment_intent_id}")
             
             # Log failed payment for monitoring
             failed_payment_data = {
@@ -360,14 +328,10 @@ class StripeModule(BaseModule):
             self.db_manager.insert("failed_payments", failed_payment_data)
             
         except Exception as e:
-            custom_log(f"❌ Error handling payment failed webhook: {e}", level="ERROR")
-
-    def _handle_dispute_created(self, dispute):
+            def _handle_dispute_created(self, dispute):
         """Handle dispute created webhook."""
         try:
             payment_intent_id = dispute.payment_intent
-            custom_log(f"⚠️ Webhook: Dispute created for payment: {payment_intent_id}")
-            
             # Log dispute for manual review
             dispute_data = {
                 'payment_intent_id': payment_intent_id,
@@ -381,9 +345,7 @@ class StripeModule(BaseModule):
             self.db_manager.insert("disputes", dispute_data)
             
         except Exception as e:
-            custom_log(f"❌ Error handling dispute webhook: {e}", level="ERROR")
-
-    def get_payment_status(self, payment_intent_id):
+            def get_payment_status(self, payment_intent_id):
         """Get payment status from Stripe."""
         try:
             if not self.stripe:
@@ -408,7 +370,6 @@ class StripeModule(BaseModule):
                 "error": f"Stripe error: {str(e)}"
             }), 400
         except Exception as e:
-            custom_log(f"❌ Error getting payment status: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -468,7 +429,7 @@ class StripeModule(BaseModule):
                 }
                 
                 self.db_manager.update("wallets", {"user_id": user_id}, update_data)
-                custom_log(f"✅ Updated wallet for user {user_id}: +{credit_amount} credits (new balance: {new_balance})")
+                ")
             else:
                 # Create new wallet
                 wallet_data = {
@@ -480,10 +441,7 @@ class StripeModule(BaseModule):
                 }
                 
                 self.db_manager.insert("wallets", wallet_data)
-                custom_log(f"✅ Created new wallet for user {user_id}: {credit_amount} credits")
-                
-        except Exception as e:
-            custom_log(f"❌ Error updating user credits: {e}", level="ERROR")
+                except Exception as e:
             raise
 
     def create_customer(self):
@@ -531,8 +489,6 @@ class StripeModule(BaseModule):
             
             self.db_manager.insert("stripe_customers", customer_data)
             
-            custom_log(f"✅ Stripe customer created for user {user_id}: {customer.id}")
-            
             return jsonify({
                 "success": True,
                 "customer_id": customer.id,
@@ -541,13 +497,11 @@ class StripeModule(BaseModule):
             }), 201
 
         except stripe.error.StripeError as e:
-            custom_log(f"❌ Stripe error creating customer: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": f"Customer creation failed: {str(e)}"
             }), 400
         except Exception as e:
-            custom_log(f"❌ Error creating customer: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -582,13 +536,11 @@ class StripeModule(BaseModule):
                 "error": "Customer not found"
             }), 404
         except stripe.error.StripeError as e:
-            custom_log(f"❌ Stripe error retrieving customer: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": f"Customer retrieval failed: {str(e)}"
             }), 400
         except Exception as e:
-            custom_log(f"❌ Error retrieving customer: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -634,13 +586,11 @@ class StripeModule(BaseModule):
             }), 200
 
         except stripe.error.StripeError as e:
-            custom_log(f"❌ Stripe error listing payment methods: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": f"Failed to list payment methods: {str(e)}"
             }), 400
         except Exception as e:
-            custom_log(f"❌ Error listing payment methods: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -679,13 +629,11 @@ class StripeModule(BaseModule):
                 "error": "Payment method not found"
             }), 404
         except stripe.error.StripeError as e:
-            custom_log(f"❌ Stripe error retrieving payment method: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": f"Payment method retrieval failed: {str(e)}"
             }), 400
         except Exception as e:
-            custom_log(f"❌ Error retrieving payment method: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"

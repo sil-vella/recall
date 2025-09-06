@@ -1,5 +1,4 @@
 from typing import Dict, Any, Optional, Set, List, Callable
-from tools.logger.custom_logging import custom_log
 from datetime import datetime
 from enum import Enum
 from core.managers.redis_manager import RedisManager
@@ -17,7 +16,6 @@ class WSRoomManager:
     
     def __init__(self):
         self.redis_manager = RedisManager()
-        custom_log("WSRoomManager initialized")
         # TTL monitor for room lifetime (optional, best-effort)
         self._ttl_monitor_started = False
         self._start_ttl_monitor()
@@ -38,10 +36,8 @@ class WSRoomManager:
         # Fix parameter alignment: use same parameters as room creation
         ok = self.redis_manager.expire("room", seconds, room_id)
         if ok:
-            custom_log(f"⏱️ Set TTL {seconds}s on room:{room_id}")
-        else:
-            custom_log(f"⚠️ Failed to set TTL on room:{room_id}")
-        return ok
+            else:
+            return ok
 
     def _room_plain_ttl_key(self, room_id: str) -> str:
         """Plain key for keyspace notifications (human-readable)."""
@@ -50,16 +46,12 @@ class WSRoomManager:
     def _set_plain_ttl_marker(self, room_id: str, seconds: int) -> None:
         client = self.redis_manager.get_client()
         client.setex(self._room_plain_ttl_key(room_id), seconds, "1")
-        custom_log(f"🧭 TTL marker set {seconds}s for room:{room_id}")
-
-    def reinstate_room_ttl(self, room_id: str, seconds: int = None) -> None:
+        def reinstate_room_ttl(self, room_id: str, seconds: int = None) -> None:
         """Reinstate/extend the room TTL (call on each join)."""
         ttl = seconds or self._get_room_ttl_seconds()
         self._room_secure_key_expire(room_id, ttl)
         self._set_plain_ttl_marker(room_id, ttl)
-        custom_log(f"🔄 TTL reinstated to {ttl}s for room:{room_id}")
-
-    def _ensure_keyspace_notifications(self) -> None:
+        def _ensure_keyspace_notifications(self) -> None:
         """Try enabling keyspace notifications for expirations (best-effort)."""
         try:
             client = self.redis_manager.get_client()
@@ -67,11 +59,9 @@ class WSRoomManager:
             if "E" not in current or "x" not in current.lower():
                 # enable Ex (Expired events)
                 client.config_set("notify-keyspace-events", (current + "Ex").strip())
-                custom_log("🔔 Enabled Redis keyspace notifications for expirations (Ex)")
+                ")
         except Exception as e:
-            custom_log(f"⚠️ Could not ensure keyspace notifications: {e}")
-
-    def _start_ttl_monitor(self) -> None:
+            def _start_ttl_monitor(self) -> None:
         if self._ttl_monitor_started:
             return
         self._ttl_monitor_started = True
@@ -84,7 +74,7 @@ class WSRoomManager:
                 # Subscribe to expiry events for our plain marker keys
                 pattern = "__keyevent@*__:expired"
                 pubsub.psubscribe(pattern)
-                custom_log("👂 TTL expiry monitor started (listening for ws:room_ttl:* expirations)")
+                ")
                 room_ttl_re = re.compile(r"ws:room_ttl:(.+)$")
                 for message in pubsub.listen():
                     if message.get("type") not in ("pmessage", "message"):
@@ -94,17 +84,13 @@ class WSRoomManager:
                     m = room_ttl_re.search(expired_key)
                     if m:
                         room_id = m.group(1)
-                        custom_log(f"⏳ TTL expired for room:{room_id}")
                         # Notify owner if callback is wired
                         try:
                             if self.on_room_ttl_expired:
                                 self.on_room_ttl_expired(room_id)
                         except Exception as e:
-                            custom_log(f"⚠️ Error invoking TTL expiry callback for room {room_id}: {e}")
-            except Exception as e:
-                custom_log(f"⚠️ TTL monitor stopped: {e}")
-
-        t = threading.Thread(target=_worker, name="ws-room-ttl-monitor", daemon=True)
+                            except Exception as e:
+                t = threading.Thread(target=_worker, name="ws-room-ttl-monitor", daemon=True)
         t.start()
 
     def create_room(self, room_id: str, permission: RoomPermission, owner_id: str, 
@@ -136,9 +122,6 @@ class WSRoomManager:
             ttl_seconds = self._get_room_ttl_seconds()
             self.redis_manager.set(room_key, room_data, expire=ttl_seconds)
             self._set_plain_ttl_marker(room_id, ttl_seconds)
-            custom_log(f"⏱️ TTL set to {ttl_seconds}s for room:{room_id}")
-            
-            custom_log(f"✅ Room created: {room_id} with permission: {permission.value}")
             return {
                 'success': True,
                 'room_id': room_id,
@@ -147,7 +130,7 @@ class WSRoomManager:
             }
             
         except Exception as e:
-            custom_log(f"❌ Error creating room {room_id}: {str(e)}")
+            }")
             return {
                 'success': False,
                 'error': f'Failed to create room: {str(e)}'
@@ -170,7 +153,7 @@ class WSRoomManager:
             return None
             
         except Exception as e:
-            custom_log(f"Error getting room permissions: {str(e)}")
+            }")
             return None
 
     def touch_room(self, room_id: str) -> None:
@@ -178,9 +161,7 @@ class WSRoomManager:
         try:
             self.reinstate_room_ttl(room_id)
         except Exception as e:
-            custom_log(f"⚠️ Failed to reinstate TTL for room {room_id}: {e}")
-
-    def update_room_permissions(self, room_id: str, permission: RoomPermission = None,
+            def update_room_permissions(self, room_id: str, permission: RoomPermission = None,
                               allowed_users: Set[str] = None, allowed_roles: Set[str] = None) -> Dict[str, Any]:
         """Update room permissions."""
         try:
@@ -205,7 +186,6 @@ class WSRoomManager:
             room_key = self.redis_manager._generate_secure_key("room", room_id)
             self.redis_manager.set(room_key, room_data, expire=Config.WS_ROOM_TTL)
             
-            custom_log(f"✅ Room permissions updated: {room_id}")
             return {
                 'success': True,
                 'room_id': room_id,
@@ -213,7 +193,7 @@ class WSRoomManager:
             }
             
         except Exception as e:
-            custom_log(f"❌ Error updating room permissions: {str(e)}")
+            }")
             return {
                 'success': False,
                 'error': f'Failed to update room permissions: {str(e)}'
@@ -234,14 +214,13 @@ class WSRoomManager:
             room_key = self.redis_manager._generate_secure_key("room", room_id)
             self.redis_manager.delete(room_key)
             
-            custom_log(f"✅ Room deleted: {room_id}")
             return {
                 'success': True,
                 'room_id': room_id
             }
             
         except Exception as e:
-            custom_log(f"❌ Error deleting room {room_id}: {str(e)}")
+            }")
             return {
                 'success': False,
                 'error': f'Failed to delete room: {str(e)}'
@@ -254,7 +233,6 @@ class WSRoomManager:
             room_data = self.get_room_permissions(room_id)
             if not room_data:
                 # No permissions found, assume public room
-                custom_log(f"No permissions found for room {room_id}, allowing access")
                 return True
             
             permission_type = room_data.get('permission', 'public')
@@ -264,31 +242,25 @@ class WSRoomManager:
             
             # Owner always has access
             if owner_id and str(owner_id) == str(user_id):
-                custom_log(f"User {user_id} is owner of room {room_id}, allowing access")
                 return True
             
             # Check permission type
             if permission_type == 'public':
-                custom_log(f"Room {room_id} is public, allowing access for user {user_id}")
                 return True
             elif permission_type == 'private':
                 # Check if user is in allowed users or has allowed role
                 if user_id in allowed_users:
-                    custom_log(f"User {user_id} is in allowed users for room {room_id}")
                     return True
                 
                 if any(role in allowed_roles for role in user_roles):
-                    custom_log(f"User {user_id} has allowed role for room {room_id}")
                     return True
                 
-                custom_log(f"User {user_id} denied access to private room {room_id}")
                 return False
             else:
-                custom_log(f"Unknown permission type {permission_type} for room {room_id}")
                 return False
                 
         except Exception as e:
-            custom_log(f"Error checking room access: {str(e)}")
+            }")
             return False
 
     def get_all_rooms(self) -> List[Dict[str, Any]]:
@@ -305,7 +277,7 @@ class WSRoomManager:
             return rooms
             
         except Exception as e:
-            custom_log(f"Error getting all rooms: {str(e)}")
+            }")
             return []
 
 
@@ -319,7 +291,7 @@ class WSRoomManager:
             return None
             
         except Exception as e:
-            custom_log(f"Error getting room owner: {str(e)}")
+            }")
             return None
 
     def is_room_owner(self, room_id: str, user_id: str) -> bool:
@@ -329,7 +301,7 @@ class WSRoomManager:
             return owner_id and str(owner_id) == str(user_id)
             
         except Exception as e:
-            custom_log(f"Error checking room ownership: {str(e)}")
+            }")
             return False
 
     def get_room_stats(self, room_id: str) -> Dict[str, Any]:
@@ -353,7 +325,7 @@ class WSRoomManager:
             return stats
             
         except Exception as e:
-            custom_log(f"Error getting room stats: {str(e)}")
+            }")
             return {}
 
     def cleanup_stale_rooms(self, max_age_hours: int = 24) -> int:
@@ -375,14 +347,11 @@ class WSRoomManager:
                         if age.total_seconds() > max_age:
                             self.delete_room(room_id)
                             cleaned_count += 1
-                            custom_log(f"Cleaned up stale room: {room_id}")
-                            
-                    except Exception as e:
-                        custom_log(f"Error parsing room update time: {str(e)}")
+                            except Exception as e:
+                        }")
             
-            custom_log(f"Cleaned up {cleaned_count} stale rooms")
             return cleaned_count
             
         except Exception as e:
-            custom_log(f"Error cleaning up stale rooms: {str(e)}")
+            }")
             return 0 

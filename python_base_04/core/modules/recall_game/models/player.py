@@ -275,9 +275,6 @@ class ComputerPlayer(Player):
     
     def make_decision(self, game_state: Dict[str, Any]) -> Dict[str, Any]:
         """Make AI decision based on game state using built-in logic"""
-        from tools.logger.custom_logging import custom_log
-        custom_log(f"🤖 Computer player {self.name} making decision with difficulty: {self.difficulty}")
-        
         # Use built-in AI logic methods
         best_card = self._select_best_card(game_state)
         should_call_recall = self._should_call_recall(game_state)

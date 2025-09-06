@@ -1,5 +1,4 @@
 from typing import Dict, Any, Set, Optional
-from tools.logger.custom_logging import custom_log
 from datetime import datetime
 from flask_socketio import emit
 
@@ -8,9 +7,7 @@ class WSBroadcastManager:
     
     def __init__(self, websocket_manager):
         self.websocket_manager = websocket_manager
-        custom_log("WSBroadcastManager initialized")
-
-    def broadcast_to_room(self, room_id: str, event: str, data: Any) -> bool:
+        def broadcast_to_room(self, room_id: str, event: str, data: Any) -> bool:
         """Broadcast message to a specific room."""
         try:
             # Add timestamp to broadcast data
@@ -24,11 +21,10 @@ class WSBroadcastManager:
             # Use WebSocket manager to broadcast
             self.websocket_manager.socketio.emit(event, broadcast_data, room=room_id)
             
-            custom_log(f"✅ Broadcasted {event} to room {room_id}")
             return True
             
         except Exception as e:
-            custom_log(f"❌ Error broadcasting to room {room_id}: {str(e)}")
+            }")
             return False
 
     def send_to_session(self, session_id: str, event: str, data: Any) -> bool:
@@ -45,11 +41,10 @@ class WSBroadcastManager:
             # Use WebSocket manager to send to session
             self.websocket_manager.socketio.emit(event, message_data, room=session_id)
             
-            custom_log(f"✅ Sent {event} to session {session_id}")
             return True
             
         except Exception as e:
-            custom_log(f"❌ Error sending to session {session_id}: {str(e)}")
+            }")
             return False
 
     def broadcast_to_all(self, event: str, data: Any) -> bool:
@@ -65,11 +60,10 @@ class WSBroadcastManager:
             # Use WebSocket manager to broadcast to all
             self.websocket_manager.socketio.emit(event, broadcast_data)
             
-            custom_log(f"✅ Broadcasted {event} to all clients")
             return True
             
         except Exception as e:
-            custom_log(f"❌ Error broadcasting to all: {str(e)}")
+            }")
             return False
 
     def get_room_members(self, room_id: str) -> Set[str]:
@@ -77,7 +71,7 @@ class WSBroadcastManager:
         try:
             return self.websocket_manager.get_room_members(room_id)
         except Exception as e:
-            custom_log(f"❌ Error getting room members: {str(e)}")
+            }")
             return set()
 
     def get_rooms_for_session(self, session_id: str) -> Set[str]:
@@ -85,7 +79,7 @@ class WSBroadcastManager:
         try:
             return self.websocket_manager.get_rooms_for_session(session_id)
         except Exception as e:
-            custom_log(f"❌ Error getting rooms for session: {str(e)}")
+            }")
             return set()
 
     def broadcast_message(self, room_id: str, message: str, sender_id: str = None, 
@@ -116,7 +110,7 @@ class WSBroadcastManager:
             return self.broadcast_to_room(room_id, 'message', message_data)
             
         except Exception as e:
-            custom_log(f"❌ Error broadcasting message to room {room_id}: {str(e)}")
+            }")
             return False
 
     def broadcast_user_joined(self, room_id: str, user_id: str, username: str) -> bool:
@@ -132,7 +126,7 @@ class WSBroadcastManager:
             return self.broadcast_to_room(room_id, 'user_joined', join_data)
             
         except Exception as e:
-            custom_log(f"❌ Error broadcasting user joined: {str(e)}")
+            }")
             return False
 
     def broadcast_user_left(self, room_id: str, user_id: str, username: str) -> bool:
@@ -148,7 +142,7 @@ class WSBroadcastManager:
             return self.broadcast_to_room(room_id, 'user_left', leave_data)
             
         except Exception as e:
-            custom_log(f"❌ Error broadcasting user left: {str(e)}")
+            }")
             return False
 
     def broadcast_room_created(self, room_id: str, creator_id: str, room_data: Dict[str, Any]) -> bool:
@@ -164,7 +158,7 @@ class WSBroadcastManager:
             return self.broadcast_to_all('room_created', create_data)
             
         except Exception as e:
-            custom_log(f"❌ Error broadcasting room created: {str(e)}")
+            }")
             return False
 
     def broadcast_room_deleted(self, room_id: str) -> bool:
@@ -178,7 +172,7 @@ class WSBroadcastManager:
             return self.broadcast_to_all('room_deleted', delete_data)
             
         except Exception as e:
-            custom_log(f"❌ Error broadcasting room deleted: {str(e)}")
+            }")
             return False
 
     def send_connection_success(self, session_id: str, session_data: Dict[str, Any]) -> bool:
@@ -193,7 +187,7 @@ class WSBroadcastManager:
             return self.send_to_session(session_id, 'connect_success', success_data)
             
         except Exception as e:
-            custom_log(f"❌ Error sending connection success: {str(e)}")
+            }")
             return False
 
     def send_connection_error(self, session_id: str, error: str) -> bool:
@@ -207,7 +201,7 @@ class WSBroadcastManager:
             return self.send_to_session(session_id, 'connect_error', error_data)
             
         except Exception as e:
-            custom_log(f"❌ Error sending connection error: {str(e)}")
+            }")
             return False
 
     def send_join_room_success(self, session_id: str, room_id: str, room_data: Dict[str, Any]) -> bool:
@@ -226,7 +220,7 @@ class WSBroadcastManager:
             return self.send_to_session(session_id, 'join_room_success', success_data)
             
         except Exception as e:
-            custom_log(f"❌ Error sending join room success: {str(e)}")
+            }")
             return False
 
     def send_join_room_error(self, session_id: str, error: str) -> bool:
@@ -240,7 +234,7 @@ class WSBroadcastManager:
             return self.send_to_session(session_id, 'join_room_error', error_data)
             
         except Exception as e:
-            custom_log(f"❌ Error sending join room error: {str(e)}")
+            }")
             return False
 
     def send_leave_room_success(self, session_id: str, room_id: str) -> bool:
@@ -254,7 +248,7 @@ class WSBroadcastManager:
             return self.send_to_session(session_id, 'leave_room_success', success_data)
             
         except Exception as e:
-            custom_log(f"❌ Error sending leave room success: {str(e)}")
+            }")
             return False
 
     def send_leave_room_error(self, session_id: str, error: str) -> bool:
@@ -268,7 +262,7 @@ class WSBroadcastManager:
             return self.send_to_session(session_id, 'leave_room_error', error_data)
             
         except Exception as e:
-            custom_log(f"❌ Error sending leave room error: {str(e)}")
+            }")
             return False
 
     def send_room_state(self, session_id: str, room_id: str, room_data: Dict[str, Any]) -> bool:
@@ -287,7 +281,7 @@ class WSBroadcastManager:
             return self.send_to_session(session_id, 'room_state', state_data)
             
         except Exception as e:
-            custom_log(f"❌ Error sending room state: {str(e)}")
+            }")
             return False
 
     def send_error(self, session_id: str, error: str, details: Optional[str] = None) -> bool:
@@ -302,7 +296,7 @@ class WSBroadcastManager:
             return self.send_to_session(session_id, 'error', error_data)
             
         except Exception as e:
-            custom_log(f"❌ Error sending error message: {str(e)}")
+            }")
             return False
 
     def get_broadcast_statistics(self) -> Dict[str, Any]:
@@ -318,5 +312,5 @@ class WSBroadcastManager:
             return stats
             
         except Exception as e:
-            custom_log(f"❌ Error getting broadcast statistics: {str(e)}")
+            }")
             return {} 

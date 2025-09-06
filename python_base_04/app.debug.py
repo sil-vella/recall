@@ -6,8 +6,6 @@ import os
 import importlib
 from core.metrics import init_metrics
 from utils.config.config import Config
-from tools.logger.custom_logging import custom_log
-
 # Clear Python's import cache to prevent stale imports
 importlib.invalidate_caches()
 
@@ -23,13 +21,9 @@ def clear_serve_log():
             # Clear the file by opening in write mode and truncating
             with open(log_file_path, 'w') as f:
                 f.write('')
-            custom_log(f"🧹 Cleared server.log file at: {log_file_path}")
-        else:
-            custom_log(f"📝 server.log file not found at: {log_file_path}, will be created when needed")
-    except Exception as e:
-        custom_log(f"⚠️ Failed to clear server.log: {e}", level="WARNING")
-
-# Clear the log file on startup
+            else:
+            except Exception as e:
+        # Clear the log file on startup
 clear_serve_log()
 
 # Initialize the AppManager
@@ -69,17 +63,13 @@ app_manager.initialize(app)
 
 # WebSocket functionality is now handled by app_manager
 if app_manager.websocket_manager:
-    custom_log("✅ WebSocket manager initialized and ready")
-else:
-    custom_log("⚠️ WebSocket manager not available")
-
-# Additional app-level configurations
+    else:
+    # Additional app-level configurations
 app.config["DEBUG"] = True  # Force debug mode for development
 
 @app.route('/health')
 def health_check():
     """Health check endpoint for Kubernetes liveness and readiness probes"""
-    custom_log("Health check endpoint called")
     try:
         # Check if the application is properly initialized
         if not app_manager.is_initialized():
@@ -146,7 +136,6 @@ def execute_internal_action(action_name, args):
         return jsonify(result)
         
     except Exception as e:
-        custom_log(f"❌ Error executing action {action_name}: {e}", level="ERROR")
         return jsonify({'error': str(e)}), 500
 
 
@@ -175,7 +164,6 @@ def frontend_log():
         return jsonify({'success': True, 'message': 'Log recorded'}), 200
         
     except Exception as e:
-        custom_log(f"❌ Error in frontend_log: {e}", level="ERROR")
         return jsonify({'error': f'Log failed: {str(e)}'}), 500
 
 # Development server startup
@@ -184,12 +172,8 @@ if __name__ == "__main__":
     host = os.getenv('FLASK_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_PORT', 5001))
     
-    custom_log(f"🚀 Starting Flask DEBUG server on {host}:{port}")
-    
     # WebSocket functionality is now handled by app_manager
     if app_manager.websocket_manager:
-        custom_log("🚀 Starting Flask app with WebSocket support")
         app_manager.websocket_manager.run(app, host=host, port=port, debug=True)
     else:
-        custom_log("🚀 Starting Flask app without WebSocket support")
         app_manager.run(app, host=host, port=port, debug=True)

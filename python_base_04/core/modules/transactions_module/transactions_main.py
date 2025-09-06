@@ -1,6 +1,5 @@
 from core.modules.base_module import BaseModule
 from core.managers.database_manager import DatabaseManager
-from tools.logger.custom_logging import custom_log
 from flask import request, jsonify
 from datetime import datetime
 from typing import Dict, Any
@@ -18,23 +17,19 @@ class TransactionsModule(BaseModule):
         else:
             self.db_manager = DatabaseManager(role="read_write")
             
-        custom_log("TransactionsModule created with database manager")
-
-    def initialize(self, app_manager):
+        def initialize(self, app_manager):
         """Initialize the TransactionsModule with AppManager."""
         self.app_manager = app_manager
         self.app = app_manager.flask_app
         self.register_routes()
         self._initialized = True
-        custom_log("TransactionsModule initialized")
-
-    def register_routes(self):
+        def register_routes(self):
         """Register transaction-related routes."""
         self._register_route_helper("/transactions/info", self.transactions_info, methods=["GET"])
         self._register_route_helper("/transactions/history", self.get_transaction_history, methods=["GET"])
         self._register_route_helper("/transactions/credit-purchase", self.process_credit_purchase, methods=["POST"])
         self._register_route_helper("/transactions/refund", self.process_refund, methods=["POST"])
-        custom_log(f"TransactionsModule registered {len(self.registered_routes)} routes")
+        } routes")
 
     def transactions_info(self):
         """Get transactions module information."""
@@ -75,7 +70,6 @@ class TransactionsModule(BaseModule):
             }), 200
 
         except Exception as e:
-            custom_log(f"❌ Error getting transaction history: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -126,8 +120,6 @@ class TransactionsModule(BaseModule):
                     "error": "Failed to create transaction record"
                 }), 500
 
-            custom_log(f"✅ Credit purchase transaction created: {transaction_id}")
-
             return jsonify({
                 "success": True,
                 "message": "Transaction created successfully",
@@ -136,7 +128,6 @@ class TransactionsModule(BaseModule):
             }), 201
 
         except Exception as e:
-            custom_log(f"❌ Error processing credit purchase: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -184,8 +175,6 @@ class TransactionsModule(BaseModule):
                     "error": "Failed to create refund record"
                 }), 500
 
-            custom_log(f"✅ Refund record created: {refund_id}")
-
             return jsonify({
                 "success": True,
                 "message": "Refund request created",
@@ -194,7 +183,6 @@ class TransactionsModule(BaseModule):
             }), 201
 
         except Exception as e:
-            custom_log(f"❌ Error processing refund: {e}", level="ERROR")
             return jsonify({
                 "success": False,
                 "error": "Internal server error"
@@ -251,7 +239,6 @@ class TransactionsModule(BaseModule):
             return jsonify({'error': 'Failed to process credit purchase'}), 500
             
         except Exception as e:
-            custom_log(f"Error processing credit purchase: {e}")
             return jsonify({'error': 'Failed to process credit purchase'}), 500
 
     def health_check(self) -> Dict[str, Any]:

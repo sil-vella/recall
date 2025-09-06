@@ -6,8 +6,6 @@ import os
 import importlib
 from core.metrics import init_metrics
 from utils.config.config import Config
-from tools.logger.custom_logging import custom_log
-
 # Clear Python's import cache to prevent stale imports
 importlib.invalidate_caches()
 
@@ -31,17 +29,13 @@ app_manager.initialize(app)
 
 # WebSocket functionality is now handled by app_manager
 if app_manager.websocket_manager:
-    custom_log("✅ WebSocket manager initialized and ready")
-else:
-    custom_log("⚠️ WebSocket manager not available")
-
-# Additional app-level configurations
+    else:
+    # Additional app-level configurations
 app.config["DEBUG"] = Config.DEBUG
 
 @app.route('/health')
 def health_check():
     """Health check endpoint for Kubernetes liveness and readiness probes"""
-    custom_log("Health check endpoint called")
     try:
         # Check if the application is properly initialized
         if not app_manager.is_initialized():
@@ -129,7 +123,6 @@ def execute_internal_action(action_name, args):
         }), 200
         
     except Exception as e:
-        custom_log(f"❌ Error executing internal action {action_name}: {e}", level="ERROR")
         return jsonify({'error': f'Action execution failed: {str(e)}'}), 500
 
 @app.route('/api-auth/actions/<action_name>/<path:args>', methods=['GET', 'POST'])
@@ -190,7 +183,6 @@ def execute_authenticated_action(action_name, args):
         return jsonify(response.json()), response.status_code
         
     except Exception as e:
-        custom_log(f"❌ Error executing authenticated action {action_name}: {e}", level="ERROR")
         return jsonify({'error': f'Action execution failed: {str(e)}'}), 500
 
 @app.route('/actions', methods=['GET'])
@@ -203,7 +195,6 @@ def list_internal_actions():
         else:
             return jsonify(result), 500
     except Exception as e:
-        custom_log(f"❌ Error listing internal actions: {e}", level="ERROR")
         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
 
 @app.route('/api-auth/actions', methods=['GET'])
@@ -216,7 +207,6 @@ def list_authenticated_actions():
         else:
             return jsonify(result), 500
     except Exception as e:
-        custom_log(f"❌ Error listing authenticated actions: {e}", level="ERROR")
         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
 
 # Test endpoints removed - Recall game is now managed through ModuleRegistry
@@ -231,8 +221,6 @@ def list_authenticated_actions():
 #     
 #     # WebSocket functionality is now handled by app_manager
 #     if app_manager.websocket_manager:
-#         custom_log("🚀 Starting Flask app with WebSocket support")
-#         app_manager.websocket_manager.run(app, host=host, port=port)
+#         #         app_manager.websocket_manager.run(app, host=host, port=port)
 #     else:
-#         custom_log("🚀 Starting Flask app without WebSocket support")
-#         app_manager.run(app, host=host, port=port)
+#         #         app_manager.run(app, host=host, port=port)

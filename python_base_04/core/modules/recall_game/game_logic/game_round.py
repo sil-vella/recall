@@ -79,7 +79,10 @@ class GameRound:
             self.current_turn_start_time = time.time()
             
             # Send game state update to all players
-            self._send_game_state_update()
+            if self.game_state.app_manager:
+                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._send_game_state_update(self.game_state.game_id)
             
             # Send turn started event to current player
             self._send_turn_started_event()
@@ -100,7 +103,10 @@ class GameRound:
         """Complete the current round after a player action"""
         try:
 
-            self._send_game_state_update()
+            if self.game_state.app_manager:
+                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._send_game_state_update(self.game_state.game_id)
 
             self._move_to_next_player()
             
@@ -399,47 +405,7 @@ class GameRound:
         except Exception as e:
             return {}
 
-    def _send_game_state_update(self):
-        """Wrapper method to send game state update via GameEventCoordinator"""
-        try:
-            if self.game_state.app_manager:
-                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator._send_game_state_update(self.game_state.game_id)
-                else:
-                    pass
-            else:
-                pass
-        except Exception as e:
-            pass
     
-    def _send_player_state_update(self, player_id: str):
-        """Wrapper method to send player state update via GameEventCoordinator"""
-        try:
-            if self.game_state.app_manager:
-                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator._send_player_state_update(self.game_state.game_id, player_id)
-                else:
-                    pass
-            else:
-                pass
-        except Exception as e:
-            pass
-    
-    def _send_player_state_update_to_all(self):
-        """Wrapper method to send player state update to all players via GameEventCoordinator"""
-        try:
-            if self.game_state.app_manager:
-                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator._send_player_state_update_to_all(self.game_state.game_id)
-                else:
-                    pass
-            else:
-                pass
-        except Exception as e:
-            pass
     
     def update_player_state_and_send(self, player_id: str, new_status: PlayerStatus, **additional_data) -> bool:
         """
@@ -471,7 +437,10 @@ class GameRound:
                     pass
             
             # Automatically send the updated state to the specific player
-            self._send_player_state_update(player_id)
+            if self.game_state.app_manager:
+                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._send_player_state_update(self.game_state.game_id, player_id)
             
             return True
             
@@ -498,7 +467,10 @@ class GameRound:
                         updated_count += 1
             
             # Send updates to all players
-            self._send_player_state_update_to_all()
+            if self.game_state.app_manager:
+                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._send_player_state_update_to_all(self.game_state.game_id)
             
             return True
             
@@ -603,7 +575,10 @@ class GameRound:
                 pass
             
             # Send game state update to all players
-            self._send_game_state_update()
+            if self.game_state.app_manager:
+                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._send_game_state_update(self.game_state.game_id)
 
             self.continue_turn()
             

@@ -234,7 +234,7 @@ class GameEventCoordinator:
                 'event_type': 'game_state_partial_update',
                 'game_id': game_id,
                 'changed_properties': changed_properties,
-                'partial_state': partial_state,
+                'partial_game_state': partial_state,
             }
             custom_log("Sending partial game state update payload: " + str(payload), isOn=LOGGING_SWITCH)
             self._send_to_all_players(game_id, 'game_state_partial_update', payload)

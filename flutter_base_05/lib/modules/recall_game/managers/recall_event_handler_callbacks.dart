@@ -1,9 +1,13 @@
+import 'package:recall/tools/logging/logger.dart';
+
 import '../../../core/managers/state_manager.dart';
 import '../utils/recall_game_helpers.dart';
 
 /// Dedicated event handlers for Recall game events
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
+  static const bool LOGGING_SWITCH = false;
+  final Logger _logger = Logger();
 
   // ========================================
   // HELPER METHODS TO REDUCE DUPLICATION
@@ -389,9 +393,10 @@ class RecallEventHandlerCallbacks {
 
   /// Handle game_state_partial_update event
   static void handleGameStatePartialUpdate(Map<String, dynamic> data) {
+    Logger().info("handleGameStatePartialUpdate: $data", isOn: LOGGING_SWITCH);
     final gameId = data['game_id']?.toString() ?? '';
     final changedProperties = data['changed_properties'] as List<dynamic>? ?? [];
-    final partialGameState = data['partial_game_state'] as Map<String, dynamic>? ?? {};
+    final partialGameState = data['partial_state'] as Map<String, dynamic>? ?? {};
     // final timestamp = data['timestamp']?.toString() ?? '';
     
     // Get current game state to merge with partial updates
@@ -446,7 +451,8 @@ class RecallEventHandlerCallbacks {
           break;
       }
     }
-    
+
+    Logger().info("updates: $updates", isOn: LOGGING_SWITCH);
     // Apply UI updates if any
     if (updates.isNotEmpty) {
       _updateGameInMap(gameId, updates);

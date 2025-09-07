@@ -48,7 +48,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   bool _isInitializing = false;
   final Logger _logger = Logger();
-  final bool _enableTestLog = true;
+  static const bool LOGGING_SWITCH = false;
 
   @override
   void initState() {
@@ -96,7 +96,7 @@ class _MyAppState extends State<MyApp> {
         });
         
         // Test log after app is fully loaded
-        _logger.info('🚀 App fully loaded and initialized successfully!', isOn: _enableTestLog);
+        _logger.info('🚀 App fully loaded and initialized successfully!', isOn: LOGGING_SWITCH);
       }
 
     } catch (e) {

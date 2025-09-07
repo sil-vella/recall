@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/websockets/websocket_events.dart';
+import '../../../tools/logging/logger.dart';
 import 'recall_event_handler_callbacks.dart';
 
 /// Event configuration class
@@ -15,6 +16,7 @@ class EventConfig {
 /// Recall Game Event Listener Validator
 /// Ensures all incoming events follow the defined schema and validation rules
 class RecallGameEventListenerValidator {
+  static const bool LOGGING_SWITCH = true;
   static RecallGameEventListenerValidator? _instance;
   
   static RecallGameEventListenerValidator get instance {
@@ -178,8 +180,12 @@ class RecallGameEventListenerValidator {
   /// Handle direct game events and route to RecallEventManager
   void _handleDirectEvent(String eventType, Map<String, dynamic> data) {
     try {
+        // Log incoming event
+        Logger().info("📥 Received event: $eventType with data: $data", isOn: LOGGING_SWITCH);
+        
         // Validate event type
       if (!_eventConfigs.containsKey(eventType)) {
+          Logger().warning("❌ Unknown event type: $eventType", isOn: LOGGING_SWITCH);
           return;
         }
 
@@ -197,7 +203,9 @@ class RecallGameEventListenerValidator {
         };
 
       // Route directly to RecallEventManager based on event type
+      Logger().info("🔄 Routing event: $eventType to manager", isOn: LOGGING_SWITCH);
       _routeEventToManager(eventType, eventPayload);
+      Logger().info("✅ Successfully processed event: $eventType", isOn: LOGGING_SWITCH);
 
       } catch (e) {
     }
@@ -207,6 +215,8 @@ class RecallGameEventListenerValidator {
   void _routeEventToManager(String eventType, Map<String, dynamic> eventPayload) {
     final eventConfig = _eventConfigs[eventType];
     final handlerMethod = eventConfig?.handlerMethod;
+    
+    Logger().info("🎯 Calling handler method: $handlerMethod for event: $eventType", isOn: LOGGING_SWITCH);
     
     if (handlerMethod == null) {
       return;

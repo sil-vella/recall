@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:recall/tools/logging/logger.dart';
+
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/hooks_manager.dart';
 import '../utils/recall_game_helpers.dart';
@@ -11,6 +13,7 @@ class RecallEventManager {
   factory RecallEventManager() => _instance;
   RecallEventManager._internal();
 
+  final Logger _logger = Logger();
   final StateManager _stateManager = StateManager();
 
   final StreamController<List<Map<String, dynamic>>> _roomMessagesController = StreamController<List<Map<String, dynamic>>>.broadcast();
@@ -88,6 +91,7 @@ class RecallEventManager {
 
   /// Handle game_state_partial_update event
   void handleGameStatePartialUpdate(Map<String, dynamic> data) {
+    _logger.info("handleGameStatePartialUpdate: $data");
     RecallEventHandlerCallbacks.handleGameStatePartialUpdate(data);
   }
 

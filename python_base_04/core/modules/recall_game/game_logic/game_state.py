@@ -15,7 +15,7 @@ from datetime import datetime
 import time
 import uuid
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 
 class GamePhase(Enum):

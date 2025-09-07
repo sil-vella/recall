@@ -276,7 +276,22 @@ class GameState:
             self._track_change(name)
             # Use asyncio.create_task to run the async method
             import asyncio
-            asyncio.create_task(self._send_changes_if_needed())
+            try:
+                # Check if there's a running event loop
+                loop = asyncio.get_running_loop()
+                task = asyncio.create_task(self._send_changes_if_needed())
+                custom_log(f"🚀 Created async task for sending changes: {task}", isOn=LOGGING_SWITCH)
+            except RuntimeError as e:
+                custom_log(f"❌ No running event loop found: {e}", isOn=LOGGING_SWITCH)
+                # Fallback: try to get the event loop and run the task
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(self._send_changes_if_needed())
+                    else:
+                        loop.run_until_complete(self._send_changes_if_needed())
+                except Exception as e2:
+                    custom_log(f"❌ Failed to run async task: {e2}", isOn=LOGGING_SWITCH)
     
     def _track_change(self, property_name: str):
         """Track that a property has changed"""
@@ -286,28 +301,38 @@ class GameState:
     
     async def _send_changes_if_needed(self):
         """Send state updates if there are pending changes"""
-        if not self._change_tracking_enabled or not self._pending_changes:
-            return
-        
-        # Get coordinator and send partial update
-        if self.app_manager:
-            coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-            if coordinator:
-                changes_list = list(self._pending_changes)
-                custom_log(f"=== SENDING PARTIAL UPDATE ===", isOn=LOGGING_SWITCH)
-                custom_log(f"Game ID: {self.game_id}", isOn=LOGGING_SWITCH)
-                custom_log(f"Changed properties: {changes_list}", isOn=LOGGING_SWITCH)
-                custom_log(f"==============================", isOn=LOGGING_SWITCH)
-                
-                await coordinator._send_game_state_partial_update(self.game_id, changes_list)
-                custom_log(f"✅ Partial update sent successfully for properties: {changes_list}", isOn=LOGGING_SWITCH)
+        try:
+            custom_log(f"🔄 _send_changes_if_needed called with {len(self._pending_changes)} pending changes", isOn=LOGGING_SWITCH)
+            
+            if not self._change_tracking_enabled or not self._pending_changes:
+                custom_log("❌ Change tracking disabled or no pending changes", isOn=LOGGING_SWITCH)
+                return
+            
+            # Get coordinator and send partial update
+            if self.app_manager:
+                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    changes_list = list(self._pending_changes)
+                    custom_log(f"=== SENDING PARTIAL UPDATE ===", isOn=LOGGING_SWITCH)
+                    custom_log(f"Game ID: {self.game_id}", isOn=LOGGING_SWITCH)
+                    custom_log(f"Changed properties: {changes_list}", isOn=LOGGING_SWITCH)
+                    custom_log(f"==============================", isOn=LOGGING_SWITCH)
+                    
+                    await coordinator._send_game_state_partial_update(self.game_id, changes_list)
+                    custom_log(f"✅ Partial update sent successfully for properties: {changes_list}", isOn=LOGGING_SWITCH)
+                else:
+                    custom_log("❌ No coordinator found - cannot send partial update", isOn=LOGGING_SWITCH)
             else:
-                custom_log("❌ No coordinator found - cannot send partial update", isOn=LOGGING_SWITCH)
-        else:
-            custom_log("❌ No app_manager found - cannot send partial update", isOn=LOGGING_SWITCH)
-        
-        # Clear pending changes
-        self._pending_changes.clear()
+                custom_log("❌ No app_manager found - cannot send partial update", isOn=LOGGING_SWITCH)
+            
+            # Clear pending changes
+            self._pending_changes.clear()
+            custom_log(f"✅ Cleared pending changes", isOn=LOGGING_SWITCH)
+            
+        except Exception as e:
+            custom_log(f"❌ Error in _send_changes_if_needed: {e}", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"❌ Traceback: {traceback.format_exc()}", isOn=LOGGING_SWITCH)
     
     def enable_change_tracking(self):
         """Enable automatic change tracking"""

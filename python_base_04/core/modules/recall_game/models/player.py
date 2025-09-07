@@ -228,7 +228,7 @@ class Player:
             name not in ['_change_tracking_enabled', '_pending_changes', '_initialized', '_game_state_manager', '_game_id']):
             
             # Log the change
-            from utils.logging_utils import custom_log
+            from tools.logger.custom_logging import custom_log
             custom_log(f"Player property change detected: {name} = {value}", isOn=LOGGING_SWITCH)
             
             # Track the change
@@ -237,7 +237,7 @@ class Player:
     
     def _track_change(self, property_name: str):
         """Track a property change"""
-        from utils.logging_utils import custom_log
+        from tools.logger.custom_logging import custom_log
         custom_log(f"Tracking change for player property: {property_name}", isOn=LOGGING_SWITCH)
         self._pending_changes.add(property_name)
     
@@ -247,7 +247,7 @@ class Player:
             return
         
         try:
-            from utils.logging_utils import custom_log
+            from tools.logger.custom_logging import custom_log
             custom_log(f"Player _send_changes_if_needed called with {len(self._pending_changes)} pending changes", isOn=LOGGING_SWITCH)
             custom_log(f"=== SENDING PLAYER UPDATE ===", isOn=LOGGING_SWITCH)
             custom_log(f"Player ID: {self.player_id}", isOn=LOGGING_SWITCH)
@@ -270,7 +270,7 @@ class Player:
             self._pending_changes.clear()
             
         except Exception as e:
-            from utils.logging_utils import custom_log
+            from tools.logger.custom_logging import custom_log
             custom_log(f"Error in player _send_changes_if_needed: {e}", isOn=LOGGING_SWITCH)
             import traceback
             custom_log(f"❌ Traceback: {traceback.format_exc()}", isOn=LOGGING_SWITCH)

@@ -72,6 +72,12 @@ class GameState:
         
         self.players[player.player_id] = player
         
+        # Set up auto-detection references for the player
+        if hasattr(player, 'set_game_references') and self.app_manager:
+            game_state_manager = getattr(self.app_manager, 'game_state_manager', None)
+            if game_state_manager:
+                player.set_game_references(game_state_manager, self.game_id)
+        
         # Track session mapping if session_id provided
         if session_id:
             self.player_sessions[player.player_id] = session_id

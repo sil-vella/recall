@@ -48,12 +48,24 @@ class Player:
         self.initial_peeks_remaining = 2
         self.status = PlayerStatus.WAITING  # Player status
         self.drawn_card = None  # Most recently drawn card (Card object)
+        
+        # Auto-change detection for player updates
+        self._change_tracking_enabled = True
+        self._pending_changes = set()  # Track which properties have changed
+        self._initialized = True  # Flag to prevent tracking during initialization
+        self._game_state_manager = None  # Reference to game state manager for sending updates
+        self._game_id = None  # Reference to game ID for sending updates
     
     def add_card_to_hand(self, card: Card):
         """Add a card to the player's hand"""
         card.owner_id = self.player_id
         self.hand.append(card)
         self.cards_remaining = len(self.hand)
+        
+        # Manually trigger change detection for hand modification
+        if hasattr(self, '_track_change'):
+            self._track_change('hand')
+            self._send_changes_if_needed()
     
     def set_drawn_card(self, card: Card):
         """Set the most recently drawn card"""
@@ -78,6 +90,11 @@ class Player:
                 if self.drawn_card and self.drawn_card.card_id == card_id:
                     self.clear_drawn_card()
                 
+                # Manually trigger change detection for hand modification
+                if hasattr(self, '_track_change'):
+                    self._track_change('hand')
+                    self._send_changes_if_needed()
+                
                 return removed_card
         return None
     
@@ -88,6 +105,10 @@ class Player:
                 card.is_visible = True
                 if card not in self.visible_cards:
                     self.visible_cards.append(card)
+                    # Manually trigger change detection for visible_cards modification
+                    if hasattr(self, '_track_change'):
+                        self._track_change('visible_cards')
+                        self._send_changes_if_needed()
                 return card
         return None
 
@@ -174,6 +195,94 @@ class Player:
     def is_disconnected(self) -> bool:
         """Check if player is disconnected"""
         return self.status == PlayerStatus.DISCONNECTED
+    
+    # ========= Auto-Change Detection Methods =========
+    
+    def set_game_references(self, game_state_manager, game_id: str):
+        """Set references to game state manager and game ID for auto-updates"""
+        self._game_state_manager = game_state_manager
+        self._game_id = game_id
+    
+    def __setattr__(self, name, value):
+        """Override __setattr__ to detect property changes and send updates"""
+        # Handle initialization and internal attributes
+        if not hasattr(self, '_initialized') or not self._initialized:
+            super().__setattr__(name, value)
+            return
+        
+        # Check if this is an internal attribute
+        if name.startswith('_'):
+            super().__setattr__(name, value)
+            return
+        
+        # Get current value for comparison
+        current_value = getattr(self, name, None)
+        super().__setattr__(name, value)
+        
+        # Check if change tracking is enabled and value actually changed
+        if (self._change_tracking_enabled and 
+            current_value != value and 
+            name not in ['_change_tracking_enabled', '_pending_changes', '_initialized', '_game_state_manager', '_game_id']):
+            
+            # Log the change
+            from utils.logging_utils import custom_log
+            LOGGING_SWITCH = True
+            custom_log(f"Player property change detected: {name} = {value}", isOn=LOGGING_SWITCH)
+            
+            # Track the change
+            self._track_change(name)
+            self._send_changes_if_needed()
+    
+    def _track_change(self, property_name: str):
+        """Track a property change"""
+        from utils.logging_utils import custom_log
+        LOGGING_SWITCH = True
+        custom_log(f"Tracking change for player property: {property_name}", isOn=LOGGING_SWITCH)
+        self._pending_changes.add(property_name)
+    
+    def _send_changes_if_needed(self):
+        """Send player state update if there are pending changes"""
+        if not self._pending_changes or not self._game_state_manager or not self._game_id:
+            return
+        
+        try:
+            from utils.logging_utils import custom_log
+            LOGGING_SWITCH = True
+            custom_log(f"Player _send_changes_if_needed called with {len(self._pending_changes)} pending changes", isOn=LOGGING_SWITCH)
+            custom_log(f"=== SENDING PLAYER UPDATE ===", isOn=LOGGING_SWITCH)
+            custom_log(f"Player ID: {self.player_id}", isOn=LOGGING_SWITCH)
+            custom_log(f"Changed properties: {list(self._pending_changes)}", isOn=LOGGING_SWITCH)
+            custom_log(f"=============================", isOn=LOGGING_SWITCH)
+            
+            # Get the coordinator from the game state manager
+            if hasattr(self._game_state_manager, 'app_manager') and self._game_state_manager.app_manager:
+                coordinator = getattr(self._game_state_manager.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    # Send player state update using existing coordinator method
+                    coordinator._send_player_state_update(self._game_id, self.player_id)
+                    custom_log(f"Player update sent successfully for properties: {list(self._pending_changes)}", isOn=LOGGING_SWITCH)
+                else:
+                    custom_log("No coordinator found for player update", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("No app_manager found for player update", isOn=LOGGING_SWITCH)
+            
+            # Clear pending changes
+            self._pending_changes.clear()
+            
+        except Exception as e:
+            from utils.logging_utils import custom_log
+            LOGGING_SWITCH = True
+            custom_log(f"Error in player _send_changes_if_needed: {e}", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"❌ Traceback: {traceback.format_exc()}", isOn=LOGGING_SWITCH)
+    
+    def enable_change_tracking(self):
+        """Enable automatic change tracking"""
+        self._change_tracking_enabled = True
+    
+    def disable_change_tracking(self):
+        """Disable automatic change tracking"""
+        self._change_tracking_enabled = False
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert player to dictionary representation"""

@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
 
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class GameEventCoordinator:
@@ -96,6 +96,7 @@ class GameEventCoordinator:
         """Handle player actions through the game round"""
         try:
             game_id = data.get('game_id') or data.get('room_id')
+            custom_log("Handling player action through round game_id: " + game_id + " data: " + str(data), isOn=LOGGING_SWITCH)
             if not game_id:
                 return False
             
@@ -111,7 +112,7 @@ class GameEventCoordinator:
             
             # Handle the player action through the game round and store the result
             action_result = game_round.on_player_action(session_id, data)
-            
+            custom_log("Action result: " + str(action_result), isOn=LOGGING_SWITCH)
             # Return the action result
             return action_result
             
@@ -152,6 +153,7 @@ class GameEventCoordinator:
     def _send_to_all_players(self, game_id: str, event: str, data: dict) -> bool:
         """Send event to all players in game using direct room broadcast"""
         try:
+            custom_log("Sending event to all players game_id: " + game_id + " event: " + event + " data: " + str(data), isOn=LOGGING_SWITCH)
             # Use direct room broadcast instead of looping through players
             self.websocket_manager.broadcast_to_room(game_id, event, data)
             return True
@@ -186,6 +188,7 @@ class GameEventCoordinator:
         """Send complete game state update to all players"""
         game = self.game_state_manager.get_game(game_id)
         if game:
+
             payload = {
                 'event_type': 'game_state_updated',
                 'game_id': game_id,
@@ -196,6 +199,7 @@ class GameEventCoordinator:
     def _send_game_state_partial_update(self, game_id: str, changed_properties: List[str]):
         """Send partial game state update with only changed properties to all players"""
         try:
+            custom_log("Sending partial game state update for game_id: " + game_id + " changed_properties: " + str(changed_properties), isOn=LOGGING_SWITCH)
             game = self.game_state_manager.get_game(game_id)
             if not game:
                 return
@@ -232,7 +236,7 @@ class GameEventCoordinator:
                 'changed_properties': changed_properties,
                 'partial_state': partial_state,
             }
-            
+            custom_log("Sending partial game state update payload: " + str(payload), isOn=LOGGING_SWITCH)
             self._send_to_all_players(game_id, 'game_state_partial_update', payload)
             
         except Exception as e:
@@ -241,11 +245,14 @@ class GameEventCoordinator:
     def _send_player_state_update(self, game_id: str, player_id: str):
         """Send player state update including hand to the specific player"""
         try:
+            custom_log(f"Sending player state update for game_id: {game_id} player_id: {player_id}", isOn=LOGGING_SWITCH)
             game = self.game_state_manager.get_game(game_id)
             if not game:
+                custom_log(f"Game not found for player state update: {game_id}", isOn=LOGGING_SWITCH)
                 return
             
             if player_id not in game.players:
+                custom_log(f"Player not found in game for state update: {player_id}", isOn=LOGGING_SWITCH)
                 return
             
             player = game.players[player_id]
@@ -255,8 +262,10 @@ class GameEventCoordinator:
             if not session_id:
                 # Computer players don't have session IDs, but their status should still be updated in game state
                 if player_id.startswith('computer_'):
+                    custom_log(f"Computer player {player_id} - no session ID needed", isOn=LOGGING_SWITCH)
                     return
                 else:
+                    custom_log(f"No session ID found for player {player_id}", isOn=LOGGING_SWITCH)
                     return
             
             # Convert player to Flutter format using GameStateManager
@@ -275,10 +284,11 @@ class GameEventCoordinator:
             }
             
             # Send to the specific player
+            custom_log(f"Sending player_state_updated to session {session_id} for player {player_id} with status {player.status}", isOn=LOGGING_SWITCH)
             self.websocket_manager.send_to_session(session_id, 'player_state_updated', payload)
             
         except Exception as e:
-            pass
+            custom_log(f"Error in _send_player_state_update: {e}", isOn=LOGGING_SWITCH)
     
     def _send_player_state_update_to_all(self, game_id: str):
         """Send player state update to all players in the game"""

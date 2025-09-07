@@ -18,6 +18,8 @@ from datetime import datetime
 from functools import wraps
 import json
 
+LOGGING_SWITCH = False
+
 class WebSocketManager:
     def __init__(self):
         self.redis_manager = RedisManager()
@@ -710,6 +712,7 @@ class WebSocketManager:
         try:
             # Use socketio.emit instead of direct emit to work from background threads
             self.socketio.emit(event, data, room=room_id)
+            custom_log("Broadcasted event: " + event + " to room: " + room_id + " data: " + str(data), isOn=LOGGING_SWITCH)
         except Exception as e:
             pass
 

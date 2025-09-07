@@ -15,7 +15,7 @@ from datetime import datetime
 import time
 import uuid
 
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class GamePhase(Enum):
@@ -262,6 +262,7 @@ class GameState:
             name not in ['_change_tracking_enabled', '_pending_changes', '_initialized']):
             self._track_change(name)
             self._send_changes_if_needed()
+            custom_log("Tracked change: " + name + " value: " + str(value), isOn=LOGGING_SWITCH)
     
     def _track_change(self, property_name: str):
         """Track that a property has changed"""
@@ -278,6 +279,7 @@ class GameState:
             coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
             if coordinator:
                 coordinator._send_game_state_partial_update(self.game_id, list(self._pending_changes))
+                custom_log("Sent changes: " + str(list(self._pending_changes)), isOn=LOGGING_SWITCH)
         
         # Clear pending changes
         self._pending_changes.clear()

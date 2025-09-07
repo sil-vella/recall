@@ -12,8 +12,9 @@ import time
 from .game_state import GameState, GamePhase
 from ..models.player import Player, PlayerStatus
 from ..models.card import Card
-from tools.logger.custom_logging import custom_log
+from tools.logger.custom_logging import custom_log 
 
+LOGGING_SWITCH = True
 
 class GameRound:
     """Manages a single round of gameplay in the Recall game"""
@@ -365,7 +366,15 @@ class GameRound:
     def _route_action(self, action: str, user_id: str, action_data: Dict[str, Any]) -> bool:
         """Route action to appropriate handler and return result"""
         try:
+            custom_log("Routing action: " + action + " user_id: " + user_id + " action_data: " + str(action_data), isOn=LOGGING_SWITCH)
             if action == 'draw_from_deck':
+                # Log pile contents before drawing
+                custom_log(f"=== PILE CONTENTS BEFORE DRAW ===", isOn=LOGGING_SWITCH)
+                custom_log(f"Draw Pile Count: {len(self.game_state.draw_pile)}", isOn=LOGGING_SWITCH)
+                custom_log(f"Draw Pile Top 3: {[card.card_id for card in self.game_state.draw_pile[:3]]}", isOn=LOGGING_SWITCH)
+                custom_log(f"Discard Pile Count: {len(self.game_state.discard_pile)}", isOn=LOGGING_SWITCH)
+                custom_log(f"Discard Pile Top 3: {[card.card_id for card in self.game_state.discard_pile[:3]]}", isOn=LOGGING_SWITCH)
+                custom_log(f"=================================", isOn=LOGGING_SWITCH)
                 return self._handle_draw_from_pile(user_id, action_data)
             elif action == 'play_card':
                 play_result = self._handle_play_card(user_id, action_data)
@@ -420,13 +429,16 @@ class GameRound:
             bool: True if successful, False otherwise
         """
         try:
+            custom_log(f"update_player_state_and_send called for player {player_id} with new_status {new_status}", isOn=LOGGING_SWITCH)
             if player_id not in self.game_state.players:
+                custom_log(f"Player {player_id} not found in game state", isOn=LOGGING_SWITCH)
                 return False
             
             player = self.game_state.players[player_id]
             
             # Update player status
             old_status = player.status
+            custom_log(f"Updating player {player_id} status from {old_status} to {new_status}", isOn=LOGGING_SWITCH)
             player.set_status(new_status)
             
             # Update additional data if provided
@@ -440,11 +452,18 @@ class GameRound:
             if self.game_state.app_manager:
                 coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
                 if coordinator:
+                    custom_log(f"Calling coordinator._send_player_state_update for player {player_id}", isOn=LOGGING_SWITCH)
                     coordinator._send_player_state_update(self.game_state.game_id, player_id)
+                else:
+                    custom_log("No coordinator found in app_manager", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("No app_manager found in game_state", isOn=LOGGING_SWITCH)
             
+            custom_log(f"Successfully updated player {player_id} status to {new_status}", isOn=LOGGING_SWITCH)
             return True
             
         except Exception as e:
+            custom_log(f"Error in update_player_state_and_send: {e}", isOn=LOGGING_SWITCH)
             return False
     
     def update_all_players_state_and_send(self, new_status: PlayerStatus, **additional_data) -> bool:
@@ -599,7 +618,7 @@ class GameRound:
     def _handle_draw_from_pile(self, player_id: str, action_data: Dict[str, Any]) -> bool:
         """Handle drawing a card from the deck or discard pile"""
         try:
-            
+            custom_log(f"_handle_draw_from_pile called for player {player_id} with action_data {action_data}", isOn=LOGGING_SWITCH)
             # Get the source pile (deck or discard)
             source = action_data.get('source')
             if not source:
@@ -623,10 +642,10 @@ class GameRound:
                     return False
                 
                 drawn_card = self.game_state.draw_pile.pop()  # Remove last card
-                
                 # Check if draw pile is now empty (special game logic)
                 if len(self.game_state.draw_pile) == 0:
                     pass
+                
                 
             elif source == 'discard':
                 # Take from discard pile (remove last card)
@@ -652,8 +671,17 @@ class GameRound:
             )
             
             if success:
+                # Log pile contents after successful draw
+                custom_log(f"=== PILE CONTENTS AFTER DRAW ===", isOn=LOGGING_SWITCH)
+                custom_log(f"Draw Pile Count: {len(self.game_state.draw_pile)}", isOn=LOGGING_SWITCH)
+                custom_log(f"Draw Pile Top 3: {[card.card_id for card in self.game_state.draw_pile[:3]]}", isOn=LOGGING_SWITCH)
+                custom_log(f"Discard Pile Count: {len(self.game_state.discard_pile)}", isOn=LOGGING_SWITCH)
+                custom_log(f"Discard Pile Top 3: {[card.card_id for card in self.game_state.discard_pile[:3]]}", isOn=LOGGING_SWITCH)
+                custom_log(f"Drawn Card: {drawn_card.card_id if drawn_card else 'None'}", isOn=LOGGING_SWITCH)
+                custom_log(f"=================================", isOn=LOGGING_SWITCH)
                 pass
             else:
+                custom_log(f"Failed to update player {player_id} status to PLAYING_CARD. Pile cards: {self.game_state.draw_pile} {self.game_state.discard_pile}", isOn=LOGGING_SWITCH)
                 pass
             
             return True
@@ -729,6 +757,16 @@ class GameRound:
                 player.clear_drawn_card()
             else:
                 pass
+            
+            # Log pile contents after successful play
+            custom_log(f"=== PILE CONTENTS AFTER PLAY ===", isOn=LOGGING_SWITCH)
+            custom_log(f"Draw Pile Count: {len(self.game_state.draw_pile)}", isOn=LOGGING_SWITCH)
+            custom_log(f"Draw Pile Top 3: {[card.card_id for card in self.game_state.draw_pile[:3]]}", isOn=LOGGING_SWITCH)
+            custom_log(f"Discard Pile Count: {len(self.game_state.discard_pile)}", isOn=LOGGING_SWITCH)
+            custom_log(f"Discard Pile Top 3: {[card.card_id for card in self.game_state.discard_pile[:3]]}", isOn=LOGGING_SWITCH)
+            custom_log(f"Played Card: {card_to_play.card_id if card_to_play else 'None'}", isOn=LOGGING_SWITCH)
+            custom_log(f"=================================", isOn=LOGGING_SWITCH)
+            
             return True
             
         except Exception as e:

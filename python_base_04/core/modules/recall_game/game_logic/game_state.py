@@ -260,14 +260,27 @@ class GameState:
         if (self._change_tracking_enabled and 
             current_value != value and 
             name not in ['_change_tracking_enabled', '_pending_changes', '_initialized']):
+            
+            # Enhanced logging for pile changes
+            if name in ['draw_pile', 'discard_pile']:
+                old_count = len(current_value) if current_value else 0
+                new_count = len(value) if value else 0
+                custom_log(f"=== PILE CHANGE DETECTED ===", isOn=LOGGING_SWITCH)
+                custom_log(f"Property: {name}", isOn=LOGGING_SWITCH)
+                custom_log(f"Old count: {old_count}, New count: {new_count}", isOn=LOGGING_SWITCH)
+                custom_log(f"Change: {old_count} -> {new_count} ({new_count - old_count:+d})", isOn=LOGGING_SWITCH)
+                custom_log(f"=============================", isOn=LOGGING_SWITCH)
+            else:
+                custom_log(f"Property change detected: {name} = {value}", isOn=LOGGING_SWITCH)
+            
             self._track_change(name)
             self._send_changes_if_needed()
-            custom_log("Tracked change: " + name + " value: " + str(value), isOn=LOGGING_SWITCH)
     
     def _track_change(self, property_name: str):
         """Track that a property has changed"""
         if self._change_tracking_enabled:
             self._pending_changes.add(property_name)
+            custom_log(f"📝 Tracking change for property: {property_name}", isOn=LOGGING_SWITCH)
     
     def _send_changes_if_needed(self):
         """Send state updates if there are pending changes"""
@@ -278,8 +291,18 @@ class GameState:
         if self.app_manager:
             coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
             if coordinator:
-                coordinator._send_game_state_partial_update(self.game_id, list(self._pending_changes))
-                custom_log("Sent changes: " + str(list(self._pending_changes)), isOn=LOGGING_SWITCH)
+                changes_list = list(self._pending_changes)
+                custom_log(f"=== SENDING PARTIAL UPDATE ===", isOn=LOGGING_SWITCH)
+                custom_log(f"Game ID: {self.game_id}", isOn=LOGGING_SWITCH)
+                custom_log(f"Changed properties: {changes_list}", isOn=LOGGING_SWITCH)
+                custom_log(f"==============================", isOn=LOGGING_SWITCH)
+                
+                coordinator._send_game_state_partial_update(self.game_id, changes_list)
+                custom_log(f"✅ Partial update sent successfully for properties: {changes_list}", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("❌ No coordinator found - cannot send partial update", isOn=LOGGING_SWITCH)
+        else:
+            custom_log("❌ No app_manager found - cannot send partial update", isOn=LOGGING_SWITCH)
         
         # Clear pending changes
         self._pending_changes.clear()

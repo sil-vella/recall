@@ -97,7 +97,6 @@ class WebSocketStateUpdater {
   /// Update WebSocket state with validation
   static void updateState(Map<String, dynamic> updates) {
     try {
-      _logger.info("🔧 [WS-STATE] Updating WebSocket state with validation...");
       
       // Get current state
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
@@ -173,12 +172,9 @@ class WebSocketStateUpdater {
       
       // Update state manager
       _stateManager.updateModuleState('websocket', newState);
-      
-      _logger.info("✅ [WS-STATE] WebSocket state updated successfully");
-      _logger.info("🔧 [WS-STATE] Updated fields: ${validatedUpdates.keys.join(', ')}");
+
       
     } catch (e) {
-      _logger.error("❌ [WS-STATE] Failed to update WebSocket state: $e");
       throw WebSocketStateException('Failed to update WebSocket state: $e');
     }
   }
@@ -186,7 +182,6 @@ class WebSocketStateUpdater {
   /// Clear WebSocket state (reset to defaults)
   static void clearState() {
     try {
-      _logger.info("🔧 [WS-STATE] Clearing WebSocket state...");
       
       final defaultState = <String, dynamic>{};
       for (final spec in _stateSchema.values) {
@@ -196,10 +191,8 @@ class WebSocketStateUpdater {
       
       _stateManager.updateModuleState('websocket', defaultState);
       
-      _logger.info("✅ [WS-STATE] WebSocket state cleared successfully");
       
     } catch (e) {
-      _logger.error("❌ [WS-STATE] Failed to clear WebSocket state: $e");
       throw WebSocketStateException('Failed to clear WebSocket state: $e');
     }
   }
@@ -243,7 +236,6 @@ class WebSocketStateHelpers {
     required bool isConnected,
     Map<String, dynamic>? sessionData,
   }) {
-    _logger.info("🔧 [WS-HELPER] Updating connection status: $isConnected");
     
     final updates = <String, dynamic>{
       'isConnected': isConnected,
@@ -268,7 +260,6 @@ class WebSocketStateHelpers {
     String? roomId,
     Map<String, dynamic>? roomInfo,
   }) {
-    _logger.info("🔧 [WS-HELPER] Updating room info: $roomId");
     
     final updates = <String, dynamic>{};
     
@@ -285,7 +276,6 @@ class WebSocketStateHelpers {
 
   /// Clear room information
   static void clearRoomInfo() {
-    _logger.info("🔧 [WS-HELPER] Clearing room info");
     
     WebSocketStateUpdater.updateState({
       'currentRoomId': null,
@@ -295,7 +285,6 @@ class WebSocketStateHelpers {
 
   /// Update session data
   static void updateSessionData(Map<String, dynamic>? sessionData) {
-    _logger.info("🔧 [WS-HELPER] Updating session data");
     
     WebSocketStateUpdater.updateState({
       'sessionData': sessionData,
@@ -309,7 +298,6 @@ class WebSocketStateHelpers {
     required int totalRooms,
     required String timestamp,
   }) {
-    _logger.info("🔧 [WS-HELPER] Updating joined rooms: $totalRooms rooms for session: $sessionId");
     
     WebSocketStateUpdater.updateState({
       'joinedRooms': joinedRooms,

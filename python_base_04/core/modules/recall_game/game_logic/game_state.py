@@ -15,6 +15,8 @@ from datetime import datetime
 import time
 import uuid
 
+LOGGING_SWITCH = True
+
 
 class GamePhase(Enum):
     """Game phases"""
@@ -625,6 +627,7 @@ class GameStateManager:
                             'timestamp': datetime.now().isoformat()
                         }
                         coordinator._send_to_player(game_id, current_player_id, 'turn_started', turn_payload)
+                        custom_log("Turn started for player " + current_player_id + " in game " + game_id + ". Player status: " + player_status + ". Payload: " + str(turn_payload), isOn=LOGGING_SWITCH)
                     else:
                         pass
                 else:

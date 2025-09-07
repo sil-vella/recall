@@ -9,6 +9,8 @@ from typing import Dict, Any, Optional, List
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
 
+LOGGING_SWITCH = True
+
 
 class GameEventCoordinator:
     """Coordinates all WebSocket events for the Recall game"""
@@ -56,7 +58,7 @@ class GameEventCoordinator:
     def handle_game_event(self, session_id: str, event_name: str, data: dict) -> bool:
         """Handle incoming game events and route to appropriate handlers"""
         try:
-            
+            custom_log("Handling game event event_name: " + event_name + " data: " + str(data), isOn=LOGGING_SWITCH)
             # Route to appropriate game state manager method
             if event_name == 'start_match':
                 return self.game_state_manager.on_start_match(session_id, data)

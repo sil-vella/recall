@@ -396,7 +396,7 @@ class RecallEventHandlerCallbacks {
     Logger().info("handleGameStatePartialUpdate: $data", isOn: LOGGING_SWITCH);
     final gameId = data['game_id']?.toString() ?? '';
     final changedProperties = data['changed_properties'] as List<dynamic>? ?? [];
-    final partialGameState = data['partial_state'] as Map<String, dynamic>? ?? {};
+    final partialGameState = data['partial_game_state'] as Map<String, dynamic>? ?? {};
     // final timestamp = data['timestamp']?.toString() ?? '';
     
     // Get current game state to merge with partial updates

@@ -274,24 +274,7 @@ class GameState:
                 custom_log(f"Property change detected: {name} = {value}", isOn=LOGGING_SWITCH)
             
             self._track_change(name)
-            # Use asyncio.create_task to run the async method
-            import asyncio
-            try:
-                # Check if there's a running event loop
-                loop = asyncio.get_running_loop()
-                task = asyncio.create_task(self._send_changes_if_needed())
-                custom_log(f"🚀 Created async task for sending changes: {task}", isOn=LOGGING_SWITCH)
-            except RuntimeError as e:
-                custom_log(f"❌ No running event loop found: {e}", isOn=LOGGING_SWITCH)
-                # Fallback: try to get the event loop and run the task
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(self._send_changes_if_needed())
-                    else:
-                        loop.run_until_complete(self._send_changes_if_needed())
-                except Exception as e2:
-                    custom_log(f"❌ Failed to run async task: {e2}", isOn=LOGGING_SWITCH)
+            self._send_changes_if_needed()
     
     def _track_change(self, property_name: str):
         """Track that a property has changed"""
@@ -299,7 +282,7 @@ class GameState:
             self._pending_changes.add(property_name)
             custom_log(f"📝 Tracking change for property: {property_name}", isOn=LOGGING_SWITCH)
     
-    async def _send_changes_if_needed(self):
+    def _send_changes_if_needed(self):
         """Send state updates if there are pending changes"""
         try:
             custom_log(f"🔄 _send_changes_if_needed called with {len(self._pending_changes)} pending changes", isOn=LOGGING_SWITCH)
@@ -318,7 +301,7 @@ class GameState:
                     custom_log(f"Changed properties: {changes_list}", isOn=LOGGING_SWITCH)
                     custom_log(f"==============================", isOn=LOGGING_SWITCH)
                     
-                    await coordinator._send_game_state_partial_update(self.game_id, changes_list)
+                    coordinator._send_game_state_partial_update(self.game_id, changes_list)
                     custom_log(f"✅ Partial update sent successfully for properties: {changes_list}", isOn=LOGGING_SWITCH)
                 else:
                     custom_log("❌ No coordinator found - cannot send partial update", isOn=LOGGING_SWITCH)

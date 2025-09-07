@@ -707,14 +707,14 @@ class WebSocketManager:
         except Exception as e:
             return False
 
-    async def broadcast_to_room(self, room_id: str, event: str, data: Any):
+    def broadcast_to_room(self, room_id: str, event: str, data: Any):
         """Broadcast message to a specific room."""
         try:
             # Use socketio.emit instead of direct emit to work from background threads
             self.socketio.emit(event, data, room=room_id)
             custom_log("Broadcasted event: " + event + " to room: " + room_id + " data: " + str(data), isOn=LOGGING_SWITCH)
         except Exception as e:
-            pass
+            custom_log(f"Error broadcasting to room {room_id}: {e}", isOn=LOGGING_SWITCH)
 
     async def send_to_session(self, session_id: str, event: str, data: Any):
         """Send message to a specific session."""

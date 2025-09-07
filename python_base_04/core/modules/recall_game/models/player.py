@@ -9,6 +9,9 @@ from typing import List, Dict, Any, Optional
 from enum import Enum
 from .card import Card
 
+# Logging switch for this module
+LOGGING_SWITCH = True
+
 
 class PlayerType(Enum):
     """Player types"""
@@ -226,7 +229,6 @@ class Player:
             
             # Log the change
             from utils.logging_utils import custom_log
-            LOGGING_SWITCH = True
             custom_log(f"Player property change detected: {name} = {value}", isOn=LOGGING_SWITCH)
             
             # Track the change
@@ -236,7 +238,6 @@ class Player:
     def _track_change(self, property_name: str):
         """Track a property change"""
         from utils.logging_utils import custom_log
-        LOGGING_SWITCH = True
         custom_log(f"Tracking change for player property: {property_name}", isOn=LOGGING_SWITCH)
         self._pending_changes.add(property_name)
     
@@ -247,7 +248,6 @@ class Player:
         
         try:
             from utils.logging_utils import custom_log
-            LOGGING_SWITCH = True
             custom_log(f"Player _send_changes_if_needed called with {len(self._pending_changes)} pending changes", isOn=LOGGING_SWITCH)
             custom_log(f"=== SENDING PLAYER UPDATE ===", isOn=LOGGING_SWITCH)
             custom_log(f"Player ID: {self.player_id}", isOn=LOGGING_SWITCH)
@@ -271,7 +271,6 @@ class Player:
             
         except Exception as e:
             from utils.logging_utils import custom_log
-            LOGGING_SWITCH = True
             custom_log(f"Error in player _send_changes_if_needed: {e}", isOn=LOGGING_SWITCH)
             import traceback
             custom_log(f"❌ Traceback: {traceback.format_exc()}", isOn=LOGGING_SWITCH)

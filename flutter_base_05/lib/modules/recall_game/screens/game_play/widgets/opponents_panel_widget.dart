@@ -247,22 +247,16 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           // Cards display - horizontal layout like my hand
           if (hand.isNotEmpty)
-            _buildCardsRow(hand)
+            _buildCardsRow(hand, drawnCard)
           else
             _buildEmptyHand(),
-          
-          // Drawn card display (if any)
-          if (drawnCard != null) ...[
-            const SizedBox(height: 8),
-            _buildDrawnCardRow(drawnCard),
-          ],
         ],
       ),
     );
   }
 
   /// Build cards row - horizontal layout like my hand
-  Widget _buildCardsRow(List<dynamic> cards) {
+  Widget _buildCardsRow(List<dynamic> cards, Map<String, dynamic>? drawnCard) {
     return Container(
       height: 100,
       child: ListView.builder(
@@ -270,9 +264,15 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         itemCount: cards.length,
         itemBuilder: (context, index) {
           final card = cards[index] as Map<String, dynamic>;
+          final drawnCardId = drawnCard?['cardId']?.toString();
+          final isDrawnCard = drawnCardId != null && card['cardId']?.toString() == drawnCardId;
+          
           return Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: _buildCardWidget(card),
+            padding: EdgeInsets.only(
+              right: 6,
+              left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
+            ),
+            child: _buildCardWidget(card, isDrawnCard),
           );
         },
       ),
@@ -280,7 +280,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build individual card widget for opponents using the new CardWidget system
-  Widget _buildCardWidget(Map<String, dynamic> card) {
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard) {
     // Convert to CardModel
     final cardModel = CardModel.fromMap(card);
     
@@ -291,51 +291,28 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     // Update the card model with selection state
     final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
     
-    return CardWidget(
-      card: updatedCardModel,
-      size: CardSize.small,
-      isSelectable: true,
-      isSelected: isSelected,
-      onTap: () => _handleCardClick(card),
+    return Container(
+      decoration: isDrawnCard ? BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
+            blurRadius: 12,
+            spreadRadius: 2,
+            offset: const Offset(0, 0),
+          ),
+        ],
+      ) : null,
+      child: CardWidget(
+        card: updatedCardModel,
+        size: CardSize.small,
+        isSelectable: true,
+        isSelected: isSelected,
+        onTap: () => _handleCardClick(card),
+      ),
     );
   }
 
-  /// Build drawn card row for opponents
-  Widget _buildDrawnCardRow(Map<String, dynamic> drawnCard) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Drawn card label
-        Row(
-          children: [
-            Icon(Icons.draw, size: 14, color: Colors.blue),
-            const SizedBox(width: 4),
-            Text(
-              'Drawn',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.blue,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        
-        // Drawn card display
-        Container(
-          height: 60,
-          child: CardWidget(
-            card: CardModel.fromMap(drawnCard),
-            size: CardSize.small,
-            isSelectable: false,
-            isSelected: false,
-            onTap: null,
-          ),
-        ),
-      ],
-    );
-  }
 
   /// Build empty hand state
   Widget _buildEmptyHand() {

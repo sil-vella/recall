@@ -261,6 +261,9 @@ class Player:
                     # Send player state update using existing coordinator method
                     coordinator._send_player_state_update(self._game_id, self.player_id)
                     custom_log(f"Player update sent successfully for properties: {list(self._pending_changes)}", isOn=LOGGING_SWITCH)
+                    
+                    # Also trigger GameState players property change detection
+                    self._trigger_gamestate_players_update()
                 else:
                     custom_log("No coordinator found for player update", isOn=LOGGING_SWITCH)
             else:
@@ -272,6 +275,31 @@ class Player:
         except Exception as e:
             from tools.logger.custom_logging import custom_log
             custom_log(f"Error in player _send_changes_if_needed: {e}", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"❌ Traceback: {traceback.format_exc()}", isOn=LOGGING_SWITCH)
+    
+    def _trigger_gamestate_players_update(self):
+        """Trigger GameState players property change detection to send room-wide update"""
+        try:
+            from tools.logger.custom_logging import custom_log
+            custom_log(f"🔄 Triggering GameState players property update for player: {self.player_id}", isOn=LOGGING_SWITCH)
+            
+            # Get the game state from the game state manager
+            if hasattr(self._game_state_manager, 'get_game'):
+                game_state = self._game_state_manager.get_game(self._game_id)
+                if game_state and hasattr(game_state, '_track_change'):
+                    # Manually trigger the players property change detection
+                    game_state._track_change('players')
+                    game_state._send_changes_if_needed()
+                    custom_log(f"✅ GameState players property update triggered successfully", isOn=LOGGING_SWITCH)
+                else:
+                    custom_log("❌ GameState not found or doesn't have change tracking", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("❌ GameStateManager doesn't have get_game method", isOn=LOGGING_SWITCH)
+                
+        except Exception as e:
+            from tools.logger.custom_logging import custom_log
+            custom_log(f"❌ Error triggering GameState players update: {e}", isOn=LOGGING_SWITCH)
             import traceback
             custom_log(f"❌ Traceback: {traceback.format_exc()}", isOn=LOGGING_SWITCH)
     

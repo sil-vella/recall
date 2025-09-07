@@ -646,7 +646,8 @@ class GameRound:
                 # Manually trigger change detection for draw_pile
                 if hasattr(self.game_state, '_track_change'):
                     self.game_state._track_change('draw_pile')
-                    self.game_state._send_changes_if_needed()
+                    import asyncio
+                    asyncio.create_task(self.game_state._send_changes_if_needed())
                 
                 # Check if draw pile is now empty (special game logic)
                 if len(self.game_state.draw_pile) == 0:
@@ -742,7 +743,8 @@ class GameRound:
             # Manually trigger change detection for discard_pile
             if hasattr(self.game_state, '_track_change'):
                 self.game_state._track_change('discard_pile')
-                self.game_state._send_changes_if_needed()
+                import asyncio
+                asyncio.create_task(self.game_state._send_changes_if_needed())
             
             # Now handle drawn card repositioning with correct indexes
             if drawn_card and drawn_card.card_id != card_id and drawn_card_original_index != -1:
@@ -888,7 +890,8 @@ class GameRound:
             # Manually trigger change detection for draw_pile
             if hasattr(self.game_state, '_track_change'):
                 self.game_state._track_change('draw_pile')
-                self.game_state._send_changes_if_needed()
+                import asyncio
+                asyncio.create_task(self.game_state._send_changes_if_needed())
             
             # Add penalty card to player's hand
             player.add_card_to_hand(penalty_card)

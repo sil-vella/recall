@@ -150,12 +150,12 @@ class GameEventCoordinator:
         except Exception as e:
             return False
 
-    def _send_to_all_players(self, game_id: str, event: str, data: dict) -> bool:
+    async def _send_to_all_players(self, game_id: str, event: str, data: dict) -> bool:
         """Send event to all players in game using direct room broadcast"""
         try:
             custom_log("Sending event to all players game_id: " + game_id + " event: " + event + " data: " + str(data), isOn=LOGGING_SWITCH)
             # Use direct room broadcast instead of looping through players
-            self.websocket_manager.broadcast_to_room(game_id, event, data)
+            await self.websocket_manager.broadcast_to_room(game_id, event, data)
             return True
         except Exception as e:
             return False
@@ -196,7 +196,7 @@ class GameEventCoordinator:
             }
             self._send_to_all_players(game_id, 'game_state_updated', payload)
     
-    def _send_game_state_partial_update(self, game_id: str, changed_properties: List[str]):
+    async def _send_game_state_partial_update(self, game_id: str, changed_properties: List[str]):
         """Send partial game state update with only changed properties to all players"""
         try:
             custom_log("Sending partial game state update for game_id: " + game_id + " changed_properties: " + str(changed_properties), isOn=LOGGING_SWITCH)
@@ -237,7 +237,7 @@ class GameEventCoordinator:
                 'partial_game_state': partial_state,
             }
             custom_log("Sending partial game state update payload: " + str(payload), isOn=LOGGING_SWITCH)
-            self._send_to_all_players(game_id, 'game_state_partial_update', payload)
+            await self._send_to_all_players(game_id, 'game_state_partial_update', payload)
             
         except Exception as e:
             pass

@@ -274,7 +274,9 @@ class GameState:
                 custom_log(f"Property change detected: {name} = {value}", isOn=LOGGING_SWITCH)
             
             self._track_change(name)
-            self._send_changes_if_needed()
+            # Use asyncio.create_task to run the async method
+            import asyncio
+            asyncio.create_task(self._send_changes_if_needed())
     
     def _track_change(self, property_name: str):
         """Track that a property has changed"""
@@ -282,7 +284,7 @@ class GameState:
             self._pending_changes.add(property_name)
             custom_log(f"📝 Tracking change for property: {property_name}", isOn=LOGGING_SWITCH)
     
-    def _send_changes_if_needed(self):
+    async def _send_changes_if_needed(self):
         """Send state updates if there are pending changes"""
         if not self._change_tracking_enabled or not self._pending_changes:
             return
@@ -297,7 +299,7 @@ class GameState:
                 custom_log(f"Changed properties: {changes_list}", isOn=LOGGING_SWITCH)
                 custom_log(f"==============================", isOn=LOGGING_SWITCH)
                 
-                coordinator._send_game_state_partial_update(self.game_id, changes_list)
+                await coordinator._send_game_state_partial_update(self.game_id, changes_list)
                 custom_log(f"✅ Partial update sent successfully for properties: {changes_list}", isOn=LOGGING_SWITCH)
             else:
                 custom_log("❌ No coordinator found - cannot send partial update", isOn=LOGGING_SWITCH)

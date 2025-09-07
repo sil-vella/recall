@@ -16,7 +16,173 @@ This system provides:
 
 ## 🏗️ Architecture Components
 
-### 1. Field Specifications (`field_specifications.dart`)
+### 1. Auto-Change Detection System
+
+The Recall Game module implements a sophisticated **auto-change detection system** that automatically tracks property changes in both `GameState` and `Player` objects and sends real-time updates to the frontend.
+
+#### GameState Auto-Change Detection
+
+**Purpose**: Automatically detect changes to game state properties and send partial updates to all players in the room.
+
+**Implementation**:
+```python
+class GameState:
+    def __init__(self, game_id: str, ...):
+        # Auto-change detection setup
+        self._change_tracking_enabled = True
+        self._pending_changes = set()
+        self._initialized = True
+    
+    def __setattr__(self, name, value):
+        """Override __setattr__ to detect property changes"""
+        current_value = getattr(self, name, None)
+        super().__setattr__(name, value)
+        
+        if (self._change_tracking_enabled and 
+            current_value != value and 
+            name not in ['_change_tracking_enabled', '_pending_changes', '_initialized']):
+            
+            # Log property changes
+            if name in ['draw_pile', 'discard_pile']:
+                old_count = len(current_value) if current_value else 0
+                new_count = len(value) if value else 0
+                custom_log(f"=== PILE CHANGE DETECTED ===")
+                custom_log(f"Property: {name}, Change: {old_count} -> {new_count}")
+            
+            self._track_change(name)
+            self._send_changes_if_needed()
+    
+    def _track_change(self, property_name: str):
+        """Track a property change"""
+        self._pending_changes.add(property_name)
+    
+    def _send_changes_if_needed(self):
+        """Send partial state updates if there are pending changes"""
+        if not self._pending_changes:
+            return
+        
+        # Get coordinator and send partial update
+        coordinator = self.app_manager.game_event_coordinator
+        changes_list = list(self._pending_changes)
+        coordinator._send_game_state_partial_update(self.game_id, changes_list)
+        self._pending_changes.clear()
+```
+
+**Key Features**:
+- **Automatic Detection**: Uses Python's `__setattr__` to intercept property assignments
+- **Change Tracking**: Maintains a set of changed properties
+- **Partial Updates**: Sends only changed properties to reduce network traffic
+- **Pile Change Detection**: Special logging for draw_pile and discard_pile changes
+- **Room Broadcasting**: Sends updates to all players in the game room
+
+#### Player Auto-Change Detection
+
+**Purpose**: Automatically detect changes to individual player properties and send updates to both the specific player and trigger room-wide player list updates.
+
+**Implementation**:
+```python
+class Player:
+    def __init__(self, player_id: str, ...):
+        # Auto-change detection setup
+        self._change_tracking_enabled = True
+        self._pending_changes = set()
+        self._initialized = True
+        self._game_state_manager = None
+        self._game_id = None
+    
+    def set_game_references(self, game_state_manager, game_id: str):
+        """Set references for auto-updates"""
+        self._game_state_manager = game_state_manager
+        self._game_id = game_id
+    
+    def __setattr__(self, name, value):
+        """Override __setattr__ to detect property changes"""
+        current_value = getattr(self, name, None)
+        super().__setattr__(name, value)
+        
+        if (self._change_tracking_enabled and 
+            current_value != value and 
+            name not in ['_change_tracking_enabled', '_pending_changes', '_initialized']):
+            
+            self._track_change(name)
+            self._send_changes_if_needed()
+    
+    def _send_changes_if_needed(self):
+        """Send individual player update and trigger room-wide update"""
+        if not self._pending_changes:
+            return
+        
+        # Send individual player update
+        coordinator = self._game_state_manager.app_manager.game_event_coordinator
+        coordinator._send_player_state_update(self._game_id, self.player_id)
+        
+        # Also trigger GameState players property update
+        self._trigger_gamestate_players_update()
+        self._pending_changes.clear()
+    
+    def _trigger_gamestate_players_update(self):
+        """Trigger GameState players property change detection"""
+        game_state = self._game_state_manager.get_game(self._game_id)
+        if game_state:
+            game_state._track_change('players')
+            game_state._send_changes_if_needed()
+```
+
+**Key Features**:
+- **Dual Updates**: Sends both individual player updates and room-wide player list updates
+- **Individual Targeting**: Sends `player_state_updated` to specific player session
+- **Room Synchronization**: Triggers `game_state_partial_update` with `players` property to entire room
+- **Automatic Integration**: Works seamlessly with existing coordinator methods
+
+#### Manual Change Triggers
+
+For in-place list modifications (like `list.append()`, `list.pop()`), manual triggers are required since `__setattr__` doesn't detect these changes:
+
+```python
+# In GameRound class
+def _handle_draw_from_pile(self, player_id: str):
+    drawn_card = self.game_state.draw_pile.pop()
+    # Manually trigger change detection for draw_pile
+    if hasattr(self.game_state, '_track_change'):
+        self.game_state._track_change('draw_pile')
+        self.game_state._send_changes_if_needed()
+
+# In Player class
+def add_card_to_hand(self, card: Card):
+    self.hand.append(card)
+    # Manually trigger change detection for hand modification
+    if hasattr(self, '_track_change'):
+        self._track_change('hand')
+        self._send_changes_if_needed()
+```
+
+#### Event Flow
+
+**GameState Changes**:
+1. Property change detected via `__setattr__`
+2. Change tracked in `_pending_changes`
+3. `_send_changes_if_needed()` called
+4. `game_state_partial_update` event sent to entire room
+5. Frontend receives and processes partial update
+
+**Player Changes**:
+1. Player property change detected via `__setattr__`
+2. Change tracked in `_pending_changes`
+3. `_send_changes_if_needed()` called
+4. `player_state_updated` event sent to specific player
+5. `_trigger_gamestate_players_update()` called
+6. `game_state_partial_update` with `players` property sent to entire room
+7. Frontend receives both individual and room-wide updates
+
+#### Benefits
+
+- **Real-time Updates**: Immediate propagation of state changes
+- **Network Efficiency**: Only changed properties are sent
+- **Automatic Synchronization**: No manual update calls required
+- **Dual Targeting**: Individual player updates + room-wide synchronization
+- **Comprehensive Coverage**: Handles both direct assignments and in-place modifications
+
+### 2. Field Specifications (`field_specifications.dart`)
 
 Defines validation rules and data schemas for all events and state fields.
 

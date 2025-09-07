@@ -8,17 +8,18 @@ This document provides a comprehensive guide to the WebSocket-Recall module arch
 
 1. [Architecture Overview](#architecture-overview)
 2. [Core Components](#core-components)
-3. [Room Management Flow](#room-management-flow)
-4. [Game Management Flow](#game-management-flow)
-5. [Hook System](#hook-system)
-6. [Data Flow Diagrams](#data-flow-diagrams)
-7. [Event Flow](#event-flow)
-8. [User Joined Rooms Event](#user-joined-rooms-event)
-9. [State Management](#state-management)
-10. [Frontend Integration](#frontend-integration)
-11. [Room Cleanup Behavior](#room-cleanup-behavior)
-12. [Game Phase Management](#game-phase-management)
-13. [Troubleshooting](#troubleshooting)
+3. [Auto-Change Detection System](#auto-change-detection-system)
+4. [Room Management Flow](#room-management-flow)
+5. [Game Management Flow](#game-management-flow)
+6. [Hook System](#hook-system)
+7. [Data Flow Diagrams](#data-flow-diagrams)
+8. [Event Flow](#event-flow)
+9. [User Joined Rooms Event](#user-joined-rooms-event)
+10. [State Management](#state-management)
+11. [Frontend Integration](#frontend-integration)
+12. [Room Cleanup Behavior](#room-cleanup-behavior)
+13. [Game Phase Management](#game-phase-management)
+14. [Troubleshooting](#troubleshooting)
 
 ## Architecture Overview
 
@@ -116,6 +117,135 @@ def _on_leave_room(self, room_data: dict) -> None
 def register_hook_callback(self, hook_name: str, callback: callable, priority: int) -> None
 def trigger_hook(self, hook_name: str, data: dict, context: dict) -> None
 ```
+
+## Auto-Change Detection System
+
+The Recall Game module implements a sophisticated **auto-change detection system** that automatically tracks property changes in both `GameState` and `Player` objects and sends real-time WebSocket updates to the frontend.
+
+### Overview
+
+The auto-change detection system provides:
+- **Automatic State Tracking**: Detects property changes without manual intervention
+- **Real-time Updates**: Immediate propagation of state changes via WebSocket
+- **Network Efficiency**: Only sends changed properties, not entire objects
+- **Dual Update Strategy**: Individual player updates + room-wide synchronization
+- **Comprehensive Coverage**: Handles both direct assignments and in-place modifications
+
+### GameState Auto-Change Detection
+
+**Purpose**: Automatically detect changes to game state properties and send partial updates to all players in the room.
+
+**Key Components**:
+- `__setattr__` override to intercept property assignments
+- `_pending_changes` set to track modified properties
+- `_send_changes_if_needed()` to send WebSocket updates
+- Integration with `GameEventCoordinator` for event broadcasting
+
+**WebSocket Events Generated**:
+- `game_state_partial_update` - Sent to entire room with changed properties
+
+**Example Flow**:
+```python
+# When game phase changes
+game.phase = GamePhase.PLAYER_TURN
+# → Automatically triggers game_state_partial_update event
+# → Frontend receives: {event_type: 'game_state_partial_update', changed_properties: ['phase'], partial_game_state: {...}}
+```
+
+### Player Auto-Change Detection
+
+**Purpose**: Automatically detect changes to individual player properties and send updates to both the specific player and trigger room-wide player list updates.
+
+**Key Components**:
+- `__setattr__` override to intercept property assignments
+- `_pending_changes` set to track modified properties
+- `_send_changes_if_needed()` to send individual player updates
+- `_trigger_gamestate_players_update()` to trigger room-wide updates
+
+**WebSocket Events Generated**:
+- `player_state_updated` - Sent to specific player session
+- `game_state_partial_update` - Sent to entire room with updated players list
+
+**Example Flow**:
+```python
+# When player hand changes
+player.hand.append(new_card)
+# → Automatically triggers player_state_updated event to specific player
+# → Automatically triggers game_state_partial_update with players property to entire room
+# → Frontend receives both individual player update and room-wide players update
+```
+
+### Manual Change Triggers
+
+For in-place list modifications (like `list.append()`, `list.pop()`), manual triggers are required since `__setattr__` doesn't detect these changes:
+
+```python
+# In GameRound class
+def _handle_draw_from_pile(self, player_id: str):
+    drawn_card = self.game_state.draw_pile.pop()
+    # Manually trigger change detection for draw_pile
+    if hasattr(self.game_state, '_track_change'):
+        self.game_state._track_change('draw_pile')
+        self.game_state._send_changes_if_needed()
+
+# In Player class
+def add_card_to_hand(self, card: Card):
+    self.hand.append(card)
+    # Manually trigger change detection for hand modification
+    if hasattr(self, '_track_change'):
+        self._track_change('hand')
+        self._send_changes_if_needed()
+```
+
+### WebSocket Event Integration
+
+The auto-change detection system integrates seamlessly with the existing WebSocket infrastructure:
+
+**GameEventCoordinator Integration**:
+- Uses existing `_send_game_state_partial_update()` method
+- Uses existing `_send_player_state_update()` method
+- Leverages existing Flutter data structuring via `_to_flutter_game_data()`
+- Maintains existing event schemas and validation
+
+**Frontend Event Handling**:
+- `game_state_partial_update` events are handled by `RecallGameEventListenerValidator`
+- `player_state_updated` events are handled by `RecallGameEventListenerValidator`
+- Events are routed to appropriate handlers in `RecallEventHandlerCallbacks`
+- State updates are applied via `RecallGameHelpers.updateUIState()`
+
+### Event Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Property Change] --> B{Change Type}
+    B -->|GameState Property| C[GameState.__setattr__]
+    B -->|Player Property| D[Player.__setattr__]
+    
+    C --> E[Track Change]
+    E --> F[Send GameState Partial Update]
+    F --> G[WebSocket: game_state_partial_update]
+    G --> H[Frontend: All Players in Room]
+    
+    D --> I[Track Change]
+    I --> J[Send Player State Update]
+    J --> K[WebSocket: player_state_updated]
+    K --> L[Frontend: Specific Player]
+    
+    I --> M[Trigger GameState Players Update]
+    M --> N[Track Players Change]
+    N --> O[Send GameState Partial Update]
+    O --> P[WebSocket: game_state_partial_update]
+    P --> Q[Frontend: All Players in Room]
+```
+
+### Benefits
+
+- **Real-time Synchronization**: All players receive updates immediately
+- **Network Efficiency**: Only changed data is transmitted
+- **Automatic Operation**: No manual update calls required
+- **Dual Targeting**: Individual player updates + room-wide synchronization
+- **Comprehensive Coverage**: Handles all types of property changes
+- **Seamless Integration**: Works with existing WebSocket infrastructure
 
 ## Room Management Flow
 

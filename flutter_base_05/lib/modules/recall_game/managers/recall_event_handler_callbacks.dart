@@ -387,6 +387,84 @@ class RecallEventHandlerCallbacks {
     );
   }
 
+  /// Handle game_state_partial_update event
+  static void handleGameStatePartialUpdate(Map<String, dynamic> data) {
+    final gameId = data['game_id']?.toString() ?? '';
+    final changedProperties = data['changed_properties'] as List<dynamic>? ?? [];
+    final partialGameState = data['partial_game_state'] as Map<String, dynamic>? ?? {};
+    // final timestamp = data['timestamp']?.toString() ?? '';
+    
+    // Get current game state to merge with partial updates
+    final currentGames = _getCurrentGamesMap();
+    if (!currentGames.containsKey(gameId)) {
+      return; // Game not found, ignore partial update
+    }
+    
+    final currentGame = currentGames[gameId] as Map<String, dynamic>? ?? {};
+    final currentGameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final currentGameState = currentGameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    // Merge partial updates with current game state
+    final updatedGameState = Map<String, dynamic>.from(currentGameState);
+    updatedGameState.addAll(partialGameState);
+    
+    // Update the game data with merged state using helper method
+    _updateGameData(gameId, {
+      'game_state': updatedGameState,
+    });
+    
+    // Update specific UI fields based on changed properties
+    final updates = <String, dynamic>{};
+    
+    for (final property in changedProperties) {
+      final propName = property.toString();
+      
+      switch (propName) {
+        case 'phase':
+          updates['gamePhase'] = updatedGameState['phase'] ?? 'playing';
+          break;
+        case 'current_player_id':
+          updates['currentPlayer'] = updatedGameState['current_player_id'];
+          break;
+        case 'draw_pile':
+          final drawPile = updatedGameState['drawPile'] as List<dynamic>? ?? [];
+          updates['drawPileCount'] = drawPile.length;
+          break;
+        case 'discard_pile':
+          final discardPile = updatedGameState['discardPile'] as List<dynamic>? ?? [];
+          updates['discardPileCount'] = discardPile.length;
+          updates['discardPile'] = discardPile;
+          break;
+        case 'recall_called_by':
+          updates['recallCalledBy'] = updatedGameState['recall_called_by'];
+          break;
+        case 'game_ended':
+          updates['isGameActive'] = !(updatedGameState['game_ended'] == true);
+          break;
+        case 'winner':
+          updates['winner'] = updatedGameState['winner'];
+          break;
+      }
+    }
+    
+    // Apply UI updates if any
+    if (updates.isNotEmpty) {
+      _updateGameInMap(gameId, updates);
+    }
+    
+    // Add session message about partial update
+    _addSessionMessage(
+      level: 'info',
+      title: 'Game State Updated',
+      message: 'Updated: ${changedProperties.join(', ')}',
+      data: {
+        'game_id': gameId,
+        'changed_properties': changedProperties,
+        'partial_updates': partialGameState,
+      },
+    );
+  }
+
   /// Handle player_state_updated event
   static void handlePlayerStateUpdated(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';

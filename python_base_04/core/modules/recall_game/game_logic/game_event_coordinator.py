@@ -5,7 +5,7 @@ This module handles all WebSocket event coordination for the Recall game,
 including event registration, routing, and handling.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
 
@@ -148,13 +148,10 @@ class GameEventCoordinator:
             return False
 
     def _send_to_all_players(self, game_id: str, event: str, data: dict) -> bool:
-        """Send event to all players in game"""
+        """Send event to all players in game using direct room broadcast"""
         try:
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                return False
-            for player_id, session_id in game.player_sessions.items():
-                self.websocket_manager.send_to_session(session_id, event, data)
+            # Use direct room broadcast instead of looping through players
+            self.websocket_manager.broadcast_to_room(game_id, event, data)
             return True
         except Exception as e:
             return False
@@ -165,7 +162,7 @@ class GameEventCoordinator:
         self._send_to_player(game_id, player_id, 'action_result', data)
 
     def _broadcast_game_action(self, game_id: str, action_type: str, action_data: Dict[str, Any], exclude_player_id: str = None):
-        """Broadcast game action to other players"""
+        """Broadcast game action to other players using direct room broadcast"""
         try:
             game = self.game_state_manager.get_game(game_id)
             if not game:
@@ -176,16 +173,15 @@ class GameEventCoordinator:
                 'action_type': action_type,
                 'action_data': action_data,
                 'game_state': self.game_state_manager._to_flutter_game_data(game),
+                'exclude_player_id': exclude_player_id,  # Include exclude info for client-side filtering
             }
-            for player_id, session_id in game.player_sessions.items():
-                if exclude_player_id and player_id == exclude_player_id:
-                    continue
-                self.websocket_manager.send_to_session(session_id, 'game_action', data)
+            # Use direct room broadcast instead of looping through players
+            self.websocket_manager.broadcast_to_room(game_id, 'game_action', data)
         except Exception as e:
             pass
 
     def _send_game_state_update(self, game_id: str):
-        """Send game state update to all players"""
+        """Send complete game state update to all players"""
         game = self.game_state_manager.get_game(game_id)
         if game:
             payload = {
@@ -194,6 +190,51 @@ class GameEventCoordinator:
                 'game_state': self.game_state_manager._to_flutter_game_data(game),
             }
             self._send_to_all_players(game_id, 'game_state_updated', payload)
+    
+    def _send_game_state_partial_update(self, game_id: str, changed_properties: List[str]):
+        """Send partial game state update with only changed properties to all players"""
+        try:
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                return
+            
+            # Get full game state in Flutter format
+            full_game_state = self.game_state_manager._to_flutter_game_data(game)
+            
+            # Extract only the changed properties
+            partial_state = {}
+            property_mapping = {
+                'phase': 'phase',
+                'current_player_id': 'currentPlayer',
+                'recall_called_by': 'recallCalledBy',
+                'game_ended': 'gameEnded',
+                'winner': 'winner',
+                'discard_pile': 'discardPile',
+                'draw_pile': 'drawPile',
+                'last_action_time': 'lastActivityTime',
+                'players': 'players',  # Special case - includes all players
+            }
+            
+            for prop in changed_properties:
+                flutter_key = property_mapping.get(prop)
+                if flutter_key and flutter_key in full_game_state:
+                    partial_state[flutter_key] = full_game_state[flutter_key]
+            
+            # Always include core identifiers
+            partial_state['gameId'] = game_id
+            partial_state['timestamp'] = datetime.now().isoformat()
+            
+            payload = {
+                'event_type': 'game_state_partial_update',
+                'game_id': game_id,
+                'changed_properties': changed_properties,
+                'partial_state': partial_state,
+            }
+            
+            self._send_to_all_players(game_id, 'game_state_partial_update', payload)
+            
+        except Exception as e:
+            pass
     
     def _send_player_state_update(self, game_id: str, player_id: str):
         """Send player state update including hand to the specific player"""
@@ -271,7 +312,7 @@ class GameEventCoordinator:
             pass
     
     def _send_round_completion_event(self, game_id: str, round_result: Dict[str, Any]):
-        """Send round completion event to all players"""
+        """Send round completion event to all players using direct room broadcast"""
         try:
             payload = {
                 'event_type': 'round_completed',
@@ -283,7 +324,8 @@ class GameEventCoordinator:
                 'game_phase': round_result.get('game_phase'),
                 'timestamp': datetime.now().isoformat()
             }
-            self._send_to_all_players(game_id, 'round_completed', payload)
+            # Use direct room broadcast instead of looping through players
+            self.websocket_manager.broadcast_to_room(game_id, 'round_completed', payload)
         except Exception as e:
             pass
 

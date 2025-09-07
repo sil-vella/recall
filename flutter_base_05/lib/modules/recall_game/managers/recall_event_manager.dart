@@ -86,6 +86,11 @@ class RecallEventManager {
     RecallEventHandlerCallbacks.handleGameStateUpdated(data);
   }
 
+  /// Handle game_state_partial_update event
+  void handleGameStatePartialUpdate(Map<String, dynamic> data) {
+    RecallEventHandlerCallbacks.handleGameStatePartialUpdate(data);
+  }
+
   /// Handle player_state_updated event
   void handlePlayerStateUpdated(Map<String, dynamic> data) {
     RecallEventHandlerCallbacks.handlePlayerStateUpdated(data);

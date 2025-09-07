@@ -57,6 +57,11 @@ class GameState:
         # Session tracking for individual player messaging
         self.player_sessions = {}  # player_id -> session_id
         self.session_players = {}  # session_id -> player_id
+        
+        # Auto-change detection for state updates
+        self._change_tracking_enabled = True
+        self._pending_changes = set()  # Track which properties have changed
+        self._initialized = True  # Flag to prevent tracking during initialization
     
     def add_player(self, player: Player, session_id: str = None) -> bool:
         """Add a player to the game"""
@@ -228,6 +233,60 @@ class GameState:
         """Get the game round handler"""
         from .game_round import GameRound
         return GameRound(self)
+    
+    # ========= AUTO-CHANGE DETECTION METHODS =========
+    
+    def __setattr__(self, name, value):
+        """Override __setattr__ to automatically detect property changes"""
+        # Skip tracking during initialization or for internal attributes
+        if not hasattr(self, '_initialized') or not self._initialized:
+            super().__setattr__(name, value)
+            return
+        
+        # Skip tracking for internal change detection attributes
+        if name.startswith('_') and name in ['_change_tracking_enabled', '_pending_changes', '_initialized']:
+            super().__setattr__(name, value)
+            return
+        
+        # Get current value for comparison
+        current_value = getattr(self, name, None)
+        
+        # Set the new value
+        super().__setattr__(name, value)
+        
+        # Track change if value actually changed and tracking is enabled
+        if (self._change_tracking_enabled and 
+            current_value != value and 
+            name not in ['_change_tracking_enabled', '_pending_changes', '_initialized']):
+            self._track_change(name)
+            self._send_changes_if_needed()
+    
+    def _track_change(self, property_name: str):
+        """Track that a property has changed"""
+        if self._change_tracking_enabled:
+            self._pending_changes.add(property_name)
+    
+    def _send_changes_if_needed(self):
+        """Send state updates if there are pending changes"""
+        if not self._change_tracking_enabled or not self._pending_changes:
+            return
+        
+        # Get coordinator and send partial update
+        if self.app_manager:
+            coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+            if coordinator:
+                coordinator._send_game_state_partial_update(self.game_id, list(self._pending_changes))
+        
+        # Clear pending changes
+        self._pending_changes.clear()
+    
+    def enable_change_tracking(self):
+        """Enable automatic change tracking"""
+        self._change_tracking_enabled = True
+    
+    def disable_change_tracking(self):
+        """Disable automatic change tracking"""
+        self._change_tracking_enabled = False
     
 
 

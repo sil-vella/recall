@@ -51,6 +51,10 @@ class RecallGameEventListenerValidator {
       schema: {'game_id', 'game_state', 'round_number', 'current_player', 'current_player_status', 'round_status', 'timestamp', 'reason', 'changes'},
       handlerMethod: 'handleGameStateUpdated',
     ),
+    'game_state_partial_update': EventConfig(
+      schema: {'game_id', 'changed_properties', 'partial_game_state', 'timestamp'},
+      handlerMethod: 'handleGameStatePartialUpdate',
+    ),
     'player_state_updated': EventConfig(
       schema: {'event_type', 'game_id', 'player_id', 'player_data', 'timestamp'},
       handlerMethod: 'handlePlayerStateUpdated',
@@ -224,6 +228,9 @@ class RecallGameEventListenerValidator {
           break;
         case 'handleGameStateUpdated':
           RecallEventHandlerCallbacks.handleGameStateUpdated(eventPayload);
+          break;
+        case 'handleGameStatePartialUpdate':
+          RecallEventHandlerCallbacks.handleGameStatePartialUpdate(eventPayload);
           break;
         case 'handlePlayerStateUpdated':
           RecallEventHandlerCallbacks.handlePlayerStateUpdated(eventPayload);

@@ -315,6 +315,11 @@ class GameInfoWidget extends StatelessWidget {
         chipText = 'Same Rank';
         chipIcon = Icons.flash_on;
         break;
+      case 'special_play_window':
+        chipColor = Colors.amber;
+        chipText = 'Special Play';
+        chipIcon = Icons.star;
+        break;
       case 'queen_peek':
         chipColor = Colors.pink;
         chipText = 'Queen Peek';

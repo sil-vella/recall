@@ -11,6 +11,8 @@ class GameConstants {
   static const String PHASE_SETUP = 'setup';
   static const String PHASE_PLAYING = 'playing';
   static const String PHASE_OUT_OF_TURN = 'out_of_turn';
+  static const String PHASE_SAME_RANK_WINDOW = 'same_rank_window';
+  static const String PHASE_SPECIAL_PLAY_WINDOW = 'special_play_window';
   static const String PHASE_RECALL = 'recall';
   static const String PHASE_FINISHED = 'finished';
   

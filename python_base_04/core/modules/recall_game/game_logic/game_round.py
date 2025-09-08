@@ -633,35 +633,26 @@ class GameRound:
             if not player:
                 return False
             
-            # Draw card based on source
+            # Draw card based on source using custom methods with auto change detection
             drawn_card = None
             
             if source == 'deck':
-                # Draw from draw pile (remove last card)
-                if not self.game_state.draw_pile:
+                # Draw from draw pile using custom method
+                drawn_card = self.game_state.draw_from_draw_pile()
+                if not drawn_card:
+                    custom_log(f"Failed to draw from draw pile for player {player_id}", level="ERROR")
                     return False
-                
-                drawn_card = self.game_state.draw_pile.pop()  # Remove last card
-                
-                # Manually trigger change detection for draw_pile
-                if hasattr(self.game_state, '_track_change'):
-                    self.game_state._track_change('draw_pile')
-                    self.game_state._send_changes_if_needed()
                 
                 # Check if draw pile is now empty (special game logic)
-                if len(self.game_state.draw_pile) == 0:
-                    pass
-                
+                if self.game_state.is_draw_pile_empty():
+                    custom_log("Draw pile is now empty", level="INFO")
                 
             elif source == 'discard':
-                # Take from discard pile (remove last card)
-                if not self.game_state.discard_pile:
+                # Take from discard pile using custom method
+                drawn_card = self.game_state.draw_from_discard_pile()
+                if not drawn_card:
+                    custom_log(f"Failed to draw from discard pile for player {player_id}", level="ERROR")
                     return False
-                
-                drawn_card = self.game_state.discard_pile.pop()  # Remove last card
-            
-            if not drawn_card:
-                return False
             
             # Add card to player's hand
             player.add_card_to_hand(drawn_card)
@@ -677,17 +668,17 @@ class GameRound:
             )
             
             if success:
-                # Log pile contents after successful draw
+                # Log pile contents after successful draw using helper methods
                 custom_log(f"=== PILE CONTENTS AFTER DRAW ===", isOn=LOGGING_SWITCH)
-                custom_log(f"Draw Pile Count: {len(self.game_state.draw_pile)}", isOn=LOGGING_SWITCH)
+                custom_log(f"Draw Pile Count: {self.game_state.get_draw_pile_count()}", isOn=LOGGING_SWITCH)
                 custom_log(f"Draw Pile Top 3: {[card.card_id for card in self.game_state.draw_pile[:3]]}", isOn=LOGGING_SWITCH)
-                custom_log(f"Discard Pile Count: {len(self.game_state.discard_pile)}", isOn=LOGGING_SWITCH)
+                custom_log(f"Discard Pile Count: {self.game_state.get_discard_pile_count()}", isOn=LOGGING_SWITCH)
                 custom_log(f"Discard Pile Top 3: {[card.card_id for card in self.game_state.discard_pile[:3]]}", isOn=LOGGING_SWITCH)
                 custom_log(f"Drawn Card: {drawn_card.card_id if drawn_card else 'None'}", isOn=LOGGING_SWITCH)
                 custom_log(f"=================================", isOn=LOGGING_SWITCH)
                 pass
             else:
-                custom_log(f"Failed to update player {player_id} status to PLAYING_CARD. Pile cards: {self.game_state.draw_pile} {self.game_state.discard_pile}", isOn=LOGGING_SWITCH)
+                custom_log(f"Failed to update player {player_id} status to PLAYING_CARD. Draw pile: {self.game_state.get_draw_pile_count()} cards, Discard pile: {self.game_state.get_discard_pile_count()} cards", isOn=LOGGING_SWITCH)
                 pass
             
             return True
@@ -736,13 +727,10 @@ class GameRound:
             # Remove card from player's hand
             removed_card = player.hand.pop(card_index)
             
-            # Add card to discard pile
-            self.game_state.discard_pile.append(removed_card)
-            
-            # Manually trigger change detection for discard_pile
-            if hasattr(self.game_state, '_track_change'):
-                self.game_state._track_change('discard_pile')
-                self.game_state._send_changes_if_needed()
+            # Add card to discard pile using custom method with auto change detection
+            if not self.game_state.add_to_discard_pile(removed_card):
+                custom_log(f"Failed to add card {card_id} to discard pile", level="ERROR")
+                return False
             
             # Now handle drawn card repositioning with correct indexes
             if drawn_card and drawn_card.card_id != card_id and drawn_card_original_index != -1:
@@ -819,6 +807,20 @@ class GameRound:
                     pass
                 
                 return False
+            
+            # SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
+            # Use the proper method to remove card with change detection
+            removed_card = player.remove_card_from_hand(card_id)
+            if not removed_card:
+                custom_log(f"Failed to remove card {card_id} from player {user_id} hand", level="ERROR")
+                return False
+            
+            # Add card to discard pile using custom method with auto change detection
+            if not self.game_state.add_to_discard_pile(removed_card):
+                custom_log(f"Failed to add card {card_id} to discard pile", level="ERROR")
+                return False
+            
+            custom_log(f"✅ Same rank play successful: {user_id} played {card_rank} of {card_suit} - card moved to discard pile", level="INFO")
             
             # Check for special cards (Jack/Queen) and store data if applicable
             special_card_data = self._check_special_card(user_id, action_data)

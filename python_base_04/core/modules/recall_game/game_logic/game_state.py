@@ -133,6 +133,141 @@ class GameState:
             return player_id
         return None
     
+    # ========= DISCARD PILE MANAGEMENT METHODS =========
+    
+    def add_to_discard_pile(self, card: Card) -> bool:
+        """Add a card to the discard pile with automatic change detection"""
+        try:
+            self.discard_pile.append(card)
+            
+            # Manually trigger change detection for discard_pile
+            if hasattr(self, '_track_change'):
+                self._track_change('discard_pile')
+                self._send_changes_if_needed()
+            
+            custom_log(f"Card {card.card_id} ({card.rank} of {card.suit}) added to discard pile", level="INFO")
+            return True
+        except Exception as e:
+            custom_log(f"Failed to add card to discard pile: {e}", level="ERROR")
+            return False
+    
+    def remove_from_discard_pile(self, card_id: str) -> Optional[Card]:
+        """Remove a card from the discard pile by card_id with automatic change detection"""
+        try:
+            for i, card in enumerate(self.discard_pile):
+                if card.card_id == card_id:
+                    removed_card = self.discard_pile.pop(i)
+                    
+                    # Manually trigger change detection for discard_pile
+                    if hasattr(self, '_track_change'):
+                        self._track_change('discard_pile')
+                        self._send_changes_if_needed()
+                    
+                    custom_log(f"Card {card_id} ({removed_card.rank} of {removed_card.suit}) removed from discard pile", level="INFO")
+                    return removed_card
+            
+            custom_log(f"Card {card_id} not found in discard pile", level="WARNING")
+            return None
+        except Exception as e:
+            custom_log(f"Failed to remove card from discard pile: {e}", level="ERROR")
+            return None
+    
+    def get_top_discard_card(self) -> Optional[Card]:
+        """Get the top card from the discard pile without removing it"""
+        if self.discard_pile:
+            return self.discard_pile[-1]
+        return None
+    
+    def clear_discard_pile(self) -> List[Card]:
+        """Clear the discard pile and return all cards with automatic change detection"""
+        try:
+            cleared_cards = self.discard_pile.copy()
+            self.discard_pile.clear()
+            
+            # Manually trigger change detection for discard_pile
+            if hasattr(self, '_track_change'):
+                self._track_change('discard_pile')
+                self._send_changes_if_needed()
+            
+            custom_log(f"Discard pile cleared, {len(cleared_cards)} cards removed", level="INFO")
+            return cleared_cards
+        except Exception as e:
+            custom_log(f"Failed to clear discard pile: {e}", level="ERROR")
+            return []
+    
+    # ========= DRAW PILE MANAGEMENT METHODS =========
+    
+    def draw_from_draw_pile(self) -> Optional[Card]:
+        """Draw a card from the draw pile with automatic change detection"""
+        try:
+            if not self.draw_pile:
+                custom_log("Cannot draw from empty draw pile", level="WARNING")
+                return None
+            
+            drawn_card = self.draw_pile.pop()
+            
+            # Manually trigger change detection for draw_pile
+            if hasattr(self, '_track_change'):
+                self._track_change('draw_pile')
+                self._send_changes_if_needed()
+            
+            custom_log(f"Card {drawn_card.card_id} ({drawn_card.rank} of {drawn_card.suit}) drawn from draw pile", level="INFO")
+            return drawn_card
+        except Exception as e:
+            custom_log(f"Failed to draw from draw pile: {e}", level="ERROR")
+            return None
+    
+    def draw_from_discard_pile(self) -> Optional[Card]:
+        """Draw a card from the discard pile with automatic change detection"""
+        try:
+            if not self.discard_pile:
+                custom_log("Cannot draw from empty discard pile", level="WARNING")
+                return None
+            
+            drawn_card = self.discard_pile.pop()
+            
+            # Manually trigger change detection for discard_pile
+            if hasattr(self, '_track_change'):
+                self._track_change('discard_pile')
+                self._send_changes_if_needed()
+            
+            custom_log(f"Card {drawn_card.card_id} ({drawn_card.rank} of {drawn_card.suit}) drawn from discard pile", level="INFO")
+            return drawn_card
+        except Exception as e:
+            custom_log(f"Failed to draw from discard pile: {e}", level="ERROR")
+            return None
+    
+    def add_to_draw_pile(self, card: Card) -> bool:
+        """Add a card to the draw pile with automatic change detection"""
+        try:
+            self.draw_pile.append(card)
+            
+            # Manually trigger change detection for draw_pile
+            if hasattr(self, '_track_change'):
+                self._track_change('draw_pile')
+                self._send_changes_if_needed()
+            
+            custom_log(f"Card {card.card_id} ({card.rank} of {card.suit}) added to draw pile", level="INFO")
+            return True
+        except Exception as e:
+            custom_log(f"Failed to add card to draw pile: {e}", level="ERROR")
+            return False
+    
+    def get_draw_pile_count(self) -> int:
+        """Get the number of cards in the draw pile"""
+        return len(self.draw_pile)
+    
+    def get_discard_pile_count(self) -> int:
+        """Get the number of cards in the discard pile"""
+        return len(self.discard_pile)
+    
+    def is_draw_pile_empty(self) -> bool:
+        """Check if the draw pile is empty"""
+        return len(self.draw_pile) == 0
+    
+    def is_discard_pile_empty(self) -> bool:
+        """Check if the discard pile is empty"""
+        return len(self.discard_pile) == 0
 
     
     def get_current_player(self) -> Optional[Player]:

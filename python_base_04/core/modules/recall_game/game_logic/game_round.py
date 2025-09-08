@@ -112,6 +112,8 @@ class GameRound:
                 if coordinator:
                     coordinator._send_game_state_update(self.game_state.game_id)
 
+            self._handle_special_cards_window()
+
             self._move_to_next_player()
             
             return True
@@ -507,9 +509,9 @@ class GameRound:
             updated_count = self.game_state.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
             custom_log(f"Updated {updated_count} players' status to WAITING", level="INFO")
             
-            # Set game state to ENDING_ROUND
-            self.game_state.phase = GamePhase.ENDING_ROUND
-            custom_log("Game phase changed to ENDING_ROUND", level="INFO")
+            # Set game state to SPECIAL_PLAY_WINDOW to handle special cards
+            self.game_state.phase = GamePhase.SPECIAL_PLAY_WINDOW
+            custom_log("Game phase changed to SPECIAL_PLAY_WINDOW", level="INFO")
             
             # Clear same_rank_data after changing game phase
             if self.same_rank_data:
@@ -537,6 +539,50 @@ class GameRound:
                 pass
         except Exception as e:
             pass
+
+    def _handle_special_cards_window(self):
+        """Handle special cards window - check for Jack/Queen special powers"""
+        try:
+            # Check if we have any special cards played
+            if not self.special_card_data:
+                custom_log("No special cards played in this round", level="INFO")
+                return
+            
+            custom_log(f"=== SPECIAL CARDS WINDOW ===", level="INFO")
+            custom_log(f"Found {len(self.special_card_data)} special cards played", level="INFO")
+            
+            # Log each special card and its power
+            for player_id, special_data in self.special_card_data.items():
+                card_rank = special_data.get('rank', 'unknown')
+                card_suit = special_data.get('suit', 'unknown')
+                special_power = special_data.get('special_power', 'unknown')
+                description = special_data.get('description', 'No description')
+                
+                custom_log(f"Player {player_id} played {card_rank} of {card_suit}", level="INFO")
+                custom_log(f"  Special Power: {special_power}", level="INFO")
+                custom_log(f"  Description: {description}", level="INFO")
+                
+                # TODO: Implement actual special card logic here
+                if special_power == 'jack_swap':
+                    custom_log(f"  TODO: Implement Jack swap logic for player {player_id}", level="INFO")
+                elif special_power == 'queen_peek':
+                    custom_log(f"  TODO: Implement Queen peek logic for player {player_id}", level="INFO")
+                else:
+                    custom_log(f"  Unknown special power: {special_power}", level="WARNING")
+            
+            custom_log(f"===========================", level="INFO")
+            
+            # Clear special card data after processing
+            if self.special_card_data:
+                self.special_card_data.clear()
+                custom_log("Special card data cleared", level="INFO")
+            
+            # Transition to ENDING_ROUND phase after processing special cards
+            self.game_state.phase = GamePhase.ENDING_ROUND
+            custom_log("Game phase changed to ENDING_ROUND after special cards processing", level="INFO")
+            
+        except Exception as e:
+            custom_log(f"Error in _handle_special_cards_window: {e}", level="ERROR")
 
     def _handle_draw_from_pile(self, player_id: str, action_data: Dict[str, Any]) -> bool:
         """Handle drawing a card from the deck or discard pile"""

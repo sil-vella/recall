@@ -24,6 +24,7 @@ class GamePhase(Enum):
     DEALING_CARDS = "dealing_cards"
     PLAYER_TURN = "player_turn"
     SAME_RANK_WINDOW = "same_rank_window"
+    SPECIAL_PLAY_WINDOW = "special_play_window"
     ENDING_ROUND = "ending_round"
     ENDING_TURN = "ending_turn"
     RECALL_CALLED = "recall_called"
@@ -968,6 +969,7 @@ class GameStateManager:
             'dealing_cards': 'setup',
             'player_turn': 'playing',
             'same_rank_window': 'same_rank_window',
+            'special_play_window': 'special_play_window',
             'ending_round': 'ending_round',
             'ending_turn': 'ending_turn',
             'recall_called': 'recall',

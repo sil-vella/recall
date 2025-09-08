@@ -70,7 +70,7 @@ class GameRound:
                 player = self.game_state.players.get(self.game_state.current_player_id)
                 if player:
                     player.set_status(PlayerStatus.DRAWING_CARD)
-                    custom_log(f"Player {self.game_state.current_player_id} status set to DRAWING_CARD", level="INFO")
+                    custom_log(f"Player {self.game_state.current_player_id} status set to DRAWING_CARD", level="INFO", isOn=LOGGING_SWITCH)
             
             # Initialize timed rounds if enabled
             if self.timed_rounds_enabled:
@@ -142,7 +142,7 @@ class GameRound:
                 player = self.game_state.players.get(self.game_state.current_player_id)
                 if player:
                     player.set_status(PlayerStatus.READY)
-                    custom_log(f"Player {self.game_state.current_player_id} status set to READY", level="INFO")
+                    custom_log(f"Player {self.game_state.current_player_id} status set to READY", level="INFO", isOn=LOGGING_SWITCH)
             
             # Find current player index
             current_index = -1
@@ -466,14 +466,14 @@ class GameRound:
     def _handle_same_rank_window(self, action_data: Dict[str, Any]) -> bool:
         """Handle same rank window action - sets all players to same_rank_window status"""
         try:
-            custom_log("Starting same rank window - setting all players to SAME_RANK_WINDOW status", level="INFO")
+            custom_log("Starting same rank window - setting all players to SAME_RANK_WINDOW status", level="INFO", isOn=LOGGING_SWITCH)
             
             # Set game state phase to SAME_RANK_WINDOW
             self.game_state.phase = GamePhase.SAME_RANK_WINDOW
             
             # Update all players' status to SAME_RANK_WINDOW efficiently (single game state update)
             updated_count = self.game_state.update_all_players_status(PlayerStatus.SAME_RANK_WINDOW, filter_active=True)
-            custom_log(f"Updated {updated_count} players' status to SAME_RANK_WINDOW", level="INFO")
+            custom_log(f"Updated {updated_count} players' status to SAME_RANK_WINDOW", level="INFO", isOn=LOGGING_SWITCH)
             
             # Set 5-second timer to automatically end same rank window
             self._start_same_rank_timer()
@@ -481,7 +481,7 @@ class GameRound:
             return True
             
         except Exception as e:
-            custom_log(f"Error in _handle_same_rank_window: {e}", level="ERROR")
+            custom_log(f"Error in _handle_same_rank_window: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
     
     def _start_same_rank_timer(self):
@@ -499,26 +499,26 @@ class GameRound:
     def _end_same_rank_window(self):
         """End the same rank window and transition to ENDING_ROUND phase"""
         try:
-            custom_log("Ending same rank window - resetting all players to WAITING status", level="INFO")
+            custom_log("Ending same rank window - resetting all players to WAITING status", level="INFO", isOn=LOGGING_SWITCH)
             
             # Log the same_rank_data before clearing it
             if self.same_rank_data:
-                custom_log(f"Same rank plays recorded: {len(self.same_rank_data)} players", level="INFO")
+                custom_log(f"Same rank plays recorded: {len(self.same_rank_data)} players", level="INFO", isOn=LOGGING_SWITCH)
                 for player_id, play_data in self.same_rank_data.items():
-                    custom_log(f"Player {player_id} played: {play_data.get('rank')} of {play_data.get('suit')}", level="INFO")
+                    custom_log(f"Player {player_id} played: {play_data.get('rank')} of {play_data.get('suit')}", level="INFO", isOn=LOGGING_SWITCH)
             else:
-                custom_log("No same rank plays recorded", level="INFO")
+                custom_log("No same rank plays recorded", level="INFO", isOn=LOGGING_SWITCH)
             
             # Update all players' status to WAITING efficiently (single game state update)
             updated_count = self.game_state.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
-            custom_log(f"Updated {updated_count} players' status to WAITING", level="INFO")
+            custom_log(f"Updated {updated_count} players' status to WAITING", level="INFO", isOn=LOGGING_SWITCH)
             
             # Don't set phase here - let _handle_special_cards_window decide based on special cards
             
             # Clear same_rank_data after changing game phase
             if self.same_rank_data:
                 self.same_rank_data.clear()
-                custom_log("Same rank data cleared", level="INFO")
+                custom_log("Same rank data cleared", level="INFO", isOn=LOGGING_SWITCH)
             
             # Send game state update to all players
             if self.game_state.app_manager:
@@ -547,18 +547,18 @@ class GameRound:
         try:
             # Check if we have any special cards played
             if not self.special_card_data:
-                custom_log("No special cards played in this round - transitioning directly to ENDING_ROUND", level="INFO")
+                custom_log("No special cards played in this round - transitioning directly to ENDING_ROUND", level="INFO", isOn=LOGGING_SWITCH)
                 # No special cards, go directly to ENDING_ROUND
                 self.game_state.phase = GamePhase.ENDING_ROUND
-                custom_log("Game phase changed to ENDING_ROUND (no special cards)", level="INFO")
+                custom_log("Game phase changed to ENDING_ROUND (no special cards)", level="INFO", isOn=LOGGING_SWITCH)
                 return
             
             # We have special cards, transition to SPECIAL_PLAY_WINDOW
             self.game_state.phase = GamePhase.SPECIAL_PLAY_WINDOW
-            custom_log("Game phase changed to SPECIAL_PLAY_WINDOW (special cards found)", level="INFO")
+            custom_log("Game phase changed to SPECIAL_PLAY_WINDOW (special cards found)", level="INFO", isOn=LOGGING_SWITCH)
             
-            custom_log(f"=== SPECIAL CARDS WINDOW ===", level="INFO")
-            custom_log(f"Found {len(self.special_card_data)} special cards played", level="INFO")
+            custom_log(f"=== SPECIAL CARDS WINDOW ===", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Found {len(self.special_card_data)} special cards played", level="INFO", isOn=LOGGING_SWITCH)
             
             # Create a list of players who played special cards for sequential processing
             self.special_card_players = list(self.special_card_data.keys())
@@ -568,14 +568,14 @@ class GameRound:
             self._process_next_special_card()
             
         except Exception as e:
-            custom_log(f"Error in _handle_special_cards_window: {e}", level="ERROR")
+            custom_log(f"Error in _handle_special_cards_window: {e}", level="ERROR", isOn=LOGGING_SWITCH)
     
     def _process_next_special_card(self):
         """Process the next player's special card with 10-second timer"""
         try:
             # Check if we've processed all special cards
             if self.current_special_card_index >= len(self.special_card_players):
-                custom_log("All special cards processed - transitioning to ENDING_ROUND", level="INFO")
+                custom_log("All special cards processed - transitioning to ENDING_ROUND", level="INFO", isOn=LOGGING_SWITCH)
                 self._end_special_cards_window()
                 return
             
@@ -588,21 +588,21 @@ class GameRound:
             special_power = special_data.get('special_power', 'unknown')
             description = special_data.get('description', 'No description')
             
-            custom_log(f"Processing special card for player {player_id}: {card_rank} of {card_suit}", level="INFO")
-            custom_log(f"  Special Power: {special_power}", level="INFO")
-            custom_log(f"  Description: {description}", level="INFO")
+            custom_log(f"Processing special card for player {player_id}: {card_rank} of {card_suit}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"  Special Power: {special_power}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"  Description: {description}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Set player status based on special power
             if special_power == 'jack_swap':
                 # Use the efficient batch update method to set player status
                 self.game_state.update_players_status_by_ids([player_id], PlayerStatus.JACK_SWAP)
-                custom_log(f"Player {player_id} status set to JACK_SWAP - 10 second timer started", level="INFO")
+                custom_log(f"Player {player_id} status set to JACK_SWAP - 10 second timer started", level="INFO", isOn=LOGGING_SWITCH)
             elif special_power == 'queen_peek':
                 # Use the efficient batch update method to set player status
                 self.game_state.update_players_status_by_ids([player_id], PlayerStatus.QUEEN_PEEK)
-                custom_log(f"Player {player_id} status set to QUEEN_PEEK - 10 second timer started", level="INFO")
+                custom_log(f"Player {player_id} status set to QUEEN_PEEK - 10 second timer started", level="INFO", isOn=LOGGING_SWITCH)
             else:
-                custom_log(f"Unknown special power: {special_power} for player {player_id}", level="WARNING")
+                custom_log(f"Unknown special power: {special_power} for player {player_id}", level="WARNING", isOn=LOGGING_SWITCH)
                 # Skip this player and move to next
                 self.current_special_card_index += 1
                 self._process_next_special_card()
@@ -611,10 +611,10 @@ class GameRound:
             # Start 10-second timer for this player's special card play
             self.special_card_timer = threading.Timer(10.0, self._on_special_card_timer_expired)
             self.special_card_timer.start()
-            custom_log(f"10-second timer started for player {player_id}'s {special_power}", level="INFO")
+            custom_log(f"10-second timer started for player {player_id}'s {special_power}", level="INFO", isOn=LOGGING_SWITCH)
             
         except Exception as e:
-            custom_log(f"Error in _process_next_special_card: {e}", level="ERROR")
+            custom_log(f"Error in _process_next_special_card: {e}", level="ERROR", isOn=LOGGING_SWITCH)
     
     def _on_special_card_timer_expired(self):
         """Called when the special card timer expires - move to next player or end window"""
@@ -623,7 +623,7 @@ class GameRound:
             if self.current_special_card_index < len(self.special_card_players):
                 player_id = self.special_card_players[self.current_special_card_index]
                 self.game_state.update_players_status_by_ids([player_id], PlayerStatus.WAITING)
-                custom_log(f"Player {player_id} special card timer expired - status reset to WAITING", level="INFO")
+                custom_log(f"Player {player_id} special card timer expired - status reset to WAITING", level="INFO", isOn=LOGGING_SWITCH)
             
             # Move to next player
             self.current_special_card_index += 1
@@ -632,7 +632,7 @@ class GameRound:
             self._process_next_special_card()
             
         except Exception as e:
-            custom_log(f"Error in _on_special_card_timer_expired: {e}", level="ERROR")
+            custom_log(f"Error in _on_special_card_timer_expired: {e}", level="ERROR", isOn=LOGGING_SWITCH)
     
     def _end_special_cards_window(self):
         """End the special cards window and transition to ENDING_ROUND"""
@@ -643,7 +643,7 @@ class GameRound:
             # Clear special card data
             if self.special_card_data:
                 self.special_card_data.clear()
-                custom_log("Special card data cleared", level="INFO")
+                custom_log("Special card data cleared", level="INFO", isOn=LOGGING_SWITCH)
             
             # Reset special card processing variables
             self.special_card_players = []
@@ -651,10 +651,10 @@ class GameRound:
             
             # Transition to ENDING_ROUND phase
             self.game_state.phase = GamePhase.ENDING_ROUND
-            custom_log("Game phase changed to ENDING_ROUND after special cards processing", level="INFO")
+            custom_log("Game phase changed to ENDING_ROUND after special cards processing", level="INFO", isOn=LOGGING_SWITCH)
             
         except Exception as e:
-            custom_log(f"Error in _end_special_cards_window: {e}", level="ERROR")
+            custom_log(f"Error in _end_special_cards_window: {e}", level="ERROR", isOn=LOGGING_SWITCH)
     
     def cancel_special_card_timer(self):
         """Cancel the special card timer if it's running"""
@@ -662,9 +662,9 @@ class GameRound:
             if hasattr(self, 'special_card_timer') and self.special_card_timer and self.special_card_timer.is_alive():
                 self.special_card_timer.cancel()
                 self.special_card_timer = None
-                custom_log("Special card timer cancelled", level="INFO")
+                custom_log("Special card timer cancelled", level="INFO", isOn=LOGGING_SWITCH)
         except Exception as e:
-            custom_log(f"Error cancelling special card timer: {e}", level="ERROR")
+            custom_log(f"Error cancelling special card timer: {e}", level="ERROR", isOn=LOGGING_SWITCH)
 
     def _handle_draw_from_pile(self, player_id: str, action_data: Dict[str, Any]) -> bool:
         """Handle drawing a card from the deck or discard pile"""
@@ -691,18 +691,18 @@ class GameRound:
                 # Draw from draw pile using custom method
                 drawn_card = self.game_state.draw_from_draw_pile()
                 if not drawn_card:
-                    custom_log(f"Failed to draw from draw pile for player {player_id}", level="ERROR")
+                    custom_log(f"Failed to draw from draw pile for player {player_id}", level="ERROR", isOn=LOGGING_SWITCH)
                     return False
                 
                 # Check if draw pile is now empty (special game logic)
                 if self.game_state.is_draw_pile_empty():
-                    custom_log("Draw pile is now empty", level="INFO")
+                    custom_log("Draw pile is now empty", level="INFO", isOn=LOGGING_SWITCH)
                 
             elif source == 'discard':
                 # Take from discard pile using custom method
                 drawn_card = self.game_state.draw_from_discard_pile()
                 if not drawn_card:
-                    custom_log(f"Failed to draw from discard pile for player {player_id}", level="ERROR")
+                    custom_log(f"Failed to draw from discard pile for player {player_id}", level="ERROR", isOn=LOGGING_SWITCH)
                     return False
             
             # Add card to player's hand
@@ -713,7 +713,7 @@ class GameRound:
             
             # Change player status from DRAWING_CARD to PLAYING_CARD after successful draw
             player.set_status(PlayerStatus.PLAYING_CARD)
-            custom_log(f"Player {player_id} status changed from DRAWING_CARD to PLAYING_CARD", level="INFO")
+            custom_log(f"Player {player_id} status changed from DRAWING_CARD to PLAYING_CARD", level="INFO", isOn=LOGGING_SWITCH)
             
             # Log pile contents after successful draw using helper methods
             custom_log(f"=== PILE CONTENTS AFTER DRAW ===", isOn=LOGGING_SWITCH)
@@ -772,7 +772,7 @@ class GameRound:
             
             # Add card to discard pile using custom method with auto change detection
             if not self.game_state.add_to_discard_pile(removed_card):
-                custom_log(f"Failed to add card {card_id} to discard pile", level="ERROR")
+                custom_log(f"Failed to add card {card_id} to discard pile", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
             # Now handle drawn card repositioning with correct indexes
@@ -862,15 +862,15 @@ class GameRound:
             # Use the proper method to remove card with change detection
             removed_card = player.remove_card_from_hand(card_id)
             if not removed_card:
-                custom_log(f"Failed to remove card {card_id} from player {user_id} hand", level="ERROR")
+                custom_log(f"Failed to remove card {card_id} from player {user_id} hand", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
             # Add card to discard pile using custom method with auto change detection
             if not self.game_state.add_to_discard_pile(removed_card):
-                custom_log(f"Failed to add card {card_id} to discard pile", level="ERROR")
+                custom_log(f"Failed to add card {card_id} to discard pile", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
-            custom_log(f"✅ Same rank play successful: {user_id} played {card_rank} of {card_suit} - card moved to discard pile", level="INFO")
+            custom_log(f"✅ Same rank play successful: {user_id} played {card_rank} of {card_suit} - card moved to discard pile", level="INFO", isOn=LOGGING_SWITCH)
             
             # Check for special cards (Jack/Queen) and store data if applicable
             special_card_data = self._check_special_card(user_id, action_data)
@@ -937,7 +937,7 @@ class GameRound:
             # Draw penalty card from draw pile using custom method with auto change detection
             penalty_card = self.game_state.draw_from_draw_pile()
             if not penalty_card:
-                custom_log(f"Failed to draw penalty card from draw pile for player {player_id}", level="ERROR")
+                custom_log(f"Failed to draw penalty card from draw pile for player {player_id}", level="ERROR", isOn=LOGGING_SWITCH)
                 return None
             
             # Add penalty card to player's hand
@@ -945,7 +945,7 @@ class GameRound:
             
             # Update player status to indicate they received a penalty
             player.set_status(PlayerStatus.WAITING)  # Reset to waiting after penalty
-            custom_log(f"Player {player_id} status reset to WAITING after penalty", level="INFO")
+            custom_log(f"Player {player_id} status reset to WAITING after penalty", level="INFO", isOn=LOGGING_SWITCH)
             
             return penalty_card
             

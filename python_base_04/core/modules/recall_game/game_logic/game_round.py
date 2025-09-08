@@ -34,7 +34,6 @@ class GameRound:
         self.same_rank_timer = None  # Timer for same rank window
         self.special_card_timer = None  # Timer for special card window
         self.special_card_players = []  # List of players who played special cards
-        self.current_special_card_index = 0  # Current player being processed
 
         self.round_status = "waiting"  # waiting, active, paused, completed
         
@@ -575,15 +574,13 @@ class GameRound:
             for i, card in enumerate(self.special_card_data):
                 custom_log(f"  {i+1}. Player {card['player_id']}: {card['rank']} of {card['suit']} ({card['special_power']})", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Use the chronological list directly for sequential processing
+            # Create a working copy for processing (we'll remove cards as we process them)
             self.special_card_players = self.special_card_data.copy()
-            self.current_special_card_index = 0
             
-            custom_log(f"Processing special cards. self.special_card_players: {self.special_card_players} data: {self.special_card_data}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Starting special card processing with {len(self.special_card_players)} cards", level="INFO", isOn=LOGGING_SWITCH)
                      
             # Start processing the first player's special card
             self._process_next_special_card()
-            custom_log(f"Processed first player's special card - transitioning to ENDING_ROUND. self.special_card_players: {self.special_card_players} data: {self.special_card_data}", level="INFO", isOn=LOGGING_SWITCH)
             
         except Exception as e:
             custom_log(f"Error in _handle_special_cards_window: {e}", level="ERROR", isOn=LOGGING_SWITCH)
@@ -591,14 +588,14 @@ class GameRound:
     def _process_next_special_card(self):
         """Process the next player's special card with 10-second timer"""
         try:
-            # Check if we've processed all special cards
-            if self.current_special_card_index >= len(self.special_card_players):
+            # Check if we've processed all special cards (list is empty)
+            if not self.special_card_players:
                 custom_log("All special cards processed - transitioning to ENDING_ROUND", level="INFO", isOn=LOGGING_SWITCH)
                 self._end_special_cards_window()
                 return
             
-            # Get current special card data (now stored chronologically)
-            special_data = self.special_card_players[self.current_special_card_index]
+            # Get the first special card data (chronological order)
+            special_data = self.special_card_players[0]
             player_id = special_data.get('player_id', 'unknown')
             
             card_rank = special_data.get('rank', 'unknown')
@@ -609,6 +606,7 @@ class GameRound:
             custom_log(f"Processing special card for player {player_id}: {card_rank} of {card_suit}", level="INFO", isOn=LOGGING_SWITCH)
             custom_log(f"  Special Power: {special_power}", level="INFO", isOn=LOGGING_SWITCH)
             custom_log(f"  Description: {description}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"  Remaining cards to process: {len(self.special_card_players)}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Set player status based on special power
             if special_power == 'jack_swap':
@@ -621,8 +619,8 @@ class GameRound:
                 custom_log(f"Player {player_id} status set to QUEEN_PEEK - 10 second timer started", level="INFO", isOn=LOGGING_SWITCH)
             else:
                 custom_log(f"Unknown special power: {special_power} for player {player_id}", level="WARNING", isOn=LOGGING_SWITCH)
-                # Skip this player and move to next
-                self.current_special_card_index += 1
+                # Remove this card and move to next
+                self.special_card_players.pop(0)
                 self._process_next_special_card()
                 return
             
@@ -637,15 +635,16 @@ class GameRound:
     def _on_special_card_timer_expired(self):
         """Called when the special card timer expires - move to next player or end window"""
         try:
-            # Reset current player's status to WAITING
-            if self.current_special_card_index < len(self.special_card_players):
-                special_data = self.special_card_players[self.current_special_card_index]
+            # Reset current player's status to WAITING (if there are still cards to process)
+            if self.special_card_players:
+                special_data = self.special_card_players[0]
                 player_id = special_data.get('player_id', 'unknown')
                 self.game_state.update_players_status_by_ids([player_id], PlayerStatus.WAITING)
                 custom_log(f"Player {player_id} special card timer expired - status reset to WAITING", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # Move to next player
-            self.current_special_card_index += 1
+                
+                # Remove the processed card from the list
+                self.special_card_players.pop(0)
+                custom_log(f"Removed processed card from list. Remaining cards: {len(self.special_card_players)}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Process next special card or end window
             self._process_next_special_card()
@@ -666,7 +665,6 @@ class GameRound:
             
             # Reset special card processing variables
             self.special_card_players = []
-            self.current_special_card_index = 0
             
             # Transition to ENDING_ROUND phase
             self.game_state.phase = GamePhase.ENDING_ROUND

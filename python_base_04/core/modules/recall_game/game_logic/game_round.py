@@ -48,6 +48,9 @@ class GameRound:
     def start_turn(self) -> Dict[str, Any]:
         """Start a new round of gameplay"""
         try:
+            custom_log(f"DEBUG: start_turn() called - current phase: {self.game_state.phase}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"DEBUG: special_card_data length before clearing: {len(self.special_card_data) if self.special_card_data else 0}", level="INFO", isOn=LOGGING_SWITCH)
+            
             # Clear same rank data
             if self.same_rank_data:
                 self.same_rank_data.clear()
@@ -118,11 +121,6 @@ class GameRound:
                 coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
                 if coordinator:
                     coordinator._send_game_state_update(self.game_state.game_id)
-
-            # Only handle special cards window if we're in a phase that needs it
-            # Don't call it if we're already in ENDING_ROUND (to prevent infinite loop)
-            if self.game_state.phase not in [GamePhase.SPECIAL_PLAY_WINDOW, GamePhase.ENDING_ROUND]:
-                self._handle_special_cards_window()
 
             custom_log(f"Continued turn in phase: {self.game_state.phase}", level="INFO", isOn=LOGGING_SWITCH)
             # Only move to next player if we're not in special play window
@@ -569,6 +567,8 @@ class GameRound:
             custom_log("Game phase changed to SPECIAL_PLAY_WINDOW (special cards found)", level="INFO", isOn=LOGGING_SWITCH)
             
             custom_log(f"=== SPECIAL CARDS WINDOW ===", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"DEBUG: special_card_data length: {len(self.special_card_data) if self.special_card_data else 0}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"DEBUG: Current game phase: {self.game_state.phase}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Count total special cards (now stored chronologically)
             total_special_cards = len(self.special_card_data)
@@ -625,8 +625,6 @@ class GameRound:
                 custom_log(f"Unknown special power: {special_power} for player {player_id}", level="WARNING", isOn=LOGGING_SWITCH)
                 # Remove this card and move to next
                 self.special_card_players.pop(0)
-                self._process_next_special_card()
-                return
             
             # Start 10-second timer for this player's special card play
             self.special_card_timer = threading.Timer(10.0, self._on_special_card_timer_expired)

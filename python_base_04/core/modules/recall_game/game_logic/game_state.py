@@ -456,8 +456,11 @@ class GameState:
     
     def get_round(self):
         """Get the game round handler"""
-        from .game_round import GameRound
-        return GameRound(self)
+        # Create a persistent GameRound instance if it doesn't exist
+        if not hasattr(self, '_game_round_instance'):
+            from .game_round import GameRound
+            self._game_round_instance = GameRound(self)
+        return self._game_round_instance
     
     # ========= AUTO-CHANGE DETECTION METHODS =========
     

@@ -63,7 +63,10 @@ class GameRound:
             
             # Set current player status to drawing_card (they need to draw a card)
             if self.game_state.current_player_id:
-                self.update_player_state_and_send(self.game_state.current_player_id, PlayerStatus.DRAWING_CARD)
+                player = self.game_state.players.get(self.game_state.current_player_id)
+                if player:
+                    player.set_status(PlayerStatus.DRAWING_CARD)
+                    custom_log(f"Player {self.game_state.current_player_id} status set to DRAWING_CARD", level="INFO")
             
             # Initialize timed rounds if enabled
             if self.timed_rounds_enabled:
@@ -130,7 +133,10 @@ class GameRound:
             
             # Set current player status to ready before moving to next player
             if self.game_state.current_player_id:
-                self.update_player_state_and_send(self.game_state.current_player_id, PlayerStatus.READY)
+                player = self.game_state.players.get(self.game_state.current_player_id)
+                if player:
+                    player.set_status(PlayerStatus.READY)
+                    custom_log(f"Player {self.game_state.current_player_id} status set to READY", level="INFO")
             
             # Find current player index
             current_index = -1
@@ -415,87 +421,6 @@ class GameRound:
             return {}
 
     
-    
-    def update_player_state_and_send(self, player_id: str, new_status: PlayerStatus, **additional_data) -> bool:
-        """
-        Unified method to update player state and automatically send the update to frontend
-        
-        Args:
-            player_id: ID of the player to update
-            new_status: New PlayerStatus enum value
-            **additional_data: Additional data to update (score, hand, etc.)
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            custom_log(f"update_player_state_and_send called for player {player_id} with new_status {new_status}", isOn=LOGGING_SWITCH)
-            if player_id not in self.game_state.players:
-                custom_log(f"Player {player_id} not found in game state", isOn=LOGGING_SWITCH)
-                return False
-            
-            player = self.game_state.players[player_id]
-            
-            # Update player status
-            old_status = player.status
-            custom_log(f"Updating player {player_id} status from {old_status} to {new_status}", isOn=LOGGING_SWITCH)
-            player.set_status(new_status)
-            
-            # Update additional data if provided
-            for key, value in additional_data.items():
-                if hasattr(player, key):
-                    setattr(player, key, value)
-                else:
-                    pass
-            
-            # Automatically send the updated state to the specific player
-            if self.game_state.app_manager:
-                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    custom_log(f"Calling coordinator._send_player_state_update for player {player_id}", isOn=LOGGING_SWITCH)
-                    coordinator._send_player_state_update(self.game_state.game_id, player_id)
-                else:
-                    custom_log("No coordinator found in app_manager", isOn=LOGGING_SWITCH)
-            else:
-                custom_log("No app_manager found in game_state", isOn=LOGGING_SWITCH)
-            
-            custom_log(f"Successfully updated player {player_id} status to {new_status}", isOn=LOGGING_SWITCH)
-            return True
-            
-        except Exception as e:
-            custom_log(f"Error in update_player_state_and_send: {e}", isOn=LOGGING_SWITCH)
-            return False
-    
-    def update_all_players_state_and_send(self, new_status: PlayerStatus, **additional_data) -> bool:
-        """
-        Update all active players' status and automatically send updates to all players
-        
-        Args:
-            new_status: New PlayerStatus enum value for all players
-            **additional_data: Additional data to update for all players
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            updated_count = 0
-            for player_id, player in self.game_state.players.items():
-                if player.is_active:
-                    success = self.update_player_state_and_send(player_id, new_status, **additional_data)
-                    if success:
-                        updated_count += 1
-            
-            # Send updates to all players
-            if self.game_state.app_manager:
-                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator._send_player_state_update_to_all(self.game_state.game_id)
-            
-            return True
-            
-        except Exception as e:
-            return False
-            
     # =======================================================
     # Player Actions
     # =======================================================
@@ -535,16 +460,14 @@ class GameRound:
     def _handle_same_rank_window(self, action_data: Dict[str, Any]) -> bool:
         """Handle same rank window action - sets all players to same_rank_window status"""
         try:
-                        
+            custom_log("Starting same rank window - setting all players to SAME_RANK_WINDOW status", level="INFO")
+            
             # Set game state phase to SAME_RANK_WINDOW
             self.game_state.phase = GamePhase.SAME_RANK_WINDOW
             
-            # Change all players' status to same_rank_window using unified method
-            success = self.update_all_players_state_and_send(PlayerStatus.SAME_RANK_WINDOW)
-            if success:
-                pass
-            else:
-                pass
+            # Update all players' status to SAME_RANK_WINDOW efficiently (single game state update)
+            updated_count = self.game_state.update_all_players_status(PlayerStatus.SAME_RANK_WINDOW, filter_active=True)
+            custom_log(f"Updated {updated_count} players' status to SAME_RANK_WINDOW", level="INFO")
             
             # Set 5-second timer to automatically end same rank window
             self._start_same_rank_timer()
@@ -552,6 +475,7 @@ class GameRound:
             return True
             
         except Exception as e:
+            custom_log(f"Error in _handle_same_rank_window: {e}", level="ERROR")
             return False
     
     def _start_same_rank_timer(self):
@@ -569,29 +493,28 @@ class GameRound:
     def _end_same_rank_window(self):
         """End the same rank window and transition to ENDING_ROUND phase"""
         try:
+            custom_log("Ending same rank window - resetting all players to WAITING status", level="INFO")
             
             # Log the same_rank_data before clearing it
             if self.same_rank_data:
+                custom_log(f"Same rank plays recorded: {len(self.same_rank_data)} players", level="INFO")
                 for player_id, play_data in self.same_rank_data.items():
-                    pass
+                    custom_log(f"Player {player_id} played: {play_data.get('rank')} of {play_data.get('suit')}", level="INFO")
             else:
-                pass
+                custom_log("No same rank plays recorded", level="INFO")
             
-            # Reset all players' status to WAITING using unified method
-            success = self.update_all_players_state_and_send(PlayerStatus.WAITING)
-            if success:
-                pass
-            else:
-                pass
+            # Update all players' status to WAITING efficiently (single game state update)
+            updated_count = self.game_state.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
+            custom_log(f"Updated {updated_count} players' status to WAITING", level="INFO")
             
             # Set game state to ENDING_ROUND
             self.game_state.phase = GamePhase.ENDING_ROUND
+            custom_log("Game phase changed to ENDING_ROUND", level="INFO")
             
             # Clear same_rank_data after changing game phase
             if self.same_rank_data:
                 self.same_rank_data.clear()
-            else:
-                pass
+                custom_log("Same rank data cleared", level="INFO")
             
             # Send game state update to all players
             if self.game_state.app_manager:
@@ -660,26 +583,18 @@ class GameRound:
             # Set the drawn card property
             player.set_drawn_card(drawn_card)
             
-            # Change player status from DRAWING_CARD to PLAYING_CARD after successful draw using unified method
-            success = self.update_player_state_and_send(
-                player_id=player_id,
-                new_status=PlayerStatus.PLAYING_CARD,
-                drawn_card=drawn_card
-            )
+            # Change player status from DRAWING_CARD to PLAYING_CARD after successful draw
+            player.set_status(PlayerStatus.PLAYING_CARD)
+            custom_log(f"Player {player_id} status changed from DRAWING_CARD to PLAYING_CARD", level="INFO")
             
-            if success:
-                # Log pile contents after successful draw using helper methods
-                custom_log(f"=== PILE CONTENTS AFTER DRAW ===", isOn=LOGGING_SWITCH)
-                custom_log(f"Draw Pile Count: {self.game_state.get_draw_pile_count()}", isOn=LOGGING_SWITCH)
-                custom_log(f"Draw Pile Top 3: {[card.card_id for card in self.game_state.draw_pile[:3]]}", isOn=LOGGING_SWITCH)
-                custom_log(f"Discard Pile Count: {self.game_state.get_discard_pile_count()}", isOn=LOGGING_SWITCH)
-                custom_log(f"Discard Pile Top 3: {[card.card_id for card in self.game_state.discard_pile[:3]]}", isOn=LOGGING_SWITCH)
-                custom_log(f"Drawn Card: {drawn_card.card_id if drawn_card else 'None'}", isOn=LOGGING_SWITCH)
-                custom_log(f"=================================", isOn=LOGGING_SWITCH)
-                pass
-            else:
-                custom_log(f"Failed to update player {player_id} status to PLAYING_CARD. Draw pile: {self.game_state.get_draw_pile_count()} cards, Discard pile: {self.game_state.get_discard_pile_count()} cards", isOn=LOGGING_SWITCH)
-                pass
+            # Log pile contents after successful draw using helper methods
+            custom_log(f"=== PILE CONTENTS AFTER DRAW ===", isOn=LOGGING_SWITCH)
+            custom_log(f"Draw Pile Count: {self.game_state.get_draw_pile_count()}", isOn=LOGGING_SWITCH)
+            custom_log(f"Draw Pile Top 3: {[card.card_id for card in self.game_state.draw_pile[:3]]}", isOn=LOGGING_SWITCH)
+            custom_log(f"Discard Pile Count: {self.game_state.get_discard_pile_count()}", isOn=LOGGING_SWITCH)
+            custom_log(f"Discard Pile Top 3: {[card.card_id for card in self.game_state.discard_pile[:3]]}", isOn=LOGGING_SWITCH)
+            custom_log(f"Drawn Card: {drawn_card.card_id if drawn_card else 'None'}", isOn=LOGGING_SWITCH)
+            custom_log(f"=================================", isOn=LOGGING_SWITCH)
             
             return True
             
@@ -884,27 +799,18 @@ class GameRound:
             if not player:
                 return None
             
-            # Draw penalty card from draw pile
-            penalty_card = self.game_state.draw_pile.pop()  # Remove last card
-            
-            # Manually trigger change detection for draw_pile
-            if hasattr(self.game_state, '_track_change'):
-                self.game_state._track_change('draw_pile')
-                self.game_state._send_changes_if_needed()
+            # Draw penalty card from draw pile using custom method with auto change detection
+            penalty_card = self.game_state.draw_from_draw_pile()
+            if not penalty_card:
+                custom_log(f"Failed to draw penalty card from draw pile for player {player_id}", level="ERROR")
+                return None
             
             # Add penalty card to player's hand
             player.add_card_to_hand(penalty_card)
             
             # Update player status to indicate they received a penalty
-            success = self.update_player_state_and_send(
-                player_id=player_id,
-                new_status=PlayerStatus.WAITING  # Reset to waiting after penalty
-            )
-            
-            if success:
-                pass
-            else:
-                pass
+            player.set_status(PlayerStatus.WAITING)  # Reset to waiting after penalty
+            custom_log(f"Player {player_id} status reset to WAITING after penalty", level="INFO")
             
             return penalty_card
             

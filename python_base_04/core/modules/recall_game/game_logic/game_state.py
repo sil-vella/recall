@@ -269,6 +269,73 @@ class GameState:
         """Check if the discard pile is empty"""
         return len(self.discard_pile) == 0
 
+    # ========= PLAYER STATUS MANAGEMENT METHODS =========
+    
+    def update_all_players_status(self, status: PlayerStatus, filter_active: bool = True) -> int:
+        """
+        Update all players' status efficiently with a single game state update.
+        
+        This method updates the game_state.players property once, which triggers
+        a single WebSocket update to the room instead of individual player updates.
+        
+        Args:
+            status (PlayerStatus): The new status to set for all players
+            filter_active (bool): If True, only update active players. If False, update all players.
+            
+        Returns:
+            int: Number of players whose status was updated
+        """
+        try:
+            updated_count = 0
+            
+            # Update each player's status directly (this will trigger individual change detection)
+            for player_id, player in self.players.items():
+                if not filter_active or player.is_active:
+                    player.set_status(status)
+                    updated_count += 1
+                    custom_log(f"Player {player_id} status updated to {status.value}", level="INFO")
+            
+            # The individual player.set_status() calls will trigger their own change detection
+            # and send individual player updates. The game_state.players property change
+            # will also trigger a game state update, ensuring all clients get the latest data.
+            
+            custom_log(f"Updated {updated_count} players' status to {status.value}", level="INFO")
+            return updated_count
+            
+        except Exception as e:
+            custom_log(f"Failed to update all players status: {e}", level="ERROR")
+            return 0
+    
+    def update_players_status_by_ids(self, player_ids: List[str], status: PlayerStatus) -> int:
+        """
+        Update specific players' status efficiently.
+        
+        Args:
+            player_ids (List[str]): List of player IDs to update
+            status (PlayerStatus): The new status to set
+            
+        Returns:
+            int: Number of players whose status was updated
+        """
+        try:
+            updated_count = 0
+            
+            for player_id in player_ids:
+                if player_id in self.players:
+                    player = self.players[player_id]
+                    player.set_status(status)
+                    updated_count += 1
+                    custom_log(f"Player {player_id} status updated to {status.value}", level="INFO")
+                else:
+                    custom_log(f"Player {player_id} not found in game", level="WARNING")
+            
+            custom_log(f"Updated {updated_count} players' status to {status.value}", level="INFO")
+            return updated_count
+            
+        except Exception as e:
+            custom_log(f"Failed to update players status by IDs: {e}", level="ERROR")
+            return 0
+
     
     def get_current_player(self) -> Optional[Player]:
         """Get the current player"""
@@ -751,8 +818,10 @@ class GameStateManager:
             game.last_action_time = time.time()
             game_round = game.get_round()
             
-            # Update player statuses using unified method in game round
-            game_round.update_all_players_state_and_send(PlayerStatus.READY)
+            # Update all players' status to READY efficiently (single game state update)
+            updated_count = game.update_all_players_status(PlayerStatus.READY, filter_active=True)
+            custom_log(f"Updated {updated_count} players' status to READY for game start", level="INFO")
+            
             round_result = game_round.start_turn()
             
             if round_result.get('error'):

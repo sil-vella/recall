@@ -116,7 +116,9 @@ class GameRound:
                 if coordinator:
                     coordinator._send_game_state_update(self.game_state.game_id)
 
-            if self.game_state.phase != GamePhase.SPECIAL_PLAY_WINDOW:
+            # Only handle special cards window if we're in a phase that needs it
+            # Don't call it if we're already in ENDING_ROUND (to prevent infinite loop)
+            if self.game_state.phase not in [GamePhase.SPECIAL_PLAY_WINDOW, GamePhase.ENDING_ROUND]:
                 self._handle_special_cards_window()
 
             # Only move to next player if we're not in special play window

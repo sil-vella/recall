@@ -10,11 +10,12 @@ from enum import Enum
 from ..models.card import Card, CardDeck
 from ..utils.deck_factory import DeckFactory
 from ..models.player import Player, HumanPlayer, ComputerPlayer, PlayerType, PlayerStatus
-from tools.logger.custom_logging import custom_log, LOGGING_SWITCH
+from tools.logger.custom_logging import custom_log
 from datetime import datetime
 import time
 import uuid
 
+LOGGING_SWITCH = True
 
 class GamePhase(Enum):
     """Game phases"""

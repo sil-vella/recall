@@ -799,9 +799,9 @@ class GameStateManager:
             game.phase = GamePhase.DEALING_CARDS
             game.game_start_time = time.time()
             
-            # Build deterministic deck from factory, then deal
-            from ..utils.deck_factory import DeckFactory
-            factory = DeckFactory(game.game_id)
+            # Build deck from factory (normal or testing based on TESTING_SWITCH), then deal
+            from ..utils.deck_factory import get_deck_factory
+            factory = get_deck_factory(game.game_id)
             game.deck.cards = factory.build_deck(
                 include_jokers=True,  # Standard deck cards (including jokers, queens, jacks, kings)
             )

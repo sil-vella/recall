@@ -110,7 +110,7 @@ class GameRound:
     def continue_turn(self):
         """Complete the current round after a player action"""
         try:
-
+            custom_log(f"Continuing turn in phase: {self.game_state.phase}", level="INFO", isOn=LOGGING_SWITCH)
             if self.game_state.app_manager:
                 coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
                 if coordinator:
@@ -121,6 +121,7 @@ class GameRound:
             if self.game_state.phase not in [GamePhase.SPECIAL_PLAY_WINDOW, GamePhase.ENDING_ROUND]:
                 self._handle_special_cards_window()
 
+            custom_log(f"Continued turn in phase: {self.game_state.phase}", level="INFO", isOn=LOGGING_SWITCH)
             # Only move to next player if we're not in special play window
             # During special play window, we stay with the current player
             if self.game_state.phase == GamePhase.ENDING_ROUND:
@@ -521,10 +522,8 @@ class GameRound:
             
             # Don't set phase here - let _handle_special_cards_window decide based on special cards
             
-            # Clear same_rank_data after changing game phase
-            if self.same_rank_data:
-                self.same_rank_data.clear()
-                custom_log("Same rank data cleared", level="INFO", isOn=LOGGING_SWITCH)
+            # Clear same_rank_data after changing game phase using custom method
+            self.game_state.clear_same_rank_data()
             
             # Send game state update to all players
             if self.game_state.app_manager:
@@ -580,8 +579,11 @@ class GameRound:
             self.special_card_players = self.special_card_data.copy()
             self.current_special_card_index = 0
             
+            custom_log(f"Processing special cards. self.special_card_players: {self.special_card_players} data: {self.special_card_data}", level="INFO", isOn=LOGGING_SWITCH)
+                     
             # Start processing the first player's special card
             self._process_next_special_card()
+            custom_log(f"Processed first player's special card - transitioning to ENDING_ROUND. self.special_card_players: {self.special_card_players} data: {self.special_card_data}", level="INFO", isOn=LOGGING_SWITCH)
             
         except Exception as e:
             custom_log(f"Error in _handle_special_cards_window: {e}", level="ERROR", isOn=LOGGING_SWITCH)

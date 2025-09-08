@@ -336,7 +336,22 @@ class GameState:
             custom_log(f"Failed to update players status by IDs: {e}", level="ERROR")
             return 0
 
-    
+    def clear_same_rank_data(self) -> None:
+        """
+        Clear the same_rank_data list with auto-change detection.
+        
+        This method ensures that clearing the same_rank_data triggers
+        the automatic change detection system for WebSocket updates.
+        """
+        try:
+            if hasattr(self, 'same_rank_data') and self.same_rank_data:
+                self.same_rank_data.clear()
+                custom_log("Same rank data cleared via custom method", level="INFO", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("Same rank data was already empty or doesn't exist", level="DEBUG", isOn=LOGGING_SWITCH)
+        except Exception as e:
+            custom_log(f"Error clearing same rank data: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+
     def get_current_player(self) -> Optional[Player]:
         """Get the current player"""
         return self.players.get(self.current_player_id)

@@ -31,6 +31,7 @@ class GameRound:
 
         self.same_rank_data = {} # player_id -> same_rank_data
         self.special_card_data = [] # chronological list of special cards
+        custom_log(f"DEBUG: GameRound instance created - special_card_data initialized", level="INFO", isOn=LOGGING_SWITCH)
         self.same_rank_timer = None  # Timer for same rank window
         self.special_card_timer = None  # Timer for special card window
         self.special_card_players = []  # List of players who played special cards
@@ -1004,6 +1005,7 @@ class GameRound:
                     'timestamp': time.time(),
                     'description': 'Can switch any two cards between players'
                 }
+                custom_log(f"DEBUG: special_card_data length before adding Jack: {len(self.special_card_data)}", level="INFO", isOn=LOGGING_SWITCH)
                 self.special_card_data.append(special_card_info)
                 custom_log(f"DEBUG: special_card_data length after adding Jack: {len(self.special_card_data)}", level="INFO", isOn=LOGGING_SWITCH)
                 custom_log(f"Added Jack special card for player {player_id}: {card_rank} of {card_suit} (chronological order)", level="INFO", isOn=LOGGING_SWITCH)
@@ -1019,6 +1021,7 @@ class GameRound:
                     'timestamp': time.time(),
                     'description': 'Can look at one card from any player\'s hand'
                 }
+                custom_log(f"DEBUG: special_card_data length before adding Queen: {len(self.special_card_data)}", level="INFO", isOn=LOGGING_SWITCH)
                 self.special_card_data.append(special_card_info)
                 custom_log(f"DEBUG: special_card_data length after adding Queen: {len(self.special_card_data)}", level="INFO", isOn=LOGGING_SWITCH)
                 custom_log(f"Added Queen special card for player {player_id}: {card_rank} of {card_suit} (chronological order)", level="INFO", isOn=LOGGING_SWITCH)

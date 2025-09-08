@@ -9,6 +9,7 @@ with game actions.
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import time
+import threading
 from .game_state import GameState, GamePhase
 from ..models.player import Player, PlayerStatus
 from ..models.card import Card
@@ -31,6 +32,9 @@ class GameRound:
         self.same_rank_data = {} # player_id -> same_rank_data
         self.special_card_data = {} # player_id -> special_card_data
         self.same_rank_timer = None  # Timer for same rank window
+        self.special_card_timer = None  # Timer for special card window
+        self.special_card_players = []  # List of players who played special cards
+        self.current_special_card_index = 0  # Current player being processed
 
         self.round_status = "waiting"  # waiting, active, paused, completed
         
@@ -539,7 +543,7 @@ class GameRound:
             pass
 
     def _handle_special_cards_window(self):
-        """Handle special cards window - check for Jack/Queen special powers"""
+        """Handle special cards window - process each player's special card with 10-second timer"""
         try:
             # Check if we have any special cards played
             if not self.special_card_data:
@@ -556,38 +560,111 @@ class GameRound:
             custom_log(f"=== SPECIAL CARDS WINDOW ===", level="INFO")
             custom_log(f"Found {len(self.special_card_data)} special cards played", level="INFO")
             
-            # Log each special card and its power
-            for player_id, special_data in self.special_card_data.items():
-                card_rank = special_data.get('rank', 'unknown')
-                card_suit = special_data.get('suit', 'unknown')
-                special_power = special_data.get('special_power', 'unknown')
-                description = special_data.get('description', 'No description')
-                
-                custom_log(f"Player {player_id} played {card_rank} of {card_suit}", level="INFO")
-                custom_log(f"  Special Power: {special_power}", level="INFO")
-                custom_log(f"  Description: {description}", level="INFO")
-                
-                # TODO: Implement actual special card logic here
-                if special_power == 'jack_swap':
-                    custom_log(f"  TODO: Implement Jack swap logic for player {player_id}", level="INFO")
-                elif special_power == 'queen_peek':
-                    custom_log(f"  TODO: Implement Queen peek logic for player {player_id}", level="INFO")
-                else:
-                    custom_log(f"  Unknown special power: {special_power}", level="WARNING")
+            # Create a list of players who played special cards for sequential processing
+            self.special_card_players = list(self.special_card_data.keys())
+            self.current_special_card_index = 0
             
-            custom_log(f"===========================", level="INFO")
+            # Start processing the first player's special card
+            self._process_next_special_card()
             
-            # Clear special card data after processing
+        except Exception as e:
+            custom_log(f"Error in _handle_special_cards_window: {e}", level="ERROR")
+    
+    def _process_next_special_card(self):
+        """Process the next player's special card with 10-second timer"""
+        try:
+            # Check if we've processed all special cards
+            if self.current_special_card_index >= len(self.special_card_players):
+                custom_log("All special cards processed - transitioning to ENDING_ROUND", level="INFO")
+                self._end_special_cards_window()
+                return
+            
+            # Get current player and their special card data
+            player_id = self.special_card_players[self.current_special_card_index]
+            special_data = self.special_card_data[player_id]
+            
+            card_rank = special_data.get('rank', 'unknown')
+            card_suit = special_data.get('suit', 'unknown')
+            special_power = special_data.get('special_power', 'unknown')
+            description = special_data.get('description', 'No description')
+            
+            custom_log(f"Processing special card for player {player_id}: {card_rank} of {card_suit}", level="INFO")
+            custom_log(f"  Special Power: {special_power}", level="INFO")
+            custom_log(f"  Description: {description}", level="INFO")
+            
+            # Set player status based on special power
+            if special_power == 'jack_swap':
+                # Use the efficient batch update method to set player status
+                self.game_state.update_players_status_by_ids([player_id], PlayerStatus.JACK_SWAP)
+                custom_log(f"Player {player_id} status set to JACK_SWAP - 10 second timer started", level="INFO")
+            elif special_power == 'queen_peek':
+                # Use the efficient batch update method to set player status
+                self.game_state.update_players_status_by_ids([player_id], PlayerStatus.QUEEN_PEEK)
+                custom_log(f"Player {player_id} status set to QUEEN_PEEK - 10 second timer started", level="INFO")
+            else:
+                custom_log(f"Unknown special power: {special_power} for player {player_id}", level="WARNING")
+                # Skip this player and move to next
+                self.current_special_card_index += 1
+                self._process_next_special_card()
+                return
+            
+            # Start 10-second timer for this player's special card play
+            self.special_card_timer = threading.Timer(10.0, self._on_special_card_timer_expired)
+            self.special_card_timer.start()
+            custom_log(f"10-second timer started for player {player_id}'s {special_power}", level="INFO")
+            
+        except Exception as e:
+            custom_log(f"Error in _process_next_special_card: {e}", level="ERROR")
+    
+    def _on_special_card_timer_expired(self):
+        """Called when the special card timer expires - move to next player or end window"""
+        try:
+            # Reset current player's status to WAITING
+            if self.current_special_card_index < len(self.special_card_players):
+                player_id = self.special_card_players[self.current_special_card_index]
+                self.game_state.update_players_status_by_ids([player_id], PlayerStatus.WAITING)
+                custom_log(f"Player {player_id} special card timer expired - status reset to WAITING", level="INFO")
+            
+            # Move to next player
+            self.current_special_card_index += 1
+            
+            # Process next special card or end window
+            self._process_next_special_card()
+            
+        except Exception as e:
+            custom_log(f"Error in _on_special_card_timer_expired: {e}", level="ERROR")
+    
+    def _end_special_cards_window(self):
+        """End the special cards window and transition to ENDING_ROUND"""
+        try:
+            # Cancel any running timer
+            self.cancel_special_card_timer()
+            
+            # Clear special card data
             if self.special_card_data:
                 self.special_card_data.clear()
                 custom_log("Special card data cleared", level="INFO")
             
-            # Transition to ENDING_ROUND phase after processing special cards
+            # Reset special card processing variables
+            self.special_card_players = []
+            self.current_special_card_index = 0
+            
+            # Transition to ENDING_ROUND phase
             self.game_state.phase = GamePhase.ENDING_ROUND
             custom_log("Game phase changed to ENDING_ROUND after special cards processing", level="INFO")
             
         except Exception as e:
-            custom_log(f"Error in _handle_special_cards_window: {e}", level="ERROR")
+            custom_log(f"Error in _end_special_cards_window: {e}", level="ERROR")
+    
+    def cancel_special_card_timer(self):
+        """Cancel the special card timer if it's running"""
+        try:
+            if hasattr(self, 'special_card_timer') and self.special_card_timer and self.special_card_timer.is_alive():
+                self.special_card_timer.cancel()
+                self.special_card_timer = None
+                custom_log("Special card timer cancelled", level="INFO")
+        except Exception as e:
+            custom_log(f"Error cancelling special card timer: {e}", level="ERROR")
 
     def _handle_draw_from_pile(self, player_id: str, action_data: Dict[str, Any]) -> bool:
         """Handle drawing a card from the deck or discard pile"""

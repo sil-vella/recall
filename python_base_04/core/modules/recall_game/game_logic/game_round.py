@@ -530,7 +530,8 @@ class GameRound:
                 if coordinator:
                     coordinator._send_game_state_update(self.game_state.game_id)
 
-            self.continue_turn()
+            # Don't call continue_turn() here - let _end_special_cards_window() handle it
+            # after special cards are processed (if any)
             
         except Exception as e:
             pass
@@ -555,6 +556,8 @@ class GameRound:
                 # No special cards, go directly to ENDING_ROUND
                 self.game_state.phase = GamePhase.ENDING_ROUND
                 custom_log("Game phase changed to ENDING_ROUND (no special cards)", level="INFO", isOn=LOGGING_SWITCH)
+                # Continue with normal turn flow since there are no special cards to process
+                self.continue_turn()
                 return
             
             # We have special cards, transition to SPECIAL_PLAY_WINDOW

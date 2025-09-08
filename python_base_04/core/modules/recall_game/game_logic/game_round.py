@@ -48,13 +48,17 @@ class GameRound:
     def start_turn(self) -> Dict[str, Any]:
         """Start a new round of gameplay"""
         try:
-                        # Clear same rank data
+            # Clear same rank data
             if self.same_rank_data:
                 self.same_rank_data.clear()
             
-            # Clear special card data
-            if self.special_card_data:
+            # Only clear special card data if we're not in the middle of processing special cards
+            # This prevents clearing data during special card processing
+            if self.special_card_data and self.game_state.phase not in [GamePhase.SPECIAL_PLAY_WINDOW]:
                 self.special_card_data.clear()
+                custom_log("Special card data cleared in start_turn (new turn)", level="INFO", isOn=LOGGING_SWITCH)
+            elif self.special_card_data and self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
+                custom_log("Special card data NOT cleared in start_turn (processing special cards)", level="INFO", isOn=LOGGING_SWITCH)
                 
             # Initialize round state
             self.round_start_time = time.time()

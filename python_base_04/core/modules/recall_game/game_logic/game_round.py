@@ -394,7 +394,7 @@ class GameRound:
                 return self._handle_draw_from_pile(user_id, action_data)
             elif action == 'play_card':
                 play_result = self._handle_play_card(user_id, action_data)
-                special_card_data = self._check_special_card(user_id, action_data)
+                # Note: _handle_play_card already calls _check_special_card internally
                 same_rank_data = self._handle_same_rank_window(action_data)
                 return play_result
             elif action == 'same_rank_play':
@@ -889,7 +889,13 @@ class GameRound:
             custom_log(f"✅ Same rank play successful: {user_id} played {card_rank} of {card_suit} - card moved to discard pile", level="INFO", isOn=LOGGING_SWITCH)
             
             # Check for special cards (Jack/Queen) and store data if applicable
-            special_card_data = self._check_special_card(user_id, action_data)
+            # Pass the correct card data structure to _check_special_card
+            card_data = {
+                'card_id': card_id,
+                'rank': card_rank,
+                'suit': card_suit
+            }
+            self._check_special_card(user_id, card_data)
             
             # Create play data structure
             play_data = {

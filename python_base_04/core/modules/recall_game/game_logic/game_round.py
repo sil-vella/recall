@@ -58,10 +58,14 @@ class GameRound:
             # Only clear special card data if we're not in the middle of processing special cards
             # This prevents clearing data during special card processing
             if self.special_card_data and self.game_state.phase not in [GamePhase.SPECIAL_PLAY_WINDOW]:
+                custom_log(f"DEBUG: Clearing {len(self.special_card_data)} special cards in start_turn (phase: {self.game_state.phase})", level="INFO", isOn=LOGGING_SWITCH)
                 self.special_card_data.clear()
                 custom_log("Special card data cleared in start_turn (new turn)", level="INFO", isOn=LOGGING_SWITCH)
             elif self.special_card_data and self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
+                custom_log(f"DEBUG: NOT clearing {len(self.special_card_data)} special cards in start_turn (processing special cards)", level="INFO", isOn=LOGGING_SWITCH)
                 custom_log("Special card data NOT cleared in start_turn (processing special cards)", level="INFO", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("DEBUG: No special card data to clear in start_turn", level="INFO", isOn=LOGGING_SWITCH)
                 
             # Initialize round state
             self.round_start_time = time.time()
@@ -1001,6 +1005,7 @@ class GameRound:
                     'description': 'Can switch any two cards between players'
                 }
                 self.special_card_data.append(special_card_info)
+                custom_log(f"DEBUG: special_card_data length after adding Jack: {len(self.special_card_data)}", level="INFO", isOn=LOGGING_SWITCH)
                 custom_log(f"Added Jack special card for player {player_id}: {card_rank} of {card_suit} (chronological order)", level="INFO", isOn=LOGGING_SWITCH)
                 
             elif card_rank == 'queen':
@@ -1015,6 +1020,7 @@ class GameRound:
                     'description': 'Can look at one card from any player\'s hand'
                 }
                 self.special_card_data.append(special_card_info)
+                custom_log(f"DEBUG: special_card_data length after adding Queen: {len(self.special_card_data)}", level="INFO", isOn=LOGGING_SWITCH)
                 custom_log(f"Added Queen special card for player {player_id}: {card_rank} of {card_suit} (chronological order)", level="INFO", isOn=LOGGING_SWITCH)
                 
             else:

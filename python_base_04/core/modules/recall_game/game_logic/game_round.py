@@ -121,7 +121,7 @@ class GameRound:
 
             # Only move to next player if we're not in special play window
             # During special play window, we stay with the current player
-            if self.game_state.phase != GamePhase.SPECIAL_PLAY_WINDOW:
+            if self.game_state.phase == GamePhase.ENDING_ROUND:
                 self._move_to_next_player()
             
             return True
@@ -530,8 +530,8 @@ class GameRound:
                 if coordinator:
                     coordinator._send_game_state_update(self.game_state.game_id)
 
-            # Don't call continue_turn() here - let _end_special_cards_window() handle it
-            # after special cards are processed (if any)
+            # Check for special cards and handle them
+            self._handle_special_cards_window()
             
         except Exception as e:
             pass

@@ -809,6 +809,13 @@ class GameRound:
             custom_log(f"Played Card: {card_to_play.card_id if card_to_play else 'None'}", isOn=LOGGING_SWITCH)
             custom_log(f"=================================", isOn=LOGGING_SWITCH)
             
+            # Check if the played card has special powers (Jack/Queen)
+            self._check_special_card(player_id, {
+                'card_id': card_id,
+                'rank': card_to_play.rank,
+                'suit': card_to_play.suit
+            })
+            
             return True
             
         except Exception as e:

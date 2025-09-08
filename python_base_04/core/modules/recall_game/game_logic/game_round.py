@@ -30,7 +30,7 @@ class GameRound:
         self.actions_performed = []
 
         self.same_rank_data = {} # player_id -> same_rank_data
-        self.special_card_data = {} # player_id -> special_card_data
+        self.special_card_data = [] # chronological list of special cards
         self.same_rank_timer = None  # Timer for same rank window
         self.special_card_timer = None  # Timer for special card window
         self.special_card_players = []  # List of players who played special cards
@@ -559,20 +559,16 @@ class GameRound:
             
             custom_log(f"=== SPECIAL CARDS WINDOW ===", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Count total special cards across all players
-            total_special_cards = sum(len(cards) for cards in self.special_card_data.values())
-            custom_log(f"Found {total_special_cards} special cards played across {len(self.special_card_data)} players", level="INFO", isOn=LOGGING_SWITCH)
+            # Count total special cards (now stored chronologically)
+            total_special_cards = len(self.special_card_data)
+            custom_log(f"Found {total_special_cards} special cards played in chronological order", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Log details of all special cards
-            for player_id, cards in self.special_card_data.items():
-                for card in cards:
-                    custom_log(f"  Player {player_id}: {card['rank']} of {card['suit']} ({card['special_power']})", level="INFO", isOn=LOGGING_SWITCH)
+            # Log details of all special cards in chronological order
+            for i, card in enumerate(self.special_card_data):
+                custom_log(f"  {i+1}. Player {card['player_id']}: {card['rank']} of {card['suit']} ({card['special_power']})", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Create a flat list of all special cards for sequential processing
-            self.special_card_players = []
-            for player_id, cards in self.special_card_data.items():
-                for card in cards:
-                    self.special_card_players.append((player_id, card))
+            # Use the chronological list directly for sequential processing
+            self.special_card_players = self.special_card_data.copy()
             self.current_special_card_index = 0
             
             # Start processing the first player's special card
@@ -590,8 +586,9 @@ class GameRound:
                 self._end_special_cards_window()
                 return
             
-            # Get current player and their special card data
-            player_id, special_data = self.special_card_players[self.current_special_card_index]
+            # Get current special card data (now stored chronologically)
+            special_data = self.special_card_players[self.current_special_card_index]
+            player_id = special_data.get('player_id', 'unknown')
             
             card_rank = special_data.get('rank', 'unknown')
             card_suit = special_data.get('suit', 'unknown')
@@ -631,7 +628,8 @@ class GameRound:
         try:
             # Reset current player's status to WAITING
             if self.current_special_card_index < len(self.special_card_players):
-                player_id, special_data = self.special_card_players[self.current_special_card_index]
+                special_data = self.special_card_players[self.current_special_card_index]
+                player_id = special_data.get('player_id', 'unknown')
                 self.game_state.update_players_status_by_ids([player_id], PlayerStatus.WAITING)
                 custom_log(f"Player {player_id} special card timer expired - status reset to WAITING", level="INFO", isOn=LOGGING_SWITCH)
             
@@ -971,11 +969,7 @@ class GameRound:
             card_suit = action_data.get('suit', 'unknown')
             
             if card_rank == 'jack':
-                # Initialize player's special cards list if it doesn't exist
-                if player_id not in self.special_card_data:
-                    self.special_card_data[player_id] = []
-                
-                # Store special card data for jack (append to list to support multiple cards)
+                # Store special card data chronologically (not grouped by player)
                 special_card_info = {
                     'player_id': player_id,
                     'card_id': card_id,
@@ -985,15 +979,11 @@ class GameRound:
                     'timestamp': time.time(),
                     'description': 'Can switch any two cards between players'
                 }
-                self.special_card_data[player_id].append(special_card_info)
-                custom_log(f"Added Jack special card for player {player_id}: {card_rank} of {card_suit}", level="INFO", isOn=LOGGING_SWITCH)
+                self.special_card_data.append(special_card_info)
+                custom_log(f"Added Jack special card for player {player_id}: {card_rank} of {card_suit} (chronological order)", level="INFO", isOn=LOGGING_SWITCH)
                 
             elif card_rank == 'queen':
-                # Initialize player's special cards list if it doesn't exist
-                if player_id not in self.special_card_data:
-                    self.special_card_data[player_id] = []
-                
-                # Store special card data for queen (append to list to support multiple cards)
+                # Store special card data chronologically (not grouped by player)
                 special_card_info = {
                     'player_id': player_id,
                     'card_id': card_id,
@@ -1003,8 +993,8 @@ class GameRound:
                     'timestamp': time.time(),
                     'description': 'Can look at one card from any player\'s hand'
                 }
-                self.special_card_data[player_id].append(special_card_info)
-                custom_log(f"Added Queen special card for player {player_id}: {card_rank} of {card_suit}", level="INFO", isOn=LOGGING_SWITCH)
+                self.special_card_data.append(special_card_info)
+                custom_log(f"Added Queen special card for player {player_id}: {card_rank} of {card_suit} (chronological order)", level="INFO", isOn=LOGGING_SWITCH)
                 
             else:
                 pass

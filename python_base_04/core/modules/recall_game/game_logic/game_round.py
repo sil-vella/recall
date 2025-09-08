@@ -558,10 +558,21 @@ class GameRound:
             custom_log("Game phase changed to SPECIAL_PLAY_WINDOW (special cards found)", level="INFO", isOn=LOGGING_SWITCH)
             
             custom_log(f"=== SPECIAL CARDS WINDOW ===", level="INFO", isOn=LOGGING_SWITCH)
-            custom_log(f"Found {len(self.special_card_data)} special cards played", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Create a list of players who played special cards for sequential processing
-            self.special_card_players = list(self.special_card_data.keys())
+            # Count total special cards across all players
+            total_special_cards = sum(len(cards) for cards in self.special_card_data.values())
+            custom_log(f"Found {total_special_cards} special cards played across {len(self.special_card_data)} players", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Log details of all special cards
+            for player_id, cards in self.special_card_data.items():
+                for card in cards:
+                    custom_log(f"  Player {player_id}: {card['rank']} of {card['suit']} ({card['special_power']})", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Create a flat list of all special cards for sequential processing
+            self.special_card_players = []
+            for player_id, cards in self.special_card_data.items():
+                for card in cards:
+                    self.special_card_players.append((player_id, card))
             self.current_special_card_index = 0
             
             # Start processing the first player's special card
@@ -580,8 +591,7 @@ class GameRound:
                 return
             
             # Get current player and their special card data
-            player_id = self.special_card_players[self.current_special_card_index]
-            special_data = self.special_card_data[player_id]
+            player_id, special_data = self.special_card_players[self.current_special_card_index]
             
             card_rank = special_data.get('rank', 'unknown')
             card_suit = special_data.get('suit', 'unknown')
@@ -621,7 +631,7 @@ class GameRound:
         try:
             # Reset current player's status to WAITING
             if self.current_special_card_index < len(self.special_card_players):
-                player_id = self.special_card_players[self.current_special_card_index]
+                player_id, special_data = self.special_card_players[self.current_special_card_index]
                 self.game_state.update_players_status_by_ids([player_id], PlayerStatus.WAITING)
                 custom_log(f"Player {player_id} special card timer expired - status reset to WAITING", level="INFO", isOn=LOGGING_SWITCH)
             
@@ -961,9 +971,12 @@ class GameRound:
             card_suit = action_data.get('suit', 'unknown')
             
             if card_rank == 'jack':
+                # Initialize player's special cards list if it doesn't exist
+                if player_id not in self.special_card_data:
+                    self.special_card_data[player_id] = []
                 
-                # Store special card data for jack
-                self.special_card_data[player_id] = {
+                # Store special card data for jack (append to list to support multiple cards)
+                special_card_info = {
                     'player_id': player_id,
                     'card_id': card_id,
                     'rank': card_rank,
@@ -972,11 +985,16 @@ class GameRound:
                     'timestamp': time.time(),
                     'description': 'Can switch any two cards between players'
                 }
+                self.special_card_data[player_id].append(special_card_info)
+                custom_log(f"Added Jack special card for player {player_id}: {card_rank} of {card_suit}", level="INFO", isOn=LOGGING_SWITCH)
                 
             elif card_rank == 'queen':
+                # Initialize player's special cards list if it doesn't exist
+                if player_id not in self.special_card_data:
+                    self.special_card_data[player_id] = []
                 
-                # Store special card data for queen
-                self.special_card_data[player_id] = {
+                # Store special card data for queen (append to list to support multiple cards)
+                special_card_info = {
                     'player_id': player_id,
                     'card_id': card_id,
                     'rank': card_rank,
@@ -985,11 +1003,12 @@ class GameRound:
                     'timestamp': time.time(),
                     'description': 'Can look at one card from any player\'s hand'
                 }
+                self.special_card_data[player_id].append(special_card_info)
+                custom_log(f"Added Queen special card for player {player_id}: {card_rank} of {card_suit}", level="INFO", isOn=LOGGING_SWITCH)
                 
             else:
                 pass
-            for pid, special_data in self.special_card_data.items():
-                pass
+                
         except Exception as e:
-            pass
+            custom_log(f"Error in _check_special_card: {e}", level="ERROR", isOn=LOGGING_SWITCH)
     

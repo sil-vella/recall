@@ -118,7 +118,10 @@ class GameRound:
 
             self._handle_special_cards_window()
 
-            self._move_to_next_player()
+            # Only move to next player if we're not in special play window
+            # During special play window, we stay with the current player
+            if self.game_state.phase != GamePhase.SPECIAL_PLAY_WINDOW:
+                self._move_to_next_player()
             
             return True
             

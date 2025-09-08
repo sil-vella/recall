@@ -10,7 +10,7 @@ from enum import Enum
 from ..models.card import Card, CardDeck
 from ..utils.deck_factory import DeckFactory
 from ..models.player import Player, HumanPlayer, ComputerPlayer, PlayerType, PlayerStatus
-from tools.logger.custom_logging import custom_log
+from tools.logger.custom_logging import custom_log, LOGGING_SWITCH
 from datetime import datetime
 import time
 import uuid
@@ -326,11 +326,11 @@ class GameState:
                     player = self.players[player_id]
                     player.set_status(status)
                     updated_count += 1
-                    custom_log(f"Player {player_id} status updated to {status.value}", level="INFO")
+                    custom_log(f"Player {player_id} status updated to {status.value}", level="INFO", isOn=LOGGING_SWITCH)
                 else:
-                    custom_log(f"Player {player_id} not found in game", level="WARNING")
+                    custom_log(f"Player {player_id} not found in game", level="WARNING", isOn=LOGGING_SWITCH)
             
-            custom_log(f"Updated {updated_count} players' status to {status.value}", level="INFO")
+            custom_log(f"Updated {updated_count} players' status to {status.value}", level="INFO", isOn=LOGGING_SWITCH)
             return updated_count
             
         except Exception as e:

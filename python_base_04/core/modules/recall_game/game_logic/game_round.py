@@ -509,9 +509,7 @@ class GameRound:
             updated_count = self.game_state.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
             custom_log(f"Updated {updated_count} players' status to WAITING", level="INFO")
             
-            # Set game state to SPECIAL_PLAY_WINDOW to handle special cards
-            self.game_state.phase = GamePhase.SPECIAL_PLAY_WINDOW
-            custom_log("Game phase changed to SPECIAL_PLAY_WINDOW", level="INFO")
+            # Don't set phase here - let _handle_special_cards_window decide based on special cards
             
             # Clear same_rank_data after changing game phase
             if self.same_rank_data:
@@ -545,8 +543,15 @@ class GameRound:
         try:
             # Check if we have any special cards played
             if not self.special_card_data:
-                custom_log("No special cards played in this round", level="INFO")
+                custom_log("No special cards played in this round - transitioning directly to ENDING_ROUND", level="INFO")
+                # No special cards, go directly to ENDING_ROUND
+                self.game_state.phase = GamePhase.ENDING_ROUND
+                custom_log("Game phase changed to ENDING_ROUND (no special cards)", level="INFO")
                 return
+            
+            # We have special cards, transition to SPECIAL_PLAY_WINDOW
+            self.game_state.phase = GamePhase.SPECIAL_PLAY_WINDOW
+            custom_log("Game phase changed to SPECIAL_PLAY_WINDOW (special cards found)", level="INFO")
             
             custom_log(f"=== SPECIAL CARDS WINDOW ===", level="INFO")
             custom_log(f"Found {len(self.special_card_data)} special cards played", level="INFO")

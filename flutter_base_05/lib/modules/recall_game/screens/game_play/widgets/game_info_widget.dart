@@ -170,7 +170,7 @@ class GameInfoWidget extends StatelessWidget {
             const SizedBox(height: 12),
             
             // Player Status Indicator (only show during active game)
-            if (gamePhase == 'playing' || gamePhase == 'out_of_turn') ...[
+            if (gamePhase == 'playing' || gamePhase == 'out_of_turn' || gamePhase == 'special_play_window') ...[
               Row(
                 children: [
                   Icon(Icons.person, size: 16, color: Colors.grey[600]),
@@ -256,6 +256,11 @@ class GameInfoWidget extends StatelessWidget {
         chipColor = Colors.blue;
         chipText = 'Out of Turn';
         chipIcon = Icons.flash_on;
+        break;
+      case 'special_play_window':
+        chipColor = Colors.amber;
+        chipText = 'Special Play';
+        chipIcon = Icons.star;
         break;
       case 'finished':
         chipColor = Colors.grey;

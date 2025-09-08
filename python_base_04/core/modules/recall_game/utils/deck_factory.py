@@ -13,7 +13,7 @@ import random
 from ..models.card import Card, CardDeck
 
 # Testing switch - set to True for testing deck with more special cards
-TESTING_SWITCH = False
+TESTING_SWITCH = True
 
 
 class DeckFactory:

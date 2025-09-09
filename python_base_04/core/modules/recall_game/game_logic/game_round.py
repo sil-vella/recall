@@ -820,6 +820,15 @@ class GameRound:
                 # The drawn card should fill the blank slot left by the played card
                 # The blank slot is at card_index (where the played card was)
                 custom_log(f"Repositioning drawn card {drawn_card.card_id} to index {card_index}", level="DEBUG", isOn=LOGGING_SWITCH)
+                
+                # First, remove the drawn card from its original position in the hand
+                for i, card in enumerate(player.hand):
+                    if card is not None and card.card_id == drawn_card.card_id:
+                        player.hand[i] = None  # Remove from original position
+                        custom_log(f"Removed drawn card from original position {i}", level="DEBUG", isOn=LOGGING_SWITCH)
+                        break
+                
+                # Then place it in the blank slot left by the played card
                 player.hand[card_index] = drawn_card
                 
                 # IMPORTANT: After repositioning, the drawn card becomes a regular hand card

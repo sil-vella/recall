@@ -965,7 +965,7 @@ class GameStateManager:
             'id': player.player_id,
             'name': player.name,
             'type': 'human' if player.player_type.value == 'human' else 'computer',
-            'hand': [self._to_flutter_card(c) for c in player.hand if c is not None],
+            'hand': [self._to_flutter_card(c) if c is not None else None for c in player.hand],  # Send None as null for blank slots
             'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards if c is not None],
             'score': int(player.calculate_points()),
             'status': player.status.value,  # Use the player's actual status

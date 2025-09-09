@@ -733,8 +733,8 @@ class GameRound:
                     custom_log(f"Failed to draw from discard pile for player {player_id}", level="ERROR", isOn=LOGGING_SWITCH)
                     return False
             
-            # Add card to player's hand
-            player.add_card_to_hand(drawn_card)
+            # Add card to player's hand (drawn cards always go to the end)
+            player.add_card_to_hand(drawn_card, is_drawn_card=True)
             
             # Set the drawn card property
             player.set_drawn_card(drawn_card)
@@ -988,23 +988,30 @@ class GameRound:
         try:
             # Check if there are any cards in the discard pile
             if not self.game_state.discard_pile:
+                custom_log(f"Same rank validation failed: No cards in discard pile", level="DEBUG", isOn=LOGGING_SWITCH)
                 return False
             
             # Get the last card from the discard pile
             last_card = self.game_state.discard_pile[-1]
             last_card_rank = last_card.rank
             
+            custom_log(f"Same rank validation: played_card_rank='{card_rank}', last_card_rank='{last_card_rank}'", level="DEBUG", isOn=LOGGING_SWITCH)
+            
             # Handle special case: first card of the game (no previous card to match)
             if len(self.game_state.discard_pile) == 1:
+                custom_log(f"Same rank validation: First card of game, allowing play", level="DEBUG", isOn=LOGGING_SWITCH)
                 return True
             
             # Check if ranks match (case-insensitive for safety)
             if card_rank.lower() == last_card_rank.lower():
+                custom_log(f"Same rank validation: Ranks match, allowing play", level="DEBUG", isOn=LOGGING_SWITCH)
                 return True
             else:
+                custom_log(f"Same rank validation: Ranks don't match, denying play", level="DEBUG", isOn=LOGGING_SWITCH)
                 return False
                 
         except Exception as e:
+            custom_log(f"Same rank validation error: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
     
     def _apply_same_rank_penalty(self, player_id: str) -> Optional[Card]:

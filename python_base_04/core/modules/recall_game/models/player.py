@@ -60,9 +60,21 @@ class Player:
         self._game_state_manager = None  # Reference to game state manager for sending updates
         self._game_id = None  # Reference to game ID for sending updates
     
-    def add_card_to_hand(self, card: Card):
+    def add_card_to_hand(self, card: Card, is_drawn_card: bool = False):
         """Add a card to the player's hand, filling a blank slot if available"""
         card.owner_id = self.player_id
+        
+        # Special handling for drawn cards - always go to the end
+        if is_drawn_card:
+            self.hand.append(card)
+            self.cards_remaining = len(self.hand)
+            custom_log(f"Added drawn card to hand: {card.card_id} at end of hand (index {len(self.hand)-1})", isOn=LOGGING_SWITCH)
+            
+            # Manually trigger change detection for hand modification
+            if hasattr(self, '_track_change'):
+                self._track_change('hand')
+                self._send_changes_if_needed()
+            return
         
         # Look for a blank slot (None) to fill first
         for i, slot in enumerate(self.hand):

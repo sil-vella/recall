@@ -37,6 +37,7 @@ class RecallGameEventEmitter {
     'play_out_of_turn': {'game_id', 'card_id'}, // player_id auto-added
     'use_special_power': {'game_id', 'card_id', 'power_data'}, // player_id auto-added
     'same_rank_play': {'game_id', 'card_id'}, // player_id auto-added
+    'jack_swap': {'game_id', 'first_card_id', 'first_player_id', 'second_card_id', 'second_player_id'}, // player_id auto-added
   };
   
   /// Define validation rules for each field
@@ -158,6 +159,28 @@ class RecallGameEventEmitter {
       type: Map,
       required: false,
       description: 'Special power specific data',
+    ),
+    
+    // Jack swap fields
+    'first_card_id': RecallEventFieldSpec(
+      type: String,
+      pattern: r'^card_[a-zA-Z0-9_]+$',
+      description: 'First card ID in format: card_xxxxx',
+    ),
+    'first_player_id': RecallEventFieldSpec(
+      type: String,
+      pattern: r'^(player_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'First player ID in format: player_xxxxx or MongoDB ObjectId',
+    ),
+    'second_card_id': RecallEventFieldSpec(
+      type: String,
+      pattern: r'^card_[a-zA-Z0-9_]+$',
+      description: 'Second card ID in format: card_xxxxx',
+    ),
+    'second_player_id': RecallEventFieldSpec(
+      type: String,
+      pattern: r'^(player_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'Second player ID in format: player_xxxxx or MongoDB ObjectId',
     ),
   };
   

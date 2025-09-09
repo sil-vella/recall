@@ -1,3 +1,5 @@
+import 'package:recall/tools/logging/logger.dart';
+
 import 'validated_event_emitter.dart';
 import 'validated_state_manager.dart';
 
@@ -24,6 +26,8 @@ class PlayerAction {
   static final RecallGameEventEmitter _eventEmitter = RecallGameEventEmitter.instance;
   static final RecallGameStateUpdater _stateUpdater = RecallGameStateUpdater.instance;
   
+  final Logger _logger = Logger();
+  static const bool LOGGING_SWITCH = true;
   // Jack swap selection tracking
   static String? _firstSelectedCardId;
   static String? _firstSelectedPlayerId;
@@ -45,28 +49,36 @@ class PlayerAction {
   /// Execute the player action with validation and state management
   Future<void> execute() async {
     try {
+      _logger.info('Executing action: ${actionType.name} with payload: $payload', isOn: LOGGING_SWITCH);
+      
       // Special handling for Jack swap - don't set status to waiting yet
       if (actionType == PlayerActionType.jackSwap) {
+        _logger.info('Jack swap action executed - waiting for card selections', isOn: LOGGING_SWITCH);
         return; // Jack swap is handled by selectCardForJackSwap method
       }
       
       // Set status to waiting after action execution to prevent multiple selections
       _setPlayerStatusToWaiting();
+      _logger.info('Player status set to waiting after action execution', isOn: LOGGING_SWITCH);
       
       // Check if this is a practice game
       final isPracticeGame = _checkIfPracticeGame();
       if (isPracticeGame) {
+        _logger.info('Practice game detected - action logged but not sent to backend', isOn: LOGGING_SWITCH);
         // For practice games, we just log the action without sending to backend
         // TODO: Implement practice game logic (local simulation, etc.)
         return;
       }
       
+      _logger.info('Sending event to backend: $eventName with data: $payload', isOn: LOGGING_SWITCH);
       await _eventEmitter.emit(
         eventType: eventName,
         data: payload,
       );
+      _logger.info('Event successfully sent to backend', isOn: LOGGING_SWITCH);
 
     } catch (e) {
+      _logger.error('Error executing action ${actionType.name}: $e', isOn: LOGGING_SWITCH);
       rethrow;
     }
   }
@@ -89,12 +101,19 @@ class PlayerAction {
   /// This prevents players from making multiple selections while waiting for backend response
   static void _setPlayerStatusToWaiting() {
     try {
+      final logger = Logger();
+      logger.info('Setting player status to waiting', isOn: LOGGING_SWITCH);
+      
       // Use the dedicated state updater to properly update the player status
       _stateUpdater.updateState({
         'playerStatus': 'waiting',
       });
       
+      logger.info('Player status successfully set to waiting', isOn: LOGGING_SWITCH);
+      
     } catch (e) {
+      final logger = Logger();
+      logger.error('Error setting player status to waiting: $e', isOn: LOGGING_SWITCH);
       // Don't rethrow - this is not critical for the main action execution
     }
   }
@@ -190,10 +209,14 @@ class PlayerAction {
     required String gameId,
   }) async {
     try {
+      final logger = Logger();
+      logger.info('Jack swap card selection attempt - Card: $cardId, Player: $playerId, Game: $gameId', isOn: LOGGING_SWITCH);
+      
       // If this is the first card selection
       if (_firstSelectedCardId == null) {
         _firstSelectedCardId = cardId;
         _firstSelectedPlayerId = playerId;
+        logger.info('Jack swap: First card selected - Card: $cardId, Player: $playerId', isOn: LOGGING_SWITCH);
         print('Jack swap: First card selected - Card: $cardId, Player: $playerId');
         return; // Wait for second card
       }
@@ -202,13 +225,19 @@ class PlayerAction {
       if (_secondSelectedCardId == null) {
         _secondSelectedCardId = cardId;
         _secondSelectedPlayerId = playerId;
+        logger.info('Jack swap: Second card selected - Card: $cardId, Player: $playerId', isOn: LOGGING_SWITCH);
         print('Jack swap: Second card selected - Card: $cardId, Player: $playerId');
         
         // Both cards selected, execute the swap
+        logger.info('Both cards selected, executing Jack swap', isOn: LOGGING_SWITCH);
         await _executeJackSwap(gameId);
+      } else {
+        logger.warning('Jack swap: Attempted to select third card - already have two cards selected', isOn: LOGGING_SWITCH);
       }
       
     } catch (e) {
+      final logger = Logger();
+      logger.error('Error in selectCardForJackSwap: $e', isOn: LOGGING_SWITCH);
       print('Error in selectCardForJackSwap: $e');
       rethrow;
     }
@@ -217,8 +246,12 @@ class PlayerAction {
   /// Execute the Jack swap with both selected cards
   static Future<void> _executeJackSwap(String gameId) async {
     try {
+      final logger = Logger();
+      logger.info('Executing Jack swap - Game: $gameId', isOn: LOGGING_SWITCH);
+      
       if (_firstSelectedCardId == null || _secondSelectedCardId == null ||
           _firstSelectedPlayerId == null || _secondSelectedPlayerId == null) {
+        logger.error('Jack swap validation failed - missing card or player IDs', isOn: LOGGING_SWITCH);
         throw Exception('Both cards must be selected for Jack swap');
       }
 
@@ -231,19 +264,27 @@ class PlayerAction {
         'second_player_id': _secondSelectedPlayerId,
       };
 
+      logger.info('Jack swap payload created: $swapPayload', isOn: LOGGING_SWITCH);
+
       // Send the swap request to backend
+      logger.info('Sending jack_swap event to backend', isOn: LOGGING_SWITCH);
       await _eventEmitter.emit(
         eventType: 'jack_swap',
         data: swapPayload,
       );
+      logger.info('Jack swap event successfully sent to backend', isOn: LOGGING_SWITCH);
 
       // Clear selections after successful execution
       _clearJackSwapSelections();
+      logger.info('Jack swap selections cleared', isOn: LOGGING_SWITCH);
       
       // Set player status to waiting
       _setPlayerStatusToWaiting();
+      logger.info('Player status set to waiting after Jack swap execution', isOn: LOGGING_SWITCH);
 
     } catch (e) {
+      final logger = Logger();
+      logger.error('Error executing Jack swap: $e', isOn: LOGGING_SWITCH);
       print('Error executing Jack swap: $e');
       rethrow;
     }
@@ -251,20 +292,30 @@ class PlayerAction {
 
   /// Clear Jack swap selections
   static void _clearJackSwapSelections() {
+    final logger = Logger();
+    logger.info('Clearing Jack swap selections', isOn: LOGGING_SWITCH);
+    
     _firstSelectedCardId = null;
     _firstSelectedPlayerId = null;
     _secondSelectedCardId = null;
     _secondSelectedPlayerId = null;
+    
+    logger.info('Jack swap selections cleared successfully', isOn: LOGGING_SWITCH);
   }
 
   /// Reset Jack swap selections (call this when Jack swap is cancelled)
   static void resetJackSwapSelections() {
+    final logger = Logger();
+    logger.info('Resetting Jack swap selections', isOn: LOGGING_SWITCH);
     _clearJackSwapSelections();
   }
 
   /// Check if Jack swap is in progress
   static bool isJackSwapInProgress() {
-    return _firstSelectedCardId != null;
+    final inProgress = _firstSelectedCardId != null;
+    final logger = Logger();
+    logger.info('Jack swap in progress check: $inProgress', isOn: LOGGING_SWITCH);
+    return inProgress;
   }
 
   /// Get the number of cards selected for Jack swap
@@ -272,6 +323,9 @@ class PlayerAction {
     int count = 0;
     if (_firstSelectedCardId != null) count++;
     if (_secondSelectedCardId != null) count++;
+    
+    final logger = Logger();
+    logger.info('Jack swap selection count: $count', isOn: LOGGING_SWITCH);
     return count;
   }
 

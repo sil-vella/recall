@@ -1034,7 +1034,7 @@ class GameRound:
                 return None
             
             # Add penalty card to player's hand
-            player.add_card_to_hand(penalty_card)
+            player.add_card_to_hand(penalty_card, is_penalty_card=True)
             
             # Update player status to indicate they received a penalty
             player.set_status(PlayerStatus.WAITING)  # Reset to waiting after penalty

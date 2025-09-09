@@ -60,7 +60,7 @@ class Player:
         self._game_state_manager = None  # Reference to game state manager for sending updates
         self._game_id = None  # Reference to game ID for sending updates
     
-    def add_card_to_hand(self, card: Card, is_drawn_card: bool = False):
+    def add_card_to_hand(self, card: Card, is_drawn_card: bool = False, is_penalty_card: bool = False):
         """Add a card to the player's hand, filling a blank slot if available"""
         card.owner_id = self.player_id
         
@@ -76,22 +76,24 @@ class Player:
                 self._send_changes_if_needed()
             return
         
-        # Look for a blank slot (None) to fill first
-        for i, slot in enumerate(self.hand):
-            if slot is None:
-                self.hand[i] = card
-                # Don't update cards_remaining - we're filling an existing slot
-                custom_log(f"Added card to hand: {card.card_id} at index {i} (filled blank slot)", isOn=LOGGING_SWITCH)
-                
-                # Manually trigger change detection for hand modification
-                if hasattr(self, '_track_change'):
-                    self._track_change('hand')
-                    self._send_changes_if_needed()
-                return
+        # For penalty cards and regular cards: look for a blank slot (None) to fill first
+        if is_penalty_card or not is_drawn_card:
+            for i, slot in enumerate(self.hand):
+                if slot is None:
+                    self.hand[i] = card
+                    # Don't update cards_remaining - we're filling an existing slot
+                    custom_log(f"Added {'penalty ' if is_penalty_card else ''}card to hand: {card.card_id} at index {i} (filled blank slot)", isOn=LOGGING_SWITCH)
+                    
+                    # Manually trigger change detection for hand modification
+                    if hasattr(self, '_track_change'):
+                        self._track_change('hand')
+                        self._send_changes_if_needed()
+                    return
         
-        # If no blank slot found, append to the end (shouldn't happen in normal gameplay)
+        # If no blank slot found, append to the end
         self.hand.append(card)
         self.cards_remaining = len(self.hand)
+        custom_log(f"Added {'penalty ' if is_penalty_card else ''}card to hand: {card.card_id} at end of hand (index {len(self.hand)-1})", isOn=LOGGING_SWITCH)
         
         # Manually trigger change detection for hand modification
         if hasattr(self, '_track_change'):

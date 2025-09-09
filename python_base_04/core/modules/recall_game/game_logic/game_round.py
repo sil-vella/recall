@@ -378,6 +378,11 @@ class GameRound:
             'power_data': data.get('power_data'),
             'indices': data.get('indices', []),
             'source': data.get('source'),  # For draw actions (deck/discard)
+            # Jack swap specific fields
+            'first_card_id': data.get('first_card_id'),
+            'first_player_id': data.get('first_player_id'),
+            'second_card_id': data.get('second_card_id'),
+            'second_player_id': data.get('second_player_id'),
         }
     
     def _extract_user_id(self, session_id: str, data: Dict[str, Any]) -> str:

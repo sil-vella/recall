@@ -99,16 +99,27 @@ class Player:
         self.drawn_card = None
     
     def remove_card_from_hand(self, card_id: str) -> Optional[Card]:
-        """Remove a card from the player's hand and replace it with a blank slot (None)"""
+        """Remove a card from the player's hand and replace it with a blank slot (None) if needed"""
         custom_log(f"remove_card_from_hand called for card_id: {card_id}", level="DEBUG", isOn=LOGGING_SWITCH)
         for i, card in enumerate(self.hand):
             if card is not None and card.card_id == card_id:
                 removed_card = self.hand[i]
                 
                 custom_log(f"Removing card from hand: {card.card_id} at index {i}", isOn=LOGGING_SWITCH)
-                # Replace the card with None (blank slot) to maintain index positions
-                self.hand[i] = None
-                # Don't update cards_remaining - we want to maintain the slot count
+                
+                # Check if we should create a blank slot or remove the card entirely
+                should_create_blank_slot = self._should_create_blank_slot_at_index(i)
+                
+                if should_create_blank_slot:
+                    # Replace the card with None (blank slot) to maintain index positions
+                    self.hand[i] = None
+                    custom_log(f"Created blank slot at index {i}", level="DEBUG", isOn=LOGGING_SWITCH)
+                else:
+                    # Remove the card entirely and shift remaining cards
+                    self.hand.pop(i)
+                    custom_log(f"Removed card entirely from index {i}, shifted remaining cards", level="DEBUG", isOn=LOGGING_SWITCH)
+                
+                # Don't update cards_remaining - we want to maintain the slot count for blank slots
                 
                 # Clear drawn card if the removed card was the drawn card
                 if self.drawn_card and self.drawn_card.card_id == card_id:
@@ -123,6 +134,23 @@ class Player:
                 return removed_card
         custom_log(f"Card {card_id} not found in hand", level="DEBUG", isOn=LOGGING_SWITCH)
         return None
+    
+    def _should_create_blank_slot_at_index(self, index: int) -> bool:
+        """Determine if we should create a blank slot at the given index"""
+        # If index is 3 or less, always create a blank slot (maintain initial 4-card structure)
+        if index <= 3:
+            return True
+        
+        # For index 4 and beyond, only create blank slot if there are actual cards further up
+        # Check if there are any non-None cards at higher indices
+        for i in range(index + 1, len(self.hand)):
+            if self.hand[i] is not None:
+                custom_log(f"Found actual card at index {i}, will create blank slot at {index}", level="DEBUG", isOn=LOGGING_SWITCH)
+                return True
+        
+        # No actual cards beyond this index, so remove the card entirely
+        custom_log(f"No actual cards beyond index {index}, will remove card entirely", level="DEBUG", isOn=LOGGING_SWITCH)
+        return False
     
     def look_at_card(self, card_id: str) -> Optional[Card]:
         """Look at a specific card in hand"""

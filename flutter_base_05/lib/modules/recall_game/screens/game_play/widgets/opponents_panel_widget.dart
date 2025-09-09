@@ -256,7 +256,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           // Cards display - horizontal layout like my hand
           if (hand.isNotEmpty)
-            _buildCardsRow(hand, drawnCard)
+            _buildCardsRow(hand, drawnCard, player['id']?.toString() ?? '')
           else
             _buildEmptyHand(),
         ],
@@ -265,7 +265,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build cards row - horizontal layout like my hand
-  Widget _buildCardsRow(List<dynamic> cards, Map<String, dynamic>? drawnCard) {
+  Widget _buildCardsRow(List<dynamic> cards, Map<String, dynamic>? drawnCard, String playerId) {
     return Container(
       height: 100,
       child: ListView.builder(
@@ -291,7 +291,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
               right: 6,
               left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
             ),
-            child: _buildCardWidget(cardMap, isDrawnCard),
+            child: _buildCardWidget(cardMap, isDrawnCard, playerId),
           );
         },
       ),
@@ -299,7 +299,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build individual card widget for opponents using the new CardWidget system
-  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard) {
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId) {
     // Convert to CardModel
     final cardModel = CardModel.fromMap(card);
     
@@ -327,7 +327,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         size: CardSize.small,
         isSelectable: true,
         isSelected: isSelected,
-        onTap: () => _handleCardClick(card),
+        onTap: () => _handleCardClick(card, playerId),
       ),
     );
   }
@@ -381,12 +381,11 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Handle card click for special power interactions
-  void _handleCardClick(Map<String, dynamic> card) async {
+  void _handleCardClick(Map<String, dynamic> card, String cardOwnerId) async {
     // Get current player status from state
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
     final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-    final currentPlayerId = recallGameState['currentPlayerId']?.toString() ?? '';
     
     // Check if current player can interact with cards (queen_peek or jack_swap status)
     if (currentPlayerStatus == 'queen_peek' || currentPlayerStatus == 'jack_swap') {
@@ -412,7 +411,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           try {
             await PlayerAction.selectCardForJackSwap(
               cardId: cardId,
-              playerId: currentPlayerId,
+              playerId: cardOwnerId,
               gameId: currentGameId,
             );
             

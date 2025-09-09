@@ -271,10 +271,13 @@ class MyHandWidget extends StatelessWidget {
           );
         } else if (currentPlayerStatus == 'jack_swap') {
           // Handle Jack swap card selection
-          final currentPlayerId = currentState['currentPlayerId']?.toString() ?? '';
+          // Get current user ID from login state (card owner for my hand)
+          final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+          final currentUserId = loginState['userId']?.toString() ?? '';
+          
           await PlayerAction.selectCardForJackSwap(
             cardId: card['cardId']?.toString() ?? '',
-            playerId: currentPlayerId,
+            playerId: currentUserId,
             gameId: currentGameId,
           );
           

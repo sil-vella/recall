@@ -204,7 +204,7 @@ class RecallGameEventEmitter {
       // 🎯 Auto-include user ID for events that need player_id
       final eventsNeedingPlayerId = {
         'play_card', 'replace_drawn_card', 'play_drawn_card', 
-        'call_recall', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play'
+        'call_recall', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap'
       };
       
       if (eventsNeedingPlayerId.contains(eventType)) {

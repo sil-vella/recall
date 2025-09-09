@@ -99,6 +99,9 @@ class RecallGameEventListenerValidator {
     'recall_called': EventConfig(
       schema: {'game_id', 'player_id', 'timestamp', 'scores', 'updated_game_state'},
     ),
+    'jack_swap': EventConfig(
+      schema: {'game_id', 'player_id', 'first_card_id', 'first_player_id', 'second_card_id', 'second_player_id', 'timestamp'},
+    ),
     'recall_message': EventConfig(
       schema: {'scope', 'target_id', 'level', 'title', 'message', 'data', 'timestamp'},
     ),

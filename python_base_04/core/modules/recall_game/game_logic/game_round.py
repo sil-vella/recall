@@ -775,13 +775,16 @@ class GameRound:
             card_index = -1
             
             for i, card in enumerate(player.hand):
-                if card.card_id == card_id:
+                if card is not None and card.card_id == card_id:
                     card_to_play = card
                     card_index = i
                     break
             
             if not card_to_play:
+                custom_log(f"Card {card_id} not found in player {player_id} hand", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
+            
+            custom_log(f"Found card {card_id} at index {card_index} in player {player_id} hand", level="DEBUG", isOn=LOGGING_SWITCH)
             
             # Handle drawn card repositioning BEFORE removing the played card
             drawn_card = player.get_drawn_card()
@@ -791,36 +794,44 @@ class GameRound:
                 # The played card was NOT the drawn card, so we need to reposition the drawn card
                 # Find the drawn card in the hand BEFORE removing the played card
                 for i, card in enumerate(player.hand):
-                    if card.card_id == drawn_card.card_id:
+                    if card is not None and card.card_id == drawn_card.card_id:
                         drawn_card_original_index = i
                         break
             
-            # Remove card from player's hand
-            removed_card = player.hand.pop(card_index)
+            # Use the proper method to remove card with change detection
+            custom_log(f"About to call remove_card_from_hand for card {card_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+            try:
+                removed_card = player.remove_card_from_hand(card_id)
+                if not removed_card:
+                    custom_log(f"Failed to remove card {card_id} from player {player_id} hand", level="ERROR", isOn=LOGGING_SWITCH)
+                    return False
+                custom_log(f"Successfully removed card {card_id} from player {player_id} hand", level="DEBUG", isOn=LOGGING_SWITCH)
+            except Exception as e:
+                custom_log(f"Exception in remove_card_from_hand: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+                return False
             
             # Add card to discard pile using custom method with auto change detection
             if not self.game_state.add_to_discard_pile(removed_card):
                 custom_log(f"Failed to add card {card_id} to discard pile", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
-            # Now handle drawn card repositioning with correct indexes
-            if drawn_card and drawn_card.card_id != card_id and drawn_card_original_index != -1:
-                # Calculate the new index for the drawn card after the played card removal
-                if drawn_card_original_index > card_index:
-                    # Drawn card was after the played card, so its index decreased by 1
-                    new_drawn_card_index = drawn_card_original_index - 1
-                else:
-                    # Drawn card was before the played card, so its index stayed the same
-                    new_drawn_card_index = drawn_card_original_index
-                
-                # Find the drawn card at its new position
-                drawn_card_obj = player.hand.pop(new_drawn_card_index)
-                # Insert drawn card at the vacated index (where the played card was)
-                player.hand.insert(card_index, drawn_card_obj)
+            # Handle drawn card repositioning with blank slot system
+            if drawn_card and drawn_card.card_id != card_id:
+                # The drawn card should fill the blank slot left by the played card
+                # The blank slot is at card_index (where the played card was)
+                custom_log(f"Repositioning drawn card {drawn_card.card_id} to index {card_index}", level="DEBUG", isOn=LOGGING_SWITCH)
+                player.hand[card_index] = drawn_card
                 
                 # IMPORTANT: After repositioning, the drawn card becomes a regular hand card
                 # Clear the drawn card property since it's no longer "drawn"
                 player.clear_drawn_card()
+                
+                # Manually trigger change detection for hand modification
+                if hasattr(player, '_track_change'):
+                    player._track_change('hand')
+                    player._send_changes_if_needed()
+                
+                custom_log(f"After repositioning: hand slots = {[card.card_id if card else 'None' for card in player.hand]}", level="DEBUG", isOn=LOGGING_SWITCH)
                 
             elif drawn_card and drawn_card.card_id == card_id:
                 # Clear the drawn card property since it's now in the discard pile
@@ -864,12 +875,15 @@ class GameRound:
             # Find the card in player's hand
             played_card = None
             for card in player.hand:
-                if card.card_id == card_id:
+                if card is not None and card.card_id == card_id:
                     played_card = card
                     break
             
             if not played_card:
+                custom_log(f"Card {card_id} not found in player {user_id} hand for same rank play", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
+            
+            custom_log(f"Found card {card_id} for same rank play in player {user_id} hand", level="DEBUG", isOn=LOGGING_SWITCH)
             
             card_rank = played_card.rank
             card_suit = played_card.suit
@@ -888,9 +902,15 @@ class GameRound:
             
             # SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
             # Use the proper method to remove card with change detection
-            removed_card = player.remove_card_from_hand(card_id)
-            if not removed_card:
-                custom_log(f"Failed to remove card {card_id} from player {user_id} hand", level="ERROR", isOn=LOGGING_SWITCH)
+            custom_log(f"About to call remove_card_from_hand for same rank play card {card_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+            try:
+                removed_card = player.remove_card_from_hand(card_id)
+                if not removed_card:
+                    custom_log(f"Failed to remove card {card_id} from player {user_id} hand", level="ERROR", isOn=LOGGING_SWITCH)
+                    return False
+                custom_log(f"Successfully removed same rank play card {card_id} from player {user_id} hand", level="DEBUG", isOn=LOGGING_SWITCH)
+            except Exception as e:
+                custom_log(f"Exception in remove_card_from_hand for same rank play: {e}", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
             # Add card to discard pile using custom method with auto change detection

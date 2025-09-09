@@ -8,6 +8,7 @@ including human players and computer players with AI logic.
 from typing import List, Dict, Any, Optional
 from enum import Enum
 from .card import Card
+from tools.logger.custom_logging import custom_log
 
 # Logging switch for this module
 LOGGING_SWITCH = True
@@ -60,8 +61,23 @@ class Player:
         self._game_id = None  # Reference to game ID for sending updates
     
     def add_card_to_hand(self, card: Card):
-        """Add a card to the player's hand"""
+        """Add a card to the player's hand, filling a blank slot if available"""
         card.owner_id = self.player_id
+        
+        # Look for a blank slot (None) to fill first
+        for i, slot in enumerate(self.hand):
+            if slot is None:
+                self.hand[i] = card
+                # Don't update cards_remaining - we're filling an existing slot
+                custom_log(f"Added card to hand: {card.card_id} at index {i} (filled blank slot)", isOn=LOGGING_SWITCH)
+                
+                # Manually trigger change detection for hand modification
+                if hasattr(self, '_track_change'):
+                    self._track_change('hand')
+                    self._send_changes_if_needed()
+                return
+        
+        # If no blank slot found, append to the end (shouldn't happen in normal gameplay)
         self.hand.append(card)
         self.cards_remaining = len(self.hand)
         
@@ -83,14 +99,20 @@ class Player:
         self.drawn_card = None
     
     def remove_card_from_hand(self, card_id: str) -> Optional[Card]:
-        """Remove a card from the player's hand"""
+        """Remove a card from the player's hand and replace it with a blank slot (None)"""
+        custom_log(f"remove_card_from_hand called for card_id: {card_id}", level="DEBUG", isOn=LOGGING_SWITCH)
         for i, card in enumerate(self.hand):
-            if card.card_id == card_id:
-                removed_card = self.hand.pop(i)
-                self.cards_remaining = len(self.hand)
+            if card is not None and card.card_id == card_id:
+                removed_card = self.hand[i]
+                
+                custom_log(f"Removing card from hand: {card.card_id} at index {i}", isOn=LOGGING_SWITCH)
+                # Replace the card with None (blank slot) to maintain index positions
+                self.hand[i] = None
+                # Don't update cards_remaining - we want to maintain the slot count
                 
                 # Clear drawn card if the removed card was the drawn card
                 if self.drawn_card and self.drawn_card.card_id == card_id:
+                    custom_log(f"Clearing drawn card", isOn=LOGGING_SWITCH)
                     self.clear_drawn_card()
                 
                 # Manually trigger change detection for hand modification
@@ -99,6 +121,7 @@ class Player:
                     self._send_changes_if_needed()
                 
                 return removed_card
+        custom_log(f"Card {card_id} not found in hand", level="DEBUG", isOn=LOGGING_SWITCH)
         return None
     
     def look_at_card(self, card_id: str) -> Optional[Card]:
@@ -127,15 +150,15 @@ class Player:
     
     def get_visible_cards(self) -> List[Card]:
         """Get cards that the player has looked at"""
-        return [card for card in self.hand if card.is_visible]
+        return [card for card in self.hand if card is not None and card.is_visible]
     
     def get_hidden_cards(self) -> List[Card]:
         """Get cards that the player hasn't looked at"""
-        return [card for card in self.hand if not card.is_visible]
+        return [card for card in self.hand if card is not None and not card.is_visible]
     
     def calculate_points(self) -> int:
         """Calculate total points from cards in hand"""
-        return sum(card.points for card in self.hand)
+        return sum(card.points for card in self.hand if card is not None)
     
     def call_recall(self):
         """Player calls Recall to end the game"""
@@ -313,11 +336,16 @@ class Player:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert player to dictionary representation"""
+        # Debug logging for hand serialization
+        hand_cards = [card.to_dict() for card in self.hand if card is not None]
+        custom_log(f"Player {self.player_id} to_dict: hand has {len(self.hand)} slots, {len(hand_cards)} actual cards", level="DEBUG", isOn=LOGGING_SWITCH)
+        custom_log(f"Hand slots: {[card.card_id if card else 'None' for card in self.hand]}", level="DEBUG", isOn=LOGGING_SWITCH)
+        
         return {
             "player_id": self.player_id,
             "player_type": self.player_type.value,
             "name": self.name,
-            "hand": [card.to_dict() for card in self.hand],
+            "hand": hand_cards,
             "visible_cards": [card.to_dict() for card in self.visible_cards],
             "points": self.points,
             "cards_remaining": self.cards_remaining,

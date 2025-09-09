@@ -376,7 +376,7 @@ class GameState:
         # Search in all player hands
         for player in self.players.values():
             for card in player.hand:
-                if card.card_id == card_id:
+                if card is not None and card.card_id == card_id:
                     return card
         
         # Search in draw pile
@@ -965,8 +965,8 @@ class GameStateManager:
             'id': player.player_id,
             'name': player.name,
             'type': 'human' if player.player_type.value == 'human' else 'computer',
-            'hand': [self._to_flutter_card(c) for c in player.hand],
-            'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards],
+            'hand': [self._to_flutter_card(c) for c in player.hand if c is not None],
+            'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards if c is not None],
             'score': int(player.calculate_points()),
             'status': player.status.value,  # Use the player's actual status
             'isCurrentPlayer': is_current,

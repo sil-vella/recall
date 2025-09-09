@@ -58,11 +58,12 @@ class ModuleRegistry:
                                     break
                         
                         if module_class:
-                            # Use directory name as module key (remove '_module' suffix if present)
-                            module_key = item.replace('_module', '')
+                            # Use directory name as module key (keep full name)
+                            module_key = item
                             modules[module_key] = module_class
+                            print(f"DEBUG: Discovered module: {module_key} -> {module_class.__name__}")
                         else:
-                            pass
+                            print(f"DEBUG: No module class found in {item}")
                     except Exception as e:
                         continue
             return modules
@@ -79,12 +80,14 @@ class ModuleRegistry:
         :return: Dictionary mapping module keys to their dependencies
         """
         dependencies = {
-            "user_management": [],  # Core user management - no dependencies
-            "credit_system": ["user_management"],  # Needs user management
-            "system_actions": [],  # Core system actions - no dependencies
-            "wallet": ["user_management"],  # Needs user management
-            "transactions": ["user_management", "wallet"],  # Needs users and wallet
-            "recall_game": ["user_management"],  # Needs user management for JWT auth
+            "user_management_module": [],  # Core user management - no dependencies
+            "credit_system_module": ["user_management_module"],  # Needs user management
+            "system_actions_module": [],  # Core system actions - no dependencies
+            "wallet_module": ["user_management_module"],  # Needs user management
+            "transactions_module": ["user_management_module", "wallet_module"],  # Needs users and wallet
+            "recall_game": ["user_management_module"],  # Needs user management for JWT auth
+            "communications_module": [],  # Communications module - no dependencies
+            "stripe_module": ["user_management_module"],  # Needs user management
         }
         return dependencies
     
@@ -96,18 +99,18 @@ class ModuleRegistry:
         :return: Dictionary mapping module keys to their config
         """
         return {
-            "communications": {
+            "communications_module": {
                 "enabled": True,
                 "priority": 1,
                 "health_check_enabled": True,
             },
-            "user_management": {
+            "user_management_module": {
                 "enabled": True,
                 "priority": 2,
                 "health_check_enabled": True,
                 "session_timeout": 3600,
             },
-            "in_app_purchases": {
+            "stripe_module": {
                 "enabled": True,
                 "priority": 3,
                 "health_check_enabled": True,
@@ -118,6 +121,26 @@ class ModuleRegistry:
                 "priority": 4,
                 "health_check_enabled": True,
                 "websocket_required": True,
+            },
+            "credit_system_module": {
+                "enabled": True,
+                "priority": 5,
+                "health_check_enabled": True,
+            },
+            "system_actions_module": {
+                "enabled": True,
+                "priority": 6,
+                "health_check_enabled": True,
+            },
+            "wallet_module": {
+                "enabled": True,
+                "priority": 7,
+                "health_check_enabled": True,
+            },
+            "transactions_module": {
+                "enabled": True,
+                "priority": 8,
+                "health_check_enabled": True,
             },
         }
     
@@ -132,21 +155,29 @@ class ModuleRegistry:
             modules = ModuleRegistry.get_modules()
             dependencies = ModuleRegistry.get_module_dependencies()
             
+            print(f"DEBUG: Found modules: {list(modules.keys())}")
+            print(f"DEBUG: Dependencies: {dependencies}")
+            
             # Check if all dependency references exist
             for module_key, deps in dependencies.items():
                 if module_key not in modules:
+                    print(f"DEBUG: Module {module_key} not found in discovered modules")
                     return False
                     
                 for dep in deps:
                     if dep not in modules:
+                        print(f"DEBUG: Dependency {dep} not found in discovered modules")
                         return False
             
             # Check for circular dependencies (basic check)
             if ModuleRegistry._has_circular_dependency(dependencies):
+                print("DEBUG: Circular dependency detected")
                 return False
+            print("DEBUG: Module registry validation passed")
             return True
             
         except Exception as e:
+            print(f"DEBUG: Exception in validate_module_registry: {e}")
             return False
     
     @staticmethod

@@ -414,6 +414,8 @@ class GameRound:
                 return True  # Placeholder - will be False when implemented
             elif action == 'call_recall':
                 return True  # Placeholder - will be False when implemented
+            elif action == 'jack_swap':
+                return self._handle_jack_swap(user_id, action_data)
             else:
                 return False
         except Exception as e:
@@ -1090,4 +1092,72 @@ class GameRound:
                 
         except Exception as e:
             custom_log(f"Error in _check_special_card: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _handle_jack_swap(self, user_id: str, action_data: Dict[str, Any]) -> bool:
+        """Handle Jack swap action - swap two cards between players"""
+        try:
+            custom_log(f"Handling Jack swap for player {user_id} with data: {action_data}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Extract card information from action data
+            first_card_id = action_data.get('first_card_id')
+            first_player_id = action_data.get('first_player_id')
+            second_card_id = action_data.get('second_card_id')
+            second_player_id = action_data.get('second_player_id')
+            
+            # Validate required data
+            if not all([first_card_id, first_player_id, second_card_id, second_player_id]):
+                custom_log(f"Invalid Jack swap data - missing required fields", level="ERROR", isOn=LOGGING_SWITCH)
+                return False
+            
+            # Validate both players exist
+            if first_player_id not in self.game_state.players or second_player_id not in self.game_state.players:
+                custom_log(f"Invalid Jack swap - one or both players not found", level="ERROR", isOn=LOGGING_SWITCH)
+                return False
+            
+            # Get player objects
+            first_player = self.game_state.players[first_player_id]
+            second_player = self.game_state.players[second_player_id]
+            
+            # Find the cards in each player's hand
+            first_card = None
+            first_card_index = None
+            second_card = None
+            second_card_index = None
+            
+            # Find first card
+            for i, card in enumerate(first_player.hand):
+                if card is not None and card.card_id == first_card_id:
+                    first_card = card
+                    first_card_index = i
+                    break
+            
+            # Find second card
+            for i, card in enumerate(second_player.hand):
+                if card is not None and card.card_id == second_card_id:
+                    second_card = card
+                    second_card_index = i
+                    break
+            
+            # Validate cards found
+            if not first_card or not second_card:
+                custom_log(f"Invalid Jack swap - one or both cards not found in players' hands", level="ERROR", isOn=LOGGING_SWITCH)
+                return False
+            
+            # Perform the swap
+            first_player.hand[first_card_index] = second_card
+            second_player.hand[second_card_index] = first_card
+            
+            # Update card ownership
+            first_card.owner_id = first_player_id
+            second_card.owner_id = second_player_id
+            
+            custom_log(f"Successfully swapped cards: {first_card.card_id} <-> {second_card.card_id}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Player {first_player_id} now has: {[card.card_id if card else None for card in first_player.hand]}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Player {second_player_id} now has: {[card.card_id if card else None for card in second_player.hand]}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            return True
+            
+        except Exception as e:
+            custom_log(f"Error in _handle_jack_swap: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return False
     

@@ -37,7 +37,8 @@ class GameEventCoordinator:
                 'discard_card',
                 'take_from_discard',
                 'call_recall',
-                'same_rank_play'
+                'same_rank_play',
+                'jack_swap'
             ]
             
             # Register each event listener
@@ -85,6 +86,10 @@ class GameEventCoordinator:
             elif event_name == 'same_rank_play':
                 # Add action type to data payload for same_rank_play events
                 data_with_action = {**data, 'action': 'same_rank_play'}
+                return self._handle_player_action_through_round(session_id, data_with_action)
+            elif event_name == 'jack_swap':
+                # Add action type to data payload for jack_swap events
+                data_with_action = {**data, 'action': 'jack_swap'}
                 return self._handle_player_action_through_round(session_id, data_with_action)
             else:
                 return False

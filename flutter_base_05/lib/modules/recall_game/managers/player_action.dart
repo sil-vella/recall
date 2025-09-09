@@ -13,6 +13,7 @@ enum PlayerActionType {
   playSameRank,
   useSpecialPower,
   initialPeek,
+  jackSwap,
   
   // Query actions
   getPublicRooms,
@@ -22,6 +23,12 @@ enum PlayerActionType {
 class PlayerAction {
   static final RecallGameEventEmitter _eventEmitter = RecallGameEventEmitter.instance;
   static final RecallGameStateUpdater _stateUpdater = RecallGameStateUpdater.instance;
+  
+  // Jack swap selection tracking
+  static String? _firstSelectedCardId;
+  static String? _firstSelectedPlayerId;
+  static String? _secondSelectedCardId;
+  static String? _secondSelectedPlayerId;
 
   final PlayerActionType actionType;
   final String eventName;
@@ -38,6 +45,11 @@ class PlayerAction {
   /// Execute the player action with validation and state management
   Future<void> execute() async {
     try {
+      // Special handling for Jack swap - don't set status to waiting yet
+      if (actionType == PlayerActionType.jackSwap) {
+        return; // Jack swap is handled by selectCardForJackSwap method
+      }
+      
       // Set status to waiting after action execution to prevent multiple selections
       _setPlayerStatusToWaiting();
       
@@ -75,7 +87,7 @@ class PlayerAction {
 
   /// Centralized method to set player status to waiting after any action
   /// This prevents players from making multiple selections while waiting for backend response
-  void _setPlayerStatusToWaiting() {
+  static void _setPlayerStatusToWaiting() {
     try {
       // Use the dedicated state updater to properly update the player status
       _stateUpdater.updateState({
@@ -153,6 +165,114 @@ class PlayerAction {
         // player_id will be automatically included by the event emitter
       },
     );
+  }
+
+  /// Jack swap action - waits for 2 cards to be selected
+  static PlayerAction jackSwap({
+    required String gameId,
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.jackSwap,
+      eventName: 'jack_swap',
+      payload: {
+        'game_id': gameId,
+        // card selections will be added when both cards are selected
+      },
+    );
+  }
+
+  // ========= JACK SWAP LOGIC =========
+
+  /// Select a card for Jack swap (can be from any player)
+  static Future<void> selectCardForJackSwap({
+    required String cardId,
+    required String playerId,
+    required String gameId,
+  }) async {
+    try {
+      // If this is the first card selection
+      if (_firstSelectedCardId == null) {
+        _firstSelectedCardId = cardId;
+        _firstSelectedPlayerId = playerId;
+        print('Jack swap: First card selected - Card: $cardId, Player: $playerId');
+        return; // Wait for second card
+      }
+      
+      // If this is the second card selection
+      if (_secondSelectedCardId == null) {
+        _secondSelectedCardId = cardId;
+        _secondSelectedPlayerId = playerId;
+        print('Jack swap: Second card selected - Card: $cardId, Player: $playerId');
+        
+        // Both cards selected, execute the swap
+        await _executeJackSwap(gameId);
+      }
+      
+    } catch (e) {
+      print('Error in selectCardForJackSwap: $e');
+      rethrow;
+    }
+  }
+
+  /// Execute the Jack swap with both selected cards
+  static Future<void> _executeJackSwap(String gameId) async {
+    try {
+      if (_firstSelectedCardId == null || _secondSelectedCardId == null ||
+          _firstSelectedPlayerId == null || _secondSelectedPlayerId == null) {
+        throw Exception('Both cards must be selected for Jack swap');
+      }
+
+      // Create the swap payload
+      final swapPayload = {
+        'game_id': gameId,
+        'first_card_id': _firstSelectedCardId,
+        'first_player_id': _firstSelectedPlayerId,
+        'second_card_id': _secondSelectedCardId,
+        'second_player_id': _secondSelectedPlayerId,
+      };
+
+      // Send the swap request to backend
+      await _eventEmitter.emit(
+        eventType: 'jack_swap',
+        data: swapPayload,
+      );
+
+      // Clear selections after successful execution
+      _clearJackSwapSelections();
+      
+      // Set player status to waiting
+      _setPlayerStatusToWaiting();
+
+    } catch (e) {
+      print('Error executing Jack swap: $e');
+      rethrow;
+    }
+  }
+
+  /// Clear Jack swap selections
+  static void _clearJackSwapSelections() {
+    _firstSelectedCardId = null;
+    _firstSelectedPlayerId = null;
+    _secondSelectedCardId = null;
+    _secondSelectedPlayerId = null;
+  }
+
+  /// Reset Jack swap selections (call this when Jack swap is cancelled)
+  static void resetJackSwapSelections() {
+    _clearJackSwapSelections();
+  }
+
+  /// Check if Jack swap is in progress
+  static bool isJackSwapInProgress() {
+    return _firstSelectedCardId != null;
+  }
+
+  /// Get the number of cards selected for Jack swap
+  static int getJackSwapSelectionCount() {
+    int count = 0;
+    if (_firstSelectedCardId != null) count++;
+    if (_secondSelectedCardId != null) count++;
+    return count;
   }
 
   // ========= QUERY ACTIONS =========

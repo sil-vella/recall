@@ -3,6 +3,7 @@ import '../../../../../core/managers/state_manager.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../widgets/card_back_widget.dart';
+import '../../../managers/player_action.dart';
 
 /// Widget to display other players (opponents)
 /// 
@@ -380,10 +381,12 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Handle card click for special power interactions
-  void _handleCardClick(Map<String, dynamic> card) {
+  void _handleCardClick(Map<String, dynamic> card) async {
     // Get current player status from state
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+    final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+    final currentPlayerId = recallGameState['currentPlayerId']?.toString() ?? '';
     
     // Check if current player can interact with cards (queen_peek or jack_swap status)
     if (currentPlayerStatus == 'queen_peek' || currentPlayerStatus == 'jack_swap') {
@@ -393,18 +396,59 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           _clickedCardId = cardId;
         });
         
-        // Show success feedback
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              currentPlayerStatus == 'queen_peek' 
-                ? 'Card selected for Queen peek: ${card['rank']} of ${card['suit']}'
-                : 'Card selected for Jack swap: ${card['rank']} of ${card['suit']}'
+        if (currentPlayerStatus == 'queen_peek') {
+          // Handle Queen peek (existing logic)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Card selected for Queen peek: ${card['rank']} of ${card['suit']}'
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+          );
+        } else if (currentPlayerStatus == 'jack_swap') {
+          // Handle Jack swap card selection
+          try {
+            await PlayerAction.selectCardForJackSwap(
+              cardId: cardId,
+              playerId: currentPlayerId,
+              gameId: currentGameId,
+            );
+            
+            // Show feedback for Jack swap selection
+            final selectionCount = PlayerAction.getJackSwapSelectionCount();
+            if (selectionCount == 1) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'First card selected: ${card['rank']} of ${card['suit']}. Select another card to swap.'
+                  ),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            } else if (selectionCount == 2) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Second card selected: ${card['rank']} of ${card['suit']}. Swapping cards...'
+                  ),
+                  backgroundColor: Colors.purple,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to select card for Jack swap: $e'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

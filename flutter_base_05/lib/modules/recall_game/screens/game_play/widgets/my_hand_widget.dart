@@ -269,6 +269,38 @@ class MyHandWidget extends StatelessWidget {
               duration: Duration(seconds: 2),
             ),
           );
+        } else if (currentPlayerStatus == 'jack_swap') {
+          // Handle Jack swap card selection
+          final currentPlayerId = currentState['currentPlayerId']?.toString() ?? '';
+          await PlayerAction.selectCardForJackSwap(
+            cardId: card['cardId']?.toString() ?? '',
+            playerId: currentPlayerId,
+            gameId: currentGameId,
+          );
+          
+          // Show feedback for Jack swap selection
+          final selectionCount = PlayerAction.getJackSwapSelectionCount();
+          if (selectionCount == 1) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'First card selected: ${card['rank']} of ${card['suit']}. Select another card to swap.'
+                ),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          } else if (selectionCount == 2) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Second card selected: ${card['rank']} of ${card['suit']}. Swapping cards...'
+                ),
+                backgroundColor: Colors.purple,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
         } else {
           // Use regular play card action for other states
           final playAction = PlayerAction.playerPlayCard(

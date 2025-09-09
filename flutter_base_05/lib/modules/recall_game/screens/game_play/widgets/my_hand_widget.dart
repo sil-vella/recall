@@ -304,6 +304,29 @@ class MyHandWidget extends StatelessWidget {
               ),
             );
           }
+        } else if (currentPlayerStatus == 'queen_peek') {
+          // Handle Queen peek card selection
+          // Get current user ID from login state (card owner for my hand)
+          final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+          final currentUserId = loginState['userId']?.toString() ?? '';
+          
+          final queenPeekAction = PlayerAction.queenPeek(
+            gameId: currentGameId,
+            cardId: card['cardId']?.toString() ?? '',
+            playerId: currentUserId,
+          );
+          await queenPeekAction.execute();
+          
+          // Show feedback for Queen peek
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Peeking at: ${card['rank']} of ${card['suit']}'
+              ),
+              backgroundColor: Colors.pink,
+              duration: Duration(seconds: 2),
+            ),
+          );
         } else {
           // Use regular play card action for other states
           final playAction = PlayerAction.playerPlayCard(

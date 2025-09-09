@@ -38,6 +38,7 @@ class RecallGameEventEmitter {
     'use_special_power': {'game_id', 'card_id', 'power_data'}, // player_id auto-added
     'same_rank_play': {'game_id', 'card_id'}, // player_id auto-added
     'jack_swap': {'game_id', 'first_card_id', 'first_player_id', 'second_card_id', 'second_player_id'}, // player_id auto-added
+    'queen_peek': {'game_id', 'card_id', 'player_id'}, // player_id auto-added
   };
   
   /// Define validation rules for each field
@@ -122,8 +123,8 @@ class RecallGameEventEmitter {
     ),
     'player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'Player ID in format: player_xxxxx or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'Player ID in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
     ),
     'card_id': RecallEventFieldSpec(
       type: String,
@@ -181,6 +182,16 @@ class RecallGameEventEmitter {
       type: String,
       pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
       description: 'Second player ID in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
+    ),
+    'queen_peek_card_id': RecallEventFieldSpec(
+      type: String,
+      pattern: r'^card_[a-zA-Z0-9_]+$',
+      description: 'Card ID to peek at in format: card_xxxxx',
+    ),
+    'queen_peek_player_id': RecallEventFieldSpec(
+      type: String,
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'Player ID whose card to peek at in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
     ),
   };
   

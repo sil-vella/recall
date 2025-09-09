@@ -16,6 +16,7 @@ enum PlayerActionType {
   useSpecialPower,
   initialPeek,
   jackSwap,
+  queenPeek,
   
   // Query actions
   getPublicRooms,
@@ -55,6 +56,12 @@ class PlayerAction {
       if (actionType == PlayerActionType.jackSwap) {
         _logger.info('Jack swap action executed - waiting for card selections', isOn: LOGGING_SWITCH);
         return; // Jack swap is handled by selectCardForJackSwap method
+      }
+      
+      // Special handling for Queen peek - execute immediately with single card selection
+      if (actionType == PlayerActionType.queenPeek) {
+        _logger.info('Queen peek action executed - peeking at card: ${payload['card_id']}', isOn: LOGGING_SWITCH);
+        // Queen peek executes immediately, no special handling needed
       }
       
       // Set status to waiting after action execution to prevent multiple selections
@@ -327,6 +334,25 @@ class PlayerAction {
     final logger = Logger();
     logger.info('Jack swap selection count: $count', isOn: LOGGING_SWITCH);
     return count;
+  }
+
+  // ========= QUEEN PEEK LOGIC =========
+
+  /// Queen peek action - peek at any one card from any player
+  static PlayerAction queenPeek({
+    required String gameId,
+    required String cardId,
+    required String playerId,
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.queenPeek,
+      eventName: 'queen_peek',
+      payload: {
+        'game_id': gameId,
+        'card_id': cardId,
+        'player_id': playerId,
+      },
+    );
   }
 
   // ========= QUERY ACTIONS =========

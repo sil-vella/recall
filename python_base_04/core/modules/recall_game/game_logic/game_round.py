@@ -383,6 +383,9 @@ class GameRound:
             'first_player_id': data.get('first_player_id'),
             'second_card_id': data.get('second_card_id'),
             'second_player_id': data.get('second_player_id'),
+            # Queen peek specific fields
+            'queen_peek_card_id': data.get('card_id'),
+            'queen_peek_player_id': data.get('player_id'),
         }
     
     def _extract_user_id(self, session_id: str, data: Dict[str, Any]) -> str:
@@ -421,6 +424,8 @@ class GameRound:
                 return True  # Placeholder - will be False when implemented
             elif action == 'jack_swap':
                 return self._handle_jack_swap(user_id, action_data)
+            elif action == 'queen_peek':
+                return self._handle_queen_peek(user_id, action_data)
             else:
                 return False
         except Exception as e:
@@ -1164,5 +1169,54 @@ class GameRound:
             
         except Exception as e:
             custom_log(f"Error in _handle_jack_swap: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return False
+
+    def _handle_queen_peek(self, user_id: str, action_data: Dict[str, Any]) -> bool:
+        """Handle Queen peek action - peek at any one card from any player"""
+        try:
+            custom_log(f"Handling Queen peek for player {user_id} with data: {action_data}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Extract card information from action data
+            card_id = action_data.get('queen_peek_card_id')
+            target_player_id = action_data.get('queen_peek_player_id')
+            
+            if not card_id or not target_player_id:
+                custom_log("Invalid Queen peek data - missing required fields", level="ERROR", isOn=LOGGING_SWITCH)
+                return False
+            
+            # Find the target player
+            if target_player_id not in self.game_state.players:
+                custom_log(f"Target player {target_player_id} not found for Queen peek", level="ERROR", isOn=LOGGING_SWITCH)
+                return False
+            
+            target_player = self.game_state.players[target_player_id]
+            
+            # Find the card in the target player's hand
+            target_card = None
+            target_card_index = None
+            custom_log(f"Searching for card {card_id} in player {target_player_id}'s hand", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Player {target_player_id} hand: {[card.card_id if card else None for card in target_player.hand]}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            for i, card in enumerate(target_player.hand):
+                if card and card.card_id == card_id:
+                    target_card = card
+                    target_card_index = i
+                    break
+            
+            if not target_card:
+                custom_log(f"Card {card_id} not found in player {target_player_id}'s hand for Queen peek", level="ERROR", isOn=LOGGING_SWITCH)
+                return False
+            
+            # Determine card color from suit
+            card_color = "red" if target_card.suit in ["hearts", "diamonds"] else "black"
+            
+            # Log the card details that were peeked at
+            custom_log(f"Queen peek successful - Player {user_id} peeked at card: {target_card.card_id} ({target_card.rank} of {target_card.suit}) from player {target_player_id} at index {target_card_index}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Peeked card details - ID: {target_card.card_id}, Rank: {target_card.rank}, Suit: {target_card.suit}, Points: {target_card.points}, Color: {card_color}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            return True
+            
+        except Exception as e:
+            custom_log(f"Error in _handle_queen_peek: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
     

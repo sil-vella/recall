@@ -396,16 +396,34 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         });
         
         if (currentPlayerStatus == 'queen_peek') {
-          // Handle Queen peek (existing logic)
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Card selected for Queen peek: ${card['rank']} of ${card['suit']}'
+          // Handle Queen peek card selection
+          try {
+            final queenPeekAction = PlayerAction.queenPeek(
+              gameId: currentGameId,
+              cardId: cardId,
+              playerId: cardOwnerId,
+            );
+            await queenPeekAction.execute();
+            
+            // Show feedback for Queen peek
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Peeking at: ${card['rank']} of ${card['suit']}'
+                ),
+                backgroundColor: Colors.pink,
+                duration: Duration(seconds: 2),
               ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+            );
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to peek at card: $e'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
         } else if (currentPlayerStatus == 'jack_swap') {
           // Handle Jack swap card selection
           try {

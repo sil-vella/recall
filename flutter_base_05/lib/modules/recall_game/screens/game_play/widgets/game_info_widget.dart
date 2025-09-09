@@ -31,7 +31,9 @@ class GameInfoWidget extends StatelessWidget {
         final isRoomOwner = gameInfo['isRoomOwner'] ?? false;
         final isInGame = gameInfo['isInGame'] ?? false;
         
-        // Get player status from main state
+        // Get additional game state for context
+        final isGameActive = recallGameState['isGameActive'] ?? false;
+        final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
         if (!isInGame || currentGameId.isEmpty) {
@@ -46,6 +48,8 @@ class GameInfoWidget extends StatelessWidget {
           gamePhase: gamePhase,
           gameStatus: gameStatus,
           isRoomOwner: isRoomOwner,
+          isGameActive: isGameActive,
+          isMyTurn: isMyTurn,
           playerStatus: playerStatus,
         );
       },
@@ -105,6 +109,8 @@ class GameInfoWidget extends StatelessWidget {
     required String gamePhase,
     required String gameStatus,
     required bool isRoomOwner,
+    required bool isGameActive,
+    required bool isMyTurn,
     required String playerStatus,
   }) {
     return Card(

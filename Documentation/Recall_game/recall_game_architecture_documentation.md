@@ -1449,17 +1449,84 @@ All components have been verified to follow the standardized pattern:
 - ✅ `GamePlayScreen` - No state subscription, layout only
 - ✅ `LobbyScreen` - No state subscription, layout only
 
-**Widgets (10 total):**
-- ✅ `ActionBar` - ListenableBuilder with StateManager
-- ✅ `StatusBar` - ListenableBuilder with StateManager
-- ✅ `MyHandPanel` - ListenableBuilder with StateManager
-- ✅ `CenterBoard` - ListenableBuilder with StateManager
-- ✅ `MessageBoardWidget` - ListenableBuilder with StateManager
-- ✅ `RoomMessageBoardWidget` - ListenableBuilder with StateManager
-- ✅ `CurrentRoomWidget` - ListenableBuilder with StateManager
-- ✅ `RoomListWidget` - ListenableBuilder with StateManager
-- ✅ `ConnectionStatusWidget` - ListenableBuilder with StateManager
-- ✅ `PendingGamesWidget` - ListenableBuilder with StateManager
+**Widgets (All follow standardized pattern):**
+- ✅ **Consistent State Subscription**: All widgets use ListenableBuilder with StateManager
+- ✅ **Standardized Structure**: All widgets follow the same 6-step pattern:
+  1. **State Subscription**: `ListenableBuilder(listenable: StateManager())`
+  2. **State Extraction**: `StateManager().getModuleState<Map<String, dynamic>>('recall_game')`
+  3. **Slice Access**: Extract widget-specific state slice
+  4. **Context Variables**: Extract standard game context (gamePhase, isGameActive, isMyTurn, playerStatus)
+  5. **Build Method**: Call `_buildWidgetName()` with consistent parameters
+  6. **Performance**: Nested ListenableBuilders for fine-grained reactivity when needed
+- ✅ **Error Handling**: All widgets handle null states gracefully
+- ✅ **Empty States**: All widgets have proper empty state displays
+
+### 🏗️ Standardized Widget State Structure Pattern
+
+All widgets in the Recall Game module follow a consistent, standardized pattern for state subscription and management. This ensures maintainability, predictability, and optimal performance.
+
+#### **1. State Subscription Pattern**
+```dart
+return ListenableBuilder(
+  listenable: StateManager(),
+  builder: (context, child) {
+    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+```
+
+#### **2. State Slice Extraction**
+Each widget extracts its specific state slice:
+```dart
+// Widget-specific state slice extraction
+final mySlice = recallGameState['widgetSpecificSlice'] as Map<String, dynamic>? ?? {};
+```
+
+#### **3. Standard Context Variables**
+All widgets extract the same 4 context variables for consistency:
+```dart
+final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
+final isGameActive = recallGameState['isGameActive'] ?? false;
+final isMyTurn = recallGameState['isMyTurn'] ?? false;
+final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+```
+
+#### **4. Build Method Structure**
+All widgets follow the same pattern:
+```dart
+return _buildWidgetName(
+  // widget-specific parameters
+  gamePhase: gamePhase,
+  isGameActive: isGameActive,
+  isMyTurn: isMyTurn,
+  playerStatus: playerStatus,
+);
+```
+
+#### **5. Build Method Signatures**
+All `_build*` methods have consistent parameter signatures:
+```dart
+Widget _buildWidgetName({
+  // widget-specific required params
+  required String gamePhase,
+  required bool isGameActive,
+  required bool isMyTurn,
+  required String playerStatus,
+}) {
+```
+
+#### **6. Performance Optimizations**
+- **Nested ListenableBuilders**: Used for fine-grained reactivity when needed
+- **Consistent Error Handling**: All widgets handle null states gracefully
+- **Empty State Handling**: All widgets have proper empty state displays
+
+#### **7. Widget Type Consistency**
+- **StatelessWidget**: Used for widgets that don't need internal state
+- **StatefulWidget**: Used only when internal state is required (e.g., tracking clicked items)
+
+This standardized pattern ensures that all widgets are:
+- **Predictable**: Same structure across all widgets
+- **Maintainable**: Easy to understand and modify
+- **Performant**: Optimized for minimal rebuilds
+- **Consistent**: Follows the same architectural principles
 
 **Services (3 total):**
 - ✅ `GameService` - Game-specific business logic

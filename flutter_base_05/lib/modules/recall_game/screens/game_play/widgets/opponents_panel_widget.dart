@@ -49,6 +49,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         // Get additional game state for context
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isGameActive = recallGameState['isGameActive'] ?? false;
+        final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
         
@@ -57,6 +58,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           currentTurnIndex: currentTurnIndex,
           gamePhase: gamePhase,
           isGameActive: isGameActive,
+          isMyTurn: isMyTurn,
           playerStatus: playerStatus,
         );
       },
@@ -69,6 +71,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     required int currentTurnIndex,
     required String gamePhase,
     required bool isGameActive,
+    required bool isMyTurn,
     required String playerStatus,
   }) {
     return Card(
@@ -140,22 +143,25 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
 
   /// Build the opponents grid
   Widget _buildOpponentsGrid(List<dynamic> opponents, int currentTurnIndex, bool isGameActive, String playerStatus) {
-    // Get current player information from state (following standard pattern)
-    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentPlayerRaw = recallGameState['currentPlayer'];
-    
-    // Handle different types of currentPlayer data (null, string "null", or actual Map)
-    Map<String, dynamic>? currentPlayerData;
-    if (currentPlayerRaw == null || currentPlayerRaw == 'null' || currentPlayerRaw == '') {
-      currentPlayerData = null;
-    } else if (currentPlayerRaw is Map<String, dynamic>) {
-      currentPlayerData = currentPlayerRaw;
-    } else {
-      currentPlayerData = null;
-    }
-    
-    final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
-    final currentPlayerStatus = recallGameState['currentPlayerStatus']?.toString() ?? 'unknown';
+    return ListenableBuilder(
+      listenable: StateManager(),
+      builder: (context, child) {
+        // Get current player information from state (following standard pattern)
+        final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final currentPlayerRaw = recallGameState['currentPlayer'];
+        
+        // Handle different types of currentPlayer data (null, string "null", or actual Map)
+        Map<String, dynamic>? currentPlayerData;
+        if (currentPlayerRaw == null || currentPlayerRaw == 'null' || currentPlayerRaw == '') {
+          currentPlayerData = null;
+        } else if (currentPlayerRaw is Map<String, dynamic>) {
+          currentPlayerData = currentPlayerRaw;
+        } else {
+          currentPlayerData = null;
+        }
+        
+        final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
+        final currentPlayerStatus = recallGameState['currentPlayerStatus']?.toString() ?? 'unknown';
     
     
     return Column(
@@ -171,6 +177,8 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           child: _buildOpponentCard(player, isCurrentTurn, isGameActive, isCurrentPlayer, currentPlayerStatus),
         );
       }).toList(),
+    );
+      },
     );
   }
 

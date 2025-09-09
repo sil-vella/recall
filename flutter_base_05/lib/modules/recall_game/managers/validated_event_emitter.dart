@@ -169,8 +169,8 @@ class RecallGameEventEmitter {
     ),
     'first_player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'First player ID in format: player_xxxxx or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'First player ID in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
     ),
     'second_card_id': RecallEventFieldSpec(
       type: String,
@@ -179,8 +179,8 @@ class RecallGameEventEmitter {
     ),
     'second_player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'Second player ID in format: player_xxxxx or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'Second player ID in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
     ),
   };
   

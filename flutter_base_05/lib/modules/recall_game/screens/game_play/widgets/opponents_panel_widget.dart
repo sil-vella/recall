@@ -271,16 +271,26 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         scrollDirection: Axis.horizontal,
         itemCount: cards.length,
         itemBuilder: (context, index) {
-          final card = cards[index] as Map<String, dynamic>;
+          final card = cards[index];
+          
+          // Handle null cards (blank slots from same-rank plays)
+          if (card == null) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: _buildBlankCardSlot(),
+            );
+          }
+          
+          final cardMap = card as Map<String, dynamic>;
           final drawnCardId = drawnCard?['cardId']?.toString();
-          final isDrawnCard = drawnCardId != null && card['cardId']?.toString() == drawnCardId;
+          final isDrawnCard = drawnCardId != null && cardMap['cardId']?.toString() == drawnCardId;
           
           return Padding(
             padding: EdgeInsets.only(
               right: 6,
               left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
             ),
-            child: _buildCardWidget(card, isDrawnCard),
+            child: _buildCardWidget(cardMap, isDrawnCard),
           );
         },
       ),
@@ -495,6 +505,44 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Build a blank card slot for same-rank play empty spaces (smaller version for opponents)
+  Widget _buildBlankCardSlot() {
+    return Container(
+      width: 60, // Smaller width for opponents
+      height: 90, // Smaller height for opponents
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: Colors.grey.shade300,
+          width: 1,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.space_bar,
+              size: 16,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Empty',
+              style: TextStyle(
+                fontSize: 8,
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

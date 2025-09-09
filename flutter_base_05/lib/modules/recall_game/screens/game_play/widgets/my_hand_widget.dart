@@ -154,13 +154,23 @@ class MyHandWidget extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             itemCount: cards.length,
             itemBuilder: (context, index) {
-              final card = cards[index] as Map<String, dynamic>;
+              final card = cards[index];
+              
+              // Handle null cards (blank slots from same-rank plays)
+              if (card == null) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _buildBlankCardSlot(),
+                );
+              }
+              
+              final cardMap = card as Map<String, dynamic>;
               final isSelected = index == selectedIndex;
-              final isDrawnCard = drawnCardId != null && card['cardId']?.toString() == drawnCardId;
+              final isDrawnCard = drawnCardId != null && cardMap['cardId']?.toString() == drawnCardId;
               
               
               // Convert to CardModel
-              final cardModel = CardModel.fromMap(card);
+              final cardModel = CardModel.fromMap(cardMap);
               final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
               
               return Padding(
@@ -185,7 +195,7 @@ class MyHandWidget extends StatelessWidget {
                     size: CardSize.large,
                     isSelectable: true,
                     isSelected: isSelected,
-                    onTap: () => _handleCardSelection(context, index, card),
+                    onTap: () => _handleCardSelection(context, index, cardMap),
                   ),
                 ),
               );
@@ -301,5 +311,42 @@ class MyHandWidget extends StatelessWidget {
     }
   }
 
+  /// Build a blank card slot for same-rank play empty spaces
+  Widget _buildBlankCardSlot() {
+    return Container(
+      width: 80, // Same width as regular cards
+      height: 120, // Same height as regular cards
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.grey.shade300,
+          width: 2,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.space_bar,
+              size: 24,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Empty',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
 }

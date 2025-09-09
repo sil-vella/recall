@@ -815,21 +815,44 @@ class GameRound:
                 custom_log(f"Failed to add card {card_id} to discard pile", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
-            # Handle drawn card repositioning with blank slot system
+            # Handle drawn card repositioning with smart blank slot system
             if drawn_card and drawn_card.card_id != card_id:
                 # The drawn card should fill the blank slot left by the played card
                 # The blank slot is at card_index (where the played card was)
                 custom_log(f"Repositioning drawn card {drawn_card.card_id} to index {card_index}", level="DEBUG", isOn=LOGGING_SWITCH)
                 
-                # First, remove the drawn card from its original position in the hand
+                # First, find and remove the drawn card from its original position
+                original_index = None
                 for i, card in enumerate(player.hand):
                     if card is not None and card.card_id == drawn_card.card_id:
-                        player.hand[i] = None  # Remove from original position
-                        custom_log(f"Removed drawn card from original position {i}", level="DEBUG", isOn=LOGGING_SWITCH)
+                        original_index = i
                         break
                 
-                # Then place it in the blank slot left by the played card
-                player.hand[card_index] = drawn_card
+                if original_index is not None:
+                    # Apply smart blank slot logic to the original position
+                    should_keep_original_slot = player._should_create_blank_slot_at_index(original_index)
+                    
+                    if should_keep_original_slot:
+                        player.hand[original_index] = None  # Create blank slot
+                        custom_log(f"Created blank slot at original position {original_index}", level="DEBUG", isOn=LOGGING_SWITCH)
+                    else:
+                        player.hand.pop(original_index)  # Remove entirely
+                        custom_log(f"Removed card entirely from original position {original_index}", level="DEBUG", isOn=LOGGING_SWITCH)
+                        # Adjust target index if we removed a card before it
+                        if original_index < card_index:
+                            card_index -= 1
+                
+                # Apply smart blank slot logic to the target position
+                should_place_in_slot = player._should_create_blank_slot_at_index(card_index)
+                
+                if should_place_in_slot:
+                    # Place it in the blank slot left by the played card
+                    player.hand[card_index] = drawn_card
+                    custom_log(f"Placed drawn card in blank slot at index {card_index}", level="DEBUG", isOn=LOGGING_SWITCH)
+                else:
+                    # The slot shouldn't exist, so append the drawn card to the end
+                    player.hand.append(drawn_card)
+                    custom_log(f"Appended drawn card to end of hand (slot {card_index} shouldn't exist)", level="DEBUG", isOn=LOGGING_SWITCH)
                 
                 # IMPORTANT: After repositioning, the drawn card becomes a regular hand card
                 # Clear the drawn card property since it's no longer "drawn"

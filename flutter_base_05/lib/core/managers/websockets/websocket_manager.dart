@@ -821,6 +821,12 @@ class WebSocketManager {
       return {"error": "WebSocket not connected"};
     }
     try {
+      // Auto-include user ID from login state
+      final currentUserId = _getCurrentUserId();
+      if (currentUserId.isNotEmpty) {
+        data['user_id'] = currentUserId;
+      }
+      
       _socket!.emit(eventName, data);
       return {"success": true};
     } catch (e) {
@@ -873,6 +879,17 @@ class WebSocketManager {
       _isInitialized = false;
     } catch (e) {
       // Error disposing WebSocket manager
+    }
+  }
+
+  /// Get current user ID from login state
+  String _getCurrentUserId() {
+    try {
+      final stateManager = StateManager();
+      final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+      return loginState['userId']?.toString() ?? '';
+    } catch (e) {
+      return '';
     }
   }
 } 

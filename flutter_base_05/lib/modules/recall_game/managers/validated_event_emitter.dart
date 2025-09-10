@@ -25,7 +25,7 @@ class RecallGameEventEmitter {
       'room_name', 'permission', 'max_players', 'min_players', 
       'turn_time_limit', 'auto_start', 'game_type', 'password'
     },
-    'join_room': {'room_id'},
+    'join_room': {'room_id', 'password'},
     'join_game': {'game_id', 'player_name', 'max_players'},
     'start_match': {'game_id'},
     'play_card': {'game_id', 'card_id', 'replace_index'}, // player_id auto-added
@@ -38,7 +38,7 @@ class RecallGameEventEmitter {
     'use_special_power': {'game_id', 'card_id', 'power_data'}, // player_id auto-added
     'same_rank_play': {'game_id', 'card_id'}, // player_id auto-added
     'jack_swap': {'game_id', 'first_card_id', 'first_player_id', 'second_card_id', 'second_player_id'}, // player_id auto-added
-    'queen_peek': {'game_id', 'card_id', 'player_id'}, // player_id auto-added
+    'queen_peek': {'game_id', 'card_id', 'ownerId'}, // ownerId for card owner
   };
   
   /// Define validation rules for each field
@@ -192,6 +192,11 @@ class RecallGameEventEmitter {
       type: String,
       pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
       description: 'Player ID whose card to peek at in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
+    ),
+    'ownerId': RecallEventFieldSpec(
+      type: String,
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'Owner ID of the card being peeked at in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
     ),
   };
   

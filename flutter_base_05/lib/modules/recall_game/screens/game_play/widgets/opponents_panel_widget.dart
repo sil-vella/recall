@@ -401,7 +401,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             final queenPeekAction = PlayerAction.queenPeek(
               gameId: currentGameId,
               cardId: cardId,
-              playerId: cardOwnerId,
+              ownerId: cardOwnerId,
             );
             await queenPeekAction.execute();
             

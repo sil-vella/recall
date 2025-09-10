@@ -342,7 +342,7 @@ class PlayerAction {
   static PlayerAction queenPeek({
     required String gameId,
     required String cardId,
-    required String playerId,
+    required String ownerId,
   }) {
     return PlayerAction._(
       actionType: PlayerActionType.queenPeek,
@@ -350,7 +350,7 @@ class PlayerAction {
       payload: {
         'game_id': gameId,
         'card_id': cardId,
-        'player_id': playerId,
+        'ownerId': ownerId,
       },
     );
   }

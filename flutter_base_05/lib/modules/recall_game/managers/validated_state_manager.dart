@@ -280,6 +280,11 @@ class RecallGameStateUpdater {
       required: false,
       description: 'Most recently drawn card for current player',
     ),
+    'myCardsToPeek': RecallStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      description: 'Current player\'s cards available for peeking (from player data)',
+    ),
     'cards_to_peek': RecallStateFieldSpec(
       type: List,
       defaultValue: [],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../utils/recall_game_helpers.dart';
+import '../../../managers/validated_event_emitter.dart';
 
 class JoinRoomWidget extends StatefulWidget {
   final VoidCallback? onJoinRoom;
@@ -157,23 +158,28 @@ class _JoinRoomWidgetState extends State<JoinRoomWidget> {
         throw Exception('Password is required for private games');
       }
 
-      // Get WebSocket manager
+      // Get WebSocket manager to check connection
       final wsManager = WebSocketManager.instance;
       if (!wsManager.isConnected) {
         throw Exception('Not connected to server');
       }
 
       // Prepare join data
-      final joinData = {
+      final joinData = <String, dynamic>{
         'room_id': roomId,
-        'password': password.isNotEmpty ? password : null,
       };
 
-      // Remove null values
-      joinData.removeWhere((key, value) => value == null);
+      // Add password if provided
+      if (password.isNotEmpty) {
+        joinData['password'] = password;
+      }
 
-      // Emit join room event (backend will validate password for private rooms)
-      wsManager.socket?.emit('join_room', joinData);
+      // Use validated event emitter for consistent validation and user ID injection
+      final eventEmitter = RecallGameEventEmitter.instance;
+      await eventEmitter.emit(
+        eventType: 'join_room',
+        data: joinData,
+      );
 
       // Clear form
       _roomIdController.clear();

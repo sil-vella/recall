@@ -1,6 +1,6 @@
 import 'dart:async';
-import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/state_manager.dart';
+import 'validated_event_emitter.dart';
 
 /// PlayerAction class for handling individual player actions
 class PlayerAction {
@@ -16,22 +16,17 @@ class PlayerAction {
     /// Execute the player action
   Future<bool> execute() async {
     try {
-      // Get WebSocket manager instance
-      final wsManager = WebSocketManager.instance;
+      // Use validated event emitter for consistent validation and user ID injection
+      final eventEmitter = RecallGameEventEmitter.instance;
       
-      // Check if WebSocket is connected
-      if (!wsManager.isConnected) {
-        return false;
-      }
+      // Send the action via validated event emitter
+      await eventEmitter.emit(
+        eventType: eventName,
+        data: gameData,
+      );
       
-      // Send the action directly via WebSocket
-      final result = await wsManager.sendCustomEvent(eventName, gameData);
-      
-      if (result['success'] == true) {
-        return true;
-      } else {
-        return false;
-      }
+      // Check if the emission was successful (no exception thrown)
+      return true;
     } catch (e) {
       return false;
     }
@@ -88,7 +83,7 @@ class GameCoordinator {
     
     // Create and execute the player action
     final action = PlayerAction(
-      eventName: 'recall_leave_game',
+      eventName: 'leave_game',
       gameData: gameData,
     );
     

@@ -51,6 +51,7 @@ class Player:
         self.has_called_recall = False
         self.last_action_time = None
         self.initial_peeks_remaining = 2
+        self.cards_to_peek = [] # Cards player has peeked at
         self.status = PlayerStatus.WAITING  # Player status
         self.drawn_card = None  # Most recently drawn card (Card object)
         
@@ -395,6 +396,7 @@ class Player:
             "is_active": self.is_active,
             "has_called_recall": self.has_called_recall,
             "initial_peeks_remaining": self.initial_peeks_remaining,
+            "cards_to_peek": [card.to_dict() for card in self.cards_to_peek],  # Include cards to peek
             "status": self.status.value,  # Include player status
             "drawn_card": self.drawn_card.to_dict() if self.drawn_card else None,  # Include drawn card
         }
@@ -414,6 +416,11 @@ class Player:
         for card_data in data.get("visible_cards", []):
             card = Card.from_dict(card_data)
             player.visible_cards.append(card)
+        
+        # Restore cards to peek
+        for card_data in data.get("cards_to_peek", []):
+            card = Card.from_dict(card_data)
+            player.cards_to_peek.append(card)
         
         player.points = data.get("points", 0)
         player.cards_remaining = data.get("cards_remaining", 4)

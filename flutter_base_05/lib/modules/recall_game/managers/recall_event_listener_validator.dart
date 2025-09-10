@@ -103,15 +103,7 @@ class RecallGameEventListenerValidator {
       schema: {'game_id', 'player_id', 'first_card_id', 'first_player_id', 'second_card_id', 'second_player_id', 'timestamp'},
     ),
     'queen_peek': EventConfig(
-      schema: {'game_id', 'player_id', 'card_id', 'target_player_id', 'timestamp'},
-    ),
-    'queen_peek_result': EventConfig(
-      schema: {'event_type', 'game_id', 'peeking_player_id', 'target_player_id', 'peeked_card', 'timestamp'},
-      handlerMethod: 'handleQueenPeekResult',
-    ),
-    'cards_to_peek': EventConfig(
-      schema: {'event_type', 'game_id', 'player_id', 'cards_to_peek', 'peek_type', 'timestamp'},
-      handlerMethod: 'handleCardsToPeek',
+      schema: {'game_id', 'player_id', 'card_id', 'ownerId', 'timestamp'},
     ),
     'recall_message': EventConfig(
       schema: {'scope', 'target_id', 'level', 'title', 'message', 'data', 'timestamp'},

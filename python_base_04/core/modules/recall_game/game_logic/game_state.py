@@ -988,6 +988,7 @@ class GameStateManager:
             'type': 'human' if player.player_type.value == 'human' else 'computer',
             'hand': [self._to_flutter_card(c) if c is not None else None for c in player.hand],  # Send None as null for blank slots
             'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards if c is not None],
+            'cardsToPeek': [self._to_flutter_card(c) for c in player.cards_to_peek if c is not None],  # Include cards to peek
             'score': int(player.calculate_points()),
             'status': player.status.value,  # Use the player's actual status
             'isCurrentPlayer': is_current,
@@ -1030,6 +1031,8 @@ class GameStateManager:
             'gameName': f"Recall Game {game.game_id}",
             
             # Player information
+            # TODO: Implement player-specific data filtering to prevent sending sensitive data (hand, cardsToPeek, drawnCard) to other players
+            # Currently sending ALL player data to ALL players - this is a security/privacy issue
             'players': [self._to_flutter_player_data(player, pid == game.current_player_id) for pid, player in game.players.items()],
             'currentPlayer': current_player,
             'playerCount': len(game.players),

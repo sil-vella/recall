@@ -24,8 +24,8 @@ class CardPeekWidget extends StatelessWidget {
       builder: (context, child) {
         final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         
-        // Get cards_to_peek state slice
-        final cardsToPeek = recallGameState['cards_to_peek'] as List<dynamic>? ?? [];
+        // Get myCardsToPeek from player state updates (not from main game state)
+        final myCardsToPeek = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
         
         // Get additional game state for context
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
@@ -34,7 +34,7 @@ class CardPeekWidget extends StatelessWidget {
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
         return _buildCardPeekCard(
-          cardsToPeek: cardsToPeek,
+          cardsToPeek: myCardsToPeek,
           gamePhase: gamePhase,
           isGameActive: isGameActive,
           isMyTurn: isMyTurn,
@@ -104,7 +104,7 @@ class CardPeekWidget extends StatelessWidget {
   /// Build the peek cards grid using the CardWidget system
   Widget _buildPeekCardsGrid(List<dynamic> cardsToPeek) {
     return Container(
-      height: 180, // Increased height to accommodate owner info
+      height: 140, // Standard height for card display
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: cardsToPeek.length,
@@ -120,41 +120,18 @@ class CardPeekWidget extends StatelessWidget {
           }
           
           final cardMap = cardData as Map<String, dynamic>;
-          final ownerPlayerId = cardMap['owner_player_id']?.toString() ?? 'unknown';
           
           // Convert to CardModel
           final cardModel = CardModel.fromMap(cardMap);
           
           return Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: Column(
-              children: [
-                // Card display
-                CardWidget(
-                  card: cardModel,
-                  size: CardSize.medium,
-                  isSelectable: false,
-                  showPoints: true,
-                  showSpecialPower: true,
-                ),
-                const SizedBox(height: 4),
-                // Owner information
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'Owner: ${ownerPlayerId.length > 8 ? '${ownerPlayerId.substring(0, 8)}...' : ownerPlayerId}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey.shade700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
+            child: CardWidget(
+              card: cardModel,
+              size: CardSize.medium,
+              isSelectable: false,
+              showPoints: true,
+              showSpecialPower: true,
             ),
           );
         },

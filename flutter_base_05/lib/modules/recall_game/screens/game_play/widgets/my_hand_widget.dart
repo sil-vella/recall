@@ -313,7 +313,7 @@ class MyHandWidget extends StatelessWidget {
           final queenPeekAction = PlayerAction.queenPeek(
             gameId: currentGameId,
             cardId: card['cardId']?.toString() ?? '',
-            playerId: currentUserId,
+            ownerId: currentUserId,
           );
           await queenPeekAction.execute();
           

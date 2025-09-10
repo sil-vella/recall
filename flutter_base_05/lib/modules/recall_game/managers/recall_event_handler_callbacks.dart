@@ -490,6 +490,7 @@ class RecallEventHandlerCallbacks {
       // Extract player data fields
       final hand = playerData['hand'] as List<dynamic>? ?? [];
       // final visibleCards = playerData['visibleCards'] as List<dynamic>? ?? [];
+      final cardsToPeek = playerData['cardsToPeek'] as List<dynamic>? ?? [];
       final drawnCard = playerData['drawnCard'] as Map<String, dynamic>?;
       final score = playerData['score'] as int? ?? 0;
       final status = playerData['status']?.toString() ?? 'unknown';
@@ -502,6 +503,7 @@ class RecallEventHandlerCallbacks {
         'myScore': score,
         'isMyTurn': isCurrentPlayer,
         'myDrawnCard': drawnCard,
+        'myCardsToPeek': cardsToPeek,
       });
       
       // Update the games map with hand information using helper method
@@ -510,6 +512,7 @@ class RecallEventHandlerCallbacks {
         'selectedCardIndex': -1,
         'isMyTurn': isCurrentPlayer,
         'myDrawnCard': drawnCard,
+        'myCardsToPeek': cardsToPeek,
       });
       
       // Add session message about player state update

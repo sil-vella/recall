@@ -1255,8 +1255,11 @@ class GameRound:
                 custom_log(f"Current player {user_id} not found for queen peek", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
+            # Clear any existing cards from previous peeks
+            current_player.clear_cards_to_peek()
+            
             # Add the card to the current player's cards_to_peek list
-            current_player.cards_to_peek.append(target_card)
+            current_player.add_card_to_peek(target_card)
             custom_log(f"Added card {card_id} to player {user_id} cards_to_peek list", level="DEBUG", isOn=LOGGING_SWITCH)
             
             # Set player status to PEEKING

@@ -151,6 +151,30 @@ class Player:
         custom_log(f"Card {card_id} not found in hand", level="DEBUG", isOn=LOGGING_SWITCH)
         return None
     
+    def add_card_to_peek(self, card: Card):
+        """Add a card to the cards_to_peek list and trigger change detection"""
+        if card not in self.cards_to_peek:
+            self.cards_to_peek.append(card)
+            custom_log(f"Added card {card.card_id} to cards_to_peek list", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Manually trigger change detection for cards_to_peek modification
+            if hasattr(self, '_track_change'):
+                self._track_change('cards_to_peek')
+                self._send_changes_if_needed()
+        else:
+            custom_log(f"Card {card.card_id} already in cards_to_peek list", level="DEBUG", isOn=LOGGING_SWITCH)
+    
+    def clear_cards_to_peek(self):
+        """Clear all cards from the cards_to_peek list and trigger change detection"""
+        if self.cards_to_peek:
+            custom_log(f"Clearing {len(self.cards_to_peek)} cards from cards_to_peek list", level="DEBUG", isOn=LOGGING_SWITCH)
+            self.cards_to_peek.clear()
+            
+            # Manually trigger change detection for cards_to_peek modification
+            if hasattr(self, '_track_change'):
+                self._track_change('cards_to_peek')
+                self._send_changes_if_needed()
+    
     def _should_create_blank_slot_at_index(self, index: int) -> bool:
         """Determine if we should create a blank slot at the given index"""
         # If index is 3 or less, always create a blank slot (maintain initial 4-card structure)

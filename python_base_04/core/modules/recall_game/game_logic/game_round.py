@@ -144,7 +144,7 @@ class GameRound:
         try:
             if not self.pending_events:
                 custom_log("No pending events to process", level="DEBUG", isOn=LOGGING_SWITCH)
-                self.game_state.phase == GamePhase.ENDING_ROUND
+                self.game_state.phase = GamePhase.ENDING_ROUND
                 return
             
             custom_log(f"Processing {len(self.pending_events)} pending events", level="INFO", isOn=LOGGING_SWITCH)

@@ -686,7 +686,7 @@ class GameRound:
             elif special_power == 'queen_peek':
                 # Use the efficient batch update method to set player status
                 self.game_state.update_players_status_by_ids([player_id], PlayerStatus.QUEEN_PEEK)
-                custom_log(f"Player {player_id} status set to QUEEN_PEEK - 10 second timer started", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player {player_id} status set to PEEKING - 10 second timer started", level="INFO", isOn=LOGGING_SWITCH)
             else:
                 custom_log(f"Unknown special power: {special_power} for player {player_id}", level="WARNING", isOn=LOGGING_SWITCH)
                 # Remove this card and move to next
@@ -1262,10 +1262,6 @@ class GameRound:
             # Set player status to PEEKING
             current_player.set_status(PlayerStatus.PEEKING)
             custom_log(f"Set player {user_id} status to PEEKING", level="DEBUG", isOn=LOGGING_SWITCH)
-            
-            # Set game phase to QUEEN_PEEK_WINDOW
-            self.game_state.phase = GamePhase.QUEEN_PEEK_WINDOW
-            custom_log(f"Set game phase to QUEEN_PEEK_WINDOW for queen peek", level="DEBUG", isOn=LOGGING_SWITCH)
             
             return True
             

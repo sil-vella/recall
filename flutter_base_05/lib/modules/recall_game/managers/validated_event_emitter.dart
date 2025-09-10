@@ -1,3 +1,5 @@
+import 'package:recall/tools/logging/logger.dart';
+
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/state_manager.dart';
 import '../utils/field_specifications.dart';
@@ -15,6 +17,8 @@ class RecallGameEventEmitter {
   
   // Dependencies
   final WebSocketManager _wsManager = WebSocketManager.instance;
+  final Logger _logger = Logger();
+  static const bool LOGGING_SWITCH = false;
   
   /// Define allowed fields for each event type
   static const Map<String, Set<String>> _allowedEventFields = {
@@ -229,7 +233,8 @@ class RecallGameEventEmitter {
           eventPayload['player_id'] = currentUserId;
         }
       }
-      
+
+      _logger.info('Sending event to backend: $eventPayload', isOn: LOGGING_SWITCH);
       // Send via WebSocket
       return await _wsManager.sendCustomEvent(eventType, eventPayload);
       

@@ -171,29 +171,6 @@ class GameEventCoordinator:
             custom_log(f"Error sending to all players: {e}", isOn=LOGGING_SWITCH)
             return False
 
-    def _send_action_result(self, game_id: str, player_id: str, result: Dict[str, Any]):
-        """Send action result to player"""
-        data = {'event_type': 'action_result', 'game_id': game_id, 'action_result': result}
-        self._send_to_player(game_id, player_id, 'action_result', data)
-
-    def _broadcast_game_action(self, game_id: str, action_type: str, action_data: Dict[str, Any], exclude_player_id: str = None):
-        """Broadcast game action to other players using direct room broadcast"""
-        try:
-            game = self.game_state_manager.get_game(game_id)
-            if not game:
-                return
-            data = {
-                'event_type': 'game_action',
-                'game_id': game_id,
-                'action_type': action_type,
-                'action_data': action_data,
-                'game_state': self.game_state_manager._to_flutter_game_data(game),
-                'exclude_player_id': exclude_player_id,  # Include exclude info for client-side filtering
-            }
-            # Use direct room broadcast instead of looping through players
-            self.websocket_manager.broadcast_to_room(game_id, 'game_action', data)
-        except Exception as e:
-            pass
 
     def _send_game_state_update(self, game_id: str):
         """Send complete game state update to all players"""

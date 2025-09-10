@@ -6,6 +6,7 @@ import 'widgets/opponents_panel_widget.dart';
 import 'widgets/draw_pile_widget.dart';
 import 'widgets/discard_pile_widget.dart';
 import 'widgets/my_hand_widget.dart';
+import 'widgets/card_peek_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 
 class GamePlayScreen extends BaseScreen {
@@ -91,63 +92,71 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   @override
   Widget buildContent(BuildContext context) {
     // Screen doesn't read state directly - widgets handle their own subscriptions
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          
-          // Game Information Widget
-          const GameInfoWidget(),
-          const SizedBox(height: 20),
-          
-          // Opponents Panel Section
-          const OpponentsPanelWidget(),
-          const SizedBox(height: 20),
-          
-          // Game Board Section
-          Card(
-            margin: const EdgeInsets.only(bottom: 20),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+    return Stack(
+      children: [
+        // Main game content
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              
+              // Game Information Widget
+              const GameInfoWidget(),
+              const SizedBox(height: 20),
+              
+              // Opponents Panel Section
+              const OpponentsPanelWidget(),
+              const SizedBox(height: 20),
+              
+              // Game Board Section
+              Card(
+                margin: const EdgeInsets.only(bottom: 20),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.casino, color: Colors.green),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Game Board',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Icon(Icons.casino, color: Colors.green),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Game Board',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Game board content in a row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          // Draw Pile Widget
+                          const DrawPileWidget(),
+                          
+                          // Discard Pile Widget
+                          const DiscardPileWidget(),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Game board content in a row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      // Draw Pile Widget
-                      const DrawPileWidget(),
-                      
-                      // Discard Pile Widget
-                      const DiscardPileWidget(),
-                    ],
-                  ),
-                ],
+                ),
               ),
-            ),
+              
+              // My Hand Section
+              const MyHandWidget(),
+            ],
           ),
-          
-          // My Hand Section
-          const MyHandWidget(),
-        ],
-      ),
+        ),
+        
+        // Card Peek Modal Widget - handles its own state subscription
+        const CardPeekWidget(),
+      ],
     );
   }
 }

@@ -280,6 +280,11 @@ class RecallGameStateUpdater {
       required: false,
       description: 'Most recently drawn card for current player',
     ),
+    'cards_to_peek': RecallStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      description: 'List of cards available for peeking (Queen peek, initial peek, etc.)',
+    ),
     
     // Message State
     'messages': RecallStateFieldSpec(
@@ -363,6 +368,18 @@ class RecallGameStateUpdater {
       type: String,
       defaultValue: 'waiting',
       description: 'Current game phase (waiting, playing, finished, etc.)',
+      allowedValues: [
+        'waiting',
+        'setup', 
+        'playing',
+        'out_of_turn',
+        'same_rank_window',
+        'special_play_window',
+        'queen_peek_window',
+        'turn_pending_events',
+        'recall',
+        'finished'
+      ],
     ),
     
     // Game Status Field - Add this missing field

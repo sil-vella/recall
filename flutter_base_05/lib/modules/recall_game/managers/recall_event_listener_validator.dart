@@ -105,6 +105,14 @@ class RecallGameEventListenerValidator {
     'queen_peek': EventConfig(
       schema: {'game_id', 'player_id', 'card_id', 'target_player_id', 'timestamp'},
     ),
+    'queen_peek_result': EventConfig(
+      schema: {'event_type', 'game_id', 'peeking_player_id', 'target_player_id', 'peeked_card', 'timestamp'},
+      handlerMethod: 'handleQueenPeekResult',
+    ),
+    'cards_to_peek': EventConfig(
+      schema: {'event_type', 'game_id', 'player_id', 'cards_to_peek', 'peek_type', 'timestamp'},
+      handlerMethod: 'handleCardsToPeek',
+    ),
     'recall_message': EventConfig(
       schema: {'scope', 'target_id', 'level', 'title', 'message', 'data', 'timestamp'},
     ),
@@ -250,6 +258,12 @@ class RecallGameEventListenerValidator {
           break;
         case 'handlePlayerStateUpdated':
           RecallEventHandlerCallbacks.handlePlayerStateUpdated(eventPayload);
+          break;
+        case 'handleQueenPeekResult':
+          RecallEventHandlerCallbacks.handleQueenPeekResult(eventPayload);
+          break;
+        case 'handleCardsToPeek':
+          RecallEventHandlerCallbacks.handleCardsToPeek(eventPayload);
           break;
         default:
           return;

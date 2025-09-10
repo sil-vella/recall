@@ -556,4 +556,116 @@ class RecallEventHandlerCallbacks {
       }
     }
   }
+
+  /// Handle queen_peek_result event
+  static void handleQueenPeekResult(Map<String, dynamic> data) {
+    final gameId = data['game_id']?.toString() ?? '';
+    final peekingPlayerId = data['peeking_player_id']?.toString() ?? '';
+    final targetPlayerId = data['target_player_id']?.toString() ?? '';
+    final peekedCard = data['peeked_card'] as Map<String, dynamic>? ?? {};
+    // final timestamp = data['timestamp']?.toString() ?? '';
+    
+    // Find the current user's player data
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    final currentUserId = loginState['userId']?.toString() ?? '';
+    
+    // Check if this peek result is for the current user
+    final isMyPeekResult = peekingPlayerId == currentUserId;
+    
+    if (isMyPeekResult) {
+      // Extract card details
+      final cardId = peekedCard['card_id']?.toString() ?? '';
+      final cardRank = peekedCard['rank']?.toString() ?? '';
+      final cardSuit = peekedCard['suit']?.toString() ?? '';
+      final cardPoints = peekedCard['points'] as int? ?? 0;
+      final cardColor = peekedCard['color']?.toString() ?? '';
+      final cardIndex = peekedCard['index'] as int? ?? -1;
+      
+      // Add session message about successful peek
+      _addSessionMessage(
+        level: 'info',
+        title: 'Queen Peek Result',
+        message: 'You peeked at $targetPlayerId\'s card: $cardRank of $cardSuit ($cardPoints points)',
+        data: {
+          'game_id': gameId,
+          'target_player_id': targetPlayerId,
+          'peeked_card': peekedCard,
+          'card_details': {
+            'id': cardId,
+            'rank': cardRank,
+            'suit': cardSuit,
+            'points': cardPoints,
+            'color': cardColor,
+            'index': cardIndex,
+          },
+        },
+      );
+    } else {
+      // This is another player's peek result - we can optionally show a generic message
+      // or keep it private (current implementation keeps it private)
+      _addSessionMessage(
+        level: 'info',
+        title: 'Queen Power Used',
+        message: '$peekingPlayerId used Queen peek on $targetPlayerId',
+        data: {
+          'game_id': gameId,
+          'peeking_player_id': peekingPlayerId,
+          'target_player_id': targetPlayerId,
+          'is_my_peek': false,
+        },
+      );
+    }
+  }
+
+  /// Handle cards_to_peek event
+  static void handleCardsToPeek(Map<String, dynamic> data) {
+    final gameId = data['game_id']?.toString() ?? '';
+    final playerId = data['player_id']?.toString() ?? '';
+    final cardsToPeek = data['cards_to_peek'] as List<dynamic>? ?? [];
+    final peekType = data['peek_type']?.toString() ?? 'unknown';
+    // final timestamp = data['timestamp']?.toString() ?? '';
+    
+    // Find the current user's player data
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    final currentUserId = loginState['userId']?.toString() ?? '';
+    
+    // Check if this peek event is for the current user
+    final isMyPeekEvent = playerId == currentUserId;
+    
+    if (isMyPeekEvent) {
+      // Update the main game state with cards to peek using helper method
+      _updateMainGameState({
+        'cards_to_peek': cardsToPeek.cast<Map<String, dynamic>>(),
+        'peekType': peekType,
+        'peekTimestamp': DateTime.now().toIso8601String(),
+      });
+      
+      // Add session message about cards available for peeking
+      _addSessionMessage(
+        level: 'info',
+        title: 'Cards Available for Peek',
+        message: 'You can peek at ${cardsToPeek.length} card${cardsToPeek.length != 1 ? 's' : ''} (${peekType})',
+        data: {
+          'game_id': gameId,
+          'player_id': playerId,
+          'cards_to_peek': cardsToPeek,
+          'peek_type': peekType,
+          'card_count': cardsToPeek.length,
+        },
+      );
+    } else {
+      // This is another player's peek event - show generic message
+      _addSessionMessage(
+        level: 'info',
+        title: 'Player Peek Phase',
+        message: '$playerId is in peek phase (${peekType})',
+        data: {
+          'game_id': gameId,
+          'player_id': playerId,
+          'peek_type': peekType,
+          'is_my_peek': false,
+        },
+      );
+    }
+  }
 }

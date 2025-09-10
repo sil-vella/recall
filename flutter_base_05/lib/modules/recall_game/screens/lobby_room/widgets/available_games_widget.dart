@@ -295,6 +295,12 @@ class AvailableGamesWidget extends StatelessWidget {
         return Colors.green;
       case 'out_of_turn':
         return Colors.blue;
+      case 'special_play_window':
+        return Colors.amber;
+      case 'queen_peek_window':
+        return Colors.purple;
+      case 'turn_pending_events':
+        return Colors.teal;
       case 'finished':
         return Colors.grey;
       default:
@@ -311,6 +317,12 @@ class AvailableGamesWidget extends StatelessWidget {
         return Icons.play_arrow;
       case 'out_of_turn':
         return Icons.flash_on;
+      case 'special_play_window':
+        return Icons.star;
+      case 'queen_peek_window':
+        return Icons.visibility;
+      case 'turn_pending_events':
+        return Icons.hourglass_empty;
       case 'finished':
         return Icons.stop;
       default:

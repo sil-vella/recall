@@ -268,6 +268,16 @@ class GameInfoWidget extends StatelessWidget {
         chipText = 'Special Play';
         chipIcon = Icons.star;
         break;
+      case 'queen_peek_window':
+        chipColor = Colors.purple;
+        chipText = 'Queen Peek';
+        chipIcon = Icons.visibility;
+        break;
+      case 'turn_pending_events':
+        chipColor = Colors.teal;
+        chipText = 'Processing';
+        chipIcon = Icons.hourglass_empty;
+        break;
       case 'finished':
         chipColor = Colors.grey;
         chipText = 'Finished';

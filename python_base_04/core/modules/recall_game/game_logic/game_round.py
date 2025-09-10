@@ -36,6 +36,8 @@ class GameRound:
         self.special_card_timer = None  # Timer for special card window
         self.special_card_players = []  # List of players who played special cards
 
+        self.pending_events = [] # List of pending events to process before ending round
+
         self.round_status = "waiting"  # waiting, active, paused, completed
         
         # Timed rounds configuration
@@ -49,9 +51,6 @@ class GameRound:
     def start_turn(self) -> Dict[str, Any]:
         """Start a new round of gameplay"""
         try:
-            custom_log(f"DEBUG: start_turn() called - current phase: {self.game_state.phase}", level="INFO", isOn=LOGGING_SWITCH)
-            custom_log(f"DEBUG: special_card_data length before clearing: {len(self.special_card_data) if self.special_card_data else 0}", level="INFO", isOn=LOGGING_SWITCH)
-            
             # Clear same rank data
             if self.same_rank_data:
                 self.same_rank_data.clear()
@@ -128,8 +127,10 @@ class GameRound:
                     coordinator._send_game_state_update(self.game_state.game_id)
 
             custom_log(f"Continued turn in phase: {self.game_state.phase}", level="INFO", isOn=LOGGING_SWITCH)
-            # Only move to next player if we're not in special play window
-            # During special play window, we stay with the current player
+
+            if self.game_state.phase == GamePhase.TURN_PENDING_EVENTS:
+                self._check_pending_events_before_ending_round()
+                
             if self.game_state.phase == GamePhase.ENDING_ROUND:
                 self._move_to_next_player()
             
@@ -138,6 +139,83 @@ class GameRound:
         except Exception as e:
             return False
     
+    def _check_pending_events_before_ending_round(self):
+        """Check if we have pending events to process (like queen peek pause so the user can see the card)"""
+        try:
+            if not self.pending_events:
+                custom_log("No pending events to process", level="DEBUG", isOn=LOGGING_SWITCH)
+                return
+            
+            custom_log(f"Processing {len(self.pending_events)} pending events", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Process each pending event
+            for event in self.pending_events:
+                event_type = event.get('type')
+                event_data = event.get('data')
+                player_id = event.get('player_id')
+                timestamp = event.get('timestamp')
+                
+                custom_log(f"Processing pending event: {event_type} for player {player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+                
+                # Construct handler method name by appending _handle to the event type
+                handler_method_name = f"_handle_{event_type}"
+                
+                # Check if the handler method exists
+                if hasattr(self, handler_method_name):
+                    handler_method = getattr(self, handler_method_name)
+                    
+                    # Call the handler method with the event data
+                    try:
+                        result = handler_method(event_data, player_id)
+                        custom_log(f"Handler {handler_method_name} executed successfully for player {player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+                    except Exception as handler_error:
+                        custom_log(f"Error in handler {handler_method_name} for player {player_id}: {handler_error}", level="ERROR", isOn=LOGGING_SWITCH)
+                else:
+                    custom_log(f"Handler method {handler_method_name} not found for event type {event_type}", level="WARNING", isOn=LOGGING_SWITCH)
+            
+            # Clear the pending events after processing
+            self.pending_events.clear()
+            custom_log("Cleared pending events after processing", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            self.continue_turn()
+            
+        except Exception as e:
+            custom_log(f"Error in _check_pending_events_before_ending_round: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _handle_queen_peek_data(self, event_data: Dict[str, Any], player_id: str) -> bool:
+        """Handle queen peek data from pending events - send the peek data to the player"""
+        try:
+            custom_log(f"Handling queen peek data for player {player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Set game phase to QUEEN_PEEK_WINDOW before sending the peek data
+            self.game_state.phase = GamePhase.QUEEN_PEEK_WINDOW
+            custom_log(f"Set game phase to QUEEN_PEEK_WINDOW for player {player_id} queen peek", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Send the cards_to_peek event to the player using the coordinator
+            if self.game_state.app_manager:
+                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    # Send the cards_to_peek event to the peeking player
+                    coordinator._send_to_player(
+                        self.game_state.game_id,
+                        player_id,
+                        'cards_to_peek',
+                        event_data
+                    )
+                    
+                    custom_log(f"Sent cards_to_peek event to player {player_id} from pending events", level="INFO", isOn=LOGGING_SWITCH)
+                    return True
+                else:
+                    custom_log("Game event coordinator not found - cannot send cards_to_peek event", level="WARNING", isOn=LOGGING_SWITCH)
+                    return False
+            else:
+                custom_log("App manager not found - cannot send cards_to_peek event", level="WARNING", isOn=LOGGING_SWITCH)
+                return False
+                
+        except Exception as e:
+            custom_log(f"Error in _handle_queen_peek_data: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return False
+
     def _move_to_next_player(self):
         """Move to the next player in the game"""
         try:
@@ -1191,6 +1269,12 @@ class GameRound:
             
             target_player = self.game_state.players[target_player_id]
             
+            # Set the peeking player's status to PEEKING
+            if user_id in self.game_state.players:
+                peeking_player = self.game_state.players[user_id]
+                peeking_player.set_status(PlayerStatus.PEEKING)
+                custom_log(f"Set player {user_id} status to PEEKING for Queen peek", level="DEBUG", isOn=LOGGING_SWITCH)
+            
             # Find the card in the target player's hand
             target_card = None
             target_card_index = None
@@ -1213,6 +1297,34 @@ class GameRound:
             # Log the card details that were peeked at
             custom_log(f"Queen peek successful - Player {user_id} peeked at card: {target_card.card_id} ({target_card.rank} of {target_card.suit}) from player {target_player_id} at index {target_card_index}", level="INFO", isOn=LOGGING_SWITCH)
             custom_log(f"Peeked card details - ID: {target_card.card_id}, Rank: {target_card.rank}, Suit: {target_card.suit}, Points: {target_card.points}, Color: {card_color}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Add queen peek data to pending events instead of sending immediately
+            queen_peek_data = {
+                'event_type': 'cards_to_peek',
+                'game_id': self.game_state.game_id,
+                'player_id': user_id,
+                'cards_to_peek': [{
+                    'cardId': target_card.card_id,
+                    'rank': target_card.rank,
+                    'suit': target_card.suit,
+                    'points': target_card.get_point_value(),
+                    'color': card_color,
+                    'index': target_card_index,
+                    'owner_player_id': target_player_id
+                }],
+                'peek_type': 'queen_peek',
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Add to pending events list
+            self.pending_events.append({
+                'type': 'queen_peek_data',
+                'data': queen_peek_data,
+                'player_id': user_id,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            custom_log(f"Added queen peek data to pending events for player {user_id} and card {target_card.card_id}", level="INFO", isOn=LOGGING_SWITCH)
             
             return True
             

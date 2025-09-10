@@ -24,6 +24,8 @@ class GamePhase(Enum):
     PLAYER_TURN = "player_turn"
     SAME_RANK_WINDOW = "same_rank_window"
     SPECIAL_PLAY_WINDOW = "special_play_window"
+    QUEEN_PEEK_WINDOW = "queen_peek_window"
+    TURN_PENDING_EVENTS = "turn_pending_events"
     ENDING_ROUND = "ending_round"
     ENDING_TURN = "ending_turn"
     RECALL_CALLED = "recall_called"
@@ -64,6 +66,7 @@ class GameState:
         self._change_tracking_enabled = True
         self._pending_changes = set()  # Track which properties have changed
         self._initialized = True  # Flag to prevent tracking during initialization
+        self._previous_phase = None  # Track previous phase for transition detection
     
     def add_player(self, player: Player, session_id: str = None) -> bool:
         """Add a player to the game"""
@@ -479,6 +482,10 @@ class GameState:
         # Get current value for comparison
         current_value = getattr(self, name, None)
         
+        # Special handling for phase changes - track previous phase
+        if name == 'phase' and hasattr(self, '_previous_phase'):
+            self._previous_phase = current_value
+        
         # Set the new value
         super().__setattr__(name, value)
         
@@ -486,18 +493,6 @@ class GameState:
         if (self._change_tracking_enabled and 
             current_value != value and 
             name not in ['_change_tracking_enabled', '_pending_changes', '_initialized']):
-            
-            # Enhanced logging for pile changes
-            if name in ['draw_pile', 'discard_pile']:
-                old_count = len(current_value) if current_value else 0
-                new_count = len(value) if value else 0
-                custom_log(f"=== PILE CHANGE DETECTED ===", isOn=LOGGING_SWITCH)
-                custom_log(f"Property: {name}", isOn=LOGGING_SWITCH)
-                custom_log(f"Old count: {old_count}, New count: {new_count}", isOn=LOGGING_SWITCH)
-                custom_log(f"Change: {old_count} -> {new_count} ({new_count - old_count:+d})", isOn=LOGGING_SWITCH)
-                custom_log(f"=============================", isOn=LOGGING_SWITCH)
-            else:
-                custom_log(f"Property change detected: {name} = {value}", isOn=LOGGING_SWITCH)
             
             self._track_change(name)
             self._send_changes_if_needed()
@@ -507,6 +502,32 @@ class GameState:
         if self._change_tracking_enabled:
             self._pending_changes.add(property_name)
             custom_log(f"📝 Tracking change for property: {property_name}", isOn=LOGGING_SWITCH)
+            
+            # Detect specific phase transitions
+            if property_name == 'phase':
+                self._detect_phase_transitions()
+    
+    def _detect_phase_transitions(self):
+        """Detect and log specific phase transitions"""
+        try:
+            # Get the current and previous phases
+            current_phase = self.phase
+            previous_phase = self._previous_phase
+            
+            # Check for SPECIAL_PLAY_WINDOW to ENDING_ROUND transition
+            if (current_phase == GamePhase.ENDING_ROUND and 
+                previous_phase == GamePhase.SPECIAL_PLAY_WINDOW):
+                
+                custom_log(f"🎯 PHASE TRANSITION DETECTED: SPECIAL_PLAY_WINDOW → ENDING_ROUND", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"🎯 Game ID: {self.game_id}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"🎯 Previous phase: {previous_phase.value if previous_phase else 'None'}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"🎯 Current phase: {current_phase.value}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"🎯 Current player: {self.current_player_id}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"🎯 Player count: {len(self.players)}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"🎯 Timestamp: {datetime.now().isoformat()}", level="INFO", isOn=LOGGING_SWITCH)
+                
+        except Exception as e:
+            custom_log(f"❌ Error in _detect_phase_transitions: {e}", level="ERROR", isOn=LOGGING_SWITCH)
     
     def _send_changes_if_needed(self):
         """Send state updates if there are pending changes"""
@@ -987,6 +1008,8 @@ class GameStateManager:
             'player_turn': 'playing',
             'same_rank_window': 'same_rank_window',
             'special_play_window': 'special_play_window',
+            'queen_peek_window': 'queen_peek_window',
+            'turn_pending_events': 'turn_pending_events',
             'ending_round': 'ending_round',
             'ending_turn': 'ending_turn',
             'recall_called': 'recall',

@@ -176,7 +176,7 @@ class GameInfoWidget extends StatelessWidget {
             const SizedBox(height: 12),
             
             // Player Status Indicator (only show during active game)
-            if (gamePhase == 'playing' || gamePhase == 'out_of_turn' || gamePhase == 'special_play_window') ...[
+            if (gamePhase == 'playing' || gamePhase == 'out_of_turn' || gamePhase == 'special_play_window' || playerStatus == 'initial_peek') ...[
               Row(
                 children: [
                   Icon(Icons.person, size: 16, color: Colors.grey[600]),
@@ -350,6 +350,16 @@ class GameInfoWidget extends StatelessWidget {
         chipColor = Colors.indigo;
         chipText = 'Jack Swap';
         chipIcon = Icons.swap_horiz;
+        break;
+      case 'peeking':
+        chipColor = Colors.cyan;
+        chipText = 'Peeking';
+        chipIcon = Icons.visibility;
+        break;
+      case 'initial_peek':
+        chipColor = Colors.teal;
+        chipText = 'Initial Peek';
+        chipIcon = Icons.visibility_outlined;
         break;
       case 'finished':
         chipColor = Colors.red;

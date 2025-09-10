@@ -14,8 +14,9 @@ from tools.logger.custom_logging import custom_log
 from datetime import datetime
 import time
 import uuid
+import threading
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 class GamePhase(Enum):
     """Game phases"""
@@ -861,80 +862,60 @@ class GameStateManager:
             updated_count = game.update_all_players_status(PlayerStatus.READY, filter_active=True)
             custom_log(f"Updated {updated_count} players' status to READY for game start", level="INFO")
             
-            round_result = game_round.start_turn()
-            
-            if round_result.get('error'):
-                # Use the coordinator to send error message
-                if hasattr(self, 'app_manager') and self.app_manager:
-                    coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                    if coordinator:
-                        coordinator._send_error(session_id, f"Start match failed: {round_result['error']}")
-                    else:
-                        pass
-                else:
-                    pass
-                return False
-            
-            # Send game started event to all players with full game state
-            payload = {
-                'event_type': 'game_started',
-                'game_id': game_id,
-                'started_by': user_id,
-                'game_state': self._to_flutter_game_data(game),  # Include full game state
-                'timestamp': datetime.now().isoformat(),
-                'player_order': list(game.players.keys()),  # List of player IDs in order
-                'initial_hands': {pid: len(player.hand) for pid, player in game.players.items()}  # Initial hand sizes
-            }
-            
-            # Use the coordinator to broadcast the event
-            if hasattr(self, 'app_manager') and self.app_manager:
-                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    # Broadcast game started event to all players
-                    coordinator._broadcast_event(game_id, payload)
-                    
-                    # Send turn event to the current player
-                    current_player_id = round_result.get('current_player')
-                    if current_player_id:
-                        # Get current player status
-                        current_player = game.players.get(current_player_id)
-                        player_status = current_player.status.value if current_player else 'ready'
+            initial_peek_result = self.initial_peek(game)
                         
-                        turn_payload = {
-                            'event_type': 'turn_started',
-                            'game_id': game_id,
-                            'player_id': current_player_id,
-                            'player_status': player_status,  # ✅ Add missing field
-                            'turn_timeout': 30,  # 30 seconds per turn
-                            'is_my_turn': True,
-                            'game_state': self._to_flutter_game_data(game),  # Include full game state
-                            'timestamp': datetime.now().isoformat()
-                        }
-                        coordinator._send_to_player(game_id, current_player_id, 'turn_started', turn_payload)
-                        custom_log("Turn started for player " + current_player_id + " in game " + game_id + ". Player status: " + player_status + ". Payload: " + str(turn_payload), isOn=LOGGING_SWITCH)
-                    else:
-                        pass
-                else:
-                    pass
-            else:
-                pass
-            return True
-            
         except Exception as e:
-            import traceback
-            # Use the coordinator to send error message
-            if hasattr(self, 'app_manager') and self.app_manager:
-                coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator._send_error(session_id, f'Start match failed: {str(e)}')
-                else:
-                    pass
-            else:
-                pass
+            custom_log(f"Failed to handle start match: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
+            
+
 
     # ========= CONSOLIDATED GAME START HELPER METHODS =========
     
+    def initial_peek(self, game: GameState):
+        """Handle initial peek for the game - set all players to INITIAL_PEEK status with 10-second timer"""
+        try:
+            # Set all players to INITIAL_PEEK status
+            updated_count = game.update_all_players_status(PlayerStatus.INITIAL_PEEK, filter_active=True)
+            
+            custom_log(f"Initial peek phase started - {updated_count} players set to INITIAL_PEEK status", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Start threaded timer for 10 seconds
+            timer_thread = threading.Timer(10.0, self._initial_peek_timeout, args=[game])
+            timer_thread.daemon = True  # Allow program to exit even if timer is running
+            timer_thread.start()
+            
+            custom_log("Initial peek timer started - 10 seconds until game begins", level="INFO", isOn=LOGGING_SWITCH)
+            
+            return {
+                "success": True,
+                "message": f"Initial peek phase started for {updated_count} players - 10 second timer active",
+                "updated_count": updated_count,
+                "timer_duration": 10
+            }
+            
+        except Exception as e:
+            custom_log(f"Failed to handle initial peek: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
+            return {"error": f"Failed to handle initial peek: {str(e)}"}
+    
+    def _initial_peek_timeout(self, game: GameState):
+        """Called when initial peek timer expires - transition to game start"""
+        try:
+            custom_log("Initial peek timer expired - transitioning to game start", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Set all players back to WAITING status
+            updated_count = game.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
+            custom_log(f"Set {updated_count} players back to WAITING status", level="INFO", isOn=LOGGING_SWITCH)
+            
+            game_round = game.get_round()
+            custom_log("Starting game round turn", level="INFO", isOn=LOGGING_SWITCH)
+            start_turn_result = game_round.start_turn()
+
+        except Exception as e:
+            custom_log(f"Failed to handle initial peek timeout: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
+            return False
+            
+     
     def _deal_cards(self, game: GameState):
         """Deal 4 cards to each player - moved from GameActions"""
         for player in game.players.values():

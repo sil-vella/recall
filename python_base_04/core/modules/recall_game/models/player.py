@@ -31,6 +31,7 @@ class PlayerStatus(Enum):
     QUEEN_PEEK = "queen_peek"      # Player used queen power to peek at a card
     JACK_SWAP = "jack_swap"        # Player used jack power to swap cards
     PEEKING = "peeking"            # Player is in peek phase (initial peek, queen peek, etc.)
+    INITIAL_PEEK = "initial_peek"  # Player is in initial peek phase (selecting 2 of 4 cards)
     FINISHED = "finished"    # Game finished
     DISCONNECTED = "disconnected"  # Disconnected from game
 

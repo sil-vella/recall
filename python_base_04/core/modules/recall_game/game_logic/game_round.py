@@ -265,14 +265,38 @@ class GameRound:
             # Determine winner based on Recall game rules
             winner_data = self._determine_winner(player_results)
             
-            # Log winner
+            # Set game phase to GAME_ENDED
+            self.game_state.phase = GamePhase.GAME_ENDED
+            custom_log(f"Game phase set to GAME_ENDED", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Set winner status and log results
             if winner_data['is_tie']:
-                pass
+                custom_log(f"Game ended in a tie: {winner_data.get('winners', [])}", level="INFO", isOn=LOGGING_SWITCH)
+                # For ties, set all tied players to FINISHED status
+                for winner_name in winner_data.get('winners', []):
+                    for player_id, player in self.game_state.players.items():
+                        if player.name == winner_name:
+                            player.set_status(PlayerStatus.FINISHED)
+                            custom_log(f"Player {player.name} set to FINISHED status (tie)", level="INFO", isOn=LOGGING_SWITCH)
             else:
-                pass
+                winner_id = winner_data.get('winner_id')
+                winner_name = winner_data.get('winner_name')
+                win_reason = winner_data.get('win_reason', 'unknown')
+                
+                custom_log(f"Game ended - Winner: {winner_name} (ID: {winner_id}) - Reason: {win_reason}", level="INFO", isOn=LOGGING_SWITCH)
+                
+                # Set winner status
+                if winner_id and winner_id in self.game_state.players:
+                    self.game_state.players[winner_id].set_status(PlayerStatus.WINNER)
+                    custom_log(f"Player {winner_name} set to WINNER status", level="INFO", isOn=LOGGING_SWITCH)
+                
+                # Set all other players to FINISHED status
+                for player_id, player in self.game_state.players.items():
+                    if player_id != winner_id:
+                        player.set_status(PlayerStatus.FINISHED)
+                        custom_log(f"Player {player.name} set to FINISHED status", level="INFO", isOn=LOGGING_SWITCH)
             
             # TODO: Send results to all players
-            # TODO: Update game state to ended
             
         except Exception as e:
             pass
@@ -587,8 +611,20 @@ class GameRound:
             updated_count = self.game_state.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
             custom_log(f"Updated {updated_count} players' status to WAITING", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Don't set phase here - let _handle_special_cards_window decide based on special cards
-            
+            # Check if any player has no cards left (automatic win condition)
+            for player_id, player in self.game_state.players.items():
+                if not player.is_active:
+                    continue
+                
+                # Count actual cards (excluding None/blank slots)
+                actual_cards = [card for card in player.hand if card is not None]
+                card_count = len(actual_cards)
+                
+                if card_count == 0:
+                    custom_log(f"Player {player_id} ({player.name}) has no cards left - triggering end of match", level="INFO", isOn=LOGGING_SWITCH)
+                    self._handle_end_of_match()
+                    return  # Exit early since game is ending
+                        
             # Clear same_rank_data after changing game phase using custom method
             self.game_state.clear_same_rank_data()
             

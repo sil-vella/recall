@@ -56,6 +56,11 @@ class RecallGameStateUpdater {
     'playerStatus': RecallStateFieldSpec(
       type: String,
       required: false,
+      allowedValues: [
+        'waiting', 'ready', 'playing', 'same_rank_window', 'playing_card', 
+        'drawing_card', 'queen_peek', 'jack_swap', 'peeking', 'initial_peek', 
+        'finished', 'disconnected', 'winner'
+      ],
       description: 'Current player status (waiting, ready, playing, drawing_card, etc.)',
     ),
     'canCallRecall': RecallStateFieldSpec(
@@ -383,7 +388,8 @@ class RecallGameStateUpdater {
         'queen_peek_window',
         'turn_pending_events',
         'recall',
-        'finished'
+        'finished',
+        'game_ended'
       ],
     ),
     

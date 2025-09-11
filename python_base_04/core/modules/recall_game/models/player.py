@@ -34,6 +34,7 @@ class PlayerStatus(Enum):
     INITIAL_PEEK = "initial_peek"  # Player is in initial peek phase (selecting 2 of 4 cards)
     FINISHED = "finished"    # Game finished
     DISCONNECTED = "disconnected"  # Disconnected from game
+    WINNER = "winner"  # Player is the winner of the game
 
 
 class Player:

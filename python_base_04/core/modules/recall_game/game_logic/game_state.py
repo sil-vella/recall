@@ -1045,7 +1045,7 @@ class GameStateManager:
             'ending_round': 'ending_round',
             'ending_turn': 'ending_turn',
             'recall_called': 'recall',
-            'game_ended': 'finished',
+            'game_ended': 'game_ended',
         }
         
         # Get current player data

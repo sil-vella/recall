@@ -531,6 +531,21 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         chipText = 'Jack Swap';
         chipIcon = Icons.swap_horiz;
         break;
+      case 'peeking':
+        chipColor = Colors.cyan;
+        chipText = 'Peeking';
+        chipIcon = Icons.visibility;
+        break;
+      case 'initial_peek':
+        chipColor = Colors.teal;
+        chipText = 'Initial Peek';
+        chipIcon = Icons.visibility_outlined;
+        break;
+      case 'winner':
+        chipColor = Colors.green;
+        chipText = 'Winner';
+        chipIcon = Icons.emoji_events;
+        break;
       case 'finished':
         chipColor = Colors.red;
         chipText = 'Finished';

@@ -387,6 +387,8 @@ class RecallGameStateUpdater {
         'special_play_window',
         'queen_peek_window',
         'turn_pending_events',
+        'ending_round',
+        'ending_turn',
         'recall',
         'finished',
         'game_ended'

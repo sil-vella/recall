@@ -291,18 +291,30 @@ class AvailableGamesWidget extends StatelessWidget {
     switch (phase.toLowerCase()) {
       case 'waiting':
         return Colors.orange;
+      case 'setup':
+        return Colors.blue;
       case 'playing':
         return Colors.green;
       case 'out_of_turn':
         return Colors.blue;
+      case 'same_rank_window':
+        return Colors.purple;
       case 'special_play_window':
         return Colors.amber;
       case 'queen_peek_window':
         return Colors.purple;
       case 'turn_pending_events':
         return Colors.teal;
+      case 'ending_round':
+        return Colors.orange;
+      case 'ending_turn':
+        return Colors.orange;
+      case 'recall':
+        return Colors.red;
       case 'finished':
         return Colors.grey;
+      case 'game_ended':
+        return Colors.red;
       default:
         return Colors.blue;
     }
@@ -313,9 +325,13 @@ class AvailableGamesWidget extends StatelessWidget {
     switch (phase.toLowerCase()) {
       case 'waiting':
         return Icons.schedule;
+      case 'setup':
+        return Icons.settings;
       case 'playing':
         return Icons.play_arrow;
       case 'out_of_turn':
+        return Icons.flash_on;
+      case 'same_rank_window':
         return Icons.flash_on;
       case 'special_play_window':
         return Icons.star;
@@ -323,7 +339,15 @@ class AvailableGamesWidget extends StatelessWidget {
         return Icons.visibility;
       case 'turn_pending_events':
         return Icons.hourglass_empty;
+      case 'ending_round':
+        return Icons.stop;
+      case 'ending_turn':
+        return Icons.stop;
+      case 'recall':
+        return Icons.warning;
       case 'finished':
+        return Icons.stop;
+      case 'game_ended':
         return Icons.stop;
       default:
         return Icons.help;

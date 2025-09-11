@@ -253,6 +253,11 @@ class GameInfoWidget extends StatelessWidget {
         chipText = 'Waiting';
         chipIcon = Icons.schedule;
         break;
+      case 'setup':
+        chipColor = Colors.blue;
+        chipText = 'Setup';
+        chipIcon = Icons.settings;
+        break;
       case 'playing':
         chipColor = Colors.green;
         chipText = 'Playing';
@@ -261,6 +266,11 @@ class GameInfoWidget extends StatelessWidget {
       case 'out_of_turn':
         chipColor = Colors.blue;
         chipText = 'Out of Turn';
+        chipIcon = Icons.flash_on;
+        break;
+      case 'same_rank_window':
+        chipColor = Colors.purple;
+        chipText = 'Same Rank';
         chipIcon = Icons.flash_on;
         break;
       case 'special_play_window':
@@ -278,9 +288,29 @@ class GameInfoWidget extends StatelessWidget {
         chipText = 'Processing';
         chipIcon = Icons.hourglass_empty;
         break;
+      case 'ending_round':
+        chipColor = Colors.orange;
+        chipText = 'Ending Round';
+        chipIcon = Icons.stop;
+        break;
+      case 'ending_turn':
+        chipColor = Colors.orange;
+        chipText = 'Ending Turn';
+        chipIcon = Icons.stop;
+        break;
+      case 'recall':
+        chipColor = Colors.red;
+        chipText = 'Recall Called';
+        chipIcon = Icons.warning;
+        break;
       case 'finished':
         chipColor = Colors.grey;
         chipText = 'Finished';
+        chipIcon = Icons.stop;
+        break;
+      case 'game_ended':
+        chipColor = Colors.red;
+        chipText = 'Game Ended';
         chipIcon = Icons.stop;
         break;
       default:

@@ -105,6 +105,9 @@ class RecallGameEventListenerValidator {
     'queen_peek': EventConfig(
       schema: {'game_id', 'player_id', 'card_id', 'ownerId', 'timestamp'},
     ),
+    'completed_initial_peek': EventConfig(
+      schema: {'game_id', 'player_id', 'timestamp'},
+    ),
     'recall_message': EventConfig(
       schema: {'scope', 'target_id', 'level', 'title', 'message', 'data', 'timestamp'},
     ),

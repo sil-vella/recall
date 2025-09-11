@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 
 class GameEventCoordinator:
@@ -39,7 +39,8 @@ class GameEventCoordinator:
                 'call_recall',
                 'same_rank_play',
                 'jack_swap',
-                'queen_peek'
+                'queen_peek',
+                'completed_initial_peek'
             ]
             
             # Register each event listener
@@ -64,6 +65,8 @@ class GameEventCoordinator:
             # Route to appropriate game state manager method
             if event_name == 'start_match':
                 return self.game_state_manager.on_start_match(session_id, data)
+            if event_name == 'completed_initial_peek':
+                return self.game_state_manager.on_completed_initial_peek(session_id, data)
             elif event_name == 'draw_card':
                 # Add action type to data payload for draw_card events
                 data_with_action = {**data, 'action': 'draw_from_deck'}

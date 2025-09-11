@@ -867,8 +867,6 @@ class GameStateManager:
         except Exception as e:
             custom_log(f"Failed to handle start match: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
-            
-
 
     # ========= CONSOLIDATED GAME START HELPER METHODS =========
     
@@ -915,7 +913,46 @@ class GameStateManager:
             custom_log(f"Failed to handle initial peek timeout: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
             
-     
+    def on_completed_initial_peek(self, session_id: str, data: Dict[str, Any]) -> bool:
+        """Handle completed initial peek for the game"""
+        try:
+            custom_log("Completed initial peek", level="INFO", isOn=LOGGING_SWITCH)
+            game_id = data.get('game_id') or data.get('room_id')
+            if not game_id:
+                # Use the coordinator to send error message
+                if hasattr(self, 'app_manager') and self.app_manager:
+                    coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                    if coordinator:
+                        coordinator._send_error(session_id, 'Missing game_id')
+                    else:
+                        pass
+                else:
+                    pass
+                return False
+            game = self.get_game(game_id)
+            if not game:
+                # Use the coordinator to send error message
+                if hasattr(self, 'app_manager') and self.app_manager:
+                    coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                    if coordinator:
+                        coordinator._send_error(session_id, f'Game not found: {game_id}')
+                    else:
+                        pass
+                else:
+                    pass
+                return False
+            session_data = self.websocket_manager.get_session_data(session_id) or {}
+            user_id = str(session_data.get('user_id') or session_id or session_data.get('player_id'))
+            custom_log(f"Completed initial peek - user_id: {user_id}", level="INFO", isOn=LOGGING_SWITCH)
+
+            completed_peek = game.update_players_status_by_ids([user_id], PlayerStatus.WAITING)
+            custom_log(f"Completed initial peek - {completed_peek} players set to WAITING status", level="INFO", isOn=LOGGING_SWITCH)
+
+            return True
+        except Exception as e:
+            custom_log(f"Failed to handle completed initial peek: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
+            return False
+
     def _deal_cards(self, game: GameState):
         """Deal 4 cards to each player - moved from GameActions"""
         for player in game.players.values():

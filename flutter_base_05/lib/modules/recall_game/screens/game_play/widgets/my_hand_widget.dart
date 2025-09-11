@@ -12,10 +12,19 @@ import '../../../managers/player_action.dart';
 /// - Card selection functionality
 /// - Visual representation of each card
 /// - Dynamic add/remove cards based on state changes
+/// - Initial peek functionality (2 card selection during initial_peek status)
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
-class MyHandWidget extends StatelessWidget {
+class MyHandWidget extends StatefulWidget {
   const MyHandWidget({Key? key}) : super(key: key);
+
+  @override
+  State<MyHandWidget> createState() => _MyHandWidgetState();
+}
+
+class _MyHandWidgetState extends State<MyHandWidget> {
+  // Local counter for initial peek card selections
+  int _initialPeekSelectionCount = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +45,10 @@ class MyHandWidget extends StatelessWidget {
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
+        // Reset initial peek counter when not in initial_peek status
+        if (playerStatus != 'initial_peek' && _initialPeekSelectionCount > 0) {
+          _initialPeekSelectionCount = 0;
+        }
         
         return _buildMyHandCard(
           cards: cards,
@@ -217,11 +230,12 @@ class MyHandWidget extends StatelessWidget {
     final currentPlayerStatus = currentState['playerStatus']?.toString() ?? 'unknown';
     final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
       
-    // Check if current player can interact with hand cards (playing_card, jack_swap, queen_peek, or same_rank_window status)
+    // Check if current player can interact with hand cards (playing_card, jack_swap, queen_peek, same_rank_window, or initial_peek status)
     if (currentPlayerStatus == 'playing_card' || 
         currentPlayerStatus == 'jack_swap' || 
         currentPlayerStatus == 'queen_peek' ||
-        currentPlayerStatus == 'same_rank_window') {
+        currentPlayerStatus == 'same_rank_window' ||
+        currentPlayerStatus == 'initial_peek') {
       
       // Update the selected card in the state
 
@@ -327,6 +341,58 @@ class MyHandWidget extends StatelessWidget {
               duration: Duration(seconds: 2),
             ),
           );
+        } else if (currentPlayerStatus == 'initial_peek') {
+          // Handle Initial peek card selection (limit to 2 cards)
+          if (_initialPeekSelectionCount < 2) {
+            _initialPeekSelectionCount++;
+            
+            // Show card details in snackbar
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Card ${_initialPeekSelectionCount}: ${card['rank']} of ${card['suit']}'
+                ),
+                backgroundColor: Colors.teal,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            
+            // If this is the second card, trigger completed initial peek
+            if (_initialPeekSelectionCount == 2) {
+              // Small delay to show the second card snackbar
+              await Future.delayed(Duration(milliseconds: 500));
+              
+              final completedInitialPeekAction = PlayerAction.completedInitialPeek(
+                gameId: currentGameId,
+              );
+              await completedInitialPeekAction.execute();
+              
+              // Show completion feedback
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Initial peek completed! You have looked at 2 cards.'
+                  ),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+              
+              // Reset counter
+              _initialPeekSelectionCount = 0;
+            }
+          } else {
+            // Already selected 2 cards, show message
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'You have already peeked at 2 cards. Initial peek is complete.'
+                ),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
         } else {
           // Use regular play card action for other states
           final playAction = PlayerAction.playerPlayCard(

@@ -15,6 +15,7 @@ enum PlayerActionType {
   playSameRank,
   useSpecialPower,
   initialPeek,
+  completedInitialPeek,
   jackSwap,
   queenPeek,
   
@@ -334,6 +335,21 @@ class PlayerAction {
     final logger = Logger();
     logger.info('Jack swap selection count: $count', isOn: LOGGING_SWITCH);
     return count;
+  }
+
+  // ========= INITIAL PEEK LOGIC =========
+
+  /// Completed initial peek action - signals that player has finished peeking at 2 cards
+  static PlayerAction completedInitialPeek({
+    required String gameId,
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.completedInitialPeek,
+      eventName: 'completed_initial_peek',
+      payload: {
+        'game_id': gameId,
+      },
+    );
   }
 
   // ========= QUEEN PEEK LOGIC =========

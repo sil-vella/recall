@@ -244,8 +244,8 @@ class GameRound:
                 if not player.is_active:
                     continue
                     
-                # Get hand cards
-                hand_cards = player.hand
+                # Get hand cards (filter out None values for consistency)
+                hand_cards = [card for card in player.hand if card is not None]
                 card_count = len(hand_cards)
                 
                 # Calculate total points
@@ -299,7 +299,9 @@ class GameRound:
             # TODO: Send results to all players
             
         except Exception as e:
-            pass
+            custom_log(f"Error in _handle_end_of_match: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
     
     def _determine_winner(self, player_results: Dict[str, Any]) -> Dict[str, Any]:
         """Determine the winner based on Recall game rules"""

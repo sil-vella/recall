@@ -963,16 +963,29 @@ class GameStateManager:
     
     def _setup_piles(self, game: GameState):
         """Set up draw and discard piles - moved from GameActions"""
-        # Move remaining cards to draw pile
-        game.draw_pile = game.deck.cards.copy()
-        game.deck.cards = []
-        
-        # Start discard pile with first card from draw pile
-        if game.draw_pile:
-            first_card = game.draw_pile.pop(0)
-            game.discard_pile.append(first_card)
-        else:
-            pass
+        try:
+            # Move remaining cards to draw pile
+            game.draw_pile = game.deck.cards.copy()
+            game.deck.cards = []
+            
+            # Start discard pile with first card from draw pile
+            if game.draw_pile:
+                first_card = game.draw_pile.pop(0)
+                game.discard_pile.append(first_card)
+                custom_log(f"Setup piles: {len(game.draw_pile)} cards in draw pile, {len(game.discard_pile)} cards in discard pile", level="INFO", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("Warning: No cards in draw pile after dealing", level="WARNING", isOn=LOGGING_SWITCH)
+            
+            # Trigger change detection for both piles
+            if hasattr(game, '_track_change'):
+                game._track_change('draw_pile')
+                game._track_change('discard_pile')
+                game._send_changes_if_needed()
+                
+        except Exception as e:
+            custom_log(f"Error in _setup_piles: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
 
 
 

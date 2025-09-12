@@ -85,28 +85,15 @@ class _GamePhaseChipState extends State<GamePhaseChip> {
     final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
     
     if (widget.gameId == currentGameId) {
-      // This is the current game - get phase from main game state
+      // This is the current game - get phase from main game state (single source of truth)
       return recallGameState['gamePhase']?.toString() ?? 'waiting';
     } else {
-      // This is another game - get phase from available games or current games
-      final availableGames = recallGameState['availableGames'] as List<dynamic>? ?? [];
-      final currentGames = recallGameState['currentGames'] as List<dynamic>? ?? [];
+      // This is another game - get phase from game data (single source of truth)
+      final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+      final gameData = games[widget.gameId] as Map<String, dynamic>? ?? {};
+      final gameState = gameData['gameData']?['game_state'] as Map<String, dynamic>? ?? {};
       
-      // Check available games first
-      for (final game in availableGames) {
-        if (game['gameId']?.toString() == widget.gameId) {
-          return game['gamePhase']?.toString() ?? 'waiting';
-        }
-      }
-      
-      // Check current games
-      for (final game in currentGames) {
-        if (game['gameId']?.toString() == widget.gameId) {
-          return game['gamePhase']?.toString() ?? 'waiting';
-        }
-      }
-      
-      return 'waiting';
+      return gameState['phase']?.toString() ?? 'waiting';
     }
   }
 

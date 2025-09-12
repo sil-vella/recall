@@ -7,7 +7,6 @@ import '../utils/recall_game_helpers.dart';
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
   static const bool LOGGING_SWITCH = false;
-  final Logger _logger = Logger();
 
   // ========================================
   // HELPER METHODS TO REDUCE DUPLICATION
@@ -72,17 +71,16 @@ class RecallEventHandlerCallbacks {
   }
   
   /// Add a game to the games map with standard structure
-  static void _addGameToMap(String gameId, Map<String, dynamic> gameData, {String? gamePhase, String? gameStatus}) {
+  static void _addGameToMap(String gameId, Map<String, dynamic> gameData, {String? gameStatus}) {
     final currentGames = _getCurrentGamesMap();
     
-    // Determine game phase and status
-    final phase = gamePhase ?? gameData['game_state']?['phase']?.toString() ?? 'waiting';
+    // Determine game status (phase is now managed in main state only)
     final status = gameStatus ?? gameData['game_state']?['status']?.toString() ?? 'inactive';
     
     // Add/update the game in the games map
     currentGames[gameId] = {
       'gameData': gameData,  // Single source of truth
-      'gamePhase': phase,
+      // Note: gamePhase is now managed in main state only - derived from main state in gameInfo slice
       'gameStatus': status,
       'isRoomOwner': _isCurrentUserRoomOwner(gameData),
       'isInGame': true,
@@ -247,7 +245,7 @@ class RecallEventHandlerCallbacks {
     
     // Update the game with game started information using helper method
     _updateGameInMap(gameId, {
-      'gamePhase': gameState['phase'] ?? 'playing',
+      // Note: gamePhase is now managed in main state only - derived from main state in gameInfo slice
       'gameStatus': gameState['status'] ?? 'active',
       'isGameActive': true,
       'isRoomOwner': startedBy == currentUserId,  // ✅ Set ownership based on who started the game
@@ -426,7 +424,10 @@ class RecallEventHandlerCallbacks {
       
       switch (propName) {
         case 'phase':
-          updates['gamePhase'] = updatedGameState['phase'] ?? 'playing';
+          // Update main state only - game map phase will be derived from main state
+          _updateMainGameState({
+            'gamePhase': updatedGameState['phase'] ?? 'playing',
+          });
           break;
         case 'current_player_id':
           updates['currentPlayer'] = updatedGameState['current_player_id'];

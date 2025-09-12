@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
+import 'game_phase_chip_widget.dart';
 import '../../../managers/game_coordinator.dart';
 
 /// Widget to display current game information
@@ -133,7 +134,10 @@ class GameInfoWidget extends StatelessWidget {
                     ),
                   ),
                 ),
-                _buildStatusChip(gamePhase, gameStatus),
+                GamePhaseChip(
+                  gameId: currentGameId,
+                  size: GamePhaseChipSize.medium,
+                ),
               ],
             ),
             
@@ -175,23 +179,6 @@ class GameInfoWidget extends StatelessWidget {
             
             const SizedBox(height: 12),
             
-            // Player Status Indicator (only show during active game)
-            if (gamePhase == 'playing' || gamePhase == 'out_of_turn' || gamePhase == 'special_play_window' || playerStatus == 'initial_peek') ...[
-              Row(
-                children: [
-                  Icon(Icons.person, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Status: ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  _buildPlayerStatusChip(playerStatus),
-                ],
-              ),
-            ],
             
             const SizedBox(height: 16),
             
@@ -241,180 +228,7 @@ class GameInfoWidget extends StatelessWidget {
     }
   }
   
-  /// Build status chip based on game phase and status
-  Widget _buildStatusChip(String gamePhase, String gameStatus) {
-    Color chipColor;
-    String chipText;
-    IconData chipIcon;
-
-    switch (gamePhase) {
-      case 'waiting':
-        chipColor = Colors.orange;
-        chipText = 'Waiting';
-        chipIcon = Icons.schedule;
-        break;
-      case 'setup':
-        chipColor = Colors.blue;
-        chipText = 'Setup';
-        chipIcon = Icons.settings;
-        break;
-      case 'playing':
-        chipColor = Colors.green;
-        chipText = 'Playing';
-        chipIcon = Icons.play_arrow;
-        break;
-      case 'out_of_turn':
-        chipColor = Colors.blue;
-        chipText = 'Out of Turn';
-        chipIcon = Icons.flash_on;
-        break;
-      case 'same_rank_window':
-        chipColor = Colors.purple;
-        chipText = 'Same Rank';
-        chipIcon = Icons.flash_on;
-        break;
-      case 'special_play_window':
-        chipColor = Colors.amber;
-        chipText = 'Special Play';
-        chipIcon = Icons.star;
-        break;
-      case 'queen_peek_window':
-        chipColor = Colors.purple;
-        chipText = 'Queen Peek';
-        chipIcon = Icons.visibility;
-        break;
-      case 'turn_pending_events':
-        chipColor = Colors.teal;
-        chipText = 'Processing';
-        chipIcon = Icons.hourglass_empty;
-        break;
-      case 'ending_round':
-        chipColor = Colors.orange;
-        chipText = 'Ending Round';
-        chipIcon = Icons.stop;
-        break;
-      case 'ending_turn':
-        chipColor = Colors.orange;
-        chipText = 'Ending Turn';
-        chipIcon = Icons.stop;
-        break;
-      case 'recall':
-        chipColor = Colors.red;
-        chipText = 'Recall Called';
-        chipIcon = Icons.warning;
-        break;
-      case 'finished':
-        chipColor = Colors.grey;
-        chipText = 'Finished';
-        chipIcon = Icons.stop;
-        break;
-      case 'game_ended':
-        chipColor = Colors.red;
-        chipText = 'Game Ended';
-        chipIcon = Icons.stop;
-        break;
-      default:
-        chipColor = Colors.grey;
-        chipText = 'Unknown';
-        chipIcon = Icons.help;
-    }
-
-    return Chip(
-      avatar: Icon(chipIcon, size: 16, color: Colors.white),
-      label: Text(
-        chipText,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      backgroundColor: chipColor,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
-  }
   
-  /// Build player status chip based on player status
-  Widget _buildPlayerStatusChip(String playerStatus) {
-    Color chipColor;
-    String chipText;
-    IconData chipIcon;
 
-    switch (playerStatus) {
-      case 'waiting':
-        chipColor = Colors.grey;
-        chipText = 'Waiting';
-        chipIcon = Icons.schedule;
-        break;
-      case 'ready':
-        chipColor = Colors.blue;
-        chipText = 'Ready';
-        chipIcon = Icons.check_circle;
-        break;
-      case 'drawing_card':
-        chipColor = Colors.orange;
-        chipText = 'Drawing';
-        chipIcon = Icons.draw;
-        break;
-      case 'playing_card':
-        chipColor = Colors.green;
-        chipText = 'Playing';
-        chipIcon = Icons.play_arrow;
-        break;
-      case 'same_rank_window':
-        chipColor = Colors.purple;
-        chipText = 'Same Rank';
-        chipIcon = Icons.flash_on;
-        break;
-      case 'special_play_window':
-        chipColor = Colors.amber;
-        chipText = 'Special Play';
-        chipIcon = Icons.star;
-        break;
-      case 'queen_peek':
-        chipColor = Colors.pink;
-        chipText = 'Queen Peek';
-        chipIcon = Icons.visibility;
-        break;
-      case 'jack_swap':
-        chipColor = Colors.indigo;
-        chipText = 'Jack Swap';
-        chipIcon = Icons.swap_horiz;
-        break;
-      case 'peeking':
-        chipColor = Colors.cyan;
-        chipText = 'Peeking';
-        chipIcon = Icons.visibility;
-        break;
-      case 'initial_peek':
-        chipColor = Colors.teal;
-        chipText = 'Initial Peek';
-        chipIcon = Icons.visibility_outlined;
-        break;
-      case 'finished':
-        chipColor = Colors.red;
-        chipText = 'Finished';
-        chipIcon = Icons.stop;
-        break;
-      default:
-        chipColor = Colors.grey;
-        chipText = 'Unknown';
-        chipIcon = Icons.help;
-    }
-
-    return Chip(
-      avatar: Icon(chipIcon, size: 14, color: Colors.white),
-      label: Text(
-        chipText,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      backgroundColor: chipColor,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
-  }
 
 }

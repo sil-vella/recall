@@ -3,6 +3,7 @@ import '../../../../../core/managers/state_manager.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../widgets/card_back_widget.dart';
+import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
 
 /// Widget to display the player's hand
@@ -80,7 +81,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title
+            // Title and Status
             Row(
               children: [
                 Icon(Icons.style, color: Colors.green),
@@ -92,6 +93,14 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                const SizedBox(width: 12),
+                // Player status indicator
+                if (playerStatus != 'unknown') ...[
+                  PlayerStatusChip(
+                    playerId: _getCurrentUserId(),
+                    size: PlayerStatusChipSize.small,
+                  ),
+                ],
                 const Spacer(),
                 Text(
                   '${cards.length} cards',
@@ -222,6 +231,12 @@ class _MyHandWidgetState extends State<MyHandWidget> {
 
 
 
+
+  /// Get current user ID from login state
+  String _getCurrentUserId() {
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    return loginState['userId']?.toString() ?? '';
+  }
 
   /// Handle card selection with status validation
   void _handleCardSelection(BuildContext context, int index, Map<String, dynamic> card) async {

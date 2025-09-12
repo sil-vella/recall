@@ -198,6 +198,12 @@ class GameEventCoordinator:
             # Get full game state in Flutter format
             full_game_state = self.game_state_manager._to_flutter_game_data(game)
             
+            # DEBUG: Log the full game state phase
+            custom_log(f"🔍 _send_game_state_partial_update DEBUG:", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"🔍   Game ID: {game_id}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"🔍   Changed properties: {changed_properties}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"🔍   Full game state phase: {full_game_state.get('phase', 'NOT_FOUND')}", level="INFO", isOn=LOGGING_SWITCH)
+            
             # Extract only the changed properties
             partial_state = {}
             property_mapping = {
@@ -216,10 +222,15 @@ class GameEventCoordinator:
                 flutter_key = property_mapping.get(prop)
                 if flutter_key and flutter_key in full_game_state:
                     partial_state[flutter_key] = full_game_state[flutter_key]
+                    custom_log(f"🔍   Extracted {prop} -> {flutter_key}: {partial_state[flutter_key]}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Always include core identifiers
             partial_state['gameId'] = game_id
             partial_state['timestamp'] = datetime.now().isoformat()
+            
+            # DEBUG: Log the final partial state being sent
+            custom_log(f"🔍 Final partial state being sent:", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"🔍   partial_state: {partial_state}", level="INFO", isOn=LOGGING_SWITCH)
             
             payload = {
                 'event_type': 'game_state_partial_update',

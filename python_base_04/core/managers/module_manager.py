@@ -3,6 +3,8 @@ from typing import Dict, List, Type, Any, Optional
 from core.managers.module_registry import ModuleRegistry
 from core.modules.base_module import BaseModule
 
+LOGGING_SWITCH = True
+
 class ModuleManager:
     def __init__(self):
         # A dictionary to hold all registered modules
@@ -81,9 +83,19 @@ class ModuleManager:
         :return: Dictionary of module_key: ModuleClass mappings
         """
         try:
+            custom_log("DEBUG: Starting module discovery", level="INFO", isOn=LOGGING_SWITCH)
             modules = ModuleRegistry.get_modules()
+            custom_log(f"DEBUG: Discovered {len(modules)} modules: {list(modules.keys())}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Log each module class
+            for module_key, module_class in modules.items():
+                custom_log(f"DEBUG: Module {module_key}: {module_class}", level="INFO", isOn=LOGGING_SWITCH)
+            
             return modules
         except Exception as e:
+            custom_log(f"ERROR: Failed to discover modules: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"ERROR: Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
             return {}
     
     @log_function_call
@@ -94,10 +106,15 @@ class ModuleManager:
         :return: List of module keys in dependency order
         """
         try:
+            custom_log("DEBUG: Starting dependency resolution", level="INFO", isOn=LOGGING_SWITCH)
             load_order = ModuleRegistry.get_module_load_order()
+            custom_log(f"DEBUG: Resolved load order: {load_order}", level="INFO", isOn=LOGGING_SWITCH)
             self.module_load_order = load_order
             return load_order
         except Exception as e:
+            custom_log(f"ERROR: Failed to resolve dependencies: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"ERROR: Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
             return []
     
     @log_function_call
@@ -109,33 +126,59 @@ class ModuleManager:
         :param app_manager: AppManager instance
         """
         
+        custom_log("DEBUG: Starting module manager initialization", level="INFO", isOn=LOGGING_SWITCH)
+        
         # Validate module registry first
+        custom_log("DEBUG: Validating module registry", level="INFO", isOn=LOGGING_SWITCH)
         if not ModuleRegistry.validate_module_registry():
+            custom_log("ERROR: Module registry validation failed", level="ERROR", isOn=LOGGING_SWITCH)
             raise RuntimeError("Module registry validation failed")
         
+        custom_log("DEBUG: Module registry validation passed", level="INFO", isOn=LOGGING_SWITCH)
+        
         # Clear any existing modules
+        custom_log("DEBUG: Clearing existing modules", level="INFO", isOn=LOGGING_SWITCH)
         self.dispose()
         
         # Discover available modules
+        custom_log("DEBUG: Discovering available modules", level="INFO", isOn=LOGGING_SWITCH)
         modules = self.discover_modules()
+        custom_log(f"DEBUG: Discovered {len(modules)} modules: {list(modules.keys())}", level="INFO", isOn=LOGGING_SWITCH)
+        
         if not modules:
+            custom_log("WARNING: No modules discovered", level="WARNING", isOn=LOGGING_SWITCH)
             return
         
         # Resolve dependencies and get load order
+        custom_log("DEBUG: Resolving module dependencies", level="INFO", isOn=LOGGING_SWITCH)
         load_order = self.resolve_dependencies()
+        custom_log(f"DEBUG: Load order resolved: {load_order}", level="INFO", isOn=LOGGING_SWITCH)
+        
         if not load_order:
             return
         
         # Initialize modules in dependency order
+        custom_log(f"DEBUG: Starting module initialization for {len(load_order)} modules", level="INFO", isOn=LOGGING_SWITCH)
+        
         for module_key in load_order:
             try:
+                custom_log(f"DEBUG: Processing module {module_key} in load order", level="INFO", isOn=LOGGING_SWITCH)
+                
                 if module_key in modules:
                     module_class = modules[module_key]
+                    custom_log(f"DEBUG: Module {module_key} found in discovered modules, class: {module_class}", level="INFO", isOn=LOGGING_SWITCH)
+                    custom_log(f"Initializing module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
                     self.register_and_initialize_module(module_key, module_class, app_manager)
+                    custom_log(f"DEBUG: Module {module_key} initialization completed", level="INFO", isOn=LOGGING_SWITCH)
                 else:
-                    pass
+                    custom_log(f"WARNING: Module {module_key} not found in discovered modules", level="WARNING", isOn=LOGGING_SWITCH)
+                    custom_log(f"WARNING: Available modules: {list(modules.keys())}", level="WARNING", isOn=LOGGING_SWITCH)
             except Exception as e:
                 error_msg = f"Failed to initialize module {module_key}: {e}"
+                custom_log(f"ERROR: {error_msg}", level="ERROR", isOn=LOGGING_SWITCH)
+                custom_log(f"ERROR: Exception details: {type(e).__name__}: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
+                import traceback
+                custom_log(f"ERROR: Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
                 self.initialization_errors[module_key] = str(e)
                 # Continue with other modules rather than failing completely
         
@@ -155,22 +198,34 @@ class ModuleManager:
         :param app_manager: AppManager instance
         """
         try:
+            custom_log(f"DEBUG: Starting registration and initialization of module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"DEBUG: Module class: {module_class}", level="INFO", isOn=LOGGING_SWITCH)
+            
             # Check if module is already registered
             if module_key in self.modules:
+                custom_log(f"DEBUG: Module {module_key} already registered, skipping", level="INFO", isOn=LOGGING_SWITCH)
                 return
+                
+            custom_log(f"DEBUG: Creating instance of module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
             module_instance = module_class(app_manager=app_manager)
+            custom_log(f"DEBUG: Module instance created: {module_instance}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            custom_log(f"Registering and initializing module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Register the module
             self.modules[module_key] = module_instance
+            custom_log(f"DEBUG: Module {module_key} registered successfully", level="INFO", isOn=LOGGING_SWITCH)
             
             # Initialize the module
             if hasattr(module_instance, 'initialize'):
+                custom_log(f"DEBUG: Module {module_key} has initialize method, calling it", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Initializing module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
                 module_instance.initialize(app_manager)
-                
+                custom_log(f"DEBUG: Module {module_key} initialize method completed", level="INFO", isOn=LOGGING_SWITCH)
+            else:
+                custom_log(f"WARNING: Module {module_key} does not have initialize method", level="WARNING", isOn=LOGGING_SWITCH)
                 # Mark as initialized
                 module_instance._initialized = True
-            else:
-                pass
         except Exception as e:
             raise
     
@@ -190,6 +245,7 @@ class ModuleManager:
         }
         
         for module_key, module in self.modules.items():
+            custom_log(f"Getting module status for {module_key}", level="INFO", isOn=LOGGING_SWITCH)
             status['modules'][module_key] = {
                 'info': module.get_module_info(),
                 'health': module.health_check()

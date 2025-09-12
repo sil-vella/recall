@@ -3,6 +3,7 @@ import '../../../../../core/managers/state_manager.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../widgets/card_back_widget.dart';
+import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
 
 /// Widget to display other players (opponents)
@@ -248,7 +249,10 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             const SizedBox(height: 4),
             Row(
               children: [
-                _buildStatusChip(playerStatus),
+                PlayerStatusChip(
+                  playerId: player['id']?.toString() ?? '',
+                  size: PlayerStatusChipSize.small,
+                ),
               ],
             ),
           ],
@@ -489,101 +493,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     }
   }
 
-  /// Build status chip for player status
-  Widget _buildStatusChip(String status) {
-    Color chipColor;
-    String chipText;
-    IconData chipIcon;
-
-    switch (status) {
-      case 'waiting':
-        chipColor = Colors.grey;
-        chipText = 'Waiting';
-        chipIcon = Icons.schedule;
-        break;
-      case 'ready':
-        chipColor = Colors.blue;
-        chipText = 'Ready';
-        chipIcon = Icons.check_circle;
-        break;
-      case 'drawing_card':
-        chipColor = Colors.orange;
-        chipText = 'Drawing';
-        chipIcon = Icons.draw;
-        break;
-      case 'playing_card':
-        chipColor = Colors.green;
-        chipText = 'Playing';
-        chipIcon = Icons.play_arrow;
-        break;
-      case 'same_rank_window':
-        chipColor = Colors.purple;
-        chipText = 'Same Rank';
-        chipIcon = Icons.flash_on;
-        break;
-      case 'queen_peek':
-        chipColor = Colors.pink;
-        chipText = 'Queen Peek';
-        chipIcon = Icons.visibility;
-        break;
-      case 'jack_swap':
-        chipColor = Colors.indigo;
-        chipText = 'Jack Swap';
-        chipIcon = Icons.swap_horiz;
-        break;
-      case 'peeking':
-        chipColor = Colors.cyan;
-        chipText = 'Peeking';
-        chipIcon = Icons.visibility;
-        break;
-      case 'initial_peek':
-        chipColor = Colors.teal;
-        chipText = 'Initial Peek';
-        chipIcon = Icons.visibility_outlined;
-        break;
-      case 'winner':
-        chipColor = Colors.green;
-        chipText = 'Winner';
-        chipIcon = Icons.emoji_events;
-        break;
-      case 'finished':
-        chipColor = Colors.red;
-        chipText = 'Finished';
-        chipIcon = Icons.stop;
-        break;
-      default:
-        chipColor = Colors.grey;
-        chipText = 'Unknown';
-        chipIcon = Icons.help;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: chipColor,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            chipIcon,
-            size: 12,
-            color: Colors.white,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            chipText,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   /// Build a blank card slot for same-rank play empty spaces (smaller version for opponents)
   Widget _buildBlankCardSlot() {

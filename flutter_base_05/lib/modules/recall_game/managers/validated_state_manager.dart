@@ -379,19 +379,25 @@ class RecallGameStateUpdater {
       defaultValue: 'waiting',
       description: 'Current game phase (waiting, playing, finished, etc.)',
       allowedValues: [
-        'waiting',
-        'setup', 
-        'playing',
-        'out_of_turn',
+        // Direct backend phase values (from GamePhase enum)
+        'waiting_for_players',
+        'dealing_cards',
+        'player_turn',
         'same_rank_window',
         'special_play_window',
         'queen_peek_window',
         'turn_pending_events',
         'ending_round',
         'ending_turn',
+        'recall_called',
+        'game_ended',
+        // Legacy mapped values (for backward compatibility)
+        'waiting',
+        'setup', 
+        'playing',
+        'out_of_turn',
         'recall',
-        'finished',
-        'game_ended'
+        'finished'
       ],
     ),
     
@@ -767,7 +773,7 @@ class RecallGameStateUpdater {
     final roomName = gameState['gameName']?.toString() ?? 'Game $currentGameId';
     
     // Use derived values for other fields (these are set during navigation)
-    final gamePhase = currentGame['gamePhase']?.toString() ?? 'waiting';
+    final gamePhase = state['gamePhase']?.toString() ?? 'waiting';
     final gameStatus = currentGame['gameStatus']?.toString() ?? 'inactive';
     final isRoomOwner = currentGame['isRoomOwner'] ?? false;
     final isInGame = currentGame['isInGame'] ?? false;

@@ -9,6 +9,7 @@ import os
 import importlib
 import inspect
 
+LOGGING_SWITCH = True
 
 class ModuleRegistry:
     """
@@ -34,6 +35,7 @@ class ModuleRegistry:
             # Scan the modules directory
             for item in os.listdir(modules_dir):
                 item_path = os.path.join(modules_dir, item)
+                custom_log(f"DEBUG: Scanning module: {item_path}", level="INFO", isOn=LOGGING_SWITCH)
                 
                 # Check if it's a directory and has __init__.py
                 if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, '__init__.py')):
@@ -43,28 +45,49 @@ class ModuleRegistry:
                         module_module = importlib.import_module(module_package)
                         
                         # Look for the main module class in __all__ or inspect the module
+                        custom_log(f"DEBUG: Looking for module class in {item}", level="INFO", isOn=LOGGING_SWITCH)
+                        
                         if hasattr(module_module, '__all__') and module_module.__all__:
                             # Get the first class from __all__
                             class_name = module_module.__all__[0]
+                            custom_log(f"DEBUG: Found __all__ with class: {class_name}", level="INFO", isOn=LOGGING_SWITCH)
                             module_class = getattr(module_module, class_name)
                         else:
                             # Fallback: look for classes that inherit from BaseModule
+                            custom_log(f"DEBUG: No __all__ found, searching for BaseModule subclasses", level="INFO", isOn=LOGGING_SWITCH)
                             module_class = None
                             for name, obj in inspect.getmembers(module_module):
-                                if (inspect.isclass(obj) and 
-                                    hasattr(obj, '__bases__') and 
-                                    any('BaseModule' in str(base) for base in obj.__bases__)):
-                                    module_class = obj
-                                    break
+                                if inspect.isclass(obj):
+                                    custom_log(f"DEBUG: Found class {name}: {obj}", level="INFO", isOn=LOGGING_SWITCH)
+                                    custom_log(f"DEBUG: Class bases: {obj.__bases__}", level="INFO", isOn=LOGGING_SWITCH)
+                                    
+                                    # Check if it inherits from BaseModule
+                                    is_base_module = False
+                                    for base in obj.__bases__:
+                                        base_name = getattr(base, '__name__', str(base))
+                                        custom_log(f"DEBUG: Checking base {base_name} for BaseModule", level="INFO", isOn=LOGGING_SWITCH)
+                                        if base_name == 'BaseModule' or 'BaseModule' in str(base):
+                                            is_base_module = True
+                                            custom_log(f"DEBUG: Found BaseModule subclass: {name}", level="INFO", isOn=LOGGING_SWITCH)
+                                            break
+                                    
+                                    if is_base_module:
+                                        module_class = obj
+                                        break
                         
                         if module_class:
                             # Use directory name as module key (keep full name)
                             module_key = item
                             modules[module_key] = module_class
+                            custom_log(f"DEBUG: Successfully discovered module: {module_key} -> {module_class.__name__}", level="INFO", isOn=LOGGING_SWITCH)
                             print(f"DEBUG: Discovered module: {module_key} -> {module_class.__name__}")
                         else:
+                            custom_log(f"WARNING: No module class found in {item}", level="WARNING", isOn=LOGGING_SWITCH)
                             print(f"DEBUG: No module class found in {item}")
                     except Exception as e:
+                        custom_log(f"ERROR: Failed to import module {item}: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+                        import traceback
+                        custom_log(f"ERROR: Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
                         continue
             return modules
             
@@ -152,22 +175,35 @@ class ModuleRegistry:
         :return: True if registry is valid, False otherwise
         """
         try:
+            custom_log("DEBUG: Starting module registry validation", level="INFO", isOn=LOGGING_SWITCH)
+            
             modules = ModuleRegistry.get_modules()
+            custom_log(f"DEBUG: Discovered modules: {list(modules.keys())}", level="INFO", isOn=LOGGING_SWITCH)
+            
             dependencies = ModuleRegistry.get_module_dependencies()
+            custom_log(f"DEBUG: Module dependencies: {dependencies}", level="INFO", isOn=LOGGING_SWITCH)
             
             print(f"DEBUG: Found modules: {list(modules.keys())}")
             print(f"DEBUG: Dependencies: {dependencies}")
             
             # Check if all dependency references exist
             for module_key, deps in dependencies.items():
+                custom_log(f"DEBUG: Checking module {module_key} and dependencies {deps}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"DEBUG: Available modules: {list(modules.keys())}", level="INFO", isOn=LOGGING_SWITCH)
+                
                 if module_key not in modules:
-                    print(f"DEBUG: Module {module_key} not found in discovered modules")
+                    custom_log(f"ERROR: Module {module_key} not found in discovered modules", level="ERROR", isOn=LOGGING_SWITCH)
+                    custom_log(f"ERROR: Available modules: {list(modules.keys())}", level="ERROR", isOn=LOGGING_SWITCH)
                     return False
                     
                 for dep in deps:
+                    custom_log(f"DEBUG: Checking dependency {dep} for module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
                     if dep not in modules:
-                        print(f"DEBUG: Dependency {dep} not found in discovered modules")
+                        custom_log(f"ERROR: Dependency {dep} not found in discovered modules for module {module_key}", level="ERROR", isOn=LOGGING_SWITCH)
+                        custom_log(f"ERROR: Available modules: {list(modules.keys())}", level="ERROR", isOn=LOGGING_SWITCH)
                         return False
+                    else:
+                        custom_log(f"DEBUG: Dependency {dep} found for module {module_key}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Check for circular dependencies (basic check)
             if ModuleRegistry._has_circular_dependency(dependencies):

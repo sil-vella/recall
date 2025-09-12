@@ -867,7 +867,7 @@ class GameStateManager:
         except Exception as e:
             custom_log(f"Failed to handle start match: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
-
+            
     # ========= CONSOLIDATED GAME START HELPER METHODS =========
     
     def initial_peek(self, game: GameState):
@@ -941,6 +941,7 @@ class GameStateManager:
                 else:
                     pass
                 return False
+            
             session_data = self.websocket_manager.get_session_data(session_id) or {}
             user_id = str(session_data.get('user_id') or session_id or session_data.get('player_id'))
             custom_log(f"Completed initial peek - user_id: {user_id}", level="INFO", isOn=LOGGING_SWITCH)
@@ -952,7 +953,7 @@ class GameStateManager:
         except Exception as e:
             custom_log(f"Failed to handle completed initial peek: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
-
+    
     def _deal_cards(self, game: GameState):
         """Deal 4 cards to each player - moved from GameActions"""
         for player in game.players.values():
@@ -1034,19 +1035,13 @@ class GameStateManager:
         This method structures ALL game data that will be sent to the frontend.
         The structure MUST match the Flutter frontend schema exactly.
         """
-        phase_mapping = {
-            'waiting_for_players': 'waiting',
-            'dealing_cards': 'setup',
-            'player_turn': 'playing',
-            'same_rank_window': 'same_rank_window',
-            'special_play_window': 'special_play_window',
-            'queen_peek_window': 'queen_peek_window',
-            'turn_pending_events': 'turn_pending_events',
-            'ending_round': 'ending_round',
-            'ending_turn': 'ending_turn',
-            'recall_called': 'recall',
-            'game_ended': 'game_ended',
-        }
+        # DEBUG: Log the phase being sent directly
+        import traceback
+        original_phase = game.phase.value
+        custom_log(f"🔍 _to_flutter_game_data DEBUG:", level="INFO", isOn=LOGGING_SWITCH)
+        custom_log(f"🔍   Called from: {traceback.format_stack()[-2].strip()}", level="INFO", isOn=LOGGING_SWITCH)
+        custom_log(f"🔍   Game ID: {game.game_id}", level="INFO", isOn=LOGGING_SWITCH)
+        custom_log(f"🔍   Phase being sent directly: {original_phase}", level="INFO", isOn=LOGGING_SWITCH)
         
         # Get current player data
         current_player = None
@@ -1071,8 +1066,8 @@ class GameStateManager:
             'minPlayers': game.min_players,
             'activePlayerCount': len([p for p in game.players.values() if p.is_active]),
             
-            # Game state and phase
-            'phase': phase_mapping.get(game.phase.value, 'waiting'),
+            # Game state and phase - send phase value directly without mapping
+            'phase': game.phase.value,
             'status': 'active' if game.phase.value in ['player_turn', 'same_rank_window', 'ending_round', 'ending_turn', 'recall_called'] else 'inactive',
             
             # Card piles
@@ -1096,6 +1091,14 @@ class GameStateManager:
             'outOfTurnDeadline': game.out_of_turn_deadline,
             'outOfTurnTimeoutSeconds': game.out_of_turn_timeout_seconds,
         }
+        
+        # DEBUG: Log the final game data being sent
+        custom_log(f"🔍 Final game data being sent to Flutter:", level="INFO", isOn=LOGGING_SWITCH)
+        custom_log(f"🔍   gameId: {game_data['gameId']}", level="INFO", isOn=LOGGING_SWITCH)
+        custom_log(f"🔍   phase: {game_data['phase']}", level="INFO", isOn=LOGGING_SWITCH)
+        custom_log(f"🔍   status: {game_data['status']}", level="INFO", isOn=LOGGING_SWITCH)
+        custom_log(f"🔍   playerCount: {game_data['playerCount']}", level="INFO", isOn=LOGGING_SWITCH)
+        custom_log(f"🔍   currentPlayer: {game_data['currentPlayer']['id'] if game_data['currentPlayer'] else 'None'}", level="INFO", isOn=LOGGING_SWITCH)
         
         return game_data
 

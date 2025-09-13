@@ -24,7 +24,7 @@ class GameInfoWidget extends StatelessWidget {
         // Get gameInfo state slice
         final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
         final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
-        final roomName = gameInfo['roomName']?.toString() ?? 'Game $currentGameId';
+        final roomName = 'Game $currentGameId';
         final currentSize = gameInfo['currentSize'] ?? 0;
         final maxSize = gameInfo['maxSize'] ?? 4;
         final gamePhase = gameInfo['gamePhase']?.toString() ?? 'waiting';

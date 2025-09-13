@@ -86,7 +86,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       
       // Now proceed with room creation - bypass RoomService and call helper directly
       final result = await RecallGameHelpers.createRoom(
-        roomName: roomSettings['roomName'],
         permission: roomSettings['permission'] ?? 'public',
         maxPlayers: roomSettings['maxPlayers'],
         minPlayers: roomSettings['minPlayers'],

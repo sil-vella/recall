@@ -75,6 +75,10 @@ class PlayerAction {
         _logger.info('Practice game detected - action logged but not sent to backend', isOn: LOGGING_SWITCH);
         // For practice games, we just log the action without sending to backend
         // TODO: Implement practice game logic (local simulation, etc.)
+        // here we need to direct to the rust bridge. were we need to check also if the actiomn is start match.
+        // we need to check if we need to update the game coordinator start match method to check for practice or not. 
+        // lets confirm if we need to mod the starting logic to this file instead of coordinator.
+      
         return;
       }
       

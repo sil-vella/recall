@@ -26,7 +26,7 @@ class RecallGameEventEmitter {
       'filter', 'timestamp'
     },
     'create_room': {
-      'room_name', 'permission', 'max_players', 'min_players', 
+      'permission', 'max_players', 'min_players', 
       'turn_time_limit', 'auto_start', 'game_type', 'password'
     },
     'join_room': {'room_id', 'password'},
@@ -58,13 +58,7 @@ class RecallGameEventEmitter {
       pattern: r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3,6}Z?$',
       description: 'ISO timestamp for request',
     ),
-    // Room fields
-    'room_name': RecallEventFieldSpec(
-      type: String,
-      minLength: 1,
-      maxLength: 50,
-      description: 'Room name between 1-50 characters',
-    ),
+
     'permission': RecallEventFieldSpec(
       type: String,
       allowedValues: ['public', 'private'],

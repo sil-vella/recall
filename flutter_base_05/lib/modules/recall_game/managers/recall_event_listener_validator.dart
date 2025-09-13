@@ -64,7 +64,7 @@ class RecallGameEventListenerValidator {
     
     // Events without handlers (validation only)
     'game_joined': EventConfig(
-      schema: {'game_id', 'player_id', 'player_name', 'game_state', 'player', 'room_id', 'room_name', 'is_owner', 'is_active'},
+      schema: {'game_id', 'player_id', 'player_name', 'game_state', 'player', 'room_id', 'is_owner', 'is_active'},
     ),
     'game_left': EventConfig(
       schema: {'game_id', 'player_id', 'reason', 'timestamp'},

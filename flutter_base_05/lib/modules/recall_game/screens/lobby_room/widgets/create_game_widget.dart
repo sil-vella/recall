@@ -31,15 +31,6 @@
 /// - Success/error feedback via SnackBar
 /// - Accessibility support with Semantics identifiers for automation
 /// 
-/// ### Usage:
-/// ```dart
-/// CreateRoomWidget(
-///   onCreateRoom: (roomSettings) {
-///     // Handle room creation with the provided settings map
-///     print('Creating room: ${roomSettings['roomName']}');
-///   },
-/// )
-/// ```
 /// 
 /// The widget communicates with its parent through the `onCreateRoom` callback,
 /// passing a Map containing all the configured room settings.
@@ -122,7 +113,6 @@ class CreateRoomModal extends StatefulWidget {
 
 class _CreateRoomModalState extends State<CreateRoomModal> {
   // Controllers
-  final TextEditingController _roomNameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   
   // State variables
@@ -148,21 +138,11 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
 
   @override
   void dispose() {
-    _roomNameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   void _createRoom() {
-    if (_roomNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a room name'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
 
     setState(() {
       _isCreating = true;
@@ -170,7 +150,6 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
 
     // Prepare room settings
     final roomSettings = {
-      'roomName': _roomNameController.text.trim(),
       'permission': _selectedPermission,
       'gameType': _selectedGameType,
       'maxPlayers': _maxPlayers,
@@ -243,22 +222,6 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 16),
-                      
-                      // Room Name
-                       Semantics(
-                         label: 'create_room_field_room_name',
-                         identifier: 'create_room_field_room_name',
-                         textField: true,
-                         child: TextField(
-                        controller: _roomNameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Room Name *',
-                          border: OutlineInputBorder(),
-                          hintText: 'Enter room name',
-                        ),
-                       ),
-                       ),
                       
                       const SizedBox(height: 16),
                       

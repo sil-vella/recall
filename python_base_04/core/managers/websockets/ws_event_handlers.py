@@ -658,7 +658,6 @@ class WSEventHandlers:
                         if room_info.get('max_size') and room_info.get('min_size'):
                             public_rooms.append({
                                 'room_id': room_id,
-                                'room_name': room_info.get('room_name', room_id),
                                 'owner_id': room_info.get('owner_id'),
                                 'permission': room_info.get('permission'),
                                 'current_size': room_info.get('current_size', 0),

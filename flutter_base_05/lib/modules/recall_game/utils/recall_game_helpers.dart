@@ -16,7 +16,6 @@ class RecallGameHelpers {
   
   /// Create a new room with validation
   static Future<Map<String, dynamic>> createRoom({
-    required String roomName,
     required String permission,
     required int maxPlayers,
     required int minPlayers,
@@ -26,7 +25,6 @@ class RecallGameHelpers {
     String? password,
   }) {
     final data = {
-      'room_name': roomName,
       'permission': permission,
       'max_players': maxPlayers,
       'min_players': minPlayers,

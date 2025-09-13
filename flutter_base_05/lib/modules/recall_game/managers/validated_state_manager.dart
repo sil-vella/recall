@@ -1,4 +1,5 @@
 import '../../../core/managers/state_manager.dart';
+import '../../../tools/logging/logger.dart';
 import '../utils/field_specifications.dart';
 
 /// Validated state updater for recall game state management
@@ -12,6 +13,8 @@ class RecallGameStateUpdater {
   
   RecallGameStateUpdater._internal();
   
+  final Logger _logger = Logger();
+  static const bool LOGGING_SWITCH = false;
   // Dependencies
   final StateManager _stateManager = StateManager();
   
@@ -79,11 +82,6 @@ class RecallGameStateUpdater {
       type: String,
       required: false,
       description: 'ID of currently joined room',
-    ),
-    'roomName': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'Name of current room',
     ),
     'permission': RecallStateFieldSpec(
       type: String,
@@ -235,7 +233,6 @@ class RecallGameStateUpdater {
       type: Map,
       defaultValue: {
         'currentGameId': '',
-        'roomName': '',
         'currentSize': 0,
         'maxSize': 4,
         'gamePhase': 'waiting',
@@ -423,8 +420,13 @@ class RecallGameStateUpdater {
   /// Update state with validation
   void updateState(Map<String, dynamic> updates) {
     try {
+      _logger.info('RecallGameStateUpdater: Starting state update with ${updates.length} fields', isOn: LOGGING_SWITCH);
+      _logger.debug('RecallGameStateUpdater: Update fields: ${updates.keys.join(', ')}', isOn: LOGGING_SWITCH);
+      
       // 🎯 Validate each field before updating
       final validatedUpdates = _validateAndParseStateUpdates(updates);
+      
+      _logger.info('RecallGameStateUpdater: Validation successful for ${validatedUpdates.length} fields', isOn: LOGGING_SWITCH);
       
       // Get current state
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
@@ -436,6 +438,8 @@ class RecallGameStateUpdater {
         'lastUpdated': DateTime.now().toIso8601String(),
       };
       
+      _logger.debug('RecallGameStateUpdater: Applied ${validatedUpdates.length} validated updates to state', isOn: LOGGING_SWITCH);
+      
       // Rebuild dependent widget slices only if relevant fields changed
       final updatedStateWithSlices = _updateWidgetSlices(
         currentState,
@@ -443,10 +447,15 @@ class RecallGameStateUpdater {
         validatedUpdates.keys.toSet(),
       );
       
+      _logger.debug('RecallGameStateUpdater: Updated widget slices based on changed fields', isOn: LOGGING_SWITCH);
+      
       // Update StateManager
       _stateManager.updateModuleState('recall_game', updatedStateWithSlices);
       
+      _logger.info('RecallGameStateUpdater: State update completed successfully', isOn: LOGGING_SWITCH);
+      
     } catch (e) {
+      _logger.error('RecallGameStateUpdater: State update failed: $e', isOn: LOGGING_SWITCH);
       rethrow;
     }
   }
@@ -457,27 +466,42 @@ class RecallGameStateUpdater {
     final validFields = <String>[];
     final invalidFields = <String>[];
     
+    _logger.debug('RecallGameStateUpdater: Starting validation of ${updates.length} fields', isOn: LOGGING_SWITCH);
+    
     for (final entry in updates.entries) {
       final key = entry.key;
       final value = entry.value;
+      
+      _logger.debug('RecallGameStateUpdater: Validating field "$key" with value: $value (type: ${value.runtimeType})', isOn: LOGGING_SWITCH);
       
       // 🚨 Check if field exists in schema
       final fieldSpec = _stateSchema[key];
       if (fieldSpec == null) {
         final error = 'Unknown state field: "$key". Allowed fields: ${_stateSchema.keys.join(', ')}';
+        _logger.error('RecallGameStateUpdater: Schema validation failed - $error', isOn: LOGGING_SWITCH);
+        _logger.error('RecallGameStateUpdater: Invalid field "$key" with value: $value (type: ${value.runtimeType})', isOn: LOGGING_SWITCH);
         invalidFields.add(key);
         throw RecallStateException(error, fieldName: key);
       }
       
       // 🚨 Validate field value
       try {
-      final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
-      validatedUpdates[key] = validatedValue;
+        final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
+        validatedUpdates[key] = validatedValue;
         validFields.add(key);
+        
+        _logger.debug('RecallGameStateUpdater: Field "$key" validation successful', isOn: LOGGING_SWITCH);
       } catch (e) {
+        _logger.error('RecallGameStateUpdater: Field validation failed for "$key" with value: $value (type: ${value.runtimeType})', isOn: LOGGING_SWITCH);
+        _logger.error('RecallGameStateUpdater: Validation error: $e', isOn: LOGGING_SWITCH);
         invalidFields.add(key);
         rethrow;
       }
+    }
+    
+    _logger.info('RecallGameStateUpdater: Validation completed - ${validFields.length} valid, ${invalidFields.length} invalid', isOn: LOGGING_SWITCH);
+    if (validFields.isNotEmpty) {
+      _logger.debug('RecallGameStateUpdater: Valid fields: ${validFields.join(', ')}', isOn: LOGGING_SWITCH);
     }
     
     return validatedUpdates;
@@ -485,36 +509,39 @@ class RecallGameStateUpdater {
   
   /// Validate individual state field value
   dynamic _validateStateFieldValue(String key, dynamic value, RecallStateFieldSpec spec) {
+    _logger.debug('RecallGameStateUpdater: Validating field "$key" with spec: type=${spec.type}, required=${spec.required}, nullable=${spec.nullable}', isOn: LOGGING_SWITCH);
+    
     // Handle null values
     if (value == null) {
       if (spec.required) {
-        throw RecallStateException(
-          'Field "$key" is required and cannot be null',
-          fieldName: key,
-        );
+        final error = 'Field "$key" is required and cannot be null';
+        _logger.error('RecallGameStateUpdater: Null value validation failed - $error', isOn: LOGGING_SWITCH);
+        _logger.error('RecallGameStateUpdater: Field "$key" received null value but is required', isOn: LOGGING_SWITCH);
+        throw RecallStateException(error, fieldName: key);
       }
       // If field is nullable, allow null values
       if (spec.nullable == true) {
+        _logger.debug('RecallGameStateUpdater: Field "$key" null value accepted (nullable=true)', isOn: LOGGING_SWITCH);
         return null;
       }
+      _logger.debug('RecallGameStateUpdater: Field "$key" null value replaced with default: ${spec.defaultValue}', isOn: LOGGING_SWITCH);
       return spec.defaultValue;
     }
     
     // Type validation
     if (!ValidationUtils.isValidType(value, spec.type)) {
-      throw RecallStateException(
-        'Field "$key" must be of type ${spec.type}, got ${value.runtimeType}',
-        fieldName: key,
-      );
+      final error = 'Field "$key" must be of type ${spec.type}, got ${value.runtimeType}';
+      _logger.error('RecallGameStateUpdater: Type validation failed - $error', isOn: LOGGING_SWITCH);
+      _logger.error('RecallGameStateUpdater: Field "$key" received value: $value (type: ${value.runtimeType}) but expected type: ${spec.type}', isOn: LOGGING_SWITCH);
+      throw RecallStateException(error, fieldName: key);
     }
     
     // Allowed values validation
     if (spec.allowedValues != null && !ValidationUtils.isAllowedValue(value, spec.allowedValues!)) {
-      throw RecallStateException(
-        'Field "$key" value "$value" is not allowed. '
-        'Allowed values: ${spec.allowedValues!.join(', ')}',
-        fieldName: key,
-      );
+      final error = 'Field "$key" value "$value" is not allowed. Allowed values: ${spec.allowedValues!.join(', ')}';
+      _logger.error('RecallGameStateUpdater: Allowed values validation failed - $error', isOn: LOGGING_SWITCH);
+      _logger.error('RecallGameStateUpdater: Field "$key" received value: $value but allowed values are: ${spec.allowedValues!.join(', ')}', isOn: LOGGING_SWITCH);
+      throw RecallStateException(error, fieldName: key);
     }
     
     // Range validation for numbers
@@ -524,12 +551,14 @@ class RecallGameStateUpdater {
           if (spec.min != null) 'min: ${spec.min}',
           if (spec.max != null) 'max: ${spec.max}',
         ].join(', ');
-        throw RecallStateException(
-          'Field "$key" value $value is out of range ($rangeDesc)',
-          fieldName: key,
-        );
+        final error = 'Field "$key" value $value is out of range ($rangeDesc)';
+        _logger.error('RecallGameStateUpdater: Range validation failed - $error', isOn: LOGGING_SWITCH);
+        _logger.error('RecallGameStateUpdater: Field "$key" received value: $value but range is: $rangeDesc', isOn: LOGGING_SWITCH);
+        throw RecallStateException(error, fieldName: key);
       }
     }
+    
+    _logger.debug('RecallGameStateUpdater: Field "$key" validation passed successfully', isOn: LOGGING_SWITCH);
     
     return value;
   }
@@ -540,7 +569,10 @@ class RecallGameStateUpdater {
     Map<String, dynamic> newState,
     Set<String> changedFields,
   ) {
+    _logger.debug('RecallGameStateUpdater: Updating widget slices for changed fields: ${changedFields.join(', ')}', isOn: LOGGING_SWITCH);
+    
     final updatedState = Map<String, dynamic>.from(newState);
+    final rebuiltSlices = <String>[];
     
     // Only rebuild slices that depend on changed fields
     for (final entry in _widgetDependencies.entries) {
@@ -548,30 +580,43 @@ class RecallGameStateUpdater {
       final dependencies = entry.value;
       
       if (changedFields.any(dependencies.contains)) {
+        _logger.debug('RecallGameStateUpdater: Rebuilding slice "$sliceName" due to changed dependencies', isOn: LOGGING_SWITCH);
+        
         switch (sliceName) {
           case 'actionBar':
             updatedState['actionBar'] = _computeActionBarSlice(newState);
+            rebuiltSlices.add('actionBar');
             break;
           case 'statusBar':
             updatedState['statusBar'] = _computeStatusBarSlice(newState);
+            rebuiltSlices.add('statusBar');
             break;
           case 'myHand':
             updatedState['myHand'] = _computeMyHandSlice(newState);
+            rebuiltSlices.add('myHand');
             break;
           case 'centerBoard':
             updatedState['centerBoard'] = _computeCenterBoardSlice(newState);
+            rebuiltSlices.add('centerBoard');
             break;
           case 'opponentsPanel':
             updatedState['opponentsPanel'] = _computeOpponentsPanelSlice(newState);
+            rebuiltSlices.add('opponentsPanel');
             break;
           case 'gameInfo':
             updatedState['gameInfo'] = _computeGameInfoSlice(newState);
+            rebuiltSlices.add('gameInfo');
             break;
           case 'joinedGamesSlice':
             updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
+            rebuiltSlices.add('joinedGamesSlice');
             break;
         }
       }
+    }
+    
+    if (rebuiltSlices.isNotEmpty) {
+      _logger.debug('RecallGameStateUpdater: Rebuilt widget slices: ${rebuiltSlices.join(', ')}', isOn: LOGGING_SWITCH);
     }
     
     // Extract currentPlayer from current game data and put it in main state
@@ -586,8 +631,10 @@ class RecallGameStateUpdater {
     
     if (currentPlayer != null) {
       updatedState['currentPlayer'] = currentPlayer;
+      _logger.debug('RecallGameStateUpdater: Extracted currentPlayer from game state', isOn: LOGGING_SWITCH);
     } else {
       updatedState['currentPlayer'] = null;
+      _logger.debug('RecallGameStateUpdater: No currentPlayer found in game state', isOn: LOGGING_SWITCH);
     }
     
     return updatedState;
@@ -754,7 +801,6 @@ class RecallGameStateUpdater {
     if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
       return {
         'currentGameId': '',
-        'roomName': '',
         'currentSize': 0,
         'maxSize': 4,
         'gamePhase': 'waiting',
@@ -769,9 +815,6 @@ class RecallGameStateUpdater {
     final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     
-    // Extract game information from the single source of truth (gameData)
-    final roomName = gameState['gameName']?.toString() ?? 'Game $currentGameId';
-    
     // Use derived values for other fields (these are set during navigation)
     final gamePhase = state['gamePhase']?.toString() ?? 'waiting';
     final gameStatus = currentGame['gameStatus']?.toString() ?? 'inactive';
@@ -784,7 +827,6 @@ class RecallGameStateUpdater {
     
     return {
       'currentGameId': currentGameId,
-      'roomName': roomName,
       'currentSize': currentSize,
       'maxSize': maxSize,
       'gamePhase': gamePhase,
@@ -823,22 +865,31 @@ class RecallGameStateAccessor {
   
   // Dependencies
   final StateManager _stateManager = StateManager();
+  final Logger _logger = Logger();
+  static const bool LOGGING_SWITCH = false;
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found
   Map<String, dynamic>? getGameStateForId(String gameId) {
     try {
+      _logger.debug('RecallGameStateAccessor: Getting game state for ID: $gameId', isOn: LOGGING_SWITCH);
+      
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final games = currentState['games'] as Map<String, dynamic>? ?? {};
       
       if (!games.containsKey(gameId)) {
+        _logger.debug('RecallGameStateAccessor: Game ID "$gameId" not found in games map', isOn: LOGGING_SWITCH);
         return null;
       }
       
       final gameState = games[gameId] as Map<String, dynamic>? ?? {};
+      
+      _logger.debug('RecallGameStateAccessor: Successfully retrieved game state for ID: $gameId', isOn: LOGGING_SWITCH);
+      
       return gameState;
       
     } catch (e) {
+      _logger.error('RecallGameStateAccessor: Error getting game state for ID "$gameId": $e', isOn: true);
       return null;
     }
   }

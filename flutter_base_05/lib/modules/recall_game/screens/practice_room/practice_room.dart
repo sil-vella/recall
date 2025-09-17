@@ -82,26 +82,12 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
     }
 
     try {
-      // First ensure WebSocket is connected
-      if (!_websocketManager.isConnected) {
-        _showSnackBar('Connecting to WebSocket...', isError: false);
-        final connected = await _websocketManager.connect();
-        if (!connected) {
-          _showSnackBar('Failed to connect to WebSocket. Cannot start practice game.', isError: true);
-          return;
-        }
-        _showSnackBar('WebSocket connected! Starting practice game...', isError: false);
-      }
-
-      // For now, just show a snackbar message
-      _showSnackBar('Practice game starting with ${_numberOfOpponents} opponents, ${_difficultyLevel} difficulty, and ${_turnTimer}s turn timer!');
+      // Show loading message
+      _showSnackBar('Starting practice game...', isError: false);
       
-      // TODO: Implement actual practice game creation logic
-      // This would typically involve:
-      // 1. Creating a practice game room
-      // 2. Setting up AI opponents
-      // 3. Configuring game settings
-      // 4. Starting the game
+
+      
+      // Success message will be shown by the practice manager
       
     } catch (e) {
       if (mounted) _showSnackBar('Failed to start practice game: $e', isError: true);

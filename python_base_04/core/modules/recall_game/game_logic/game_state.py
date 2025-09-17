@@ -860,7 +860,7 @@ class GameStateManager:
             
             # Update all players' status to READY efficiently (single game state update)
             updated_count = game.update_all_players_status(PlayerStatus.READY, filter_active=True)
-            custom_log(f"Updated {updated_count} players' status to READY for game start", level="INFO")
+            custom_log(f"Updated {updated_count} players' status to READY for game start", level="INFO", isOn=LOGGING_SWITCH)
             
             initial_peek_result = self.initial_peek(game)
                         

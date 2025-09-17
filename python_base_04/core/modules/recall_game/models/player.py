@@ -11,7 +11,7 @@ from .card import Card
 from tools.logger.custom_logging import custom_log
 
 # Logging switch for this module
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class PlayerType(Enum):

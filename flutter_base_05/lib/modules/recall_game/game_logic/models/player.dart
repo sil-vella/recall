@@ -33,14 +33,18 @@ class Player {
   final PlayerType playerType;
   final String name;
   
-  List<Card?> hand = [];
-  List<Card> visibleCards = [];
-  List<Card> cardsToPeek = [];
-  int score = 0;
-  PlayerStatus status = PlayerStatus.waiting;
-  bool hasCalledRecall = false;
-  Card? drawnCard;
+  List<Card?> hand = [];  // 4 cards face down
+  List<Card> visibleCards = [];  // Cards player has looked at
+  List<Card> knownFromOtherPlayers = [];  // Cards player knows from other players
+  int points = 0;
+  int cardsRemaining = 4;
   bool isActive = true;
+  bool hasCalledRecall = false;
+  DateTime? lastActionTime;
+  int initialPeeksRemaining = 2;
+  List<Card> cardsToPeek = []; // Cards player has peeked at
+  PlayerStatus status = PlayerStatus.waiting;  // Player status
+  Card? drawnCard;  // Most recently drawn card (Card object)
   
   // Game references for change tracking
   dynamic gameStateManager;
@@ -55,23 +59,40 @@ class Player {
   });
 
   void addCardToHand(Card card, {bool isDrawnCard = false, bool isPenaltyCard = false}) {
+    card.ownerId = playerId;
+    
+    // Special handling for drawn cards - always go to the end
     if (isDrawnCard) {
-      // Add drawn cards to the end
       hand.add(card);
-    } else if (isPenaltyCard) {
-      // Add penalty cards to the end
-      hand.add(card);
-    } else {
-      // Add regular cards to the end
-      hand.add(card);
+      cardsRemaining = hand.length;
+      
+      // Manually trigger change detection for hand modification
+      _trackChange('hand');
+      _sendChangesIfNeeded();
+      return;
     }
     
-    // Update score
-    score = calculatePoints();
+    // For penalty cards and regular cards: look for a blank slot (null) to fill first
+    if (isPenaltyCard || !isDrawnCard) {
+      for (int i = 0; i < hand.length; i++) {
+        if (hand[i] == null) {
+          hand[i] = card;
+          // Don't update cardsRemaining - we're filling an existing slot
+          
+          // Manually trigger change detection for hand modification
+          _trackChange('hand');
+          _sendChangesIfNeeded();
+          return;
+        }
+      }
+    }
     
-    // Track change
+    // If no blank slot found, append to the end
+    hand.add(card);
+    cardsRemaining = hand.length;
+    
+    // Manually trigger change detection for hand modification
     _trackChange('hand');
-    _trackChange('score');
     _sendChangesIfNeeded();
   }
 
@@ -95,9 +116,27 @@ class Player {
     for (int i = 0; i < hand.length; i++) {
       if (hand[i] != null && hand[i]!.cardId == cardId) {
         final removedCard = hand[i];
-        hand[i] = null; // Create blank slot
+        
+        // Check if we should create a blank slot or remove the card entirely
+        bool shouldCreateBlankSlot = shouldCreateBlankSlotAtIndex(i);
+        
+        if (shouldCreateBlankSlot) {
+          // Replace the card with null (blank slot) to maintain index positions
+          hand[i] = null;
+        } else {
+          // Remove the card entirely and shift remaining cards
+          hand.removeAt(i);
+        }
+        
+        // Clear drawn card if the removed card was the drawn card
+        if (drawnCard != null && drawnCard!.cardId == cardId) {
+          clearDrawnCard();
+        }
+        
+        // Manually trigger change detection for hand modification
         _trackChange('hand');
         _sendChangesIfNeeded();
+        
         return removedCard;
       }
     }
@@ -105,21 +144,37 @@ class Player {
   }
 
   void addCardToPeek(Card card) {
-    cardsToPeek.add(card);
-    _trackChange('cardsToPeek');
-    _sendChangesIfNeeded();
+    if (!cardsToPeek.contains(card)) {
+      cardsToPeek.add(card);
+      _trackChange('cardsToPeek');
+      _sendChangesIfNeeded();
+    }
   }
 
   void clearCardsToPeek() {
-    cardsToPeek.clear();
-    _trackChange('cardsToPeek');
-    _sendChangesIfNeeded();
+    if (cardsToPeek.isNotEmpty) {
+      cardsToPeek.clear();
+      _trackChange('cardsToPeek');
+      _sendChangesIfNeeded();
+    }
   }
 
-  bool _shouldCreateBlankSlotAtIndex(int index) {
-    // Smart blank slot logic - only create blank slots in the first 4 positions
-    // This maintains the original 4-card hand structure
-    return index < 4;
+  bool shouldCreateBlankSlotAtIndex(int index) {
+    // If index is 3 or less, always create a blank slot (maintain initial 4-card structure)
+    if (index <= 3) {
+      return true;
+    }
+    
+    // For index 4 and beyond, only create blank slot if there are actual cards further up
+    // Check if there are any non-null cards at higher indices
+    for (int i = index + 1; i < hand.length; i++) {
+      if (hand[i] != null) {
+        return true;
+      }
+    }
+    
+    // No actual cards beyond this index, so remove the card entirely
+    return false;
   }
 
   Card? lookAtCard(String cardId) {
@@ -169,25 +224,17 @@ class Player {
     _sendChangesIfNeeded();
   }
 
-  void setStatus(PlayerStatus newStatus) {
-    if (status != newStatus) {
-      status = newStatus;
-      _trackChange('status');
-      _sendChangesIfNeeded();
-    }
+  void updateStatus(PlayerStatus newStatus) {
+    status = newStatus;
+    _trackChange('status');
+    _sendChangesIfNeeded();
   }
 
-  // Status check methods
-  bool isPlaying() => status == PlayerStatus.playing;
-  bool isReady() => status == PlayerStatus.ready;
-  bool isWaiting() => status == PlayerStatus.waiting;
-  bool isSameRankWindow() => status == PlayerStatus.sameRankWindow;
-  bool isPlayingCard() => status == PlayerStatus.playingCard;
-  bool isDrawingCard() => status == PlayerStatus.drawingCard;
-  bool isQueenPeek() => status == PlayerStatus.queenPeek;
-  bool isJackSwap() => status == PlayerStatus.jackSwap;
-  bool isFinished() => status == PlayerStatus.finished;
-  bool isDisconnected() => status == PlayerStatus.disconnected;
+  void updatePoints() {
+    points = calculatePoints();
+    _trackChange('points');
+    _sendChangesIfNeeded();
+  }
 
   void setGameReferences(dynamic gameStateManager, String gameId) {
     this.gameStateManager = gameStateManager;
@@ -205,211 +252,127 @@ class Player {
       return;
     }
 
-    // Send changes to game state manager if available
     if (gameStateManager != null && gameId != null) {
-      // This would trigger a game state update
-      // Implementation depends on the game state manager
+      // Send player state update
+      _pendingChanges.clear();
+      
+      // In a real implementation, this would send the update via WebSocket
+      // For now, we'll just clear the pending changes
     }
-
-    _pendingChanges.clear();
-  }
-
-  void _triggerGamestatePlayersUpdate() {
-    // Trigger a game state update for players
-    if (gameStateManager != null && gameId != null) {
-      // Implementation depends on the game state manager
-    }
-  }
-
-  void enableChangeTracking() {
-    _changeTrackingEnabled = true;
-  }
-
-  void disableChangeTracking() {
-    _changeTrackingEnabled = false;
   }
 
   Map<String, dynamic> toDict() {
     return {
-      "player_id": playerId,
-      "player_type": playerType.name,
-      "name": name,
-      "hand": hand.map((card) => card?.toDict()).toList(),
-      "visible_cards": visibleCards.map((card) => card.toDict()).toList(),
-      "cards_to_peek": cardsToPeek.map((card) => card.toDict()).toList(),
-      "score": score,
-      "status": status.name,
-      "has_called_recall": hasCalledRecall,
-      "drawn_card": drawnCard?.toDict(),
-      "is_active": isActive,
+      'player_id': playerId,
+      'player_type': playerType.name,
+      'name': name,
+      'hand': hand.map((card) => card?.toDict()).toList(),
+      'visible_cards': visibleCards.map((card) => card.toDict()).toList(),
+      'known_from_other_players': knownFromOtherPlayers.map((card) => card.toDict()).toList(),
+      'points': points,
+      'cards_remaining': cardsRemaining,
+      'is_active': isActive,
+      'has_called_recall': hasCalledRecall,
+      'last_action_time': lastActionTime?.toIso8601String(),
+      'initial_peeks_remaining': initialPeeksRemaining,
+      'cards_to_peek': cardsToPeek.map((card) => card.toDict()).toList(),
+      'status': status.name,
+      'drawn_card': drawnCard?.toDict(),
     };
   }
 
   factory Player.fromDict(Map<String, dynamic> data) {
     final player = Player(
-      playerId: data["player_id"],
-      playerType: PlayerType.values.firstWhere((e) => e.name == data["player_type"]),
-      name: data["name"],
+      playerId: data['player_id'],
+      playerType: PlayerType.values.firstWhere((e) => e.name == data['player_type']),
+      name: data['name'],
     );
     
-    player.hand = (data["hand"] as List).map((cardData) => 
-      cardData != null ? Card.fromDict(cardData) : null
-    ).toList();
+    player.points = data['points'] ?? 0;
+    player.cardsRemaining = data['cards_remaining'] ?? 4;
+    player.isActive = data['is_active'] ?? true;
+    player.hasCalledRecall = data['has_called_recall'] ?? false;
+    player.initialPeeksRemaining = data['initial_peeks_remaining'] ?? 2;
+    player.status = PlayerStatus.values.firstWhere((e) => e.name == data['status'], orElse: () => PlayerStatus.waiting);
     
-    player.visibleCards = (data["visible_cards"] as List).map((cardData) => 
-      Card.fromDict(cardData)
-    ).toList();
+    if (data['last_action_time'] != null) {
+      player.lastActionTime = DateTime.parse(data['last_action_time']);
+    }
     
-    player.cardsToPeek = (data["cards_to_peek"] as List).map((cardData) => 
-      Card.fromDict(cardData)
-    ).toList();
-    
-    player.score = data["score"];
-    player.status = PlayerStatus.values.firstWhere((e) => e.name == data["status"]);
-    player.hasCalledRecall = data["has_called_recall"];
-    player.drawnCard = data["drawn_card"] != null ? Card.fromDict(data["drawn_card"]) : null;
-    player.isActive = data["is_active"];
+    if (data['drawn_card'] != null) {
+      player.drawnCard = Card.fromDict(data['drawn_card']);
+    }
     
     return player;
   }
 }
 
 class HumanPlayer extends Player {
-  /// Human player class
-  
-  HumanPlayer(String playerId, String name) : super(
+  HumanPlayer({
+    required String playerId,
+    required String name,
+  }) : super(
     playerId: playerId,
     playerType: PlayerType.human,
     name: name,
   );
-
-  Map<String, dynamic> makeDecision(Map<String, dynamic> gameState) {
-    // Human players make decisions through UI
-    return {
-      "action": "waiting_for_input",
-      "message": "Human player decision required",
-    };
-  }
-
-  List<String> _getAvailableActions(Map<String, dynamic> gameState) {
-    // Return available actions for human player
-    return [
-      "draw_card",
-      "play_card",
-      "discard_card",
-      "call_recall",
-    ];
-  }
 }
 
 class ComputerPlayer extends Player {
-  /// Computer player class with AI decision making
-  
-  final String difficulty;
-
-  ComputerPlayer(String playerId, String name, {this.difficulty = "medium"}) : super(
+  ComputerPlayer({
+    required String playerId,
+    required String name,
+  }) : super(
     playerId: playerId,
     playerType: PlayerType.computer,
     name: name,
   );
 
   Map<String, dynamic> makeDecision(Map<String, dynamic> gameState) {
-    // AI decision making based on difficulty
-    switch (difficulty) {
-      case "easy":
-        return _makeEasyDecision(gameState);
-      case "medium":
-        return _makeMediumDecision(gameState);
-      case "hard":
-        return _makeHardDecision(gameState);
-      default:
-        return _makeMediumDecision(gameState);
-    }
-  }
-
-  Map<String, dynamic> _makeEasyDecision(Map<String, dynamic> gameState) {
-    // Simple AI - random decisions
-    final actions = _getAvailableActions(gameState);
-    if (actions.isNotEmpty) {
-      final randomAction = actions[DateTime.now().millisecondsSinceEpoch % actions.length];
-      return {
-        "action": randomAction,
-        "confidence": 0.5,
-      };
-    }
-    return {"action": "wait", "confidence": 0.0};
-  }
-
-  Map<String, dynamic> _makeMediumDecision(Map<String, dynamic> gameState) {
-    // Medium AI - basic strategy
-    final bestCard = _selectBestCard(gameState);
-    if (bestCard != null) {
-      return {
-        "action": "play_card",
-        "card_id": bestCard.cardId,
-        "confidence": 0.7,
-      };
-    }
-    return {"action": "draw_card", "confidence": 0.6};
-  }
-
-  Map<String, dynamic> _makeHardDecision(Map<String, dynamic> gameState) {
-    // Hard AI - advanced strategy
-    final bestCard = _selectBestCard(gameState);
-    if (bestCard != null) {
-      return {
-        "action": "play_card",
-        "card_id": bestCard.cardId,
-        "confidence": 0.9,
-      };
-    }
-    return {"action": "draw_card", "confidence": 0.8};
-  }
-
-  double _evaluateCardValue(Card card, Map<String, dynamic> gameState) {
-    // Evaluate card value based on game state
-    double value = card.points.toDouble();
+    // Simple AI decision making
+    // In a real implementation, this would contain sophisticated AI logic
     
-    // Reduce value for special cards in early game
-    if (card.hasSpecialPower()) {
-      value *= 0.8;
+    // For now, return a basic decision
+    return {
+      'action': 'draw_card',
+      'confidence': 0.8,
+    };
+  }
+
+  Map<String, dynamic> chooseCardToPlay(List<Card> availableCards) {
+    // Simple AI card selection
+    // In a real implementation, this would contain sophisticated AI logic
+    
+    if (availableCards.isEmpty) {
+      return {'action': 'draw_card', 'confidence': 0.8};
     }
     
-    return value;
-  }
-
-  Card? _selectBestCard(Map<String, dynamic> gameState) {
-    // Select the best card to play
-    final playableCards = hand.where((card) => card != null).cast<Card>().toList();
-    if (playableCards.isEmpty) return null;
+    // Simple strategy: play the lowest point card
+    availableCards.sort((a, b) => a.points.compareTo(b.points));
+    final chosenCard = availableCards.first;
     
-    // Sort by value (ascending for Recall game - lower is better)
-    playableCards.sort((a, b) => _evaluateCardValue(a, gameState).compareTo(_evaluateCardValue(b, gameState)));
+    return {
+      'action': 'play_card',
+      'card_id': chosenCard.cardId,
+      'confidence': 0.7,
+    };
+  }
+
+  Map<String, dynamic> chooseCardToPeek(List<Card> availableCards) {
+    // Simple AI peek selection
+    // In a real implementation, this would contain sophisticated AI logic
     
-    return playableCards.first;
-  }
-
-  bool _shouldCallRecall(Map<String, dynamic> gameState) {
-    // Determine if computer should call recall
-    final totalPoints = calculatePoints();
-    final handSize = hand.where((card) => card != null).length;
+    if (availableCards.isEmpty) {
+      return {'action': 'skip_peek', 'confidence': 0.8};
+    }
     
-    // Call recall if hand is small and points are low
-    return handSize <= 2 && totalPoints <= 5;
-  }
-
-  void _updateKnownFromOtherPlayers(Card card, Map<String, dynamic> gameState) {
-    // Update computer's knowledge about other players' cards
-    // This would be implemented based on the specific AI strategy
-  }
-
-  List<String> _getAvailableActions(Map<String, dynamic> gameState) {
-    // Return available actions for computer player
-    return [
-      "draw_card",
-      "play_card",
-      "discard_card",
-      "call_recall",
-    ];
+    // Simple strategy: peek at the first available card
+    final chosenCard = availableCards.first;
+    
+    return {
+      'action': 'peek_card',
+      'card_id': chosenCard.cardId,
+      'confidence': 0.6,
+    };
   }
 }

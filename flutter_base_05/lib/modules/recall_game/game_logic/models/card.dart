@@ -57,7 +57,11 @@ class Card {
     required this.cardId,
     this.isVisible = false,
     this.ownerId,
-  });
+  }) {
+    if (cardId.isEmpty) {
+      throw ArgumentError("cardId is required - use DeckFactory to create cards with proper IDs");
+    }
+  }
 
   @override
   String toString() {

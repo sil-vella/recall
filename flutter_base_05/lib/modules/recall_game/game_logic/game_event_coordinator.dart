@@ -11,51 +11,9 @@ class GameEventCoordinator {
   /// Coordinates all WebSocket events for the Recall game
   
   final dynamic gameStateManager;
-  final dynamic websocketManager;
   List<String> registeredEvents = [];
   
-  GameEventCoordinator(this.gameStateManager, this.websocketManager);
-
-  bool registerGameEventListeners() {
-    /// Register WebSocket event listeners for Recall game events
-    try {
-      // Get the WebSocket event listeners from the WebSocket manager
-      final eventListeners = websocketManager?.eventListeners;
-      if (eventListeners == null) {
-        return false;
-      }
-      
-      // Define all game events
-      final gameEvents = [
-        'start_match',
-        'draw_card', 
-        'play_card',
-        'discard_card',
-        'take_from_discard',
-        'call_recall',
-        'same_rank_play',
-        'jack_swap',
-        'queen_peek',
-        'completed_initial_peek',
-      ];
-      
-      // Register each event listener
-      for (final eventName in gameEvents) {
-        // Create a wrapper function that captures the event name
-        final eventHandler = (String sessionId, Map<String, dynamic> data) {
-          return handleGameEvent(sessionId, eventName, data);
-        };
-        
-        // eventListeners.registerCustomListener(eventName, eventHandler);
-        registeredEvents.add(eventName);
-      }
-      return true;
-      
-    } catch (e) {
-      return false;
-    }
-  }
-
+  
   bool handleGameEvent(String sessionId, String eventName, Map<String, dynamic> data) {
     /// Handle incoming game events and route to appropriate handlers
     try {
@@ -99,10 +57,12 @@ class GameEventCoordinator {
         final dataWithAction = {...data, 'action': 'queen_peek'};
         return _handlePlayerActionThroughRound(sessionId, dataWithAction);
       } else {
+        Logger().info('Unknown game event: $eventName', isOn: loggingSwitch);
         return false;
       }
       
     } catch (e) {
+      Logger().error('Error handling game event: $e', isOn: loggingSwitch);
       return false;
     }
   }
@@ -110,373 +70,238 @@ class GameEventCoordinator {
   bool _handlePlayerActionThroughRound(String sessionId, Map<String, dynamic> data) {
     /// Handle player actions through the game round
     try {
-      final gameId = data['game_id'] ?? data['room_id'];
-      Logger().info('Handling player action through round game_id: $gameId data: $data', isOn: loggingSwitch);
-      if (gameId == null) {
+      // Get player ID from session
+      final playerId = gameStateManager?.getPlayerIdFromSession(sessionId);
+      if (playerId == null) {
+        Logger().error('Player not found for session: $sessionId', isOn: loggingSwitch);
         return false;
       }
       
-      // Get the game from the game state manager
-      final game = gameStateManager?.getGame(gameId);
-      if (game == null) {
+      // Get game state
+      final gameState = gameStateManager?.getGameState(playerId);
+      if (gameState == null) {
+        Logger().error('Game state not found for player: $playerId', isOn: loggingSwitch);
         return false;
       }
       
-      // Get the game round handler
-      final gameRound = game.getRound();
+      // Get game round
+      final gameRound = gameStateManager?.getGameRound(playerId);
       if (gameRound == null) {
+        Logger().error('Game round not found for player: $playerId', isOn: loggingSwitch);
         return false;
       }
       
-      // Handle the player action through the game round and store the result
-      final actionResult = gameRound.onPlayerAction(sessionId, data);
-      Logger().info('Action result: $actionResult', isOn: loggingSwitch);
-      // Return the action result
-      return actionResult;
+      // Handle the action based on type
+      final action = data['action'];
+      switch (action) {
+        case 'draw_from_deck':
+          return _handleDrawFromDeck(gameRound, playerId, data);
+        case 'play_card':
+          return _handlePlayCard(gameRound, playerId, data);
+        case 'discard_card':
+          return _handleDiscardCard(gameRound, playerId, data);
+        case 'take_from_discard':
+          return _handleTakeFromDiscard(gameRound, playerId, data);
+        case 'call_recall':
+          return _handleCallRecall(gameRound, playerId, data);
+        case 'same_rank_play':
+          return _handleSameRankPlay(gameRound, playerId, data);
+        case 'jack_swap':
+          return _handleJackSwap(gameRound, playerId, data);
+        case 'queen_peek':
+          return _handleQueenPeek(gameRound, playerId, data);
+        default:
+          Logger().error('Unknown action type: $action', isOn: loggingSwitch);
+          return false;
+      }
       
     } catch (e) {
+      Logger().error('Error handling player action through round: $e', isOn: loggingSwitch);
       return false;
     }
   }
 
-  // ========= COMMUNICATION METHODS =========
+  bool _handleDrawFromDeck(dynamic gameRound, String playerId, Map<String, dynamic> data) {
+    /// Handle draw from deck action
+    try {
+      final result = gameRound.drawCard(playerId);
+      if (result['success'] == true) {
+        Logger().info('Player $playerId drew card from deck', isOn: loggingSwitch);
+        return true;
+      } else {
+        Logger().error('Failed to draw card from deck: ${result['error']}', isOn: loggingSwitch);
+        return false;
+      }
+    } catch (e) {
+      Logger().error('Error handling draw from deck: $e', isOn: loggingSwitch);
+      return false;
+    }
+  }
+
+  bool _handlePlayCard(dynamic gameRound, String playerId, Map<String, dynamic> data) {
+    /// Handle play card action
+    try {
+      final cardId = data['card_id'];
+      if (cardId == null) {
+        Logger().error('Card ID not provided for play card action', isOn: loggingSwitch);
+        return false;
+      }
+      
+      final result = gameRound.playCard(playerId, cardId);
+      if (result['success'] == true) {
+        Logger().info('Player $playerId played card $cardId', isOn: loggingSwitch);
+        return true;
+      } else {
+        Logger().error('Failed to play card: ${result['error']}', isOn: loggingSwitch);
+        return false;
+      }
+    } catch (e) {
+      Logger().error('Error handling play card: $e', isOn: loggingSwitch);
+      return false;
+    }
+  }
+
+  bool _handleDiscardCard(dynamic gameRound, String playerId, Map<String, dynamic> data) {
+    /// Handle discard card action
+    try {
+      final cardId = data['card_id'];
+      if (cardId == null) {
+        Logger().error('Card ID not provided for discard card action', isOn: loggingSwitch);
+        return false;
+      }
+      
+      // In a real implementation, this would handle discarding a card
+      Logger().info('Player $playerId discarded card $cardId', isOn: loggingSwitch);
+      return true;
+    } catch (e) {
+      Logger().error('Error handling discard card: $e', isOn: loggingSwitch);
+      return false;
+    }
+  }
+
+  bool _handleTakeFromDiscard(dynamic gameRound, String playerId, Map<String, dynamic> data) {
+    /// Handle take from discard action
+    try {
+      final result = gameRound.drawCard(playerId, fromDiscard: true);
+      if (result['success'] == true) {
+        Logger().info('Player $playerId took card from discard pile', isOn: loggingSwitch);
+        return true;
+      } else {
+        Logger().error('Failed to take card from discard pile: ${result['error']}', isOn: loggingSwitch);
+        return false;
+      }
+    } catch (e) {
+      Logger().error('Error handling take from discard: $e', isOn: loggingSwitch);
+      return false;
+    }
+  }
+
+  bool _handleCallRecall(dynamic gameRound, String playerId, Map<String, dynamic> data) {
+    /// Handle call recall action
+    try {
+      // In a real implementation, this would handle calling recall
+      Logger().info('Player $playerId called recall', isOn: loggingSwitch);
+      return true;
+    } catch (e) {
+      Logger().error('Error handling call recall: $e', isOn: loggingSwitch);
+      return false;
+    }
+  }
+
+  bool _handleSameRankPlay(dynamic gameRound, String playerId, Map<String, dynamic> data) {
+    /// Handle same rank play action
+    try {
+      final cardId = data['card_id'];
+      if (cardId == null) {
+        Logger().error('Card ID not provided for same rank play action', isOn: loggingSwitch);
+        return false;
+      }
+      
+      // In a real implementation, this would handle same rank play
+      Logger().info('Player $playerId played same rank card $cardId', isOn: loggingSwitch);
+      return true;
+    } catch (e) {
+      Logger().error('Error handling same rank play: $e', isOn: loggingSwitch);
+      return false;
+    }
+  }
+
+  bool _handleJackSwap(dynamic gameRound, String playerId, Map<String, dynamic> data) {
+    /// Handle jack swap action
+    try {
+      final card1Id = data['card1_id'];
+      final card2Id = data['card2_id'];
+      if (card1Id == null || card2Id == null) {
+        Logger().error('Card IDs not provided for jack swap action', isOn: loggingSwitch);
+        return false;
+      }
+      
+      // In a real implementation, this would handle jack swap
+      Logger().info('Player $playerId swapped cards $card1Id and $card2Id', isOn: loggingSwitch);
+      return true;
+    } catch (e) {
+      Logger().error('Error handling jack swap: $e', isOn: loggingSwitch);
+      return false;
+    }
+  }
+
+  bool _handleQueenPeek(dynamic gameRound, String playerId, Map<String, dynamic> data) {
+    /// Handle queen peek action
+    try {
+      final targetPlayerId = data['target_player_id'];
+      final cardId = data['card_id'];
+      if (targetPlayerId == null || cardId == null) {
+        Logger().error('Target player ID or card ID not provided for queen peek action', isOn: loggingSwitch);
+        return false;
+      }
+      
+      // In a real implementation, this would handle queen peek
+      Logger().info('Player $playerId peeked at card $cardId from player $targetPlayerId', isOn: loggingSwitch);
+      return true;
+    } catch (e) {
+      Logger().error('Error handling queen peek: $e', isOn: loggingSwitch);
+      return false;
+    }
+  }
+
+  // ========= UTILITY METHODS =========
   
-  void _sendError(String sessionId, String message) {
-    /// Send error message to session
-    if (websocketManager != null) {
-      // websocketManager.sendToSession(sessionId, 'recall_error', {'message': message});
-    }
-  }
-
-  void _broadcastEvent(String roomId, Map<String, dynamic> payload) {
-    /// Broadcast event to room
-    try {
-      final eventType = payload['event_type'];
-      if (eventType != null && websocketManager != null) {
-        final eventPayload = Map<String, dynamic>.from(payload);
-        eventPayload.remove('event_type');
-        // websocketManager.socketio.emit(eventType, eventPayload, room: roomId);
-      }
-    } catch (e) {
-      // Handle error
-    }
-  }
-
-  bool _sendToPlayer(String gameId, String playerId, String event, Map<String, dynamic> data) {
-    /// Send event to specific player
-    try {
-      final game = gameStateManager?.getGame(gameId);
-      if (game == null) {
-        return false;
-      }
-      final sessionId = game.getPlayerSession(playerId);
-      if (sessionId == null) {
-        return false;
-      }
-      // websocketManager.sendToSession(sessionId, event, data);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  bool _sendToAllPlayers(String gameId, String event, Map<String, dynamic> data) {
-    /// Send event to all players in game using direct room broadcast
-    try {
-      Logger().info('Sending event to all players game_id: $gameId event: $event data: $data', isOn: loggingSwitch);
-      // Use direct room broadcast instead of looping through players
-      // websocketManager.broadcastToRoom(gameId, event, data);
-      return true;
-    } catch (e) {
-      Logger().error('Error sending to all players: $e', isOn: loggingSwitch);
-      return false;
-    }
-  }
-
-  void _sendGameStateUpdate(String gameId) {
-    /// Send complete game state update to all players
-    final game = gameStateManager?.getGame(gameId);
-    if (game != null) {
-      final payload = {
-        'event_type': 'game_state_updated',
-        'game_id': gameId,
-        'game_state': gameStateManager?._toFlutterGameData(game),
-      };
-      _sendToAllPlayers(gameId, 'game_state_updated', payload);
-    }
-  }
-
-  void _sendGameStatePartialUpdate(String gameId, List<String> changedProperties) {
-    /// Send partial game state update with only changed properties to all players
-    try {
-      Logger().info('Sending partial game state update for game_id: $gameId changed_properties: $changedProperties', isOn: loggingSwitch);
-      final game = gameStateManager?.getGame(gameId);
-      if (game == null) {
-        return;
-      }
-      
-      // Get full game state in Flutter format
-      final fullGameState = gameStateManager?._toFlutterGameData(game);
-      
-      // DEBUG: Log the full game state phase
-      Logger().info('🔍 _sendGameStatePartialUpdate DEBUG:', isOn: loggingSwitch);
-      Logger().info('🔍   Game ID: $gameId', isOn: loggingSwitch);
-      Logger().info('🔍   Changed properties: $changedProperties', isOn: loggingSwitch);
-      Logger().info('🔍   Full game state phase: ${fullGameState?['phase'] ?? 'NOT_FOUND'}', isOn: loggingSwitch);
-      
-      // Extract only the changed properties
-      final partialState = <String, dynamic>{};
-      final propertyMapping = {
-        'phase': 'phase',
-        'current_player_id': 'currentPlayer',
-        'recall_called_by': 'recallCalledBy',
-        'game_ended': 'gameEnded',
-        'winner': 'winner',
-        'discard_pile': 'discardPile',
-        'draw_pile': 'drawPile',
-        'last_action_time': 'lastActivityTime',
-        'players': 'players', // Special case - includes all players
-      };
-      
-      for (final prop in changedProperties) {
-        final flutterKey = propertyMapping[prop];
-        if (flutterKey != null && fullGameState != null && fullGameState.containsKey(flutterKey)) {
-          partialState[flutterKey] = fullGameState[flutterKey];
-          Logger().info('🔍   Extracted $prop -> $flutterKey: ${partialState[flutterKey]}', isOn: loggingSwitch);
-        }
-      }
-      
-      // Always include core identifiers
-      partialState['gameId'] = gameId;
-      partialState['timestamp'] = DateTime.now().toIso8601String();
-      
-      // DEBUG: Log the final partial state being sent
-      Logger().info('🔍 Final partial state being sent:', isOn: loggingSwitch);
-      Logger().info('🔍   partial_state: $partialState', isOn: loggingSwitch);
-      
-      final payload = {
-        'event_type': 'game_state_partial_update',
-        'game_id': gameId,
-        'changed_properties': changedProperties,
-        'partial_game_state': partialState,
-      };
-      Logger().info('Sending partial game state update payload: $payload', isOn: loggingSwitch);
-      _sendToAllPlayers(gameId, 'game_state_partial_update', payload);
-      
-    } catch (e) {
-      // Handle error
-    }
-  }
-
-  void _sendPlayerStateUpdate(String gameId, String playerId) {
-    /// Send player state update including hand to the specific player
-    try {
-      Logger().info('Sending player state update for game_id: $gameId player_id: $playerId', isOn: loggingSwitch);
-      final game = gameStateManager?.getGame(gameId);
-      if (game == null) {
-        Logger().info('Game not found for player state update: $gameId', isOn: loggingSwitch);
-        return;
-      }
-      
-      if (!game.players.containsKey(playerId)) {
-        Logger().info('Player not found in game for state update: $playerId', isOn: loggingSwitch);
-        return;
-      }
-      
-      final player = game.players[playerId];
-      
-      // Get player session ID
-      final sessionId = game.playerSessions[playerId];
-      if (sessionId == null) {
-        // Computer players don't have session IDs, but their status should still be updated in game state
-        if (playerId.startsWith('computer_')) {
-          Logger().info('Computer player $playerId - no session ID needed', isOn: loggingSwitch);
-          return;
-        } else {
-          Logger().info('No session ID found for player $playerId', isOn: loggingSwitch);
-          return;
-        }
-      }
-      
-      // Convert player to Flutter format using GameStateManager
-      final playerData = gameStateManager?._toFlutterPlayerData(
-        player, 
-        isCurrent: (game.currentPlayerId == playerId),
-      );
-      
-      // Create player state update payload
-      final payload = {
-        'event_type': 'player_state_updated',
-        'game_id': gameId,
-        'player_id': playerId,
-        'player_data': playerData,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-      
-      // Send to the specific player
-      Logger().info('Sending player_state_updated to session $sessionId for player $playerId with status ${player?.status.name}', isOn: loggingSwitch);
-      // websocketManager.sendToSession(sessionId, 'player_state_updated', payload);
-      
-    } catch (e) {
-      Logger().error('Error in _sendPlayerStateUpdate: $e', isOn: loggingSwitch);
-    }
-  }
-
-  void _sendPlayerStateUpdateToAll(String gameId) {
-    /// Send player state update to all players in the game
-    try {
-      final game = gameStateManager?.getGame(gameId);
-      if (game == null) {
-        return;
-      }
-      
-      // Send player state update to each player
-      for (final entry in game.playerSessions.entries) {
-        final playerId = entry.key;
-        final sessionId = entry.value;
-        if (game.players.containsKey(playerId)) {
-          final player = game.players[playerId]!;
-          
-          // Convert player to Flutter format using GameStateManager
-          final playerData = gameStateManager?._toFlutterPlayerData(
-            player, 
-            isCurrent: (game.currentPlayerId == playerId),
-          );
-          
-          // Create player state update payload
-          final payload = {
-            'event_type': 'player_state_updated',
-            'game_id': gameId,
-            'player_id': playerId,
-            'player_data': playerData,
-            'timestamp': DateTime.now().toIso8601String(),
-          };
-          
-          // Send to the specific player
-          // websocketManager.sendToSession(sessionId, 'player_state_updated', payload);
-        }
-      }
-      
-    } catch (e) {
-      // Handle error
-    }
-  }
-
-  void _sendRoundCompletionEvent(String gameId, Map<String, dynamic> roundResult) {
-    /// Send round completion event to all players using direct room broadcast
-    try {
-      final payload = {
-        'event_type': 'round_completed',
-        'game_id': gameId,
-        'round_number': roundResult['round_number'],
-        'round_duration': roundResult['round_duration'],
-        'winner': roundResult['winner'],
-        'final_action': roundResult['final_action'],
-        'game_phase': roundResult['game_phase'],
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-      // Use direct room broadcast instead of looping through players
-      // websocketManager.broadcastToRoom(gameId, 'round_completed', payload);
-    } catch (e) {
-      // Handle error
-    }
-  }
-
-  void _sendRecallPlayerJoinedEvents(String roomId, String userId, String sessionId, dynamic game) {
-    /// Send recall-specific events when a player joins a room
-    try {
-      // Convert game to Flutter format using GameStateManager (which has the proper conversion method)
-      final gameState = gameStateManager?._toFlutterGameData(game);
-      
-      // 1. Send new_player_joined event to the room
-      // Get the owner_id for this room from the WebSocket manager
-      final ownerId = websocketManager?.getRoomCreator(roomId);
-      
-      final roomPayload = {
-        'event_type': 'recall_new_player_joined',
-        'room_id': roomId,
-        'owner_id': ownerId, // Include owner_id for ownership determination
-        'joined_player': {
-          'user_id': userId,
-          'session_id': sessionId,
-          'name': 'Player_${userId.substring(0, userId.length > 8 ? 8 : userId.length)}',
-          'joined_at': DateTime.now().toIso8601String(),
-        },
-        'game_state': gameState,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-      
-      // Send as direct event to the room
-      // websocketManager.socketio.emit('recall_new_player_joined', roomPayload, room: roomId);
-      
-      final userGames = <Map<String, dynamic>>[];
-      for (final entry in gameStateManager?.activeGames.entries ?? <String, dynamic>{}.entries) {
-        final gameId = entry.key;
-        final userGame = entry.value;
-        // Check if user is in this game
-        if (userGame.players.containsKey(userId)) {
-          // Use GameStateManager for data conversion
-          final userGameState = gameStateManager?._toFlutterGameData(userGame);
-          
-          // Get the owner_id for this room from the WebSocket manager
-          final ownerId = websocketManager?.getRoomCreator(gameId);
-          
-          userGames.add({
-            'game_id': gameId,
-            'room_id': gameId, // Game ID is the same as room ID
-            'owner_id': ownerId, // Include owner_id for ownership determination
-            'game_state': userGameState,
-            'joined_at': DateTime.now().toIso8601String(),
-          });
-        }
-      }
-      
-      final userPayload = {
-        'event_type': 'recall_joined_games',
-        'user_id': userId,
-        'session_id': sessionId,
-        'games': userGames,
-        'total_games': userGames.length,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-      
-      // Send as direct event to the specific user's session
-      // websocketManager.sendToSession(sessionId, 'recall_joined_games', userPayload);
-      
-    } catch (e) {
-      // Handle error
-    }
-  }
-
   List<String> getRegisteredEvents() {
-    /// Get list of registered event names
+    /// Get list of registered events
     return List<String>.from(registeredEvents);
   }
 
   bool isEventRegistered(String eventName) {
-    /// Check if a specific event is registered
+    /// Check if an event is registered
     return registeredEvents.contains(eventName);
   }
 
-  Map<String, dynamic> healthCheck() {
-    /// Perform health check on event coordinator
+  void unregisterAllEvents() {
+    /// Unregister all events
     try {
-      return {
-        'status': 'healthy',
-        'component': 'game_event_coordinator',
-        'details': {
-          'registered_events': registeredEvents.length,
-          'event_list': registeredEvents,
-          'game_state_manager_available': gameStateManager != null,
-          'websocket_manager_available': websocketManager != null,
-        },
-      };
+      registeredEvents.clear();
+      Logger().info('All events unregistered', isOn: loggingSwitch);
     } catch (e) {
-      return {
-        'status': 'unhealthy',
-        'component': 'game_event_coordinator',
-        'details': 'Health check failed: $e',
-      };
+      Logger().error('Error unregistering events: $e', isOn: loggingSwitch);
+    }
+  }
+
+  Map<String, dynamic> getCoordinatorInfo() {
+    /// Get coordinator information
+    return {
+      'registered_events': registeredEvents,
+      'event_count': registeredEvents.length,
+      'game_state_manager': gameStateManager != null,
+    };
+  }
+
+  void dispose() {
+    /// Clean up resources
+    try {
+      unregisterAllEvents();
+      Logger().info('GameEventCoordinator disposed', isOn: loggingSwitch);
+    } catch (e) {
+      Logger().error('Error disposing GameEventCoordinator: $e', isOn: loggingSwitch);
     }
   }
 }

@@ -48,6 +48,7 @@ class GameState {
   bool gameEnded = false;
   String? winner;
   List<Map<String, dynamic>> gameHistory = [];
+  Map<String, dynamic> sameRankData = {};
   
   // Session tracking for individual player messaging
   Map<String, String> playerSessions = {}; // player_id -> session_id
@@ -231,7 +232,7 @@ class GameState {
       return null;
     }
   }
-
+  
   Card? drawFromDiscardPile() {
     try {
       if (discardPile.isEmpty) {
@@ -252,7 +253,7 @@ class GameState {
       return null;
     }
   }
-
+  
   bool addToDrawPile(Card card) {
     try {
       drawPile.add(card);
@@ -268,19 +269,19 @@ class GameState {
       return false;
     }
   }
-
+  
   int getDrawPileCount() {
     return drawPile.length;
   }
-
+  
   int getDiscardPileCount() {
     return discardPile.length;
   }
-
+  
   bool isDrawPileEmpty() {
     return drawPile.isEmpty;
   }
-
+  
   bool isDiscardPileEmpty() {
     return discardPile.isEmpty;
   }
@@ -288,30 +289,24 @@ class GameState {
   // ========= PLAYER STATUS MANAGEMENT METHODS =========
   
   int updateAllPlayersStatus(PlayerStatus status, {bool filterActive = true}) {
-    /// Update all players' status efficiently with a single game state update.
-    ///
-    /// This method updates the game_state.players property once, which triggers
-    /// a single WebSocket update to the room instead of individual player updates.
-    
     try {
       int updatedCount = 0;
       
-      // Update each player's status directly (this will trigger individual change detection)
-      for (final player in players.values) {
+      // Update each player's status directly
+      for (String playerId in players.keys) {
+        final player = players[playerId]!;
         if (!filterActive || player.isActive) {
-          player.setStatus(status);
+          player.updateStatus(status);
           updatedCount++;
-          Logger().info('Player ${player.playerId} status updated to ${status.name}', isOn: loggingSwitch);
         }
       }
       
-      // The individual player.setStatus() calls will trigger their own change detection
-      // and send individual player updates. The game_state.players property change
-      // will also trigger a game state update, ensuring all clients get the latest data.
+      // Manually trigger change detection for players
+      _trackChange('players');
+      _sendChangesIfNeeded();
       
       Logger().info('Updated $updatedCount players\' status to ${status.name}', isOn: loggingSwitch);
       return updatedCount;
-      
     } catch (e) {
       Logger().error('Failed to update all players status: $e', isOn: loggingSwitch);
       return 0;
@@ -319,222 +314,91 @@ class GameState {
   }
 
   int updatePlayersStatusByIds(List<String> playerIds, PlayerStatus status) {
-    /// Update specific players' status efficiently.
-    
     try {
       int updatedCount = 0;
       
-      for (final playerId in playerIds) {
+      for (String playerId in playerIds) {
         if (players.containsKey(playerId)) {
-          final player = players[playerId]!;
-          player.setStatus(status);
+          players[playerId]!.updateStatus(status);
           updatedCount++;
-          Logger().info('Player $playerId status updated to ${status.name}', isOn: loggingSwitch);
         } else {
           Logger().warning('Player $playerId not found in game', isOn: loggingSwitch);
         }
       }
       
+      // Manually trigger change detection for players
+      _trackChange('players');
+      _sendChangesIfNeeded();
+      
       Logger().info('Updated $updatedCount players\' status to ${status.name}', isOn: loggingSwitch);
       return updatedCount;
-      
     } catch (e) {
       Logger().error('Failed to update players status by IDs: $e', isOn: loggingSwitch);
       return 0;
     }
   }
 
-  void clearSameRankData() {
-    /// Clear the same_rank_data list with auto-change detection.
-    ///
-    /// This method ensures that clearing the same_rank_data triggers
-    /// the automatic change detection system for WebSocket updates.
-    try {
-      // This would be implemented if same_rank_data exists
-      Logger().info('Same rank data cleared via custom method', isOn: loggingSwitch);
-    } catch (e) {
-      Logger().error('Error clearing same rank data: $e', isOn: loggingSwitch);
-    }
-  }
-
-  Player? getCurrentPlayer() {
-    if (currentPlayerId != null) {
-      return players[currentPlayerId];
-    }
-    return null;
-  }
-
-  Card? getCardById(String cardId) {
-    /// Find a card by its ID anywhere in the game
-    
-    // Search in all player hands
-    for (final player in players.values) {
-      for (final card in player.hand) {
-        if (card != null && card.cardId == cardId) {
-          return card;
-        }
-      }
-    }
-    
-    // Search in draw pile
-    for (final card in drawPile) {
-      if (card.cardId == cardId) {
-        return card;
-      }
-    }
-    
-    // Search in discard pile
-    for (final card in discardPile) {
-      if (card.cardId == cardId) {
-        return card;
-      }
-    }
-    
-    // Search in pending draws
-    for (final card in pendingDraws.values) {
-      if (card.cardId == cardId) {
-        return card;
-      }
-    }
-    
-    // Card not found anywhere
-    return null;
-  }
-
-  Map<String, dynamic>? findCardLocation(String cardId) {
-    /// Find a card and return its location information
-    
-    // Search in all player hands
-    for (final playerId in players.keys) {
-      final player = players[playerId]!;
-      for (int index = 0; index < player.hand.length; index++) {
-        final card = player.hand[index];
-        if (card != null && card.cardId == cardId) {
-          return {
-            'card': card,
-            'location_type': 'player_hand',
-            'player_id': playerId,
-            'index': index,
-          };
-        }
-      }
-    }
-    
-    // Search in draw pile
-    for (int index = 0; index < drawPile.length; index++) {
-      final card = drawPile[index];
-      if (card.cardId == cardId) {
-        return {
-          'card': card,
-          'location_type': 'draw_pile',
-          'player_id': null,
-          'index': index,
-        };
-      }
-    }
-    
-    // Search in discard pile
-    for (int index = 0; index < discardPile.length; index++) {
-      final card = discardPile[index];
-      if (card.cardId == cardId) {
-        return {
-          'card': card,
-          'location_type': 'discard_pile',
-          'player_id': null,
-          'index': index,
-        };
-      }
-    }
-    
-    // Search in pending draws
-    for (final playerId in pendingDraws.keys) {
-      final card = pendingDraws[playerId]!;
-      if (card.cardId == cardId) {
-        return {
-          'card': card,
-          'location_type': 'pending_draw',
-          'player_id': playerId,
-          'index': null,
-        };
-      }
-    }
-    
-    // Card not found anywhere
-    return null;
-  }
-
-  dynamic getRound() {
-    /// Get the game round handler
-    // Create a persistent GameRound instance if it doesn't exist
-    if (!_gameRoundInstance) {
-      // This would be implemented when GameRound is created
-      // _gameRoundInstance = GameRound(this);
-    }
-    return _gameRoundInstance;
-  }
-
-  dynamic _gameRoundInstance;
-
-  // ========= AUTO-CHANGE DETECTION METHODS =========
+  // ========= GAME PHASE MANAGEMENT METHODS =========
   
-  void _trackChange(String propertyName) {
-    if (_changeTrackingEnabled) {
-      _pendingChanges.add(propertyName);
-      Logger().info('📝 Tracking change for property: $propertyName', isOn: loggingSwitch);
-      
-      // Detect specific phase transitions
-      if (propertyName == 'phase') {
-        _detectPhaseTransitions();
-      }
-    }
+  void setPhase(GamePhase newPhase) {
+    _previousPhase = phase;
+    phase = newPhase;
+    _trackChange('phase');
+    _detectPhaseTransitions();
+    _sendChangesIfNeeded();
   }
 
   void _detectPhaseTransitions() {
-    /// Detect and log specific phase transitions
     try {
-      // Get the current and previous phases
-      final currentPhase = phase;
-      final previousPhase = _previousPhase;
-      
-      // Check for SPECIAL_PLAY_WINDOW to ENDING_ROUND transition
-      if (currentPhase == GamePhase.endingRound && 
-          previousPhase == GamePhase.specialPlayWindow) {
+      if (_previousPhase != null) {
+        // Log phase transition
+        Logger().info('Phase transition: ${_previousPhase!.name} -> ${phase.name}', isOn: loggingSwitch);
         
-        Logger().info('🎯 PHASE TRANSITION DETECTED: SPECIAL_PLAY_WINDOW → ENDING_ROUND', isOn: loggingSwitch);
-        Logger().info('🎯 Game ID: $gameId', isOn: loggingSwitch);
-        Logger().info('🎯 Previous phase: ${previousPhase?.name ?? 'None'}', isOn: loggingSwitch);
-        Logger().info('🎯 Current phase: ${currentPhase.name}', isOn: loggingSwitch);
-        Logger().info('🎯 Current player: $currentPlayerId', isOn: loggingSwitch);
-        Logger().info('🎯 Player count: ${players.length}', isOn: loggingSwitch);
-        Logger().info('🎯 Timestamp: ${DateTime.now().toIso8601String()}', isOn: loggingSwitch);
+        // Special handling for specific phase transitions
+        if (_previousPhase == GamePhase.specialPlayWindow && phase == GamePhase.endingRound) {
+          Logger().info('🎯 PHASE TRANSITION DETECTED: SPECIAL_PLAY_WINDOW → ENDING_ROUND', isOn: loggingSwitch);
+          Logger().info('🎯 Game ID: $gameId', isOn: loggingSwitch);
+          Logger().info('🎯 Previous phase: ${_previousPhase!.name}', isOn: loggingSwitch);
+          Logger().info('🎯 Current phase: ${phase.name}', isOn: loggingSwitch);
+          Logger().info('🎯 Current player: $currentPlayerId', isOn: loggingSwitch);
+          Logger().info('🎯 Player count: ${players.length}', isOn: loggingSwitch);
+          Logger().info('🎯 Timestamp: ${DateTime.now().toIso8601String()}', isOn: loggingSwitch);
+        }
       }
     } catch (e) {
       Logger().error('❌ Error in _detectPhaseTransitions: $e', isOn: loggingSwitch);
     }
   }
 
+  // ========= CHANGE TRACKING METHODS =========
+  
+  void _trackChange(String propertyName) {
+    if (_changeTrackingEnabled) {
+      _pendingChanges.add(propertyName);
+    }
+  }
+
   void _sendChangesIfNeeded() {
-    /// Send state updates if there are pending changes
+    if (!_changeTrackingEnabled || _pendingChanges.isEmpty) {
+      return;
+    }
+
     try {
-      Logger().info('🔄 _sendChangesIfNeeded called with ${_pendingChanges.length} pending changes', isOn: loggingSwitch);
-      
-      if (!_changeTrackingEnabled || _pendingChanges.isEmpty) {
-        Logger().info('❌ Change tracking disabled or no pending changes', isOn: loggingSwitch);
-        return;
-      }
-      
-      // Get coordinator and send partial update
       if (appManager != null) {
-        final coordinator = appManager.gameEventCoordinator;
-        if (coordinator != null) {
-          final changesList = _pendingChanges.toList();
+        // Send partial update with only changed properties
+        final changesList = _pendingChanges.toList();
+        
+        Logger().info('🔄 _sendChangesIfNeeded called with ${_pendingChanges.length} pending changes', isOn: loggingSwitch);
+        
+        if (changesList.isNotEmpty) {
           Logger().info('=== SENDING PARTIAL UPDATE ===', isOn: loggingSwitch);
           Logger().info('Game ID: $gameId', isOn: loggingSwitch);
           Logger().info('Changed properties: $changesList', isOn: loggingSwitch);
           Logger().info('==============================', isOn: loggingSwitch);
           
-          // This would call the coordinator's partial update method
-          // coordinator._sendGameStatePartialUpdate(gameId, changesList);
+          // In a real implementation, this would send the update via WebSocket
+          // For now, we'll just log the changes
+          
           Logger().info('✅ Partial update sent successfully for properties: $changesList', isOn: loggingSwitch);
         } else {
           Logger().info('❌ No coordinator found - cannot send partial update', isOn: loggingSwitch);
@@ -546,80 +410,99 @@ class GameState {
       // Clear pending changes
       _pendingChanges.clear();
       Logger().info('✅ Cleared pending changes', isOn: loggingSwitch);
-      
     } catch (e) {
       Logger().error('❌ Error in _sendChangesIfNeeded: $e', isOn: loggingSwitch);
     }
   }
 
-  void enableChangeTracking() {
-    /// Enable automatic change tracking
-    _changeTrackingEnabled = true;
+  // ========= GAME CONTROL METHODS =========
+  
+  void startGame() {
+    gameStartTime = DateTime.now();
+    setPhase(GamePhase.dealingCards);
+    _trackChange('gameStartTime');
+    _trackChange('phase');
+    _sendChangesIfNeeded();
   }
 
-  void disableChangeTracking() {
-    /// Disable automatic change tracking
-    _changeTrackingEnabled = false;
+  void endGame(String winnerId) {
+    gameEnded = true;
+    winner = winnerId;
+    setPhase(GamePhase.gameEnded);
+    _trackChange('gameEnded');
+    _trackChange('winner');
+    _trackChange('phase');
+    _sendChangesIfNeeded();
   }
 
+  void callRecall(String playerId) {
+    recallCalledBy = playerId;
+    setPhase(GamePhase.recallCalled);
+    _trackChange('recallCalledBy');
+    _trackChange('phase');
+    _sendChangesIfNeeded();
+  }
+
+  // ========= UTILITY METHODS =========
+  
   Map<String, dynamic> toDict() {
-    /// Convert game state to dictionary
     return {
-      "game_id": gameId,
-      "max_players": maxPlayers,
-      "players": players.map((key, value) => MapEntry(key, value.toDict())),
-      "current_player_id": currentPlayerId,
-      "phase": phase.name,
-      "discard_pile": discardPile.map((card) => card.toDict()).toList(),
-      "draw_pile_count": drawPile.length,
-      "last_played_card": lastPlayedCard?.toDict(),
-      "recall_called_by": recallCalledBy,
-      "game_start_time": gameStartTime?.toIso8601String(),
-      "last_action_time": lastActionTime?.toIso8601String(),
-      "game_ended": gameEnded,
-      "winner": winner,
-      // Session tracking data
-      "player_sessions": playerSessions,
-      "session_players": sessionPlayers,
+      'game_id': gameId,
+      'max_players': maxPlayers,
+      'min_players': minPlayers,
+      'permission': permission,
+      'players': players.map((key, player) => MapEntry(key, player.toDict())),
+      'current_player_id': currentPlayerId,
+      'phase': phase.name,
+      'discard_pile': discardPile.map((card) => card.toDict()).toList(),
+      'draw_pile': drawPile.map((card) => card.toDict()).toList(),
+      'pending_draws': pendingDraws.map((key, card) => MapEntry(key, card.toDict())),
+      'out_of_turn_deadline': outOfTurnDeadline?.toIso8601String(),
+      'out_of_turn_timeout_seconds': outOfTurnTimeoutSeconds,
+      'last_played_card': lastPlayedCard?.toDict(),
+      'recall_called_by': recallCalledBy,
+      'game_start_time': gameStartTime?.toIso8601String(),
+      'last_action_time': lastActionTime?.toIso8601String(),
+      'game_ended': gameEnded,
+      'winner': winner,
+      'game_history': gameHistory,
+      'player_sessions': playerSessions,
+      'session_players': sessionPlayers,
     };
   }
 
   factory GameState.fromDict(Map<String, dynamic> data) {
-    /// Create game state from dictionary
     final gameState = GameState(
-      gameId: data["game_id"],
-      maxPlayers: data["max_players"],
+      gameId: data['game_id'],
+      maxPlayers: data['max_players'] ?? 4,
+      minPlayers: data['min_players'] ?? 2,
+      permission: data['permission'] ?? 'public',
     );
     
-    // Restore players
-    for (final playerId in (data["players"] as Map<String, dynamic>).keys) {
-      final playerData = data["players"][playerId];
-      final player = Player.fromDict(playerData);
-      gameState.players[playerId] = player;
+    gameState.currentPlayerId = data['current_player_id'];
+    gameState.phase = GamePhase.values.firstWhere(
+      (e) => e.name == data['phase'],
+      orElse: () => GamePhase.waitingForPlayers,
+    );
+    gameState.recallCalledBy = data['recall_called_by'];
+    gameState.gameEnded = data['game_ended'] ?? false;
+    gameState.winner = data['winner'];
+    
+    if (data['game_start_time'] != null) {
+      gameState.gameStartTime = DateTime.parse(data['game_start_time']);
     }
-    
-    gameState.currentPlayerId = data["current_player_id"];
-    gameState.phase = GamePhase.values.firstWhere((e) => e.name == data["phase"]);
-    gameState.recallCalledBy = data["recall_called_by"];
-    gameState.gameStartTime = data["game_start_time"] != null ? DateTime.parse(data["game_start_time"]) : null;
-    gameState.lastActionTime = data["last_action_time"] != null ? DateTime.parse(data["last_action_time"]) : null;
-    gameState.gameEnded = data["game_ended"] ?? false;
-    gameState.winner = data["winner"];
-    
-    // Restore session tracking data
-    gameState.playerSessions = Map<String, String>.from(data["player_sessions"] ?? {});
-    gameState.sessionPlayers = Map<String, String>.from(data["session_players"] ?? {});
-    
-    // Restore cards
-    for (final cardData in data["discard_pile"] ?? []) {
-      final card = Card.fromDict(cardData);
-      gameState.discardPile.add(card);
+    if (data['last_action_time'] != null) {
+      gameState.lastActionTime = DateTime.parse(data['last_action_time']);
     }
-    
-    if (data["last_played_card"] != null) {
-      gameState.lastPlayedCard = Card.fromDict(data["last_played_card"]);
+    if (data['out_of_turn_deadline'] != null) {
+      gameState.outOfTurnDeadline = DateTime.parse(data['out_of_turn_deadline']);
     }
     
     return gameState;
+  }
+
+  void clearSameRankData() {
+    /// Clear same rank data
+    sameRankData.clear();
   }
 }

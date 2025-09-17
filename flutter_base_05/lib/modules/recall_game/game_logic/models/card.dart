@@ -54,13 +54,16 @@ class Card {
     required this.suit,
     required this.points,
     this.specialPower,
-    required this.cardId,
+    String? cardId,
     this.isVisible = false,
     this.ownerId,
-  }) {
-    if (cardId.isEmpty) {
-      throw ArgumentError("cardId is required - use DeckFactory to create cards with proper IDs");
+  }) : cardId = _validateCardId(cardId);
+
+  static String _validateCardId(String? cardId) {
+    if (cardId == null) {
+      throw ArgumentError("card_id is required - use DeckFactory to create cards with proper IDs");
     }
+    return cardId;
   }
 
   @override
@@ -84,15 +87,16 @@ class Card {
   }
 
   factory Card.fromDict(Map<String, dynamic> data) {
-    return Card(
+    final card = Card(
       rank: data["rank"],
       suit: data["suit"],
       points: data["points"],
       specialPower: data["special_power"],
-      cardId: data["card_id"] ?? "",
+      cardId: data["card_id"],
       isVisible: data["is_visible"] ?? false,
       ownerId: data["owner_id"],
     );
+    return card;
   }
 
   int getPointValue() {
@@ -167,8 +171,15 @@ class CardDeck {
       return 1;
     } else if (["2", "3", "4", "5", "6", "7", "8", "9", "10"].contains(rank)) {
       return int.parse(rank);
-    } else if (["jack", "queen", "king"].contains(rank)) {
+    } else if (["jack", "queen"].contains(rank)) {
       return 10;
+    } else if (rank == "king") {
+      // Special handling for kings - red kings are 0 points, black kings are 10 points
+      if (suit == "hearts" || suit == "diamonds") {
+        return 0; // Red kings are 0 points
+      } else {
+        return 10; // Black kings are 10 points
+      }
     } else {
       return 0;
     }
@@ -190,6 +201,7 @@ class CardDeck {
   }
 
   Card? drawCard() {
+    /// Draw a card from the top of the deck
     if (cards.isNotEmpty) {
       return cards.removeLast();
     }
@@ -197,18 +209,22 @@ class CardDeck {
   }
 
   void addCard(Card card) {
+    /// Add a card to the deck
     cards.add(card);
   }
 
   int getRemainingCount() {
+    /// Get the number of cards remaining in the deck
     return cards.length;
   }
 
   bool isEmpty() {
+    /// Check if the deck is empty
     return cards.isEmpty;
   }
 
   void reset() {
+    /// Reset the deck to its original state
     cards.clear();
     _initializeDeck();
   }

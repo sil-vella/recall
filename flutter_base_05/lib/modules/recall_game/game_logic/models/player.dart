@@ -4,6 +4,10 @@
 /// including human players, computer players, and AI decision making.
 
 import 'card.dart';
+import '../../../../tools/logging/logger.dart';
+
+// Logging switch for this module
+const bool loggingSwitch = false;
 
 enum PlayerType {
   human,
@@ -230,6 +234,78 @@ class Player {
     _sendChangesIfNeeded();
   }
 
+  void setStatus(PlayerStatus newStatus) {
+    /// Set player status - alias for updateStatus to match Python version
+    updateStatus(newStatus);
+  }
+
+  // ========= STATUS CHECKING METHODS =========
+  
+  bool isPlaying() {
+    /// Check if player is currently playing (active turn)
+    return status == PlayerStatus.playing;
+  }
+
+  bool isReady() {
+    /// Check if player is ready (waiting for turn)
+    return status == PlayerStatus.ready;
+  }
+
+  bool isWaiting() {
+    /// Check if player is waiting (game not started)
+    return status == PlayerStatus.waiting;
+  }
+
+  bool isSameRankWindow() {
+    /// Check if player is in same rank window (can play out-of-turn)
+    return status == PlayerStatus.sameRankWindow;
+  }
+
+  bool isPlayingCard() {
+    /// Check if player is in process of playing a card
+    return status == PlayerStatus.playingCard;
+  }
+
+  bool isDrawingCard() {
+    /// Check if player is in process of drawing a card
+    return status == PlayerStatus.drawingCard;
+  }
+
+  bool isQueenPeek() {
+    /// Check if player is in queen peek status (used queen power)
+    return status == PlayerStatus.queenPeek;
+  }
+
+  bool isJackSwap() {
+    /// Check if player is in jack swap status (used jack power)
+    return status == PlayerStatus.jackSwap;
+  }
+
+  bool isPeeking() {
+    /// Check if player is in peeking phase
+    return status == PlayerStatus.peeking;
+  }
+
+  bool isInitialPeek() {
+    /// Check if player is in initial peek phase
+    return status == PlayerStatus.initialPeek;
+  }
+
+  bool isFinished() {
+    /// Check if player has finished the game
+    return status == PlayerStatus.finished;
+  }
+
+  bool isDisconnected() {
+    /// Check if player is disconnected
+    return status == PlayerStatus.disconnected;
+  }
+
+  bool isWinner() {
+    /// Check if player is the winner
+    return status == PlayerStatus.winner;
+  }
+
   void updatePoints() {
     points = calculatePoints();
     _trackChange('points');
@@ -239,6 +315,16 @@ class Player {
   void setGameReferences(dynamic gameStateManager, String gameId) {
     this.gameStateManager = gameStateManager;
     this.gameId = gameId;
+  }
+
+  void enableChangeTracking() {
+    /// Enable automatic change tracking
+    _changeTrackingEnabled = true;
+  }
+
+  void disableChangeTracking() {
+    /// Disable automatic change tracking
+    _changeTrackingEnabled = false;
   }
 
   void _trackChange(String propertyName) {
@@ -252,12 +338,65 @@ class Player {
       return;
     }
 
-    if (gameStateManager != null && gameId != null) {
-      // Send player state update
+    if (gameStateManager == null || gameId == null) {
+      return;
+    }
+
+    try {
+      Logger().info('🔄 Player _sendChangesIfNeeded called with ${_pendingChanges.length} pending changes', isOn: loggingSwitch);
+      Logger().info('=== SENDING PLAYER UPDATE ===', isOn: loggingSwitch);
+      Logger().info('Player ID: $playerId', isOn: loggingSwitch);
+      Logger().info('Changed properties: ${_pendingChanges.toList()}', isOn: loggingSwitch);
+      Logger().info('=============================', isOn: loggingSwitch);
+      
+      // Get the coordinator from the game state manager
+      if (gameStateManager.appManager != null) {
+        final coordinator = gameStateManager.appManager.gameEventCoordinator;
+        if (coordinator != null) {
+          // Send player state update using existing coordinator method
+          coordinator.sendPlayerStateUpdate(gameId!, playerId);
+          Logger().info('Player update sent successfully for properties: ${_pendingChanges.toList()}', isOn: loggingSwitch);
+          
+          // Also trigger GameState players property change detection
+          _triggerGamestatePlayersUpdate();
+        } else {
+          Logger().info('No coordinator found for player update', isOn: loggingSwitch);
+        }
+      } else {
+        Logger().info('No app_manager found for player update', isOn: loggingSwitch);
+      }
+      
+      // Clear pending changes
       _pendingChanges.clear();
       
-      // In a real implementation, this would send the update via WebSocket
-      // For now, we'll just clear the pending changes
+    } catch (e) {
+      Logger().error('Error in player _sendChangesIfNeeded: $e', isOn: loggingSwitch);
+    }
+  }
+
+  void _triggerGamestatePlayersUpdate() {
+    /// Trigger GameState players property change detection to send room-wide update
+    try {
+      Logger().info('🔄 Triggering GameState players property update for player: $playerId', isOn: loggingSwitch);
+      
+      // Get the game state from the game state manager
+      try {
+        // Use reflection or try-catch to call methods dynamically
+        final gameState = gameStateManager.getGame?.call(gameId);
+        if (gameState != null) {
+          // Try to call the change tracking methods
+          gameState._trackChange?.call('players');
+          gameState._sendChangesIfNeeded?.call();
+          Logger().info('✅ GameState players property update triggered successfully', isOn: loggingSwitch);
+        } else {
+          Logger().info('❌ GameState not found', isOn: loggingSwitch);
+        }
+      } catch (e) {
+        Logger().info('❌ GameStateManager method call failed: $e', isOn: loggingSwitch);
+      }
+      
+    } catch (e) {
+      Logger().error('❌ Error triggering GameState players update: $e', isOn: loggingSwitch);
     }
   }
 
@@ -316,12 +455,45 @@ class HumanPlayer extends Player {
     playerType: PlayerType.human,
     name: name,
   );
+
+  Map<String, dynamic> makeDecision(Map<String, dynamic> gameState) {
+    /// Human players make decisions through WebSocket events
+    // This will be handled by WebSocket events from the frontend
+    return {
+      'player_id': playerId,
+      'decision_type': 'waiting_for_human_input',
+      'available_actions': _getAvailableActions(gameState),
+    };
+  }
+
+  List<String> _getAvailableActions(Map<String, dynamic> gameState) {
+    /// Get available actions for the human player
+    final actions = <String>[];
+    
+    if (gameState['current_player_id'] == playerId) {
+      actions.add('play_card');
+      actions.add('draw_from_discard');
+      actions.add('call_recall');
+    }
+    
+    // Check for out-of-turn plays
+    if (gameState['last_played_card'] != null) {
+      // This would need to be implemented based on game rules
+      // For now, just add the action if there's a last played card
+      actions.add('play_out_of_turn');
+    }
+    
+    return actions;
+  }
 }
 
 class ComputerPlayer extends Player {
+  final String difficulty;
+  
   ComputerPlayer({
     required String playerId,
     required String name,
+    this.difficulty = "medium",
   }) : super(
     playerId: playerId,
     playerType: PlayerType.computer,
@@ -329,50 +501,105 @@ class ComputerPlayer extends Player {
   );
 
   Map<String, dynamic> makeDecision(Map<String, dynamic> gameState) {
-    // Simple AI decision making
-    // In a real implementation, this would contain sophisticated AI logic
+    /// Make AI decision based on game state using built-in logic
     
-    // For now, return a basic decision
-    return {
-      'action': 'draw_card',
-      'confidence': 0.8,
-    };
-  }
-
-  Map<String, dynamic> chooseCardToPlay(List<Card> availableCards) {
-    // Simple AI card selection
-    // In a real implementation, this would contain sophisticated AI logic
+    // Use built-in AI logic methods
+    final bestCard = _selectBestCard(gameState);
+    final shouldCallRecall = _shouldCallRecall(gameState);
     
-    if (availableCards.isEmpty) {
-      return {'action': 'draw_card', 'confidence': 0.8};
+    if (shouldCallRecall) {
+      return {
+        'action': 'call_recall',
+        'reason': 'AI decided to call recall (difficulty: $difficulty)',
+        'player_id': playerId,
+      };
     }
     
-    // Simple strategy: play the lowest point card
-    availableCards.sort((a, b) => a.points.compareTo(b.points));
-    final chosenCard = availableCards.first;
+    if (bestCard != null) {
+      // Find the card index in hand
+      final cardIndex = hand.indexWhere((card) => card != null && card.cardId == bestCard.cardId);
+      return {
+        'action': 'play_card',
+        'card_index': cardIndex != -1 ? cardIndex : 0,
+        'reason': 'AI selected best card (difficulty: $difficulty)',
+        'player_id': playerId,
+      };
+    }
     
+    // Fallback: play first card
     return {
       'action': 'play_card',
-      'card_id': chosenCard.cardId,
-      'confidence': 0.7,
+      'card_index': 0,
+      'reason': 'AI fallback decision (difficulty: $difficulty)',
+      'player_id': playerId,
     };
   }
 
-  Map<String, dynamic> chooseCardToPeek(List<Card> availableCards) {
-    // Simple AI peek selection
-    // In a real implementation, this would contain sophisticated AI logic
+  double _evaluateCardValue(Card card, Map<String, dynamic> gameState) {
+    /// Evaluate the value of a card in the current game state
+    double baseValue = card.points.toDouble();
     
-    if (availableCards.isEmpty) {
-      return {'action': 'skip_peek', 'confidence': 0.8};
+    // Factor in special powers
+    if (card.hasSpecialPower()) {
+      baseValue -= 2; // Prefer special power cards
     }
     
-    // Simple strategy: peek at the first available card
-    final chosenCard = availableCards.first;
+    // Factor in game progression
+    if (gameState['recall_called'] == true) {
+      // In final round, minimize points
+      return -baseValue;
+    } else {
+      // During normal play, balance points and utility
+      return -baseValue * 0.7 + (card.hasSpecialPower() ? 10 : 0);
+    }
+  }
+
+  Card? _selectBestCard(Map<String, dynamic> gameState) {
+    /// Select the best card to play
+    final validCards = hand.where((card) => card != null).cast<Card>().toList();
+    if (validCards.isEmpty) {
+      return null;
+    }
     
-    return {
-      'action': 'peek_card',
-      'card_id': chosenCard.cardId,
-      'confidence': 0.6,
-    };
+    // Evaluate all cards
+    final cardValues = <MapEntry<Card, double>>[];
+    for (final card in validCards) {
+      final value = _evaluateCardValue(card, gameState);
+      cardValues.add(MapEntry(card, value));
+    }
+    
+    // Sort by value (best first)
+    cardValues.sort((a, b) => b.value.compareTo(a.value));
+    
+    return cardValues.isNotEmpty ? cardValues.first.key : null;
+  }
+
+  bool _shouldCallRecall(Map<String, dynamic> gameState) {
+    /// Determine if the computer should call Recall
+    if (hasCalledRecall) {
+      return false;
+    }
+    
+    // Calculate current position
+    final totalPoints = calculatePoints();
+    final cardsRemaining = hand.where((card) => card != null).length;
+    
+    // Simple AI logic - call Recall if in good position
+    if (cardsRemaining <= 1 && totalPoints <= 5) {
+      return true;
+    }
+    
+    if (cardsRemaining <= 2 && totalPoints <= 3) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  void updateKnownFromOtherPlayers(Card card, Map<String, dynamic> gameState) {
+    /// Update the player's known cards from other players list
+    if (!knownFromOtherPlayers.any((c) => c.cardId == card.cardId)) {
+      knownFromOtherPlayers.add(card);
+    }
   }
 }

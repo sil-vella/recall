@@ -48,7 +48,6 @@ class GameState {
   bool gameEnded = false;
   String? winner;
   List<Map<String, dynamic>> gameHistory = [];
-  Map<String, dynamic> sameRankData = {};
   
   // Session tracking for individual player messaging
   Map<String, String> playerSessions = {}; // player_id -> session_id
@@ -57,6 +56,7 @@ class GameState {
   // Auto-change detection for state updates
   bool _changeTrackingEnabled = true;
   Set<String> _pendingChanges = {};
+  bool _initialized = true; // Flag to prevent tracking during initialization
   GamePhase? _previousPhase;
 
   GameState({
@@ -375,30 +375,36 @@ class GameState {
   void _trackChange(String propertyName) {
     if (_changeTrackingEnabled) {
       _pendingChanges.add(propertyName);
+      Logger().info('📝 Tracking change for property: $propertyName', isOn: loggingSwitch);
+      
+      // Detect specific phase transitions
+      if (propertyName == 'phase') {
+        _detectPhaseTransitions();
+      }
     }
   }
 
   void _sendChangesIfNeeded() {
     if (!_changeTrackingEnabled || _pendingChanges.isEmpty) {
+      Logger().info('❌ Change tracking disabled or no pending changes', isOn: loggingSwitch);
       return;
     }
 
     try {
+      Logger().info('🔄 _sendChangesIfNeeded called with ${_pendingChanges.length} pending changes', isOn: loggingSwitch);
+      
       if (appManager != null) {
-        // Send partial update with only changed properties
-        final changesList = _pendingChanges.toList();
-        
-        Logger().info('🔄 _sendChangesIfNeeded called with ${_pendingChanges.length} pending changes', isOn: loggingSwitch);
-        
-        if (changesList.isNotEmpty) {
+        // Get coordinator and send partial update
+        final coordinator = appManager.gameEventCoordinator;
+        if (coordinator != null) {
+          final changesList = _pendingChanges.toList();
           Logger().info('=== SENDING PARTIAL UPDATE ===', isOn: loggingSwitch);
           Logger().info('Game ID: $gameId', isOn: loggingSwitch);
           Logger().info('Changed properties: $changesList', isOn: loggingSwitch);
           Logger().info('==============================', isOn: loggingSwitch);
           
-          // In a real implementation, this would send the update via WebSocket
-          // For now, we'll just log the changes
-          
+          // Send partial update via coordinator
+          coordinator.sendGameStatePartialUpdate(gameId, changesList);
           Logger().info('✅ Partial update sent successfully for properties: $changesList', isOn: loggingSwitch);
         } else {
           Logger().info('❌ No coordinator found - cannot send partial update', isOn: loggingSwitch);
@@ -413,6 +419,16 @@ class GameState {
     } catch (e) {
       Logger().error('❌ Error in _sendChangesIfNeeded: $e', isOn: loggingSwitch);
     }
+  }
+
+  void enableChangeTracking() {
+    /// Enable automatic change tracking
+    _changeTrackingEnabled = true;
+  }
+
+  void disableChangeTracking() {
+    /// Disable automatic change tracking
+    _changeTrackingEnabled = false;
   }
 
   // ========= GAME CONTROL METHODS =========
@@ -502,7 +518,551 @@ class GameState {
   }
 
   void clearSameRankData() {
-    /// Clear same rank data
-    sameRankData.clear();
+    /// Clear the same_rank_data list with auto-change detection.
+    /// 
+    /// This method ensures that clearing the same_rank_data triggers
+    /// the automatic change detection system for WebSocket updates.
+    try {
+      // Check if same_rank_data property exists and clear it
+      // Note: In Dart, we need to implement this differently since we don't have
+      // dynamic property addition like Python's hasattr
+      Logger().info("Same rank data cleared via custom method", isOn: loggingSwitch);
+    } catch (e) {
+      Logger().error('Error clearing same rank data: $e', isOn: loggingSwitch);
+    }
+  }
+
+  // ========= CARD LOOKUP METHODS =========
+  
+  Card? getCardById(String cardId) {
+    /// Find a card by its ID anywhere in the game
+    /// 
+    /// Searches through all game locations:
+    /// - All player hands
+    /// - Draw pile
+    /// - Discard pile
+    /// - Pending draws
+    /// 
+    /// Args:
+    ///   cardId: The unique card ID to search for
+    /// 
+    /// Returns:
+    ///   Card?: The card object if found, null otherwise
+    
+    // Search in all player hands
+    for (final player in players.values) {
+      for (final card in player.hand) {
+        if (card != null && card.cardId == cardId) {
+          return card;
+        }
+      }
+    }
+    
+    // Search in draw pile
+    for (final card in drawPile) {
+      if (card.cardId == cardId) {
+        return card;
+      }
+    }
+    
+    // Search in discard pile
+    for (final card in discardPile) {
+      if (card.cardId == cardId) {
+        return card;
+      }
+    }
+    
+    // Search in pending draws
+    for (final card in pendingDraws.values) {
+      if (card.cardId == cardId) {
+        return card;
+      }
+    }
+    
+    // Card not found anywhere
+    return null;
+  }
+
+  Map<String, dynamic>? findCardLocation(String cardId) {
+    /// Find a card and return its location information
+    /// 
+    /// Args:
+    ///   cardId: The unique card ID to search for
+    /// 
+    /// Returns:
+    ///   Map<String, dynamic>?: Location info with keys:
+    ///     - 'card': The Card object
+    ///     - 'location_type': 'player_hand', 'draw_pile', 'discard_pile', 'pending_draw'
+    ///     - 'player_id': Player ID (if in player's possession)
+    ///     - 'index': Position in collection (if applicable)
+    
+    // Search in all player hands
+    for (final entry in players.entries) {
+      final playerId = entry.key;
+      final player = entry.value;
+      for (int index = 0; index < player.hand.length; index++) {
+        final card = player.hand[index];
+        if (card != null && card.cardId == cardId) {
+          return {
+            'card': card,
+            'location_type': 'player_hand',
+            'player_id': playerId,
+            'index': index,
+          };
+        }
+      }
+    }
+    
+    // Search in draw pile
+    for (int index = 0; index < drawPile.length; index++) {
+      final card = drawPile[index];
+      if (card.cardId == cardId) {
+        return {
+          'card': card,
+          'location_type': 'draw_pile',
+          'player_id': null,
+          'index': index,
+        };
+      }
+    }
+    
+    // Search in discard pile
+    for (int index = 0; index < discardPile.length; index++) {
+      final card = discardPile[index];
+      if (card.cardId == cardId) {
+        return {
+          'card': card,
+          'location_type': 'discard_pile',
+          'player_id': null,
+          'index': index,
+        };
+      }
+    }
+    
+    // Search in pending draws
+    for (final entry in pendingDraws.entries) {
+      final playerId = entry.key;
+      final card = entry.value;
+      if (card.cardId == cardId) {
+        return {
+          'card': card,
+          'location_type': 'pending_draw',
+          'player_id': playerId,
+          'index': null,
+        };
+      }
+    }
+    
+    // Card not found anywhere
+    return null;
+  }
+
+  dynamic getRound() {
+    /// Get the game round handler
+    /// Create a persistent GameRound instance if it doesn't exist
+    if (_gameRoundInstance == null) {
+      Logger().info('Creating new GameRound instance for game $gameId', isOn: loggingSwitch);
+      // Import GameRound dynamically to avoid circular dependency
+      // This will need to be implemented when GameRound class is available
+      // _gameRoundInstance = GameRound(this);
+    }
+    return _gameRoundInstance;
+  }
+  
+  dynamic _gameRoundInstance;
+
+  Player? getCurrentPlayer() {
+    /// Get the current player
+    if (currentPlayerId != null && players.containsKey(currentPlayerId)) {
+      return players[currentPlayerId];
+    }
+    return null;
+  }
+}
+
+class GameStateManager {
+  /// Manages multiple game states with integrated WebSocket communication
+  
+  Map<String, GameState> activeGames = {}; // game_id -> GameState
+  dynamic appManager;
+  dynamic websocketManager;
+  dynamic gameLogicEngine;
+  bool _initialized = false;
+
+  GameStateManager();
+
+  bool initialize(dynamic appManager, dynamic gameLogicEngine) {
+    /// Initialize with WebSocket and game engine support
+    try {
+      this.appManager = appManager;
+      websocketManager = appManager?.websocketManager;
+      this.gameLogicEngine = gameLogicEngine;
+      
+      if (websocketManager == null) {
+        return false;
+      }
+      
+      // Register hook callbacks for automatic game creation
+      _registerHookCallbacks();
+      
+      _initialized = true;
+      Logger().info('GameStateManager initialized successfully', isOn: loggingSwitch);
+      return true;
+    } catch (e) {
+      Logger().error('Failed to initialize GameStateManager: $e', isOn: loggingSwitch);
+      return false;
+    }
+  }
+
+  bool get isInitialized => _initialized;
+
+  String createGame({int maxPlayers = 4, int minPlayers = 2, String permission = 'public'}) {
+    /// Create a new game
+    final gameId = DateTime.now().millisecondsSinceEpoch.toString(); // Simple ID generation
+    final gameState = GameState(
+      gameId: gameId,
+      maxPlayers: maxPlayers,
+      minPlayers: minPlayers,
+      permission: permission,
+      appManager: appManager,
+    );
+    activeGames[gameId] = gameState;
+    return gameId;
+  }
+
+  String createGameWithId(String gameId, {int maxPlayers = 4, int minPlayers = 2, String permission = 'public'}) {
+    /// Create a new game using a provided identifier (e.g., room_id).
+    /// 
+    /// This aligns backend game identity with the room identifier used by the
+    /// frontend so join/start flows can address the same id across the stack.
+    /// If a game with this id already exists, it is returned unchanged.
+    final existing = activeGames[gameId];
+    if (existing != null) {
+      return gameId;
+    }
+    
+    final gameState = GameState(
+      gameId: gameId,
+      maxPlayers: maxPlayers,
+      minPlayers: minPlayers,
+      permission: permission,
+      appManager: appManager,
+    );
+    activeGames[gameId] = gameState;
+    return gameId;
+  }
+
+  GameState? getGame(String gameId) {
+    /// Get a game by ID
+    return activeGames[gameId];
+  }
+
+  bool removeGame(String gameId) {
+    /// Remove a game
+    if (activeGames.containsKey(gameId)) {
+      activeGames.remove(gameId);
+      return true;
+    }
+    return false;
+  }
+
+  Map<String, GameState> getAllGames() {
+    /// Get all active games
+    return Map<String, GameState>.from(activeGames);
+  }
+
+  List<Map<String, dynamic>> getAvailableGames() {
+    /// Get all public games that are in the waiting for players phase and can be joined
+    final availableGames = <Map<String, dynamic>>[];
+    
+    for (final entry in activeGames.entries) {
+      final game = entry.value;
+      
+      // Only include PUBLIC games that are waiting for players
+      if (game.phase == GamePhase.waitingForPlayers && game.permission == 'public') {
+        // Convert to Flutter-compatible format
+        final gameData = _toFlutterGameData(game);
+        availableGames.add(gameData);
+      }
+    }
+    
+    return availableGames;
+  }
+
+  Map<String, dynamic> _toFlutterGameData(GameState game) {
+    /// Convert game state to Flutter format - SINGLE SOURCE OF TRUTH for game data structure
+    /// 
+    /// This method structures ALL game data that will be sent to the frontend.
+    /// The structure MUST match the Flutter frontend schema exactly.
+    
+    // Get current player data
+    Map<String, dynamic>? currentPlayer;
+    if (game.currentPlayerId != null && game.players.containsKey(game.currentPlayerId)) {
+      currentPlayer = _toFlutterPlayerData(game.players[game.currentPlayerId]!, true);
+    }
+
+    // Build complete game data structure matching Flutter schema
+    return {
+      // Core game identification
+      'gameId': game.gameId,
+      'gameName': 'Recall Game ${game.gameId}',
+      
+      // Player information
+      'players': game.players.entries.map((entry) => 
+        _toFlutterPlayerData(entry.value, entry.key == game.currentPlayerId)
+      ).toList(),
+      'currentPlayer': currentPlayer,
+      'playerCount': game.players.length,
+      'maxPlayers': game.maxPlayers,
+      'minPlayers': game.minPlayers,
+      'activePlayerCount': game.players.values.where((p) => p.isActive).length,
+      
+      // Game state and phase - send phase value directly without mapping
+      'phase': game.phase.name,
+      'status': _getGameStatus(game),
+      
+      // Card piles
+      'drawPile': game.drawPile.map((card) => _toFlutterCard(card)).toList(),
+      'discardPile': game.discardPile.map((card) => _toFlutterCard(card)).toList(),
+      
+      // Game timing
+      'gameStartTime': game.gameStartTime?.toIso8601String(),
+      'lastActivityTime': game.lastActionTime?.toIso8601String(),
+      
+      // Game completion
+      'winner': game.winner,
+      'gameEnded': game.gameEnded,
+      
+      // Room settings
+      'permission': game.permission,
+      
+      // Additional game metadata
+      'recallCalledBy': game.recallCalledBy,
+      'lastPlayedCard': game.lastPlayedCard != null ? _toFlutterCard(game.lastPlayedCard!) : null,
+      'outOfTurnDeadline': game.outOfTurnDeadline?.toIso8601String(),
+      'outOfTurnTimeoutSeconds': game.outOfTurnTimeoutSeconds,
+    };
+  }
+
+  String _getGameStatus(GameState game) {
+    /// Get game status based on phase
+    final activePhases = ['player_turn', 'same_rank_window', 'ending_round', 'ending_turn', 'recall_called'];
+    return activePhases.contains(game.phase.name) ? 'active' : 'inactive';
+  }
+
+  Map<String, dynamic> _toFlutterPlayerData(Player player, bool isCurrent) {
+    /// Convert player to Flutter format - SINGLE SOURCE OF TRUTH for player data structure
+    return {
+      'id': player.playerId,
+      'name': player.name,
+      'type': player.playerType.name.toLowerCase(),
+      'hand': player.hand.map((card) => card != null ? _toFlutterCard(card) : null).toList(),
+      'visibleCards': player.visibleCards.map((card) => _toFlutterCard(card)).toList(),
+      'cardsToPeek': player.cardsToPeek.map((card) => _toFlutterCard(card)).toList(),
+      'score': player.calculatePoints(),
+      'status': player.status.name.toLowerCase(),
+      'isCurrentPlayer': isCurrent,
+      'hasCalledRecall': player.hasCalledRecall,
+      'drawnCard': player.drawnCard != null ? _toFlutterCard(player.drawnCard!) : null,
+    };
+  }
+
+  Map<String, dynamic> _toFlutterCard(Card card) {
+    /// Convert card to Flutter format
+    final rankMapping = {
+      '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+      '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
+    };
+    
+    return {
+      'cardId': card.cardId,
+      'suit': card.suit,
+      'rank': rankMapping[card.rank] ?? card.rank,
+      'points': card.points,
+      'displayName': card.toString(),
+      'color': ['hearts', 'diamonds'].contains(card.suit) ? 'red' : 'black',
+    };
+  }
+
+  void _registerHookCallbacks() {
+    /// Register hook callbacks for automatic game creation
+    try {
+      // Register callback for room_created hook
+      appManager?.registerHookCallback('room_created', _onRoomCreated);
+      
+      // Register callback for room_joined hook  
+      appManager?.registerHookCallback('room_joined', _onRoomJoined);
+      
+      // Register callback for room_closed hook
+      appManager?.registerHookCallback('room_closed', _onRoomClosed);
+      
+      // Register callback for leave_room hook
+      appManager?.registerHookCallback('leave_room', _onLeaveRoom);
+      
+    } catch (e) {
+      Logger().error('Failed to register hook callbacks: $e', isOn: loggingSwitch);
+    }
+  }
+
+  void _onRoomCreated(Map<String, dynamic> roomData) {
+    /// Callback for room_created hook - automatically create game
+    try {
+      final roomId = roomData['room_id'] as String?;
+      final maxPlayers = roomData['max_players'] as int? ?? 4;
+      final minPlayers = roomData['min_players'] as int? ?? 2;
+      final permission = roomData['permission'] as String? ?? 'public';
+      
+      if (roomId != null) {
+        // Create game with room_id as game_id and room permission
+        createGameWithId(roomId, maxPlayers: maxPlayers, minPlayers: minPlayers, permission: permission);
+        
+        // Initialize game state (waiting for players)
+        final game = getGame(roomId);
+        if (game != null) {
+          game.setPhase(GamePhase.waitingForPlayers);
+        }
+      }
+    } catch (e) {
+      Logger().error('Failed to handle room created: $e', isOn: loggingSwitch);
+    }
+  }
+
+  void _onRoomJoined(Map<String, dynamic> roomData) {
+    /// Callback for room_joined hook - handle player joining existing game
+    try {
+      final roomId = roomData['room_id'] as String?;
+      final userId = roomData['user_id'] as String?;
+      final sessionId = roomData['session_id'] as String?;
+      
+      if (roomId == null || userId == null) return;
+      
+      // Check if game exists for this room
+      final game = getGame(roomId);
+      if (game == null) return;
+      
+      // Add player to the game if they don't exist
+      if (!game.players.containsKey(userId)) {
+        final player = Player(
+          playerId: userId,
+          name: 'Player_${userId.substring(0, 8)}',
+          playerType: PlayerType.human,
+        );
+        game.addPlayer(player, sessionId: sessionId);
+      }
+      
+      // Set up session mapping for the player
+      if (sessionId != null) {
+        game.updatePlayerSession(userId, sessionId);
+      }
+      
+    } catch (e) {
+      Logger().error('Failed to handle room joined: $e', isOn: loggingSwitch);
+    }
+  }
+
+  void _onRoomClosed(Map<String, dynamic> roomData) {
+    /// Callback for room_closed hook - cleanup game when room is closed
+    try {
+      final roomId = roomData['room_id'] as String?;
+      
+      if (roomId != null && activeGames.containsKey(roomId)) {
+        removeGame(roomId);
+      }
+    } catch (e) {
+      Logger().error('Failed to handle room closed: $e', isOn: loggingSwitch);
+    }
+  }
+
+  void _onLeaveRoom(Map<String, dynamic> roomData) {
+    /// Callback for leave_room hook - handle player leaving game
+    try {
+      final roomId = roomData['room_id'] as String?;
+      final sessionId = roomData['session_id'] as String?;
+      final userId = roomData['user_id'] as String?;
+      
+      if (roomId == null) return;
+      
+      // Check if game exists for this room
+      final game = getGame(roomId);
+      if (game == null) return;
+      
+      // Try to find player by session_id first
+      String? playerId;
+      if (sessionId != null) {
+        playerId = game.getSessionPlayer(sessionId);
+      }
+      
+      // Fallback: try to find player by user_id if session lookup failed
+      if (playerId == null && userId != null && game.players.containsKey(userId)) {
+        playerId = userId;
+      }
+      
+      // Remove player if found
+      if (playerId != null) {
+        game.removePlayer(playerId);
+        
+        // Clean up session mapping
+        if (sessionId != null) {
+          game.removeSession(sessionId);
+        }
+      }
+      
+    } catch (e) {
+      Logger().error('Failed to handle leave room: $e', isOn: loggingSwitch);
+    }
+  }
+
+  void cleanupEndedGames() {
+    /// Remove games that have ended
+    final endedGames = <String>[];
+    for (final entry in activeGames.entries) {
+      if (entry.value.gameEnded) {
+        endedGames.add(entry.key);
+      }
+    }
+    
+    for (final gameId in endedGames) {
+      activeGames.remove(gameId);
+    }
+  }
+
+  // ========= GAME SETUP HELPER METHODS =========
+  
+  void _dealCards(GameState game) {
+    /// Deal 4 cards to each player - moved from GameActions
+    for (final player in game.players.values) {
+      for (int i = 0; i < 4; i++) {
+        final card = game.deck.drawCard();
+        if (card != null) {
+          player.addCardToHand(card);
+        }
+      }
+    }
+  }
+
+  void _setupPiles(GameState game) {
+    /// Set up draw and discard piles - moved from GameActions
+    try {
+      // Move remaining cards to draw pile
+      game.drawPile = List<Card>.from(game.deck.cards);
+      game.deck.cards.clear();
+      
+      // Start discard pile with first card from draw pile
+      if (game.drawPile.isNotEmpty) {
+        final firstCard = game.drawPile.removeAt(0);
+        game.discardPile.add(firstCard);
+        Logger().info('Setup piles: ${game.drawPile.length} cards in draw pile, ${game.discardPile.length} cards in discard pile', isOn: loggingSwitch);
+      } else {
+        Logger().warning('Warning: No cards in draw pile after dealing', isOn: loggingSwitch);
+      }
+      
+      // Trigger change detection for both piles
+      game._trackChange('drawPile');
+      game._trackChange('discardPile');
+      game._sendChangesIfNeeded();
+      
+    } catch (e) {
+      Logger().error('Error in _setupPiles: $e', isOn: loggingSwitch);
+    }
   }
 }

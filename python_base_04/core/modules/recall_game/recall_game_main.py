@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List
 from tools.logger.custom_logging import custom_log
 from core.modules.base_module import BaseModule
 from core.managers.jwt_manager import JWTManager, TokenType
-from .game_logic.game_state import GameStateManager
+# from .game_logic.game_state import GameStateManager  # This is a Dart file, not Python
 from .game_logic.game_event_coordinator import GameEventCoordinator
 from flask import request, jsonify
 import time
@@ -40,20 +40,20 @@ class RecallGameMain(BaseModule):
                 return False
             
             # Initialize core components
-            self.game_state_manager = GameStateManager()
+            # self.game_state_manager = GameStateManager()  # This is a Dart class, not Python
             
             # Initialize game state manager with WebSocket support
-            self.game_state_manager.initialize(self.app_manager, None)
+            # self.game_state_manager.initialize(self.app_manager, None)  # This is a Dart class, not Python
             
             # Initialize game event coordinator
-            self.game_event_coordinator = GameEventCoordinator(self.game_state_manager, self.websocket_manager)
+            # self.game_event_coordinator = GameEventCoordinator(self.game_state_manager, self.websocket_manager)  # Need to fix this
             
             # Attach coordinator and game state manager to app_manager so other modules can access them
-            setattr(self.app_manager, 'game_event_coordinator', self.game_event_coordinator)
-            setattr(self.app_manager, 'game_state_manager', self.game_state_manager)
+            # setattr(self.app_manager, 'game_event_coordinator', self.game_event_coordinator)
+            # setattr(self.app_manager, 'game_state_manager', self.game_state_manager)
             
             # Register WebSocket event listeners for game events
-            self.game_event_coordinator.register_game_event_listeners()
+            # self.game_event_coordinator.register_game_event_listeners()  # Need to fix this
             
             # Register routes now that Flask app is available
             self.register_routes()
@@ -108,7 +108,8 @@ class RecallGameMain(BaseModule):
                 }), 401
             
             # Get available games from game state manager
-            available_games = self.game_state_manager.get_available_games()
+            # available_games = self.game_state_manager.get_available_games()  # Need to fix this
+            available_games = []  # Temporary placeholder
             
             # Return success response with available games
             response_data = {
@@ -171,17 +172,18 @@ class RecallGameMain(BaseModule):
             room_id = data['room_id']
             
             # Get game info from game state manager (games use room_id as game_id)
-            game = self.game_state_manager.get_game(room_id)
+            # game = self.game_state_manager.get_game(room_id)  # Need to fix this
             
-            if not game:
-                return jsonify({
-                    "success": False,
-                    "message": f"Game '{room_id}' not found",
-                    "error": "Game does not exist"
-                }), 404
+            # if not game:
+            #     return jsonify({
+            #         "success": False,
+            #         "message": f"Game '{room_id}' not found",
+            #         "error": "Game does not exist"
+            #     }), 404
             
             # Convert game to Flutter-compatible format using GameStateManager's method
-            game_info = self.game_state_manager._to_flutter_game_data(game)
+            # game_info = self.game_state_manager._to_flutter_game_data(game)  # Need to fix this
+            game_info = {"room_id": room_id, "status": "placeholder"}  # Temporary placeholder
             
             # Get room info from WebSocket manager to include permission and password requirement
             room_info = self.websocket_manager.get_room_info(room_id)

@@ -4,10 +4,9 @@
 /// including human players, computer players, and AI decision making.
 
 import 'card.dart';
-import '../../../../tools/logging/logger.dart';
-
+import '../../../../../tools/logger/dart_logger/logger.dart';
 // Logging switch for this module
-const bool LOGGING_SWITCH = false;
+const bool loggingSwitch = false;
 
 enum PlayerType {
   human,
@@ -343,11 +342,11 @@ class Player {
     }
 
     try {
-      Logger().info('🔄 Player _sendChangesIfNeeded called with ${_pendingChanges.length} pending changes', isOn: LOGGING_SWITCH);
-      Logger().info('=== SENDING PLAYER UPDATE ===', isOn: LOGGING_SWITCH);
-      Logger().info('Player ID: $playerId', isOn: LOGGING_SWITCH);
-      Logger().info('Changed properties: ${_pendingChanges.toList()}', isOn: LOGGING_SWITCH);
-      Logger().info('=============================', isOn: LOGGING_SWITCH);
+      Logger().info('🔄 Player _sendChangesIfNeeded called with ${_pendingChanges.length} pending changes', isOn: loggingSwitch);
+      Logger().info('=== SENDING PLAYER UPDATE ===', isOn: loggingSwitch);
+      Logger().info('Player ID: $playerId', isOn: loggingSwitch);
+      Logger().info('Changed properties: ${_pendingChanges.toList()}', isOn: loggingSwitch);
+      Logger().info('=============================', isOn: loggingSwitch);
       
       // Get the coordinator from the game state manager
       if (gameStateManager.appManager != null) {
@@ -355,29 +354,29 @@ class Player {
         if (coordinator != null) {
           // Send player state update using existing coordinator method
           coordinator.sendPlayerStateUpdate(gameId!, playerId);
-          Logger().info('Player update sent successfully for properties: ${_pendingChanges.toList()}', isOn: LOGGING_SWITCH);
+          Logger().info('Player update sent successfully for properties: ${_pendingChanges.toList()}', isOn: loggingSwitch);
           
           // Also trigger GameState players property change detection
           _triggerGamestatePlayersUpdate();
         } else {
-          Logger().info('No coordinator found for player update', isOn: LOGGING_SWITCH);
+          Logger().info('No coordinator found for player update', isOn: loggingSwitch);
         }
       } else {
-        Logger().info('No app_manager found for player update', isOn: LOGGING_SWITCH);
+        Logger().info('No app_manager found for player update', isOn: loggingSwitch);
       }
       
       // Clear pending changes
       _pendingChanges.clear();
       
     } catch (e) {
-      Logger().error('Error in player _sendChangesIfNeeded: $e', isOn: LOGGING_SWITCH);
+      Logger().error('Error in player _sendChangesIfNeeded: $e', isOn: loggingSwitch);
     }
   }
 
   void _triggerGamestatePlayersUpdate() {
     /// Trigger GameState players property change detection to send room-wide update
     try {
-      Logger().info('🔄 Triggering GameState players property update for player: $playerId', isOn: LOGGING_SWITCH);
+      Logger().info('🔄 Triggering GameState players property update for player: $playerId', isOn: loggingSwitch);
       
       // Get the game state from the game state manager
       try {
@@ -387,16 +386,16 @@ class Player {
           // Try to call the change tracking methods
           gameState._trackChange?.call('players');
           gameState._sendChangesIfNeeded?.call();
-          Logger().info('✅ GameState players property update triggered successfully', isOn: LOGGING_SWITCH);
+          Logger().info('✅ GameState players property update triggered successfully', isOn: loggingSwitch);
         } else {
-          Logger().info('❌ GameState not found', isOn: LOGGING_SWITCH);
+          Logger().info('❌ GameState not found', isOn: loggingSwitch);
         }
       } catch (e) {
-        Logger().info('❌ GameStateManager method call failed: $e', isOn: LOGGING_SWITCH);
+        Logger().info('❌ GameStateManager method call failed: $e', isOn: loggingSwitch);
       }
       
     } catch (e) {
-      Logger().error('❌ Error triggering GameState players update: $e', isOn: LOGGING_SWITCH);
+      Logger().error('❌ Error triggering GameState players update: $e', isOn: loggingSwitch);
     }
   }
 

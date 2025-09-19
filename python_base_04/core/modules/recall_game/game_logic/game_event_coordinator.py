@@ -8,6 +8,7 @@ including event registration, routing, and handling.
 from typing import Dict, Any, Optional, List
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
+from .dart_services.dart_subprocess_manager import dart_subprocess_manager
 
 LOGGING_SWITCH = False
 
@@ -19,6 +20,24 @@ class GameEventCoordinator:
         self.game_state_manager = game_state_manager
         self.websocket_manager = websocket_manager
         self.registered_events = []
+        
+        # Initialize Dart subprocess manager
+        self.dart_manager = dart_subprocess_manager
+        self._initialize_dart_service()
+    
+    def _initialize_dart_service(self):
+        """Initialize the Dart game service subprocess"""
+        try:
+            # Path to the Dart service script
+            dart_service_path = "dart_game_service.dart"
+            
+            if not self.dart_manager.start_dart_service(dart_service_path):
+                custom_log("Failed to start Dart service, falling back to Python logic", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("Dart service initialized successfully", isOn=LOGGING_SWITCH)
+                
+        except Exception as e:
+            custom_log(f"Error initializing Dart service: {e}", isOn=LOGGING_SWITCH)
         
     def register_game_event_listeners(self):
         """Register WebSocket event listeners for Recall game events"""
@@ -64,7 +83,7 @@ class GameEventCoordinator:
             custom_log("Handling game event event_name: " + event_name + " data: " + str(data), isOn=LOGGING_SWITCH)
             # Route to appropriate game state manager method
             if event_name == 'start_match':
-                return self.game_state_manager.on_start_match(session_id, data)
+                return self._handle_start_match(session_id, data)
             if event_name == 'completed_initial_peek':
                 return self.game_state_manager.on_completed_initial_peek(session_id, data)
             elif event_name == 'draw_card':
@@ -106,14 +125,28 @@ class GameEventCoordinator:
             return False
     
     def _handle_player_action_through_round(self, session_id: str, data: dict) -> bool:
-        """Handle player actions through the game round"""
+        """Handle player actions through the Dart service or fallback to Python"""
         try:
             game_id = data.get('game_id') or data.get('room_id')
             custom_log("Handling player action through round game_id: " + game_id + " data: " + str(data), isOn=LOGGING_SWITCH)
             if not game_id:
                 return False
             
-            # Get the game from the game state manager
+            # Try to use Dart service first
+            if self.dart_manager.is_service_running():
+                custom_log("Using Dart service for player action", isOn=LOGGING_SWITCH)
+                action = data.get('action', '')
+                
+                # Send action to Dart service
+                success = self.dart_manager.player_action(game_id, session_id, action, data)
+                if success:
+                    custom_log("Action sent to Dart service successfully", isOn=LOGGING_SWITCH)
+                    return True
+                else:
+                    custom_log("Failed to send action to Dart service, falling back to Python", isOn=LOGGING_SWITCH)
+            
+            # Fallback to Python logic
+            custom_log("Using Python logic for player action", isOn=LOGGING_SWITCH)
             game = self.game_state_manager.get_game(game_id)
             if not game:
                 return False
@@ -130,6 +163,32 @@ class GameEventCoordinator:
             return action_result
             
         except Exception as e:
+            custom_log(f"Error in _handle_player_action_through_round: {e}", isOn=LOGGING_SWITCH)
+            return False
+    
+    def _handle_start_match(self, session_id: str, data: dict) -> bool:
+        """Handle start match event - create game in Dart service and Python"""
+        try:
+            game_id = data.get('game_id') or data.get('room_id')
+            if not game_id:
+                return False
+            
+            # Create game in Dart service
+            if self.dart_manager.is_service_running():
+                success = self.dart_manager.create_game(
+                    game_id=game_id,
+                    max_players=data.get('max_players', 4),
+                    min_players=data.get('min_players', 2),
+                    permission=data.get('permission', 'public')
+                )
+                if success:
+                    custom_log(f"Game {game_id} created in Dart service", isOn=LOGGING_SWITCH)
+            
+            # Also create in Python for fallback
+            return self.game_state_manager.on_start_match(session_id, data)
+            
+        except Exception as e:
+            custom_log(f"Error in _handle_start_match: {e}", isOn=LOGGING_SWITCH)
             return False
     
     # ========= COMMUNICATION METHODS =========

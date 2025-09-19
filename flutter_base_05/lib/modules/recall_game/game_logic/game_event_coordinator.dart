@@ -5,7 +5,7 @@
 
 import 'package:recall/tools/logging/logger.dart';
 
-const bool loggingSwitch = false;
+const bool LOGGING_SWITCH = false;
 
 class GameEventCoordinator {
   /// Coordinates all WebSocket events for the Recall game
@@ -17,7 +17,7 @@ class GameEventCoordinator {
   bool handleGameEvent(String sessionId, String eventName, Map<String, dynamic> data) {
     /// Handle incoming game events and route to appropriate handlers
     try {
-      Logger().info('Handling game event event_name: $eventName data: $data', isOn: loggingSwitch);
+      Logger().info('Handling game event event_name: $eventName data: $data', isOn: LOGGING_SWITCH);
       // Route to appropriate game state manager method
       if (eventName == 'start_match') {
         return gameStateManager?.onStartMatch(sessionId, data) ?? false;
@@ -57,12 +57,12 @@ class GameEventCoordinator {
         final dataWithAction = {...data, 'action': 'queen_peek'};
         return _handlePlayerActionThroughRound(sessionId, dataWithAction);
       } else {
-        Logger().info('Unknown game event: $eventName', isOn: loggingSwitch);
+        Logger().info('Unknown game event: $eventName', isOn: LOGGING_SWITCH);
         return false;
       }
       
     } catch (e) {
-      Logger().error('Error handling game event: $e', isOn: loggingSwitch);
+      Logger().error('Error handling game event: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -73,21 +73,21 @@ class GameEventCoordinator {
       // Get player ID from session
       final playerId = gameStateManager?.getPlayerIdFromSession(sessionId);
       if (playerId == null) {
-        Logger().error('Player not found for session: $sessionId', isOn: loggingSwitch);
+        Logger().error('Player not found for session: $sessionId', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Get game state
       final gameState = gameStateManager?.getGameState(playerId);
       if (gameState == null) {
-        Logger().error('Game state not found for player: $playerId', isOn: loggingSwitch);
+        Logger().error('Game state not found for player: $playerId', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Get game round
       final gameRound = gameStateManager?.getGameRound(playerId);
       if (gameRound == null) {
-        Logger().error('Game round not found for player: $playerId', isOn: loggingSwitch);
+        Logger().error('Game round not found for player: $playerId', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -111,12 +111,12 @@ class GameEventCoordinator {
         case 'queen_peek':
           return _handleQueenPeek(gameRound, playerId, data);
         default:
-          Logger().error('Unknown action type: $action', isOn: loggingSwitch);
+          Logger().error('Unknown action type: $action', isOn: LOGGING_SWITCH);
           return false;
       }
       
     } catch (e) {
-      Logger().error('Error handling player action through round: $e', isOn: loggingSwitch);
+      Logger().error('Error handling player action through round: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -126,14 +126,14 @@ class GameEventCoordinator {
     try {
       final result = gameRound.drawCard(playerId);
       if (result['success'] == true) {
-        Logger().info('Player $playerId drew card from deck', isOn: loggingSwitch);
+        Logger().info('Player $playerId drew card from deck', isOn: LOGGING_SWITCH);
         return true;
       } else {
-        Logger().error('Failed to draw card from deck: ${result['error']}', isOn: loggingSwitch);
+        Logger().error('Failed to draw card from deck: ${result['error']}', isOn: LOGGING_SWITCH);
         return false;
       }
     } catch (e) {
-      Logger().error('Error handling draw from deck: $e', isOn: loggingSwitch);
+      Logger().error('Error handling draw from deck: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -143,20 +143,20 @@ class GameEventCoordinator {
     try {
       final cardId = data['card_id'];
       if (cardId == null) {
-        Logger().error('Card ID not provided for play card action', isOn: loggingSwitch);
+        Logger().error('Card ID not provided for play card action', isOn: LOGGING_SWITCH);
         return false;
       }
       
       final result = gameRound.playCard(playerId, cardId);
       if (result['success'] == true) {
-        Logger().info('Player $playerId played card $cardId', isOn: loggingSwitch);
+        Logger().info('Player $playerId played card $cardId', isOn: LOGGING_SWITCH);
         return true;
       } else {
-        Logger().error('Failed to play card: ${result['error']}', isOn: loggingSwitch);
+        Logger().error('Failed to play card: ${result['error']}', isOn: LOGGING_SWITCH);
         return false;
       }
     } catch (e) {
-      Logger().error('Error handling play card: $e', isOn: loggingSwitch);
+      Logger().error('Error handling play card: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -166,15 +166,15 @@ class GameEventCoordinator {
     try {
       final cardId = data['card_id'];
       if (cardId == null) {
-        Logger().error('Card ID not provided for discard card action', isOn: loggingSwitch);
+        Logger().error('Card ID not provided for discard card action', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // In a real implementation, this would handle discarding a card
-      Logger().info('Player $playerId discarded card $cardId', isOn: loggingSwitch);
+      Logger().info('Player $playerId discarded card $cardId', isOn: LOGGING_SWITCH);
       return true;
     } catch (e) {
-      Logger().error('Error handling discard card: $e', isOn: loggingSwitch);
+      Logger().error('Error handling discard card: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -184,14 +184,14 @@ class GameEventCoordinator {
     try {
       final result = gameRound.drawCard(playerId, fromDiscard: true);
       if (result['success'] == true) {
-        Logger().info('Player $playerId took card from discard pile', isOn: loggingSwitch);
+        Logger().info('Player $playerId took card from discard pile', isOn: LOGGING_SWITCH);
         return true;
       } else {
-        Logger().error('Failed to take card from discard pile: ${result['error']}', isOn: loggingSwitch);
+        Logger().error('Failed to take card from discard pile: ${result['error']}', isOn: LOGGING_SWITCH);
         return false;
       }
     } catch (e) {
-      Logger().error('Error handling take from discard: $e', isOn: loggingSwitch);
+      Logger().error('Error handling take from discard: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -200,10 +200,10 @@ class GameEventCoordinator {
     /// Handle call recall action
     try {
       // In a real implementation, this would handle calling recall
-      Logger().info('Player $playerId called recall', isOn: loggingSwitch);
+      Logger().info('Player $playerId called recall', isOn: LOGGING_SWITCH);
       return true;
     } catch (e) {
-      Logger().error('Error handling call recall: $e', isOn: loggingSwitch);
+      Logger().error('Error handling call recall: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -213,15 +213,15 @@ class GameEventCoordinator {
     try {
       final cardId = data['card_id'];
       if (cardId == null) {
-        Logger().error('Card ID not provided for same rank play action', isOn: loggingSwitch);
+        Logger().error('Card ID not provided for same rank play action', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // In a real implementation, this would handle same rank play
-      Logger().info('Player $playerId played same rank card $cardId', isOn: loggingSwitch);
+      Logger().info('Player $playerId played same rank card $cardId', isOn: LOGGING_SWITCH);
       return true;
     } catch (e) {
-      Logger().error('Error handling same rank play: $e', isOn: loggingSwitch);
+      Logger().error('Error handling same rank play: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -232,15 +232,15 @@ class GameEventCoordinator {
       final card1Id = data['card1_id'];
       final card2Id = data['card2_id'];
       if (card1Id == null || card2Id == null) {
-        Logger().error('Card IDs not provided for jack swap action', isOn: loggingSwitch);
+        Logger().error('Card IDs not provided for jack swap action', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // In a real implementation, this would handle jack swap
-      Logger().info('Player $playerId swapped cards $card1Id and $card2Id', isOn: loggingSwitch);
+      Logger().info('Player $playerId swapped cards $card1Id and $card2Id', isOn: LOGGING_SWITCH);
       return true;
     } catch (e) {
-      Logger().error('Error handling jack swap: $e', isOn: loggingSwitch);
+      Logger().error('Error handling jack swap: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -251,15 +251,15 @@ class GameEventCoordinator {
       final targetPlayerId = data['target_player_id'];
       final cardId = data['card_id'];
       if (targetPlayerId == null || cardId == null) {
-        Logger().error('Target player ID or card ID not provided for queen peek action', isOn: loggingSwitch);
+        Logger().error('Target player ID or card ID not provided for queen peek action', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // In a real implementation, this would handle queen peek
-      Logger().info('Player $playerId peeked at card $cardId from player $targetPlayerId', isOn: loggingSwitch);
+      Logger().info('Player $playerId peeked at card $cardId from player $targetPlayerId', isOn: LOGGING_SWITCH);
       return true;
     } catch (e) {
-      Logger().error('Error handling queen peek: $e', isOn: loggingSwitch);
+      Logger().error('Error handling queen peek: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -280,9 +280,9 @@ class GameEventCoordinator {
     /// Unregister all events
     try {
       registeredEvents.clear();
-      Logger().info('All events unregistered', isOn: loggingSwitch);
+      Logger().info('All events unregistered', isOn: LOGGING_SWITCH);
     } catch (e) {
-      Logger().error('Error unregistering events: $e', isOn: loggingSwitch);
+      Logger().error('Error unregistering events: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -299,9 +299,9 @@ class GameEventCoordinator {
     /// Clean up resources
     try {
       unregisterAllEvents();
-      Logger().info('GameEventCoordinator disposed', isOn: loggingSwitch);
+      Logger().info('GameEventCoordinator disposed', isOn: LOGGING_SWITCH);
     } catch (e) {
-      Logger().error('Error disposing GameEventCoordinator: $e', isOn: loggingSwitch);
+      Logger().error('Error disposing GameEventCoordinator: $e', isOn: LOGGING_SWITCH);
     }
   }
 }

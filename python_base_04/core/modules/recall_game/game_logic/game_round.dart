@@ -5,12 +5,12 @@
 /// with game actions.
 
 import 'dart:async';
-import 'package:recall/tools/logging/logger.dart';
+import '../../../../tools/logger/dart_logger/logger.dart';
 import 'game_state.dart';
 import 'models/player.dart';
 import 'models/card.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class GameRound {
   /// Manages a single round of gameplay in the Recall game

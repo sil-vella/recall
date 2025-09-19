@@ -3,7 +3,7 @@
 /// This module defines the game state management system for the Recall card game,
 /// including game phases, state transitions, game logic, and WebSocket communication.
 
-import 'package:recall/tools/logging/logger.dart';
+import '../../../../tools/logger/dart_logger/logger.dart';
 import 'models/card.dart';
 import 'models/player.dart';
 
@@ -397,7 +397,7 @@ class GameState {
         // Get coordinator and send partial update
         final coordinator = appManager.gameEventCoordinator;
         if (coordinator != null) {
-        final changesList = _pendingChanges.toList();
+          final changesList = _pendingChanges.toList();
           Logger().info('=== SENDING PARTIAL UPDATE ===', isOn: LOGGING_SWITCH);
           Logger().info('Game ID: $gameId', isOn: LOGGING_SWITCH);
           Logger().info('Changed properties: $changesList', isOn: LOGGING_SWITCH);

@@ -22,7 +22,7 @@ class PersistentDartService:
     
     def __init__(self):
         self.running = False
-        self.dart_service_path = "simple_dart_service.dart"
+        self.dart_service_path = "dart_game_service.dart"
         self.health_check_interval = 30  # Check health every 30 seconds
         self.health_check_thread = None
         

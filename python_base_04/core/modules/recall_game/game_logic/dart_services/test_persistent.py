@@ -19,7 +19,7 @@ def test_persistent_service():
     
     # Start the service
     print("1. Starting Dart service...")
-    if dart_subprocess_manager.start_dart_service("simple_dart_service.dart"):
+    if dart_subprocess_manager.start_dart_service("dart_game_service.dart"):
         print("   ✅ Dart service started")
     else:
         print("   ❌ Failed to start Dart service")

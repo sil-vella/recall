@@ -3,6 +3,9 @@
 /// This module defines the card system for the Recall card game,
 /// including standard cards, special power cards, and point calculations.
 
+import '../../../../../tools/logger/dart_logger/logger.dart';
+
+
 enum CardSuit {
   hearts,
   diamonds,

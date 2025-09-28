@@ -357,8 +357,24 @@ class RecallEventHandlerCallbacks {
     final drawPileCount = drawPile.length;
     final discardPileCount = discardPile.length;
     
+    // Check if game exists in games map, if not add it
+    final currentGames = _getCurrentGamesMap();
+    if (!currentGames.containsKey(gameId)) {
+      // Add the game to the games map with the complete game state
+      _addGameToMap(gameId, {
+        'game_id': gameId,
+        'game_state': gameState,
+      });
+    } else {
+      // Update existing game's game_state
+      _updateGameData(gameId, {
+        'game_state': gameState,
+      });
+    }
+    
     // Update the main game state with the new information using helper method
     _updateMainGameState({
+      'currentGameId': gameId,  // Ensure currentGameId is set
       'gamePhase': gameState['phase'] ?? 'playing',
       'isGameActive': true,
       'roundNumber': roundNumber,
@@ -367,7 +383,36 @@ class RecallEventHandlerCallbacks {
       'roundStatus': roundStatus,
     });
     
-    // Update the games map with pile information using helper method
+    // Also update joinedGames list for lobby widgets (if this is a new game)
+    final currentGamesForJoined = _getCurrentGamesMap();
+    if (currentGamesForJoined.containsKey(gameId)) {
+      final gameInMap = currentGamesForJoined[gameId] as Map<String, dynamic>? ?? {};
+      final gameData = gameInMap['gameData'] as Map<String, dynamic>? ?? {};
+      
+      // Get current joinedGames list
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentJoinedGames = List<Map<String, dynamic>>.from(currentState['joinedGames'] as List<dynamic>? ?? []);
+      
+      // Check if this game is already in joinedGames
+      final existingIndex = currentJoinedGames.indexWhere((game) => game['game_id'] == gameId);
+      
+      if (existingIndex >= 0) {
+        // Update existing game
+        currentJoinedGames[existingIndex] = gameData;
+      } else {
+        // Add new game to joinedGames
+        currentJoinedGames.add(gameData);
+      }
+      
+      // Update joinedGames state
+      _updateMainGameState({
+        'joinedGames': currentJoinedGames,
+        'totalJoinedGames': currentJoinedGames.length,
+        'joinedGamesTimestamp': DateTime.now().toIso8601String(),
+      });
+    }
+    
+    // Update the games map with additional information using helper method
     _updateGameInMap(gameId, {
       'drawPileCount': drawPileCount,
       'discardPileCount': discardPileCount,

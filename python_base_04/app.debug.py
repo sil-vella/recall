@@ -9,29 +9,43 @@ from utils.config.config import Config
 from tools.logger.custom_logging import custom_log
 
 # Test logging control
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 # Clear Python's import cache to prevent stale imports
 importlib.invalidate_caches()
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# Clear serve.log on initialization
+# Clear serve.log on initialization (only if not recently cleared)
 def clear_serve_log():
-    """Clear the server.log file on debug app initialization"""
+    """Clear the server.log file on debug app initialization (smart clearing)"""
     try:
         # Use the correct path to server.log
         log_file_path = os.path.join(os.path.dirname(__file__), 'tools', 'logger', 'server.log')
+        
+        # Check if file exists and when it was last modified
         if os.path.exists(log_file_path):
-            # Clear the file by opening in write mode and truncating
+            # Get file modification time
+            import time
+            file_mtime = os.path.getmtime(log_file_path)
+            current_time = time.time()
+            
+            # Only clear if file is older than 30 seconds (prevents multiple clears in quick succession)
+            if (current_time - file_mtime) > 30:
+                with open(log_file_path, 'w') as f:
+                    f.write('')
+                custom_log("Server log cleared on startup", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("Server log not cleared - recently modified", isOn=LOGGING_SWITCH)
+        else:
+            # Create empty file if it doesn't exist
             with open(log_file_path, 'w') as f:
                 f.write('')
-        else:
-            pass
+            custom_log("Server log file created", isOn=LOGGING_SWITCH)
     except Exception as e:
-        pass
+        custom_log(f"Error managing server log: {e}", isOn=LOGGING_SWITCH)
 
-# Clear the log file on startup
+# Clear the log file on startup (smart clearing)
 clear_serve_log()
 
 # Initialize the AppManager

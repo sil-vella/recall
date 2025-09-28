@@ -7,9 +7,11 @@
 
 import 'dart:math';
 import '../models/card.dart';
+import '../../../../../tools/logger/dart_logger/logger.dart';
 
 // Testing switch - set to true for testing deck with more special cards
 const bool testingSwitch = true;
+const bool LOGGING_SWITCH = true;
 
 class DeckFactory {
   /// Creates a deck with completely random card IDs for a given game_id.
@@ -35,6 +37,7 @@ class DeckFactory {
   }
 
   List<Card> buildDeck({bool includeJokers = true}) {
+    Logger().info('Building deck for game $gameId with ${includeJokers ? "jokers" : "no jokers"}', isOn: LOGGING_SWITCH);
     final deck = CardDeck(includeJokers: includeJokers);
 
     // Create new cards with random IDs
@@ -48,6 +51,7 @@ class DeckFactory {
 
     // Random shuffle using system random (no seed)
     newCards.shuffle();
+    Logger().info('Deck built and shuffled for game $gameId: ${newCards.length} cards', isOn: LOGGING_SWITCH);
     return newCards;
   }
 }

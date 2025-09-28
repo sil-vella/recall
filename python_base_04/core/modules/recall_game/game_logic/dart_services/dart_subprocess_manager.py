@@ -10,13 +10,14 @@ import json
 import threading
 import time
 import os
+import uuid
 from typing import Dict, Any, Optional, Callable
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../../../..'))
 from tools.logger.custom_logging import custom_log
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 
 class DartSubprocessManager:
@@ -29,6 +30,8 @@ class DartSubprocessManager:
         self.response_handlers = {}
         self.message_id_counter = 0
         self.lock = threading.Lock()
+        self.pending_requests: Dict[str, Dict[str, Any]] = {}
+        self.response_timeout = 5.0  # 5 second timeout
         
     def start_dart_service(self, dart_service_path: str) -> bool:
         """Start the Dart game service subprocess"""
@@ -96,6 +99,21 @@ class DartSubprocessManager:
     def _handle_response(self, response: Dict[str, Any]):
         """Handle response from Dart service"""
         try:
+            custom_log(f"Handling Dart response: {response}", isOn=LOGGING_SWITCH)
+            
+            # Check if this is a response to a pending request
+            message_id = response.get('message_id')
+            if message_id and message_id in self.pending_requests:
+                with self.lock:
+                    if message_id in self.pending_requests:
+                        # Update the response data
+                        self.pending_requests[message_id]['response'] = response
+                        # Signal that response is ready
+                        self.pending_requests[message_id]['event'].set()
+                        custom_log(f"Signaled response for message {message_id}", isOn=LOGGING_SWITCH)
+                return
+            
+            # Handle other responses (non-request/response)
             if response.get('success'):
                 data = response.get('data', {})
                 action = data.get('action', '')
@@ -130,6 +148,53 @@ class DartSubprocessManager:
             custom_log(f"Error sending message to Dart: {e}", isOn=LOGGING_SWITCH)
             return False
     
+    def _send_message_sync(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """Send message to Dart service and wait for response"""
+        try:
+            if not self.is_running or not self.dart_process:
+                custom_log("Dart service not running", isOn=LOGGING_SWITCH)
+                return {'success': False, 'error': 'Dart service not running'}
+            
+            # Generate unique message ID
+            message_id = str(uuid.uuid4())
+            message['message_id'] = message_id
+            
+            # Create event for waiting for response
+            response_event = threading.Event()
+            response_data = {'success': False, 'error': 'No response'}
+            
+            # Store pending request
+            with self.lock:
+                self.pending_requests[message_id] = {
+                    'event': response_event,
+                    'response': response_data
+                }
+            
+            # Send message
+            message_json = json.dumps(message) + '\n'
+            custom_log(f"Sending message to Dart: {message}", isOn=LOGGING_SWITCH)
+            self.dart_process.stdin.write(message_json)
+            self.dart_process.stdin.flush()
+            
+            # Wait for response
+            if response_event.wait(timeout=self.response_timeout):
+                with self.lock:
+                    result = self.pending_requests[message_id]['response'].copy()
+                    del self.pending_requests[message_id]
+                custom_log(f"Received response from Dart: {result}", isOn=LOGGING_SWITCH)
+                return result
+            else:
+                # Timeout
+                with self.lock:
+                    if message_id in self.pending_requests:
+                        del self.pending_requests[message_id]
+                custom_log(f"Timeout waiting for Dart response to message {message_id}", isOn=LOGGING_SWITCH)
+                return {'success': False, 'error': 'Timeout waiting for response'}
+            
+        except Exception as e:
+            custom_log(f"Error sending message to Dart: {e}", isOn=LOGGING_SWITCH)
+            return {'success': False, 'error': str(e)}
+    
     def create_game(self, game_id: str, max_players: int = 4, min_players: int = 2, permission: str = 'public') -> bool:
         """Create a new game in the Dart service"""
         message = {
@@ -141,7 +206,8 @@ class DartSubprocessManager:
                 'permission': permission,
             }
         }
-        return self._send_message(message)
+        response = self._send_message_sync(message)
+        return response.get('success', False)
     
     def join_game(self, game_id: str, player_id: str, player_name: str, player_type: str = 'human', difficulty: str = 'medium') -> bool:
         """Join a player to a game in the Dart service"""
@@ -155,7 +221,8 @@ class DartSubprocessManager:
                 'difficulty': difficulty,
             }
         }
-        return self._send_message(message)
+        response = self._send_message_sync(message)
+        return response.get('success', False)
     
     def add_player(self, game_id: str, player_data: Dict[str, Any]) -> bool:
         """Add a player to a game in the Dart service (alias for join_game)"""
@@ -197,24 +264,8 @@ class DartSubprocessManager:
             'data': {}
         }
         
-        if not self._send_message(message):
-            return None
-        
-        # Return a mock game state for now
-        # In a real implementation, this would wait for the actual response
-        return {
-            'status': 'success',
-            'message': 'Game state retrieved',
-            'game_state': {
-                'game_id': game_id,
-                'status': 'active',
-                'phase': 'player_turn',
-                'current_player': 0,
-                'players': [],
-                'deck_count': 52,
-                'discard_pile': []
-            }
-        }
+        response = self._send_message_sync(message)
+        return response
     
     def get_player_state(self, game_id: str, player_id: str) -> bool:
         """Get player state from the Dart service"""

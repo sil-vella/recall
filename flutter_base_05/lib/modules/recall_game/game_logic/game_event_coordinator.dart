@@ -10,7 +10,7 @@ const bool LOGGING_SWITCH = false;
 class GameEventCoordinator {
   /// Coordinates all WebSocket events for the Recall game
   
-  final dynamic gameStateManager;
+  late final dynamic gameStateManager;
   List<String> registeredEvents = [];
   
   

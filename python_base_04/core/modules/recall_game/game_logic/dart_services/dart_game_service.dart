@@ -6,9 +6,10 @@
 
 import 'dart:io';
 import 'dart:convert';
-import '../../../../../../flutter_base_05/lib/modules/recall_game/game_logic/game_state.dart';
-import '../../../../../../flutter_base_05/lib/modules/recall_game/game_logic/game_round.dart';
-import '../../../../../../flutter_base_05/lib/modules/recall_game/game_logic/models/player.dart';
+import '../../../../../tools/logger/dart_logger/logger.dart';
+import '../game_state.dart';
+import '../game_round.dart';
+import '../models/player.dart';
 
 const bool LOGGING_SWITCH = true;
 
@@ -16,11 +17,10 @@ class DartGameService {
   final Map<String, GameState> activeGames = {};
   final Map<String, GameRound> gameRounds = {};
   final Map<String, GameStateManager> gameStateManagers = {};
+  String? currentMessageId;
   
   DartGameService() {
-    if (LOGGING_SWITCH) {
-      print('Dart Game Service started');
-    }
+    Logger().info('Dart Game Service started', isOn: LOGGING_SWITCH);
   }
 
   void start() {
@@ -31,16 +31,12 @@ class DartGameService {
           final Map<String, dynamic> message = json.decode(line);
           handleMessage(message);
         } catch (e) {
-          if (LOGGING_SWITCH) {
-            print('Invalid JSON message: $e');
-          }
+          Logger().error('Invalid JSON message: $e', isOn: LOGGING_SWITCH);
           sendError('Invalid JSON message: $e');
         }
       },
       onError: (error) {
-        if (LOGGING_SWITCH) {
-          print('Error reading stdin: $error');
-        }
+        Logger().error('Error reading stdin: $error', isOn: LOGGING_SWITCH);
         sendError('Error reading stdin: $error');
       },
     );
@@ -51,6 +47,7 @@ class DartGameService {
       final String action = message['action'] ?? '';
       final String gameId = message['game_id'] ?? '';
       final Map<String, dynamic> data = message['data'] ?? {};
+      currentMessageId = message['message_id'];
 
       switch (action) {
         case 'create_game':
@@ -247,25 +244,29 @@ class DartGameService {
   }
 
   void sendSuccess(Map<String, dynamic> data) {
-    final response = {
+    final response = <String, dynamic>{
       'success': true,
       'data': data,
       'timestamp': DateTime.now().toIso8601String(),
     };
-    if (LOGGING_SWITCH) {
-      print(json.encode(response));
+    if (currentMessageId != null) {
+      response['message_id'] = currentMessageId!;
     }
+    Logger().info('Sending success response: ${json.encode(response)}', isOn: LOGGING_SWITCH);
+    print(json.encode(response));
   }
 
   void sendError(String message) {
-    final response = {
+    final response = <String, dynamic>{
       'success': false,
       'error': message,
       'timestamp': DateTime.now().toIso8601String(),
     };
-    if (LOGGING_SWITCH) {
-      print(json.encode(response));
+    if (currentMessageId != null) {
+      response['message_id'] = currentMessageId!;
     }
+    Logger().error('Sending error response: ${json.encode(response)}', isOn: LOGGING_SWITCH);
+    print(json.encode(response));
   }
 }
 

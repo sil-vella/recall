@@ -3,6 +3,8 @@
 /// This module defines the base class for all power cards in the Recall game.
 /// Each power card extends this class and implements its own special logic.
 
+import '../../../../../../tools/logger/dart_logger/logger.dart';
+
 abstract class BasePowerCard {
   /// Base class for all power cards
   

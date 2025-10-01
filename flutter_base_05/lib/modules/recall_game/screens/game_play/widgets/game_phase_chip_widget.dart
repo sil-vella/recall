@@ -225,6 +225,12 @@ class _GamePhaseChipState extends State<GamePhaseChip> {
           text: 'Out of Turn',
           icon: Icons.flash_on,
         );
+      case 'initial_peek':
+        return _PhaseData(
+          color: Colors.teal,
+          text: 'Initial Peek',
+          icon: Icons.visibility_outlined,
+        );
       default:
         return _PhaseData(
           color: Colors.grey,

@@ -8,6 +8,7 @@ import '../../../core/managers/state_manager.dart';
 import '../utils/field_specifications.dart';
 import 'models/player.dart';
 import 'models/card.dart';
+import 'utils/deck_factory.dart';
 
 const bool LOGGING_SWITCH = true;
 
@@ -271,13 +272,55 @@ class PracticeGameCoordinator {
     return shuffled.take(count).toList();
   }
   
-  /// Convert AI players to Flutter format for state
-  List<Map<String, dynamic>> _convertAIPlayersToFlutter() {
-    return _aiPlayers.map((player) => _convertPlayerToFlutter(player)).toList();
-  }
   
   /// Convert player to Flutter format
   Map<String, dynamic> _convertPlayerToFlutter(Player player) {
+    // Convert PlayerStatus enum to proper string format
+    String statusString;
+    switch (player.status) {
+      case PlayerStatus.waiting:
+        statusString = 'waiting';
+        break;
+      case PlayerStatus.ready:
+        statusString = 'ready';
+        break;
+      case PlayerStatus.playing:
+        statusString = 'playing';
+        break;
+      case PlayerStatus.sameRankWindow:
+        statusString = 'same_rank_window';
+        break;
+      case PlayerStatus.playingCard:
+        statusString = 'playing_card';
+        break;
+      case PlayerStatus.drawingCard:
+        statusString = 'drawing_card';
+        break;
+      case PlayerStatus.queenPeek:
+        statusString = 'queen_peek';
+        break;
+      case PlayerStatus.jackSwap:
+        statusString = 'jack_swap';
+        break;
+      case PlayerStatus.peeking:
+        statusString = 'peeking';
+        break;
+      case PlayerStatus.initialPeek:
+        statusString = 'initial_peek';
+        break;
+      case PlayerStatus.finished:
+        statusString = 'finished';
+        break;
+      case PlayerStatus.disconnected:
+        statusString = 'disconnected';
+        break;
+      case PlayerStatus.winner:
+        statusString = 'winner';
+        break;
+    }
+    
+    Logger().info('Practice: Converting player ${player.name} (${player.playerId}) - Status: ${player.status} -> $statusString', isOn: LOGGING_SWITCH);
+    
     return {
       'id': player.playerId,
       'name': player.name,
@@ -286,7 +329,7 @@ class PracticeGameCoordinator {
       'visibleCards': player.visibleCards.map((card) => _convertCardToFlutter(card)).toList(),
       'cardsToPeek': player.cardsToPeek.map((card) => _convertCardToFlutter(card)).toList(),
       'score': player.calculatePoints(),
-      'status': player.status.name.toLowerCase(),
+      'status': statusString,
       'isCurrentPlayer': false,
       'hasCalledRecall': player.hasCalledRecall,
       'drawnCard': player.drawnCard != null ? _convertCardToFlutter(player.drawnCard!) : null,
@@ -345,26 +388,69 @@ class PracticeGameCoordinator {
       final numberOfOpponents = data['numberOfOpponents'] ?? 3;
       final difficultyLevel = data['difficultyLevel'] ?? 'medium';
       
-      Logger().info('Practice: Creating $numberOfOpponents AI opponents with difficulty: $difficultyLevel', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Starting match with $numberOfOpponents AI opponents (difficulty: $difficultyLevel)', isOn: LOGGING_SWITCH);
       
-      // Create AI players
+      // ========= PHASE 1: CREATE DECK =========
+      Logger().info('Practice: Phase 1 - Creating deck', isOn: LOGGING_SWITCH);
+      final deck = _createDeck();
+      if (deck.isEmpty) {
+        Logger().error('Practice: Failed to create deck', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // ========= PHASE 2: CREATE AI PLAYERS =========
+      Logger().info('Practice: Phase 2 - Creating AI players', isOn: LOGGING_SWITCH);
       final aiPlayers = createAIPlayers(numberOfOpponents, difficultyLevel);
-      
       if (aiPlayers.isEmpty) {
         Logger().error('Practice: Failed to create AI players', isOn: LOGGING_SWITCH);
         return false;
       }
       
-      // Create practice game state with AI players
-      final practiceGameState = _createPracticeGameStateWithPlayers(data, aiPlayers);
+      // ========= PHASE 3: CREATE HUMAN PLAYER =========
+      Logger().info('Practice: Phase 3 - Creating human player', isOn: LOGGING_SWITCH);
+      final humanPlayer = Player(
+        playerId: 'human_player_${DateTime.now().millisecondsSinceEpoch}',
+        name: 'You',
+        playerType: PlayerType.human,
+      );
+      humanPlayer.hand = <Card>[];
+      humanPlayer.cardsRemaining = 0;
+      humanPlayer.status = PlayerStatus.waiting;
       
-      // Update global state with practice game
+      // ========= PHASE 4: COMBINE ALL PLAYERS =========
+      final allPlayers = [humanPlayer, ...aiPlayers];
+      Logger().info('Practice: Phase 4 - Combined ${allPlayers.length} players (1 human + ${aiPlayers.length} AI)', isOn: LOGGING_SWITCH);
+      
+      // ========= PHASE 5: DEAL CARDS =========
+      Logger().info('Practice: Phase 5 - Dealing cards', isOn: LOGGING_SWITCH);
+      _dealCards(deck, allPlayers);
+      
+      // ========= PHASE 6: SET UP PILES =========
+      Logger().info('Practice: Phase 6 - Setting up draw/discard piles', isOn: LOGGING_SWITCH);
+      final cardsUsed = allPlayers.length * 4; // 4 cards per player
+      final pilesData = _setupPiles(deck, cardsUsed);
+      
+      // ========= PHASE 7: UPDATE PLAYER STATUS =========
+      Logger().info('Practice: Phase 7 - Updating player status', isOn: LOGGING_SWITCH);
+      _updateAllPlayersStatus(allPlayers);
+      
+      // ========= PHASE 8: START INITIAL PEEK =========
+      Logger().info('Practice: Phase 8 - Starting initial peek phase', isOn: LOGGING_SWITCH);
+      _startInitialPeekPhase(allPlayers);
+      
+      // ========= PHASE 9: CREATE GAME STATE =========
+      Logger().info('Practice: Phase 9 - Creating game state', isOn: LOGGING_SWITCH);
+      final practiceGameState = _createPracticeGameStateWithPlayersAndDeck(data, allPlayers, pilesData);
+      
+      // ========= PHASE 10: UPDATE GLOBAL STATE =========
+      Logger().info('Practice: Phase 10 - Updating global state', isOn: LOGGING_SWITCH);
       _updatePracticeGameState(practiceGameState);
       
       // Call game state manager if available
       final gameStateResult = gameStateManager?.onStartMatch(sessionId, data) ?? true;
       
-      Logger().info('Practice: Match started successfully with ID $_currentPracticeGameId and ${aiPlayers.length} AI players', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Match started successfully with ID $_currentPracticeGameId', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Game setup complete - ${allPlayers.length} players, ${pilesData['drawPileCount']} cards in draw pile', isOn: LOGGING_SWITCH);
       return gameStateResult;
       
     } catch (e) {
@@ -449,57 +535,36 @@ class PracticeGameCoordinator {
   }
   
   
-  /// Create practice game state with AI players
-  Map<String, dynamic> _createPracticeGameStateWithPlayers(Map<String, dynamic> data, List<Player> aiPlayers) {
+  /// Create practice game state with players and deck information
+  Map<String, dynamic> _createPracticeGameStateWithPlayersAndDeck(Map<String, dynamic> data, List<Player> allPlayers, Map<String, dynamic> pilesData) {
     final gameId = _currentPracticeGameId!;
     final timestamp = DateTime.now().toIso8601String();
-    
-    // Convert AI players to Flutter format
-    final aiPlayersFlutter = _convertAIPlayersToFlutter();
-    
-    // Create human player entry (current user)
-    final humanPlayer = {
-      'id': 'human_player_${DateTime.now().millisecondsSinceEpoch}',
-      'name': 'You',
-      'type': 'human',
-      'hand': <Map<String, dynamic>?>[null, null, null, null], // 4 face-down cards
-      'visibleCards': <Map<String, dynamic>>[],
-      'cardsToPeek': <Map<String, dynamic>>[],
-      'score': 0,
-      'status': 'waiting',
-      'isCurrentPlayer': false,
-      'hasCalledRecall': false,
-      'drawnCard': null,
-      'cardsRemaining': 4,
-      'isActive': true,
-      'initialPeeksRemaining': 2,
-    };
-    
-    // Combine all players (human + AI)
-    final allPlayers = [humanPlayer, ...aiPlayersFlutter];
-    
-    Logger().info('Practice: Created game state with ${allPlayers.length} players (1 human + ${aiPlayers.length} AI)', isOn: LOGGING_SWITCH);
+
+    // Convert all players to Flutter format
+    final playersFlutter = allPlayers.map((player) => _convertPlayerToFlutter(player)).toList();
+
+    Logger().info('Practice: Created game state with ${playersFlutter.length} players', isOn: LOGGING_SWITCH);
 
     return {
       'gameId': gameId,
       'gameType': 'practice',
-      'phase': 'waiting',
-      'gamePhase': 'waiting',
+      'phase': 'initial_peek', // Start in initial peek phase
+      'gamePhase': 'initial_peek',
       'isGameActive': true,
       'isPracticeMode': true,
-      'currentPlayer': null,
-      'players': allPlayers,
+      'currentPlayer': null, // No current player during initial peek
+      'players': playersFlutter,
       'gameData': {
         'game_state': {
           'game_id': gameId,
-          'phase': 'waiting',
+          'phase': 'initial_peek',
           'current_player_id': null,
-          'players': allPlayers,
-          'playerCount': allPlayers.length,
+          'players': playersFlutter,
+          'playerCount': playersFlutter.length,
           'maxPlayers': (data['numberOfOpponents'] ?? 3) + 1, // +1 for human player
-          'deck': <Map<String, dynamic>>[],
-          'draw_pile': <Map<String, dynamic>>[],
-          'discard_pile': <Map<String, dynamic>>[],
+          'deck': <Map<String, dynamic>>[], // Empty deck after dealing
+          'draw_pile': (pilesData['drawPile'] as List<Card>).map((card) => _convertCardToFlutter(card)).toList(),
+          'discard_pile': (pilesData['discardPile'] as List<Card>).map((card) => _convertCardToFlutter(card)).toList(),
           'game_ended': false,
           'winner': null,
           'recall_called_by': null,
@@ -524,6 +589,7 @@ class PracticeGameCoordinator {
       'lastUpdated': timestamp,
     };
   }
+
   
   /// Update practice game state in global state manager with validation
   void _updatePracticeGameState(Map<String, dynamic> practiceGameState) {
@@ -556,16 +622,16 @@ class PracticeGameCoordinator {
         'currentGameId': _currentPracticeGameId,
         'isInRoom': true,
         'currentRoomId': _currentPracticeGameId,
-        'gamePhase': 'waiting',
+        'gamePhase': 'initial_peek',
         'isGameActive': true,
         'isInGame': true,
         'isMyTurn': false,
-        'playerStatus': 'waiting',
+        'playerStatus': 'initial_peek',
         'gameInfo': {
           'currentGameId': _currentPracticeGameId,
           'currentSize': players.length,
           'maxSize': players.length,
-          'gamePhase': 'waiting',
+          'gamePhase': 'initial_peek',
           'gameStatus': 'active',
           'isRoomOwner': true, // Practice game user is always the owner
           'isInGame': true,
@@ -580,9 +646,9 @@ class PracticeGameCoordinator {
           'currentTurnIndex': -1,
         },
         'centerBoard': {
-          'drawPileCount': 52 - (players.length * 4), // Full deck minus dealt cards
+          'drawPileCount': _getDrawPileCount(validatedState),
           'canDrawFromDeck': false,
-          'topDiscard': null,
+          'topDiscard': _getTopDiscardCard(validatedState),
           'canTakeFromDiscard': false,
         },
         'lastUpdated': DateTime.now().toIso8601String(),
@@ -732,39 +798,43 @@ class PracticeGameCoordinator {
         // Update the games map with validated state
         currentGames[_currentPracticeGameId!] = validatedGame;
         
+        // Get players from validated state for UI updates
+        final players = validatedGame['players'] as List<dynamic>? ?? [];
+        final humanPlayer = players.firstWhere((p) => p['type'] == 'human', orElse: () => <String, dynamic>{});
+
         // Update global state directly to avoid main schema validation conflicts
         _stateManager.updateModuleState('recall_game', {
           'games': currentGames,
-          'currentGameId': null,
-          'isInRoom': false,
-          'currentRoomId': null,
-          'gamePhase': 'waiting',
-          'isGameActive': false,
-          'isInGame': false,
+          'currentGameId': _currentPracticeGameId,
+          'isInRoom': true,
+          'currentRoomId': _currentPracticeGameId,
+          'gamePhase': validatedGame['gamePhase'] ?? 'waiting',
+          'isGameActive': validatedGame['isGameActive'] ?? false,
+          'isInGame': true,
           'isMyTurn': false,
-          'playerStatus': 'unknown',
+          'playerStatus': validatedGame['gamePhase'] ?? 'initial_peek',
           'gameInfo': {
-            'currentGameId': '',
-            'currentSize': 0,
-            'maxSize': 4,
-            'gamePhase': 'waiting',
-            'gameStatus': 'inactive',
-            'isRoomOwner': false,
-            'isInGame': false,
+            'currentGameId': _currentPracticeGameId,
+            'currentSize': players.length,
+            'maxSize': players.length,
+            'gamePhase': validatedGame['gamePhase'] ?? 'waiting',
+            'gameStatus': 'active',
+            'isRoomOwner': true,
+            'isInGame': true,
           },
           'myHand': {
-            'cards': <Map<String, dynamic>>[],
+            'cards': humanPlayer?['hand'] as List<dynamic>? ?? <Map<String, dynamic>>[],
             'selectedIndex': -1,
             'selectedCard': null,
           },
           'opponentsPanel': {
-            'opponents': <Map<String, dynamic>>[],
+            'opponents': players,
             'currentTurnIndex': -1,
           },
           'centerBoard': {
-            'drawPileCount': 0,
+            'drawPileCount': _getDrawPileCount(validatedGame),
             'canDrawFromDeck': false,
-            'topDiscard': null,
+            'topDiscard': _getTopDiscardCard(validatedGame),
             'canTakeFromDiscard': false,
           },
           'lastUpdated': DateTime.now().toIso8601String(),
@@ -851,6 +921,152 @@ class PracticeGameCoordinator {
     }
   }
   
+  /// Create and shuffle a full deck for practice game
+  List<Card> _createDeck() {
+    try {
+      final gameId = _currentPracticeGameId ?? 'practice_${DateTime.now().millisecondsSinceEpoch}';
+      final factory = DeckFactory(gameId);
+      final deck = factory.buildDeck(includeJokers: true);
+      
+      Logger().info('Practice: Created deck with ${deck.length} cards', isOn: LOGGING_SWITCH);
+      return deck;
+    } catch (e) {
+      Logger().error('Practice: Failed to create deck: $e', isOn: LOGGING_SWITCH);
+      return [];
+    }
+  }
+  
+  /// Deal 4 cards to each player (human + AI)
+  void _dealCards(List<Card> deck, List<Player> allPlayers) {
+    try {
+      int cardIndex = 0;
+      
+      // Deal 4 cards to each player
+      for (final player in allPlayers) {
+        final playerHand = <Card>[];
+        
+        // Deal 4 cards to this player
+        for (int i = 0; i < 4; i++) {
+          if (cardIndex < deck.length) {
+            final card = deck[cardIndex];
+            card.ownerId = player.playerId;
+            card.isVisible = false; // Face down initially
+            playerHand.add(card);
+            cardIndex++;
+          }
+        }
+        
+        // Set player's hand
+        player.hand = playerHand;
+        player.cardsRemaining = playerHand.length;
+        player.status = PlayerStatus.waiting;
+        
+        Logger().info('Practice: Dealt ${playerHand.length} cards to ${player.name}', isOn: LOGGING_SWITCH);
+      }
+      
+      Logger().info('Practice: Card dealing complete. Used $cardIndex cards from deck', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      Logger().error('Practice: Failed to deal cards: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Set up draw and discard piles
+  Map<String, dynamic> _setupPiles(List<Card> deck, int cardsUsed) {
+    try {
+      // Remaining cards become draw pile
+      final drawPile = deck.skip(cardsUsed).toList();
+      
+      // Discard pile starts with first card from draw pile (like backend)
+      final discardPile = <Card>[];
+      if (drawPile.isNotEmpty) {
+        final firstCard = drawPile.removeAt(0);
+        discardPile.add(firstCard);
+        Logger().info('Practice: Moved first card (${firstCard.rank} of ${firstCard.suit}) to discard pile', isOn: LOGGING_SWITCH);
+      }
+      
+      Logger().info('Practice: Set up piles - Draw pile: ${drawPile.length} cards, Discard pile: ${discardPile.length} cards', isOn: LOGGING_SWITCH);
+      
+      return {
+        'drawPile': drawPile,
+        'discardPile': discardPile,
+        'drawPileCount': drawPile.length,
+        'discardPileCount': discardPile.length,
+      };
+    } catch (e) {
+      Logger().error('Practice: Failed to setup piles: $e', isOn: LOGGING_SWITCH);
+      return {
+        'drawPile': <Card>[],
+        'discardPile': <Card>[],
+        'drawPileCount': 0,
+        'discardPileCount': 0,
+      };
+    }
+  }
+  
+  /// Update all players' status to READY
+  void _updateAllPlayersStatus(List<Player> allPlayers) {
+    try {
+      for (final player in allPlayers) {
+        player.status = PlayerStatus.ready;
+      }
+      
+      Logger().info('Practice: Updated ${allPlayers.length} players status to READY', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      Logger().error('Practice: Failed to update player status: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Start initial peek phase (10-second timer simulation)
+  void _startInitialPeekPhase(List<Player> allPlayers) {
+    try {
+      // Set all players to INITIAL_PEEK status
+      for (final player in allPlayers) {
+        Logger().info('Practice: Setting ${player.name} (${player.playerId}) status to INITIAL_PEEK', isOn: LOGGING_SWITCH);
+        player.status = PlayerStatus.initialPeek;
+        Logger().info('Practice: ${player.name} status is now: ${player.status}', isOn: LOGGING_SWITCH);
+      }
+      
+      Logger().info('Practice: Initial peek phase started for ${allPlayers.length} players', isOn: LOGGING_SWITCH);
+      
+      // In a real game, this would start a 10-second timer
+      // For practice, we'll simulate this phase
+      Logger().info('Practice: Initial peek phase - players can look at 2 of their 4 cards', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      Logger().error('Practice: Failed to start initial peek phase: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Get draw pile count from game state
+  int _getDrawPileCount(Map<String, dynamic> gameState) {
+    try {
+      final gameData = gameState['gameData'] as Map<String, dynamic>? ?? {};
+      final gameStateData = gameData['game_state'] as Map<String, dynamic>? ?? {};
+      final drawPile = gameStateData['draw_pile'] as List<dynamic>? ?? [];
+      return drawPile.length;
+    } catch (e) {
+      Logger().error('Practice: Failed to get draw pile count: $e', isOn: LOGGING_SWITCH);
+      return 0;
+    }
+  }
+  
+  /// Get top discard card from game state
+  Map<String, dynamic>? _getTopDiscardCard(Map<String, dynamic> gameState) {
+    try {
+      final gameData = gameState['gameData'] as Map<String, dynamic>? ?? {};
+      final gameStateData = gameData['game_state'] as Map<String, dynamic>? ?? {};
+      final discardPile = gameStateData['discard_pile'] as List<dynamic>? ?? [];
+      
+      if (discardPile.isNotEmpty) {
+        return discardPile.last as Map<String, dynamic>?;
+      }
+      
+      return null;
+    } catch (e) {
+      Logger().error('Practice: Failed to get top discard card: $e', isOn: LOGGING_SWITCH);
+      return null;
+    }
+  }
+
   /// Dispose of practice coordinator resources
   void dispose() {
     // End any active practice game

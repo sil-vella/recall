@@ -2,6 +2,9 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../state_manager.dart';
 import '../module_manager.dart';
 import 'ws_event_handler.dart';
+import '../../../tools/logging/logger.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// WebSocket Event Listener
 /// Centralized Socket.IO event listener registration and management
@@ -10,6 +13,7 @@ class WSEventListener {
   final WSEventHandler _eventHandler;
   final StateManager _stateManager;
   final ModuleManager _moduleManager;
+  static final Logger _logger = Logger();
 
   WSEventListener({
     required IO.Socket? socket,
@@ -23,6 +27,8 @@ class WSEventListener {
 
   /// Register all Socket.IO event listeners
   void registerAllListeners() {
+    _logger.info('🎧 Registering all WebSocket event listeners', isOn: LOGGING_SWITCH);
+    
     // Connection events
     _registerConnectListener();
     _registerDisconnectListener();
@@ -49,18 +55,24 @@ class WSEventListener {
 
     // Error events
     _registerErrorListener();
+    
+    _logger.info('✅ All WebSocket event listeners registered successfully', isOn: LOGGING_SWITCH);
   }
 
   /// Register connection event listener
   void _registerConnectListener() {
+    _logger.debug('🎧 Registering connect event listener', isOn: LOGGING_SWITCH);
     _socket?.on('connect', (data) {
+      _logger.debug('📡 Connect event received', isOn: LOGGING_SWITCH);
       _eventHandler.handleConnect(data);
     });
   }
 
   /// Register disconnect event listener
   void _registerDisconnectListener() {
+    _logger.debug('🎧 Registering disconnect event listener', isOn: LOGGING_SWITCH);
     _socket?.on('disconnect', (data) {
+      _logger.debug('📡 Disconnect event received', isOn: LOGGING_SWITCH);
       _eventHandler.handleDisconnect(data);
     });
   }

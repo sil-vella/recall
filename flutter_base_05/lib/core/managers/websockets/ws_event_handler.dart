@@ -4,6 +4,9 @@ import '../module_manager.dart';
 import '../hooks_manager.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
+import '../../../tools/logging/logger.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -12,6 +15,7 @@ class WSEventHandler {
   final WSEventManager _eventManager;
   final StateManager _stateManager;
   final ModuleManager _moduleManager;
+  static final Logger _logger = Logger();
 
   WSEventHandler({
     required IO.Socket? socket,
@@ -26,6 +30,11 @@ class WSEventHandler {
   /// Handle connection event
   void handleConnect(dynamic data) {
     try {
+      _logger.info('🔌 WebSocket connection established', isOn: LOGGING_SWITCH);
+      if (data is Map<String, dynamic>) {
+        _logger.debug('Connection data: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+      }
+      
       // Use validated state updater
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: true,
@@ -38,14 +47,21 @@ class WSEventHandler {
         'session_data': data is Map<String, dynamic> ? data : null,
         'timestamp': DateTime.now().toIso8601String(),
       });
+      
+      _logger.info('✅ WebSocket connection handled successfully', isOn: LOGGING_SWITCH);
     } catch (e) {
-      // Error handling connection
+      _logger.error('❌ Error handling WebSocket connection: $e', isOn: LOGGING_SWITCH);
     }
   }
 
   /// Handle disconnection event
   void handleDisconnect(dynamic data) {
     try {
+      _logger.info('🔌 WebSocket connection lost', isOn: LOGGING_SWITCH);
+      if (data is Map<String, dynamic>) {
+        _logger.debug('Disconnect data: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+      }
+      
       // Use validated state updater
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: false,
@@ -57,14 +73,21 @@ class WSEventHandler {
         'session_data': data is Map<String, dynamic> ? data : null,
         'timestamp': DateTime.now().toIso8601String(),
       });
+      
+      _logger.info('✅ WebSocket disconnection handled successfully', isOn: LOGGING_SWITCH);
     } catch (e) {
-      // Error handling disconnection
+      _logger.error('❌ Error handling WebSocket disconnection: $e', isOn: LOGGING_SWITCH);
     }
   }
 
   /// Handle connection error event
   void handleConnectError(dynamic data) {
     try {
+      _logger.error('❌ WebSocket connection error occurred', isOn: LOGGING_SWITCH);
+      if (data is Map<String, dynamic>) {
+        _logger.debug('Error data: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+      }
+      
       // Use validated state updater
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: false,
@@ -76,29 +99,43 @@ class WSEventHandler {
         'error_data': data is Map<String, dynamic> ? data : null,
         'timestamp': DateTime.now().toIso8601String(),
       });
+      
+      _logger.info('✅ WebSocket connection error handled successfully', isOn: LOGGING_SWITCH);
     } catch (e) {
-      // Error handling connection error
+      _logger.error('❌ Error handling WebSocket connection error: $e', isOn: LOGGING_SWITCH);
     }
   }
 
   /// Handle session data event
   void handleSessionData(dynamic data) {
     try {
+      _logger.info('📊 WebSocket session data received', isOn: LOGGING_SWITCH);
+      if (data is Map<String, dynamic>) {
+        _logger.debug('Session data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+      }
+      
       // Use validated state updater
       WebSocketStateHelpers.updateSessionData(
         data is Map<String, dynamic> ? data : null,
       );
+      
+      _logger.info('✅ WebSocket session data handled successfully', isOn: LOGGING_SWITCH);
     } catch (e) {
-      // Error handling session data
+      _logger.error('❌ Error handling WebSocket session data: $e', isOn: LOGGING_SWITCH);
     }
   }
 
     /// Handle room joined event
   void handleRoomJoined(dynamic data) {
     try {
+      _logger.info('🚪 WebSocket room joined event received', isOn: LOGGING_SWITCH);
+      
       final roomId = data['room_id'] ?? '';
       final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
       final ownerId = data['owner_id'] ?? '';
+      
+      _logger.debug('Room ID: $roomId, Owner ID: $ownerId', isOn: LOGGING_SWITCH);
+      _logger.debug('Room data keys: ${roomData.keys.toList()}', isOn: LOGGING_SWITCH);
       
       // Get current user ID from login module state
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -106,6 +143,7 @@ class WSEventHandler {
       
       // Check if current user is the room owner
       final isRoomOwner = currentUserId == ownerId;
+      _logger.debug('Current user ID: $currentUserId, Is room owner: $isRoomOwner', isOn: LOGGING_SWITCH);
       
       // Use validated state updater
       WebSocketStateHelpers.updateRoomInfo(
@@ -134,8 +172,10 @@ class WSEventHandler {
         'is_owner': isRoomOwner,
         'timestamp': DateTime.now().toIso8601String(),
       });
+      
+      _logger.info('✅ WebSocket room joined event handled successfully', isOn: LOGGING_SWITCH);
     } catch (e) {
-      // Error handling room joined
+      _logger.error('❌ Error handling WebSocket room joined event: $e', isOn: LOGGING_SWITCH);
     }
   }
 

@@ -50,7 +50,7 @@ class RecallGameEventListenerValidator {
       handlerMethod: 'handleTurnStarted',
     ),
     'game_state_updated': EventConfig(
-      schema: {'game_id', 'game_state', 'round_number', 'current_player', 'current_player_status', 'round_status', 'timestamp', 'reason', 'changes'},
+      schema: {'game_id', 'game_state', 'owner_id', 'round_number', 'current_player', 'current_player_status', 'round_status', 'timestamp', 'reason', 'changes'},
       handlerMethod: 'handleGameStateUpdated',
     ),
     'game_state_partial_update': EventConfig(

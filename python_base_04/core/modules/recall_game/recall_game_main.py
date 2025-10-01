@@ -8,16 +8,13 @@ initializing all components and integrating with the main system.
 from typing import Optional, Dict, Any, List
 from tools.logger.custom_logging import custom_log
 from core.modules.base_module import BaseModule
-
 from core.managers.jwt_manager import JWTManager, TokenType
-# from .game_logic.game_state import GameStateManager  # This is a Dart file, not Python
+from .game_logic.game_state import GameStateManager
 from .game_logic.game_event_coordinator import GameEventCoordinator
 from flask import request, jsonify
 import time
 # RecallGameplayManager consolidated into GameStateManager
 
-# Logging switch for this module
-LOGGING_SWITCH = True
 
 class RecallGameMain(BaseModule):
     """Main orchestrator for the Recall game backend"""
@@ -31,70 +28,50 @@ class RecallGameMain(BaseModule):
     def initialize(self, app_manager) -> bool:
         """Initialize the Recall game backend with the main app_manager"""
         try:
-            custom_log("Starting RecallGameMain initialization...", isOn=LOGGING_SWITCH)
-            
             # Call parent class initialize
             super().initialize(app_manager)
-            custom_log("Parent class initialized successfully", isOn=LOGGING_SWITCH)
             
             # Set Flask app reference for route registration
             self.app = app_manager.flask_app
-            custom_log("Flask app reference set", isOn=LOGGING_SWITCH)
             
             self.websocket_manager = app_manager.get_websocket_manager()
             
             if not self.websocket_manager:
-                custom_log("ERROR: WebSocket manager not found", isOn=LOGGING_SWITCH)
                 return False
             
-            custom_log("WebSocket manager obtained successfully", isOn=LOGGING_SWITCH)
-            
             # Initialize core components
-            # Note: Using Dart service for game logic, so no Python GameStateManager needed
-            custom_log("Initializing GameEventCoordinator...", isOn=LOGGING_SWITCH)
+            self.game_state_manager = GameStateManager()
             
-            # Initialize game event coordinator (Python class that communicates with Dart service)
-            self.game_event_coordinator = GameEventCoordinator(None, self.websocket_manager)  # Pass None for game_state_manager since we use Dart service
-            custom_log("GameEventCoordinator created successfully", isOn=LOGGING_SWITCH)
+            # Initialize game state manager with WebSocket support
+            self.game_state_manager.initialize(self.app_manager, None)
             
-            # Attach coordinator to app_manager so other modules can access it
+            # Initialize game event coordinator
+            self.game_event_coordinator = GameEventCoordinator(self.game_state_manager, self.websocket_manager)
+            
+            # Attach coordinator and game state manager to app_manager so other modules can access them
             setattr(self.app_manager, 'game_event_coordinator', self.game_event_coordinator)
-            custom_log("GameEventCoordinator attached to app_manager", isOn=LOGGING_SWITCH)
+            setattr(self.app_manager, 'game_state_manager', self.game_state_manager)
             
             # Register WebSocket event listeners for game events
-            custom_log("Registering WebSocket event listeners...", isOn=LOGGING_SWITCH)
-            listeners_registered = self.game_event_coordinator.register_game_event_listeners()
-            if listeners_registered:
-                custom_log("WebSocket event listeners registered successfully", isOn=LOGGING_SWITCH)
-            else:
-                custom_log("WARNING: Failed to register WebSocket event listeners", isOn=LOGGING_SWITCH)
+            self.game_event_coordinator.register_game_event_listeners()
             
             # Register routes now that Flask app is available
-            custom_log("Registering Flask routes...", isOn=LOGGING_SWITCH)
             self.register_routes()
-            custom_log("Flask routes registered successfully", isOn=LOGGING_SWITCH)
             
             self._initialized = True
-            custom_log("RecallGameMain initialization completed successfully!", isOn=LOGGING_SWITCH)
             return True
             
         except Exception as e:
-            custom_log(f"ERROR: RecallGameMain initialization failed: {e}", isOn=LOGGING_SWITCH)
             return False
     
     def register_routes(self):
         """Register all Recall game routes."""
-        custom_log("Starting route registration for RecallGameMain...", isOn=LOGGING_SWITCH)
         
         # Register the get-available-games endpoint with JWT authentication
         self._register_route_helper("/userauth/recall/get-available-games", self.get_available_games, methods=["GET"], auth="jwt")
-        custom_log("Registered route: /userauth/recall/get-available-games", isOn=LOGGING_SWITCH)
         
         # Register the find-room endpoint with JWT authentication
         self._register_route_helper("/userauth/recall/find-room", self.find_room, methods=["POST"], auth="jwt")
-        custom_log("Registered route: /userauth/recall/find-room", isOn=LOGGING_SWITCH)
-        
-        custom_log("All RecallGameMain routes registered successfully", isOn=LOGGING_SWITCH)
     
 
     
@@ -131,8 +108,7 @@ class RecallGameMain(BaseModule):
                 }), 401
             
             # Get available games from game state manager
-            # available_games = self.game_state_manager.get_available_games()  # Need to fix this
-            available_games = []  # Temporary placeholder
+            available_games = self.game_state_manager.get_available_games()
             
             # Return success response with available games
             response_data = {
@@ -195,18 +171,17 @@ class RecallGameMain(BaseModule):
             room_id = data['room_id']
             
             # Get game info from game state manager (games use room_id as game_id)
-            # game = self.game_state_manager.get_game(room_id)  # Need to fix this
+            game = self.game_state_manager.get_game(room_id)
             
-            # if not game:
-            #     return jsonify({
-            #         "success": False,
-            #         "message": f"Game '{room_id}' not found",
-            #         "error": "Game does not exist"
-            #     }), 404
+            if not game:
+                return jsonify({
+                    "success": False,
+                    "message": f"Game '{room_id}' not found",
+                    "error": "Game does not exist"
+                }), 404
             
             # Convert game to Flutter-compatible format using GameStateManager's method
-            # game_info = self.game_state_manager._to_flutter_game_data(game)  # Need to fix this
-            game_info = {"room_id": room_id, "status": "placeholder"}  # Temporary placeholder
+            game_info = self.game_state_manager._to_flutter_game_data(game)
             
             # Get room info from WebSocket manager to include permission and password requirement
             room_info = self.websocket_manager.get_room_info(room_id)

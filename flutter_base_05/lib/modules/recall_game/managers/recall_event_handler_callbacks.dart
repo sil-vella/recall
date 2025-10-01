@@ -345,6 +345,13 @@ class RecallEventHandlerCallbacks {
   static void handleGameStateUpdated(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
+    final ownerId = data['owner_id']?.toString(); // Extract owner_id from main payload
+    
+    // 🔍 DEBUG: Log the extracted values
+    Logger().info('🔍 handleGameStateUpdated DEBUG:', isOn: LOGGING_SWITCH);
+    Logger().info('  gameId: $gameId', isOn: LOGGING_SWITCH);
+    Logger().info('  ownerId: $ownerId', isOn: LOGGING_SWITCH);
+    Logger().info('  data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
     final roundNumber = data['round_number'] as int? ?? 1;
     final currentPlayer = data['current_player'];
     final currentPlayerStatus = data['current_player_status']?.toString() ?? 'unknown';
@@ -357,19 +364,52 @@ class RecallEventHandlerCallbacks {
     final drawPileCount = drawPile.length;
     final discardPileCount = discardPile.length;
     
+    // 🎯 CRITICAL: Extract players and find current user's hand
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    final currentUserId = loginState['userId']?.toString() ?? '';
+    Map<String, dynamic>? myPlayer;
+    try {
+      myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
+        (player) => player['id'] == currentUserId,
+      );
+    } catch (e) {
+      myPlayer = null;
+    }
+    
+    Logger().info('🔍 handleGameStateUpdated: Found myPlayer: ${myPlayer != null}', isOn: LOGGING_SWITCH);
+    if (myPlayer != null) {
+      Logger().info('🔍 handleGameStateUpdated: myPlayer hand: ${myPlayer['hand']}', isOn: LOGGING_SWITCH);
+    }
+    
     // Check if game exists in games map, if not add it
     final currentGames = _getCurrentGamesMap();
     if (!currentGames.containsKey(gameId)) {
-      // Add the game to the games map with the complete game state
+      // Add the game to the games map with the complete game state (including owner_id)
       _addGameToMap(gameId, {
         'game_id': gameId,
         'game_state': gameState,
+        'owner_id': ownerId, // Pass owner_id so _isCurrentUserRoomOwner can access it
       });
     } else {
       // Update existing game's game_state
+      Logger().info('🔍 Updating existing game: $gameId', isOn: LOGGING_SWITCH);
       _updateGameData(gameId, {
         'game_state': gameState,
       });
+      
+      // Update owner_id and recalculate isRoomOwner at the top level
+      if (ownerId != null) {
+        final currentUserId = _getCurrentUserId();
+        Logger().info('🔍 Updating owner_id: $ownerId, currentUserId: $currentUserId', isOn: LOGGING_SWITCH);
+        Logger().info('🔍 Setting isRoomOwner: ${ownerId == currentUserId}', isOn: LOGGING_SWITCH);
+        _updateGameInMap(gameId, {
+          'owner_id': ownerId,
+          'isRoomOwner': ownerId == currentUserId,
+        });
+      } else {
+        Logger().info('🔍 ownerId is null, not updating ownership', isOn: LOGGING_SWITCH);
+      }
     }
     
     // Update the main game state with the new information using helper method
@@ -413,11 +453,21 @@ class RecallEventHandlerCallbacks {
     }
     
     // Update the games map with additional information using helper method
-    _updateGameInMap(gameId, {
+    final updateData = {
       'drawPileCount': drawPileCount,
       'discardPileCount': discardPileCount,
       'discardPile': discardPile,
-    });
+      'players': players,  // Include all players data
+    };
+    
+    // 🎯 CRITICAL: If we found the current user's player data, extract their hand
+    if (myPlayer != null) {
+      final myHand = myPlayer['hand'] as List<dynamic>? ?? [];
+      updateData['myHandCards'] = myHand;
+      Logger().info('🔍 handleGameStateUpdated: Setting myHandCards with ${myHand.length} cards', isOn: LOGGING_SWITCH);
+    }
+    
+    _updateGameInMap(gameId, updateData);
     
     // Add session message about game state update
     _addSessionMessage(

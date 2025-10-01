@@ -7,6 +7,8 @@ import 'websocket_manager.dart';
 import '../state_manager.dart';
 import 'websocket_state_validator.dart';
 
+const bool LOGGING_SWITCH = true;
+
 /// WebSocket Event Manager - Centralized event handling for WebSocket operations
 class WSEventManager {
   static final Logger _log = Logger();
@@ -45,12 +47,15 @@ class WSEventManager {
 
   /// Initialize the event manager
   void initialize() {
+    _log.info('🔄 Initializing WebSocket Event Manager', isOn: LOGGING_SWITCH);
     _setupEventListeners();
     _registerWithStateManager();
+    _log.info('✅ WebSocket Event Manager initialized successfully', isOn: LOGGING_SWITCH);
   }
 
   /// Register with StateManager
   void _registerWithStateManager() {
+    _log.debug('🔄 Registering WebSocket state with StateManager', isOn: LOGGING_SWITCH);
     final stateManager = StateManager();
     stateManager.registerModuleState("websocket", {
       "isConnected": _isConnected,
@@ -58,6 +63,7 @@ class WSEventManager {
       "currentRoomInfo": _currentRoomInfo,
       "sessionData": _sessionData,
     });
+    _log.debug('✅ WebSocket state registered with StateManager', isOn: LOGGING_SWITCH);
   }
 
   /// Set up event listeners for all WebSocket events

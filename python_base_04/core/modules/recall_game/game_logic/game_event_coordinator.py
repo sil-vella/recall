@@ -5,13 +5,11 @@ This module handles all WebSocket event coordination for the Recall game,
 including event registration, routing, and handling.
 """
 
-import os
 from typing import Dict, Any, Optional, List
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
-from .dart_services.dart_subprocess_manager import dart_subprocess_manager
 
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class GameEventCoordinator:
@@ -21,233 +19,6 @@ class GameEventCoordinator:
         self.game_state_manager = game_state_manager
         self.websocket_manager = websocket_manager
         self.registered_events = []
-        
-        # Initialize Dart subprocess manager
-        self.dart_manager = dart_subprocess_manager
-        self._initialize_dart_service()
-        
-        # Register hook callbacks for room events
-        self._register_hook_callbacks()
-    
-    def _initialize_dart_service(self):
-        """Initialize the Dart game service subprocess"""
-        try:
-            # Path to the Dart service script (relative to this file)
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            dart_service_path = os.path.join(current_dir, "dart_services", "dart_game_service.dart")
-            
-            if not self.dart_manager.start_dart_service(dart_service_path):
-                custom_log("Failed to start Dart service, falling back to Python logic", isOn=LOGGING_SWITCH)
-            else:
-                custom_log("Dart service initialized successfully", isOn=LOGGING_SWITCH)
-                
-        except Exception as e:
-            custom_log(f"Error initializing Dart service: {e}", isOn=LOGGING_SWITCH)
-    
-    def _register_hook_callbacks(self):
-        """Register hook callbacks for room events to automatically create games"""
-        try:
-            custom_log("Registering hook callbacks for room events...", isOn=LOGGING_SWITCH)
-            
-            # Get app_manager from websocket_manager
-            app_manager = None
-            if self.websocket_manager and hasattr(self.websocket_manager, '_app_manager'):
-                app_manager = self.websocket_manager._app_manager
-            
-            if app_manager and hasattr(app_manager, 'register_hook_callback'):
-                # Register callback for room_created hook
-                app_manager.register_hook_callback('room_created', self._on_room_created)
-                custom_log("Registered room_created hook callback with app_manager", isOn=LOGGING_SWITCH)
-                
-                # Register callback for room_joined hook  
-                app_manager.register_hook_callback('room_joined', self._on_room_joined)
-                custom_log("Registered room_joined hook callback with app_manager", isOn=LOGGING_SWITCH)
-                
-            else:
-                custom_log("WARNING: App manager not found or does not support hook callbacks", isOn=LOGGING_SWITCH)
-                if self.websocket_manager:
-                    custom_log(f"WebSocket manager has _app_manager: {hasattr(self.websocket_manager, '_app_manager')}", isOn=LOGGING_SWITCH)
-                
-        except Exception as e:
-            custom_log(f"Error registering hook callbacks: {e}", isOn=LOGGING_SWITCH)
-    
-    def _on_room_created(self, room_data):
-        """Callback for room_created hook - automatically create game via Dart service"""
-        try:
-            custom_log(f"Room created hook triggered: {room_data}", isOn=LOGGING_SWITCH)
-            
-            room_id = room_data.get('room_id')
-            max_players = room_data.get('max_players', 4)
-            min_players = room_data.get('min_players', 2)
-            
-            if room_id:
-                # Create game via Dart service
-                custom_log(f"Creating game for room {room_id} via Dart service...", isOn=LOGGING_SWITCH)
-                
-                # Create game in Dart service with individual parameters
-                result = self.dart_manager.create_game(
-                    game_id=room_id,
-                    max_players=max_players,
-                    min_players=min_players,
-                    permission=room_data.get('permission', 'public')
-                )
-                if result:
-                    custom_log(f"Game created successfully for room {room_id}", isOn=LOGGING_SWITCH)
-                    
-                    # 🎯 CUTOFF INTEGRATION: Send game state to frontend
-                    self._send_dart_game_state_to_frontend(room_id)
-                else:
-                    custom_log(f"Failed to create game for room {room_id}: {result}", isOn=LOGGING_SWITCH)
-            else:
-                custom_log("ERROR: No room_id in room_created hook data", isOn=LOGGING_SWITCH)
-                
-        except Exception as e:
-            custom_log(f"Error in room_created callback: {e}", isOn=LOGGING_SWITCH)
-    
-    def _on_room_joined(self, room_data):
-        """Callback for room_joined hook - add player to game via Dart service"""
-        try:
-            custom_log(f"Room joined hook triggered: {room_data}", isOn=LOGGING_SWITCH)
-            
-            room_id = room_data.get('room_id')
-            user_id = room_data.get('user_id')
-            
-            if room_id and user_id:
-                # Add player to game via Dart service
-                custom_log(f"Adding player {user_id} to game {room_id} via Dart service...", isOn=LOGGING_SWITCH)
-                
-                # Generate a player name from user_id (or get from session data if available)
-                player_name = f"Player_{user_id[:8]}"  # Use first 8 chars of user_id as name
-                
-                result = self.dart_manager.join_game(
-                    game_id=room_id,
-                    player_id=user_id,
-                    player_name=player_name,
-                    player_type='human'
-                )
-                if result:
-                    custom_log(f"Player {user_id} added to game {room_id} successfully", isOn=LOGGING_SWITCH)
-                    
-                    # 🎯 CUTOFF INTEGRATION: Send updated game state to frontend
-                    self._send_dart_game_state_to_frontend(room_id)
-                else:
-                    custom_log(f"Failed to add player {user_id} to game {room_id}: {result}", isOn=LOGGING_SWITCH)
-            else:
-                custom_log("ERROR: Missing room_id or user_id in room_joined hook data", isOn=LOGGING_SWITCH)
-                
-        except Exception as e:
-            custom_log(f"Error in room_joined callback: {e}", isOn=LOGGING_SWITCH)
-    
-    def _send_dart_game_state_to_frontend(self, game_id: str):
-        """🎯 CUTOFF INTEGRATION: Get game state from Dart and send to frontend"""
-        try:
-            custom_log(f"Sending Dart game state to frontend for game {game_id}", isOn=LOGGING_SWITCH)
-            
-            # Get game state from Dart service
-            dart_response = self.dart_manager.get_game_state(game_id)
-            if not dart_response or not dart_response.get('success'):
-                custom_log(f"Failed to get game state from Dart for game {game_id}", isOn=LOGGING_SWITCH)
-                return
-            
-            game_state_data = dart_response.get('data', {}).get('game_state', {})
-            if not game_state_data:
-                custom_log(f"No game state data received from Dart for game {game_id}", isOn=LOGGING_SWITCH)
-                return
-            
-            # Convert Dart game state to Flutter format (similar to old _to_flutter_game_data)
-            flutter_game_data = self._convert_dart_to_flutter_format(game_state_data)
-            
-            # Send game state update to all players in the room
-            payload = {
-                'event_type': 'game_state_updated',
-                'game_id': game_id,
-                'game_state': flutter_game_data,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            # Use existing WebSocket broadcast method
-            self._send_to_all_players(game_id, 'game_state_updated', payload)
-            custom_log(f"Game state update sent to frontend for game {game_id}", isOn=LOGGING_SWITCH)
-            
-        except Exception as e:
-            custom_log(f"Error sending Dart game state to frontend: {e}", isOn=LOGGING_SWITCH)
-    
-    def _convert_dart_to_flutter_format(self, dart_game_state: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert Dart game state format to Flutter expected format"""
-        try:
-            # Phase mapping from Dart camelCase to Flutter snake_case
-            phase_mapping = {
-                'waitingForPlayers': 'waiting_for_players',
-                'dealingCards': 'dealing_cards',
-                'playerTurn': 'player_turn',
-                'sameRankWindow': 'same_rank_window',
-                'specialPlayWindow': 'special_play_window',
-                'queenPeekWindow': 'queen_peek_window',
-                'turnPendingEvents': 'turn_pending_events',
-                'endingRound': 'ending_round',
-                'endingTurn': 'ending_turn',
-                'recallCalled': 'recall_called',
-                'gameEnded': 'game_ended',
-                'waiting': 'waiting',
-                'setup': 'setup',
-                'playing': 'playing',
-                'outOfTurn': 'out_of_turn',
-                'recall': 'recall',
-                'finished': 'finished'
-            }
-            
-            # Extract players and convert to Flutter format
-            players_data = []
-            dart_players = dart_game_state.get('players', {})
-            for player_id, player_data in dart_players.items():
-                flutter_player = {
-                    'playerId': player_id,
-                    'name': player_data.get('name', f'Player_{player_id[:8]}'),
-                    'playerType': player_data.get('player_type', 'human'),
-                    'hand': player_data.get('hand', []),
-                    'visibleCards': player_data.get('visible_cards', []),
-                    'points': player_data.get('points', 0),
-                    'cardsRemaining': player_data.get('cards_remaining', 4),
-                    'isActive': player_data.get('is_active', True),
-                    'status': player_data.get('status', 'waiting'),
-                    'hasCalledRecall': player_data.get('has_called_recall', False)
-                }
-                players_data.append(flutter_player)
-            
-            # Build Flutter game data structure
-            flutter_data = {
-                'gameId': dart_game_state.get('game_id'),
-                'gameName': f"Recall Game {dart_game_state.get('game_id')}",
-                'players': players_data,
-                'currentPlayer': None,  # Will be set based on current_player_id
-                'playerCount': len(players_data),
-                'maxPlayers': dart_game_state.get('max_players', 4),
-                'minPlayers': dart_game_state.get('min_players', 2),
-                'activePlayerCount': len([p for p in players_data if p.get('isActive', True)]),
-                'phase': phase_mapping.get(dart_game_state.get('phase', 'waitingForPlayers'), 'waiting_for_players'),
-                'status': 'active' if dart_game_state.get('phase') in ['player_turn', 'same_rank_window'] else 'inactive',
-                'drawPile': dart_game_state.get('draw_pile', []),
-                'discardPile': dart_game_state.get('discard_pile', []),
-                'gameStartTime': dart_game_state.get('game_start_time'),
-                'lastActivityTime': dart_game_state.get('last_action_time'),
-                'winner': dart_game_state.get('winner'),
-                'gameEnded': dart_game_state.get('game_ended', False),
-                'permission': dart_game_state.get('permission', 'public')
-            }
-            
-            # Set current player if available
-            current_player_id = dart_game_state.get('current_player_id')
-            if current_player_id and current_player_id in dart_players:
-                flutter_data['currentPlayer'] = next(
-                    (p for p in players_data if p['playerId'] == current_player_id), 
-                    None
-                )
-            
-            return flutter_data
-            
-        except Exception as e:
-            custom_log(f"Error converting Dart to Flutter format: {e}", isOn=LOGGING_SWITCH)
-            return {}
         
     def register_game_event_listeners(self):
         """Register WebSocket event listeners for Recall game events"""
@@ -293,7 +64,7 @@ class GameEventCoordinator:
             custom_log("Handling game event event_name: " + event_name + " data: " + str(data), isOn=LOGGING_SWITCH)
             # Route to appropriate game state manager method
             if event_name == 'start_match':
-                return self._handle_start_match(session_id, data)
+                return self.game_state_manager.on_start_match(session_id, data)
             if event_name == 'completed_initial_peek':
                 return self.game_state_manager.on_completed_initial_peek(session_id, data)
             elif event_name == 'draw_card':
@@ -335,28 +106,14 @@ class GameEventCoordinator:
             return False
     
     def _handle_player_action_through_round(self, session_id: str, data: dict) -> bool:
-        """Handle player actions through the Dart service or fallback to Python"""
+        """Handle player actions through the game round"""
         try:
             game_id = data.get('game_id') or data.get('room_id')
             custom_log("Handling player action through round game_id: " + game_id + " data: " + str(data), isOn=LOGGING_SWITCH)
             if not game_id:
                 return False
             
-            # Try to use Dart service first
-            if self.dart_manager.is_service_running():
-                custom_log("Using Dart service for player action", isOn=LOGGING_SWITCH)
-                action = data.get('action', '')
-                
-                # Send action to Dart service
-                success = self.dart_manager.player_action(game_id, session_id, action, data)
-                if success:
-                    custom_log("Action sent to Dart service successfully", isOn=LOGGING_SWITCH)
-                    return True
-                else:
-                    custom_log("Failed to send action to Dart service, falling back to Python", isOn=LOGGING_SWITCH)
-            
-            # Fallback to Python logic
-            custom_log("Using Python logic for player action", isOn=LOGGING_SWITCH)
+            # Get the game from the game state manager
             game = self.game_state_manager.get_game(game_id)
             if not game:
                 return False
@@ -373,32 +130,6 @@ class GameEventCoordinator:
             return action_result
             
         except Exception as e:
-            custom_log(f"Error in _handle_player_action_through_round: {e}", isOn=LOGGING_SWITCH)
-            return False
-    
-    def _handle_start_match(self, session_id: str, data: dict) -> bool:
-        """Handle start match event - create game in Dart service and Python"""
-        try:
-            game_id = data.get('game_id') or data.get('room_id')
-            if not game_id:
-                return False
-            
-            # Create game in Dart service
-            if self.dart_manager.is_service_running():
-                success = self.dart_manager.create_game(
-                    game_id=game_id,
-                    max_players=data.get('max_players', 4),
-                    min_players=data.get('min_players', 2),
-                    permission=data.get('permission', 'public')
-                )
-                if success:
-                    custom_log(f"Game {game_id} created in Dart service", isOn=LOGGING_SWITCH)
-            
-            # Also create in Python for fallback
-            return self.game_state_manager.on_start_match(session_id, data)
-            
-        except Exception as e:
-            custom_log(f"Error in _handle_start_match: {e}", isOn=LOGGING_SWITCH)
             return False
     
     # ========= COMMUNICATION METHODS =========

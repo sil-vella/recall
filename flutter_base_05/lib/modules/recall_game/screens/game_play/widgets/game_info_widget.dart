@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import 'game_phase_chip_widget.dart';
 import '../../../managers/game_coordinator.dart';
+import '../../../../../tools/logging/logger.dart';
 
 /// Widget to display current game information
 /// 
@@ -12,6 +13,8 @@ import '../../../managers/game_coordinator.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class GameInfoWidget extends StatelessWidget {
+  static const bool LOGGING_SWITCH = false; // Enable logging for debugging start button
+  
   const GameInfoWidget({Key? key}) : super(key: key);
 
   @override
@@ -31,6 +34,16 @@ class GameInfoWidget extends StatelessWidget {
         final gameStatus = gameInfo['gameStatus']?.toString() ?? 'inactive';
         final isRoomOwner = gameInfo['isRoomOwner'] ?? false;
         final isInGame = gameInfo['isInGame'] ?? false;
+        
+        // 🔍 DEBUG: Log the values that determine start button visibility
+        Logger().info('🔍 GameInfoWidget DEBUG:', isOn: LOGGING_SWITCH);
+        Logger().info('  currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
+        Logger().info('  gamePhase: $gamePhase', isOn: LOGGING_SWITCH);
+        Logger().info('  isRoomOwner: $isRoomOwner', isOn: LOGGING_SWITCH);
+        Logger().info('  isInGame: $isInGame', isOn: LOGGING_SWITCH);
+        Logger().info('  Start button condition: isRoomOwner($isRoomOwner) && gamePhase($gamePhase) == "waiting"', isOn: LOGGING_SWITCH);
+        Logger().info('  Should show start button: ${isRoomOwner && gamePhase == 'waiting'}', isOn: LOGGING_SWITCH);
+        Logger().info('  Full gameInfo: $gameInfo', isOn: LOGGING_SWITCH);
         
         // Get additional game state for context
         final isGameActive = recallGameState['isGameActive'] ?? false;

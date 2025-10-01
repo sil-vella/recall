@@ -9,7 +9,7 @@ from utils.config.config import Config
 from tools.logger.custom_logging import custom_log
 
 # Test logging control
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 # Clear Python's import cache to prevent stale imports
 importlib.invalidate_caches()

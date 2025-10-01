@@ -5,7 +5,7 @@
 
 import 'package:recall/tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class GameEventCoordinator {
   /// Coordinates all WebSocket events for the Recall game

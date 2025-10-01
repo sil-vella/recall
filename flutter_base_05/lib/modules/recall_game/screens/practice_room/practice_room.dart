@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
+import '../../../../core/managers/navigation_manager.dart';
+import '../../../../tools/logging/logger.dart';
+import '../../game_logic/practice_game.dart';
 
 class PracticeScreen extends BaseScreen {
   const PracticeScreen({Key? key}) : super(key: key);
@@ -15,6 +18,7 @@ class PracticeScreen extends BaseScreen {
 
 class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   final WebSocketManager _websocketManager = WebSocketManager.instance;
+  late final PracticeGameCoordinator _practiceCoordinator;
   
   // Form controllers and values
   final _formKey = GlobalKey<FormState>();
@@ -30,6 +34,9 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Initialize practice coordinator
+    _practiceCoordinator = PracticeGameCoordinator();
     
     _initializeWebSocket().then((_) {
       _setupEventCallbacks();
@@ -66,6 +73,9 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   
   @override
   void dispose() {
+    // Clean up practice coordinator
+    _practiceCoordinator.dispose();
+    
     // Clean up event callbacks - now handled by WSEventManager
     super.dispose();
   }
@@ -85,12 +95,60 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
       // Show loading message
       _showSnackBar('Starting practice game...', isError: false);
       
-
+      // Create practice session data
+      final sessionId = 'practice_${DateTime.now().millisecondsSinceEpoch}';
+      final practiceData = {
+        'sessionId': sessionId,
+        'numberOfOpponents': _numberOfOpponents,
+        'difficultyLevel': _difficultyLevel,
+        'turnTimer': _turnTimer,
+        'gameMode': 'practice',
+        'timestamp': DateTime.now().toIso8601String(),
+      };
       
-      // Success message will be shown by the practice manager
+      // Use practice coordinator to handle start match
+      final success = _practiceCoordinator.handlePracticeEvent(
+        sessionId, 
+        'start_match', 
+        practiceData
+      );
+      
+      if (success) {
+        _showSnackBar('Practice game started successfully!', isError: false);
+
+        // Navigate to game play screen
+        _navigateToGamePlay();
+      } else {
+        _showSnackBar('Failed to start practice game', isError: true);
+      }
       
     } catch (e) {
       if (mounted) _showSnackBar('Failed to start practice game: $e', isError: true);
+    }
+  }
+
+  /// Navigate to game play screen for practice game
+  void _navigateToGamePlay() {
+    try {
+      Logger().info('Practice: Starting navigation to game play screen', isOn: LOGGING_SWITCH);
+      
+      // Check if practice game is active
+      if (_practiceCoordinator.isPracticeGameActive) {
+        Logger().info('Practice: Practice game is active, proceeding with navigation', isOn: LOGGING_SWITCH);
+        Logger().info('Practice: Current practice game ID: ${_practiceCoordinator.currentPracticeGameId}', isOn: LOGGING_SWITCH);
+      } else {
+        Logger().warning('Practice: No active practice game found', isOn: LOGGING_SWITCH);
+      }
+      
+      // Use NavigationManager to navigate to game play screen
+      NavigationManager().navigateTo('/recall/game-play');
+      
+      Logger().info('Practice: Navigation command sent to NavigationManager', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      Logger().error('Practice: Failed to navigate to game play: $e', isOn: LOGGING_SWITCH);
+      if (mounted) {
+        _showSnackBar('Failed to navigate to game: $e', isError: true);
+      }
     }
   }
 
@@ -288,6 +346,61 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
               ),
             ),
             const SizedBox(height: 24),
+            
+            // Practice Events Debug Card
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.list_alt,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Available Practice Events',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Registered Events: ${_practiceCoordinator.getEventCount()}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: _practiceCoordinator.getRegisteredEvents().map((event) {
+                        return Chip(
+                          label: Text(
+                            event,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                          labelStyle: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             
             // Game Info Card
             Card(

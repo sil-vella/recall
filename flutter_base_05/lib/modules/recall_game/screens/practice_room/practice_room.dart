@@ -73,8 +73,10 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   
   @override
   void dispose() {
-    // Clean up practice coordinator
-    _practiceCoordinator.dispose();
+    // Don't dispose practice coordinator when navigating to game play
+    // The practice game should continue in the game play screen
+    // The coordinator will be disposed when the practice game actually ends
+    // or when the app is closed
     
     // Clean up event callbacks - now handled by WSEventManager
     super.dispose();

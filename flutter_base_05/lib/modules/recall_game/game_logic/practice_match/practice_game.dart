@@ -1302,6 +1302,14 @@ Choose a card to play to the discard pile:
       
       Logger().info('Practice: Initial peek phase started for ${allPlayers.length} players', isOn: LOGGING_SWITCH);
       
+      // Update global state to reflect initial peek phase
+      _updatePracticeGameState({
+        'gamePhase': 'initial_peek',
+        'playerStatus': 'initial_peek',
+        'isGameActive': true,
+        'gameStatus': 'active',
+      });
+      
       // Show initial peek instructions if enabled
       showContextualInstructions();
       
@@ -1335,10 +1343,15 @@ Choose a card to play to the discard pile:
       // Initialize round manager for actual gameplay
       _initializeGameRound(allPlayers);
       
-      Logger().info('Practice: Game transitioned to player turn phase', isOn: LOGGING_SWITCH);
+      // Update global state to reflect player turn phase
+      _updatePracticeGameState({
+        'gamePhase': 'player_turn',
+        'playerStatus': 'waiting',
+        'isGameActive': true,
+        'gameStatus': 'active',
+      });
       
-      // Show game start message
-      _showGameStartMessage();
+      Logger().info('Practice: Game transitioned to player turn phase', isOn: LOGGING_SWITCH);
       
     } catch (e) {
       Logger().error('Practice: Failed to handle initial peek timeout: $e', isOn: LOGGING_SWITCH);
@@ -1454,35 +1467,6 @@ Good luck!''';
     }
   }
   
-  /// Show game start message
-  void _showGameStartMessage() {
-    const title = 'Game Started!';
-    const content = '''Welcome to Recall! Here's how to play:
-
-🎯 OBJECTIVE
-Finish with no cards OR have the fewest points when someone calls "Recall".
-
-🃏 CARD VALUES
-• Numbered cards (2-10): Points equal to card number
-• Ace: 1 point
-• Queens & Jacks: 10 points
-• Kings (Black): 10 points
-• Joker & Red King: 0 points
-
-🎮 YOUR TURN
-1. Draw a card from the draw pile or discard pile
-2. Play a card to the discard pile or keep it in your hand
-3. Try to get rid of high-value cards!
-
-💡 TIPS
-• Watch what others discard
-• Remember cards you've seen
-• Call "Recall" when you think you can win!
-
-Good luck!''';
-    
-    showMessage(title, content, type: 'success', autoClose: false);
-  }
   
   /// Transition game to player turn phase
   void _transitionToPlayerTurn() {

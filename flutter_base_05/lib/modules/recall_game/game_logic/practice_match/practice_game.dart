@@ -3,24 +3,295 @@
 /// This class provides a simplified game coordinator for practice sessions,
 /// allowing players to learn the game mechanics without full WebSocket integration.
 
+import 'dart:async';
 import 'package:recall/tools/logging/logger.dart';
-import '../../../core/managers/state_manager.dart';
-import '../utils/field_specifications.dart';
-import 'models/player.dart';
-import 'models/card.dart';
-import 'utils/deck_factory.dart';
+import '../../../../core/managers/state_manager.dart';
+import '../../utils/field_specifications.dart';
+import '../models/player.dart';
+import '../models/card.dart';
+import '../utils/deck_factory.dart';
+import 'practice_game_round.dart';
 
 const bool LOGGING_SWITCH = true;
 
 class PracticeGameCoordinator {
   /// Coordinates practice game sessions for the Recall game
   
-  late final dynamic gameStateManager;
+  static PracticeGameCoordinator? _instance;
+  static PracticeGameCoordinator get instance {
+    _instance ??= PracticeGameCoordinator._internal();
+    // Initialize events if not already done
+    if (_instance!.registeredEvents.isEmpty) {
+      _instance!._initializeGameEvents();
+    }
+    return _instance!;
+  }
+  
+  PracticeGameCoordinator._internal();
+  
+  dynamic gameStateManager;
   final StateManager _stateManager = StateManager();
   List<String> registeredEvents = [];
   String? _currentPracticeGameId;
   List<Player> _aiPlayers = [];
   
+  // Timer management for initial peek phase
+  Timer? _initialPeekTimer;
+  static const int _initialPeekDurationSeconds = 10;
+  
+  // Round management
+  PracticeGameRound? _gameRound;
+  int _turnTimerSeconds = 30; // User's choice from practice room
+  bool _instructionsEnabled = true; // User's choice from practice room
+  
+  // Instruction mappings
+  static const Map<String, Map<String, String>> _gamePhaseInstructions = {
+    'initial_peek': {
+      'title': 'Initial Peek Phase',
+      'content': '''🔍 INITIAL PEEK PHASE
+
+You have 10 seconds to look at 2 of your 4 cards!
+
+🎯 WHAT TO DO:
+• Tap any 2 cards to peek at them
+• Choose the cards you want to see
+• You can't change your selection once made
+• After 10 seconds, the game will start automatically
+
+💡 STRATEGY TIPS:
+• Look at your highest value cards first
+• Check for special cards (Queens, Jacks, Kings)
+• Remember what you see for later turns
+
+⏰ TIMER: 10 seconds remaining...''',
+    },
+    'player_turn': {
+      'title': 'Your Turn!',
+      'content': '''🎮 YOUR TURN
+
+It's your turn to play! Here's what you can do:
+
+🃏 DRAW A CARD:
+• Tap the draw pile to draw a face-down card
+• Tap the discard pile to take the top card (others can see what you took)
+
+🎯 PLAY A CARD:
+• Tap a card in your hand to play it
+• Try to get rid of high-value cards
+• Watch what others discard
+
+💡 STRATEGY:
+• Get rid of high-value cards first
+• Remember cards you've seen
+• Watch opponent patterns
+
+⏰ TIME LIMIT: [TIMER]''',
+    },
+  };
+  
+  static const Map<String, Map<String, String>> _playerStatusInstructions = {
+    'initial_peek': {
+      'title': 'Initial Peek - Choose Your Cards',
+      'content': '''🔍 PEEK AT YOUR CARDS
+
+You have 10 seconds to look at 2 of your 4 cards!
+
+🎯 HOW TO PEEK:
+• Tap any 2 cards in your hand
+• The cards will flip to show their values
+• Choose wisely - you can't change your selection
+
+💡 WHAT TO LOOK FOR:
+• High-value cards (10+ points) to avoid
+• Special cards (Queens, Jacks, Kings) for powers
+• Low-value cards (Aces, 2s, 3s) to keep
+
+⏰ HURRY! Timer is running...''',
+    },
+    'drawing_card': {
+      'title': 'Draw a Card',
+      'content': '''🃏 DRAW A CARD
+
+Choose where to draw from:
+
+📦 DRAW PILE (Face Down):
+• Draw a random card from the deck
+• No one knows what you got
+• Safe but unpredictable
+
+🗑️ DISCARD PILE (Face Up):
+• Take the top card everyone can see
+• You know exactly what you're getting
+• Others can see what you took
+
+💡 STRATEGY:
+• Draw pile: When you want surprise cards
+• Discard pile: When you see a good card you want
+
+⏰ Choose quickly!''',
+    },
+    'playing_card': {
+      'title': 'Play a Card',
+      'content': '''🎯 PLAY A CARD
+
+Choose a card to play to the discard pile:
+
+🃏 CARD SELECTION:
+• Tap any card in your hand to play it
+• The card will go to the discard pile
+• Other players can see what you played
+
+💡 STRATEGY:
+• Get rid of high-value cards first
+• Keep low-value cards for later
+• Watch what others are discarding
+
+🎮 SPECIAL CARDS:
+• Queens: Let you peek at opponent's cards
+• Jacks: Let you swap cards with opponents
+• Use them strategically!
+
+⏰ Make your choice!''',
+    },
+  };
+  
+  /// Show instructions modal with given title and content
+  void showInstructions(String title, String content) {
+    try {
+      if (!_instructionsEnabled) {
+        Logger().info('Practice: Instructions disabled, not showing: $title', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      Logger().info('Practice: Showing instructions - $title', isOn: LOGGING_SWITCH);
+      
+      _stateManager.updateModuleState('recall_game', {
+        'instructions': {
+          'isVisible': true,
+          'title': title,
+          'content': content,
+        },
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to show instructions: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Hide instructions modal
+  void hideInstructions() {
+    try {
+      Logger().info('Practice: Hiding instructions modal', isOn: LOGGING_SWITCH);
+      
+      _stateManager.updateModuleState('recall_game', {
+        'instructions': {
+          'isVisible': false,
+          'title': '',
+          'content': '',
+        },
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to hide instructions: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Show message modal with given parameters
+  void showMessage(String title, String content, {
+    String type = 'info',
+    bool showCloseButton = true,
+    bool autoClose = false,
+    int autoCloseDelay = 3000,
+  }) {
+    try {
+      Logger().info('Practice: Showing message - $title', isOn: LOGGING_SWITCH);
+      
+      _stateManager.updateModuleState('recall_game', {
+        'messages': {
+          'isVisible': true,
+          'title': title,
+          'content': content,
+          'type': type,
+          'showCloseButton': showCloseButton,
+          'autoClose': autoClose,
+          'autoCloseDelay': autoCloseDelay,
+        },
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to show message: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Hide message modal
+  void hideMessage() {
+    try {
+      Logger().info('Practice: Hiding message modal', isOn: LOGGING_SWITCH);
+      
+      _stateManager.updateModuleState('recall_game', {
+        'messages': {
+          'isVisible': false,
+          'title': '',
+          'content': '',
+          'type': 'info',
+          'showCloseButton': true,
+          'autoClose': false,
+          'autoCloseDelay': 3000,
+        },
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to hide message: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Show instructions based on current game phase and player status
+  void showContextualInstructions() {
+    try {
+      if (!_instructionsEnabled) {
+        Logger().info('Practice: Instructions disabled, not showing contextual instructions', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Get current game state
+      final recallGameState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
+      final gamePhase = gameInfo['gamePhase']?.toString() ?? '';
+      final playerStatus = recallGameState['playerStatus']?.toString() ?? '';
+      
+      Logger().info('Practice: Checking contextual instructions - gamePhase: $gamePhase, playerStatus: $playerStatus', isOn: LOGGING_SWITCH);
+      
+      // Try player status instructions first (more specific)
+      if (playerStatus.isNotEmpty && _playerStatusInstructions.containsKey(playerStatus)) {
+        final instruction = _playerStatusInstructions[playerStatus]!;
+        final timerText = _turnTimerSeconds == 0 ? "No time limit" : "${_turnTimerSeconds} seconds";
+        final content = instruction['content']!.replaceAll('[TIMER]', timerText);
+        Logger().info('Practice: Showing player status instructions for: $playerStatus', isOn: LOGGING_SWITCH);
+        showInstructions(instruction['title']!, content);
+        return;
+      }
+      
+      // Fall back to game phase instructions
+      if (gamePhase.isNotEmpty && _gamePhaseInstructions.containsKey(gamePhase)) {
+        final instruction = _gamePhaseInstructions[gamePhase]!;
+        final timerText = _turnTimerSeconds == 0 ? "No time limit" : "${_turnTimerSeconds} seconds";
+        final content = instruction['content']!.replaceAll('[TIMER]', timerText);
+        Logger().info('Practice: Showing game phase instructions for: $gamePhase', isOn: LOGGING_SWITCH);
+        showInstructions(instruction['title']!, content);
+        return;
+      }
+      
+      Logger().info('Practice: No contextual instructions found for gamePhase: $gamePhase, playerStatus: $playerStatus', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to show contextual instructions: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
   /// Practice game state schema for validation
   static const Map<String, RecallStateFieldSpec> _practiceStateSchema = {
     // Practice Game Context
@@ -106,11 +377,6 @@ class PracticeGameCoordinator {
     ),
   };
   
-  /// Constructor
-  PracticeGameCoordinator({dynamic gameStateManager}) {
-    this.gameStateManager = gameStateManager;
-    _initializeGameEvents();
-  }
   
   /// Initialize all game events for practice sessions
   void _initializeGameEvents() {
@@ -387,8 +653,12 @@ class PracticeGameCoordinator {
       // Extract practice game settings
       final numberOfOpponents = data['numberOfOpponents'] ?? 3;
       final difficultyLevel = data['difficultyLevel'] ?? 'medium';
+      final turnTimerValue = data['turnTimer'];
+      _turnTimerSeconds = turnTimerValue ?? 0; // 0 means "Off" (no timer)
+      _instructionsEnabled = data['instructionsEnabled'] ?? true;
       
-      Logger().info('Practice: Starting match with $numberOfOpponents AI opponents (difficulty: $difficultyLevel)', isOn: LOGGING_SWITCH);
+      final timerText = _turnTimerSeconds == 0 ? "Off" : "${_turnTimerSeconds}s";
+      Logger().info('Practice: Starting match with $numberOfOpponents AI opponents (difficulty: $difficultyLevel, turn timer: $timerText, instructions: ${_instructionsEnabled ? "enabled" : "disabled"})', isOn: LOGGING_SWITCH);
       
       // ========= PHASE 1: CREATE DECK =========
       Logger().info('Practice: Phase 1 - Creating deck', isOn: LOGGING_SWITCH);
@@ -434,23 +704,24 @@ class PracticeGameCoordinator {
       Logger().info('Practice: Phase 7 - Updating player status', isOn: LOGGING_SWITCH);
       _updateAllPlayersStatus(allPlayers);
       
-      // ========= PHASE 8: START INITIAL PEEK =========
-      Logger().info('Practice: Phase 8 - Starting initial peek phase', isOn: LOGGING_SWITCH);
-      _startInitialPeekPhase(allPlayers);
-      
-      // ========= PHASE 9: CREATE GAME STATE =========
-      Logger().info('Practice: Phase 9 - Creating game state', isOn: LOGGING_SWITCH);
+      // ========= PHASE 8: CREATE GAME STATE (NO AUTO-START) =========
+      Logger().info('Practice: Phase 8 - Creating game state (waiting for start match button)', isOn: LOGGING_SWITCH);
       final practiceGameState = _createPracticeGameStateWithPlayersAndDeck(data, allPlayers, pilesData);
       
-      // ========= PHASE 10: UPDATE GLOBAL STATE =========
-      Logger().info('Practice: Phase 10 - Updating global state', isOn: LOGGING_SWITCH);
+      // ========= PHASE 9: UPDATE GLOBAL STATE =========
+      Logger().info('Practice: Phase 9 - Updating global state', isOn: LOGGING_SWITCH);
       _updatePracticeGameState(practiceGameState);
       
-      // Call game state manager if available
+      // ========= PHASE 10: SHOW MATCH READY MESSAGE =========
+      Logger().info('Practice: Phase 10 - Showing match ready message', isOn: LOGGING_SWITCH);
+      _showMatchReadyMessage();
+      
+      // Call game state manager if available (optional for practice games)
       final gameStateResult = gameStateManager?.onStartMatch(sessionId, data) ?? true;
       
-      Logger().info('Practice: Match started successfully with ID $_currentPracticeGameId', isOn: LOGGING_SWITCH);
-      Logger().info('Practice: Game setup complete - ${allPlayers.length} players, ${pilesData['drawPileCount']} cards in draw pile', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Match setup complete with ID $_currentPracticeGameId', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Game ready - ${allPlayers.length} players, ${pilesData['drawPileCount']} cards in draw pile', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Waiting for start match button to begin game', isOn: LOGGING_SWITCH);
       return gameStateResult;
       
     } catch (e) {
@@ -518,7 +789,8 @@ class PracticeGameCoordinator {
   
   bool _handleCompletedInitialPeek(String sessionId, Map<String, dynamic> data) {
     Logger().info('Practice: Completed initial peek for session $sessionId', isOn: LOGGING_SWITCH);
-    return gameStateManager?.onCompletedInitialPeek(sessionId, data) ?? false;
+    // For practice games, we handle this internally, no need for external game state manager
+    return true;
   }
   
   /// Handle player actions through game round (common pattern)
@@ -548,15 +820,16 @@ class PracticeGameCoordinator {
     return {
       'gameId': gameId,
       'gameType': 'practice',
-      'phase': 'initial_peek', // Start in initial peek phase
-      'gamePhase': 'initial_peek',
-      'isGameActive': true,
+      'phase': 'waiting', // Start in waiting phase (before start match button)
+      'gamePhase': 'waiting',
+      'isGameActive': false, // Not active until start match is pressed
       'isPracticeMode': true,
-      'currentPlayer': null, // No current player during initial peek
+      'currentPlayer': null, // No current player during waiting
       'players': playersFlutter,
       'gameData': {
         'game_state': {
           'game_id': gameId,
+          'gameType': 'practice', // Add gameType to game_state for RecallGameStateAccessor
           'phase': 'initial_peek',
           'current_player_id': null,
           'players': playersFlutter,
@@ -579,6 +852,7 @@ class PracticeGameCoordinator {
           'game_type': 'practice',
           'turn_time_limit': data['turnTimer'] ?? 30,
           'difficulty_level': data['difficultyLevel'] ?? 'medium',
+          'instructions_enabled': data['instructionsEnabled'] ?? true,
         },
         'session_info': {
           'session_id': data['sessionId'] ?? '',
@@ -622,22 +896,22 @@ class PracticeGameCoordinator {
         'currentGameId': _currentPracticeGameId,
         'isInRoom': true,
         'currentRoomId': _currentPracticeGameId,
-        'gamePhase': 'initial_peek',
-        'isGameActive': true,
+        'gamePhase': 'waiting',
+        'isGameActive': false,
         'isInGame': true,
         'isMyTurn': false,
-        'playerStatus': 'initial_peek',
-        'gameInfo': {
-          'currentGameId': _currentPracticeGameId,
-          'currentSize': players.length,
-          'maxSize': players.length,
-          'gamePhase': 'initial_peek',
-          'gameStatus': 'active',
-          'isRoomOwner': true, // Practice game user is always the owner
-          'isInGame': true,
-        },
+        'playerStatus': 'waiting',
+          'gameInfo': {
+            'currentGameId': _currentPracticeGameId,
+            'currentSize': players.length,
+            'maxSize': players.length,
+            'gamePhase': 'waiting',
+            'gameStatus': 'inactive',
+            'isRoomOwner': true, // Practice game user is always the owner
+            'isInGame': true,
+          },
         'myHand': {
-          'cards': humanPlayer?['hand'] as List<dynamic>? ?? <Map<String, dynamic>>[],
+          'cards': humanPlayer['hand'] as List<dynamic>? ?? <Map<String, dynamic>>[],
           'selectedIndex': -1,
           'selectedCard': null,
         },
@@ -812,7 +1086,7 @@ class PracticeGameCoordinator {
           'isGameActive': validatedGame['isGameActive'] ?? false,
           'isInGame': true,
           'isMyTurn': false,
-          'playerStatus': validatedGame['gamePhase'] ?? 'initial_peek',
+          'playerStatus': validatedGame['gamePhase'] ?? 'waiting',
           'gameInfo': {
             'currentGameId': _currentPracticeGameId,
             'currentSize': players.length,
@@ -823,7 +1097,7 @@ class PracticeGameCoordinator {
             'isInGame': true,
           },
           'myHand': {
-            'cards': humanPlayer?['hand'] as List<dynamic>? ?? <Map<String, dynamic>>[],
+            'cards': humanPlayer['hand'] as List<dynamic>? ?? <Map<String, dynamic>>[],
             'selectedIndex': -1,
             'selectedCard': null,
           },
@@ -1016,7 +1290,7 @@ class PracticeGameCoordinator {
     }
   }
   
-  /// Start initial peek phase (10-second timer simulation)
+  /// Start initial peek phase with 10-second timer (matching backend behavior)
   void _startInitialPeekPhase(List<Player> allPlayers) {
     try {
       // Set all players to INITIAL_PEEK status
@@ -1028,11 +1302,281 @@ class PracticeGameCoordinator {
       
       Logger().info('Practice: Initial peek phase started for ${allPlayers.length} players', isOn: LOGGING_SWITCH);
       
-      // In a real game, this would start a 10-second timer
-      // For practice, we'll simulate this phase
+      // Show initial peek instructions if enabled
+      showContextualInstructions();
+      
+      // Start 10-second timer (matching backend behavior)
+      _initialPeekTimer?.cancel(); // Cancel any existing timer
+      _initialPeekTimer = Timer(Duration(seconds: _initialPeekDurationSeconds), () {
+        _onInitialPeekTimeout(allPlayers);
+      });
+      
+      Logger().info('Practice: Initial peek timer started - $_initialPeekDurationSeconds seconds until game begins', isOn: LOGGING_SWITCH);
       Logger().info('Practice: Initial peek phase - players can look at 2 of their 4 cards', isOn: LOGGING_SWITCH);
     } catch (e) {
       Logger().error('Practice: Failed to start initial peek phase: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Handle initial peek timeout - transition to game start (matching backend behavior)
+  void _onInitialPeekTimeout(List<Player> allPlayers) {
+    try {
+      Logger().info('Practice: Initial peek timer expired - transitioning to game start', isOn: LOGGING_SWITCH);
+      
+      // Set all players back to WAITING status (matching backend)
+      for (final player in allPlayers) {
+        player.status = PlayerStatus.waiting;
+        Logger().info('Practice: Set ${player.name} back to WAITING status', isOn: LOGGING_SWITCH);
+      }
+      
+      // Update game phase to player_turn (matching backend)
+      _transitionToPlayerTurn();
+      
+      // Initialize round manager for actual gameplay
+      _initializeGameRound(allPlayers);
+      
+      Logger().info('Practice: Game transitioned to player turn phase', isOn: LOGGING_SWITCH);
+      
+      // Show game start instructions if enabled
+      _showGameStartInstructions();
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to handle initial peek timeout: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Show match ready message
+  void _showMatchReadyMessage() {
+    const title = 'Match Ready!';
+    const content = '''Your practice match is set up and ready to begin!
+
+👥 PLAYERS
+• You (Human Player)
+• AI Opponents ready to play
+
+🎮 READY TO START
+• All players are in position
+• Cards have been dealt
+• Game board is prepared
+
+🚀 NEXT STEP
+Click the "Start Match" button to begin the game!
+
+Good luck!''';
+    
+    showMessage(title, content, type: 'success', autoClose: false);
+  }
+  
+  /// Start the actual game (called when start match button is pressed)
+  void startGame() {
+    try {
+      // Get current practice game ID from state instead of instance variable
+      final recallGameState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGameId = recallGameState['currentGameId']?.toString();
+      
+      if (currentGameId == null || currentGameId.isEmpty) {
+        Logger().error('Practice: Cannot start game - no active practice game found in state', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      Logger().info('Practice: Starting actual game for practice game $currentGameId', isOn: LOGGING_SWITCH);
+      
+      // Get current players from state (players are in games[currentGameId], not at top level)
+      final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+      final currentGameState = games[currentGameId] as Map<String, dynamic>? ?? {};
+      final players = currentGameState['players'] as List<dynamic>? ?? [];
+      
+      Logger().info('Practice: Debug - Found ${players.length} players in state', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Debug - Players data: $players', isOn: LOGGING_SWITCH);
+      
+      if (players.isEmpty) {
+        Logger().error('Practice: Cannot start game - no players found', isOn: LOGGING_SWITCH);
+        Logger().error('Practice: Debug - Full recallGameState keys: ${recallGameState.keys.toList()}', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Convert players back to Player objects
+      final allPlayers = players.map((playerData) {
+        final playerMap = Map<String, dynamic>.from(playerData as Map);
+        return _convertFlutterPlayerToPlayer(playerMap);
+      }).toList();
+      
+      // Start the initial peek phase
+      _startInitialPeekPhase(allPlayers);
+      
+      Logger().info('Practice: Game started successfully - initial peek phase active', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to start game: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Convert Flutter player data back to Player object
+  Player _convertFlutterPlayerToPlayer(Map<String, dynamic> playerData) {
+    final player = Player(
+      playerId: playerData['id']?.toString() ?? '',
+      name: playerData['name']?.toString() ?? '',
+      playerType: playerData['playerType'] == 'human' ? PlayerType.human : PlayerType.computer,
+    );
+    
+    // Set basic properties
+    player.hand = <Card>[];
+    player.cardsRemaining = playerData['cardsRemaining'] ?? 0;
+    player.status = _convertStringToPlayerStatus(playerData['status']?.toString() ?? 'waiting');
+    player.isActive = playerData['isActive'] ?? true;
+    player.hasCalledRecall = playerData['hasCalledRecall'] ?? false;
+    player.initialPeeksRemaining = playerData['initialPeeksRemaining'] ?? 2;
+    
+    return player;
+  }
+  
+  /// Convert string status back to PlayerStatus enum
+  PlayerStatus _convertStringToPlayerStatus(String statusString) {
+    switch (statusString) {
+      case 'waiting':
+        return PlayerStatus.waiting;
+      case 'ready':
+        return PlayerStatus.ready;
+      case 'playing':
+        return PlayerStatus.playing;
+      case 'initial_peek':
+        return PlayerStatus.initialPeek;
+      case 'drawing_card':
+        return PlayerStatus.drawingCard;
+      case 'playing_card':
+        return PlayerStatus.playingCard;
+      case 'finished':
+        return PlayerStatus.finished;
+      case 'winner':
+        return PlayerStatus.winner;
+      default:
+        return PlayerStatus.waiting;
+    }
+  }
+  
+  /// Show game start instructions
+  void _showGameStartInstructions() {
+    const title = 'Game Started!';
+    const content = '''Welcome to Recall! Here's how to play:
+
+🎯 OBJECTIVE
+Finish with no cards OR have the fewest points when someone calls "Recall".
+
+🃏 CARD VALUES
+• Numbered cards (2-10): Points equal to card number
+• Ace: 1 point
+• Queens & Jacks: 10 points
+• Kings (Black): 10 points
+• Joker & Red King: 0 points
+
+🎮 YOUR TURN
+1. Draw a card from the draw pile or discard pile
+2. Play a card to the discard pile or keep it in your hand
+3. Try to get rid of high-value cards!
+
+💡 TIPS
+• Watch what others discard
+• Remember cards you've seen
+• Call "Recall" when you think you can win!
+
+Good luck!''';
+    
+    showInstructions(title, content);
+  }
+  
+  /// Transition game to player turn phase
+  void _transitionToPlayerTurn() {
+    try {
+      if (_currentPracticeGameId == null) return;
+      
+      // Update game state to player_turn phase
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      if (currentGames.containsKey(_currentPracticeGameId!)) {
+        final currentGame = currentGames[_currentPracticeGameId!] as Map<String, dynamic>;
+        
+        // Get current players with updated statuses
+        final players = currentGame['players'] as List<dynamic>? ?? [];
+        final updatedPlayers = players.map((player) {
+          // Convert player to Map<String, dynamic> and update status
+          final playerMap = Map<String, dynamic>.from(player as Map);
+          playerMap['status'] = 'waiting';
+          return playerMap;
+        }).toList();
+        
+        final updatedGame = {
+          ...currentGame,
+          'phase': 'player_turn',
+          'gamePhase': 'player_turn',
+          'players': updatedPlayers,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        };
+        
+        // Update the game in the state
+        currentGames[_currentPracticeGameId!] = updatedGame;
+        
+        // Find human player for myHand slice
+        final humanPlayer = updatedPlayers.firstWhere(
+          (p) => p['type'] == 'human', 
+          orElse: () => <String, dynamic>{}
+        );
+        
+        // Update global state with updated opponents panel
+        _stateManager.updateModuleState('recall_game', {
+          'games': currentGames,
+          'currentGameId': _currentPracticeGameId,
+          'isInRoom': true,
+          'currentRoomId': _currentPracticeGameId,
+          'gamePhase': 'player_turn',
+          'isGameActive': true,
+          'isInGame': true,
+          'isMyTurn': false,
+          'playerStatus': 'waiting',
+          'gameInfo': {
+            'currentGameId': _currentPracticeGameId,
+            'currentSize': updatedPlayers.length,
+            'maxSize': updatedPlayers.length,
+            'gamePhase': 'player_turn',
+            'gameStatus': 'active',
+            'isRoomOwner': true,
+            'isInGame': true,
+          },
+          'myHand': {
+            'cards': humanPlayer['hand'] as List<dynamic>? ?? <Map<String, dynamic>>[],
+            'selectedIndex': -1,
+            'selectedCard': null,
+          },
+          'opponentsPanel': {
+            'opponents': updatedPlayers, // Include ALL players with updated statuses
+            'currentTurnIndex': -1,
+          },
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+        
+        Logger().info('Practice: Game state updated to player_turn phase with updated player statuses', isOn: LOGGING_SWITCH);
+      }
+    } catch (e) {
+      Logger().error('Practice: Failed to transition to player turn: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Initialize game round for actual gameplay
+  void _initializeGameRound(List<Player> allPlayers) {
+    try {
+      if (_currentPracticeGameId == null) return;
+      
+      // Create new round manager
+      _gameRound = PracticeGameRound(this);
+      
+      // Initialize the round with all players and turn timer
+      _gameRound!.initializeRound(allPlayers, _currentPracticeGameId!, turnDurationSeconds: _turnTimerSeconds);
+      
+      Logger().info('Practice: Game round initialized with ${allPlayers.length} players', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Human player will start first', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to initialize game round: $e', isOn: LOGGING_SWITCH);
     }
   }
   
@@ -1069,6 +1613,14 @@ class PracticeGameCoordinator {
 
   /// Dispose of practice coordinator resources
   void dispose() {
+    // Cancel any active timer
+    _initialPeekTimer?.cancel();
+    _initialPeekTimer = null;
+    
+    // Dispose of round manager
+    _gameRound?.dispose();
+    _gameRound = null;
+    
     // End any active practice game
     endPracticeGame();
     

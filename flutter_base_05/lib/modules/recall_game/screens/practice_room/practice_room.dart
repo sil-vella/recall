@@ -4,7 +4,7 @@ import '../../../../core/00_base/screen_base.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
 import '../../../../tools/logging/logger.dart';
-import '../../game_logic/practice_game.dart';
+import '../../game_logic/practice_match/practice_game.dart';
 
 class PracticeScreen extends BaseScreen {
   const PracticeScreen({Key? key}) : super(key: key);
@@ -24,19 +24,20 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   final _formKey = GlobalKey<FormState>();
   int _numberOfOpponents = 3;
   String _difficultyLevel = 'easy';
-  int _turnTimer = 30; // seconds
+  int? _turnTimer; // null means "Off", seconds for timer values
+  bool _instructionsEnabled = true; // Default to enabled for new players
   
   // Available options
   final List<int> _opponentOptions = [3, 4, 5, 6];
   final List<String> _difficultyOptions = ['easy', 'mid', 'hard'];
-  final List<int> _timerOptions = [15, 30, 60, 120, 300]; // 15s to 5min
+  final List<int?> _timerOptions = [null, 15, 30, 60, 120, 300]; // null = "Off", then 15s to 5min
 
   @override
   void initState() {
     super.initState();
     
     // Initialize practice coordinator
-    _practiceCoordinator = PracticeGameCoordinator();
+    _practiceCoordinator = PracticeGameCoordinator.instance;
     
     _initializeWebSocket().then((_) {
       _setupEventCallbacks();
@@ -103,7 +104,8 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
         'sessionId': sessionId,
         'numberOfOpponents': _numberOfOpponents,
         'difficultyLevel': _difficultyLevel,
-        'turnTimer': _turnTimer,
+        'turnTimer': _turnTimer, // null means "Off"
+        'instructionsEnabled': _instructionsEnabled,
         'gameMode': 'practice',
         'timestamp': DateTime.now().toIso8601String(),
       };
@@ -167,7 +169,10 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
     );
   }
 
-  String _formatTimer(int seconds) {
+  String _formatTimer(int? seconds) {
+    if (seconds == null || seconds == 0) {
+      return 'Off';
+    }
     if (seconds < 60) {
       return '${seconds}s';
     } else {
@@ -285,32 +290,77 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<int>(
+            DropdownButtonFormField<int?>(
               value: _turnTimer,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 hintText: 'Select turn timer',
+                enabled: !_instructionsEnabled, // Disable when instructions are enabled
               ),
-              items: _timerOptions.map((int value) {
-                return DropdownMenuItem<int>(
+              items: _timerOptions.map((int? value) {
+                return DropdownMenuItem<int?>(
                   value: value,
-                  child: Text(_formatTimer(value)),
+                  child: Text(value == null ? 'Off' : _formatTimer(value)),
                 );
               }).toList(),
-              onChanged: (int? newValue) {
-                if (newValue != null) {
-                  setState(() {
-                    _turnTimer = newValue;
-                  });
-                }
+              onChanged: _instructionsEnabled ? null : (int? newValue) {
+                setState(() {
+                  _turnTimer = newValue;
+                });
               },
               validator: (value) {
-                if (value == null) {
-                  return 'Please select turn timer';
-                }
+                // Timer is optional now, no validation needed
                 return null;
               },
+            ),
+            if (_instructionsEnabled) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Timer is disabled when instructions are enabled',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).textTheme.bodySmall?.color,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            
+            // Instructions Enabled
+            Text(
+              'Game Instructions',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Switch(
+                  value: _instructionsEnabled,
+                  onChanged: (bool value) {
+                    setState(() {
+                      _instructionsEnabled = value;
+                      // When instructions are enabled, set timer to "Off"
+                      if (value) {
+                        _turnTimer = null;
+                      }
+                    });
+                  },
+                  activeColor: Theme.of(context).primaryColor,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _instructionsEnabled 
+                      ? 'Instructions will be shown during gameplay to help you learn the game'
+                      : 'No instructions will be shown - for experienced players',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).textTheme.bodySmall?.color,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 32),
             

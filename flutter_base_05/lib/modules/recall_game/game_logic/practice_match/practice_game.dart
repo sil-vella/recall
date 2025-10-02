@@ -1337,8 +1337,8 @@ Choose a card to play to the discard pile:
       
       Logger().info('Practice: Game transitioned to player turn phase', isOn: LOGGING_SWITCH);
       
-      // Show game start instructions if enabled
-      _showGameStartInstructions();
+      // Show game start message
+      _showGameStartMessage();
       
     } catch (e) {
       Logger().error('Practice: Failed to handle initial peek timeout: $e', isOn: LOGGING_SWITCH);
@@ -1454,8 +1454,8 @@ Good luck!''';
     }
   }
   
-  /// Show game start instructions
-  void _showGameStartInstructions() {
+  /// Show game start message
+  void _showGameStartMessage() {
     const title = 'Game Started!';
     const content = '''Welcome to Recall! Here's how to play:
 
@@ -1481,7 +1481,7 @@ Finish with no cards OR have the fewest points when someone calls "Recall".
 
 Good luck!''';
     
-    showInstructions(title, content);
+    showMessage(title, content, type: 'success', autoClose: false);
   }
   
   /// Transition game to player turn phase

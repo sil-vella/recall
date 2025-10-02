@@ -5,6 +5,7 @@ import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
 import '../../../../tools/logging/logger.dart';
 import '../../game_logic/practice_match/practice_game.dart';
+import 'widgets/rules_modal_widget.dart';
 
 class PracticeScreen extends BaseScreen {
   const PracticeScreen({Key? key}) : super(key: key);
@@ -37,7 +38,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
     super.initState();
     
     // Initialize practice coordinator
-    _practiceCoordinator = PracticeGameCoordinator.instance;
+    _practiceCoordinator = PracticeGameCoordinator();
     
     _initializeWebSocket().then((_) {
       _setupEventCallbacks();
@@ -166,6 +167,17 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
         backgroundColor: isError ? Colors.red : Colors.green,
         duration: const Duration(seconds: 3),
       ),
+    );
+  }
+  
+  /// Show the rules modal
+  void _showRulesModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return const RulesModalWidget();
+      },
     );
   }
 
@@ -362,7 +374,27 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+            
+            // View Rules Button
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: _showRulesModal,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).primaryColor,
+                  side: BorderSide(color: Theme.of(context).primaryColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.rule, size: 20),
+                label: const Text('View Rules'),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
             
             // Start Button
             SizedBox(

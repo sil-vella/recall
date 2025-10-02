@@ -17,19 +17,7 @@ const bool LOGGING_SWITCH = true;
 class PracticeGameCoordinator {
   /// Coordinates practice game sessions for the Recall game
   
-  static PracticeGameCoordinator? _instance;
-  static PracticeGameCoordinator get instance {
-    _instance ??= PracticeGameCoordinator._internal();
-    // Initialize events if not already done
-    if (_instance!.registeredEvents.isEmpty) {
-      _instance!._initializeGameEvents();
-    }
-    return _instance!;
-  }
-  
-  PracticeGameCoordinator._internal();
-  
-  dynamic gameStateManager;
+  late final dynamic gameStateManager;
   final StateManager _stateManager = StateManager();
   List<String> registeredEvents = [];
   String? _currentPracticeGameId;
@@ -377,6 +365,11 @@ Choose a card to play to the discard pile:
     ),
   };
   
+  /// Constructor
+  PracticeGameCoordinator({dynamic gameStateManager}) {
+    this.gameStateManager = gameStateManager;
+    _initializeGameEvents();
+  }
   
   /// Initialize all game events for practice sessions
   void _initializeGameEvents() {
@@ -704,24 +697,23 @@ Choose a card to play to the discard pile:
       Logger().info('Practice: Phase 7 - Updating player status', isOn: LOGGING_SWITCH);
       _updateAllPlayersStatus(allPlayers);
       
-      // ========= PHASE 8: CREATE GAME STATE (NO AUTO-START) =========
-      Logger().info('Practice: Phase 8 - Creating game state (waiting for start match button)', isOn: LOGGING_SWITCH);
+      // ========= PHASE 8: START INITIAL PEEK =========
+      Logger().info('Practice: Phase 8 - Starting initial peek phase', isOn: LOGGING_SWITCH);
+      _startInitialPeekPhase(allPlayers);
+      
+      // ========= PHASE 9: CREATE GAME STATE =========
+      Logger().info('Practice: Phase 9 - Creating game state', isOn: LOGGING_SWITCH);
       final practiceGameState = _createPracticeGameStateWithPlayersAndDeck(data, allPlayers, pilesData);
       
-      // ========= PHASE 9: UPDATE GLOBAL STATE =========
-      Logger().info('Practice: Phase 9 - Updating global state', isOn: LOGGING_SWITCH);
+      // ========= PHASE 10: UPDATE GLOBAL STATE =========
+      Logger().info('Practice: Phase 10 - Updating global state', isOn: LOGGING_SWITCH);
       _updatePracticeGameState(practiceGameState);
       
-      // ========= PHASE 10: SHOW MATCH READY MESSAGE =========
-      Logger().info('Practice: Phase 10 - Showing match ready message', isOn: LOGGING_SWITCH);
-      _showMatchReadyMessage();
-      
-      // Call game state manager if available (optional for practice games)
+      // Call game state manager if available
       final gameStateResult = gameStateManager?.onStartMatch(sessionId, data) ?? true;
       
-      Logger().info('Practice: Match setup complete with ID $_currentPracticeGameId', isOn: LOGGING_SWITCH);
-      Logger().info('Practice: Game ready - ${allPlayers.length} players, ${pilesData['drawPileCount']} cards in draw pile', isOn: LOGGING_SWITCH);
-      Logger().info('Practice: Waiting for start match button to begin game', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Match started successfully with ID $_currentPracticeGameId', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Game setup complete - ${allPlayers.length} players, ${pilesData['drawPileCount']} cards in draw pile', isOn: LOGGING_SWITCH);
       return gameStateResult;
       
     } catch (e) {
@@ -789,8 +781,7 @@ Choose a card to play to the discard pile:
   
   bool _handleCompletedInitialPeek(String sessionId, Map<String, dynamic> data) {
     Logger().info('Practice: Completed initial peek for session $sessionId', isOn: LOGGING_SWITCH);
-    // For practice games, we handle this internally, no need for external game state manager
-    return true;
+    return gameStateManager?.onCompletedInitialPeek(sessionId, data) ?? false;
   }
   
   /// Handle player actions through game round (common pattern)
@@ -820,16 +811,15 @@ Choose a card to play to the discard pile:
     return {
       'gameId': gameId,
       'gameType': 'practice',
-      'phase': 'waiting', // Start in waiting phase (before start match button)
-      'gamePhase': 'waiting',
-      'isGameActive': false, // Not active until start match is pressed
+      'phase': 'initial_peek', // Start in initial peek phase
+      'gamePhase': 'initial_peek',
+      'isGameActive': true,
       'isPracticeMode': true,
-      'currentPlayer': null, // No current player during waiting
+      'currentPlayer': null, // No current player during initial peek
       'players': playersFlutter,
       'gameData': {
         'game_state': {
           'game_id': gameId,
-          'gameType': 'practice', // Add gameType to game_state for RecallGameStateAccessor
           'phase': 'initial_peek',
           'current_player_id': null,
           'players': playersFlutter,
@@ -896,20 +886,20 @@ Choose a card to play to the discard pile:
         'currentGameId': _currentPracticeGameId,
         'isInRoom': true,
         'currentRoomId': _currentPracticeGameId,
-        'gamePhase': 'waiting',
-        'isGameActive': false,
+        'gamePhase': 'initial_peek',
+        'isGameActive': true,
         'isInGame': true,
         'isMyTurn': false,
-        'playerStatus': 'waiting',
-          'gameInfo': {
-            'currentGameId': _currentPracticeGameId,
-            'currentSize': players.length,
-            'maxSize': players.length,
-            'gamePhase': 'waiting',
-            'gameStatus': 'inactive',
-            'isRoomOwner': true, // Practice game user is always the owner
-            'isInGame': true,
-          },
+        'playerStatus': 'initial_peek',
+        'gameInfo': {
+          'currentGameId': _currentPracticeGameId,
+          'currentSize': players.length,
+          'maxSize': players.length,
+          'gamePhase': 'initial_peek',
+          'gameStatus': 'active',
+          'isRoomOwner': true, // Practice game user is always the owner
+          'isInGame': true,
+        },
         'myHand': {
           'cards': humanPlayer['hand'] as List<dynamic>? ?? <Map<String, dynamic>>[],
           'selectedIndex': -1,
@@ -1086,7 +1076,7 @@ Choose a card to play to the discard pile:
           'isGameActive': validatedGame['isGameActive'] ?? false,
           'isInGame': true,
           'isMyTurn': false,
-          'playerStatus': validatedGame['gamePhase'] ?? 'waiting',
+          'playerStatus': validatedGame['gamePhase'] ?? 'initial_peek',
           'gameInfo': {
             'currentGameId': _currentPracticeGameId,
             'currentSize': players.length,
@@ -1302,16 +1292,6 @@ Choose a card to play to the discard pile:
       
       Logger().info('Practice: Initial peek phase started for ${allPlayers.length} players', isOn: LOGGING_SWITCH);
       
-      // Update global state to reflect initial peek phase
-      // Use 'playing' phase since 'initial_peek' is not allowed by schema
-      _updatePracticeGameState({
-        'gamePhase': 'playing',
-        'isGameActive': true,
-      });
-      
-      // Update player statuses in the global state to reflect initial peek
-      _updatePlayerStatusesInState(allPlayers);
-      
       // Show initial peek instructions if enabled
       showContextualInstructions();
       
@@ -1345,208 +1325,15 @@ Choose a card to play to the discard pile:
       // Initialize round manager for actual gameplay
       _initializeGameRound(allPlayers);
       
-      // Update global state to reflect player turn phase
-      // Use 'playing' phase since 'player_turn' is not allowed by schema
-      _updatePracticeGameState({
-        'gamePhase': 'playing',
-        'isGameActive': true,
-      });
-      
-      // Update player statuses in the global state to reflect waiting status
-      _updatePlayerStatusesInState(allPlayers);
-      
       Logger().info('Practice: Game transitioned to player turn phase', isOn: LOGGING_SWITCH);
+      
       
     } catch (e) {
       Logger().error('Practice: Failed to handle initial peek timeout: $e', isOn: LOGGING_SWITCH);
     }
   }
-  
-  /// Show match ready message
-  void _showMatchReadyMessage() {
-    const title = 'Match Ready!';
-    const content = '''Your practice match is set up and ready to begin!
 
-👥 PLAYERS
-• You (Human Player)
-• AI Opponents ready to play
-
-🎮 READY TO START
-• All players are in position
-• Cards have been dealt
-• Game board is prepared
-
-🚀 NEXT STEP
-Click the "Start Match" button to begin the game!
-
-Good luck!''';
-    
-    showMessage(title, content, type: 'success', autoClose: false);
-  }
   
-  /// Start the actual game (called when start match button is pressed)
-  void startGame() {
-    try {
-      // Get current practice game ID from state instead of instance variable
-      final recallGameState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final currentGameId = recallGameState['currentGameId']?.toString();
-      
-      if (currentGameId == null || currentGameId.isEmpty) {
-        Logger().error('Practice: Cannot start game - no active practice game found in state', isOn: LOGGING_SWITCH);
-        return;
-      }
-      
-      Logger().info('Practice: Starting actual game for practice game $currentGameId', isOn: LOGGING_SWITCH);
-      
-      // Get current players from state (players are in games[currentGameId], not at top level)
-      final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
-      final currentGameState = games[currentGameId] as Map<String, dynamic>? ?? {};
-      final players = currentGameState['players'] as List<dynamic>? ?? [];
-      
-      Logger().info('Practice: Debug - Found ${players.length} players in state', isOn: LOGGING_SWITCH);
-      Logger().info('Practice: Debug - Players data: $players', isOn: LOGGING_SWITCH);
-      
-      if (players.isEmpty) {
-        Logger().error('Practice: Cannot start game - no players found', isOn: LOGGING_SWITCH);
-        Logger().error('Practice: Debug - Full recallGameState keys: ${recallGameState.keys.toList()}', isOn: LOGGING_SWITCH);
-        return;
-      }
-      
-      // Convert players back to Player objects
-      final allPlayers = players.map((playerData) {
-        final playerMap = Map<String, dynamic>.from(playerData as Map);
-        return _convertFlutterPlayerToPlayer(playerMap);
-      }).toList();
-      
-      // Start the initial peek phase
-      _startInitialPeekPhase(allPlayers);
-      
-      Logger().info('Practice: Game started successfully - initial peek phase active', isOn: LOGGING_SWITCH);
-      
-    } catch (e) {
-      Logger().error('Practice: Failed to start game: $e', isOn: LOGGING_SWITCH);
-    }
-  }
-  
-  /// Convert Flutter player data back to Player object
-  Player _convertFlutterPlayerToPlayer(Map<String, dynamic> playerData) {
-    final player = Player(
-      playerId: playerData['id']?.toString() ?? '',
-      name: playerData['name']?.toString() ?? '',
-      playerType: playerData['playerType'] == 'human' ? PlayerType.human : PlayerType.computer,
-    );
-    
-    // Set basic properties
-    player.hand = <Card>[];
-    player.cardsRemaining = playerData['cardsRemaining'] ?? 0;
-    player.status = _convertStringToPlayerStatus(playerData['status']?.toString() ?? 'waiting');
-    player.isActive = playerData['isActive'] ?? true;
-    player.hasCalledRecall = playerData['hasCalledRecall'] ?? false;
-    player.initialPeeksRemaining = playerData['initialPeeksRemaining'] ?? 2;
-    
-    return player;
-  }
-  
-  /// Convert string status back to PlayerStatus enum
-  PlayerStatus _convertStringToPlayerStatus(String statusString) {
-    switch (statusString) {
-      case 'waiting':
-        return PlayerStatus.waiting;
-      case 'ready':
-        return PlayerStatus.ready;
-      case 'playing':
-        return PlayerStatus.playing;
-      case 'initial_peek':
-        return PlayerStatus.initialPeek;
-      case 'drawing_card':
-        return PlayerStatus.drawingCard;
-      case 'playing_card':
-        return PlayerStatus.playingCard;
-      case 'finished':
-        return PlayerStatus.finished;
-      case 'winner':
-        return PlayerStatus.winner;
-      default:
-        return PlayerStatus.waiting;
-    }
-  }
-  
-  
-  /// Convert PlayerStatus enum to string for state updates
-  String _convertPlayerStatusToString(PlayerStatus status) {
-    switch (status) {
-      case PlayerStatus.waiting:
-        return 'waiting';
-      case PlayerStatus.ready:
-        return 'ready';
-      case PlayerStatus.initialPeek:
-        return 'initial_peek';
-      case PlayerStatus.drawingCard:
-        return 'drawing_card';
-      case PlayerStatus.playingCard:
-        return 'playing_card';
-      case PlayerStatus.finished:
-        return 'finished';
-      case PlayerStatus.winner:
-        return 'winner';
-      default:
-        return 'waiting';
-    }
-  }
-
-  /// Update player statuses in the global state to reflect current Player object statuses
-  void _updatePlayerStatusesInState(List<Player> allPlayers) {
-    try {
-      if (_currentPracticeGameId == null) return;
-      
-      // Get current state
-      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
-      
-      if (currentGames.containsKey(_currentPracticeGameId!)) {
-        final currentGame = currentGames[_currentPracticeGameId!] as Map<String, dynamic>;
-        
-        // Get current players and update their statuses
-        final players = currentGame['players'] as List<dynamic>? ?? [];
-        final updatedPlayers = players.map((player) {
-          // Convert player to Map<String, dynamic> and update status
-          final playerMap = Map<String, dynamic>.from(player as Map);
-          
-          // Find the corresponding Player object to get the current status
-          final playerId = playerMap['id']?.toString();
-          final correspondingPlayer = allPlayers.firstWhere(
-            (p) => p.playerId == playerId,
-            orElse: () => allPlayers.first, // fallback
-          );
-          
-          // Update status based on Player object
-          playerMap['status'] = _convertPlayerStatusToString(correspondingPlayer.status);
-          Logger().info('Practice: Updated ${playerMap['name']} status to ${playerMap['status']} in state', isOn: LOGGING_SWITCH);
-          
-          return playerMap;
-        }).toList();
-        
-        // Update the game state with new player statuses
-        final updatedGame = Map<String, dynamic>.from(currentGame);
-        updatedGame['players'] = updatedPlayers;
-        
-        // Update the games map
-        final updatedGames = Map<String, dynamic>.from(currentGames);
-        updatedGames[_currentPracticeGameId!] = updatedGame;
-        
-        // Update the global state
-        _stateManager.updateModuleState('recall_game', {
-          'games': updatedGames,
-          'lastUpdated': DateTime.now().toIso8601String(),
-        });
-        
-        Logger().info('Practice: Updated player statuses in global state', isOn: LOGGING_SWITCH);
-      }
-    } catch (e) {
-      Logger().error('Practice: Failed to update player statuses in state: $e', isOn: LOGGING_SWITCH);
-    }
-  }
-
   /// Transition game to player turn phase
   void _transitionToPlayerTurn() {
     try {

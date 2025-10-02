@@ -1,11 +1,6 @@
 import 'dart:async';
 import '../../../../core/managers/state_manager.dart';
-import '../../../../tools/logging/logger.dart';
 import 'validated_event_emitter.dart';
-import 'validated_state_manager.dart';
-import '../game_logic/practice_match/practice_game.dart';
-
-const bool LOGGING_SWITCH = true;
 
 /// PlayerAction class for handling individual player actions
 class PlayerAction {
@@ -105,35 +100,17 @@ class GameCoordinator {
       return false;
     }
     
-    // Check if this is a practice game
-    final stateAccessor = RecallGameStateAccessor.instance;
-    final isPractice = stateAccessor.isCurrentGamePractice();
+    // Create game data for start match (using game_id as per validated event emitter)
+    final gameData = {
+      'game_id': currentGameId,
+    };
     
-    if (isPractice) {
-      // Route to practice coordinator
-      Logger().info('GameCoordinator: Detected practice game, routing to PracticeGameCoordinator', isOn: LOGGING_SWITCH);
-      
-      // Import and use practice coordinator
-      final practiceCoordinator = PracticeGameCoordinator.instance;
-      practiceCoordinator.startGame();
-      
-      return true;
-    } else {
-      // Normal game - use existing logic
-      Logger().info('GameCoordinator: Normal game detected, using standard start match flow', isOn: LOGGING_SWITCH);
-      
-      // Create game data for start match (using game_id as per validated event emitter)
-      final gameData = {
-        'game_id': currentGameId,
-      };
-      
-      // Create and execute the player action
-      final action = PlayerAction(
-        eventName: 'start_match',
-        gameData: gameData,
-      );
-      
-      return await action.execute();
-    }
+    // Create and execute the player action
+    final action = PlayerAction(
+      eventName: 'start_match',
+      gameData: gameData,
+    );
+    
+    return await action.execute();
   }
 }

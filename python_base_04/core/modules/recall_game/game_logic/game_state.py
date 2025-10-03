@@ -16,7 +16,7 @@ import time
 import uuid
 import threading
 
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 class GamePhase(Enum):
     """Game phases"""

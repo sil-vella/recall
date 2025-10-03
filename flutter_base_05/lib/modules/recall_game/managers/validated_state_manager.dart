@@ -14,7 +14,7 @@ class RecallGameStateUpdater {
   RecallGameStateUpdater._internal();
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   // Dependencies
   final StateManager _stateManager = StateManager();
   
@@ -281,11 +281,6 @@ class RecallGameStateUpdater {
       type: Map,
       required: false,
       description: 'Most recently drawn card for current player',
-    ),
-    'myCardsToPeek': RecallStateFieldSpec(
-      type: List,
-      defaultValue: [],
-      description: 'Current player\'s cards available for peeking (from player data)',
     ),
     'cards_to_peek': RecallStateFieldSpec(
       type: List,

@@ -6,7 +6,6 @@ import 'widgets/opponents_panel_widget.dart';
 import 'widgets/draw_pile_widget.dart';
 import 'widgets/discard_pile_widget.dart';
 import 'widgets/my_hand_widget.dart';
-import 'widgets/card_peek_widget.dart';
 import 'widgets/instructions_widget.dart';
 import 'widgets/messages_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
@@ -156,8 +155,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
           ),
         ),
         
-        // Card Peek Modal Widget - handles its own state subscription
-        const CardPeekWidget(),
         
         // Instructions Modal Widget - handles its own state subscription
         const InstructionsWidget(),

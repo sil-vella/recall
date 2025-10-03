@@ -7,7 +7,7 @@ import 'card.dart';
 import '../../../../tools/logging/logger.dart';
 
 // Logging switch for this module
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 enum PlayerType {
   human,

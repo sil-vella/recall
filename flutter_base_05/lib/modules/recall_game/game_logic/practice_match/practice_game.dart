@@ -12,7 +12,7 @@ import '../models/card.dart';
 import '../utils/deck_factory.dart';
 import 'practice_game_round.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class PracticeGameCoordinator {
   /// Coordinates practice game sessions for the Recall game
@@ -801,7 +801,57 @@ Choose a card to play to the discard pile:
   
   bool _handleCompletedInitialPeek(String sessionId, Map<String, dynamic> data) {
     Logger().info('Practice: Completed initial peek for session $sessionId', isOn: LOGGING_SWITCH);
-    return gameStateManager?.onCompletedInitialPeek(sessionId, data) ?? false;
+    
+    try {
+      // Get current game state
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      if (currentGames.containsKey(_currentPracticeGameId!)) {
+        final currentGame = currentGames[_currentPracticeGameId!] as Map<String, dynamic>;
+        final players = currentGame['players'] as List<dynamic>? ?? [];
+        
+        // Find human player and set status to WAITING (matching backend behavior)
+        final updatedPlayers = players.map((player) {
+          final playerMap = Map<String, dynamic>.from(player as Map);
+          if (playerMap['type'] == 'human') {
+            playerMap['status'] = 'waiting';
+            Logger().info('Practice: Set human player status to WAITING after completed initial peek', isOn: LOGGING_SWITCH);
+          }
+          return playerMap;
+        }).toList();
+        
+        final updatedGame = {
+          ...currentGame,
+          'players': updatedPlayers,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        };
+        
+        // Update the game in the state
+        currentGames[_currentPracticeGameId!] = updatedGame;
+        
+        // Update global state with preserved games map
+        _stateManager.updateModuleState('recall_game', {
+          'games': currentGames, // CRITICAL: Preserve the games map
+          'playerStatus': 'waiting', // Update human player status
+          'opponentsPanel': {
+            'opponents': updatedPlayers, // Include ALL players with updated statuses
+            'currentTurnIndex': -1,
+          },
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+        
+        Logger().info('Practice: Human player status updated to WAITING after completed initial peek', isOn: LOGGING_SWITCH);
+        return true;
+      }
+      
+      Logger().warning('Practice: Game not found for completed initial peek: $_currentPracticeGameId', isOn: LOGGING_SWITCH);
+      return false;
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to handle completed initial peek: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
   }
   
   /// Handle player actions through game round (common pattern)
@@ -1096,7 +1146,7 @@ Choose a card to play to the discard pile:
           'isGameActive': validatedGame['isGameActive'] ?? false,
           'isInGame': true,
           'isMyTurn': false,
-          'playerStatus': validatedGame['gamePhase'] ?? 'initial_peek',
+          'playerStatus': validatedGame['playerStatus'] ?? validatedGame['gamePhase'] ?? 'initial_peek',
           'gameInfo': {
             'currentGameId': _currentPracticeGameId,
             'currentSize': players.length,
@@ -1310,6 +1360,7 @@ Choose a card to play to the discard pile:
         Logger().info('Practice: ${player.name} status is now: ${player.status}', isOn: LOGGING_SWITCH);
       }
       
+      
       Logger().info('Practice: Initial peek phase started for ${allPlayers.length} players', isOn: LOGGING_SWITCH);
       
       // Show initial peek instructions if enabled
@@ -1338,6 +1389,16 @@ Choose a card to play to the discard pile:
         player.status = PlayerStatus.waiting;
         Logger().info('Practice: Set ${player.name} back to WAITING status', isOn: LOGGING_SWITCH);
       }
+      
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      _stateManager.updateModuleState('recall_game', {
+        'games': currentGames, // CRITICAL: Preserve the games map
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      Logger().info('Practice: Initial peek phase ended', isOn: LOGGING_SWITCH);
       
       // Update game phase to player_turn (matching backend)
       _transitionToPlayerTurn();

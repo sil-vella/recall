@@ -9,7 +9,7 @@ import '../../../../core/managers/state_manager.dart';
 import '../models/player.dart';
 import 'practice_game.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class PracticeGameRound {
   /// Manages practice game rounds and turn logic

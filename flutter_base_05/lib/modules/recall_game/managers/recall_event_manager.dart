@@ -100,10 +100,6 @@ class RecallEventManager {
     RecallEventHandlerCallbacks.handlePlayerStateUpdated(data);
   }
 
-  /// Handle cards_to_peek event
-  void handleCardsToPeek(Map<String, dynamic> data) {
-    RecallEventHandlerCallbacks.handleCardsToPeek(data);
-  }
 
   void _registerHookCallbacks() {
     // Register websocket_connect hook callback

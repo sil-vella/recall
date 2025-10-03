@@ -16,7 +16,7 @@ class EventConfig {
 /// Recall Game Event Listener Validator
 /// Ensures all incoming events follow the defined schema and validation rules
 class RecallGameEventListenerValidator {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   static RecallGameEventListenerValidator? _instance;
   
   static RecallGameEventListenerValidator get instance {
@@ -256,9 +256,6 @@ class RecallGameEventListenerValidator {
           break;
         case 'handleQueenPeekResult':
           RecallEventHandlerCallbacks.handleQueenPeekResult(eventPayload);
-          break;
-        case 'handleCardsToPeek':
-          RecallEventHandlerCallbacks.handleCardsToPeek(eventPayload);
           break;
         default:
           return;

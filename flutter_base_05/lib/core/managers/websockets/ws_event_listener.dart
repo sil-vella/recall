@@ -4,7 +4,7 @@ import '../module_manager.dart';
 import 'ws_event_handler.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// WebSocket Event Listener
 /// Centralized Socket.IO event listener registration and management

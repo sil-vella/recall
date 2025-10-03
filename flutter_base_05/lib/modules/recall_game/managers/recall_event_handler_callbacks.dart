@@ -6,7 +6,7 @@ import '../utils/recall_game_helpers.dart';
 /// Dedicated event handlers for Recall game events
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
 
   // ========================================
   // HELPER METHODS TO REDUCE DUPLICATION
@@ -586,7 +586,6 @@ class RecallEventHandlerCallbacks {
       // Extract player data fields
       final hand = playerData['hand'] as List<dynamic>? ?? [];
       // final visibleCards = playerData['visibleCards'] as List<dynamic>? ?? [];
-      final cardsToPeek = playerData['cardsToPeek'] as List<dynamic>? ?? [];
       final drawnCard = playerData['drawnCard'] as Map<String, dynamic>?;
       final score = playerData['score'] as int? ?? 0;
       final status = playerData['status']?.toString() ?? 'unknown';
@@ -599,7 +598,6 @@ class RecallEventHandlerCallbacks {
         'myScore': score,
         'isMyTurn': isCurrentPlayer,
         'myDrawnCard': drawnCard,
-        'myCardsToPeek': cardsToPeek,
       });
       
       // Update the games map with hand information using helper method
@@ -608,7 +606,6 @@ class RecallEventHandlerCallbacks {
         'selectedCardIndex': -1,
         'isMyTurn': isCurrentPlayer,
         'myDrawnCard': drawnCard,
-        'myCardsToPeek': cardsToPeek,
       });
       
       // Add session message about player state update
@@ -717,54 +714,4 @@ class RecallEventHandlerCallbacks {
   }
 
   /// Handle cards_to_peek event
-  static void handleCardsToPeek(Map<String, dynamic> data) {
-    final gameId = data['game_id']?.toString() ?? '';
-    final playerId = data['player_id']?.toString() ?? '';
-    final cardsToPeek = data['cards_to_peek'] as List<dynamic>? ?? [];
-    final peekType = data['peek_type']?.toString() ?? 'unknown';
-    // final timestamp = data['timestamp']?.toString() ?? '';
-    
-    // Find the current user's player data
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserId = loginState['userId']?.toString() ?? '';
-    
-    // Check if this peek event is for the current user
-    final isMyPeekEvent = playerId == currentUserId;
-    
-    if (isMyPeekEvent) {
-      // Update the main game state with cards to peek using helper method
-      _updateMainGameState({
-        'cards_to_peek': cardsToPeek.cast<Map<String, dynamic>>(),
-        'peekType': peekType,
-        'peekTimestamp': DateTime.now().toIso8601String(),
-      });
-      
-      // Add session message about cards available for peeking
-      _addSessionMessage(
-        level: 'info',
-        title: 'Cards Available for Peek',
-        message: 'You can peek at ${cardsToPeek.length} card${cardsToPeek.length != 1 ? 's' : ''} (${peekType})',
-        data: {
-          'game_id': gameId,
-          'player_id': playerId,
-          'cards_to_peek': cardsToPeek,
-          'peek_type': peekType,
-          'card_count': cardsToPeek.length,
-        },
-      );
-    } else {
-      // This is another player's peek event - show generic message
-      _addSessionMessage(
-        level: 'info',
-        title: 'Player Peek Phase',
-        message: '$playerId is in peek phase (${peekType})',
-        data: {
-          'game_id': gameId,
-          'player_id': playerId,
-          'peek_type': peekType,
-          'is_my_peek': false,
-        },
-      );
-    }
-  }
 }

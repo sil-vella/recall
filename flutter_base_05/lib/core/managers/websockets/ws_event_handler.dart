@@ -6,7 +6,7 @@ import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events

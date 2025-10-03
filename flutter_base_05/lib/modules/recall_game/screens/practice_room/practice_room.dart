@@ -172,13 +172,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   
   /// Show the rules modal
   void _showRulesModal() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (BuildContext context) {
-        return const RulesModalWidget();
-      },
-    );
+    RulesModalWidget.show(context);
   }
 
   String _formatTimer(int? seconds) {

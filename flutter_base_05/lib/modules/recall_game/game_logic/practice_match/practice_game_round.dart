@@ -176,13 +176,19 @@ class PracticeGameRound {
       // Update global state with preserved games map
       _stateManager.updateModuleState('recall_game', {
         'games': currentGames, // CRITICAL: Preserve the games map
+        'currentGameId': _currentGameId,
         'currentPlayerId': currentPlayer.playerId,
         'isMyTurn': _isHumanTurn,
         'playerStatus': _isHumanTurn ? 'drawing_card' : 'waiting',
+        'gamePhase': 'player_turn', // CRITICAL: Set game phase
+        'isGameActive': true, // CRITICAL: Set game active
+        'isInGame': true, // CRITICAL: Set in game
         'gameInfo': {
           'currentGameId': _currentGameId,
           'currentPlayer': currentPlayer.name,
           'isMyTurn': _isHumanTurn,
+          'gamePhase': 'player_turn', // CRITICAL: Set game phase in gameInfo too
+          'isInGame': true, // CRITICAL: Set in game in gameInfo too
         },
         'lastUpdated': DateTime.now().toIso8601String(),
       });

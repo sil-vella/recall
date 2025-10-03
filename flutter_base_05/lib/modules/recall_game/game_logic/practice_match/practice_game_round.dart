@@ -169,8 +169,13 @@ class PracticeGameRound {
       
       final currentPlayer = _players[_currentPlayerIndex];
       
-      // Update global state
+      // Get current state to preserve games map
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      // Update global state with preserved games map
       _stateManager.updateModuleState('recall_game', {
+        'games': currentGames, // CRITICAL: Preserve the games map
         'currentPlayerId': currentPlayer.playerId,
         'isMyTurn': _isHumanTurn,
         'playerStatus': _isHumanTurn ? 'drawing_card' : 'waiting',

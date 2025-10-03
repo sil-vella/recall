@@ -153,7 +153,12 @@ Choose a card to play to the discard pile:
       
       Logger().info('Practice: Showing instructions - $title', isOn: LOGGING_SWITCH);
       
+      // Get current state to preserve games map
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
       _stateManager.updateModuleState('recall_game', {
+        'games': currentGames, // CRITICAL: Preserve the games map
         'instructions': {
           'isVisible': true,
           'title': title,
@@ -172,7 +177,12 @@ Choose a card to play to the discard pile:
     try {
       Logger().info('Practice: Hiding instructions modal', isOn: LOGGING_SWITCH);
       
+      // Get current state to preserve games map
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
       _stateManager.updateModuleState('recall_game', {
+        'games': currentGames, // CRITICAL: Preserve the games map
         'instructions': {
           'isVisible': false,
           'title': '',
@@ -196,7 +206,12 @@ Choose a card to play to the discard pile:
     try {
       Logger().info('Practice: Showing message - $title', isOn: LOGGING_SWITCH);
       
+      // Get current state to preserve games map
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
       _stateManager.updateModuleState('recall_game', {
+        'games': currentGames, // CRITICAL: Preserve the games map
         'messages': {
           'isVisible': true,
           'title': title,
@@ -219,7 +234,12 @@ Choose a card to play to the discard pile:
     try {
       Logger().info('Practice: Hiding message modal', isOn: LOGGING_SWITCH);
       
+      // Get current state to preserve games map
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
       _stateManager.updateModuleState('recall_game', {
+        'games': currentGames, // CRITICAL: Preserve the games map
         'messages': {
           'isVisible': false,
           'title': '',

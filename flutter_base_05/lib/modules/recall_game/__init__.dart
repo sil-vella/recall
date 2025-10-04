@@ -21,4 +21,3 @@ export 'managers/validated_state_manager.dart';
 export 'utils/recall_game_helpers.dart';
 export 'models/card_model.dart';
 export 'widgets/card_widget.dart';
-export 'widgets/card_back_widget.dart'; 

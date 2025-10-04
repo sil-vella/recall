@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
-import '../../../widgets/card_back_widget.dart';
 import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
+import '../../../../../../utils/consts/theme_consts.dart';
 
 /// Widget to display the player's hand
 /// 

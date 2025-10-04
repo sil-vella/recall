@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 
-import 'package:flutter/material.dart';
+/// Card size options for the Recall game
+enum CardSize {
+  small,
+  medium,
+  large,
+  extraLarge,
+}
 
 class AppColors {
   static const Color primaryColor = Color(0xFF41282F);

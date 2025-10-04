@@ -106,6 +106,16 @@ class CardModel {
   /// Check if this is an Ace
   bool get isAce => rank.toLowerCase() == 'ace';
 
+  /// Check if this card has full data (not just an ID)
+  /// Returns true if card has complete rank, suit, and points data
+  /// Returns false if only cardId is present (ID-only scenario)
+  bool get hasFullData {
+    return cardId.isNotEmpty && 
+           rank != '?' && 
+           suit != '?' && 
+           points > 0;
+  }
+
   /// Get the color for this card
   Color get color {
     if (suit.toLowerCase() == 'hearts' || suit.toLowerCase() == 'diamonds') {

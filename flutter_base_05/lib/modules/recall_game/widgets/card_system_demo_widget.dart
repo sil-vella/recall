@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import 'card_widget.dart';
-import 'card_back_widget.dart';
 import '../../../../utils/consts/theme_consts.dart';
 
 /// Comprehensive demo widget showing the entire card system
@@ -32,7 +31,7 @@ class CardSystemDemoWidget extends StatelessWidget {
             _buildRegularCardsDemo(),
             
             const SizedBox(height: 32),
-            _buildSectionTitle('Card Backs (CardBackWidget)'),
+            _buildSectionTitle('Card Backs (CardWidget with showBack=true)'),
             _buildCardBacksDemo(),
             
             const SizedBox(height: 32),
@@ -84,18 +83,32 @@ class CardSystemDemoWidget extends StatelessWidget {
       spacing: 16,
       runSpacing: 16,
       children: [
-        _buildCardWithLabel('Default Back', CardBackWidget()),
-        _buildCardWithLabel('Custom Symbol', CardBackWidget(customSymbol: '♠')),
-        _buildCardWithLabel('Blue Theme', CardBackWidget(
-          backgroundColor: Colors.blue.shade100,
-          borderColor: Colors.blue.shade300,
+        _buildCardWithLabel('Default Back', CardWidget(
+          card: CardModel(cardId: 'demo_back', rank: '?', suit: '?', points: 0),
+          showBack: true,
         )),
-        _buildCardWithLabel('Green Theme', CardBackWidget(
-          backgroundColor: Colors.green.shade100,
-          borderColor: Colors.green.shade300,
+        _buildCardWithLabel('Custom Symbol', CardWidget(
+          card: CardModel(cardId: 'demo_back_spade', rank: '?', suit: '?', points: 0),
+          showBack: true,
         )),
-        _buildCardWithLabel('Small Size', CardBackWidget(size: CardSize.small)),
-        _buildCardWithLabel('Large Size', CardBackWidget(size: CardSize.large)),
+        _buildCardWithLabel('Blue Theme', CardWidget(
+          card: CardModel(cardId: 'demo_back_blue', rank: '?', suit: '?', points: 0),
+          showBack: true,
+        )),
+        _buildCardWithLabel('Green Theme', CardWidget(
+          card: CardModel(cardId: 'demo_back_green', rank: '?', suit: '?', points: 0),
+          showBack: true,
+        )),
+        _buildCardWithLabel('Small Size', CardWidget(
+          card: CardModel(cardId: 'demo_back_small', rank: '?', suit: '?', points: 0),
+          size: CardSize.small,
+          showBack: true,
+        )),
+        _buildCardWithLabel('Large Size', CardWidget(
+          card: CardModel(cardId: 'demo_back_large', rank: '?', suit: '?', points: 0),
+          size: CardSize.large,
+          showBack: true,
+        )),
       ],
     );
   }
@@ -125,11 +138,12 @@ class CardSystemDemoWidget extends StatelessWidget {
           isSelectable: true,
           isSelected: true,
         )),
-        _buildCardWithLabel('Interactive Back', CardBackWidget(
+        _buildCardWithLabel('Interactive Back', CardWidget(
+          card: CardModel(cardId: 'demo_back_interactive', rank: '?', suit: '?', points: 0),
           size: CardSize.medium,
+          showBack: true,
           isSelectable: true,
           isSelected: true,
-          customSymbol: '?',
         )),
       ],
     );
@@ -197,9 +211,10 @@ class CardSystemDemoWidget extends StatelessWidget {
           size: CardSize.medium,
           showBack: true,
         )),
-        _buildCardWithLabel('Card Back Widget', CardBackWidget(
+        _buildCardWithLabel('Card Back Widget', CardWidget(
+          card: CardModel(cardId: 'demo_back_widget', rank: '?', suit: '?', points: 0),
           size: CardSize.medium,
-          customSymbol: '?',
+          showBack: true,
         )),
       ],
     );

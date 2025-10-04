@@ -3,7 +3,7 @@ import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/player_action.dart';
 import '../../../models/card_model.dart';
 import '../../../widgets/card_widget.dart';
-import '../../../widgets/card_back_widget.dart';
+import '../../../../../../utils/consts/theme_consts.dart';
 
 /// Widget to display the discard pile information
 /// 
@@ -102,11 +102,15 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
                       showPoints: false,
                       showSpecialPower: false,
                     )
-                  : CardBackWidget(
+                  : CardWidget(
+                      card: CardModel(
+                        cardId: 'discard_pile_empty',
+                        rank: '?',
+                        suit: '?',
+                        points: 0,
+                      ),
                       size: CardSize.medium,
-                      customSymbol: '?',
-                      backgroundColor: Colors.grey.shade200,
-                      borderColor: Colors.grey.shade400,
+                      showBack: true, // Show back when empty
                     ),
             ),
             const SizedBox(height: 8),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/player_action.dart';
-import '../../../widgets/card_back_widget.dart';
+import '../../../widgets/card_widget.dart';
+import '../../../models/card_model.dart';
+import '../../../../../../utils/consts/theme_consts.dart';
 
 /// Widget to display the draw pile information
 /// 
@@ -91,19 +93,16 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
             // Draw pile visual representation (clickable)
             GestureDetector(
               onTap: _handlePileClick,
-              child: drawPileCount > 0
-                  ? CardBackWidget(
-                      size: CardSize.medium,
-                      customSymbol: '?',
-                      backgroundColor: Colors.blue.shade100,
-                      borderColor: Colors.blue.shade300,
-                    )
-                  : CardBackWidget(
-                      size: CardSize.medium,
-                      customSymbol: '?',
-                      backgroundColor: Colors.grey.shade200,
-                      borderColor: Colors.grey.shade400,
-                    ),
+              child: CardWidget(
+                card: CardModel(
+                  cardId: 'draw_pile_${drawPileCount > 0 ? 'full' : 'empty'}',
+                  rank: '?',
+                  suit: '?',
+                  points: 0,
+                ),
+                size: CardSize.medium,
+                showBack: true, // Always show back for draw pile
+              ),
             ),
             const SizedBox(height: 8),
             

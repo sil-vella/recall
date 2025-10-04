@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../../../../utils/consts/theme_consts.dart';
-import 'card_back_widget.dart';
 
 /// A reusable card widget for the Recall game
 /// 
@@ -38,13 +37,9 @@ class CardWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final cardDimensions = _getCardDimensions();
     
-    Widget cardContent = showBack || card.isFaceDown
-        ? CardBackWidget(
-            size: size,
-            customSymbol: '?',
-            backgroundColor: AppColors.primaryColor,
-            borderColor: isSelected ? AppColors.accentColor2 : AppColors.accentColor,
-          )
+    // Show back if explicitly requested, face down, or if card only has ID (no full data)
+    Widget cardContent = showBack || card.isFaceDown || !card.hasFullData
+        ? _buildCardBack(cardDimensions)
         : _buildCardFront(cardDimensions);
 
     // Wrap in gesture detector if interactive
@@ -208,6 +203,39 @@ class CardWidget extends StatelessWidget {
           fontSize: fontSize,
           fontWeight: FontWeight.bold,
           color: AppColors.white,
+        ),
+      ),
+    );
+  }
+
+  /// Build the card back
+  Widget _buildCardBack(Size dimensions) {
+    return Container(
+      width: dimensions.width,
+      height: dimensions.height,
+      decoration: BoxDecoration(
+        color: AppColors.primaryColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isSelected ? AppColors.accentColor2 : AppColors.accentColor,
+          width: isSelected ? 3 : 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          '?',
+          style: TextStyle(
+            fontSize: dimensions.width * 0.4,
+            fontWeight: FontWeight.bold,
+            color: AppColors.white,
+          ),
         ),
       ),
     );

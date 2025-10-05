@@ -920,9 +920,13 @@ class GameStateManager:
         This method:
         1. Gets the player who completed the peek
         2. Receives card IDs from frontend (2 card IDs the player peeked at)
-        3. Finds the actual card objects in the player's hand by ID
-        4. Adds these cards to player.cards_to_peek for frontend display
-        5. Sets player status to WAITING
+        3. Uses get_card_by_id() to find the full card data for each ID
+        4. Updates the cards in player's hand to include full card data
+        5. Triggers change detection to send updated hand to frontend
+        6. Sets player status to WAITING
+        
+        Note: This prepares for future optimization where cards in hand only contain IDs.
+        When a player peeks, we populate the full card data for those specific cards.
         """
         try:
             custom_log("Completed initial peek", level="INFO", isOn=LOGGING_SWITCH)
@@ -966,25 +970,32 @@ class GameStateManager:
                 custom_log(f"Player {user_id} not found in game {game_id}", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
-            # Find the cards in player's hand and add to cards_to_peek
-            player.cards_to_peek.clear()  # Clear any existing
-            cards_found = 0
+            # For each card ID, find the full card data and update in player's hand
+            cards_updated = 0
             for card_id in card_ids:
-                for card in player.hand:
-                    if card and card.card_id == card_id:
-                        player.cards_to_peek.append(card)
-                        cards_found += 1
-                        custom_log(f"Added card {card_id} to cards_to_peek", level="DEBUG", isOn=LOGGING_SWITCH)
+                # Use get_card_by_id to find the full card data
+                card_data = game.get_card_by_id(card_id)
+                if not card_data:
+                    custom_log(f"Card {card_id} not found in game", level="ERROR", isOn=LOGGING_SWITCH)
+                    continue
+                
+                # Find the card in player's hand and update it with full data
+                for i, hand_card in enumerate(player.hand):
+                    if hand_card and hand_card.card_id == card_id:
+                        # Replace the card in hand with the full card data
+                        player.hand[i] = card_data
+                        cards_updated += 1
+                        custom_log(f"Updated card {card_id} in player's hand with full data", level="DEBUG", isOn=LOGGING_SWITCH)
                         break
             
-            if cards_found != 2:
-                custom_log(f"Warning: Only found {cards_found} out of 2 cards in player's hand", level="WARNING", isOn=LOGGING_SWITCH)
+            if cards_updated != 2:
+                custom_log(f"Warning: Only updated {cards_updated} out of 2 cards in player's hand", level="WARNING", isOn=LOGGING_SWITCH)
             
-            custom_log(f"Player {user_id} peeked at {cards_found} cards: {card_ids}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Player {user_id} peeked at {cards_updated} cards: {card_ids}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Trigger change detection for cards_to_peek
+            # Trigger change detection for hand to send updated cards to frontend
             if hasattr(player, '_track_change'):
-                player._track_change('cards_to_peek')
+                player._track_change('hand')
                 player._send_changes_if_needed()
             
             # Set player status to WAITING

@@ -77,6 +77,10 @@ class RecallEventHandlerCallbacks {
     // Determine game status (phase is now managed in main state only)
     final status = gameStatus ?? gameData['game_state']?['status']?.toString() ?? 'inactive';
     
+    // Preserve existing joinedAt timestamp if game already exists
+    final existingGame = currentGames[gameId] as Map<String, dynamic>?;
+    final joinedAt = existingGame?['joinedAt'] ?? DateTime.now().toIso8601String();
+    
     // Add/update the game in the games map
     currentGames[gameId] = {
       'gameData': gameData,  // Single source of truth
@@ -84,8 +88,8 @@ class RecallEventHandlerCallbacks {
       'gameStatus': status,
       'isRoomOwner': _isCurrentUserRoomOwner(gameData),
       'isInGame': true,
-      'joinedAt': DateTime.now().toIso8601String(),
-      'lastUpdated': DateTime.now().toIso8601String(),
+      'joinedAt': joinedAt,  // Preserve original joinedAt timestamp
+      // Removed lastUpdated - causes unnecessary state updates
     };
     
     // Update global state
@@ -96,10 +100,8 @@ class RecallEventHandlerCallbacks {
   
   /// Update main game state (non-game-specific fields)
   static void _updateMainGameState(Map<String, dynamic> updates) {
-    RecallGameHelpers.updateUIState({
-      ...updates,
-      'lastUpdated': DateTime.now().toIso8601String(),
-    });
+    RecallGameHelpers.updateUIState(updates);
+    // Removed lastUpdated - causes unnecessary state updates
   }
 
   /// Add a session message to the message board

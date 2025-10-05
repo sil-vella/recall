@@ -463,11 +463,10 @@ class RecallGameStateUpdater {
         return;
       }
       
-      // Apply only the validated updates
+      // Apply only the validated updates (no timestamp - causes unnecessary updates)
       final newState = {
         ...currentState,
         ...validatedUpdates,
-        'lastUpdated': DateTime.now().toIso8601String(),
       };
       
       // Rebuild dependent widget slices only if relevant fields changed

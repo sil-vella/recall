@@ -1033,10 +1033,7 @@ Choose a card to play to the discard pile:
         }
       }
       
-      // Add timestamp if not present
-      if (!validatedState.containsKey('lastUpdated')) {
-        validatedState['lastUpdated'] = DateTime.now().toIso8601String();
-      }
+      // Removed lastUpdated timestamp - causes unnecessary state updates
       
       Logger().info('Practice: Validation completed - ${validFields.length} valid, ${invalidFields.length} invalid', isOn: LOGGING_SWITCH);
       
@@ -1110,10 +1107,9 @@ Choose a card to play to the discard pile:
         final currentGameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
         final currentGameState = currentGameData['game_state'] as Map<String, dynamic>? ?? {};
         
-        // Update game state with action
+        // Update game state with action (no timestamps - causes unnecessary updates)
         final updatedGameState = Map<String, dynamic>.from(currentGameState);
         updatedGameState['last_action'] = action;
-        updatedGameState['last_action_time'] = DateTime.now().toIso8601String();
         updatedGameState['last_action_data'] = data;
         
         // Create updated game state
@@ -1123,7 +1119,6 @@ Choose a card to play to the discard pile:
             ...currentGameData,
             'game_state': updatedGameState,
           },
-          'lastUpdated': DateTime.now().toIso8601String(),
         };
         
         // Validate the updated game state

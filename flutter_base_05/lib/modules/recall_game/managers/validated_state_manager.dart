@@ -16,7 +16,7 @@ class RecallGameStateUpdater {
   RecallGameStateUpdater._internal();
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   // Dependencies
   final StateManager _stateManager = StateManager();
   

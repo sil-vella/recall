@@ -23,7 +23,9 @@ class GameEventCoordinator {
         return gameStateManager?.onStartMatch(sessionId, data) ?? false;
       }
       if (eventName == 'completed_initial_peek') {
-        return gameStateManager?.onCompletedInitialPeek(sessionId, data) ?? false;
+        // Add action type to data payload for completed_initial_peek events
+        final dataWithAction = {...data, 'action': 'completed_initial_peek'};
+        return _handlePlayerActionThroughRound(sessionId, dataWithAction);
       } else if (eventName == 'draw_card') {
         // Add action type to data payload for draw_card events
         final dataWithAction = {...data, 'action': 'draw_from_deck'};
@@ -94,6 +96,8 @@ class GameEventCoordinator {
       // Handle the action based on type
       final action = data['action'];
       switch (action) {
+        case 'completed_initial_peek':
+          return _handleCompletedInitialPeek(gameRound, playerId, data);
         case 'draw_from_deck':
           return _handleDrawFromDeck(gameRound, playerId, data);
         case 'play_card':
@@ -260,6 +264,24 @@ class GameEventCoordinator {
       return true;
     } catch (e) {
       Logger().error('Error handling queen peek: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  bool _handleCompletedInitialPeek(dynamic gameRound, String playerId, Map<String, dynamic> data) {
+    /// Handle completed initial peek action
+    try {
+      final gameId = data['game_id'];
+      if (gameId == null) {
+        Logger().error('Game ID not provided for completed initial peek action', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Send completed_initial_peek event to backend
+      Logger().info('Player $playerId completed initial peek for game $gameId', isOn: LOGGING_SWITCH);
+      return true;
+    } catch (e) {
+      Logger().error('Error handling completed initial peek: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }

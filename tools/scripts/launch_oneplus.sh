@@ -60,7 +60,10 @@ filter_logs() {
             fi
             
             # Write formatted log to Python server log file
-            echo "[$timestamp] [FLUTTER] [$level] $line" >> "$SERVER_LOG_FILE"
+            # Filter out RecallGameStateUpdater debug/validation logs to reduce noise
+            if ! echo "$line" | grep -qE "(RecallGameStateUpdater|Validating field|validation successful|Rebuilding slice)"; then
+                echo "[$timestamp] [FLUTTER] [$level] $line" >> "$SERVER_LOG_FILE"
+            fi
             
             # Display to console with color coding
             echo -e "${color}[$timestamp] [$level] $line\033[0m"

@@ -1015,7 +1015,9 @@ class GameStateManager:
             for _ in range(4):
                 card = game.deck.draw_card()
                 if card:
-                    player.add_card_to_hand(card)
+                    # Create ID-only card for initial hand (optimization)
+                    id_only_card = self._create_id_only_card(card.card_id)
+                    player.add_card_to_hand(id_only_card)
     
     def _setup_piles(self, game: GameState):
         """Set up draw and discard piles - moved from GameActions"""
@@ -1072,6 +1074,18 @@ class GameStateManager:
             'displayName': None,
             'color': None,
         }
+    
+    def _create_id_only_card(self, card_id: str):
+        """Create a Card object with only ID (for initial hand optimization)"""
+        from core.modules.recall_game.models.card import Card
+        # Create a minimal card with only the ID - other properties will be None
+        return Card(
+            rank="",  # Empty string instead of None to avoid Card validation issues
+            suit="",  # Empty string instead of None to avoid Card validation issues  
+            points=0,  # Default points
+            special_power=None,
+            card_id=card_id
+        )
 
     def _to_flutter_player_data(self, player, is_current: bool = False) -> Dict[str, Any]:
         """
@@ -1080,14 +1094,14 @@ class GameStateManager:
         This method structures ALL player data that will be sent to the frontend.
         The structure MUST match the Flutter frontend schema exactly.
         
-        OPTIMIZATION: Hand cards are sent with ID only by default to reduce data transfer.
-        Full card data is only sent for cards that have been peeked at.
+        OPTIMIZATION: Hand cards are sent with full data when available.
+        Cards are initially added as IDs only, but get full data when peeked at.
         """
         return {
             'id': player.player_id,
             'name': player.name,
             'type': 'human' if player.player_type.value == 'human' else 'computer',
-            'hand': [self._to_flutter_card_id_only(c) if c is not None else None for c in player.hand],  # ID only for optimization
+            'hand': [self._to_flutter_card(c) if c is not None else None for c in player.hand],  # Full card data
             'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards if c is not None],
             'cardsToPeek': [self._to_flutter_card(c) for c in player.cards_to_peek if c is not None],  # Include cards to peek
             'score': int(player.calculate_points()),

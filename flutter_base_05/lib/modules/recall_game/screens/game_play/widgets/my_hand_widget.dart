@@ -390,11 +390,11 @@ class _MyHandWidgetState extends State<MyHandWidget> {
             _initialPeekSelectedCardIds.add(cardId);
             _initialPeekSelectionCount++;
             
-            // Show card details in snackbar
+            // Show card selection feedback (without card details since we only have ID)
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Card ${_initialPeekSelectionCount}/2: ${card['rank']} of ${card['suit']}'
+                  'Card ${_initialPeekSelectionCount}/2 selected'
                 ),
                 backgroundColor: Colors.teal,
                 duration: Duration(seconds: 2),

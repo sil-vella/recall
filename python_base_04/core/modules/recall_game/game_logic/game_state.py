@@ -979,10 +979,10 @@ class GameStateManager:
                     custom_log(f"Card {card_id} not found in game", level="ERROR", isOn=LOGGING_SWITCH)
                     continue
                 
-                # Find the card in player's hand and update it with full data
-                for i, hand_card in enumerate(player.hand):
-                    if hand_card and hand_card.card_id == card_id:
-                        # Replace the card in hand with the full card data
+                # Find the card ID in player's hand and replace with full Card object
+                for i, hand_item in enumerate(player.hand):
+                    if hand_item == card_id:  # Compare with card ID string
+                        # Replace the card ID with the full Card object
                         player.hand[i] = card_data
                         cards_updated += 1
                         custom_log(f"Updated card {card_id} in player's hand with full data", level="DEBUG", isOn=LOGGING_SWITCH)
@@ -1010,25 +1010,27 @@ class GameStateManager:
             return False
     
     def _deal_cards(self, game: GameState):
-        """Deal 4 cards to each player - moved from GameActions"""
+        """Deal 4 cards to each player - store only card IDs for data optimization"""
         for player in game.players.values():
             for _ in range(4):
                 card = game.deck.draw_card()
                 if card:
-                    player.add_card_to_hand(card)
+                    # Store only the card ID, not the full Card object
+                    player.hand.append(card.card_id)
+                    custom_log(f"Dealt card ID {card.card_id} to player {player.player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
     
     def _setup_piles(self, game: GameState):
-        """Set up draw and discard piles - moved from GameActions"""
+        """Set up draw and discard piles - store only card IDs for data optimization"""
         try:
-            # Move remaining cards to draw pile
-            game.draw_pile = game.deck.cards.copy()
+            # Move remaining cards to draw pile - store only card IDs
+            game.draw_pile = [card.card_id for card in game.deck.cards]
             game.deck.cards = []
             
             # Start discard pile with first card from draw pile
             if game.draw_pile:
-                first_card = game.draw_pile.pop(0)
-                game.discard_pile.append(first_card)
-                custom_log(f"Setup piles: {len(game.draw_pile)} cards in draw pile, {len(game.discard_pile)} cards in discard pile", level="INFO", isOn=LOGGING_SWITCH)
+                first_card_id = game.draw_pile.pop(0)
+                game.discard_pile.append(first_card_id)
+                custom_log(f"Setup piles: {len(game.draw_pile)} card IDs in draw pile, {len(game.discard_pile)} card IDs in discard pile", level="INFO", isOn=LOGGING_SWITCH)
             else:
                 custom_log("Warning: No cards in draw pile after dealing", level="WARNING", isOn=LOGGING_SWITCH)
             
@@ -1061,6 +1063,12 @@ class GameStateManager:
             'displayName': str(card),
             'color': 'red' if card.suit in ['hearts', 'diamonds'] else 'black',
         }
+    
+    def _to_flutter_card_id_only(self, card_id: str) -> Dict[str, Any]:
+        """Convert card ID to Flutter format (ID only)"""
+        return {
+            'cardId': card_id,
+        }
 
     def _to_flutter_player_data(self, player, is_current: bool = False) -> Dict[str, Any]:
         """
@@ -1068,12 +1076,27 @@ class GameStateManager:
         
         This method structures ALL player data that will be sent to the frontend.
         The structure MUST match the Flutter frontend schema exactly.
+        
+        Note: Player hands now contain only card IDs for data optimization.
+        Full card data is sent only for peeked cards or when explicitly needed.
         """
+        # Handle hand data - check if it contains Card objects or just IDs
+        hand_data = []
+        for item in player.hand:
+            if item is None:
+                hand_data.append(None)
+            elif isinstance(item, str):
+                # It's a card ID - send ID only
+                hand_data.append(self._to_flutter_card_id_only(item))
+            else:
+                # It's a Card object - send full data
+                hand_data.append(self._to_flutter_card(item))
+        
         return {
             'id': player.player_id,
             'name': player.name,
             'type': 'human' if player.player_type.value == 'human' else 'computer',
-            'hand': [self._to_flutter_card(c) if c is not None else None for c in player.hand],  # Send None as null for blank slots
+            'hand': hand_data,
             'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards if c is not None],
             'cardsToPeek': [self._to_flutter_card(c) for c in player.cards_to_peek if c is not None],  # Include cards to peek
             'score': int(player.calculate_points()),

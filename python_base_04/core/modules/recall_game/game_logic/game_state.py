@@ -16,7 +16,7 @@ import time
 import uuid
 import threading
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 class GamePhase(Enum):
     """Game phases"""
@@ -914,44 +914,79 @@ class GameStateManager:
             return False
             
     def on_completed_initial_peek(self, session_id: str, data: Dict[str, Any]) -> bool:
-        """Handle completed initial peek for the game"""
+        """
+        Handle completed initial peek for the game.
+        
+        This method:
+        1. Gets the player who completed the peek
+        2. Retrieves the card IDs from player.cards_to_peek (populated by initial_peek_card events)
+        3. Finds the actual card objects in the player's hand by ID
+        4. Updates the player's hand to include full card data for peeked cards
+        5. Clears the cards_to_peek list
+        6. Sets player status to WAITING
+        """
         try:
             custom_log("Completed initial peek", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Get game_id
             game_id = data.get('game_id') or data.get('room_id')
             if not game_id:
-                # Use the coordinator to send error message
                 if hasattr(self, 'app_manager') and self.app_manager:
                     coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                     if coordinator:
                         coordinator._send_error(session_id, 'Missing game_id')
-                    else:
-                        pass
-                else:
-                    pass
                 return False
+            
+            # Get game
             game = self.get_game(game_id)
             if not game:
-                # Use the coordinator to send error message
                 if hasattr(self, 'app_manager') and self.app_manager:
                     coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                     if coordinator:
                         coordinator._send_error(session_id, f'Game not found: {game_id}')
-                    else:
-                        pass
-                else:
-                    pass
                 return False
             
+            # Get user_id from session
             session_data = self.websocket_manager.get_session_data(session_id) or {}
             user_id = str(session_data.get('user_id') or session_id or session_data.get('player_id'))
             custom_log(f"Completed initial peek - user_id: {user_id}", level="INFO", isOn=LOGGING_SWITCH)
-
+            
+            # Get player
+            player = game.players.get(user_id)
+            if not player:
+                custom_log(f"Player {user_id} not found in game {game_id}", level="ERROR", isOn=LOGGING_SWITCH)
+                return False
+            
+            # Get the card IDs from cards_to_peek (populated by initial_peek_card events)
+            peeked_card_ids = [card.card_id for card in player.cards_to_peek]
+            custom_log(f"Player {user_id} peeked at cards: {peeked_card_ids}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Find and update the cards in player's hand with full data
+            # The cards are already in the hand, we just need to ensure they have full data
+            cards_updated = 0
+            for card in player.hand:
+                if card and card.card_id in peeked_card_ids:
+                    # Card already has full data, just count it
+                    cards_updated += 1
+                    custom_log(f"Card {card.card_id} already has full data in hand", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            custom_log(f"Updated {cards_updated} cards in player {user_id}'s hand with full data", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Clear the cards_to_peek list now that peek is complete
+            player.cards_to_peek.clear()
+            if hasattr(player, '_track_change'):
+                player._track_change('cards_to_peek')
+                player._send_changes_if_needed()
+            
+            # Set player status to WAITING
             completed_peek = game.update_players_status_by_ids([user_id], PlayerStatus.WAITING)
             custom_log(f"Completed initial peek - {completed_peek} players set to WAITING status", level="INFO", isOn=LOGGING_SWITCH)
 
             return True
         except Exception as e:
             custom_log(f"Failed to handle completed initial peek: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
     
     def _deal_cards(self, game: GameState):

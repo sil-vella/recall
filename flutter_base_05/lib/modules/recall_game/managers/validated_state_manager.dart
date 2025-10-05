@@ -426,6 +426,21 @@ class RecallGameStateUpdater {
       // Get current state
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       
+      // Check if there are actual changes (excluding lastUpdated)
+      bool hasActualChanges = false;
+      for (final key in validatedUpdates.keys) {
+        if (key != 'lastUpdated' && currentState[key] != validatedUpdates[key]) {
+          hasActualChanges = true;
+          break;
+        }
+      }
+      
+      // Only proceed if there are actual changes
+      if (!hasActualChanges && validatedUpdates.length == 1 && validatedUpdates.containsKey('lastUpdated')) {
+        _logger.debug('RecallGameStateUpdater: No actual changes detected, skipping update', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       // Apply only the validated updates
       final newState = {
         ...currentState,

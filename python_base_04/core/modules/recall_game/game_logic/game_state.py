@@ -919,11 +919,10 @@ class GameStateManager:
         
         This method:
         1. Gets the player who completed the peek
-        2. Retrieves the card IDs from player.cards_to_peek (populated by initial_peek_card events)
+        2. Receives card IDs from frontend (2 card IDs the player peeked at)
         3. Finds the actual card objects in the player's hand by ID
-        4. Updates the player's hand to include full card data for peeked cards
-        5. Clears the cards_to_peek list
-        6. Sets player status to WAITING
+        4. Adds these cards to player.cards_to_peek for frontend display
+        5. Sets player status to WAITING
         """
         try:
             custom_log("Completed initial peek", level="INFO", isOn=LOGGING_SWITCH)
@@ -935,6 +934,16 @@ class GameStateManager:
                     coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
                     if coordinator:
                         coordinator._send_error(session_id, 'Missing game_id')
+                return False
+            
+            # Get card_ids from payload
+            card_ids = data.get('card_ids', [])
+            if not card_ids or len(card_ids) != 2:
+                custom_log(f"Invalid card_ids: {card_ids}. Expected 2 card IDs.", level="ERROR", isOn=LOGGING_SWITCH)
+                if hasattr(self, 'app_manager') and self.app_manager:
+                    coordinator = getattr(self.app_manager, 'game_event_coordinator', None)
+                    if coordinator:
+                        coordinator._send_error(session_id, 'Invalid card_ids: must provide exactly 2 card IDs')
                 return False
             
             # Get game
@@ -949,7 +958,7 @@ class GameStateManager:
             # Get user_id from session
             session_data = self.websocket_manager.get_session_data(session_id) or {}
             user_id = str(session_data.get('user_id') or session_id or session_data.get('player_id'))
-            custom_log(f"Completed initial peek - user_id: {user_id}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Completed initial peek - user_id: {user_id}, card_ids: {card_ids}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Get player
             player = game.players.get(user_id)
@@ -957,23 +966,23 @@ class GameStateManager:
                 custom_log(f"Player {user_id} not found in game {game_id}", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
-            # Get the card IDs from cards_to_peek (populated by initial_peek_card events)
-            peeked_card_ids = [card.card_id for card in player.cards_to_peek]
-            custom_log(f"Player {user_id} peeked at cards: {peeked_card_ids}", level="INFO", isOn=LOGGING_SWITCH)
+            # Find the cards in player's hand and add to cards_to_peek
+            player.cards_to_peek.clear()  # Clear any existing
+            cards_found = 0
+            for card_id in card_ids:
+                for card in player.hand:
+                    if card and card.card_id == card_id:
+                        player.cards_to_peek.append(card)
+                        cards_found += 1
+                        custom_log(f"Added card {card_id} to cards_to_peek", level="DEBUG", isOn=LOGGING_SWITCH)
+                        break
             
-            # Find and update the cards in player's hand with full data
-            # The cards are already in the hand, we just need to ensure they have full data
-            cards_updated = 0
-            for card in player.hand:
-                if card and card.card_id in peeked_card_ids:
-                    # Card already has full data, just count it
-                    cards_updated += 1
-                    custom_log(f"Card {card.card_id} already has full data in hand", level="DEBUG", isOn=LOGGING_SWITCH)
+            if cards_found != 2:
+                custom_log(f"Warning: Only found {cards_found} out of 2 cards in player's hand", level="WARNING", isOn=LOGGING_SWITCH)
             
-            custom_log(f"Updated {cards_updated} cards in player {user_id}'s hand with full data", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Player {user_id} peeked at {cards_found} cards: {card_ids}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Clear the cards_to_peek list now that peek is complete
-            player.cards_to_peek.clear()
+            # Trigger change detection for cards_to_peek
             if hasattr(player, '_track_change'):
                 player._track_change('cards_to_peek')
                 player._send_changes_if_needed()

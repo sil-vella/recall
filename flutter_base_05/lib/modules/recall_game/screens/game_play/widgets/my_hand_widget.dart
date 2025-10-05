@@ -24,8 +24,9 @@ class MyHandWidget extends StatefulWidget {
 }
 
 class _MyHandWidgetState extends State<MyHandWidget> {
-  // Local counter for initial peek card selections
+  // Local state for initial peek card selections
   int _initialPeekSelectionCount = 0;
+  List<String> _initialPeekSelectedCardIds = [];
 
   @override
   Widget build(BuildContext context) {
@@ -46,9 +47,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
-        // Reset initial peek counter when not in initial_peek status
+        // Reset initial peek state when not in initial_peek status
         if (playerStatus != 'initial_peek' && _initialPeekSelectionCount > 0) {
           _initialPeekSelectionCount = 0;
+          _initialPeekSelectedCardIds.clear();
         }
         
         return _buildMyHandCard(
@@ -358,14 +360,41 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           );
         } else if (currentPlayerStatus == 'initial_peek') {
           // Handle Initial peek card selection (limit to 2 cards)
+          final cardId = card['cardId']?.toString() ?? '';
+          
+          if (cardId.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Invalid card data'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
+          
+          // Check if card already selected
+          if (_initialPeekSelectedCardIds.contains(cardId)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Card already selected'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
+          
           if (_initialPeekSelectionCount < 2) {
+            // Add card ID to selected list
+            _initialPeekSelectedCardIds.add(cardId);
             _initialPeekSelectionCount++;
             
             // Show card details in snackbar
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Card ${_initialPeekSelectionCount}: ${card['rank']} of ${card['suit']}'
+                  'Card ${_initialPeekSelectionCount}/2: ${card['rank']} of ${card['suit']}'
                 ),
                 backgroundColor: Colors.teal,
                 duration: Duration(seconds: 2),
@@ -377,8 +406,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               // Small delay to show the second card snackbar
               await Future.delayed(Duration(milliseconds: 500));
               
+              // Send completed_initial_peek with both card IDs
               final completedInitialPeekAction = PlayerAction.completedInitialPeek(
                 gameId: currentGameId,
+                cardIds: _initialPeekSelectedCardIds,
               );
               await completedInitialPeekAction.execute();
               
@@ -393,8 +424,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 ),
               );
               
-              // Reset counter
+              // Reset state
               _initialPeekSelectionCount = 0;
+              _initialPeekSelectedCardIds.clear();
             }
           } else {
             // Already selected 2 cards, show message

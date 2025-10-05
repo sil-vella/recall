@@ -341,12 +341,14 @@ class PlayerAction {
   /// Completed initial peek action - signals that player has finished peeking at 2 cards
   static PlayerAction completedInitialPeek({
     required String gameId,
+    required List<String> cardIds,
   }) {
     return PlayerAction._(
       actionType: PlayerActionType.completedInitialPeek,
       eventName: 'completed_initial_peek',
       payload: {
         'game_id': gameId,
+        'card_ids': cardIds,
       },
     );
   }

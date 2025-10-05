@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../core/managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../utils/field_specifications.dart';
@@ -427,16 +429,42 @@ class RecallGameStateUpdater {
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       
       // Check if there are actual changes (excluding lastUpdated)
+      // For complex objects (Maps, Lists), we need deep comparison
       bool hasActualChanges = false;
       for (final key in validatedUpdates.keys) {
-        if (key != 'lastUpdated' && currentState[key] != validatedUpdates[key]) {
+        if (key == 'lastUpdated') continue;
+        
+        final currentValue = currentState[key];
+        final newValue = validatedUpdates[key];
+        
+        // For simple types, use direct comparison
+        if (currentValue == newValue) {
+          continue;
+        }
+        
+        // For complex types, use JSON comparison
+        if (currentValue is Map || currentValue is List || newValue is Map || newValue is List) {
+          try {
+            final currentJson = jsonEncode(currentValue);
+            final newJson = jsonEncode(newValue);
+            if (currentJson != newJson) {
+              hasActualChanges = true;
+              break;
+            }
+          } catch (e) {
+            // If JSON encoding fails, assume there's a change
+            hasActualChanges = true;
+            break;
+          }
+        } else {
+          // For other types, if they're not equal, there's a change
           hasActualChanges = true;
           break;
         }
       }
       
       // Only proceed if there are actual changes
-      if (!hasActualChanges && validatedUpdates.length == 1 && validatedUpdates.containsKey('lastUpdated')) {
+      if (!hasActualChanges) {
         _logger.debug('RecallGameStateUpdater: No actual changes detected, skipping update', isOn: LOGGING_SWITCH);
         return;
       }

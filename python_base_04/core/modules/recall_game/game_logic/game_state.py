@@ -1100,6 +1100,40 @@ class GameStateManager:
             'color': None,
         }
     
+    def _to_flutter_discard_pile(self, discard_pile: List[Card]) -> List[Dict[str, Any]]:
+        """Convert discard pile to Flutter format - last card visible, others ID-only"""
+        if not discard_pile:
+            return []
+        
+        flutter_cards = []
+        for i, card in enumerate(discard_pile):
+            if i == len(discard_pile) - 1:
+                # Last card (most recent) - show full data
+                flutter_cards.append(self._to_flutter_card_forced_visible(card))
+                custom_log(f"Discard pile: Last card {card.card_id} shown with full data", level="DEBUG", isOn=LOGGING_SWITCH)
+            else:
+                # All other cards - show ID-only data
+                flutter_cards.append(self._to_flutter_card_id_only(card))
+                custom_log(f"Discard pile: Card {card.card_id} shown as ID-only", level="DEBUG", isOn=LOGGING_SWITCH)
+        
+        return flutter_cards
+    
+    def _to_flutter_card_forced_visible(self, card) -> Dict[str, Any]:
+        """Convert card to Flutter format with full data (forced visible)"""
+        rank_mapping = {
+            '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+            '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
+        }
+        custom_log(f"Returning forced visible card data for {card.card_id}: suit='{card.suit}', rank='{card.rank}'", level="DEBUG", isOn=LOGGING_SWITCH)
+        return {
+            'cardId': card.card_id,
+            'suit': card.suit,
+            'rank': rank_mapping.get(card.rank, card.rank),
+            'points': card.points,
+            'displayName': str(card),
+            'color': 'red' if card.suit in ['hearts', 'diamonds'] else 'black',
+        }
+    
 
     def _to_flutter_player_data(self, player, is_current: bool = False) -> Dict[str, Any]:
         """
@@ -1169,7 +1203,7 @@ class GameStateManager:
             
             # Card piles
             'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],
-            'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
+            'discardPile': self._to_flutter_discard_pile(game.discard_pile),
             
             # Game timing
             'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time and isinstance(game.game_start_time, (int, float)) else (game.game_start_time.isoformat() if hasattr(game.game_start_time, 'isoformat') else None),

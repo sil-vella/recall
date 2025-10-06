@@ -905,6 +905,9 @@ class GameStateManager:
             updated_count = game.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
             custom_log(f"Set {updated_count} players back to WAITING status", level="INFO", isOn=LOGGING_SWITCH)
             
+            # Reset all players' hands to ID-only format for optimization
+            self._reset_all_hands_to_id_only(game)
+            
             game_round = game.get_round()
             custom_log("Starting game round turn", level="INFO", isOn=LOGGING_SWITCH)
             start_turn_result = game_round.start_turn()
@@ -912,6 +915,26 @@ class GameStateManager:
         except Exception as e:
             custom_log(f"Failed to handle initial peek timeout: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
+    
+    def _reset_all_hands_to_id_only(self, game: GameState):
+        """Reset all players' hands to ID-only format for optimization after initial peek"""
+        try:
+            total_cards_reset = 0
+            for player_id, player in game.players.items():
+                cards_reset = 0
+                for card in player.hand:
+                    if card is not None:
+                        # Reset card to ID-only format by setting is_visible = False
+                        card.is_visible = False
+                        cards_reset += 1
+                
+                total_cards_reset += cards_reset
+                custom_log(f"Reset {cards_reset} cards to ID-only format for player {player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            custom_log(f"Reset all hands to ID-only format: {total_cards_reset} cards total across {len(game.players)} players", level="INFO", isOn=LOGGING_SWITCH)
+            
+        except Exception as e:
+            custom_log(f"Error resetting hands to ID-only format: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             
     def on_completed_initial_peek(self, session_id: str, data: Dict[str, Any]) -> bool:
         """

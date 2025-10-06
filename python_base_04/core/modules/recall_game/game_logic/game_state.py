@@ -1051,6 +1051,10 @@ class GameStateManager:
 
     def _to_flutter_card(self, card) -> Dict[str, Any]:
         """Convert card to Flutter format with full data"""
+        # Check if this is an ID-only card (has empty or None values)
+        if not card.suit or not card.rank or card.suit == "" or card.rank == "":
+            return self._to_flutter_card_id_only(card)
+        
         rank_mapping = {
             '2': 'two', '3': 'three', '4': 'four', '5': 'five',
             '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
@@ -1078,10 +1082,10 @@ class GameStateManager:
     def _create_id_only_card(self, card_id: str):
         """Create a Card object with only ID (for initial hand optimization)"""
         from core.modules.recall_game.models.card import Card
-        # Create a minimal card with only the ID - other properties will be None
+        # Create a minimal card with only the ID - other properties will be empty strings
         return Card(
-            rank="",  # Empty string instead of None to avoid Card validation issues
-            suit="",  # Empty string instead of None to avoid Card validation issues  
+            rank="",  # Empty string to indicate no data
+            suit="",  # Empty string to indicate no data
             points=0,  # Default points
             special_power=None,
             card_id=card_id

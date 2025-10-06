@@ -1015,9 +1015,8 @@ class GameStateManager:
             for _ in range(4):
                 card = game.deck.draw_card()
                 if card:
-                    # Create ID-only card for initial hand (optimization)
-                    id_only_card = self._create_id_only_card(card.card_id)
-                    player.add_card_to_hand(id_only_card)
+                    # Add ID-only card for initial hand (optimization)
+                    player.add_card_to_hand(card, full_card=False)
     
     def _setup_piles(self, game: GameState):
         """Set up draw and discard piles - moved from GameActions"""
@@ -1079,17 +1078,6 @@ class GameStateManager:
             'color': None,
         }
     
-    def _create_id_only_card(self, card_id: str):
-        """Create a Card object with only ID (for initial hand optimization)"""
-        from core.modules.recall_game.models.card import Card
-        # Create a minimal card with only the ID - other properties will be empty strings
-        return Card(
-            rank="",  # Empty string to indicate no data
-            suit="",  # Empty string to indicate no data
-            points=0,  # Default points
-            special_power=None,
-            card_id=card_id
-        )
 
     def _to_flutter_player_data(self, player, is_current: bool = False) -> Dict[str, Any]:
         """

@@ -1184,23 +1184,6 @@ class GameStateManager:
 
     # ========= DEPRECATED METHODS - REMOVE AFTER MIGRATION =========
     
-    def _to_flutter_card(self, card) -> Dict[str, Any]:
-        """
-        DEPRECATED: Convert card to Flutter format
-        This method will be removed after migration to _to_flutter_game_data
-        """
-        rank_mapping = {
-            '2': 'two', '3': 'three', '4': 'four', '5': 'five',
-            '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
-        }
-        return {
-            'cardId': card.card_id,
-            'suit': card.suit,
-            'rank': rank_mapping.get(card.rank, card.rank),
-            'points': card.points,
-            'displayName': str(card),
-            'color': 'red' if card.suit in ['hearts', 'diamonds'] else 'black',
-        }
 
     def _to_flutter_player(self, player, is_current: bool = False) -> Dict[str, Any]:
         """

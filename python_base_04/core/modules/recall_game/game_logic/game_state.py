@@ -366,9 +366,9 @@ class GameState:
         """Find a card by its ID anywhere in the game
         
         Searches through all game locations:
-        - Draw pile (first - contains full card data)
-        - Discard pile (second - contains full card data)
-        - All player hands (last - may contain ID-only cards)
+        - All player hands
+        - Draw pile
+        - Discard pile
         - Pending draws
         
         Args:
@@ -377,21 +377,21 @@ class GameState:
         Returns:
             Optional[Card]: The card object if found, None otherwise
         """
-        # Search in draw pile first (contains full card data)
-        for card in self.draw_pile:
-            if card.card_id == card_id:
-                return card
-        
-        # Search in discard pile second (contains full card data)
-        for card in self.discard_pile:
-            if card.card_id == card_id:
-                return card
-        
-        # Search in all player hands last (may contain ID-only cards)
+        # Search in all player hands
         for player in self.players.values():
             for card in player.hand:
                 if card is not None and card.card_id == card_id:
                     return card
+        
+        # Search in draw pile
+        for card in self.draw_pile:
+            if card.card_id == card_id:
+                return card
+        
+        # Search in discard pile
+        for card in self.discard_pile:
+            if card.card_id == card_id:
+                return card
         
         # Search in pending draws
         for card in self.pending_draws.values():
@@ -970,22 +970,16 @@ class GameStateManager:
                 custom_log(f"Player {user_id} not found in game {game_id}", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
-            # For each card ID, find the full card data and update in player's hand
+            # For each card ID, mark the card as visible in player's hand
             cards_updated = 0
             for card_id in card_ids:
-                # Use get_card_by_id to find the full card data
-                card_data = game.get_card_by_id(card_id)
-                if not card_data:
-                    custom_log(f"Card {card_id} not found in game", level="ERROR", isOn=LOGGING_SWITCH)
-                    continue
-                
-                # Find the card in player's hand and update it with full data
+                # Find the card in player's hand and mark it as visible
                 for i, hand_card in enumerate(player.hand):
                     if hand_card and hand_card.card_id == card_id:
-                        # Replace the card in hand with the full card data
-                        player.hand[i] = card_data
+                        # Mark the card as visible (peeked at)
+                        hand_card.is_visible = True
                         cards_updated += 1
-                        custom_log(f"Updated card {card_id} in player's hand with full data", level="DEBUG", isOn=LOGGING_SWITCH)
+                        custom_log(f"Marked card {card_id} as visible in player's hand", level="DEBUG", isOn=LOGGING_SWITCH)
                         break
             
             if cards_updated != 2:
@@ -1015,8 +1009,8 @@ class GameStateManager:
             for _ in range(4):
                 card = game.deck.draw_card()
                 if card:
-                    # Add ID-only card for initial hand (optimization)
-                    player.add_card_to_hand(card, full_card=False)
+                    # Add full card to hand (keep original card data)
+                    player.add_card_to_hand(card, full_card=True)
     
     def _setup_piles(self, game: GameState):
         """Set up draw and discard piles - moved from GameActions"""
@@ -1050,19 +1044,19 @@ class GameStateManager:
 
     def _to_flutter_card(self, card) -> Dict[str, Any]:
         """Convert card to Flutter format with full data"""
-        # Check if this is an ID-only card (has empty or None values)
-        is_id_only = not card.suit or not card.rank or card.suit == "" or card.rank == ""
-        custom_log(f"_to_flutter_card DEBUG: card_id={card.card_id}, suit='{card.suit}', rank='{card.rank}', is_id_only={is_id_only}", level="DEBUG", isOn=LOGGING_SWITCH)
+        # Check if card is visible (has been peeked at)
+        is_visible = getattr(card, 'is_visible', False)
+        custom_log(f"_to_flutter_card DEBUG: card_id={card.card_id}, suit='{card.suit}', rank='{card.rank}', is_visible={is_visible}", level="DEBUG", isOn=LOGGING_SWITCH)
         
-        if is_id_only:
-            custom_log(f"Returning ID-only card data for {card.card_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+        if not is_visible:
+            custom_log(f"Returning ID-only card data for {card.card_id} (not visible)", level="DEBUG", isOn=LOGGING_SWITCH)
             return self._to_flutter_card_id_only(card)
         
         rank_mapping = {
             '2': 'two', '3': 'three', '4': 'four', '5': 'five',
             '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
         }
-        custom_log(f"Returning full card data for {card.card_id}: suit='{card.suit}', rank='{card.rank}'", level="DEBUG", isOn=LOGGING_SWITCH)
+        custom_log(f"Returning full card data for {card.card_id}: suit='{card.suit}', rank='{card.rank}' (visible)", level="DEBUG", isOn=LOGGING_SWITCH)
         return {
             'cardId': card.card_id,
             'suit': card.suit,

@@ -1051,13 +1051,18 @@ class GameStateManager:
     def _to_flutter_card(self, card) -> Dict[str, Any]:
         """Convert card to Flutter format with full data"""
         # Check if this is an ID-only card (has empty or None values)
-        if not card.suit or not card.rank or card.suit == "" or card.rank == "":
+        is_id_only = not card.suit or not card.rank or card.suit == "" or card.rank == ""
+        custom_log(f"_to_flutter_card DEBUG: card_id={card.card_id}, suit='{card.suit}', rank='{card.rank}', is_id_only={is_id_only}", level="DEBUG", isOn=LOGGING_SWITCH)
+        
+        if is_id_only:
+            custom_log(f"Returning ID-only card data for {card.card_id}", level="DEBUG", isOn=LOGGING_SWITCH)
             return self._to_flutter_card_id_only(card)
         
         rank_mapping = {
             '2': 'two', '3': 'three', '4': 'four', '5': 'five',
             '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
         }
+        custom_log(f"Returning full card data for {card.card_id}: suit='{card.suit}', rank='{card.rank}'", level="DEBUG", isOn=LOGGING_SWITCH)
         return {
             'cardId': card.card_id,
             'suit': card.suit,

@@ -366,9 +366,9 @@ class GameState:
         """Find a card by its ID anywhere in the game
         
         Searches through all game locations:
-        - All player hands
-        - Draw pile
-        - Discard pile
+        - Draw pile (first - contains full card data)
+        - Discard pile (second - contains full card data)
+        - All player hands (last - may contain ID-only cards)
         - Pending draws
         
         Args:
@@ -377,21 +377,21 @@ class GameState:
         Returns:
             Optional[Card]: The card object if found, None otherwise
         """
-        # Search in all player hands
-        for player in self.players.values():
-            for card in player.hand:
-                if card is not None and card.card_id == card_id:
-                    return card
-        
-        # Search in draw pile
+        # Search in draw pile first (contains full card data)
         for card in self.draw_pile:
             if card.card_id == card_id:
                 return card
         
-        # Search in discard pile
+        # Search in discard pile second (contains full card data)
         for card in self.discard_pile:
             if card.card_id == card_id:
                 return card
+        
+        # Search in all player hands last (may contain ID-only cards)
+        for player in self.players.values():
+            for card in player.hand:
+                if card is not None and card.card_id == card_id:
+                    return card
         
         # Search in pending draws
         for card in self.pending_draws.values():

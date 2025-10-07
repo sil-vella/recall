@@ -1103,6 +1103,14 @@ class GameStateManager:
         This method structures ALL player data that will be sent to the frontend.
         The structure MUST match the Flutter frontend schema exactly.
         """
+        # Debug: Check player data types
+        custom_log(f"DEBUG: Processing player {player.player_id} - hand length: {len(player.hand)}", isOn=LOGGING_SWITCH)
+        for i, card in enumerate(player.hand):
+            if card is not None:
+                custom_log(f"DEBUG: Hand[{i}] type: {type(card)}, is Card: {isinstance(card, Card)}", isOn=LOGGING_SWITCH)
+                if not isinstance(card, Card):
+                    custom_log(f"DEBUG: WARNING - Hand[{i}] is not a Card object: {card}", isOn=LOGGING_SWITCH)
+        
         return {
             'id': player.player_id,
             'name': player.name,

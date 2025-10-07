@@ -526,6 +526,41 @@ class RecallEventHandlerCallbacks {
             'gamePhase': updatedGameState['phase'] ?? 'playing',
           });
           break;
+        case 'players':
+          // Extract my player data from the players list
+          final players = updatedGameState['players'] as List<dynamic>? ?? [];
+          final currentUserId = _getCurrentUserId();
+          
+          for (var player in players) {
+            if (player is Map<String, dynamic>) {
+              final playerId = player['id']?.toString();
+              if (playerId == currentUserId) {
+                // Extract player data fields
+                final hand = player['hand'] as List<dynamic>? ?? [];
+                final cardsToPeek = player['cardsToPeek'] as List<dynamic>? ?? [];
+                final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
+                final score = player['score'] as int? ?? 0;
+                final status = player['status']?.toString() ?? 'unknown';
+                final isCurrentPlayer = player['isCurrentPlayer'] == true;
+                
+                // Update main game state
+                _updateMainGameState({
+                  'playerStatus': status,
+                  'myScore': score,
+                  'isMyTurn': isCurrentPlayer,
+                  'myDrawnCard': drawnCard,
+                  'myCardsToPeek': cardsToPeek,
+                });
+                
+                // Update game map with hand info
+                updates['myHandCards'] = hand;
+                updates['isMyTurn'] = isCurrentPlayer;
+                updates['myDrawnCard'] = drawnCard;
+                break;
+              }
+            }
+          }
+          break;
         case 'current_player_id':
           updates['currentPlayer'] = updatedGameState['current_player_id'];
           break;

@@ -5,6 +5,10 @@ import '../../../widgets/card_widget.dart';
 import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
 import '../../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
+
+// Logging switch
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display the player's hand
 /// 
@@ -49,6 +53,21 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+        
+        // Debug logging
+        Logger().info('🃏 MyHandWidget - playerStatus: $playerStatus', isOn: LOGGING_SWITCH);
+        Logger().info('🃏 MyHandWidget - cards.length: ${cards.length}', isOn: LOGGING_SWITCH);
+        Logger().info('🃏 MyHandWidget - cardsToPeek.length: ${cardsToPeek.length}', isOn: LOGGING_SWITCH);
+        Logger().info('🃏 MyHandWidget - myHand keys: ${myHand.keys.toList()}', isOn: LOGGING_SWITCH);
+        Logger().info('🃏 MyHandWidget - recallGameState keys: ${recallGameState.keys.toList()}', isOn: LOGGING_SWITCH);
+        
+        // Check what's in the games map
+        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+        final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+        final myHandCards = currentGame['myHandCards'] as List<dynamic>? ?? [];
+        Logger().info('🃏 MyHandWidget - currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
+        Logger().info('🃏 MyHandWidget - myHandCards.length: ${myHandCards.length}', isOn: LOGGING_SWITCH);
         
         // Reset initial peek state when not in initial_peek status
         if (playerStatus != 'initial_peek' && _initialPeekSelectionCount > 0) {

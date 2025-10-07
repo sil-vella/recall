@@ -51,19 +51,20 @@ class Card:
     for deterministic, game-specific IDs.
     """
     
-    def __init__(self, rank: str, suit: str, points: int, 
-                 special_power: Optional[str] = None, card_id: Optional[str] = None):
+    def __init__(self, card_id: str, rank: Optional[str] = None, suit: Optional[str] = None, 
+                 points: Optional[int] = None, special_power: Optional[str] = None):
+        if card_id is None:
+            raise ValueError("card_id is required")
+        self.card_id = card_id
         self.rank = rank
         self.suit = suit
         self.points = points
         self.special_power = special_power
-        if card_id is None:
-            raise ValueError("card_id is required - use DeckFactory to create cards with proper IDs")
-        self.card_id = card_id
-        self.is_visible = False  # Whether the card is face up
         self.owner_id = None     # Player who owns this card
     
     def __str__(self):
+        if self.rank is None or self.suit is None:
+            return f"Card {self.card_id}"
         if self.rank == "joker":
             return "Joker"
         return f"{self.rank.title()} of {self.suit.title()}"
@@ -76,7 +77,6 @@ class Card:
             "suit": self.suit,
             "points": self.points,
             "special_power": self.special_power,
-            "is_visible": self.is_visible,
             "owner_id": self.owner_id
         }
     
@@ -84,28 +84,23 @@ class Card:
     def from_dict(cls, data: Dict[str, Any]) -> 'Card':
         """Create card from dictionary"""
         card = cls(
-            rank=data["rank"],
-            suit=data["suit"],
-            points=data["points"],
-            special_power=data.get("special_power"),
-            card_id=data.get("card_id")
+            card_id=data.get("card_id"),
+            rank=data.get("rank"),
+            suit=data.get("suit"),
+            points=data.get("points"),
+            special_power=data.get("special_power")
         )
-        card.is_visible = data.get("is_visible", False)
         card.owner_id = data.get("owner_id")
         return card
     
     def get_point_value(self) -> int:
         """Get the point value of this card"""
-        return self.points
+        return self.points or 0
     
     def has_special_power(self) -> bool:
         """Check if this card has a special power"""
         return self.special_power is not None
     
-    def can_play_out_of_turn(self, played_card: 'Card') -> bool:
-        """Check if this card can be played out of turn"""
-        return self.rank == played_card.rank
-
 
 class CardDeck:
     """Represents a deck of cards for the Recall game
@@ -132,14 +127,14 @@ class CardDeck:
                 special_power = self._get_special_power(rank)
                 # Temporary ID - will be replaced by DeckFactory
                 card_id = f"temp-{rank}-{suit}"
-                card = Card(rank, suit, points, special_power, card_id)
+                card = Card(card_id, rank, suit, points, special_power)
                 self.cards.append(card)
         
         # Add Jokers (0 points)
         if self.include_jokers:
             for i in range(2):  # 2 jokers
                 card_id = f"temp-joker-{i}"
-                card = Card("joker", "joker", 0, None, card_id)
+                card = Card(card_id, "joker", "joker", 0, None)
                 self.cards.append(card)
         
 

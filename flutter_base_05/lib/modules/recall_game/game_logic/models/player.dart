@@ -184,7 +184,6 @@ class Player {
   Card? lookAtCard(String cardId) {
     for (Card? card in hand) {
       if (card != null && card.cardId == cardId) {
-        card.isVisible = true;
         if (!visibleCards.contains(card)) {
           visibleCards.add(card);
         }
@@ -199,7 +198,6 @@ class Player {
   Card? lookAtCardByIndex(int index) {
     if (index >= 0 && index < hand.length && hand[index] != null) {
       final card = hand[index]!;
-      card.isVisible = true;
       if (!visibleCards.contains(card)) {
         visibleCards.add(card);
       }
@@ -211,11 +209,11 @@ class Player {
   }
 
   List<Card> getVisibleCards() {
-    return hand.where((card) => card != null && card.isVisible).cast<Card>().toList();
+    return List.from(visibleCards);
   }
 
   List<Card> getHiddenCards() {
-    return hand.where((card) => card != null && !card.isVisible).cast<Card>().toList();
+    return hand.where((card) => card != null && !visibleCards.contains(card)).cast<Card>().toList();
   }
 
   int calculatePoints() {

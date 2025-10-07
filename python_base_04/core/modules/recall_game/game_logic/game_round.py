@@ -15,7 +15,7 @@ from ..models.player import Player, PlayerStatus
 from ..models.card import Card
 from tools.logger.custom_logging import custom_log 
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 class GameRound:
     """Manages a single round of gameplay in the Recall game"""

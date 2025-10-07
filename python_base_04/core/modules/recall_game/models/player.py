@@ -64,26 +64,8 @@ class Player:
         self._game_state_manager = None  # Reference to game state manager for sending updates
         self._game_id = None  # Reference to game ID for sending updates
     
-    def add_card_to_hand(self, card: Card, is_drawn_card: bool = False, is_penalty_card: bool = False, full_card: bool = False):
-        """Add a card to the player's hand, filling a blank slot if available
-        
-        Args:
-            card: The card to add
-            is_drawn_card: Whether this is a drawn card (goes to end of hand)
-            is_penalty_card: Whether this is a penalty card
-            full_card: Whether to add the full card (True) or ID-only card (False, default)
-        """
-        # If full_card is False, create an ID-only card for optimization
-        if not full_card:
-            from core.modules.recall_game.models.card import Card
-            card = Card(
-                rank="",  # Empty string to indicate no data
-                suit="",  # Empty string to indicate no data
-                points=0,  # Default points
-                special_power=None,
-                card_id=card.card_id  # Preserve the original card ID
-            )
-        
+    def add_card_to_hand(self, card: Card, is_drawn_card: bool = False, is_penalty_card: bool = False):
+        """Add a card to the player's hand, filling a blank slot if available"""
         card.owner_id = self.player_id
         
         # Special handling for drawn cards - always go to the end
@@ -211,38 +193,14 @@ class Player:
         # No actual cards beyond this index, so remove the card entirely
         custom_log(f"No actual cards beyond index {index}, will remove card entirely", level="DEBUG", isOn=LOGGING_SWITCH)
         return False
-    
-    def look_at_card(self, card_id: str) -> Optional[Card]:
-        """Look at a specific card in hand"""
-        for card in self.hand:
-            if card.card_id == card_id:
-                card.is_visible = True
-                if card not in self.visible_cards:
-                    self.visible_cards.append(card)
-                    # Manually trigger change detection for visible_cards modification
-                    if hasattr(self, '_track_change'):
-                        self._track_change('visible_cards')
-                        self._send_changes_if_needed()
-                return card
-        return None
 
-    def look_at_card_by_index(self, index: int) -> Optional[Card]:
-        """Look at a specific card in hand by index"""
-        if index < 0 or index >= len(self.hand):
-            return None
-        card = self.hand[index]
-        card.is_visible = True
-        if card not in self.visible_cards:
-            self.visible_cards.append(card)
-        return card
-    
     def get_visible_cards(self) -> List[Card]:
         """Get cards that the player has looked at"""
-        return [card for card in self.hand if card is not None and card.is_visible]
+        return [card for card in self.visible_cards if card is not None]
     
     def get_hidden_cards(self) -> List[Card]:
         """Get cards that the player hasn't looked at"""
-        return [card for card in self.hand if card is not None and not card.is_visible]
+        return [card for card in self.hand if card is not None and card not in self.visible_cards]
     
     def calculate_points(self) -> int:
         """Calculate total points from cards in hand"""

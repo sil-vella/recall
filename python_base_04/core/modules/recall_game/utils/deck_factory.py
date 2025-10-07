@@ -110,32 +110,32 @@ class TestingDeckFactory:
         for suit in suits:
             # Add more Queens (4 per suit)
             for _ in range(4):
-                card = Card('queen', suit, 10, 'queen_peek', self._generate_random_card_id())
+                card = Card(self._generate_random_card_id(), 'queen', suit, 10, 'queen_peek')
                 cards.append(card)
             
             # Add more Jacks (4 per suit)
             for _ in range(4):
-                card = Card('jack', suit, 10, 'jack_swap', self._generate_random_card_id())
+                card = Card(self._generate_random_card_id(), 'jack', suit, 10, 'jack_swap')
                 cards.append(card)
             
             # Add fewer numbered cards (only 3, 4, 5)
             for rank in ['3', '4', '5']:
                 points = int(rank)
-                card = Card(rank, suit, points, None, self._generate_random_card_id())
+                card = Card(self._generate_random_card_id(), rank, suit, points, None)
                 cards.append(card)
             
             # Add Kings (4 per suit)
-            card = Card('king', suit, 10, None, self._generate_random_card_id())
+            card = Card(self._generate_random_card_id(), 'king', suit, 10, None)
             cards.append(card)
             
             # Add Aces (4 per suit)
-            card = Card('ace', suit, 1, None, self._generate_random_card_id())
+            card = Card(self._generate_random_card_id(), 'ace', suit, 1, None)
             cards.append(card)
         
         # Add Jokers if requested
         if include_jokers:
             for _ in range(2):
-                card = Card('joker', 'none', 0, None, self._generate_random_card_id())
+                card = Card(self._generate_random_card_id(), 'joker', 'none', 0, None)
                 cards.append(card)
         
         # Random shuffle using system random (no seed)

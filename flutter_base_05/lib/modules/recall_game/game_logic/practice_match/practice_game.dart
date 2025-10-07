@@ -632,7 +632,6 @@ Choose a card to play to the discard pile:
       'points': card.points,
       'displayName': card.toString(),
       'color': ['hearts', 'diamonds'].contains(card.suit) ? 'red' : 'black',
-      'isVisible': card.isVisible,
     };
   }
   
@@ -1279,7 +1278,6 @@ Choose a card to play to the discard pile:
           if (cardIndex < deck.length) {
             final card = deck[cardIndex];
             card.ownerId = player.playerId;
-            card.isVisible = false; // Face down initially
             playerHand.add(card);
             cardIndex++;
           }

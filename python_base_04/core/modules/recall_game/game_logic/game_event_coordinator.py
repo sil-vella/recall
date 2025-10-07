@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 from tools.logger.custom_logging import custom_log
 from datetime import datetime
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 
 class GameEventCoordinator:

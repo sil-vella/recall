@@ -46,7 +46,6 @@ class Card {
   final int points;
   final String? specialPower;
   final String cardId;
-  bool isVisible;
   String? ownerId;
 
   Card({
@@ -55,7 +54,6 @@ class Card {
     required this.points,
     this.specialPower,
     String? cardId,
-    this.isVisible = false,
     this.ownerId,
   }) : cardId = _validateCardId(cardId);
 
@@ -81,7 +79,6 @@ class Card {
       "suit": suit,
       "points": points,
       "special_power": specialPower,
-      "is_visible": isVisible,
       "owner_id": ownerId,
     };
   }
@@ -93,7 +90,6 @@ class Card {
       points: data["points"],
       specialPower: data["special_power"],
       cardId: data["card_id"],
-      isVisible: data["is_visible"] ?? false,
       ownerId: data["owner_id"],
     );
     return card;

@@ -905,9 +905,6 @@ class GameStateManager:
             updated_count = game.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
             custom_log(f"Set {updated_count} players back to WAITING status", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Reset all players' hands to ID-only format for optimization
-            self._reset_all_hands_to_id_only(game)
-            
             game_round = game.get_round()
             custom_log("Starting game round turn", level="INFO", isOn=LOGGING_SWITCH)
             start_turn_result = game_round.start_turn()
@@ -915,26 +912,6 @@ class GameStateManager:
         except Exception as e:
             custom_log(f"Failed to handle initial peek timeout: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
-    
-    def _reset_all_hands_to_id_only(self, game: GameState):
-        """Reset all players' hands to ID-only format for optimization after initial peek"""
-        try:
-            total_cards_reset = 0
-            for player_id, player in game.players.items():
-                cards_reset = 0
-                for card in player.hand:
-                    if card is not None:
-                        # Reset card to ID-only format by setting is_visible = False
-                        card.is_visible = False
-                        cards_reset += 1
-                
-                total_cards_reset += cards_reset
-                custom_log(f"Reset {cards_reset} cards to ID-only format for player {player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
-            
-            custom_log(f"Reset all hands to ID-only format: {total_cards_reset} cards total across {len(game.players)} players", level="INFO", isOn=LOGGING_SWITCH)
-            
-        except Exception as e:
-            custom_log(f"Error resetting hands to ID-only format: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
             
     def on_completed_initial_peek(self, session_id: str, data: Dict[str, Any]) -> bool:
         """
@@ -993,16 +970,22 @@ class GameStateManager:
                 custom_log(f"Player {user_id} not found in game {game_id}", level="ERROR", isOn=LOGGING_SWITCH)
                 return False
             
-            # For each card ID, mark the card as visible in player's hand
+            # For each card ID, find the full card data and update in player's hand
             cards_updated = 0
             for card_id in card_ids:
-                # Find the card in player's hand and mark it as visible
+                # Use get_card_by_id to find the full card data
+                card_data = game.get_card_by_id(card_id)
+                if not card_data:
+                    custom_log(f"Card {card_id} not found in game", level="ERROR", isOn=LOGGING_SWITCH)
+                    continue
+                
+                # Find the card in player's hand and update it with full data
                 for i, hand_card in enumerate(player.hand):
                     if hand_card and hand_card.card_id == card_id:
-                        # Mark the card as visible (peeked at)
-                        hand_card.is_visible = True
+                        # Replace the card in hand with the full card data
+                        player.hand[i] = card_data
                         cards_updated += 1
-                        custom_log(f"Marked card {card_id} as visible in player's hand", level="DEBUG", isOn=LOGGING_SWITCH)
+                        custom_log(f"Updated card {card_id} in player's hand with full data", level="DEBUG", isOn=LOGGING_SWITCH)
                         break
             
             if cards_updated != 2:
@@ -1032,8 +1015,7 @@ class GameStateManager:
             for _ in range(4):
                 card = game.deck.draw_card()
                 if card:
-                    # Add full card to hand (keep original card data)
-                    player.add_card_to_hand(card, full_card=True)
+                    player.add_card_to_hand(card)
     
     def _setup_piles(self, game: GameState):
         """Set up draw and discard piles - moved from GameActions"""
@@ -1065,38 +1047,26 @@ class GameStateManager:
 
 
 
-    def _to_flutter_card(self, card, force_visible: bool = False) -> Dict[str, Any]:
-        """Convert card to Flutter format with full data or ID-only based on visibility"""
-        # Check if card is visible (has been peeked at) or forced visible
-        is_visible = getattr(card, 'is_visible', False) or force_visible
-        custom_log(f"_to_flutter_card DEBUG: card_id={card.card_id}, suit='{card.suit}', rank='{card.rank}', is_visible={is_visible}, force_visible={force_visible}", level="DEBUG", isOn=LOGGING_SWITCH)
-        
-        if not is_visible:
-            custom_log(f"Returning ID-only card data for {card.card_id} (not visible)", level="DEBUG", isOn=LOGGING_SWITCH)
-            return {
-                'cardId': card.card_id,
-                'suit': None,
-                'rank': None,
-                'points': None,
-                'displayName': None,
-                'color': None,
-            }
-        
+    def _to_flutter_card(self, card) -> Dict[str, Any]:
+        """Convert card to Flutter format"""
         rank_mapping = {
             '2': 'two', '3': 'three', '4': 'four', '5': 'five',
             '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
         }
-        custom_log(f"Returning full card data for {card.card_id}: suit='{card.suit}', rank='{card.rank}' (visible)", level="DEBUG", isOn=LOGGING_SWITCH)
+        
+        # Handle None values for incomplete cards
+        suit = card.suit or '?'
+        rank = card.rank or '?'
+        points = card.points or 0
+        
         return {
             'cardId': card.card_id,
-            'suit': card.suit,
-            'rank': rank_mapping.get(card.rank, card.rank),
-            'points': card.points,
+            'suit': suit,
+            'rank': rank_mapping.get(rank, rank) if rank != '?' else '?',
+            'points': points,
             'displayName': str(card),
-            'color': 'red' if card.suit in ['hearts', 'diamonds'] else 'black',
+            'color': 'red' if suit in ['hearts', 'diamonds'] else 'black',
         }
-    
-    
 
     def _to_flutter_player_data(self, player, is_current: bool = False) -> Dict[str, Any]:
         """
@@ -1104,15 +1074,12 @@ class GameStateManager:
         
         This method structures ALL player data that will be sent to the frontend.
         The structure MUST match the Flutter frontend schema exactly.
-        
-        OPTIMIZATION: Hand cards are sent with full data when available.
-        Cards are initially added as IDs only, but get full data when peeked at.
         """
         return {
             'id': player.player_id,
             'name': player.name,
             'type': 'human' if player.player_type.value == 'human' else 'computer',
-            'hand': [self._to_flutter_card(c) if c is not None else None for c in player.hand],  # Full card data
+            'hand': [self._to_flutter_card(c) if c is not None else None for c in player.hand],  # Send None as null for blank slots
             'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards if c is not None],
             'cardsToPeek': [self._to_flutter_card(c) for c in player.cards_to_peek if c is not None],  # Include cards to peek
             'score': int(player.calculate_points()),
@@ -1166,7 +1133,7 @@ class GameStateManager:
             
             # Card piles
             'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],
-            'discardPile': [self._to_flutter_card(card, force_visible=(i == len(game.discard_pile) - 1)) for i, card in enumerate(game.discard_pile)],
+            'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
             
             # Game timing
             'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time and isinstance(game.game_start_time, (int, float)) else (game.game_start_time.isoformat() if hasattr(game.game_start_time, 'isoformat') else None),

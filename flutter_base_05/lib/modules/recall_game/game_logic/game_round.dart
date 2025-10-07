@@ -10,7 +10,7 @@ import 'game_state.dart';
 import 'models/player.dart';
 import 'models/card.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class GameRound {
   /// Manages a single round of gameplay in the Recall game

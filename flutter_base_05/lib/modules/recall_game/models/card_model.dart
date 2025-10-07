@@ -7,7 +7,6 @@ class CardModel {
   final String suit;
   final int points;
   final String? specialPower;
-  final bool isVisible;
   final String? ownerId;
   final bool isSelected;
   final bool isFaceDown;
@@ -18,7 +17,6 @@ class CardModel {
     required this.suit,
     required this.points,
     this.specialPower,
-    this.isVisible = false,
     this.ownerId,
     this.isSelected = false,
     this.isFaceDown = false,
@@ -32,7 +30,6 @@ class CardModel {
       suit: map['suit']?.toString() ?? '?',
       points: map['points']?.toInt() ?? 0,
       specialPower: map['specialPower']?.toString(),
-      isVisible: map['isVisible'] ?? false,
       ownerId: map['ownerId']?.toString(),
       isSelected: map['isSelected'] ?? false,
       isFaceDown: map['isFaceDown'] ?? false,
@@ -47,7 +44,6 @@ class CardModel {
       'suit': suit,
       'points': points,
       'specialPower': specialPower,
-      'isVisible': isVisible,
       'ownerId': ownerId,
       'isSelected': isSelected,
       'isFaceDown': isFaceDown,
@@ -61,7 +57,6 @@ class CardModel {
     String? suit,
     int? points,
     String? specialPower,
-    bool? isVisible,
     String? ownerId,
     bool? isSelected,
     bool? isFaceDown,
@@ -72,7 +67,6 @@ class CardModel {
       suit: suit ?? this.suit,
       points: points ?? this.points,
       specialPower: specialPower ?? this.specialPower,
-      isVisible: isVisible ?? this.isVisible,
       ownerId: ownerId ?? this.ownerId,
       isSelected: isSelected ?? this.isSelected,
       isFaceDown: isFaceDown ?? this.isFaceDown,

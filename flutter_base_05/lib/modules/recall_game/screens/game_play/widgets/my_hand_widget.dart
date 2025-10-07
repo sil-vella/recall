@@ -41,15 +41,8 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final selectedIndex = myHand['selectedIndex'] ?? -1;
         final selectedCard = myHand['selectedCard'] as Map<String, dynamic>?;
         
-        // Get cardsToPeek from player data
-        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-        final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
-        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-        final myPlayer = _getMyPlayerFromGame(currentGame);
-        final cardsToPeek = myPlayer?['cardsToPeek'] as List<dynamic>? ?? [];
-        
-        // Merge cardsToPeek data with hand cards
-        final mergedCards = _mergeCardsWithPeekData(cards, cardsToPeek);
+        // Get cardsToPeek state slice
+        final cardsToPeek = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
         
         // Get additional game state for context
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
@@ -64,7 +57,8 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         }
         
         return _buildMyHandCard(
-          cards: mergedCards,
+          cards: cards,
+          cardsToPeek: cardsToPeek,
           selectedIndex: selectedIndex,
           selectedCard: selectedCard,
           gamePhase: gamePhase,
@@ -79,6 +73,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   /// Build the my hand card widget
   Widget _buildMyHandCard({
     required List<dynamic> cards,
+    required List<dynamic> cardsToPeek,
     required int selectedIndex,
     required Map<String, dynamic>? selectedCard,
     required String gamePhase,
@@ -130,7 +125,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
             if (cards.isEmpty)
               _buildEmptyHand()
             else
-              _buildCardsGrid(cards, selectedIndex),
+              _buildCardsGrid(cards, cardsToPeek, selectedIndex),
             
 
           ],
@@ -173,7 +168,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   }
 
   /// Build the cards grid using the new CardWidget system
-  Widget _buildCardsGrid(List<dynamic> cards, int selectedIndex) {
+  Widget _buildCardsGrid(List<dynamic> cards, List<dynamic> cardsToPeek, int selectedIndex) {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
@@ -199,11 +194,25 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               }
               
               final cardMap = card as Map<String, dynamic>;
+              final cardId = cardMap['cardId']?.toString();
               final isSelected = index == selectedIndex;
-              final isDrawnCard = drawnCardId != null && cardMap['cardId']?.toString() == drawnCardId;
+              final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
               
-              // If this is the drawn card, use the full drawnCard data instead of the ID-only hand data
-              final cardDataToUse = isDrawnCard && drawnCard != null ? drawnCard : cardMap;
+              // Check if this card is in cardsToPeek (peeked cards have full data)
+              Map<String, dynamic>? peekedCardData;
+              if (cardId != null && cardsToPeek.isNotEmpty) {
+                for (var peekedCard in cardsToPeek) {
+                  if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
+                    peekedCardData = peekedCard;
+                    break;
+                  }
+                }
+              }
+              
+              // Determine which data to use (priority: drawn card > peeked card > ID-only hand card)
+              final cardDataToUse = isDrawnCard && drawnCard != null 
+                  ? drawnCard 
+                  : (peekedCardData ?? cardMap);
               
               // Convert to CardModel
               final cardModel = CardModel.fromMap(cardDataToUse);
@@ -530,65 +539,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         ),
       ),
     );
-  }
-
-  /// Get my player data from the current game
-  Map<String, dynamic>? _getMyPlayerFromGame(Map<String, dynamic> game) {
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserId = loginState['userId']?.toString() ?? '';
-    
-    if (currentUserId.isEmpty) return null;
-    
-    final players = game['players'] as List<dynamic>? ?? [];
-    for (final player in players) {
-      if (player is Map<String, dynamic> && player['id']?.toString() == currentUserId) {
-        return player;
-      }
-    }
-    return null;
-  }
-
-  /// Merge cardsToPeek data with hand cards
-  /// For each card in hand, if its ID matches a card in cardsToPeek, replace it with the full data
-  List<dynamic> _mergeCardsWithPeekData(List<dynamic> handCards, List<dynamic> cardsToPeek) {
-    if (cardsToPeek.isEmpty) {
-      return handCards; // No cards to peek, return hand as-is
-    }
-    
-    // Create a map of card IDs to full card data from cardsToPeek
-    final Map<String, Map<String, dynamic>> peekDataMap = {};
-    for (final peekCard in cardsToPeek) {
-      if (peekCard is Map<String, dynamic>) {
-        final cardId = peekCard['cardId']?.toString();
-        if (cardId != null) {
-          peekDataMap[cardId] = peekCard;
-        }
-      }
-    }
-    
-    // Merge: for each hand card, if ID matches a peeked card, use the full data
-    final List<dynamic> mergedCards = [];
-    for (final handCard in handCards) {
-      if (handCard == null) {
-        mergedCards.add(null); // Preserve null (blank slots)
-        continue;
-      }
-      
-      if (handCard is Map<String, dynamic>) {
-        final cardId = handCard['cardId']?.toString();
-        if (cardId != null && peekDataMap.containsKey(cardId)) {
-          // Card was peeked - use full data from cardsToPeek
-          mergedCards.add(peekDataMap[cardId]);
-        } else {
-          // Card not peeked - use ID-only data from hand
-          mergedCards.add(handCard);
-        }
-      } else {
-        mergedCards.add(handCard);
-      }
-    }
-    
-    return mergedCards;
   }
 
 }

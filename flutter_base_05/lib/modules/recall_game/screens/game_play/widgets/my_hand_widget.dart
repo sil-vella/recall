@@ -58,6 +58,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         Logger().info('🃏 MyHandWidget - playerStatus: $playerStatus', isOn: LOGGING_SWITCH);
         Logger().info('🃏 MyHandWidget - cards.length: ${cards.length}', isOn: LOGGING_SWITCH);
         Logger().info('🃏 MyHandWidget - cardsToPeek.length: ${cardsToPeek.length}', isOn: LOGGING_SWITCH);
+        if (cardsToPeek.isNotEmpty) {
+          Logger().info('🃏 MyHandWidget - cardsToPeek IDs: ${cardsToPeek.map((c) => c['cardId']).toList()}', isOn: LOGGING_SWITCH);
+        }
         Logger().info('🃏 MyHandWidget - myHand keys: ${myHand.keys.toList()}', isOn: LOGGING_SWITCH);
         Logger().info('🃏 MyHandWidget - recallGameState keys: ${recallGameState.keys.toList()}', isOn: LOGGING_SWITCH);
         

@@ -153,14 +153,20 @@ class Player:
         custom_log(f"Card {card_id} not found in hand", level="DEBUG", isOn=LOGGING_SWITCH)
         return None
     
-    def add_card_to_peek(self, card: Card):
-        """Add a card to the cards_to_peek list and trigger change detection"""
+    def add_card_to_peek(self, card: Card, trigger_update: bool = True):
+        """Add a card to the cards_to_peek list and optionally trigger change detection
+        
+        Args:
+            card: The card to add
+            trigger_update: If True, immediately trigger change detection. 
+                          If False, caller is responsible for triggering update after batch operations.
+        """
         if card not in self.cards_to_peek:
             self.cards_to_peek.append(card)
             custom_log(f"Added card {card.card_id} to cards_to_peek list", level="DEBUG", isOn=LOGGING_SWITCH)
             
-            # Manually trigger change detection for cards_to_peek modification
-            if hasattr(self, '_track_change'):
+            # Manually trigger change detection for cards_to_peek modification (if requested)
+            if trigger_update and hasattr(self, '_track_change'):
                 self._track_change('cards_to_peek')
                 self._send_changes_if_needed()
         else:

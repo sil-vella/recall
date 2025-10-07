@@ -974,6 +974,7 @@ class GameStateManager:
             player.clear_cards_to_peek()
             
             # For each card ID, find the full card data and add to cards_to_peek
+            # Use trigger_update=False to batch the updates (only send one update after all cards added)
             cards_updated = 0
             for card_id in card_ids:
                 # Use get_card_by_id to find the full card data
@@ -982,8 +983,8 @@ class GameStateManager:
                     custom_log(f"Card {card_id} not found in game", level="ERROR", isOn=LOGGING_SWITCH)
                     continue
                 
-                # Add the card to the cards_to_peek list (will be sent with full data)
-                player.add_card_to_peek(card_data)
+                # Add the card to the cards_to_peek list WITHOUT triggering immediate update (batch operation)
+                player.add_card_to_peek(card_data, trigger_update=False)
                 cards_updated += 1
                 custom_log(f"Added card {card_id} to player's cards_to_peek list", level="DEBUG", isOn=LOGGING_SWITCH)
             
@@ -992,8 +993,10 @@ class GameStateManager:
             
             custom_log(f"Player {user_id} peeked at {cards_updated} cards: {card_ids}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Note: add_card_to_peek already triggers change detection for cards_to_peek
-            # No need to manually trigger it here
+            # Manually trigger change detection ONCE after all cards have been added
+            if hasattr(player, '_track_change'):
+                player._track_change('cards_to_peek')
+                player._send_changes_if_needed()
             
             # Set player status to WAITING
             completed_peek = game.update_players_status_by_ids([user_id], PlayerStatus.WAITING)

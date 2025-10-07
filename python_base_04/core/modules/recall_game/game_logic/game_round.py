@@ -945,12 +945,12 @@ class GameRound:
                 
                 if should_place_in_slot:
                     # Place it in the blank slot left by the played card
-                    player.hand[card_index] = drawn_card.card_id  # Store only card ID
-                    custom_log(f"Placed drawn card ID in blank slot at index {card_index}", level="DEBUG", isOn=LOGGING_SWITCH)
+                    player.hand[card_index] = drawn_card  # Store the Card object, not just the ID
+                    custom_log(f"Placed drawn card in blank slot at index {card_index}", level="DEBUG", isOn=LOGGING_SWITCH)
                 else:
-                    # The slot shouldn't exist, so append the drawn card ID to the end
-                    player.hand.append(drawn_card.card_id)  # Store only card ID
-                    custom_log(f"Appended drawn card ID to end of hand (slot {card_index} shouldn't exist)", level="DEBUG", isOn=LOGGING_SWITCH)
+                    # The slot shouldn't exist, so append the drawn card to the end
+                    player.hand.append(drawn_card)  # Store the Card object, not just the ID
+                    custom_log(f"Appended drawn card to end of hand (slot {card_index} shouldn't exist)", level="DEBUG", isOn=LOGGING_SWITCH)
                 
                 # IMPORTANT: After repositioning, the drawn card becomes a regular hand card
                 # Clear the drawn card property since it's no longer "drawn"

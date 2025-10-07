@@ -901,6 +901,14 @@ class GameStateManager:
         try:
             custom_log("Initial peek timer expired - transitioning to game start", level="INFO", isOn=LOGGING_SWITCH)
             
+            # Clear cards_to_peek for all players (peek phase is over)
+            cleared_count = 0
+            for player in game.players.values():
+                if player.cards_to_peek:
+                    player.clear_cards_to_peek()
+                    cleared_count += 1
+            custom_log(f"Cleared cards_to_peek for {cleared_count} players", level="INFO", isOn=LOGGING_SWITCH)
+            
             # Set all players back to WAITING status
             updated_count = game.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
             custom_log(f"Set {updated_count} players back to WAITING status", level="INFO", isOn=LOGGING_SWITCH)

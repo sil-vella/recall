@@ -1047,8 +1047,36 @@ class GameStateManager:
 
 
 
-    def _to_flutter_card(self, card) -> Dict[str, Any]:
-        """Convert card to Flutter format"""
+    def _to_flutter_card(self, card, full_data: bool = False) -> Dict[str, Any]:
+        """Convert card to Flutter format
+        
+        Args:
+            card: Card object to convert
+            full_data: If True, send full card data. If False, send ID-only data (face-down)
+        """
+        # Debug: Check if card is actually a Card object
+        if not isinstance(card, Card):
+            custom_log(f"WARNING: _to_flutter_card called with non-Card object: {type(card)} - {card}", isOn=LOGGING_SWITCH)
+            return {
+                'cardId': str(card) if card else 'unknown',
+                'suit': '?',
+                'rank': '?',
+                'points': 0,
+                'displayName': f'Invalid Card: {card}',
+                'color': 'black',
+            }
+        if not full_data:
+            # Send ID-only data (face-down card)
+            return {
+                'cardId': card.card_id,
+                'suit': '?',
+                'rank': '?',
+                'points': 0,
+                'displayName': f'Card {card.card_id}',
+                'color': 'black',
+            }
+        
+        # Send full card data (face-up card)
         rank_mapping = {
             '2': 'two', '3': 'three', '4': 'four', '5': 'five',
             '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
@@ -1079,14 +1107,14 @@ class GameStateManager:
             'id': player.player_id,
             'name': player.name,
             'type': 'human' if player.player_type.value == 'human' else 'computer',
-            'hand': [self._to_flutter_card(c) if c is not None else None for c in player.hand],  # Send None as null for blank slots
-            'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards if c is not None],
-            'cardsToPeek': [self._to_flutter_card(c) for c in player.cards_to_peek if c is not None],  # Include cards to peek
+            'hand': [self._to_flutter_card(c, full_data=False) if c is not None and isinstance(c, Card) else None for c in player.hand],  # Send face-down cards with safety check
+            'visibleCards': [self._to_flutter_card(c, full_data=True) for c in player.visible_cards if c is not None and isinstance(c, Card)],  # Send face-up cards with safety check
+            'cardsToPeek': [self._to_flutter_card(c, full_data=True) for c in player.cards_to_peek if c is not None and isinstance(c, Card)],  # Send face-up cards with safety check
             'score': int(player.calculate_points()),
             'status': player.status.value,  # Use the player's actual status
             'isCurrentPlayer': is_current,
             'hasCalledRecall': bool(player.has_called_recall),
-            'drawnCard': self._to_flutter_card(player.drawn_card) if player.drawn_card else None,  # Include drawn card
+            'drawnCard': self._to_flutter_card(player.drawn_card, full_data=True) if player.drawn_card and isinstance(player.drawn_card, Card) else None,  # Send face-up drawn card with safety check
         }
 
     def _to_flutter_game_data(self, game: GameState) -> Dict[str, Any]:
@@ -1132,8 +1160,8 @@ class GameStateManager:
             'status': 'active' if game.phase.value in ['player_turn', 'same_rank_window', 'ending_round', 'ending_turn', 'recall_called'] else 'inactive',
             
             # Card piles
-            'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],
-            'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
+            'drawPile': [self._to_flutter_card(card, full_data=False) for card in game.draw_pile if card is not None and isinstance(card, Card)],  # Send face-down cards with safety check
+            'discardPile': [self._to_flutter_card(card, full_data=True) for card in game.discard_pile if card is not None and isinstance(card, Card)],  # Send face-up cards with safety check
             
             # Game timing
             'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time and isinstance(game.game_start_time, (int, float)) else (game.game_start_time.isoformat() if hasattr(game.game_start_time, 'isoformat') else None),
@@ -1148,7 +1176,7 @@ class GameStateManager:
             
             # Additional game metadata
             'recallCalledBy': game.recall_called_by,
-            'lastPlayedCard': self._to_flutter_card(game.last_played_card) if game.last_played_card else None,
+            'lastPlayedCard': self._to_flutter_card(game.last_played_card, full_data=True) if game.last_played_card and isinstance(game.last_played_card, Card) else None,  # Send face-up last played card with safety check
             'outOfTurnDeadline': game.out_of_turn_deadline,
             'outOfTurnTimeoutSeconds': game.out_of_turn_timeout_seconds,
         }

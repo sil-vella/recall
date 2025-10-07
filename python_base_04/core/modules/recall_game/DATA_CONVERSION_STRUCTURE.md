@@ -22,8 +22,8 @@ def _to_flutter_player_data(self, player, is_current: bool = False) -> Dict[str,
         'id': player.player_id,
         'name': player.name,
         'type': 'human' if player.player_type.value == 'human' else 'computer',
-        'hand': [self._to_flutter_card(c) for c in player.hand if c is not None],
-        'visibleCards': [self._to_flutter_card(c) for c in player.visible_cards if c is not None],
+        'hand': [self._to_flutter_card(c, full_data=False) for c in player.hand if c is not None],  # Face-down cards
+        'visibleCards': [self._to_flutter_card(c, full_data=True) for c in player.visible_cards if c is not None],  # Face-up cards
         'score': int(player.calculate_points()),
         'status': player.status.value,
         'isCurrentPlayer': is_current,
@@ -62,8 +62,8 @@ def _to_flutter_game_data(self, game: GameState) -> Dict[str, Any]:
         'status': 'active' if game.phase.value in ['player_turn', 'out_of_turn_play', 'recall_called'] else 'inactive',
         
         # Card piles
-        'drawPile': [self._to_flutter_card(card) for card in game.draw_pile],
-        'discardPile': [self._to_flutter_card(card) for card in game.discard_pile],
+        'drawPile': [self._to_flutter_card(card, full_data=False) for card in game.draw_pile],  # Face-down cards
+        'discardPile': [self._to_flutter_card(card, full_data=True) for card in game.discard_pile],  # Face-up cards
         
         # Game timing
         'gameStartTime': datetime.fromtimestamp(game.game_start_time).isoformat() if game.game_start_time else None,
@@ -78,7 +78,7 @@ def _to_flutter_game_data(self, game: GameState) -> Dict[str, Any]:
         
         # Additional game metadata
         'recallCalledBy': game.recall_called_by,
-        'lastPlayedCard': self._to_flutter_card(game.last_played_card) if game.last_played_card else None,
+        'lastPlayedCard': self._to_flutter_card(game.last_played_card, full_data=True) if game.last_played_card else None,  # Face-up card
         'outOfTurnDeadline': game.out_of_turn_deadline,
         'outOfTurnTimeoutSeconds': game.out_of_turn_timeout_seconds,
     }
@@ -154,6 +154,9 @@ The data structures are designed to match the Flutter frontend schema exactly:
 The following methods are now deprecated and will be removed after migration:
 
 1. **`_to_flutter_card()`** → Use `_to_flutter_player_data()` or `_to_flutter_game_data()`
+   - **Note**: `_to_flutter_card()` now accepts a `full_data` parameter:
+     - `full_data=False` (default): Sends ID-only data for face-down cards
+     - `full_data=True`: Sends complete card data for face-up cards
 2. **`_to_flutter_player()`** → Use `_to_flutter_player_data()`
 3. **`_to_flutter_game_state()`** → Use `_to_flutter_game_data()`
 

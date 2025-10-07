@@ -192,9 +192,11 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               final isSelected = index == selectedIndex;
               final isDrawnCard = drawnCardId != null && cardMap['cardId']?.toString() == drawnCardId;
               
+              // If this is the drawn card, use the full drawnCard data instead of the ID-only hand data
+              final cardDataToUse = isDrawnCard && drawnCard != null ? drawnCard : cardMap;
               
               // Convert to CardModel
-              final cardModel = CardModel.fromMap(cardMap);
+              final cardModel = CardModel.fromMap(cardDataToUse);
               final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
               
               return Padding(

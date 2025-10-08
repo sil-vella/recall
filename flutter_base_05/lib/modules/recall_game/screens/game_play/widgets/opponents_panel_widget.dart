@@ -39,6 +39,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
         final currentTurnIndex = opponentsPanel['currentTurnIndex'] ?? -1;
         
+        // Get cardsToPeek state slice (current user's peeked cards, could be from opponents)
+        final cardsToPeek = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
+        
         // Get current user ID to filter out self from opponents
         final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
         final currentUserId = loginState['userId']?.toString() ?? '';
@@ -57,6 +60,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         
         return _buildOpponentsPanel(
           opponents: otherPlayers,
+          cardsToPeek: cardsToPeek,
           currentTurnIndex: currentTurnIndex,
           gamePhase: gamePhase,
           isGameActive: isGameActive,
@@ -70,6 +74,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   /// Build the opponents panel widget
   Widget _buildOpponentsPanel({
     required List<dynamic> opponents,
+    required List<dynamic> cardsToPeek,
     required int currentTurnIndex,
     required String gamePhase,
     required bool isGameActive,
@@ -103,7 +108,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             if (opponents.isEmpty)
               _buildEmptyOpponents()
             else
-              _buildOpponentsGrid(opponents, currentTurnIndex, isGameActive, playerStatus),
+              _buildOpponentsGrid(opponents, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
           ],
         ),
       ),
@@ -144,7 +149,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build the opponents grid
-  Widget _buildOpponentsGrid(List<dynamic> opponents, int currentTurnIndex, bool isGameActive, String playerStatus) {
+  Widget _buildOpponentsGrid(List<dynamic> opponents, List<dynamic> cardsToPeek, int currentTurnIndex, bool isGameActive, String playerStatus) {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
@@ -176,7 +181,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: _buildOpponentCard(player, isCurrentTurn, isGameActive, isCurrentPlayer, currentPlayerStatus),
+          child: _buildOpponentCard(player, cardsToPeek, isCurrentTurn, isGameActive, isCurrentPlayer, currentPlayerStatus),
         );
       }).toList(),
     );
@@ -185,7 +190,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build individual opponent card
-  Widget _buildOpponentCard(Map<String, dynamic> player, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus) {
     final playerName = player['name']?.toString() ?? 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
@@ -260,7 +265,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           // Cards display - horizontal layout like my hand
           if (hand.isNotEmpty)
-            _buildCardsRow(hand, drawnCard, player['id']?.toString() ?? '')
+            _buildCardsRow(hand, cardsToPeek, drawnCard, player['id']?.toString() ?? '')
           else
             _buildEmptyHand(),
         ],
@@ -269,7 +274,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build cards row - horizontal layout like my hand
-  Widget _buildCardsRow(List<dynamic> cards, Map<String, dynamic>? drawnCard, String playerId) {
+  Widget _buildCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, Map<String, dynamic>? drawnCard, String playerId) {
     return Container(
       height: 100,
       child: ListView.builder(
@@ -287,15 +292,33 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           }
           
           final cardMap = card as Map<String, dynamic>;
+          final cardId = cardMap['cardId']?.toString();
           final drawnCardId = drawnCard?['cardId']?.toString();
-          final isDrawnCard = drawnCardId != null && cardMap['cardId']?.toString() == drawnCardId;
+          final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
+          
+          // Check if this card is in cardsToPeek (peeked cards have full data)
+          // This is for when the current user is peeking at opponent cards (e.g., Queen peek)
+          Map<String, dynamic>? peekedCardData;
+          if (cardId != null && cardsToPeek.isNotEmpty) {
+            for (var peekedCard in cardsToPeek) {
+              if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
+                peekedCardData = peekedCard;
+                break;
+              }
+            }
+          }
+          
+          // Determine which data to use (priority: drawn card > peeked card > ID-only hand card)
+          final cardDataToUse = isDrawnCard && drawnCard != null 
+              ? drawnCard 
+              : (peekedCardData ?? cardMap);
           
           return Padding(
             padding: EdgeInsets.only(
               right: 6,
               left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
             ),
-            child: _buildCardWidget(cardMap, isDrawnCard, playerId),
+            child: _buildCardWidget(cardDataToUse, isDrawnCard, playerId),
           );
         },
       ),

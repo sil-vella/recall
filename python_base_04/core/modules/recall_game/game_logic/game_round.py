@@ -745,6 +745,13 @@ class GameRound:
             if self.special_card_players:
                 special_data = self.special_card_players[0]
                 player_id = special_data.get('player_id', 'unknown')
+                
+                # Get the player and clear their cards_to_peek (Queen peek timer expired)
+                player = self._get_player(player_id)
+                if player and player.cards_to_peek:
+                    player.clear_cards_to_peek()
+                    custom_log(f"Cleared cards_to_peek for player {player_id} (Queen peek timer expired)", level="INFO", isOn=LOGGING_SWITCH)
+                
                 self.game_state.update_players_status_by_ids([player_id], PlayerStatus.WAITING)
                 custom_log(f"Player {player_id} special card timer expired - status reset to WAITING", level="INFO", isOn=LOGGING_SWITCH)
                 

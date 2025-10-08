@@ -965,8 +965,8 @@ Choose a card to play to the discard pile:
     return {
       'gameId': gameId,
       'gameType': 'practice',
-      'phase': 'initial_peek', // Start in initial peek phase
-      'gamePhase': 'initial_peek',
+      'phase': 'dealing_cards', // Match backend: dealing_cards during setup
+      'gamePhase': 'dealing_cards', // Match backend game phase
       'isGameActive': true,
       'isPracticeMode': true,
       'currentPlayer': null, // No current player during initial peek
@@ -978,7 +978,7 @@ Choose a card to play to the discard pile:
         'game_state': {
           'game_id': gameId,
           'gameType': 'practice',  // ✅ Add gameType here so isCurrentGamePractice() can find it
-          'phase': 'initial_peek',
+          'phase': 'dealing_cards',  // Match backend: dealing_cards during setup
           'current_player_id': null,
           'players': playersFlutter,
           'playerCount': playersFlutter.length,

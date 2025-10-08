@@ -17,7 +17,15 @@ const bool LOGGING_SWITCH = false;
 class PracticeGameCoordinator {
   /// Coordinates practice game sessions for the Recall game
   
-  late final dynamic gameStateManager;
+  // Singleton pattern
+  static final PracticeGameCoordinator _instance = PracticeGameCoordinator._internal();
+  factory PracticeGameCoordinator() => _instance;
+  
+  PracticeGameCoordinator._internal() {
+    _initializeGameEvents();
+  }
+  
+  dynamic gameStateManager;
   final StateManager _stateManager = StateManager();
   List<String> registeredEvents = [];
   String? _currentPracticeGameId;
@@ -384,12 +392,6 @@ Choose a card to play to the discard pile:
       description: 'Last update timestamp',
     ),
   };
-  
-  /// Constructor
-  PracticeGameCoordinator({dynamic gameStateManager}) {
-    this.gameStateManager = gameStateManager;
-    _initializeGameEvents();
-  }
   
   /// Initialize all game events for practice sessions
   void _initializeGameEvents() {

@@ -2,6 +2,7 @@ import 'package:recall/tools/logging/logger.dart';
 
 import 'validated_event_emitter.dart';
 import 'validated_state_manager.dart';
+import '../game_logic/practice_match/practice_game.dart';
 
 /// Player action types for the Recall game
 enum PlayerActionType {
@@ -72,7 +73,10 @@ class PlayerAction {
       // Check if this is a practice game
       final isPracticeGame = _checkIfPracticeGame();
       if (isPracticeGame) {
-        _logger.info('Practice game detected - action logged but not sent to backend', isOn: LOGGING_SWITCH);
+        _logger.info('Practice game detected - triggering practice event handler', isOn: LOGGING_SWITCH);
+        
+        // Trigger practice event through state manager so PracticeRoom can handle it
+        _triggerPracticeEvent();
         
         return;
       }
@@ -101,6 +105,31 @@ class PlayerAction {
       
     } catch (e) {
       return false;
+    }
+  }
+
+  /// Trigger practice event by calling the PracticeGameCoordinator directly
+  void _triggerPracticeEvent() {
+    try {
+      // Get the practice game coordinator (singleton)
+      final practiceCoordinator = PracticeGameCoordinator();
+      
+      // Extract session ID (game_id) from payload
+      final sessionId = payload['game_id'] as String? ?? '';
+      
+      if (sessionId.isEmpty) {
+        _logger.warning('Cannot trigger practice event - no game_id in payload', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Call the practice coordinator to handle the event
+      _logger.info('Calling practice coordinator for event: $eventName (session: $sessionId)', isOn: LOGGING_SWITCH);
+      practiceCoordinator.handlePracticeEvent(sessionId, eventName, payload);
+      
+      _logger.info('Practice event handled by coordinator: $eventName', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      _logger.error('Error triggering practice event: $e', isOn: LOGGING_SWITCH);
     }
   }
 

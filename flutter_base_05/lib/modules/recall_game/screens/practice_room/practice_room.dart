@@ -37,7 +37,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   void initState() {
     super.initState();
     
-    // Initialize practice coordinator
+    // Initialize practice coordinator (singleton - will return same instance if already created)
     _practiceCoordinator = PracticeGameCoordinator();
     
     _initializeWebSocket().then((_) {
@@ -78,7 +78,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
     // Don't dispose practice coordinator when navigating to game play
     // The practice game should continue in the game play screen
     // The coordinator will be disposed when the practice game actually ends
-    // or when the app is closed
+    // or when the app is closed (it's now a singleton)
     
     // Clean up event callbacks - now handled by WSEventManager
     super.dispose();

@@ -841,28 +841,10 @@ Choose a card to play to the discard pile:
             break;
           }
         }
-        // If not found in AI players list, check if we have a stored reference
-        if (humanPlayer == null) {
-          // Get human player from first position (human is always first)
-          final playersData = currentGame['players'] as List<dynamic>? ?? [];
-          if (playersData.isNotEmpty) {
-            final humanPlayerData = playersData[0] as Map<String, dynamic>;
-            // Create a temporary player object for card lookup
-            humanPlayer = Player(
-              playerId: humanPlayerData['id'] as String,
-              playerType: PlayerType.human,
-              name: humanPlayerData['name'] as String,
-            );
-            // Populate hand from state
-            final hand = humanPlayerData['hand'] as List<dynamic>? ?? [];
-            for (final cardData in hand) {
-              if (cardData != null) {
-                final cardMap = cardData as Map<String, dynamic>;
-                final card = Card.fromDict(cardMap);
-                humanPlayer.addCardToHand(card);
-              }
-            }
-          }
+        // If not found in AI players list, find from stored list
+        if (humanPlayer == null && _aiPlayers.isNotEmpty) {
+          // Human player is always the first player
+          humanPlayer = _aiPlayers[0];
         }
         
         // Clear any existing cards from previous peeks

@@ -832,47 +832,47 @@ Choose a card to play to the discard pile:
         final currentGame = currentGames[_currentPracticeGameId!] as Map<String, dynamic>;
         final players = currentGame['players'] as List<dynamic>? ?? [];
         
-        // Find human player
-        Player? humanPlayer;
-        for (final player in _aiPlayers) {
-          // Get human player from the list (first player is always human)
-          if (player.playerType == PlayerType.human) {
-            humanPlayer = player;
-            break;
-          }
-        }
-        // If not found in AI players list, find from stored list
-        if (humanPlayer == null && _aiPlayers.isNotEmpty) {
-          // Human player is always the first player
-          humanPlayer = _aiPlayers[0];
+        // Get human player from _aiPlayers (first player is always human)
+        Player? humanPlayer = _aiPlayers.isNotEmpty ? _aiPlayers[0] : null;
+        
+        if (humanPlayer == null) {
+          Logger().error('Practice: Failed to find human player in _aiPlayers', isOn: LOGGING_SWITCH);
+          return false;
         }
         
         // Clear any existing cards from previous peeks
-        humanPlayer?.clearCardsToPeek();
+        humanPlayer.clearCardsToPeek();
         
-        // Debug: Log human player hand
-        Logger().info('Practice: Human player hand size: ${humanPlayer?.hand.length ?? 0}', isOn: LOGGING_SWITCH);
-        if (humanPlayer != null) {
-          for (var i = 0; i < humanPlayer.hand.length; i++) {
-            final card = humanPlayer.hand[i];
-            Logger().info('Practice: Hand[$i] cardId: ${card?.cardId ?? "null"}', isOn: LOGGING_SWITCH);
-          }
-        }
+        // Get the human player's hand from the state (these have the card IDs the UI knows about)
+        final stateHumanPlayerData = players.firstWhere(
+          (p) => (p as Map<String, dynamic>)['type'] == 'human',
+          orElse: () => <String, dynamic>{},
+        ) as Map<String, dynamic>;
+        
+        final stateHandCards = stateHumanPlayerData['hand'] as List<dynamic>? ?? [];
+        
+        Logger().info('Practice: State hand size: ${stateHandCards.length}', isOn: LOGGING_SWITCH);
         Logger().info('Practice: Looking for card IDs: $cardIds', isOn: LOGGING_SWITCH);
         
-        // Add selected cards to cardsToPeek list (matching backend behavior)
+        // Match card IDs from event with cards from state data
+        // The state cards have the IDs the UI knows about, so find those cards in the Player's hand
         int cardsAdded = 0;
-        for (final cardId in cardIds) {
-          // Find the card in the human player's hand
-          if (humanPlayer != null) {
-            for (final card in humanPlayer.hand) {
-              if (card != null && card.cardId == cardId.toString()) {
-                humanPlayer.addCardToPeek(card);
-                cardsAdded++;
-                Logger().info('Practice: Added card $cardId to human player cardsToPeek list', isOn: LOGGING_SWITCH);
-                break;
-              }
+        for (final selectedCardId in cardIds) {
+          // Find the card in state data
+          final stateCardIndex = stateHandCards.indexWhere((c) =>
+            c is Map<String, dynamic> && c['cardId']?.toString() == selectedCardId.toString()
+          );
+          
+          if (stateCardIndex != -1 && stateCardIndex < humanPlayer.hand.length) {
+            // Get the actual Card object from Player's hand at the same index
+            final actualCard = humanPlayer.hand[stateCardIndex];
+            if (actualCard != null) {
+              humanPlayer.addCardToPeek(actualCard);
+              cardsAdded++;
+              Logger().info('Practice: Added card at index $stateCardIndex (${actualCard.cardId}) to cardsToPeek', isOn: LOGGING_SWITCH);
             }
+          } else {
+            Logger().warning('Practice: Could not find card ID $selectedCardId in state hand', isOn: LOGGING_SWITCH);
           }
         }
         Logger().info('Practice: Added $cardsAdded cards to cardsToPeek', isOn: LOGGING_SWITCH);
@@ -883,9 +883,7 @@ Choose a card to play to the discard pile:
           if (playerMap['type'] == 'human') {
             playerMap['status'] = 'waiting';
             // Add cardsToPeek data to player state (face-up cards with full data)
-            if (humanPlayer != null) {
-              playerMap['cardsToPeek'] = humanPlayer.cardsToPeek.map((card) => _convertCardToFlutter(card, fullData: true)).toList();
-            }
+            playerMap['cardsToPeek'] = humanPlayer.cardsToPeek.map((card) => _convertCardToFlutter(card, fullData: true)).toList();
             Logger().info('Practice: Set human player status to WAITING after completed initial peek', isOn: LOGGING_SWITCH);
           }
           return playerMap;

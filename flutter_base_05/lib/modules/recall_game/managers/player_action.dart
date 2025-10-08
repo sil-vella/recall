@@ -72,6 +72,8 @@ class PlayerAction {
       
       // Check if this is a practice game
       final isPracticeGame = _checkIfPracticeGame();
+      _logger.info('🎯 Practice game check: isPracticeGame=$isPracticeGame, currentGameId=${payload['game_id']}', isOn: LOGGING_SWITCH);
+      
       if (isPracticeGame) {
         _logger.info('Practice game detected - triggering practice event handler', isOn: LOGGING_SWITCH);
         

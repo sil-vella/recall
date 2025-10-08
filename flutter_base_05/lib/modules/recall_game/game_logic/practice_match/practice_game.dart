@@ -1471,21 +1471,25 @@ Choose a card to play to the discard pile:
     try {
       Logger().info('Practice: Initial peek timer expired - transitioning to game start', isOn: LOGGING_SWITCH);
       
-      // ✅ DO NOT clear cards_to_peek - peeked cards should remain visible throughout the game
-      // Backend only clears cards_to_peek when: game ends, starting new peek, or Queen peek timer expires
-      // Initial peek timer expiration does NOT clear the peeked cards
+      // Clear cards_to_peek for all players (peek phase is over) - matching backend behavior
+      int clearedCount = 0;
       for (final player in allPlayers) {
+        if (player.cardsToPeek.isNotEmpty) {
+          player.clearCardsToPeek();
+          clearedCount++;
+        }
         // Set player back to WAITING status
         player.status = PlayerStatus.waiting;
         Logger().info('Practice: Set ${player.name} back to WAITING status', isOn: LOGGING_SWITCH);
       }
+      Logger().info('Practice: Cleared cards_to_peek for $clearedCount players', isOn: LOGGING_SWITCH);
       
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       
       _stateManager.updateModuleState('recall_game', {
         'games': currentGames, // CRITICAL: Preserve the games map
-        // ✅ DO NOT clear myCardsToPeek - peeked cards should remain visible throughout the game
+        'myCardsToPeek': <Map<String, dynamic>>[], // Clear myCardsToPeek state slice (matching backend)
         'lastUpdated': DateTime.now().toIso8601String(),
       });
       

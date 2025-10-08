@@ -802,6 +802,10 @@ Choose a card to play to the discard pile:
     Logger().info('Practice: Completed initial peek for session $sessionId', isOn: LOGGING_SWITCH);
     
     try {
+      // Extract the selected card IDs from the data
+      final cardIds = data['card_ids'] as List<dynamic>? ?? [];
+      Logger().info('Practice: Received card IDs to peek: $cardIds', isOn: LOGGING_SWITCH);
+      
       // Get current game state
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
@@ -810,11 +814,68 @@ Choose a card to play to the discard pile:
         final currentGame = currentGames[_currentPracticeGameId!] as Map<String, dynamic>;
         final players = currentGame['players'] as List<dynamic>? ?? [];
         
+        // Find human player
+        Player? humanPlayer;
+        for (final player in _aiPlayers) {
+          // Get human player from the list (first player is always human)
+          if (player.playerType == PlayerType.human) {
+            humanPlayer = player;
+            break;
+          }
+        }
+        // If not found in AI players list, check if we have a stored reference
+        if (humanPlayer == null) {
+          // Get human player from first position (human is always first)
+          final playersData = currentGame['players'] as List<dynamic>? ?? [];
+          if (playersData.isNotEmpty) {
+            final humanPlayerData = playersData[0] as Map<String, dynamic>;
+            // Create a temporary player object for card lookup
+            humanPlayer = Player(
+              playerId: humanPlayerData['id'] as String,
+              playerType: PlayerType.human,
+              name: humanPlayerData['name'] as String,
+            );
+            // Populate hand from state
+            final hand = humanPlayerData['hand'] as List<dynamic>? ?? [];
+            for (final cardData in hand) {
+              if (cardData != null) {
+                final cardMap = cardData as Map<String, dynamic>;
+                final card = Card.fromDict(cardMap);
+                humanPlayer.addCardToHand(card);
+              }
+            }
+          }
+        }
+        
+        // Clear any existing cards from previous peeks
+        humanPlayer?.clearCardsToPeek();
+        
+        // Add selected cards to cardsToPeek list (matching backend behavior)
+        int cardsAdded = 0;
+        for (final cardId in cardIds) {
+          // Find the card in the human player's hand
+          if (humanPlayer != null) {
+            for (final card in humanPlayer.hand) {
+              if (card != null && card.cardId == cardId.toString()) {
+                humanPlayer.addCardToPeek(card);
+                cardsAdded++;
+                Logger().info('Practice: Added card $cardId to human player cardsToPeek list', isOn: LOGGING_SWITCH);
+                break;
+              }
+            }
+          }
+        }
+        Logger().info('Practice: Added $cardsAdded cards to cardsToPeek', isOn: LOGGING_SWITCH);
+        
         // Find human player and set status to WAITING (matching backend behavior)
         final updatedPlayers = players.map((player) {
           final playerMap = Map<String, dynamic>.from(player as Map);
           if (playerMap['type'] == 'human') {
             playerMap['status'] = 'waiting';
+            // Add cardsToPeek data to player state
+            if (humanPlayer != null) {
+              playerMap['cardsToPeek'] = humanPlayer.cardsToPeek.map((card) => _convertCardToFlutter(card)).toList();
+            }
             Logger().info('Practice: Set human player status to WAITING after completed initial peek', isOn: LOGGING_SWITCH);
           }
           return playerMap;
@@ -829,10 +890,18 @@ Choose a card to play to the discard pile:
         // Update the game in the state
         currentGames[_currentPracticeGameId!] = updatedGame;
         
+        // Extract cardsToPeek for myCardsToPeek state slice
+        final humanPlayerData = updatedPlayers.firstWhere(
+          (p) => p['type'] == 'human',
+          orElse: () => <String, dynamic>{},
+        );
+        final cardsToPeekData = humanPlayerData['cardsToPeek'] as List<dynamic>? ?? [];
+        
         // Update global state with preserved games map
         _stateManager.updateModuleState('recall_game', {
           'games': currentGames, // CRITICAL: Preserve the games map
           'playerStatus': 'waiting', // Update human player status
+          'myCardsToPeek': cardsToPeekData, // Add cardsToPeek to state
           'opponentsPanel': {
             'opponents': updatedPlayers, // Include ALL players with updated statuses
             'currentTurnIndex': -1,
@@ -841,6 +910,7 @@ Choose a card to play to the discard pile:
         });
         
         Logger().info('Practice: Human player status updated to WAITING after completed initial peek', isOn: LOGGING_SWITCH);
+        Logger().info('Practice: Updated myCardsToPeek state with ${cardsToPeekData.length} cards', isOn: LOGGING_SWITCH);
         return true;
       }
       
@@ -1377,17 +1447,25 @@ Choose a card to play to the discard pile:
     try {
       Logger().info('Practice: Initial peek timer expired - transitioning to game start', isOn: LOGGING_SWITCH);
       
-      // Set all players back to WAITING status (matching backend)
+      // Clear cards_to_peek for all players (peek phase is over) - matching backend behavior
+      int clearedCount = 0;
       for (final player in allPlayers) {
+        if (player.cardsToPeek.isNotEmpty) {
+          player.clearCardsToPeek();
+          clearedCount++;
+        }
+        // Set player back to WAITING status
         player.status = PlayerStatus.waiting;
         Logger().info('Practice: Set ${player.name} back to WAITING status', isOn: LOGGING_SWITCH);
       }
+      Logger().info('Practice: Cleared cards_to_peek for $clearedCount players', isOn: LOGGING_SWITCH);
       
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       
       _stateManager.updateModuleState('recall_game', {
         'games': currentGames, // CRITICAL: Preserve the games map
+        'myCardsToPeek': <Map<String, dynamic>>[], // Clear myCardsToPeek state slice
         'lastUpdated': DateTime.now().toIso8601String(),
       });
       

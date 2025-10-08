@@ -850,6 +850,16 @@ Choose a card to play to the discard pile:
         // Clear any existing cards from previous peeks
         humanPlayer?.clearCardsToPeek();
         
+        // Debug: Log human player hand
+        Logger().info('Practice: Human player hand size: ${humanPlayer?.hand.length ?? 0}', isOn: LOGGING_SWITCH);
+        if (humanPlayer != null) {
+          for (var i = 0; i < humanPlayer.hand.length; i++) {
+            final card = humanPlayer.hand[i];
+            Logger().info('Practice: Hand[$i] cardId: ${card?.cardId ?? "null"}', isOn: LOGGING_SWITCH);
+          }
+        }
+        Logger().info('Practice: Looking for card IDs: $cardIds', isOn: LOGGING_SWITCH);
+        
         // Add selected cards to cardsToPeek list (matching backend behavior)
         int cardsAdded = 0;
         for (final cardId in cardIds) {

@@ -604,14 +604,14 @@ Choose a card to play to the discard pile:
       'id': player.playerId,
       'name': player.name,
       'type': player.playerType.name.toLowerCase(),
-      'hand': player.hand.map((card) => card != null ? _convertCardToFlutter(card) : null).toList(),
-      'visibleCards': player.visibleCards.map((card) => _convertCardToFlutter(card)).toList(),
-      'cardsToPeek': player.cardsToPeek.map((card) => _convertCardToFlutter(card)).toList(),
+      'hand': player.hand.map((card) => card != null ? _convertCardToFlutter(card, fullData: false) : null).toList(),  // Face-down cards (ID-only)
+      'visibleCards': player.visibleCards.map((card) => _convertCardToFlutter(card, fullData: true)).toList(),  // Face-up cards (full data)
+      'cardsToPeek': player.cardsToPeek.map((card) => _convertCardToFlutter(card, fullData: true)).toList(),  // Face-up cards (full data)
       'score': player.calculatePoints(),
       'status': statusString,
       'isCurrentPlayer': false,
       'hasCalledRecall': player.hasCalledRecall,
-      'drawnCard': player.drawnCard != null ? _convertCardToFlutter(player.drawnCard!) : null,
+      'drawnCard': player.drawnCard != null ? _convertCardToFlutter(player.drawnCard!, fullData: true) : null,  // Face-up card (full data)
       'cardsRemaining': player.cardsRemaining,
       'isActive': player.isActive,
       'initialPeeksRemaining': player.initialPeeksRemaining,
@@ -619,7 +619,23 @@ Choose a card to play to the discard pile:
   }
   
   /// Convert card to Flutter format
-  Map<String, dynamic> _convertCardToFlutter(Card card) {
+  /// 
+  /// [fullData] - If false, returns ID-only data (face-down card). If true, returns full card data (face-up card)
+  /// Matches backend _to_flutter_card behavior
+  Map<String, dynamic> _convertCardToFlutter(Card card, {bool fullData = true}) {
+    // ID-only card (face-down) - matching backend behavior
+    if (!fullData) {
+      return {
+        'cardId': card.cardId,
+        'suit': '?',
+        'rank': '?',
+        'points': 0,
+        'displayName': 'Card ${card.cardId}',
+        'color': 'black',
+      };
+    }
+    
+    // Full data card (face-up) - matching backend behavior
     final rankMapping = {
       '2': 'two', '3': 'three', '4': 'four', '5': 'five',
       '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten'
@@ -872,9 +888,9 @@ Choose a card to play to the discard pile:
           final playerMap = Map<String, dynamic>.from(player as Map);
           if (playerMap['type'] == 'human') {
             playerMap['status'] = 'waiting';
-            // Add cardsToPeek data to player state
+            // Add cardsToPeek data to player state (face-up cards with full data)
             if (humanPlayer != null) {
-              playerMap['cardsToPeek'] = humanPlayer.cardsToPeek.map((card) => _convertCardToFlutter(card)).toList();
+              playerMap['cardsToPeek'] = humanPlayer.cardsToPeek.map((card) => _convertCardToFlutter(card, fullData: true)).toList();
             }
             Logger().info('Practice: Set human player status to WAITING after completed initial peek', isOn: LOGGING_SWITCH);
           }
@@ -965,8 +981,8 @@ Choose a card to play to the discard pile:
           'playerCount': playersFlutter.length,
           'maxPlayers': (data['numberOfOpponents'] ?? 3) + 1, // +1 for human player
           'deck': <Map<String, dynamic>>[], // Empty deck after dealing
-          'draw_pile': (pilesData['drawPile'] as List<Card>).map((card) => _convertCardToFlutter(card)).toList(),
-          'discard_pile': (pilesData['discardPile'] as List<Card>).map((card) => _convertCardToFlutter(card)).toList(),
+          'draw_pile': (pilesData['drawPile'] as List<Card>).map((card) => _convertCardToFlutter(card, fullData: false)).toList(),  // Face-down cards (ID-only)
+          'discard_pile': (pilesData['discardPile'] as List<Card>).map((card) => _convertCardToFlutter(card, fullData: true)).toList(),  // Face-up cards (full data)
           'game_ended': false,
           'winner': null,
           'recall_called_by': null,

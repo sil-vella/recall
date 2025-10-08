@@ -897,21 +897,23 @@ Choose a card to play to the discard pile:
           return playerMap;
         }).toList();
         
-        final updatedGame = {
-          ...currentGame,
-          'players': updatedPlayers,
-          'lastUpdated': DateTime.now().toIso8601String(),
-        };
-        
-        // Update the game in the state
-        currentGames[_currentPracticeGameId!] = updatedGame;
-        
-        // Extract cardsToPeek for myCardsToPeek state slice
+        // Extract human player data for state updates (matching backend behavior)
         final humanPlayerData = updatedPlayers.firstWhere(
           (p) => p['type'] == 'human',
           orElse: () => <String, dynamic>{},
         );
         final cardsToPeekData = humanPlayerData['cardsToPeek'] as List<dynamic>? ?? [];
+        final myHandCards = humanPlayerData['hand'] as List<dynamic>? ?? [];
+        
+        final updatedGame = {
+          ...currentGame,
+          'players': updatedPlayers,
+          'myHandCards': myHandCards,  // ✅ Update myHandCards so _computeMyHandSlice can find it
+          'lastUpdated': DateTime.now().toIso8601String(),
+        };
+        
+        // Update the game in the state
+        currentGames[_currentPracticeGameId!] = updatedGame;
         
         // Update global state with preserved games map
         _stateManager.updateModuleState('recall_game', {
@@ -963,6 +965,11 @@ Choose a card to play to the discard pile:
 
     Logger().info('Practice: Created game state with ${playersFlutter.length} players', isOn: LOGGING_SWITCH);
 
+    // Find human player and extract their hand (matching backend behavior)
+    final humanPlayer = playersFlutter.firstWhere((p) => p['type'] == 'human', orElse: () => <String, dynamic>{});
+    final myHandCards = humanPlayer['hand'] as List<dynamic>? ?? [];
+    Logger().info('Practice: Extracted myHandCards for game object: ${myHandCards.length} cards', isOn: LOGGING_SWITCH);
+
     return {
       'gameId': gameId,
       'gameType': 'practice',
@@ -972,6 +979,9 @@ Choose a card to play to the discard pile:
       'isPracticeMode': true,
       'currentPlayer': null, // No current player during initial peek
       'players': playersFlutter,
+      'myHandCards': myHandCards,  // ✅ Add this so _computeMyHandSlice can find it
+      'isMyTurn': false,  // During initial peek, it's not anyone's turn yet
+      'myDrawnCard': null,  // No drawn card yet
       'gameData': {
         'game_state': {
           'game_id': gameId,

@@ -1535,22 +1535,25 @@ Choose a card to play to the discard pile:
           return playerMap;
         }).toList();
         
+        // Find human player for myHand slice (extract before updating game)
+        final humanPlayer = updatedPlayers.firstWhere(
+          (p) => p['type'] == 'human', 
+          orElse: () => <String, dynamic>{}
+        );
+        final myHandCards = humanPlayer['hand'] as List<dynamic>? ?? [];
+        Logger().info('Practice: Extracted myHandCards for game transition: ${myHandCards.length} cards', isOn: LOGGING_SWITCH);
+        
         final updatedGame = {
           ...currentGame,
           'phase': 'player_turn',
           'gamePhase': 'player_turn',
           'players': updatedPlayers,
+          'myHandCards': myHandCards,  // ✅ Update myHandCards so _computeMyHandSlice can find it
           'lastUpdated': DateTime.now().toIso8601String(),
         };
         
         // Update the game in the state
         currentGames[_currentPracticeGameId!] = updatedGame;
-        
-        // Find human player for myHand slice
-        final humanPlayer = updatedPlayers.firstWhere(
-          (p) => p['type'] == 'human', 
-          orElse: () => <String, dynamic>{}
-        );
         
         // Update global state with updated opponents panel
         _stateManager.updateModuleState('recall_game', {

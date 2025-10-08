@@ -987,6 +987,7 @@ Choose a card to play to the discard pile:
       'gameData': {
         'game_state': {
           'game_id': gameId,
+          'gameType': 'practice',  // ✅ Add gameType here so isCurrentGamePractice() can find it
           'phase': 'initial_peek',
           'current_player_id': null,
           'players': playersFlutter,

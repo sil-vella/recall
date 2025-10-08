@@ -912,6 +912,11 @@ Choose a card to play to the discard pile:
           'games': currentGames, // CRITICAL: Preserve the games map
           'playerStatus': 'waiting', // Update human player status
           'myCardsToPeek': cardsToPeekData, // Add cardsToPeek to state
+          'myHand': {
+            'cards': myHandCards, // ✅ CRITICAL: Preserve the original hand cards (ID-only)
+            'selectedIndex': -1,
+            'selectedCard': null,
+          },
           'opponentsPanel': {
             'opponents': updatedPlayers, // Include ALL players with updated statuses
             'currentTurnIndex': -1,
@@ -1552,7 +1557,7 @@ Choose a card to play to the discard pile:
           'currentGameId': _currentPracticeGameId,
           'isInRoom': true,
           'currentRoomId': _currentPracticeGameId,
-          'gamePhase': 'player_turn',
+          'gamePhase': 'playing',  // Practice game simplified phases: waiting, playing, ended
           'isGameActive': true,
           'isInGame': true,
           'isMyTurn': false,
@@ -1561,7 +1566,7 @@ Choose a card to play to the discard pile:
             'currentGameId': _currentPracticeGameId,
             'currentSize': updatedPlayers.length,
             'maxSize': updatedPlayers.length,
-            'gamePhase': 'player_turn',
+            'gamePhase': 'playing',  // Practice game simplified phases
             'gameStatus': 'active',
             'isRoomOwner': true,
             'isInGame': true,

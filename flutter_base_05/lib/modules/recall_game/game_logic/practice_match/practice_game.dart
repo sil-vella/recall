@@ -965,8 +965,8 @@ Choose a card to play to the discard pile:
     return {
       'gameId': gameId,
       'gameType': 'practice',
-      'phase': 'dealing_cards', // Match backend: dealing_cards during setup
-      'gamePhase': 'dealing_cards', // Match backend game phase
+      'phase': 'waiting', // Practice game simplified phases: waiting, playing, ended
+      'gamePhase': 'waiting', // Practice game simplified phases
       'isGameActive': true,
       'isPracticeMode': true,
       'currentPlayer': null, // No current player during initial peek
@@ -978,7 +978,7 @@ Choose a card to play to the discard pile:
         'game_state': {
           'game_id': gameId,
           'gameType': 'practice',  // ✅ Add gameType here so isCurrentGamePractice() can find it
-          'phase': 'dealing_cards',  // Match backend: dealing_cards during setup
+          'phase': 'waiting',  // Practice game simplified phases: waiting, playing, ended
           'current_player_id': null,
           'players': playersFlutter,
           'playerCount': playersFlutter.length,
@@ -1536,8 +1536,8 @@ Choose a card to play to the discard pile:
         
         final updatedGame = {
           ...currentGame,
-          'phase': 'player_turn',
-          'gamePhase': 'player_turn',
+          'phase': 'playing',  // Practice game simplified phases: waiting, playing, ended
+          'gamePhase': 'playing',  // Practice game simplified phases
           'players': updatedPlayers,
           'myHandCards': myHandCards,  // ✅ Update myHandCards so _computeMyHandSlice can find it
           'lastUpdated': DateTime.now().toIso8601String(),

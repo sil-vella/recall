@@ -317,19 +317,19 @@ class PracticeGameCoordinator {
         'joinedAt': DateTime.now().toIso8601String(),
       };
       
-      // Update the main game state
-      updatePracticeGameState({
-        'currentGameId': gameId,
-        'gamePhase': 'waiting_for_players',
-        'isGameActive': true,
-        'games': currentGames,
-        'isMyTurn': false,
-        'playerStatus': 'waiting',
-        'turnTimeout': turnTimeLimit,
-        'permission': permission,
-        'maxSize': maxPlayers,
-        'minSize': minPlayers,
-      });
+  // Update the main game state
+  updatePracticeGameState({
+    'currentGameId': gameId,
+    'gamePhase': _mapBackendPhaseToFrontend('waiting_for_players'),
+    'isGameActive': true,
+    'games': currentGames,
+    'isMyTurn': false,
+    'playerStatus': 'waiting',
+    'turnTimeout': turnTimeLimit,
+    'permission': permission,
+    'maxSize': maxPlayers,
+    'minSize': minPlayers,
+  });
       
       // Add session message about game creation
       _addSessionMessage(
@@ -396,6 +396,34 @@ class PracticeGameCoordinator {
   Map<String, dynamic> _getCurrentGamesMap() {
     final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     return Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+  }
+
+  /// Map backend phase values to frontend display phases
+  String _mapBackendPhaseToFrontend(String backendPhase) {
+    switch (backendPhase) {
+      case 'waiting_for_players':
+        return 'waiting';
+      case 'dealing_cards':
+        return 'setup';
+      case 'player_turn':
+        return 'playing';
+      case 'same_rank_window':
+        return 'playing';
+      case 'special_play_window':
+        return 'playing';
+      case 'queen_peek_window':
+        return 'playing';
+      case 'turn_pending_events':
+        return 'playing';
+      case 'ending_round':
+        return 'playing';
+      case 'ending_turn':
+        return 'playing';
+      case 'recall_called':
+        return 'playing';
+      default:
+        return 'waiting';
+    }
   }
 
   /// Generate AI player names

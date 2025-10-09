@@ -41,8 +41,8 @@ class GameInfoWidget extends StatelessWidget {
         Logger().info('  gamePhase: $gamePhase', isOn: LOGGING_SWITCH);
         Logger().info('  isRoomOwner: $isRoomOwner', isOn: LOGGING_SWITCH);
         Logger().info('  isInGame: $isInGame', isOn: LOGGING_SWITCH);
-        Logger().info('  Start button condition: isRoomOwner($isRoomOwner) && gamePhase($gamePhase) == "waiting"', isOn: LOGGING_SWITCH);
-        Logger().info('  Should show start button: ${isRoomOwner && gamePhase == 'waiting'}', isOn: LOGGING_SWITCH);
+        Logger().info('  Start button condition: isRoomOwner($isRoomOwner) && gamePhase($gamePhase) == "waiting_for_players"', isOn: LOGGING_SWITCH);
+        Logger().info('  Should show start button: ${isRoomOwner && gamePhase == 'waiting_for_players'}', isOn: LOGGING_SWITCH);
         Logger().info('  Full gameInfo: $gameInfo', isOn: LOGGING_SWITCH);
         
         // Get additional game state for context
@@ -196,7 +196,7 @@ class GameInfoWidget extends StatelessWidget {
             const SizedBox(height: 16),
             
             // Start Match Button (only for room owner during waiting phase)
-            if (isRoomOwner && gamePhase == 'waiting')
+            if (isRoomOwner && gamePhase == 'waiting_for_players')
               _buildStartMatchButton(),
           ],
         ),

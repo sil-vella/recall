@@ -257,6 +257,32 @@ class PracticeGameCoordinator {
       
       Logger().info('Practice: Generated game ID: $gameId', isOn: LOGGING_SWITCH);
       
+      // Create computer players based on user parameters
+      final computerPlayers = _createComputerPlayers(
+        numberOfOpponents: numberOfOpponents ?? _numberOfOpponents,
+        difficultyLevel: difficultyLevel ?? _difficultyLevel,
+        gameId: gameId,
+      );
+      
+      // Create human player (practice user)
+      final humanPlayer = {
+        'id': 'practice_user',
+        'name': 'You',
+        'type': 'human',
+        'hand': <Map<String, dynamic>>[], // Will be filled when cards are dealt
+        'visibleCards': <Map<String, dynamic>>[],
+        'cardsToPeek': <Map<String, dynamic>>[],
+        'score': 0,
+        'status': 'waiting',
+        'isCurrentPlayer': false,
+        'hasCalledRecall': false,
+        'drawnCard': null,
+        'isActive': true,
+      };
+      
+      // Combine all players
+      final allPlayers = [humanPlayer, ...computerPlayers];
+      
       // Initialize game state properties (replicating backend GameState.__init__)
       final gameState = {
         // Core Game Properties
@@ -267,10 +293,10 @@ class PracticeGameCoordinator {
         'permission': permission,
         
         // Player Management
-        'players': <Map<String, dynamic>>[], // List of player data
+        'players': allPlayers,
         'currentPlayer': null,
-        'playerCount': 0,
-        'activePlayerCount': 0,
+        'playerCount': allPlayers.length,
+        'activePlayerCount': allPlayers.length,
         
         // Game State
         'phase': 'waiting_for_players', // GamePhase.WAITING_FOR_PLAYERS
@@ -329,13 +355,14 @@ class PracticeGameCoordinator {
     'permission': permission,
     'maxSize': maxPlayers,
     'minSize': minPlayers,
+    'currentSize': allPlayers.length, // Current number of players
   });
       
       // Add session message about game creation
       _addSessionMessage(
         level: 'info',
         title: 'Practice Game Created',
-        message: 'Practice game $gameId created successfully',
+        message: 'Practice game $gameId created with ${allPlayers.length} players (${computerPlayers.length} computer opponents, difficulty: ${difficultyLevel ?? _difficultyLevel})',
         data: {
           'game_id': gameId,
           'max_players': maxPlayers,
@@ -424,6 +451,43 @@ class PracticeGameCoordinator {
       default:
         return 'waiting';
     }
+  }
+
+  /// Create computer players based on user-selected parameters
+  List<Map<String, dynamic>> _createComputerPlayers({
+    required int numberOfOpponents,
+    required String difficultyLevel,
+    required String gameId,
+  }) {
+    final computerPlayers = <Map<String, dynamic>>[];
+    
+    for (int i = 0; i < numberOfOpponents; i++) {
+      final computerId = 'computer_${gameId}_$i';
+      final computerName = 'Computer_${i + 1}';
+      
+      // Create computer player data matching backend _to_flutter_player_data structure
+      final computerPlayer = {
+        'id': computerId,
+        'name': computerName,
+        'type': 'computer',
+        'hand': <Map<String, dynamic>>[], // Will be filled when cards are dealt
+        'visibleCards': <Map<String, dynamic>>[],
+        'cardsToPeek': <Map<String, dynamic>>[],
+        'score': 0,
+        'status': 'waiting',
+        'isCurrentPlayer': false,
+        'hasCalledRecall': false,
+        'drawnCard': null,
+        // Practice-specific properties
+        'difficulty': difficultyLevel,
+        'isActive': true,
+      };
+      
+      computerPlayers.add(computerPlayer);
+    }
+    
+    Logger().info('Practice: Created $numberOfOpponents computer players with difficulty: $difficultyLevel', isOn: LOGGING_SWITCH);
+    return computerPlayers;
   }
 
   /// Generate AI player names

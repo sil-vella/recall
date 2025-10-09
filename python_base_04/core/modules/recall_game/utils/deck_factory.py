@@ -11,6 +11,7 @@ from typing import List, Optional
 import random
 
 from ..models.card import Card, CardDeck
+from .yaml_config_parser import DeckConfig
 
 # Testing switch - set to True for testing deck with more special cards
 TESTING_SWITCH = True
@@ -149,5 +150,49 @@ def get_deck_factory(game_id: str, seed: Optional[int] = None):
         return TestingDeckFactory(game_id, seed)
     else:
         return DeckFactory(game_id, seed)
+
+
+class YamlDeckFactory:
+    """YAML-based deck factory that uses configuration file"""
+    
+    def __init__(self, game_id: str, config: DeckConfig):
+        self.game_id = game_id
+        self.config = config
+    
+    @classmethod
+    def from_file(cls, game_id: str, config_path: str):
+        """Create factory from YAML file"""
+        config = DeckConfig.from_file(config_path)
+        return cls(game_id, config)
+    
+    @classmethod
+    def from_string(cls, game_id: str, yaml_string: str):
+        """Create factory from YAML string"""
+        config = DeckConfig.from_string(yaml_string)
+        return cls(game_id, config)
+    
+    def build_deck(self, include_jokers: Optional[bool] = None) -> List[Card]:
+        """Build deck using YAML configuration"""
+        # Override include_jokers if specified
+        should_include_jokers = include_jokers if include_jokers is not None else self.config.include_jokers
+        
+        # Build cards from configuration
+        cards = self.config.build_cards(self.game_id)
+        
+        # Filter out jokers if not wanted
+        if not should_include_jokers:
+            cards = [card for card in cards if not card.is_joker()]
+        
+        # Random shuffle using system random (no seed)
+        random.shuffle(cards)
+        return cards
+    
+    def get_summary(self) -> dict:
+        """Get configuration summary"""
+        return self.config.get_summary()
+    
+    def validate_config(self) -> dict:
+        """Validate configuration"""
+        return self.config.validate_config()
 
 

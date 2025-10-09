@@ -11,6 +11,8 @@ import '../models/player.dart';
 import 'practice_game_round.dart';
 import 'practice_instructions.dart';
 import '../../managers/validated_state_manager.dart';
+import 'utils/deck_factory.dart';
+import 'models/card.dart';
 
 const bool LOGGING_SWITCH = false;
 
@@ -232,12 +234,126 @@ class PracticeGameCoordinator {
 
 
   // ========================================
+  // DECK CREATION
+  // ========================================
+
+  /// Create a deck for the practice game using YAML configuration
+  Future<List<Map<String, dynamic>>> _createDeck(String gameId) async {
+    try {
+      Logger().info('Practice: Creating deck for game $gameId', isOn: LOGGING_SWITCH);
+      
+      // Use YAML-based deck factory from assets
+      final configPath = 'assets/deck_config.yaml';
+      Logger().info('Practice: Loading YAML config from assets: $configPath', isOn: LOGGING_SWITCH);
+      
+      final yamlFactory = await YamlDeckFactory.fromFile(gameId, configPath);
+      
+      // Build deck using configuration
+      final deck = yamlFactory.buildDeck(includeJokers: true);
+      
+      // Convert Card objects to Map format for game state
+      final deckMaps = deck.cast<Card>().map<Map<String, dynamic>>((card) => card.toMap()).toList();
+      
+      Logger().info('Practice: Created deck with ${deckMaps.length} cards using YAML config', isOn: LOGGING_SWITCH);
+      
+      // Log deck statistics for debugging
+      final summary = yamlFactory.getSummary();
+      Logger().info('Practice: Deck summary - Testing mode: ${summary['testing_mode']}, Total cards: ${summary['expected_total_cards']}', isOn: LOGGING_SWITCH);
+      
+      return deckMaps;
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to create deck with YAML config: $e', isOn: LOGGING_SWITCH);
+      
+      // Fallback to basic deck factory if YAML fails
+      Logger().info('Practice: Falling back to basic deck factory', isOn: LOGGING_SWITCH);
+      try {
+        final basicFactory = getDeckFactory(gameId);
+        final basicDeck = basicFactory.buildDeck(includeJokers: true);
+        final deckMaps = basicDeck.cast<Card>().map<Map<String, dynamic>>((card) => card.toMap()).toList();
+        
+        Logger().info('Practice: Created deck with ${deckMaps.length} cards using basic factory', isOn: LOGGING_SWITCH);
+        return deckMaps;
+        
+      } catch (fallbackError) {
+        Logger().error('Practice: Fallback deck creation also failed: $fallbackError', isOn: LOGGING_SWITCH);
+        
+        // Last resort: create a minimal deck manually
+        Logger().info('Practice: Creating minimal deck as last resort', isOn: LOGGING_SWITCH);
+        return _createMinimalDeck(gameId);
+      }
+    }
+  }
+
+  /// Create a minimal deck as last resort
+  List<Map<String, dynamic>> _createMinimalDeck(String gameId) {
+    final cards = <Map<String, dynamic>>[];
+    
+    // Create a simple deck with basic cards
+    final suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+    final ranks = ['ace', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'jack', 'queen', 'king'];
+    
+    for (final suit in suits) {
+      for (final rank in ranks) {
+        final points = _getPointValue(rank);
+        final specialPower = _getSpecialPower(rank);
+        final cardId = 'card_${gameId}_${rank}_${suit}_${cards.length}';
+        
+        cards.add({
+          'cardId': cardId,
+          'rank': rank,
+          'suit': suit,
+          'points': points,
+          'specialPower': specialPower,
+        });
+      }
+    }
+    
+    // Add 2 jokers
+    for (int i = 0; i < 2; i++) {
+      cards.add({
+        'cardId': 'card_${gameId}_joker_$i',
+        'rank': 'joker',
+        'suit': 'joker',
+        'points': 0,
+        'specialPower': null,
+      });
+    }
+    
+    Logger().info('Practice: Created minimal deck with ${cards.length} cards', isOn: LOGGING_SWITCH);
+    return cards;
+  }
+
+  /// Get point value for a card rank
+  int _getPointValue(String rank) {
+    switch (rank) {
+      case 'ace': return 1;
+      case 'joker': return 0;
+      case 'jack':
+      case 'queen':
+      case 'king': return 10;
+      default:
+        final value = int.tryParse(rank);
+        return value ?? 0;
+    }
+  }
+
+  /// Get special power for a card rank
+  String? _getSpecialPower(String rank) {
+    switch (rank) {
+      case 'queen': return 'peek_at_card';
+      case 'jack': return 'switch_cards';
+      default: return null;
+    }
+  }
+
+  // ========================================
   // GAME AND AI PLAYER GENERATION
   // ========================================
 
   /// Create a new practice game with the specified parameters
   /// Replicates the backend game creation logic without WebSocket/room logic
-  String createPracticeGame({
+  Future<String> createPracticeGame({
     int maxPlayers = 4,
     int minPlayers = 2,
     String permission = 'public',
@@ -247,7 +363,7 @@ class PracticeGameCoordinator {
     int? numberOfOpponents,
     String? difficultyLevel,
     bool? instructionsEnabled,
-  }) {
+  }) async {
     try {
       Logger().info('Practice: Creating new practice game', isOn: LOGGING_SWITCH);
       
@@ -283,6 +399,9 @@ class PracticeGameCoordinator {
       // Combine all players
       final allPlayers = [humanPlayer, ...computerPlayers];
       
+      // Create deck for the game
+      final deck = await _createDeck(gameId);
+      
       // Initialize game state properties (replicating backend GameState.__init__)
       final gameState = {
         // Core Game Properties
@@ -301,6 +420,7 @@ class PracticeGameCoordinator {
         // Game State
         'phase': 'waiting_for_players', // GamePhase.WAITING_FOR_PLAYERS
         'status': 'inactive', // Game status
+        'deck': deck, // Full deck of cards
         'discardPile': <Map<String, dynamic>>[],
         'drawPile': <Map<String, dynamic>>[],
         
@@ -532,13 +652,13 @@ class PracticeGameCoordinator {
   // ========================================
 
   /// Handle practice events from the practice room
-  bool handlePracticeEvent(String sessionId, String eventName, Map<String, dynamic> data) {
+  Future<bool> handlePracticeEvent(String sessionId, String eventName, Map<String, dynamic> data) async {
     try {
       Logger().info('Practice: Handling event: $eventName with data: $data', isOn: LOGGING_SWITCH);
       
       switch (eventName) {
         case 'start_match':
-          return _handleStartMatch(sessionId, data);
+          return await _handleStartMatch(sessionId, data);
         default:
           Logger().warning('Practice: Unknown event type: $eventName', isOn: LOGGING_SWITCH);
           return false;
@@ -550,7 +670,7 @@ class PracticeGameCoordinator {
   }
 
   /// Handle the start_match event from practice room
-  bool _handleStartMatch(String sessionId, Map<String, dynamic> data) {
+  Future<bool> _handleStartMatch(String sessionId, Map<String, dynamic> data) async {
     try {
       Logger().info('Practice: Starting match with data: $data', isOn: LOGGING_SWITCH);
       
@@ -566,7 +686,7 @@ class PracticeGameCoordinator {
       final totalPlayers = _numberOfOpponents + 1;
       
       // Create the practice game with the specified settings
-      final gameId = createPracticeGame(
+      final gameId = await createPracticeGame(
         maxPlayers: totalPlayers,
         minPlayers: 2, // Minimum for any game
         permission: 'public',

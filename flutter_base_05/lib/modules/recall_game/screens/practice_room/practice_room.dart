@@ -112,7 +112,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
       };
       
       // Use practice coordinator to handle start match
-      final success = _practiceCoordinator.handlePracticeEvent(
+      final success = await _practiceCoordinator.handlePracticeEvent(
         sessionId, 
         'start_match', 
         practiceData

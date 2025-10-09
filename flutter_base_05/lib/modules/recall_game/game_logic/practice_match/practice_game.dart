@@ -348,6 +348,65 @@ class PracticeGameCoordinator {
   }
 
   // ========================================
+  // CARD DEALING AND PILE SETUP
+  // ========================================
+
+  /// Deal 4 cards to each player (replicating backend _deal_cards logic)
+  List<Map<String, dynamic>> _dealCardsToPlayers(List<Map<String, dynamic>> players, List<Map<String, dynamic>> deck) {
+    Logger().info('Practice: Dealing cards to ${players.length} players', isOn: LOGGING_SWITCH);
+    
+    // Create a copy of the deck to work with
+    final workingDeck = List<Map<String, dynamic>>.from(deck);
+    
+    // Deal 4 cards to each player
+    for (final player in players) {
+      final playerHand = <Map<String, dynamic>>[];
+      
+      // Deal 4 cards to this player
+      for (int i = 0; i < 4; i++) {
+        if (workingDeck.isNotEmpty) {
+          final card = workingDeck.removeAt(0); // Draw from top of deck
+          // Add owner information to the card
+          final ownedCard = Map<String, dynamic>.from(card);
+          ownedCard['ownerId'] = player['id'];
+          playerHand.add(ownedCard);
+        }
+      }
+      
+      // Update player's hand
+      player['hand'] = playerHand;
+      player['status'] = 'initial_peek'; // Set to initial peek status
+      
+      Logger().info('Practice: Dealt ${playerHand.length} cards to player ${player['name']}', isOn: LOGGING_SWITCH);
+    }
+    
+    Logger().info('Practice: Card dealing complete. ${workingDeck.length} cards remaining in deck', isOn: LOGGING_SWITCH);
+    return players;
+  }
+
+  /// Set up draw and discard piles (replicating backend _setup_piles logic)
+  Map<String, dynamic> _setupPiles(List<Map<String, dynamic>> remainingDeck) {
+    Logger().info('Practice: Setting up piles with ${remainingDeck.length} remaining cards', isOn: LOGGING_SWITCH);
+    
+    // Move remaining cards to draw pile
+    final drawPile = List<Map<String, dynamic>>.from(remainingDeck);
+    
+    // Start discard pile with first card from draw pile
+    final discardPile = <Map<String, dynamic>>[];
+    if (drawPile.isNotEmpty) {
+      final firstCard = drawPile.removeAt(0);
+      discardPile.add(firstCard);
+    }
+    
+    Logger().info('Practice: Pile setup complete - Draw pile: ${drawPile.length} cards, Discard pile: ${discardPile.length} cards', isOn: LOGGING_SWITCH);
+    
+    return {
+      'drawPile': drawPile,
+      'discardPile': discardPile,
+    };
+  }
+
+  // ========================================
   // GAME AND AI PLAYER GENERATION
   // ========================================
 
@@ -402,6 +461,12 @@ class PracticeGameCoordinator {
       // Create deck for the game
       final deck = await _createDeck(gameId);
       
+      // Deal cards to players (replicating backend _deal_cards logic)
+      final dealtPlayers = _dealCardsToPlayers(allPlayers, deck);
+      
+      // Set up draw and discard piles (replicating backend _setup_piles logic)
+      final pileSetup = _setupPiles(deck);
+      
       // Initialize game state properties (replicating backend GameState.__init__)
       final gameState = {
         // Core Game Properties
@@ -412,17 +477,17 @@ class PracticeGameCoordinator {
         'permission': permission,
         
         // Player Management
-        'players': allPlayers,
-        'currentPlayer': null,
-        'playerCount': allPlayers.length,
-        'activePlayerCount': allPlayers.length,
+        'players': dealtPlayers,
+        'currentPlayer': dealtPlayers.isNotEmpty ? dealtPlayers.first : null, // First player is current
+        'playerCount': dealtPlayers.length,
+        'activePlayerCount': dealtPlayers.length,
         
         // Game State
-        'phase': 'waiting_for_players', // GamePhase.WAITING_FOR_PLAYERS
-        'status': 'inactive', // Game status
-        'deck': deck, // Full deck of cards
-        'discardPile': <Map<String, dynamic>>[],
-        'drawPile': <Map<String, dynamic>>[],
+        'phase': 'dealing_cards', // GamePhase.DEALING_CARDS (cards have been dealt)
+        'status': 'active', // Game status
+        'deck': <Map<String, dynamic>>[], // Deck is now empty after dealing
+        'discardPile': pileSetup['discardPile'],
+        'drawPile': pileSetup['drawPile'],
         
         // Game Flow Control
         'outOfTurnDeadline': null,
@@ -431,8 +496,8 @@ class PracticeGameCoordinator {
         'recallCalledBy': null,
         
         // Timing and History
-        'gameStartTime': null,
-        'lastActivityTime': null,
+        'gameStartTime': DateTime.now().toIso8601String(),
+        'lastActivityTime': DateTime.now().toIso8601String(),
         'gameEnded': false,
         'winner': null,
         
@@ -457,10 +522,16 @@ class PracticeGameCoordinator {
           'game_state': gameState,
           'owner_id': 'practice_user', // Practice mode user
         },
-        'gameStatus': 'waiting_for_players',
+        'gameStatus': 'dealing_cards', // Updated to reflect cards have been dealt
         'isRoomOwner': true, // Practice user is always owner
         'isInGame': true,
         'joinedAt': DateTime.now().toIso8601String(),
+        // Add human player's hand data for myHand widget
+        'myHandCards': humanPlayer['hand'], // Human player's dealt cards
+        'selectedCardIndex': -1, // No card selected initially
+        'isMyTurn': true, // Human player is current player
+        'myDrawnCard': null, // No drawn card initially
+        'canPlayCard': false, // Can't play cards during initial peek
       };
       
   // Set login state for practice mode (needed for opponent filtering)
@@ -473,28 +544,35 @@ class PracticeGameCoordinator {
   // Update the main game state
   updatePracticeGameState({
     'currentGameId': gameId,
-    'gamePhase': _mapBackendPhaseToFrontend('waiting_for_players'),
+    'gamePhase': _mapBackendPhaseToFrontend('dealing_cards'),
     'isGameActive': true,
     'games': currentGames,
-    'isMyTurn': false,
-    'playerStatus': 'waiting',
+    'isMyTurn': true, // First player (human) is current player
+    'playerStatus': 'initial_peek', // Players are in initial peek phase
     'turnTimeout': turnTimeLimit,
     'permission': permission,
     'maxSize': maxPlayers,
     'minSize': minPlayers,
-    'currentSize': allPlayers.length, // Current number of players
+    'currentSize': dealtPlayers.length, // Current number of players
+    // Add human player's data to main state (myHandCards is handled in games map)
+    'myScore': 0, // Initial score
+    'myDrawnCard': null, // No drawn card initially
+    'myCardsToPeek': <Map<String, dynamic>>[], // No cards to peek initially
   });
       
       // Add session message about game creation
       _addSessionMessage(
         level: 'info',
         title: 'Practice Game Created',
-        message: 'Practice game $gameId created with ${allPlayers.length} players (${computerPlayers.length} computer opponents, difficulty: ${difficultyLevel ?? _difficultyLevel})',
+        message: 'Practice game $gameId created with ${dealtPlayers.length} players. Cards dealt: 4 per player. Draw pile: ${pileSetup['drawPile'].length} cards, Discard pile: ${pileSetup['discardPile'].length} cards.',
         data: {
           'game_id': gameId,
           'max_players': maxPlayers,
           'min_players': minPlayers,
           'game_type': gameType,
+          'cards_dealt': true,
+          'draw_pile_size': pileSetup['drawPile'].length,
+          'discard_pile_size': pileSetup['discardPile'].length,
         },
       );
       

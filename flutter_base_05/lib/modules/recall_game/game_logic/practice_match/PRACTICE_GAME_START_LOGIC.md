@@ -62,43 +62,42 @@ The practice game start match process replicates the backend `on_start_match` lo
 ~~- **Card Dealing**: Each player gets 4 cards~~
 ~~- **Deck State**: Remaining cards become draw pile~~
 
-### 5. Pile Setup
-```dart
-// Move remaining cards to draw pile
-game.draw_pile = game.deck.cards.copy()
-game.deck.cards = []
+### ~~5. Pile Setup~~ ✅ **COMPLETED**
+~~```dart~~
+~~// Move remaining cards to draw pile~~
+~~drawPile = List<Map<String, dynamic>>.from(remainingDeck)~~
+~~discardPile = <Map<String, dynamic>>[]~~
+~~
+~~// Start discard pile with first card from draw pile~~
+~~if (drawPile.isNotEmpty) {~~
+~~  firstCard = drawPile.removeAt(0)~~
+~~  discardPile.add(firstCard)~~
+~~}~~
+~~```~~
+~~- **Draw Pile**: All remaining cards from deck~~
+~~- **Discard Pile**: First card from draw pile (face up)~~
+~~- **Deck**: Emptied after dealing~~
 
-// Start discard pile with first card from draw pile
-if (game.draw_pile.isNotEmpty) {
-  first_card = game.draw_pile.removeAt(0)
-  game.discard_pile.add(first_card)
-}
-```
-- **Draw Pile**: All remaining cards from deck
-- **Discard Pile**: First card from draw pile (face up)
-- **Deck**: Emptied after dealing
+### ~~6. Game Flow Initialization~~ ✅ **COMPLETED**
+~~```dart~~
+~~currentPlayer = dealtPlayers.isNotEmpty ? dealtPlayers.first : null~~
+~~gameState['currentPlayer'] = currentPlayer~~
+~~gameState['phase'] = 'dealing_cards'~~
+~~gameState['gameStartTime'] = DateTime.now().toIso8601String()~~
+~~```~~
+~~- **First Player**: Sets first player (human) as current player~~
+~~- **Phase**: Cards have been dealt, ready for initial peek~~
+~~- **Timing**: Records game start timestamp~~
 
-### 6. Game Flow Initialization
-```dart
-player_ids = game.players.keys.toList()
-game.current_player_id = player_ids[0]
-game.phase = GamePhase.PLAYER_TURN
-game.last_action_time = DateTime.now()
-```
-- **First Player**: Sets first player in list as current player
-- **Phase Change**: `DEALING_CARDS` → `PLAYER_TURN`
-- **Timing**: Records last action timestamp
-
-### 7. Player Status Updates
-```dart
-// Update all active players to READY status
-for (player in game.players.values) {
-  if (player.is_active) {
-    player.set_status(PlayerStatus.READY)
-  }
-}
-```
-- **Status Change**: All active players → `READY`
+### ~~7. Player Status Updates~~ ✅ **COMPLETED**
+~~```dart~~
+~~// Update all players to INITIAL_PEEK status~~
+~~for (final player in dealtPlayers) {~~
+~~  player['status'] = 'initial_peek'~~
+~~}~~
+~~```~~
+~~- **Status Change**: All players set to `initial_peek`~~
+~~- **Ready for**: Initial peek phase (10-second timer)~~
 - **Efficiency**: Single batch update
 
 ### 8. Initial Peek Phase

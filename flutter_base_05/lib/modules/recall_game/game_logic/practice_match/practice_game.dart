@@ -343,6 +343,13 @@ class PracticeGameCoordinator {
         'joinedAt': DateTime.now().toIso8601String(),
       };
       
+  // Set login state for practice mode (needed for opponent filtering)
+  _stateManager.updateModuleState('login', {
+    'userId': 'practice_user',
+    'username': 'Practice User',
+    'isLoggedIn': true,
+  });
+
   // Update the main game state
   updatePracticeGameState({
     'currentGameId': gameId,

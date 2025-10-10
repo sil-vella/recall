@@ -52,7 +52,7 @@ class PracticeGameCoordinator {
   // ========================================
   // INSTRUCTIONS AND MESSAGES
   // ========================================
-
+  
   /// Show instructions modal with given title and content
   void showInstructions(String title, String content) {
     try {
@@ -638,6 +638,79 @@ class PracticeGameCoordinator {
     return Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
   }
 
+  /// Update player status for a specific player or all players
+  /// 
+  /// [status] The new status to set
+  /// [playerId] Optional player ID. If null, updates all players
+  /// [updateMainState] Whether to also update the main game state playerStatus
+  /// 
+  /// Returns true if successful, false otherwise
+  bool updatePlayerStatus(String status, {String? playerId, bool updateMainState = true}) {
+    try {
+      final currentGames = _getCurrentGamesMap();
+      final currentGameId = _currentPracticeGameId;
+      
+      if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
+        Logger().error('Practice: No active practice game found for updatePlayerStatus', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Navigate to game state
+      final gameData = currentGames[currentGameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for updatePlayerStatus', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final players = gameState['players'] as List<Map<String, dynamic>>?;
+      
+      if (players == null) {
+        Logger().error('Practice: Players list is null for updatePlayerStatus', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      if (playerId != null) {
+        // Update specific player
+        final player = players.firstWhere(
+          (p) => p['id'] == playerId,
+          orElse: () => <String, dynamic>{},
+        );
+        
+        if (player.isEmpty) {
+          Logger().error('Practice: Player $playerId not found', isOn: LOGGING_SWITCH);
+          return false;
+        }
+        
+        player['status'] = status;
+        Logger().info('Practice: Updated player ${player['name']} to $status status', isOn: LOGGING_SWITCH);
+        
+      } else {
+        // Update all players
+        for (final player in players) {
+          player['status'] = status;
+        }
+        Logger().info('Practice: Updated ${players.length} players to $status status', isOn: LOGGING_SWITCH);
+      }
+      
+      // Update main state if requested
+      if (updateMainState) {
+        updatePracticeGameState({
+          'playerStatus': status,
+          'games': currentGames,
+        });
+      }
+      
+      return true;
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to update player status: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
   /// Map backend phase values to frontend display phases
   String _mapBackendPhaseToFrontend(String backendPhase) {
     switch (backendPhase) {
@@ -812,7 +885,7 @@ class PracticeGameCoordinator {
       
     } catch (e) {
       Logger().error('Practice: Failed to start match: $e', isOn: LOGGING_SWITCH);
-      return false;
+    return false;
     }
   }
 
@@ -830,36 +903,17 @@ class PracticeGameCoordinator {
         return false;
       }
       
-      // Update all players in the current game to initial_peek status
-      final gameData = currentGames[currentGameId];
-      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
-      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
-      
-      if (gameState == null) {
-        Logger().error('Practice: Game state is null for game $currentGameId', isOn: LOGGING_SWITCH);
+      // Update all players to initial_peek status using unified method
+      final statusUpdated = updatePlayerStatus('initial_peek', updateMainState: false);
+      if (!statusUpdated) {
         return false;
       }
       
-      final players = gameState['players'] as List<Map<String, dynamic>>?;
-      
-      if (players == null) {
-        Logger().error('Practice: Players list is null for game $currentGameId', isOn: LOGGING_SWITCH);
-        return false;
-      }
-      
-      Logger().info('Practice: Updating ${players.length} players to initial_peek status', isOn: LOGGING_SWITCH);
-      
-      // Set all players to initial_peek status
-      for (final player in players) {
-        player['status'] = 'initial_peek';
-        Logger().info('Practice: Set player ${player['name']} to initial_peek status', isOn: LOGGING_SWITCH);
-      }
-      
-      // Update the main game state
+      // Update the main game state with game phase
       updatePracticeGameState({
         'playerStatus': 'initial_peek',
         'gamePhase': _mapBackendPhaseToFrontend('dealing_cards'), // Maps to 'setup'
-        'games': currentGames, // Update the games map with modified players
+        'games': _getCurrentGamesMap(), // Update the games map with modified players
       });
       
       Logger().info('Practice: Match started - all players set to initial_peek', isOn: LOGGING_SWITCH);

@@ -643,10 +643,10 @@ class PracticeGameCoordinator {
   /// [status] The new status to set
   /// [playerId] Optional player ID. If null, updates all players
   /// [updateMainState] Whether to also update the main game state playerStatus
-  /// [showInstructions] Whether to show contextual instructions after status update
+  /// [triggerInstructions] Whether to trigger contextual instructions after status update (respects _instructionsEnabled)
   /// 
   /// Returns true if successful, false otherwise
-  bool updatePlayerStatus(String status, {String? playerId, bool updateMainState = true, bool showInstructions = false}) {
+  bool updatePlayerStatus(String status, {String? playerId, bool updateMainState = true, bool triggerInstructions = false}) {
     try {
       final currentGames = _getCurrentGamesMap();
       final currentGameId = _currentPracticeGameId;
@@ -704,8 +704,8 @@ class PracticeGameCoordinator {
         });
       }
       
-      // Show contextual instructions if requested (after state is updated)
-      if (showInstructions && _instructionsEnabled) {
+      // Trigger contextual instructions if requested (respects _instructionsEnabled setting)
+      if (triggerInstructions && _instructionsEnabled) {
         showContextualInstructions();
       }
       
@@ -911,7 +911,7 @@ class PracticeGameCoordinator {
       
       // Update all players to initial_peek status using unified method
       // Note: We update main state separately to include game phase
-      final statusUpdated = updatePlayerStatus('initial_peek', updateMainState: false, showInstructions: false);
+      final statusUpdated = updatePlayerStatus('initial_peek', updateMainState: false, triggerInstructions: false);
       if (!statusUpdated) {
         return false;
       }
@@ -923,7 +923,8 @@ class PracticeGameCoordinator {
         'games': _getCurrentGamesMap(), // Update the games map with modified players
       });
       
-      // Show contextual instructions after state is fully updated
+      // Trigger contextual instructions after state is fully updated
+      // (respects _instructionsEnabled setting from practice room)
       if (_instructionsEnabled) {
         showContextualInstructions();
       }

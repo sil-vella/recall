@@ -30,7 +30,7 @@ class PlayerAction {
   static final RecallGameStateUpdater _stateUpdater = RecallGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   // Jack swap selection tracking
   static String? _firstSelectedCardId;
   static String? _firstSelectedPlayerId;
@@ -49,54 +49,15 @@ class PlayerAction {
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
 
-  /// Public factory constructor for creating PlayerAction instances
-  factory PlayerAction({
-    required String eventName,
-    required Map<String, dynamic> gameData,
-    DateTime? timestamp,
-  }) {
-    // Map event name to action type
-    PlayerActionType actionType;
-    switch (eventName) {
-      case 'start_match':
-        actionType = PlayerActionType.useSpecialPower;
-        break;
-      case 'play_card':
-        actionType = PlayerActionType.playCard;
-        break;
-      case 'draw_card':
-        actionType = PlayerActionType.drawCard;
-        break;
-      case 'queen_peek':
-        actionType = PlayerActionType.queenPeek;
-        break;
-      case 'jack_swap':
-        actionType = PlayerActionType.jackSwap;
-        break;
-      case 'call_recall':
-        actionType = PlayerActionType.callRecall;
-        break;
-      default:
-        actionType = PlayerActionType.playCard; // Default fallback
-    }
-
-    return PlayerAction._(
-      actionType: actionType,
-      eventName: eventName,
-      payload: gameData,
-      timestamp: timestamp,
-    );
-  }
-
   /// Execute the player action with validation and state management
-  Future<bool> execute() async {
+  Future<void> execute() async {
     try {
       _logger.info('Executing action: ${actionType.name} with payload: $payload', isOn: LOGGING_SWITCH);
       
       // Special handling for Jack swap - don't set status to waiting yet
       if (actionType == PlayerActionType.jackSwap) {
         _logger.info('Jack swap action executed - waiting for card selections', isOn: LOGGING_SWITCH);
-        return true; // Jack swap is handled by selectCardForJackSwap method
+        return; // Jack swap is handled by selectCardForJackSwap method
       }
       
       // Special handling for Queen peek - execute immediately with single card selection
@@ -117,9 +78,9 @@ class PlayerAction {
         _logger.info('Practice game detected - triggering practice event handler', isOn: LOGGING_SWITCH);
         
         // Trigger practice event through state manager so PracticeRoom can handle it
-        final practiceResult = await _triggerPracticeEvent();
+        _triggerPracticeEvent();
         
-        return practiceResult;
+        return;
       }
       
       _logger.info('Sending event to backend: $eventName with data: $payload', isOn: LOGGING_SWITCH);
@@ -128,12 +89,10 @@ class PlayerAction {
         data: payload,
       );
       _logger.info('Event successfully sent to backend', isOn: LOGGING_SWITCH);
-      
-      return true;
 
     } catch (e) {
       _logger.error('Error executing action ${actionType.name}: $e', isOn: LOGGING_SWITCH);
-      return false;
+      rethrow;
     }
   }
 
@@ -152,35 +111,27 @@ class PlayerAction {
   }
 
   /// Trigger practice event by calling the PracticeGameCoordinator directly
-  Future<bool> _triggerPracticeEvent() async {
+  void _triggerPracticeEvent() {
     try {
-      _logger.info('🎯 PlayerAction: _triggerPracticeEvent() called', isOn: LOGGING_SWITCH);
-      _logger.info('🎯 PlayerAction: eventName: $eventName, payload: $payload', isOn: LOGGING_SWITCH);
-      
       // Get the practice game coordinator (singleton)
       final practiceCoordinator = PracticeGameCoordinator();
-      _logger.info('🎯 PlayerAction: Got practice coordinator instance', isOn: LOGGING_SWITCH);
       
       // Extract session ID (game_id) from payload
       final sessionId = payload['game_id'] as String? ?? '';
-      _logger.info('🎯 PlayerAction: Extracted sessionId: $sessionId', isOn: LOGGING_SWITCH);
       
       if (sessionId.isEmpty) {
-        _logger.warning('🎯 PlayerAction: Cannot trigger practice event - no game_id in payload', isOn: LOGGING_SWITCH);
-        return false;
+        _logger.warning('Cannot trigger practice event - no game_id in payload', isOn: LOGGING_SWITCH);
+        return;
       }
       
       // Call the practice coordinator to handle the event
-      _logger.info('🎯 PlayerAction: Calling practice coordinator for event: $eventName (session: $sessionId)', isOn: LOGGING_SWITCH);
-      final result = await practiceCoordinator.handlePracticeEvent(sessionId, eventName, payload);
+      _logger.info('Calling practice coordinator for event: $eventName (session: $sessionId)', isOn: LOGGING_SWITCH);
+      practiceCoordinator.handlePracticeEvent(sessionId, eventName, payload);
       
-      _logger.info('🎯 PlayerAction: Practice event handled by coordinator: $eventName, result: $result', isOn: LOGGING_SWITCH);
-      
-      return result;
+      _logger.info('Practice event handled by coordinator: $eventName', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      _logger.error('🎯 PlayerAction: Error triggering practice event: $e', isOn: LOGGING_SWITCH);
-      return false;
+      _logger.error('Error triggering practice event: $e', isOn: LOGGING_SWITCH);
     }
   }
 

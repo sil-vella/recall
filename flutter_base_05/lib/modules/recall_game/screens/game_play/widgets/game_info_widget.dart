@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import 'game_phase_chip_widget.dart';
 import '../../../managers/game_coordinator.dart';
+import '../../../game_logic/practice_match/practice_game.dart';
 import '../../../../../tools/logging/logger.dart';
 
 /// Widget to display current game information
@@ -13,7 +14,7 @@ import '../../../../../tools/logging/logger.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class GameInfoWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = true; // Enable logging for debugging start button
+  static const bool LOGGING_SWITCH = false; // Enable logging for debugging start button
   
   const GameInfoWidget({Key? key}) : super(key: key);
 
@@ -239,22 +240,39 @@ class GameInfoWidget extends StatelessWidget {
   /// Handle start match button press
   void _handleStartMatch() async {
     try {
-      Logger().info('🎮 GameInfoWidget: Start button pressed!', isOn: LOGGING_SWITCH);
+      Logger().info('🎮 GameInfoWidget: Start button pressed - initiating start match flow', isOn: LOGGING_SWITCH);
       
-      // Get current game state for debugging
+      // Get current game state to check if it's a practice game
       final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-      final gamePhase = recallGameState['gamePhase']?.toString() ?? '';
+      final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
+      final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
       
       Logger().info('🎮 GameInfoWidget: Current game ID: $currentGameId', isOn: LOGGING_SWITCH);
-      Logger().info('🎮 GameInfoWidget: Current game phase: $gamePhase', isOn: LOGGING_SWITCH);
       
-      // Call GameCoordinator to start the match
-      Logger().info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()', isOn: LOGGING_SWITCH);
-      final gameCoordinator = GameCoordinator();
-      final result = await gameCoordinator.startMatch();
+      // Check if this is a practice game
+      final isPracticeGame = currentGameId.startsWith('practice_game_');
+      Logger().info('🎮 GameInfoWidget: Practice game check - isPracticeGame: $isPracticeGame', isOn: LOGGING_SWITCH);
       
-      Logger().info('🎮 GameInfoWidget: GameCoordinator.startMatch() returned: $result', isOn: LOGGING_SWITCH);
+      if (isPracticeGame) {
+        Logger().info('🎮 GameInfoWidget: Practice game detected - routing directly to PracticeGameCoordinator', isOn: LOGGING_SWITCH);
+        
+        // Route directly to practice game coordinator
+        final practiceCoordinator = PracticeGameCoordinator();
+        Logger().info('🎮 GameInfoWidget: Calling PracticeGameCoordinator.matchStart()', isOn: LOGGING_SWITCH);
+        
+        final result = await practiceCoordinator.matchStart();
+        Logger().info('🎮 GameInfoWidget: PracticeGameCoordinator.matchStart() completed with result: $result', isOn: LOGGING_SWITCH);
+        
+      } else {
+        Logger().info('🎮 GameInfoWidget: Regular game detected - routing to GameCoordinator', isOn: LOGGING_SWITCH);
+        
+        // Call GameCoordinator to start the match for regular games
+        final gameCoordinator = GameCoordinator();
+        Logger().info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()', isOn: LOGGING_SWITCH);
+        
+        final result = await gameCoordinator.startMatch();
+        Logger().info('🎮 GameInfoWidget: GameCoordinator.startMatch() completed with result: $result', isOn: LOGGING_SWITCH);
+      }
       
     } catch (e) {
       Logger().error('🎮 GameInfoWidget: Error in _handleStartMatch: $e', isOn: LOGGING_SWITCH);

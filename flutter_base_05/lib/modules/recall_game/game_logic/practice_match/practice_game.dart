@@ -643,9 +643,10 @@ class PracticeGameCoordinator {
   /// [status] The new status to set
   /// [playerId] Optional player ID. If null, updates all players
   /// [updateMainState] Whether to also update the main game state playerStatus
+  /// [showInstructions] Whether to show contextual instructions after status update
   /// 
   /// Returns true if successful, false otherwise
-  bool updatePlayerStatus(String status, {String? playerId, bool updateMainState = true}) {
+  bool updatePlayerStatus(String status, {String? playerId, bool updateMainState = true, bool showInstructions = false}) {
     try {
       final currentGames = _getCurrentGamesMap();
       final currentGameId = _currentPracticeGameId;
@@ -701,6 +702,11 @@ class PracticeGameCoordinator {
           'playerStatus': status,
           'games': currentGames,
         });
+      }
+      
+      // Show contextual instructions if requested (after state is updated)
+      if (showInstructions && _instructionsEnabled) {
+        showContextualInstructions();
       }
       
       return true;
@@ -904,7 +910,8 @@ class PracticeGameCoordinator {
       }
       
       // Update all players to initial_peek status using unified method
-      final statusUpdated = updatePlayerStatus('initial_peek', updateMainState: false);
+      // Note: We update main state separately to include game phase
+      final statusUpdated = updatePlayerStatus('initial_peek', updateMainState: false, showInstructions: false);
       if (!statusUpdated) {
         return false;
       }
@@ -915,6 +922,11 @@ class PracticeGameCoordinator {
         'gamePhase': _mapBackendPhaseToFrontend('dealing_cards'), // Maps to 'setup'
         'games': _getCurrentGamesMap(), // Update the games map with modified players
       });
+      
+      // Show contextual instructions after state is fully updated
+      if (_instructionsEnabled) {
+        showContextualInstructions();
+      }
       
       Logger().info('Practice: Match started - all players set to initial_peek', isOn: LOGGING_SWITCH);
       

@@ -49,6 +49,45 @@ class PlayerAction {
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
 
+  /// Public factory constructor for creating PlayerAction instances
+  factory PlayerAction({
+    required String eventName,
+    required Map<String, dynamic> gameData,
+    DateTime? timestamp,
+  }) {
+    // Map event name to action type
+    PlayerActionType actionType;
+    switch (eventName) {
+      case 'start_match':
+        actionType = PlayerActionType.useSpecialPower;
+        break;
+      case 'play_card':
+        actionType = PlayerActionType.playCard;
+        break;
+      case 'draw_card':
+        actionType = PlayerActionType.drawCard;
+        break;
+      case 'queen_peek':
+        actionType = PlayerActionType.queenPeek;
+        break;
+      case 'jack_swap':
+        actionType = PlayerActionType.jackSwap;
+        break;
+      case 'call_recall':
+        actionType = PlayerActionType.callRecall;
+        break;
+      default:
+        actionType = PlayerActionType.playCard; // Default fallback
+    }
+
+    return PlayerAction._(
+      actionType: actionType,
+      eventName: eventName,
+      payload: gameData,
+      timestamp: timestamp,
+    );
+  }
+
   /// Execute the player action with validation and state management
   Future<bool> execute() async {
     try {

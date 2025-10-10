@@ -13,7 +13,7 @@ import '../../../../../tools/logging/logger.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class GameInfoWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false; // Enable logging for debugging start button
+  static const bool LOGGING_SWITCH = true; // Enable logging for debugging start button
   
   const GameInfoWidget({Key? key}) : super(key: key);
 
@@ -35,14 +35,18 @@ class GameInfoWidget extends StatelessWidget {
         final isRoomOwner = gameInfo['isRoomOwner'] ?? false;
         final isInGame = gameInfo['isInGame'] ?? false;
         
+        // Check if this is a practice game
+        final isPracticeGame = currentGameId.startsWith('practice_game_');
+        
         // 🔍 DEBUG: Log the values that determine start button visibility
         Logger().info('🔍 GameInfoWidget DEBUG:', isOn: LOGGING_SWITCH);
         Logger().info('  currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
         Logger().info('  gamePhase: $gamePhase', isOn: LOGGING_SWITCH);
         Logger().info('  isRoomOwner: $isRoomOwner', isOn: LOGGING_SWITCH);
         Logger().info('  isInGame: $isInGame', isOn: LOGGING_SWITCH);
-        Logger().info('  Start button condition: isRoomOwner($isRoomOwner) && gamePhase($gamePhase) == "waiting"', isOn: LOGGING_SWITCH);
-        Logger().info('  Should show start button: ${isRoomOwner && gamePhase == 'waiting'}', isOn: LOGGING_SWITCH);
+        
+        Logger().info('  Start button condition: isRoomOwner($isRoomOwner) && gamePhase($gamePhase) == "waiting" OR isPracticeGame($isPracticeGame)', isOn: LOGGING_SWITCH);
+        Logger().info('  Should show start button: ${(isRoomOwner && gamePhase == 'waiting') || isPracticeGame}', isOn: LOGGING_SWITCH);
         Logger().info('  Full gameInfo: $gameInfo', isOn: LOGGING_SWITCH);
         
         // Get additional game state for context
@@ -65,6 +69,7 @@ class GameInfoWidget extends StatelessWidget {
           isGameActive: isGameActive,
           isMyTurn: isMyTurn,
           playerStatus: playerStatus,
+          isPracticeGame: isPracticeGame,
         );
       },
     );
@@ -126,6 +131,7 @@ class GameInfoWidget extends StatelessWidget {
     required bool isGameActive,
     required bool isMyTurn,
     required String playerStatus,
+    required bool isPracticeGame,
   }) {
     return Card(
       margin: const EdgeInsets.all(16),
@@ -195,8 +201,8 @@ class GameInfoWidget extends StatelessWidget {
             
             const SizedBox(height: 16),
             
-            // Start Match Button (only for room owner during waiting phase)
-            if (isRoomOwner && gamePhase == 'waiting')
+            // Start Match Button (for room owner during waiting phase OR for practice games)
+            if ((isRoomOwner && gamePhase == 'waiting') || isPracticeGame)
               _buildStartMatchButton(),
           ],
         ),
@@ -233,11 +239,25 @@ class GameInfoWidget extends StatelessWidget {
   /// Handle start match button press
   void _handleStartMatch() async {
     try {
+      Logger().info('🎮 GameInfoWidget: Start button pressed!', isOn: LOGGING_SWITCH);
+      
+      // Get current game state for debugging
+      final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+      final gamePhase = recallGameState['gamePhase']?.toString() ?? '';
+      
+      Logger().info('🎮 GameInfoWidget: Current game ID: $currentGameId', isOn: LOGGING_SWITCH);
+      Logger().info('🎮 GameInfoWidget: Current game phase: $gamePhase', isOn: LOGGING_SWITCH);
+      
       // Call GameCoordinator to start the match
+      Logger().info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()', isOn: LOGGING_SWITCH);
       final gameCoordinator = GameCoordinator();
-      await gameCoordinator.startMatch();
+      final result = await gameCoordinator.startMatch();
+      
+      Logger().info('🎮 GameInfoWidget: GameCoordinator.startMatch() returned: $result', isOn: LOGGING_SWITCH);
+      
     } catch (e) {
-      // Handle error silently
+      Logger().error('🎮 GameInfoWidget: Error in _handleStartMatch: $e', isOn: LOGGING_SWITCH);
     }
   }
   

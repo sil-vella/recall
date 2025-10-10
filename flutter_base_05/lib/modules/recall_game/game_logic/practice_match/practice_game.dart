@@ -14,7 +14,7 @@ import '../../managers/validated_state_manager.dart';
 import 'utils/deck_factory.dart';
 import 'models/card.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class PracticeGameCoordinator {
   /// Coordinates practice game sessions for the Recall game
@@ -375,7 +375,8 @@ class PracticeGameCoordinator {
       
       // Update player's hand
       player['hand'] = playerHand;
-      player['status'] = 'initial_peek'; // Set to initial peek status
+      
+      // Note: Instructions will be shown after main state update
       
       Logger().info('Practice: Dealt ${playerHand.length} cards to player ${player['name']}', isOn: LOGGING_SWITCH);
     }
@@ -405,6 +406,7 @@ class PracticeGameCoordinator {
       'discardPile': discardPile,
     };
   }
+
 
   // ========================================
   // GAME AND AI PLAYER GENERATION
@@ -461,11 +463,7 @@ class PracticeGameCoordinator {
       // Create deck for the game
       final deck = await _createDeck(gameId);
       
-      // Deal cards to players (replicating backend _deal_cards logic)
-      final dealtPlayers = _dealCardsToPlayers(allPlayers, deck);
-      
-      // Set up draw and discard piles (replicating backend _setup_piles logic)
-      final pileSetup = _setupPiles(deck);
+      // Note: Card dealing and pile setup will be done in startMatch()
       
       // Initialize game state properties (replicating backend GameState.__init__)
       final gameState = {
@@ -477,17 +475,17 @@ class PracticeGameCoordinator {
         'permission': permission,
         
         // Player Management
-        'players': dealtPlayers,
-        'currentPlayer': dealtPlayers.isNotEmpty ? dealtPlayers.first : null, // First player is current
-        'playerCount': dealtPlayers.length,
-        'activePlayerCount': dealtPlayers.length,
+        'players': allPlayers, // Players without dealt cards yet
+        'currentPlayer': null, // No current player until game starts
+        'playerCount': allPlayers.length,
+        'activePlayerCount': allPlayers.length,
         
         // Game State
-        'phase': 'dealing_cards', // GamePhase.DEALING_CARDS (cards have been dealt)
-        'status': 'active', // Game status
-        'deck': <Map<String, dynamic>>[], // Deck is now empty after dealing
-        'discardPile': pileSetup['discardPile'],
-        'drawPile': pileSetup['drawPile'],
+        'phase': 'waiting_for_players', // GamePhase.WAITING_FOR_PLAYERS (waiting to start)
+        'status': 'waiting', // Game status - waiting for start
+        'deck': deck, // Full deck, not dealt yet
+        'discardPile': <Map<String, dynamic>>[], // Empty until game starts
+        'drawPile': <Map<String, dynamic>>[], // Empty until game starts
         
         // Game Flow Control
         'outOfTurnDeadline': null,
@@ -496,7 +494,7 @@ class PracticeGameCoordinator {
         'recallCalledBy': null,
         
         // Timing and History
-        'gameStartTime': DateTime.now().toIso8601String(),
+        'gameStartTime': null, // Will be set when game starts
         'lastActivityTime': DateTime.now().toIso8601String(),
         'gameEnded': false,
         'winner': null,
@@ -522,16 +520,16 @@ class PracticeGameCoordinator {
           'game_state': gameState,
           'owner_id': 'practice_user', // Practice mode user
         },
-        'gameStatus': 'dealing_cards', // Updated to reflect cards have been dealt
+        'gameStatus': 'waiting_for_players', // Waiting for game to start
         'isRoomOwner': true, // Practice user is always owner
         'isInGame': true,
         'joinedAt': DateTime.now().toIso8601String(),
-        // Add human player's hand data for myHand widget
-        'myHandCards': humanPlayer['hand'], // Human player's dealt cards
+        // No hand data yet - cards will be dealt when game starts
+        'myHandCards': <Map<String, dynamic>>[], // Empty until cards are dealt
         'selectedCardIndex': -1, // No card selected initially
-        'isMyTurn': true, // Human player is current player
+        'isMyTurn': false, // Not player's turn until game starts
         'myDrawnCard': null, // No drawn card initially
-        'canPlayCard': false, // Can't play cards during initial peek
+        'canPlayCard': false, // Can't play cards until game starts
       };
       
   // Set login state for practice mode (needed for opponent filtering)
@@ -544,16 +542,16 @@ class PracticeGameCoordinator {
   // Update the main game state
   updatePracticeGameState({
     'currentGameId': gameId,
-    'gamePhase': _mapBackendPhaseToFrontend('dealing_cards'),
-    'isGameActive': true,
+    'gamePhase': _mapBackendPhaseToFrontend('waiting_for_players'),
+    'isGameActive': false, // Game is created but not started yet
     'games': currentGames,
-    'isMyTurn': true, // First player (human) is current player
-    'playerStatus': 'initial_peek', // Players are in initial peek phase
-    'turnTimeout': turnTimeLimit,
+    'isMyTurn': false, // Not player's turn until game starts
+    'playerStatus': 'waiting', // Players are waiting for game to start
+    'turnTimeout': null, // No timeout until game starts
     'permission': permission,
     'maxSize': maxPlayers,
     'minSize': minPlayers,
-    'currentSize': dealtPlayers.length, // Current number of players
+    'currentSize': allPlayers.length, // Current number of players
     // Add human player's data to main state (myHandCards is handled in games map)
     'myScore': 0, // Initial score
     'myDrawnCard': null, // No drawn card initially
@@ -564,15 +562,14 @@ class PracticeGameCoordinator {
       _addSessionMessage(
         level: 'info',
         title: 'Practice Game Created',
-        message: 'Practice game $gameId created with ${dealtPlayers.length} players. Cards dealt: 4 per player. Draw pile: ${pileSetup['drawPile'].length} cards, Discard pile: ${pileSetup['discardPile'].length} cards.',
+        message: 'Practice game $gameId created with ${allPlayers.length} players. Ready to start!',
         data: {
           'game_id': gameId,
           'max_players': maxPlayers,
           'min_players': minPlayers,
           'game_type': gameType,
-          'cards_dealt': true,
-          'draw_pile_size': pileSetup['drawPile'].length,
-          'discard_pile_size': pileSetup['discardPile'].length,
+          'cards_dealt': false,
+          'ready_to_start': true,
         },
       );
       
@@ -726,6 +723,129 @@ class PracticeGameCoordinator {
   List<String> getRegisteredEvents() => List.from(registeredEvents);
 
   // ========================================
+  // GAME START LOGIC
+  // ========================================
+
+  /// Start the practice match (deal cards, setup piles, begin gameplay)
+  /// This should be called after createPracticeGame() to begin the actual game
+  Future<bool> startMatch(String gameId) async {
+    try {
+      Logger().info('Practice: Starting match for game: $gameId', isOn: LOGGING_SWITCH);
+      
+      // Get the current game from the games map
+      final currentGames = _getCurrentGamesMap();
+      final gameData = currentGames[gameId];
+      
+      if (gameData == null) {
+        Logger().error('Practice: Game not found: $gameId', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final innerGameData = gameData['gameData'] as Map<String, dynamic>;
+      final gameState = innerGameData['game_state'] as Map<String, dynamic>;
+      final players = gameState['players'] as List<Map<String, dynamic>>;
+      final deck = gameState['deck'] as List<Map<String, dynamic>>;
+      
+      Logger().info('Practice: Starting match with ${players.length} players and ${deck.length} cards in deck', isOn: LOGGING_SWITCH);
+      
+      // Deal cards to players (replicating backend _deal_cards logic)
+      final dealtPlayers = _dealCardsToPlayers(players, deck);
+      
+      // Set up draw and discard piles (replicating backend _setup_piles logic)
+      final pileSetup = _setupPiles(deck);
+      
+      // Update game state with dealt cards and piles
+      gameState['players'] = dealtPlayers;
+      gameState['currentPlayer'] = dealtPlayers.isNotEmpty ? dealtPlayers.first : null; // First player is current
+      gameState['phase'] = 'dealing_cards'; // GamePhase.DEALING_CARDS (cards have been dealt)
+      gameState['status'] = 'active'; // Game status
+      gameState['deck'] = <Map<String, dynamic>>[]; // Deck is now empty after dealing
+      gameState['discardPile'] = pileSetup['discardPile'];
+      gameState['drawPile'] = pileSetup['drawPile'];
+      gameState['gameStartTime'] = DateTime.now().toIso8601String();
+      gameState['lastActivityTime'] = DateTime.now().toIso8601String();
+      
+      // Update the inner game data with new game state (using explicit type conversion)
+      final updatedGameData = Map<String, dynamic>.from(innerGameData);
+      updatedGameData['game_state'] = gameState;
+      
+      // Get existing game data to preserve other fields (using explicit type conversion)
+      final existingGame = Map<String, dynamic>.from(gameData);
+      
+      // Update the games map with new game data (explicit map construction to avoid type issues)
+      currentGames[gameId] = {
+        'gameData': updatedGameData,
+        'gameStatus': 'dealing_cards', // Updated to reflect cards have been dealt
+        'isRoomOwner': existingGame['isRoomOwner'] ?? true,
+        'isInGame': existingGame['isInGame'] ?? true,
+        'joinedAt': existingGame['joinedAt'] ?? DateTime.now().toIso8601String(),
+        // Add human player's hand data for myHand widget
+        'myHandCards': dealtPlayers.firstWhere((p) => p['id'] == 'practice_user')['hand'], // Human player's dealt cards
+        'selectedCardIndex': -1, // No card selected initially
+        'isMyTurn': true, // Human player is current player
+        'myDrawnCard': null, // No drawn card initially
+        'canPlayCard': false, // Can't play cards during initial peek
+      };
+      
+      // Update the main game state
+      updatePracticeGameState({
+        'currentGameId': gameId,
+        'gamePhase': _mapBackendPhaseToFrontend('dealing_cards'),
+        'isGameActive': true,
+        'games': currentGames,
+        'isMyTurn': true, // First player (human) is current player
+        'playerStatus': 'initial_peek', // Players are in initial peek phase
+        'turnTimeout': _turnTimerSeconds > 0 ? DateTime.now().add(Duration(seconds: _turnTimerSeconds)).toIso8601String() : null,
+        'currentSize': dealtPlayers.length, // Current number of players
+        // Add human player's data to main state (myHandCards is handled in games map)
+        'myScore': 0, // Initial score
+        'myDrawnCard': null, // No drawn card initially
+        'myCardsToPeek': <Map<String, dynamic>>[], // No cards to peek initially
+      });
+
+      // Show initial peek instructions if enabled (after state is updated)
+      if (_instructionsEnabled) {
+        showContextualInstructions();
+      }
+      
+      // Add session message about game start
+      _addSessionMessage(
+        level: 'info',
+        title: 'Practice Game Started',
+        message: 'Practice game started with ${_numberOfOpponents} AI opponents (${_difficultyLevel.toUpperCase()} difficulty). Cards dealt: 4 per player.',
+        data: {
+          'game_id': gameId,
+          'number_of_opponents': _numberOfOpponents,
+          'difficulty_level': _difficultyLevel,
+          'turn_timer': _turnTimer,
+          'instructions_enabled': _instructionsEnabled,
+          'total_players': dealtPlayers.length,
+          'cards_dealt': true,
+          'draw_pile_size': pileSetup['drawPile'].length,
+          'discard_pile_size': pileSetup['discardPile'].length,
+        },
+      );
+      
+      Logger().info('Practice: Match started successfully for game: $gameId', isOn: LOGGING_SWITCH);
+      return true;
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to start match for game $gameId: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  // ========================================
+  // HELPER METHODS
+  // ========================================
+
+  /// Check if a game exists in the games map
+  bool _gameExists(String gameId) {
+    final currentGames = _getCurrentGamesMap();
+    return currentGames.containsKey(gameId);
+  }
+
+  // ========================================
   // EVENT HANDLING
   // ========================================
 
@@ -734,9 +854,22 @@ class PracticeGameCoordinator {
     try {
       Logger().info('Practice: Handling event: $eventName with data: $data', isOn: LOGGING_SWITCH);
       
+      // Smart routing: If event is start_match, check if game already exists
+      if (eventName == 'start_match') {
+        final gameId = data['game_id'] as String?;
+        if (gameId != null && _gameExists(gameId)) {
+          // Game exists, this is actually a begin_game request
+          Logger().info('Practice: Game $gameId exists, routing to begin_game', isOn: LOGGING_SWITCH);
+          return await _handleBeginGame(sessionId, data);
+        }
+        // Game doesn't exist, create it
+        Logger().info('Practice: Game $gameId does not exist, creating new game', isOn: LOGGING_SWITCH);
+        return await _handleStartMatch(sessionId, data);
+      }
+      
       switch (eventName) {
-        case 'start_match':
-          return await _handleStartMatch(sessionId, data);
+        case 'begin_game':
+          return await _handleBeginGame(sessionId, data);
         default:
           Logger().warning('Practice: Unknown event type: $eventName', isOn: LOGGING_SWITCH);
           return false;
@@ -763,14 +896,14 @@ class PracticeGameCoordinator {
       // Calculate total players (user + opponents)
       final totalPlayers = _numberOfOpponents + 1;
       
-      // Create the practice game with the specified settings
+      // Step 1: Create the practice game (empty game, waiting for start)
       final gameId = await createPracticeGame(
         maxPlayers: totalPlayers,
         minPlayers: 2, // Minimum for any game
         permission: 'public',
         gameType: 'practice',
         turnTimeLimit: _turnTimer ?? 0, // 0 means no timer
-        autoStart: true,
+        autoStart: false, // Don't auto-start, we'll start manually
         numberOfOpponents: _numberOfOpponents,
         difficultyLevel: _difficultyLevel,
         instructionsEnabled: _instructionsEnabled,
@@ -783,22 +916,7 @@ class PracticeGameCoordinator {
       // Update turn timer seconds for the coordinator
       _turnTimerSeconds = _turnTimer ?? 0;
       
-      // Add session message about game start
-      _addSessionMessage(
-        level: 'info',
-        title: 'Practice Game Started',
-        message: 'Practice game started with $_numberOfOpponents AI opponents (${_difficultyLevel.toUpperCase()} difficulty)',
-        data: {
-          'game_id': gameId,
-          'number_of_opponents': _numberOfOpponents,
-          'difficulty_level': _difficultyLevel,
-          'turn_timer': _turnTimer,
-          'instructions_enabled': _instructionsEnabled,
-          'total_players': totalPlayers,
-        },
-      );
-      
-      Logger().info('Practice: Match started successfully with game ID: $gameId', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Game created successfully with game ID: $gameId. Ready to start!', isOn: LOGGING_SWITCH);
       
       return true;
       
@@ -807,5 +925,35 @@ class PracticeGameCoordinator {
       return false;
     }
   }
+
+  /// Handle the begin_game event (called when start button is clicked)
+  Future<bool> _handleBeginGame(String sessionId, Map<String, dynamic> data) async {
+    try {
+      final gameId = data['game_id'] as String?;
+      
+      if (gameId == null || gameId.isEmpty) {
+        Logger().error('Practice: No game_id provided for begin_game', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Beginning game $gameId (dealing cards and starting gameplay)', isOn: LOGGING_SWITCH);
+      
+      // Start the match (deal cards, setup piles, begin gameplay)
+      final startSuccess = await startMatch(gameId);
+      
+      if (!startSuccess) {
+        Logger().error('Practice: Failed to begin game $gameId', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Game $gameId started successfully', isOn: LOGGING_SWITCH);
+      return true;
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to begin game: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
 
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import '../../../../core/managers/state_manager.dart';
+import '../../../../tools/logging/logger.dart';
 import 'validated_event_emitter.dart';
 
 /// PlayerAction class for handling individual player actions
@@ -44,7 +45,7 @@ class PlayerAction {
 /// a consistent flow before being sent to the backend.
 class GameCoordinator {
   static final GameCoordinator _instance = GameCoordinator._internal();
-  
+  static const bool LOGGING_SWITCH = true;
   factory GameCoordinator() => _instance;
   GameCoordinator._internal();
   
@@ -92,11 +93,16 @@ class GameCoordinator {
   
   /// Create and execute a start match action
   Future<bool> startMatch() async {
+    Logger().info('🎯 GameCoordinator: startMatch() called', isOn: LOGGING_SWITCH);
+    
     // Get current game state
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
     
+    Logger().info('🎯 GameCoordinator: Current game ID: $currentGameId', isOn: LOGGING_SWITCH);
+    
     if (currentGameId.isEmpty) {
+      Logger().warning('🎯 GameCoordinator: No current game ID found', isOn: LOGGING_SWITCH);
       return false;
     }
     
@@ -105,12 +111,19 @@ class GameCoordinator {
       'game_id': currentGameId,
     };
     
+    Logger().info('🎯 GameCoordinator: Creating PlayerAction with data: $gameData', isOn: LOGGING_SWITCH);
+    
     // Create and execute the player action
     final action = PlayerAction(
       eventName: 'start_match',
       gameData: gameData,
     );
     
-    return await action.execute();
+    Logger().info('🎯 GameCoordinator: Executing PlayerAction...', isOn: LOGGING_SWITCH);
+    final result = await action.execute();
+    
+    Logger().info('🎯 GameCoordinator: PlayerAction.execute() returned: $result', isOn: LOGGING_SWITCH);
+    
+    return result;
   }
 }

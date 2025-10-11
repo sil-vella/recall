@@ -444,11 +444,20 @@ class PracticeGameCoordinator {
       // Deal 4 cards to this player
       for (int i = 0; i < 4; i++) {
         if (workingDeck.isNotEmpty) {
-          final card = workingDeck.removeAt(0); // Draw from top of deck
-          // Add owner information to the card
-          final ownedCard = Map<String, dynamic>.from(card);
-          ownedCard['ownerId'] = player['id'];
-          playerHand.add(ownedCard);
+          final fullCard = workingDeck.removeAt(0); // Draw from top of deck
+          
+          // Convert to ID-only format for hand (matches backend _to_flutter_card with full_data=False)
+          final idOnlyCard = {
+            'cardId': fullCard['cardId'],
+            'suit': '?',           // Face-down: hide suit
+            'rank': '?',           // Face-down: hide rank  
+            'points': 0,           // Face-down: hide points
+            'displayName': '?',    // Face-down: hide display name
+            'color': 'black',      // Default color for face-down
+            'ownerId': player['id'], // Keep owner info
+          };
+          
+          playerHand.add(idOnlyCard);
         }
       }
       
@@ -466,20 +475,28 @@ class PracticeGameCoordinator {
   }
 
   /// Set up draw and discard piles (replicating backend _setup_piles logic)
+  /// Draw pile: ID-only format (face-down), Discard pile: Full data format (face-up)
   Map<String, dynamic> _setupPiles(List<Map<String, dynamic>> remainingDeck) {
     Logger().info('Practice: Setting up piles with ${remainingDeck.length} remaining cards', isOn: LOGGING_SWITCH);
     
-    // Move remaining cards to draw pile
-    final drawPile = List<Map<String, dynamic>>.from(remainingDeck);
+    // Convert remaining deck to ID-only format for draw pile (matches backend _to_flutter_card with full_data=False)
+    final drawPile = remainingDeck.map((fullCard) => {
+      'cardId': fullCard['cardId'],
+      'suit': '?',           // Face-down: hide suit
+      'rank': '?',           // Face-down: hide rank  
+      'points': 0,           // Face-down: hide points
+      'displayName': '?',    // Face-down: hide display name
+      'color': 'black',      // Default color for face-down
+    }).toList();
     
-    // Start discard pile with first card from draw pile
+    // Start discard pile with first card from draw pile (full data format)
     final discardPile = <Map<String, dynamic>>[];
-    if (drawPile.isNotEmpty) {
-      final firstCard = drawPile.removeAt(0);
-      discardPile.add(firstCard);
+    if (remainingDeck.isNotEmpty) {
+      final firstCard = remainingDeck.removeAt(0); // Remove from original deck
+      discardPile.add(firstCard); // Add full card data to discard pile
     }
     
-    Logger().info('Practice: Pile setup complete - Draw pile: ${drawPile.length} cards, Discard pile: ${discardPile.length} cards', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: Pile setup complete - Draw pile: ${drawPile.length} ID-only cards, Discard pile: ${discardPile.length} full-data cards', isOn: LOGGING_SWITCH);
     
     return {
       'drawPile': drawPile,
@@ -557,6 +574,10 @@ class PracticeGameCoordinator {
         'maxPlayers': maxPlayers,
         'minPlayers': minPlayers,
         'permission': permission,
+        'gameType': gameType, // Store game type for RecallGameStateAccessor
+        
+        // Store original deck for card reconstruction (needed for _getCardById)
+        'originalDeck': deck, // Full card data for reconstruction
         
         // Player Management
         'players': dealtPlayers,
@@ -906,6 +927,8 @@ class PracticeGameCoordinator {
       switch (eventName) {
         case 'start_match':
           return await _handleStartMatch(sessionId, data);
+        case 'completed_initial_peek':
+          return await _handleCompletedInitialPeek(sessionId, data);
         default:
           Logger().warning('Practice: Unknown event type: $eventName', isOn: LOGGING_SWITCH);
           return false;
@@ -973,7 +996,138 @@ class PracticeGameCoordinator {
       
     } catch (e) {
       Logger().error('Practice: Failed to start match: $e', isOn: LOGGING_SWITCH);
-    return false;
+      return false;
+    }
+  }
+
+  /// Handle the completed_initial_peek event from practice room
+  /// Replicates backend on_completed_initial_peek logic exactly
+  Future<bool> _handleCompletedInitialPeek(String sessionId, Map<String, dynamic> data) async {
+    try {
+      Logger().info('Practice: Handling completed initial peek with data: $data', isOn: LOGGING_SWITCH);
+      
+      // 1. Extract game_id and card_ids from payload (same as backend)
+      final gameId = data['game_id'] as String?;
+      final cardIds = (data['card_ids'] as List<dynamic>?)?.cast<String>() ?? [];
+      
+      if (gameId == null || gameId.isEmpty) {
+        Logger().error('Practice: Missing game_id in completed_initial_peek data', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      if (cardIds.length != 2) {
+        Logger().error('Practice: Invalid card_ids: $cardIds. Expected exactly 2 card IDs.', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // 2. Get current game state
+      final currentGames = _getCurrentGamesMap();
+      if (!currentGames.containsKey(gameId)) {
+        Logger().error('Practice: Game $gameId not found for completed_initial_peek', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final gameData = currentGames[gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for completed_initial_peek', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // 3. Get the human player (practice user)
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      Logger().info('Practice: Available players for completed_initial_peek: ${players.map((p) => '${p['name']} (isHuman: ${p['isHuman']})').join(', ')}', isOn: LOGGING_SWITCH);
+      
+      final humanPlayer = players.firstWhere(
+        (p) => p['isHuman'] == true,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      if (humanPlayer.isEmpty) {
+        Logger().error('Practice: Human player not found for completed_initial_peek', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Human player ${humanPlayer['name']} peeked at cards: $cardIds', isOn: LOGGING_SWITCH);
+      
+      // 4. Clear any existing cards from previous peeks (same as backend)
+      humanPlayer['cardsToPeek'] = <Map<String, dynamic>>[];
+      Logger().info('Practice: Cleared existing cards_to_peek for human player', isOn: LOGGING_SWITCH);
+      
+      // 5. For each card ID, find the full card data and add to cards_to_peek (same as backend)
+      int cardsUpdated = 0;
+      final cardsToPeek = <Map<String, dynamic>>[];
+      
+      for (final cardId in cardIds) {
+        // Find the full card data using get_card_by_id equivalent
+        final cardData = _getCardById(gameState, cardId);
+        if (cardData == null) {
+          Logger().error('Practice: Card $cardId not found in game', isOn: LOGGING_SWITCH);
+          continue;
+        }
+        
+        // Add the card to the cards_to_peek list (same as backend add_card_to_peek)
+        cardsToPeek.add(cardData);
+        cardsUpdated++;
+        Logger().info('Practice: Added card $cardId to human player\'s cards_to_peek list', isOn: LOGGING_SWITCH);
+      }
+      
+      if (cardsUpdated != 2) {
+        Logger().warning('Practice: Only added $cardsUpdated out of 2 cards to cards_to_peek', isOn: LOGGING_SWITCH);
+      }
+      
+      // 6. Update the player's cards_to_peek with full card data
+      humanPlayer['cardsToPeek'] = cardsToPeek;
+      
+      Logger().info('Practice: Human player peeked at $cardsUpdated cards: $cardIds', isOn: LOGGING_SWITCH);
+      
+      // 7. Set player status to WAITING (same as backend)
+      final statusUpdated = updatePlayerStatus('waiting', playerId: humanPlayer['id'], updateMainState: true);
+      if (!statusUpdated) {
+        Logger().error('Practice: Failed to update human player status to waiting', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Completed initial peek - human player set to WAITING status', isOn: LOGGING_SWITCH);
+      
+      return true;
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to handle completed initial peek: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  /// Find a card by its ID anywhere in the game (replicates backend get_card_by_id)
+  /// Searches through all game locations: player hands, draw pile, discard pile
+  /// Reconstructs full card data from original deck when needed
+  Map<String, dynamic>? _getCardById(Map<String, dynamic> gameState, String cardId) {
+    try {
+      // Search in discard pile first (has full data)
+      final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      for (final card in discardPile) {
+        if (card['cardId'] == cardId) {
+          return card; // Return full card data
+        }
+      }
+      
+      // Search in original deck to reconstruct full card data
+      final originalDeck = gameState['originalDeck'] as List<Map<String, dynamic>>? ?? [];
+      for (final card in originalDeck) {
+        if (card['cardId'] == cardId) {
+          return card; // Return full card data from original deck
+        }
+      }
+      
+      // Card not found anywhere
+      Logger().warning('Practice: Card $cardId not found in any game location', isOn: LOGGING_SWITCH);
+      return null;
+      
+    } catch (e) {
+      Logger().error('Practice: Error searching for card $cardId: $e', isOn: LOGGING_SWITCH);
+      return null;
     }
   }
 

@@ -18,6 +18,7 @@ class PracticeGameRound {
   PracticeGameRound(this._practiceCoordinator, this._gameId);
   
   /// Initialize the round with the current game state
+  /// Replicates backend _initial_peek_timeout() and start_turn() logic
   void initializeRound() {
     try {
       Logger().info('Practice: Initializing round for game $_gameId', isOn: LOGGING_SWITCH);
@@ -29,11 +30,108 @@ class PracticeGameRound {
         return;
       }
       
-      // Start the first turn
+      // 1. Clear cards_to_peek for all players (peek phase is over)
+      _clearPeekedCards(gameState);
+      
+      // 2. Set all players back to WAITING status
+      _setAllPlayersToWaiting(gameState);
+      
+      // 3. Initialize round state (replicates backend start_turn logic)
+      _initializeRoundState(gameState);
+      
+      // 4. Set current player to DRAWING_CARD status (first action is to draw)
+      _setCurrentPlayerToDrawing(gameState);
+      
+      // 5. Start the first turn
       _startNextTurn();
+      
+      Logger().info('Practice: Round initialization completed successfully', isOn: LOGGING_SWITCH);
       
     } catch (e) {
       Logger().error('Practice: Failed to initialize round: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Clear cards_to_peek for all players (replicates backend logic)
+  void _clearPeekedCards(Map<String, dynamic> gameState) {
+    try {
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      int clearedCount = 0;
+      
+      for (final player in players) {
+        if (player['cardsToPeek'] != null && (player['cardsToPeek'] as List).isNotEmpty) {
+          player['cardsToPeek'] = <Map<String, dynamic>>[];
+          clearedCount++;
+        }
+      }
+      
+      Logger().info('Practice: Cleared cards_to_peek for $clearedCount players', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to clear peeked cards: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Set all players to WAITING status (replicates backend logic)
+  void _setAllPlayersToWaiting(Map<String, dynamic> gameState) {
+    try {
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      for (final player in players) {
+        player['status'] = 'waiting';
+      }
+      
+      Logger().info('Practice: Set ${players.length} players back to WAITING status', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to set players to waiting: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Initialize round state (replicates backend start_turn logic)
+  void _initializeRoundState(Map<String, dynamic> gameState) {
+    try {
+      // Clear same rank data (if exists)
+      if (gameState.containsKey('sameRankData')) {
+        gameState['sameRankData'] = <String, dynamic>{};
+      }
+      
+      // Clear special card data (if exists)
+      if (gameState.containsKey('specialCardData')) {
+        gameState['specialCardData'] = <Map<String, dynamic>>[];
+      }
+      
+      // Initialize round timing
+      final currentTime = DateTime.now().millisecondsSinceEpoch / 1000;
+      gameState['roundStartTime'] = currentTime;
+      gameState['currentTurnStartTime'] = currentTime;
+      gameState['roundStatus'] = 'active';
+      gameState['actionsPerformed'] = <Map<String, dynamic>>[];
+      
+      // Set game phase to PLAYER_TURN (already set in matchStart, but ensure consistency)
+      gameState['phase'] = 'player_turn';
+      
+      Logger().info('Practice: Round state initialized - phase: player_turn, status: active', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to initialize round state: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Set current player to DRAWING_CARD status (replicates backend logic)
+  void _setCurrentPlayerToDrawing(Map<String, dynamic> gameState) {
+    try {
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      
+      if (currentPlayer != null) {
+        currentPlayer['status'] = 'drawing_card';
+        Logger().info('Practice: Player ${currentPlayer['name']} status set to DRAWING_CARD', isOn: LOGGING_SWITCH);
+      } else {
+        Logger().warning('Practice: No current player found to set to drawing_card status', isOn: LOGGING_SWITCH);
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to set current player to drawing: $e', isOn: LOGGING_SWITCH);
     }
   }
   
@@ -68,13 +166,14 @@ class PracticeGameRound {
       // Update current player
       gameState['currentPlayer'] = nextPlayer;
       
-      // Update player status
-      _practiceCoordinator.updatePlayerStatus('playing', playerId: nextPlayer['id'], updateMainState: true);
+      // Set player status to DRAWING_CARD (first action is to draw a card)
+      // This matches backend behavior where first player status is DRAWING_CARD
+      _practiceCoordinator.updatePlayerStatus('drawing_card', playerId: nextPlayer['id'], updateMainState: true);
       
       // Start turn timer
       _startTurnTimer();
       
-      Logger().info('Practice: Started turn for player ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Started turn for player ${nextPlayer['name']} - status: drawing_card', isOn: LOGGING_SWITCH);
       
     } catch (e) {
       Logger().error('Practice: Failed to start next turn: $e', isOn: LOGGING_SWITCH);
@@ -115,7 +214,7 @@ class PracticeGameRound {
   void _handleTurnTimeout() {
     try {
       // Auto-draw a card for the current player
-      _drawCard();
+
       
       // Move to next player
       _startNextTurn();
@@ -125,85 +224,8 @@ class PracticeGameRound {
     }
   }
   
-  /// Draw a card for the current player
-  void _drawCard() {
-    try {
-      final gameState = _getCurrentGameState();
-      if (gameState == null) return;
-      
-      final drawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
-      if (drawPile.isEmpty) {
-        Logger().warning('Practice: Draw pile is empty, cannot draw card', isOn: LOGGING_SWITCH);
-        return;
-      }
-      
-      // Draw top card
-      final drawnCard = drawPile.removeAt(0);
-      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
-      
-      if (currentPlayer != null) {
-        // Add card to player's hand
-        final hand = currentPlayer['hand'] as List<Map<String, dynamic>>? ?? [];
-        hand.add(drawnCard);
-        currentPlayer['hand'] = hand;
-        
-        // Set drawn card
-        currentPlayer['drawnCard'] = drawnCard;
-        
-        Logger().info('Practice: Player ${currentPlayer['name']} drew a card', isOn: LOGGING_SWITCH);
-      }
-      
-    } catch (e) {
-      Logger().error('Practice: Failed to draw card: $e', isOn: LOGGING_SWITCH);
-    }
-  }
-  
-  /// Play a card from player's hand
-  void playCard(String playerId, String cardId) {
-    try {
-      final gameState = _getCurrentGameState();
-      if (gameState == null) return;
-      
-      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
-      final player = players.firstWhere(
-        (p) => p['id'] == playerId,
-        orElse: () => <String, dynamic>{},
-      );
-      
-      if (player.isEmpty) {
-        Logger().error('Practice: Player $playerId not found for play card', isOn: LOGGING_SWITCH);
-        return;
-      }
-      
-      final hand = player['hand'] as List<Map<String, dynamic>>? ?? [];
-      final cardIndex = hand.indexWhere((card) => card['cardId'] == cardId);
-      
-      if (cardIndex == -1) {
-        Logger().error('Practice: Card $cardId not found in player hand', isOn: LOGGING_SWITCH);
-        return;
-      }
-      
-      // Remove card from hand
-      final playedCard = hand.removeAt(cardIndex);
-      
-      // Add to discard pile
-      final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
-      discardPile.add(playedCard);
-      gameState['discardPile'] = discardPile;
-      
-      // Update last played card
-      gameState['lastPlayedCard'] = playedCard;
-      
-      Logger().info('Practice: Player ${player['name']} played card ${playedCard['rank']} of ${playedCard['suit']}', isOn: LOGGING_SWITCH);
-      
-      // Move to next player
-      _startNextTurn();
-      
-    } catch (e) {
-      Logger().error('Practice: Failed to play card: $e', isOn: LOGGING_SWITCH);
-    }
-  }
-  
+
+
   /// Dispose of resources
   void dispose() {
     _turnTimer?.cancel();

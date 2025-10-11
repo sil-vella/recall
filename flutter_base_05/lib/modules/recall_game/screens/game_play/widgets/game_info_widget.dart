@@ -202,8 +202,8 @@ class GameInfoWidget extends StatelessWidget {
             
             const SizedBox(height: 16),
             
-            // Start Match Button (for room owner during waiting phase OR for practice games)
-            if ((isRoomOwner && gamePhase == 'waiting') || isPracticeGame)
+            // Start Match Button (for room owner during waiting phase OR for practice games in waiting phase)
+            if ((isRoomOwner && gamePhase == 'waiting') || (isPracticeGame && gamePhase == 'waiting'))
               _buildStartMatchButton(),
           ],
         ),

@@ -945,9 +945,10 @@ class PracticeGameCoordinator {
       }
       
       // Update the main game state with game phase
+      // Backend sets phase to PLAYER_TURN when entering initial_peek
       updatePracticeGameState({
         'playerStatus': 'initial_peek',
-        'gamePhase': _mapBackendPhaseToFrontend('dealing_cards'), // Maps to 'setup'
+        'gamePhase': _mapBackendPhaseToFrontend('player_turn'), // Maps to 'playing' (matches backend behavior)
         'games': _getCurrentGamesMap(), // Update the games map with modified players
       });
       

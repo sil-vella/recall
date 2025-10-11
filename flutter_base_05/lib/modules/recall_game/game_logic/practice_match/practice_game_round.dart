@@ -39,10 +39,7 @@ class PracticeGameRound {
       // 3. Initialize round state (replicates backend start_turn logic)
       _initializeRoundState(gameState);
       
-      // 4. Set current player to DRAWING_CARD status (first action is to draw)
-      _setCurrentPlayerToDrawing(gameState);
-      
-      // 5. Start the first turn
+      // 4. Start the first turn (this will set the current player to DRAWING_CARD status)
       _startNextTurn();
       
       Logger().info('Practice: Round initialization completed successfully', isOn: LOGGING_SWITCH);
@@ -124,7 +121,20 @@ class PracticeGameRound {
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       
       if (currentPlayer != null) {
+        // Update the currentPlayer reference
         currentPlayer['status'] = 'drawing_card';
+        
+        // Also update the corresponding player in the players list
+        final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+        final playerInList = players.firstWhere(
+          (p) => p['id'] == currentPlayer['id'],
+          orElse: () => <String, dynamic>{},
+        );
+        
+        if (playerInList.isNotEmpty) {
+          playerInList['status'] = 'drawing_card';
+        }
+        
         Logger().info('Practice: Player ${currentPlayer['name']} status set to DRAWING_CARD', isOn: LOGGING_SWITCH);
       } else {
         Logger().warning('Practice: No current player found to set to drawing_card status', isOn: LOGGING_SWITCH);

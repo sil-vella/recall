@@ -1085,7 +1085,16 @@ class PracticeGameCoordinator {
       
       Logger().info('Practice: Human player peeked at $cardsUpdated cards: $cardIds', isOn: LOGGING_SWITCH);
       
-      // 7. Set player status to WAITING (same as backend)
+      // 7. Update the main state's myCardsToPeek field (same as backend does via event handler)
+      final stateManager = StateManager();
+      final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final updatedState = Map<String, dynamic>.from(currentState);
+      updatedState['myCardsToPeek'] = cardsToPeek;
+      stateManager.updateModuleState('recall_game', updatedState);
+      
+      Logger().info('Practice: Updated main state myCardsToPeek with ${cardsToPeek.length} cards', isOn: LOGGING_SWITCH);
+      
+      // 8. Set player status to WAITING (same as backend)
       final statusUpdated = updatePlayerStatus('waiting', playerId: humanPlayer['id'], updateMainState: true);
       if (!statusUpdated) {
         Logger().error('Practice: Failed to update human player status to waiting', isOn: LOGGING_SWITCH);

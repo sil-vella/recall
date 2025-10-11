@@ -543,6 +543,7 @@ class PracticeGameCoordinator {
         'id': 'practice_user',
         'name': 'You',
         'type': 'human',
+        'isHuman': true, // Add isHuman field for practice game detection
         'hand': <Map<String, dynamic>>[], // Will be filled when cards are dealt
         'visibleCards': <Map<String, dynamic>>[],
         'cardsToPeek': <Map<String, dynamic>>[],
@@ -865,6 +866,7 @@ class PracticeGameCoordinator {
         'id': computerId,
         'name': computerName,
         'type': 'computer',
+        'isHuman': false, // Add isHuman field for practice game detection
         'hand': <Map<String, dynamic>>[], // Will be filled when cards are dealt
         'visibleCards': <Map<String, dynamic>>[],
         'cardsToPeek': <Map<String, dynamic>>[],

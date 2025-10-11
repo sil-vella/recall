@@ -41,6 +41,7 @@ class PracticeGameCoordinator {
   PracticeGameRound? _gameRound;
   int _turnTimerSeconds = 30; // User's choice from practice room
   bool _instructionsEnabled = true; // User's choice from practice room
+  bool _initialPeekCompleted = false; // Flag to prevent double completion
   
   // Practice game settings (set by practice room)
   int _numberOfOpponents = 3;
@@ -270,7 +271,16 @@ class PracticeGameCoordinator {
   /// This should be called when the user dismisses the instructions or completes their peek
   void completeInitialPeek() {
     try {
+      // Check if initial peek has already been completed
+      if (_initialPeekCompleted) {
+        Logger().info('Practice: Initial peek already completed, skipping duplicate call', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       Logger().info('Practice: User completed initial peek phase manually', isOn: LOGGING_SWITCH);
+      
+      // Set flag to prevent duplicate calls
+      _initialPeekCompleted = true;
       
       // 1. Clear the cardsToPeek states that were updated during initial peek
       _clearCardsToPeekStates();
@@ -299,7 +309,7 @@ class PracticeGameCoordinator {
       
       // 1. Clear cardsToPeek from all players in the game state
       final currentGames = _getCurrentGamesMap();
-      final currentGameId = _getCurrentGameId();
+      final currentGameId = _currentPracticeGameId;
       final gameData = currentGames[currentGameId];
       final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
@@ -1011,6 +1021,9 @@ class PracticeGameCoordinator {
       _currentPracticeGameId = gameId;
       _isPracticeGameActive = true;
       
+      // Reset initial peek completion flag for new game
+      _initialPeekCompleted = false;
+      
       // Update turn timer seconds for the coordinator
       _turnTimerSeconds = _turnTimer ?? 0;
       
@@ -1139,6 +1152,12 @@ class PracticeGameCoordinator {
       }
       
       Logger().info('Practice: Completed initial peek - human player set to WAITING status', isOn: LOGGING_SWITCH);
+      
+      // 9. Wait 5 seconds then trigger completeInitialPeek to clear states and initialize round
+      Timer(Duration(seconds: 5), () {
+        Logger().info('Practice: 5-second delay completed, triggering completeInitialPeek', isOn: LOGGING_SWITCH);
+        completeInitialPeek();
+      });
       
       return true;
       

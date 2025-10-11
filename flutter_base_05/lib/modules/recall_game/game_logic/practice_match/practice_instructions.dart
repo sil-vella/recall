@@ -6,12 +6,13 @@
 
 class PracticeInstructions {
   /// Game phase instructions - shown based on current game phase
+  /// Note: Keys use frontend phase names (after mapping from backend)
   static const Map<String, Map<String, String>> gamePhaseInstructions = {
-    'initial_peek': {
-      'title': 'Initial Peek Phase',
-      'content': '''🔍 INITIAL PEEK PHASE
+    'setup': {
+      'title': 'Game Rules',
+      'content': '''🔍 Game Rules
 
-You have 10 seconds to look at 2 of your 4 cards!
+Game Rules
 
 🎯 WHAT TO DO:
 • Tap any 2 cards to peek at them
@@ -25,28 +26,6 @@ You have 10 seconds to look at 2 of your 4 cards!
 • Remember what you see for later turns
 
 ⏰ TIMER: 10 seconds remaining...''',
-    },
-    'player_turn': {
-      'title': 'Your Turn!',
-      'content': '''🎮 YOUR TURN
-
-It's your turn to play! Here's what you can do:
-
-🃏 DRAW A CARD:
-• Tap the draw pile to draw a face-down card
-• Tap the discard pile to take the top card (others can see what you took)
-
-🎯 PLAY A CARD:
-• Tap a card in your hand to play it
-• Try to get rid of high-value cards
-• Watch what others discard
-
-💡 STRATEGY:
-• Get rid of high-value cards first
-• Remember cards you've seen
-• Watch opponent patterns
-
-⏰ TIME LIMIT: [TIMER]''',
     },
   };
 

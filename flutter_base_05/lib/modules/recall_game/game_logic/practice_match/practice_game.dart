@@ -211,7 +211,7 @@ class PracticeGameCoordinator {
   }
 
   /// Start a non-disruptive 10-second timer for the initial peek phase
-  /// After timer completes, updates player status to 'waiting'
+  /// After timer completes, updates player status to 'waiting' and initializes the game round
   void _startInitialPeekTimer() {
     try {
       Logger().info('Practice: Starting ${_initialPeekDurationSeconds}-second initial peek timer (non-disruptive)', isOn: LOGGING_SWITCH);
@@ -221,13 +221,16 @@ class PracticeGameCoordinator {
       
       // Start new timer
       _initialPeekTimer = Timer(Duration(seconds: _initialPeekDurationSeconds), () {
-        Logger().info('Practice: Initial peek timer completed, updating player status to waiting', isOn: LOGGING_SWITCH);
+        Logger().info('Practice: Initial peek timer completed, updating player status to waiting and initializing round', isOn: LOGGING_SWITCH);
         
         // Update all players to 'waiting' status
         final statusUpdated = updatePlayerStatus('waiting', updateMainState: true, triggerInstructions: false);
         
         if (statusUpdated) {
           Logger().info('Practice: Successfully updated players to waiting status after initial peek timer', isOn: LOGGING_SWITCH);
+          
+          // Initialize the game round for actual gameplay
+          _initializeGameRound();
         } else {
           Logger().error('Practice: Failed to update players to waiting status after initial peek timer', isOn: LOGGING_SWITCH);
         }
@@ -235,6 +238,54 @@ class PracticeGameCoordinator {
       
     } catch (e) {
       Logger().error('Practice: Failed to start initial peek timer: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Initialize the game round for actual gameplay
+  void _initializeGameRound() {
+    try {
+      final currentGameId = _currentPracticeGameId;
+      if (currentGameId == null || currentGameId.isEmpty) {
+        Logger().error('Practice: No active practice game found for round initialization', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Dispose of existing round if any
+      _gameRound?.dispose();
+      
+      // Create new game round
+      _gameRound = PracticeGameRound(this, currentGameId);
+      
+      // Initialize the round
+      _gameRound!.initializeRound();
+      
+      Logger().info('Practice: Game round initialized for game $currentGameId', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to initialize game round: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Handle when user manually completes initial peek phase (when instructions are enabled)
+  /// This should be called when the user dismisses the instructions or completes their peek
+  void completeInitialPeek() {
+    try {
+      Logger().info('Practice: User completed initial peek phase manually', isOn: LOGGING_SWITCH);
+      
+      // Update all players to 'waiting' status
+      final statusUpdated = updatePlayerStatus('waiting', updateMainState: true, triggerInstructions: false);
+      
+      if (statusUpdated) {
+        Logger().info('Practice: Successfully updated players to waiting status after manual initial peek completion', isOn: LOGGING_SWITCH);
+        
+        // Initialize the game round for actual gameplay
+        _initializeGameRound();
+      } else {
+        Logger().error('Practice: Failed to update players to waiting status after manual initial peek completion', isOn: LOGGING_SWITCH);
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to complete initial peek manually: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -666,6 +717,9 @@ class PracticeGameCoordinator {
     return Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
   }
 
+  /// Public getter for current games map (used by PracticeGameRound)
+  Map<String, dynamic> get currentGamesMap => _getCurrentGamesMap();
+
   /// Update player status for a specific player or all players
   /// 
   /// [status] The new status to set
@@ -956,6 +1010,7 @@ class PracticeGameCoordinator {
       // (respects _instructionsEnabled setting from practice room)
       if (_instructionsEnabled) {
         showContextualInstructions();
+        // Note: Round will be initialized when user manually completes initial peek
       } else {
         // Start non-disruptive 10-second timer for initial peek phase
         _startInitialPeekTimer();

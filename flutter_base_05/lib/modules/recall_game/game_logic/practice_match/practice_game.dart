@@ -210,6 +210,34 @@ class PracticeGameCoordinator {
     }
   }
 
+  /// Start a non-disruptive 10-second timer for the initial peek phase
+  /// After timer completes, updates player status to 'waiting'
+  void _startInitialPeekTimer() {
+    try {
+      Logger().info('Practice: Starting ${_initialPeekDurationSeconds}-second initial peek timer (non-disruptive)', isOn: LOGGING_SWITCH);
+      
+      // Cancel any existing timer
+      _initialPeekTimer?.cancel();
+      
+      // Start new timer
+      _initialPeekTimer = Timer(Duration(seconds: _initialPeekDurationSeconds), () {
+        Logger().info('Practice: Initial peek timer completed, updating player status to waiting', isOn: LOGGING_SWITCH);
+        
+        // Update all players to 'waiting' status
+        final statusUpdated = updatePlayerStatus('waiting', updateMainState: true, triggerInstructions: false);
+        
+        if (statusUpdated) {
+          Logger().info('Practice: Successfully updated players to waiting status after initial peek timer', isOn: LOGGING_SWITCH);
+        } else {
+          Logger().error('Practice: Failed to update players to waiting status after initial peek timer', isOn: LOGGING_SWITCH);
+        }
+      });
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to start initial peek timer: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
   // ========================================
   // STATE MANAGEMENT WRAPPER METHODS
   // ========================================
@@ -923,10 +951,13 @@ class PracticeGameCoordinator {
         'games': _getCurrentGamesMap(), // Update the games map with modified players
       });
       
-      // Trigger contextual instructions after state is fully updated
+      // Trigger contextual instructions or start timer after state is fully updated
       // (respects _instructionsEnabled setting from practice room)
       if (_instructionsEnabled) {
         showContextualInstructions();
+      } else {
+        // Start non-disruptive 10-second timer for initial peek phase
+        _startInitialPeekTimer();
       }
       
       Logger().info('Practice: Match started - all players set to initial_peek', isOn: LOGGING_SWITCH);

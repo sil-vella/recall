@@ -272,13 +272,16 @@ class PracticeGameCoordinator {
     try {
       Logger().info('Practice: User completed initial peek phase manually', isOn: LOGGING_SWITCH);
       
-      // Update all players to 'waiting' status
+      // 1. Clear the cardsToPeek states that were updated during initial peek
+      _clearCardsToPeekStates();
+      
+      // 2. Update all players to 'waiting' status
       final statusUpdated = updatePlayerStatus('waiting', updateMainState: true, triggerInstructions: false);
       
       if (statusUpdated) {
         Logger().info('Practice: Successfully updated players to waiting status after manual initial peek completion', isOn: LOGGING_SWITCH);
         
-        // Initialize the game round for actual gameplay
+        // 3. Initialize the game round for actual gameplay
         _initializeGameRound();
       } else {
         Logger().error('Practice: Failed to update players to waiting status after manual initial peek completion', isOn: LOGGING_SWITCH);
@@ -286,6 +289,40 @@ class PracticeGameCoordinator {
       
     } catch (e) {
       Logger().error('Practice: Failed to complete initial peek manually: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Clear cardsToPeek states from both player data and main state
+  void _clearCardsToPeekStates() {
+    try {
+      Logger().info('Practice: Clearing cardsToPeek states', isOn: LOGGING_SWITCH);
+      
+      // 1. Clear cardsToPeek from all players in the game state
+      final currentGames = _getCurrentGamesMap();
+      final currentGameId = _getCurrentGameId();
+      final gameData = currentGames[currentGameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState != null) {
+        final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+        for (final player in players) {
+          player['cardsToPeek'] = <Map<String, dynamic>>[];
+        }
+        Logger().info('Practice: Cleared cardsToPeek from all players in game state', isOn: LOGGING_SWITCH);
+      }
+      
+      // 2. Clear myCardsToPeek from main state
+      final stateManager = StateManager();
+      final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final updatedState = Map<String, dynamic>.from(currentState);
+      updatedState['myCardsToPeek'] = <Map<String, dynamic>>[];
+      stateManager.updateModuleState('recall_game', updatedState);
+      
+      Logger().info('Practice: Cleared myCardsToPeek from main state', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to clear cardsToPeek states: $e', isOn: LOGGING_SWITCH);
     }
   }
 

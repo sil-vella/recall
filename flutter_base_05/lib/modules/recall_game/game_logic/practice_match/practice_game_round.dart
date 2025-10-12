@@ -14,10 +14,15 @@ class PracticeGameRound {
   final String _gameId;
   Timer? _turnTimer;
   Timer? _sameRankTimer; // Timer for same rank window (5 seconds)
+  Timer? _specialCardTimer; // Timer for special card window (10 seconds per card)
   
   // Special card data storage - stores chronological list of special cards played
   // Matches backend's self.special_card_data list (game_round.py line 33)
   final List<Map<String, dynamic>> _specialCardData = [];
+  
+  // Working copy of special cards for processing (will remove as processed)
+  // Matches backend's self.special_card_players list (game_round.py line 686)
+  List<Map<String, dynamic>> _specialCardPlayers = [];
   
   PracticeGameRound(this._practiceCoordinator, this._gameId);
   
@@ -722,7 +727,7 @@ class PracticeGameRound {
   }
 
   /// End the same rank window and move to next player
-  /// Replicates backend's _end_same_rank_window method in game_round.py lines 599-616
+  /// Replicates backend's _end_same_rank_window method in game_round.py lines 599-643
   void _endSameRankWindow() {
     try {
       Logger().info('Practice: Ending same rank window - resetting all players to waiting status', isOn: LOGGING_SWITCH);
@@ -745,12 +750,153 @@ class PracticeGameRound {
         Logger().error('Practice: Failed to reset players to waiting status', isOn: LOGGING_SWITCH);
       }
       
-      // Now move to the next player
-      Logger().info('Practice: Same rank window ended, moving to next player', isOn: LOGGING_SWITCH);
-      _moveToNextPlayer();
+      // TODO: Check if any player has no cards left (automatic win condition)
+      // Future implementation - for now, we skip this check
+      
+      // Check for special cards and handle them (backend game_round.py line 640)
+      _handleSpecialCardsWindow();
       
     } catch (e) {
       Logger().error('Practice: Error ending same rank window: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Handle special cards window - process each player's special card with 10-second timer
+  /// Replicates backend's _handle_special_cards_window method in game_round.py lines 656-694
+  void _handleSpecialCardsWindow() {
+    try {
+      // Check if we have any special cards played
+      if (_specialCardData.isEmpty) {
+        Logger().info('Practice: No special cards played in this round - moving to next player', isOn: LOGGING_SWITCH);
+        // No special cards, go directly to next player
+        _moveToNextPlayer();
+        return;
+      }
+      
+      Logger().info('Practice: === SPECIAL CARDS WINDOW ===', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: DEBUG: special_card_data length: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+      
+      // Count total special cards (stored chronologically)
+      final totalSpecialCards = _specialCardData.length;
+      Logger().info('Practice: Found $totalSpecialCards special cards played in chronological order', isOn: LOGGING_SWITCH);
+      
+      // Log details of all special cards in chronological order
+      for (int i = 0; i < _specialCardData.length; i++) {
+        final card = _specialCardData[i];
+        Logger().info('Practice:   ${i+1}. Player ${card['player_id']}: ${card['rank']} of ${card['suit']} (${card['special_power']})', isOn: LOGGING_SWITCH);
+      }
+      
+      // Create a working copy for processing (we'll remove cards as we process them)
+      _specialCardPlayers = List<Map<String, dynamic>>.from(_specialCardData);
+      
+      Logger().info('Practice: Starting special card processing with ${_specialCardPlayers.length} cards', isOn: LOGGING_SWITCH);
+      
+      // Start processing the first player's special card
+      _processNextSpecialCard();
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _handleSpecialCardsWindow: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Process the next player's special card with 10-second timer
+  /// Replicates backend's _process_next_special_card method in game_round.py lines 696-739
+  void _processNextSpecialCard() {
+    try {
+      // Check if we've processed all special cards (list is empty)
+      if (_specialCardPlayers.isEmpty) {
+        Logger().info('Practice: All special cards processed - moving to next player', isOn: LOGGING_SWITCH);
+        _endSpecialCardsWindow();
+        return;
+      }
+      
+      // Get the first special card data (chronological order)
+      final specialData = _specialCardPlayers[0];
+      final playerId = specialData['player_id']?.toString() ?? 'unknown';
+      final cardRank = specialData['rank']?.toString() ?? 'unknown';
+      final cardSuit = specialData['suit']?.toString() ?? 'unknown';
+      final specialPower = specialData['special_power']?.toString() ?? 'unknown';
+      final description = specialData['description']?.toString() ?? 'No description';
+      
+      Logger().info('Practice: Processing special card for player $playerId: $cardRank of $cardSuit', isOn: LOGGING_SWITCH);
+      Logger().info('Practice:   Special Power: $specialPower', isOn: LOGGING_SWITCH);
+      Logger().info('Practice:   Description: $description', isOn: LOGGING_SWITCH);
+      Logger().info('Practice:   Remaining cards to process: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
+      
+      // Set player status based on special power
+      if (specialPower == 'jack_swap') {
+        _practiceCoordinator.updatePlayerStatus('jack_swap', playerId: playerId, updateMainState: true);
+        Logger().info('Practice: Player $playerId status set to jack_swap - 10 second timer started', isOn: LOGGING_SWITCH);
+      } else if (specialPower == 'queen_peek') {
+        _practiceCoordinator.updatePlayerStatus('queen_peek', playerId: playerId, updateMainState: true);
+        Logger().info('Practice: Player $playerId status set to queen_peek - 10 second timer started', isOn: LOGGING_SWITCH);
+      } else {
+        Logger().warning('Practice: Unknown special power: $specialPower for player $playerId', isOn: LOGGING_SWITCH);
+        // Remove this card and move to next
+        _specialCardPlayers.removeAt(0);
+        _processNextSpecialCard();
+        return;
+      }
+      
+      // Start 10-second timer for this player's special card play
+      _specialCardTimer?.cancel();
+      _specialCardTimer = Timer(const Duration(seconds: 10), () {
+        _onSpecialCardTimerExpired();
+      });
+      Logger().info('Practice: 10-second timer started for player $playerId\'s $specialPower', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _processNextSpecialCard: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Called when the special card timer expires - move to next player or end window
+  /// Replicates backend's _on_special_card_timer_expired method in game_round.py lines 741-766
+  void _onSpecialCardTimerExpired() {
+    try {
+      // Reset current player's status to WAITING (if there are still cards to process)
+      if (_specialCardPlayers.isNotEmpty) {
+        final specialData = _specialCardPlayers[0];
+        final playerId = specialData['player_id']?.toString() ?? 'unknown';
+        
+        // TODO: Get the player and clear their cards_to_peek (Queen peek timer expired)
+        // Future implementation
+        
+        _practiceCoordinator.updatePlayerStatus('waiting', playerId: playerId, updateMainState: true);
+        Logger().info('Practice: Player $playerId special card timer expired - status reset to waiting', isOn: LOGGING_SWITCH);
+        
+        // Remove the processed card from the list
+        _specialCardPlayers.removeAt(0);
+        Logger().info('Practice: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
+      }
+      
+      // Process next special card or end window
+      _processNextSpecialCard();
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _onSpecialCardTimerExpired: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// End the special cards window and move to next player
+  /// Replicates backend's _end_special_cards_window method in game_round.py lines 768-789
+  void _endSpecialCardsWindow() {
+    try {
+      // Cancel any running timer
+      _specialCardTimer?.cancel();
+      
+      // Clear special card data
+      _specialCardData.clear();
+      _specialCardPlayers.clear();
+      
+      Logger().info('Practice: Special cards window ended - cleared all special card data', isOn: LOGGING_SWITCH);
+      
+      // Now move to the next player
+      Logger().info('Practice: Moving to next player after special cards', isOn: LOGGING_SWITCH);
+      _moveToNextPlayer();
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _endSpecialCardsWindow: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -824,6 +970,7 @@ class PracticeGameRound {
   void dispose() {
     _turnTimer?.cancel();
     _sameRankTimer?.cancel();
+    _specialCardTimer?.cancel();
     Logger().info('Practice: PracticeGameRound disposed for game $_gameId', isOn: LOGGING_SWITCH);
   }
 }

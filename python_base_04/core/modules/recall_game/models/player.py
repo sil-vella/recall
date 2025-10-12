@@ -107,6 +107,11 @@ class Player:
     def set_drawn_card(self, card: Card):
         """Set the most recently drawn card"""
         self.drawn_card = card
+        
+        # Manually trigger change detection for drawn_card modification
+        if hasattr(self, '_track_change'):
+            self._track_change('drawn_card')
+            self._send_changes_if_needed()
     
     def get_drawn_card(self) -> Optional[Card]:
         """Get the most recently drawn card"""
@@ -115,6 +120,11 @@ class Player:
     def clear_drawn_card(self):
         """Clear the drawn card (e.g., after playing it)"""
         self.drawn_card = None
+        
+        # Manually trigger change detection for drawn_card modification
+        if hasattr(self, '_track_change'):
+            self._track_change('drawn_card')
+            self._send_changes_if_needed()
     
     def remove_card_from_hand(self, card_id: str) -> Optional[Card]:
         """Remove a card from the player's hand and replace it with a blank slot (None) if needed"""

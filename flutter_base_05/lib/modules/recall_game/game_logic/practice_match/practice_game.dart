@@ -871,6 +871,10 @@ class PracticeGameCoordinator {
           );
           final drawnCard = humanPlayer['drawnCard'] as Map<String, dynamic>?;
           
+          // Also update the games map with the drawn card (same as backend)
+          final currentGame = currentGames[currentGameId] as Map<String, dynamic>? ?? {};
+          currentGame['myDrawnCard'] = drawnCard;
+          
           updatePracticeGameState({
             'playerStatus': status,
             'games': currentGames,
@@ -1152,7 +1156,7 @@ class PracticeGameCoordinator {
       
       for (final cardId in cardIds) {
         // Find the full card data using get_card_by_id equivalent
-        final cardData = _getCardById(gameState, cardId);
+        final cardData = getCardById(gameState, cardId);
         if (cardData == null) {
           Logger().error('Practice: Card $cardId not found in game', isOn: LOGGING_SWITCH);
           continue;
@@ -1288,7 +1292,7 @@ class PracticeGameCoordinator {
   /// Find a card by its ID anywhere in the game (replicates backend get_card_by_id)
   /// Searches through all game locations: player hands, draw pile, discard pile
   /// Reconstructs full card data from original deck when needed
-  Map<String, dynamic>? _getCardById(Map<String, dynamic> gameState, String cardId) {
+  Map<String, dynamic>? getCardById(Map<String, dynamic> gameState, String cardId) {
     try {
       // Search in discard pile first (has full data)
       final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];

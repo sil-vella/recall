@@ -382,8 +382,15 @@ class PracticeGameRound {
           return false;
         }
         
-        drawnCard = drawPile.removeLast(); // Remove last card (top of pile)
-        Logger().info('Practice: Drew card ${drawnCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
+        final idOnlyCard = drawPile.removeLast(); // Remove last card (top of pile)
+        Logger().info('Practice: Drew card ${idOnlyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
+        
+        // Convert ID-only card to full card data using the coordinator's method
+        drawnCard = _practiceCoordinator.getCardById(gameState, idOnlyCard['cardId']);
+        if (drawnCard == null) {
+          Logger().error('Practice: Failed to get full card data for ${idOnlyCard['cardId']}', isOn: LOGGING_SWITCH);
+          return false;
+        }
         
         // Check if draw pile is now empty
         if (drawPile.isEmpty) {

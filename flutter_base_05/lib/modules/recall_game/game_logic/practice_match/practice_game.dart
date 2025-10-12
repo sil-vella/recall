@@ -1036,6 +1036,8 @@ class PracticeGameCoordinator {
           return await _handleDrawCard(sessionId, data);
         case 'play_card':
           return await _handlePlayCard(sessionId, data);
+        case 'same_rank_play':
+          return await _handleSameRankPlay(sessionId, data);
         default:
           Logger().warning('Practice: Unknown event type: $eventName', isOn: LOGGING_SWITCH);
     return false;
@@ -1373,6 +1375,78 @@ class PracticeGameCoordinator {
       
     } catch (e) {
       Logger().error('Practice: Failed to handle play_card event: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  /// Handle same rank play event - player plays a matching rank card during same_rank_window
+  Future<bool> _handleSameRankPlay(String sessionId, Map<String, dynamic> data) async {
+    try {
+      Logger().info('Practice: Handling same_rank_play event with data: $data', isOn: LOGGING_SWITCH);
+      
+      // Validate required data
+      final cardId = data['card_id']?.toString();
+      if (cardId == null || cardId.isEmpty) {
+        Logger().error('Practice: Missing card_id in same_rank_play event data', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get current game state
+      final currentGames = _getCurrentGamesMap();
+      final currentGameId = _currentPracticeGameId;
+      
+      if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
+        Logger().error('Practice: No active practice game found for same_rank_play event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final gameData = currentGames[currentGameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for same_rank_play event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Check if player status is 'same_rank_window'
+      // For same rank play, any player can play if they are in same_rank_window status
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      final humanPlayer = players.firstWhere(
+        (p) => p['id'] == 'practice_user',
+        orElse: () => <String, dynamic>{},
+      );
+      
+      if (humanPlayer.isEmpty) {
+        Logger().error('Practice: Human player not found for same_rank_play event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final playerStatus = humanPlayer['status']?.toString() ?? '';
+      if (playerStatus != 'same_rank_window') {
+        Logger().error('Practice: Player status is not same_rank_window for same_rank_play event: $playerStatus', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Validating same_rank_play for player practice_user with card $cardId', isOn: LOGGING_SWITCH);
+      
+      // Route to PracticeGameRound for actual same rank play logic
+      if (_gameRound != null) {
+        final success = await _gameRound!.handleSameRankPlay('practice_user', cardId);
+        if (success) {
+          Logger().info('Practice: Successfully handled same_rank_play for card $cardId', isOn: LOGGING_SWITCH);
+          return true;
+        } else {
+          Logger().error('Practice: Failed to handle same_rank_play in PracticeGameRound', isOn: LOGGING_SWITCH);
+          return false;
+        }
+      } else {
+        Logger().error('Practice: No game round available for same_rank_play event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to handle same_rank_play event: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }

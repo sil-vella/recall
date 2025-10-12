@@ -620,6 +620,149 @@ class PracticeGameRound {
     }
   }
 
+  /// Handle same rank play action - validates rank match and moves card to discard pile
+  /// Replicates backend's _handle_same_rank_play method in game_round.py lines 1000-1089
+  Future<bool> handleSameRankPlay(String playerId, String cardId) async {
+    try {
+      Logger().info('Practice: Handling same rank play for player $playerId, card $cardId', isOn: LOGGING_SWITCH);
+      
+      // Get current game state
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        Logger().error('Practice: Failed to get game state for same rank play', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Find the player
+      final player = players.firstWhere(
+        (p) => p['id'] == playerId,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      if (player.isEmpty) {
+        Logger().error('Practice: Player $playerId not found for same rank play', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Find the card in player's hand
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      Map<String, dynamic>? playedCard;
+      int cardIndex = -1;
+      
+      for (int i = 0; i < hand.length; i++) {
+        final card = hand[i];
+        if (card != null && card is Map<String, dynamic> && card['cardId'] == cardId) {
+          playedCard = card;
+          cardIndex = i;
+          break;
+        }
+      }
+      
+      if (playedCard == null) {
+        Logger().error('Practice: Card $cardId not found in player $playerId hand for same rank play', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Found card $cardId for same rank play in player $playerId hand at index $cardIndex', isOn: LOGGING_SWITCH);
+      
+      // Get full card data
+      final playedCardFullData = _practiceCoordinator.getCardById(gameState, cardId);
+      if (playedCardFullData == null) {
+        Logger().error('Practice: Failed to get full card data for $cardId', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final cardRank = playedCardFullData['rank']?.toString() ?? '';
+      final cardSuit = playedCardFullData['suit']?.toString() ?? '';
+      
+      // Validate that this is actually a same rank play
+      if (!_validateSameRankPlay(gameState, cardRank)) {
+        Logger().error('Practice: Same rank validation failed for card $cardId with rank $cardRank', isOn: LOGGING_SWITCH);
+        // TODO: Apply penalty - draw a card from the draw pile (future implementation)
+        return false;
+      }
+      
+      Logger().info('Practice: Same rank validation passed for card $cardId with rank $cardRank', isOn: LOGGING_SWITCH);
+      
+      // SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
+      // Remove card from player's hand
+      hand.removeAt(cardIndex);
+      Logger().info('Practice: Successfully removed same rank play card $cardId from player $playerId hand', isOn: LOGGING_SWITCH);
+      
+      // Add card to discard pile using reusable method (ensures full data and proper state updates)
+      final success = _practiceCoordinator.addToDiscardPile(playedCardFullData);
+      if (!success) {
+        Logger().error('Practice: Failed to add card $cardId to discard pile', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile', isOn: LOGGING_SWITCH);
+      
+      // Check for special cards (Jack/Queen) and store data if applicable
+      _checkSpecialCard(playerId, {
+        'cardId': cardId,
+        'rank': playedCardFullData['rank'],
+        'suit': playedCardFullData['suit']
+      });
+      
+      // TODO: Store the play in same_rank_data for tracking (future implementation)
+      // For now, we just log the successful play
+      Logger().info('Practice: Same rank play data would be stored here (future implementation)', isOn: LOGGING_SWITCH);
+      
+      return true;
+      
+    } catch (e) {
+      Logger().error('Practice: Error handling same rank play: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  /// Validate that the played card has the same rank as the last card in the discard pile
+  /// Replicates backend's _validate_same_rank_play method in game_round.py lines 1091-1120
+  bool _validateSameRankPlay(Map<String, dynamic> gameState, String cardRank) {
+    try {
+      // Check if there are any cards in the discard pile
+      final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+      
+      if (discardPile.isEmpty) {
+        Logger().info('Practice: Same rank validation failed: No cards in discard pile', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get the last card from the discard pile
+      final lastCard = discardPile.last as Map<String, dynamic>?;
+      if (lastCard == null) {
+        Logger().info('Practice: Same rank validation failed: Last card is null', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final lastCardRank = lastCard['rank']?.toString() ?? '';
+      
+      Logger().info('Practice: Same rank validation: played_card_rank=\'$cardRank\', last_card_rank=\'$lastCardRank\'', isOn: LOGGING_SWITCH);
+      
+      // Handle special case: first card of the game (no previous card to match)
+      if (discardPile.length == 1) {
+        Logger().info('Practice: Same rank validation: First card of game, allowing play', isOn: LOGGING_SWITCH);
+        return true;
+      }
+      
+      // Check if ranks match (case-insensitive for safety)
+      if (cardRank.toLowerCase() == lastCardRank.toLowerCase()) {
+        Logger().info('Practice: Same rank validation: Ranks match, allowing play', isOn: LOGGING_SWITCH);
+        return true;
+      } else {
+        Logger().info('Practice: Same rank validation: Ranks don\'t match, denying play', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Same rank validation error: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
   /// Check if a played card has special powers (Jack/Queen) and store data
   /// Replicates backend's _check_special_card method in game_round.py lines 1153-1197
   void _checkSpecialCard(String playerId, Map<String, dynamic> cardData) {

@@ -680,8 +680,9 @@ class PracticeGameRound {
       }
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       
-      // First, update all players' status in the games map without triggering state updates
+      // Update all players' status to same_rank_window in the games map
       int updatedCount = 0;
       for (final player in players) {
         player['status'] = 'same_rank_window';
@@ -690,10 +691,27 @@ class PracticeGameRound {
       
       Logger().info('Practice: Updated $updatedCount players\' status to same_rank_window in games map', isOn: LOGGING_SWITCH);
       
+      // Get the updated games map
+      final currentGames = _practiceCoordinator.currentGamesMap;
+      
+      // Determine if the current player is the human player
+      final isCurrentPlayerHuman = currentPlayer?['id'] == 'practice_user';
+      
       // Now trigger a single state update that updates ALL necessary state pieces
-      // This is critical: we need to update the human player's status specifically
-      // so that MyHandWidget gets the 'same_rank_window' status in main state
-      _practiceCoordinator.updatePlayerStatus('same_rank_window', playerId: 'practice_user', updateMainState: true);
+      // This matches the pattern used in other status updates (like drawing_card)
+      // We need to update:
+      // 1. playerStatus - so MyHandWidget gets the status (line 55 in my_hand_widget.dart)
+      // 2. games - so the games map reflects the status changes
+      // 3. currentPlayer - for OpponentsPanel
+      // 4. currentPlayerStatus - for OpponentsPanel  
+      // 5. isMyTurn - for MyHandWidget and ActionBar
+      _practiceCoordinator.updatePracticeGameState({
+        'playerStatus': 'same_rank_window', // Human player status
+        'games': currentGames,
+        'currentPlayer': currentPlayer,
+        'currentPlayerStatus': 'same_rank_window',
+        'isMyTurn': isCurrentPlayerHuman, // Keep isMyTurn consistent with current player
+      });
       
       Logger().info('Practice: Triggered state update for same_rank_window - playerStatus and all dependent slices updated', isOn: LOGGING_SWITCH);
       

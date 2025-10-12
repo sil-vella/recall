@@ -535,7 +535,17 @@ class PracticeGameCoordinator {
   Map<String, dynamic> _setupPiles(List<Map<String, dynamic>> remainingDeck) {
     Logger().info('Practice: Setting up piles with ${remainingDeck.length} remaining cards', isOn: LOGGING_SWITCH);
     
+    // Start discard pile with first card from remaining deck (full data format)
+    // IMPORTANT: Remove card BEFORE creating draw pile to avoid duplicate
+    final discardPile = <Map<String, dynamic>>[];
+    if (remainingDeck.isNotEmpty) {
+      final firstCard = remainingDeck.removeAt(0); // Remove from original deck
+      discardPile.add(firstCard); // Add full card data to discard pile
+      Logger().info('Practice: Moved first card ${firstCard['cardId']} to discard pile', isOn: LOGGING_SWITCH);
+    }
+    
     // Convert remaining deck to ID-only format for draw pile (matches backend _to_flutter_card with full_data=False)
+    // Now remainingDeck no longer contains the card that went to discard pile
     final drawPile = remainingDeck.map((fullCard) => {
       'cardId': fullCard['cardId'],
       'suit': '?',           // Face-down: hide suit
@@ -544,13 +554,6 @@ class PracticeGameCoordinator {
       'displayName': '?',    // Face-down: hide display name
       'color': 'black',      // Default color for face-down
     }).toList();
-    
-    // Start discard pile with first card from draw pile (full data format)
-    final discardPile = <Map<String, dynamic>>[];
-    if (remainingDeck.isNotEmpty) {
-      final firstCard = remainingDeck.removeAt(0); // Remove from original deck
-      discardPile.add(firstCard); // Add full card data to discard pile
-    }
     
     Logger().info('Practice: Pile setup complete - Draw pile: ${drawPile.length} ID-only cards, Discard pile: ${discardPile.length} full-data cards', isOn: LOGGING_SWITCH);
     

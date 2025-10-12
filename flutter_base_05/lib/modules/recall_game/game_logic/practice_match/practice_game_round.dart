@@ -896,11 +896,31 @@ class PracticeGameRound {
       // TODO: Check if any player has no cards left (automatic win condition)
       // Future implementation - for now, we skip this check
       
+      // Check for same rank plays from computer players
+      _checkComputerPlayerSameRankPlays();
+      
       // Check for special cards and handle them (backend game_round.py line 640)
       _handleSpecialCardsWindow();
       
     } catch (e) {
       Logger().error('Practice: Error ending same rank window: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Check for same rank plays from computer players during the same rank window
+  /// TODO: Implement computer player AI logic for same rank plays
+  void _checkComputerPlayerSameRankPlays() {
+    try {
+      Logger().info('Practice: Same rank check for computer players still needs to be done', isOn: LOGGING_SWITCH);
+      
+      // TODO: Implement computer player same rank play logic
+      // - Check each computer player's hand for matching rank cards
+      // - Decide which computer players should play matching cards
+      // - Process computer player same rank plays
+      // - Update game state accordingly
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _checkComputerPlayerSameRankPlays: $e', isOn: LOGGING_SWITCH);
     }
   }
 

@@ -681,20 +681,21 @@ class PracticeGameRound {
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       
-      // Update all players' status to same_rank_window
+      // First, update all players' status in the games map without triggering state updates
       int updatedCount = 0;
       for (final player in players) {
-        final playerId = player['id']?.toString() ?? '';
-        if (playerId.isNotEmpty) {
-          player['status'] = 'same_rank_window';
-          
-          // Update the main state for the human player
-          _practiceCoordinator.updatePlayerStatus('same_rank_window', playerId: playerId, updateMainState: true);
-          updatedCount++;
-        }
+        player['status'] = 'same_rank_window';
+        updatedCount++;
       }
       
-      Logger().info('Practice: Updated $updatedCount players\' status to same_rank_window', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Updated $updatedCount players\' status to same_rank_window in games map', isOn: LOGGING_SWITCH);
+      
+      // Now trigger a single state update that updates ALL necessary state pieces
+      // This is critical: we need to update the human player's status specifically
+      // so that MyHandWidget gets the 'same_rank_window' status in main state
+      _practiceCoordinator.updatePlayerStatus('same_rank_window', playerId: 'practice_user', updateMainState: true);
+      
+      Logger().info('Practice: Triggered state update for same_rank_window - playerStatus and all dependent slices updated', isOn: LOGGING_SWITCH);
       
       // Note: For practice game, we'll skip the 5-second timer for now
       // In a full implementation, would call _startSameRankTimer() here

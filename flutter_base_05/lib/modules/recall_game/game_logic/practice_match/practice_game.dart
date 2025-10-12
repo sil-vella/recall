@@ -855,9 +855,11 @@ class PracticeGameCoordinator {
         });
       } else if (updateMainState) {
         // For non-human players, only update the games map
+        Logger().info('Practice: Updating games state for non-human player $playerId with status: $status', isOn: LOGGING_SWITCH);
         updatePracticeGameState({
           'games': currentGames,
         });
+        Logger().info('Practice: Games state updated for non-human player - opponentsPanel should be recomputed', isOn: LOGGING_SWITCH);
       }
       
       // Trigger contextual instructions if requested (respects _instructionsEnabled setting)

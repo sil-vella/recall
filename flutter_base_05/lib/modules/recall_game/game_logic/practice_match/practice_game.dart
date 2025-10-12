@@ -629,7 +629,7 @@ class PracticeGameCoordinator {
         
         // Player Management
         'players': dealtPlayers,
-        'currentPlayer': null, // No current player initially - will be set by initializeRound()
+        'currentPlayer': null, // Will be set by _startNextTurn() during round initialization
         'playerCount': dealtPlayers.length,
         'activePlayerCount': dealtPlayers.length,
         
@@ -847,18 +847,17 @@ class PracticeGameCoordinator {
         Logger().info('Practice: Updated ${players.length} players to $status status', isOn: LOGGING_SWITCH);
       }
       
-      // Update main state if requested
-      if (updateMainState) {
-        // Always update the games map
-        final updates = {'games': currentGames};
-        
-        // If this is the current player, also update the main playerStatus
-        final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
-        if (currentPlayer != null && currentPlayer['id'] == playerId) {
-          updates['playerStatus'] = status;
-        }
-        
-        updatePracticeGameState(updates);
+      // Update main state if requested (only for human player)
+      if (updateMainState && playerId == 'practice_user') {
+        updatePracticeGameState({
+          'playerStatus': status,
+          'games': currentGames,
+        });
+      } else if (updateMainState) {
+        // For non-human players, only update the games map
+        updatePracticeGameState({
+          'games': currentGames,
+        });
       }
       
       // Trigger contextual instructions if requested (respects _instructionsEnabled setting)
@@ -1169,7 +1168,7 @@ class PracticeGameCoordinator {
       
     } catch (e) {
       Logger().error('Practice: Failed to handle completed initial peek: $e', isOn: LOGGING_SWITCH);
-      return false;
+    return false;
     }
   }
 

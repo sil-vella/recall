@@ -719,6 +719,104 @@ class PracticeGameRound {
     }
   }
 
+  /// Handle Jack swap action - swap two cards between players
+  /// Replicates backend's _handle_jack_swap method in game_round.py lines 1199-1265
+  Future<bool> handleJackSwap({
+    required String firstCardId,
+    required String firstPlayerId,
+    required String secondCardId,
+    required String secondPlayerId,
+  }) async {
+    try {
+      Logger().info('Practice: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
+      
+      // Get current game state
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        Logger().error('Practice: Failed to get game state for Jack swap', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Validate both players exist
+      final firstPlayer = players.firstWhere(
+        (p) => p['id'] == firstPlayerId,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      final secondPlayer = players.firstWhere(
+        (p) => p['id'] == secondPlayerId,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      if (firstPlayer.isEmpty || secondPlayer.isEmpty) {
+        Logger().error('Practice: Invalid Jack swap - one or both players not found', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get player hands
+      final firstPlayerHand = firstPlayer['hand'] as List<dynamic>? ?? [];
+      final secondPlayerHand = secondPlayer['hand'] as List<dynamic>? ?? [];
+      
+      // Find the cards in each player's hand
+      Map<String, dynamic>? firstCard;
+      int? firstCardIndex;
+      Map<String, dynamic>? secondCard;
+      int? secondCardIndex;
+      
+      // Find first card
+      for (int i = 0; i < firstPlayerHand.length; i++) {
+        final card = firstPlayerHand[i];
+        if (card != null && card is Map<String, dynamic> && card['cardId'] == firstCardId) {
+          firstCard = card;
+          firstCardIndex = i;
+          break;
+        }
+      }
+      
+      // Find second card
+      for (int i = 0; i < secondPlayerHand.length; i++) {
+        final card = secondPlayerHand[i];
+        if (card != null && card is Map<String, dynamic> && card['cardId'] == secondCardId) {
+          secondCard = card;
+          secondCardIndex = i;
+          break;
+        }
+      }
+      
+      // Validate cards found
+      if (firstCard == null || secondCard == null || firstCardIndex == null || secondCardIndex == null) {
+        Logger().error('Practice: Invalid Jack swap - one or both cards not found in players\' hands', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Found cards - First card at index $firstCardIndex in player $firstPlayerId hand, Second card at index $secondCardIndex in player $secondPlayerId hand', isOn: LOGGING_SWITCH);
+      
+      // Perform the swap
+      firstPlayerHand[firstCardIndex] = secondCard;
+      secondPlayerHand[secondCardIndex] = firstCard;
+      
+      Logger().info('Practice: Successfully swapped cards: $firstCardId <-> $secondCardId', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Player $firstPlayerId now has card $secondCardId at index $firstCardIndex', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Player $secondPlayerId now has card $firstCardId at index $secondCardIndex', isOn: LOGGING_SWITCH);
+      
+      // Update game state to trigger UI updates
+      final currentGames = _practiceCoordinator.currentGamesMap;
+      _practiceCoordinator.updatePracticeGameState({
+        'games': currentGames,
+      });
+      
+      Logger().info('Practice: Jack swap completed - state updated', isOn: LOGGING_SWITCH);
+      
+      return true;
+      
+    } catch (e) {
+      Logger().error('Practice: Error in handleJackSwap: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
   /// Validate that the played card has the same rank as the last card in the discard pile
   /// Replicates backend's _validate_same_rank_play method in game_round.py lines 1091-1120
   bool _validateSameRankPlay(Map<String, dynamic> gameState, String cardRank) {

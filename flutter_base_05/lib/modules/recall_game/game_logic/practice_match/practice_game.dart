@@ -1038,6 +1038,8 @@ class PracticeGameCoordinator {
           return await _handlePlayCard(sessionId, data);
         case 'same_rank_play':
           return await _handleSameRankPlay(sessionId, data);
+        case 'jack_swap':
+          return await _handleJackSwap(sessionId, data);
         default:
           Logger().warning('Practice: Unknown event type: $eventName', isOn: LOGGING_SWITCH);
     return false;
@@ -1447,6 +1449,71 @@ class PracticeGameCoordinator {
       
     } catch (e) {
       Logger().error('Practice: Failed to handle same_rank_play event: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  /// Handle Jack swap event - swap two cards between players
+  Future<bool> _handleJackSwap(String sessionId, Map<String, dynamic> data) async {
+    try {
+      Logger().info('Practice: Handling jack_swap event with data: $data', isOn: LOGGING_SWITCH);
+      
+      // Validate required data
+      final firstCardId = data['first_card_id']?.toString();
+      final firstPlayerId = data['first_player_id']?.toString();
+      final secondCardId = data['second_card_id']?.toString();
+      final secondPlayerId = data['second_player_id']?.toString();
+      
+      if (firstCardId == null || firstCardId.isEmpty ||
+          firstPlayerId == null || firstPlayerId.isEmpty ||
+          secondCardId == null || secondCardId.isEmpty ||
+          secondPlayerId == null || secondPlayerId.isEmpty) {
+        Logger().error('Practice: Invalid Jack swap data - missing required fields', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get current game state
+      final currentGames = _getCurrentGamesMap();
+      final currentGameId = _currentPracticeGameId;
+      
+      if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
+        Logger().error('Practice: No active practice game found for jack_swap event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final gameData = currentGames[currentGameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for jack_swap event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Validating jack_swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
+      
+      // Route to PracticeGameRound for actual jack swap logic
+      if (_gameRound != null) {
+        final success = await _gameRound!.handleJackSwap(
+          firstCardId: firstCardId,
+          firstPlayerId: firstPlayerId,
+          secondCardId: secondCardId,
+          secondPlayerId: secondPlayerId,
+        );
+        if (success) {
+          Logger().info('Practice: Successfully handled jack_swap', isOn: LOGGING_SWITCH);
+          return true;
+        } else {
+          Logger().error('Practice: Failed to handle jack_swap in PracticeGameRound', isOn: LOGGING_SWITCH);
+          return false;
+        }
+      } else {
+        Logger().error('Practice: No game round available for jack_swap event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to handle jack_swap event: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }

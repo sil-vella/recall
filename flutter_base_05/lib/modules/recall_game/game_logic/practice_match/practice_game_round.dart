@@ -407,14 +407,16 @@ class PracticeGameRound {
       final player = players[playerIndex];
       final hand = player['hand'] as List<Map<String, dynamic>>? ?? [];
       
-      // Add card to player's hand (drawn cards always go to the end)
-      hand.add(drawnCard);
+      // Add card to player's hand as ID-only (player hands always store ID-only cards)
+      // Backend replicates this in player.py add_card_to_hand method
+      final idOnlyCard = {'cardId': drawnCard['cardId']};
+      hand.add(idOnlyCard);
       
       // Set the drawn card property with FULL CARD DATA (same as backend)
       // This is what allows the frontend to show the front of the card
       player['drawnCard'] = drawnCard;
       
-      Logger().info('Practice: Added card ${drawnCard['cardId']} to player $playerId hand with full data', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Added card ${drawnCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
       
       // Change player status from DRAWING_CARD to PLAYING_CARD
       final statusUpdated = _practiceCoordinator.updatePlayerStatus('playing_card', playerId: playerId, updateMainState: true, triggerInstructions: true);

@@ -304,13 +304,30 @@ class PlayerAction {
 
       logger.info('Jack swap payload created: $swapPayload', isOn: LOGGING_SWITCH);
 
-      // Send the swap request to backend
-      logger.info('Sending jack_swap event to backend', isOn: LOGGING_SWITCH);
-      await _eventEmitter.emit(
-        eventType: 'jack_swap',
-        data: swapPayload,
-      );
-      logger.info('Jack swap event successfully sent to backend', isOn: LOGGING_SWITCH);
+      // Check if this is a practice game
+      final gameAccessor = RecallGameStateAccessor.instance;
+      final isPracticeGame = gameAccessor.isCurrentGamePractice();
+      logger.info('🎯 Jack swap - Practice game check: isPracticeGame=$isPracticeGame, gameId=$gameId', isOn: LOGGING_SWITCH);
+
+      if (isPracticeGame) {
+        // Handle practice game Jack swap
+        logger.info('Practice game detected - calling practice coordinator for jack_swap', isOn: LOGGING_SWITCH);
+        final practiceCoordinator = PracticeGameCoordinator();
+        await practiceCoordinator.handlePracticeEvent(
+          gameId,
+          'jack_swap',
+          swapPayload,
+        );
+        logger.info('Practice jack_swap handled successfully', isOn: LOGGING_SWITCH);
+      } else {
+        // Send the swap request to backend for regular games
+        logger.info('Sending jack_swap event to backend', isOn: LOGGING_SWITCH);
+        await _eventEmitter.emit(
+          eventType: 'jack_swap',
+          data: swapPayload,
+        );
+        logger.info('Jack swap event successfully sent to backend', isOn: LOGGING_SWITCH);
+      }
 
       // Clear selections after successful execution
       _clearJackSwapSelections();

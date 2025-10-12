@@ -958,18 +958,13 @@ class PracticeGameRound {
       
       Logger().info('Practice: Same rank validation: played_card_rank=\'$cardRank\', last_card_rank=\'$lastCardRank\'', isOn: LOGGING_SWITCH);
       
-      // Handle special case: first card of the game (no previous card to match)
-      if (discardPile.length == 1) {
-        Logger().info('Practice: Same rank validation: First card of game, allowing play', isOn: LOGGING_SWITCH);
-        return true;
-      }
-      
-      // Check if ranks match (case-insensitive for safety)
+      // During same rank window, cards must match the rank of the last played card
+      // No special cases - the window is triggered by a played card, so there's always a rank to match
       if (cardRank.toLowerCase() == lastCardRank.toLowerCase()) {
         Logger().info('Practice: Same rank validation: Ranks match, allowing play', isOn: LOGGING_SWITCH);
         return true;
       } else {
-        Logger().info('Practice: Same rank validation: Ranks don\'t match, denying play', isOn: LOGGING_SWITCH);
+        Logger().info('Practice: Same rank validation: Ranks don\'t match (played: $cardRank, required: $lastCardRank), denying play', isOn: LOGGING_SWITCH);
         return false;
       }
       

@@ -422,10 +422,11 @@ class PracticeGameRound {
       // Add card to player's hand (drawn cards always go to the end)
       hand.add(drawnCard);
       
-      // Set the drawn card property
+      // Set the drawn card property with FULL CARD DATA (same as backend)
+      // This is what allows the frontend to show the front of the card
       player['drawnCard'] = drawnCard;
       
-      Logger().info('Practice: Added card ${drawnCard['cardId']} to player $playerId hand', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Added card ${drawnCard['cardId']} to player $playerId hand with full data', isOn: LOGGING_SWITCH);
       
       // Change player status from DRAWING_CARD to PLAYING_CARD
       final statusUpdated = _practiceCoordinator.updatePlayerStatus('playing_card', playerId: playerId, updateMainState: true);

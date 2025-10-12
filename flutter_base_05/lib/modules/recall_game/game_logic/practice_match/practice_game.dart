@@ -864,11 +864,18 @@ class PracticeGameCoordinator {
         final isCurrentPlayerHuman = currentPlayer?['id'] == 'practice_user';
         
         if (playerId == 'practice_user') {
-          // Updating human player status
+          // Updating human player status - also update myDrawnCard if it exists
+          final humanPlayer = players.firstWhere(
+            (p) => p['id'] == 'practice_user',
+            orElse: () => <String, dynamic>{},
+          );
+          final drawnCard = humanPlayer['drawnCard'] as Map<String, dynamic>?;
+          
           updatePracticeGameState({
             'playerStatus': status,
             'games': currentGames,
             'isMyTurn': isCurrentPlayerHuman, // Update isMyTurn based on current player
+            'myDrawnCard': drawnCard, // Update myDrawnCard so frontend can show the drawn card
           });
         } else {
           // For non-human players, update the games map and currentPlayer/currentPlayerStatus

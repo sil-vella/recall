@@ -14,6 +14,10 @@ class PracticeGameRound {
   final String _gameId;
   Timer? _turnTimer;
   
+  // Special card data storage - stores chronological list of special cards played
+  // Matches backend's self.special_card_data list (game_round.py line 33)
+  final List<Map<String, dynamic>> _specialCardData = [];
+  
   PracticeGameRound(this._practiceCoordinator, this._gameId);
   
   /// Initialize the round with the current game state
@@ -587,13 +591,18 @@ class PracticeGameRound {
 
       // Note: State update is already handled by addToDiscardPile method
       
-      // Check if the played card has special powers (Jack/Queen) - simplified for practice
-      final rank = cardToPlay['rank']?.toString() ?? '';
-      if (rank == 'Queen' || rank == 'Jack') {
-        Logger().info('Practice: Special card played: $rank - would trigger special powers in real game', isOn: LOGGING_SWITCH);
-        // In practice mode, we'll skip special powers for now
-      }
-      
+      // Check if the played card has special powers (Jack/Queen)
+      // Replicates backend flow: check special card FIRST (game_round.py line 989)
+      _checkSpecialCard(playerId, {
+        'cardId': cardId,
+        'rank': cardToPlayFullData['rank'],
+        'suit': cardToPlayFullData['suit']
+      });
+
+      // Then trigger same rank window (backend game_round.py line 487)
+      // This allows other players to play cards of the same rank out-of-turn
+      _handleSameRankWindow();
+
       // Move to next player (simplified turn management for practice)
       await _moveToNextPlayer();
       
@@ -602,6 +611,96 @@ class PracticeGameRound {
     } catch (e) {
       Logger().error('Practice: Error handling play card: $e', isOn: LOGGING_SWITCH);
       return false;
+    }
+  }
+
+  /// Check if a played card has special powers (Jack/Queen) and store data
+  /// Replicates backend's _check_special_card method in game_round.py lines 1153-1197
+  void _checkSpecialCard(String playerId, Map<String, dynamic> cardData) {
+    try {
+      final cardId = cardData['cardId']?.toString() ?? 'unknown';
+      final cardRank = cardData['rank']?.toString().toLowerCase() ?? 'unknown';
+      final cardSuit = cardData['suit']?.toString() ?? 'unknown';
+      
+      if (cardRank == 'jack') {
+        // Store special card data chronologically (not grouped by player)
+        final specialCardInfo = {
+          'player_id': playerId,
+          'card_id': cardId,
+          'rank': cardRank,
+          'suit': cardSuit,
+          'special_power': 'jack_swap',
+          'timestamp': DateTime.now().millisecondsSinceEpoch / 1000,
+          'description': 'Can switch any two cards between players'
+        };
+        
+        Logger().info('Practice: DEBUG: special_card_data length before adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        _specialCardData.add(specialCardInfo);
+        Logger().info('Practice: DEBUG: special_card_data length after adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        Logger().info('Practice: Added Jack special card for player $playerId: $cardRank of $cardSuit (chronological order)', isOn: LOGGING_SWITCH);
+        
+      } else if (cardRank == 'queen') {
+        // Store special card data chronologically (not grouped by player)
+        final specialCardInfo = {
+          'player_id': playerId,
+          'card_id': cardId,
+          'rank': cardRank,
+          'suit': cardSuit,
+          'special_power': 'queen_peek',
+          'timestamp': DateTime.now().millisecondsSinceEpoch / 1000,
+          'description': 'Can look at one card from any player\'s hand'
+        };
+        
+        Logger().info('Practice: DEBUG: special_card_data length before adding Queen: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        _specialCardData.add(specialCardInfo);
+        Logger().info('Practice: DEBUG: special_card_data length after adding Queen: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        Logger().info('Practice: Added Queen special card for player $playerId: $cardRank of $cardSuit (chronological order)', isOn: LOGGING_SWITCH);
+        
+      } else {
+        // Not a special card, no action needed
+        Logger().info('Practice: Card $cardRank is not a special card', isOn: LOGGING_SWITCH);
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _checkSpecialCard: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Handle same rank window - sets all players to same_rank_window status
+  /// Replicates backend's _handle_same_rank_window method in game_round.py lines 566-585
+  void _handleSameRankWindow() {
+    try {
+      Logger().info('Practice: Starting same rank window - setting all players to same_rank_window status', isOn: LOGGING_SWITCH);
+      
+      // Get current game state
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        Logger().error('Practice: Failed to get game state for same rank window', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Update all players' status to same_rank_window
+      int updatedCount = 0;
+      for (final player in players) {
+        final playerId = player['id']?.toString() ?? '';
+        if (playerId.isNotEmpty) {
+          player['status'] = 'same_rank_window';
+          
+          // Update the main state for the human player
+          _practiceCoordinator.updatePlayerStatus('same_rank_window', playerId: playerId, updateMainState: true);
+          updatedCount++;
+        }
+      }
+      
+      Logger().info('Practice: Updated $updatedCount players\' status to same_rank_window', isOn: LOGGING_SWITCH);
+      
+      // Note: For practice game, we'll skip the 5-second timer for now
+      // In a full implementation, would call _startSameRankTimer() here
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _handleSameRankWindow: $e', isOn: LOGGING_SWITCH);
     }
   }
 

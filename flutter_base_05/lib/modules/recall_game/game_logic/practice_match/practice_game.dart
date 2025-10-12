@@ -656,6 +656,7 @@ class PracticeGameCoordinator {
         'numberOfOpponents': numberOfOpponents ?? _numberOfOpponents,
         'difficultyLevel': difficultyLevel ?? _difficultyLevel,
         'instructionsEnabled': instructionsEnabled ?? _instructionsEnabled,
+        'turnTimeLimit': turnTimeLimit, // Store turn time limit in game state for PracticeGameRound access
         'practiceSettings': {
           'numberOfOpponents': numberOfOpponents ?? _numberOfOpponents,
           'difficultyLevel': difficultyLevel ?? _difficultyLevel,

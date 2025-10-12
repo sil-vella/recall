@@ -13,7 +13,6 @@ class PracticeGameRound {
   final PracticeGameCoordinator _practiceCoordinator;
   final String _gameId;
   Timer? _turnTimer;
-  int _turnTimeLimit = 30; // Default 30 seconds per turn
   
   PracticeGameRound(this._practiceCoordinator, this._gameId);
   
@@ -276,10 +275,20 @@ class PracticeGameRound {
   /// Start turn timer
   void _startTurnTimer() {
     _turnTimer?.cancel();
-    _turnTimer = Timer(Duration(seconds: _turnTimeLimit), () {
-      Logger().info('Practice: Turn timer expired, moving to next player', isOn: LOGGING_SWITCH);
-      _handleTurnTimeout();
-    });
+    
+    // Get timer settings from practice game configuration
+    final turnTimeLimit = _getTurnTimeLimit();
+    
+    // Only start timer if it's enabled (turnTimeLimit > 0)
+    if (turnTimeLimit > 0) {
+      _turnTimer = Timer(Duration(seconds: turnTimeLimit), () {
+        Logger().info('Practice: Turn timer expired (${turnTimeLimit}s), moving to next player', isOn: LOGGING_SWITCH);
+        _handleTurnTimeout();
+      });
+      Logger().info('Practice: Started turn timer for ${turnTimeLimit} seconds', isOn: LOGGING_SWITCH);
+    } else {
+      Logger().info('Practice: Turn timer is disabled (no time limit)', isOn: LOGGING_SWITCH);
+    }
   }
   
   /// Handle turn timeout
@@ -293,6 +302,32 @@ class PracticeGameRound {
       
     } catch (e) {
       Logger().error('Practice: Failed to handle turn timeout: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Get turn time limit from practice game configuration
+  int _getTurnTimeLimit() {
+    try {
+      // Get the current game state to access timer settings
+      final currentGames = _practiceCoordinator.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().warning('Practice: Game state is null, using default timer (30s)', isOn: LOGGING_SWITCH);
+        return 30; // Default fallback
+      }
+      
+      // Get turn time limit from game state (stored during game creation)
+      final turnTimeLimit = gameState['turnTimeLimit'] as int? ?? 30;
+      
+      Logger().info('Practice: Retrieved turn time limit from game state: ${turnTimeLimit}s', isOn: LOGGING_SWITCH);
+      return turnTimeLimit;
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to get turn time limit: $e, using default (30s)', isOn: LOGGING_SWITCH);
+      return 30; // Default fallback
     }
   }
   

@@ -1013,8 +1013,12 @@ class PracticeGameRound {
         Logger().info('Practice: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
       }
       
-      // Process next special card or end window
-      _processNextSpecialCard();
+      // Add 1-second delay for visual indication before processing next special card
+      Logger().info('Practice: Waiting 1 second before processing next special card...', isOn: LOGGING_SWITCH);
+      Timer(const Duration(seconds: 1), () {
+        // Process next special card or end window
+        _processNextSpecialCard();
+      });
       
     } catch (e) {
       Logger().error('Practice: Error in _onSpecialCardTimerExpired: $e', isOn: LOGGING_SWITCH);

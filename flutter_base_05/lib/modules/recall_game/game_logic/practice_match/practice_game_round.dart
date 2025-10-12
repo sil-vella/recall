@@ -195,15 +195,39 @@ class PracticeGameRound {
     if (players.isEmpty) return null;
     
     if (currentPlayerId == null) {
-      // First turn - start with first player
-      return players.first;
+      // First turn - find human player and set as current
+      final humanPlayer = players.firstWhere(
+        (p) => p['isHuman'] == true,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      if (humanPlayer.isNotEmpty) {
+        Logger().info('Practice: No current player found, setting human player as current', isOn: LOGGING_SWITCH);
+        return humanPlayer;
+      } else {
+        // Fallback to first player if no human player found
+        Logger().warning('Practice: No human player found, using first player as fallback', isOn: LOGGING_SWITCH);
+        return players.first;
+      }
     }
     
     // Find current player index
     final currentIndex = players.indexWhere((p) => p['id'] == currentPlayerId);
     if (currentIndex == -1) {
-      // Current player not found, start with first
-      return players.first;
+      // Current player not found, find human player
+      final humanPlayer = players.firstWhere(
+        (p) => p['isHuman'] == true,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      if (humanPlayer.isNotEmpty) {
+        Logger().info('Practice: Current player not found, setting human player as current', isOn: LOGGING_SWITCH);
+        return humanPlayer;
+      } else {
+        // Fallback to first player
+        Logger().warning('Practice: No human player found, using first player as fallback', isOn: LOGGING_SWITCH);
+        return players.first;
+      }
     }
     
     // Get next player (wrap around)

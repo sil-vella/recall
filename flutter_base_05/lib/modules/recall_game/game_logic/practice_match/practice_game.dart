@@ -847,10 +847,15 @@ class PracticeGameCoordinator {
         Logger().info('Practice: Updated ${players.length} players to $status status', isOn: LOGGING_SWITCH);
       }
       
-      // Update main state if requested
-      if (updateMainState) {
+      // Update main state if requested (only for human player)
+      if (updateMainState && playerId == 'practice_user') {
         updatePracticeGameState({
           'playerStatus': status,
+          'games': currentGames,
+        });
+      } else if (updateMainState) {
+        // For non-human players, only update the games map
+        updatePracticeGameState({
           'games': currentGames,
         });
       }

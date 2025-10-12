@@ -1007,6 +1007,8 @@ class PracticeGameCoordinator {
           return await _handleStartMatch(sessionId, data);
         case 'completed_initial_peek':
           return await _handleCompletedInitialPeek(sessionId, data);
+        case 'draw_card':
+          return await _handleDrawCard(sessionId, data);
         default:
           Logger().warning('Practice: Unknown event type: $eventName', isOn: LOGGING_SWITCH);
           return false;
@@ -1193,6 +1195,86 @@ class PracticeGameCoordinator {
     } catch (e) {
       Logger().error('Practice: Failed to handle completed initial peek: $e', isOn: LOGGING_SWITCH);
     return false;
+    }
+  }
+
+  /// Handle the draw_card event from practice room
+  Future<bool> _handleDrawCard(String sessionId, Map<String, dynamic> data) async {
+    try {
+      Logger().info('Practice: Handling draw_card event with data: $data', isOn: LOGGING_SWITCH);
+      
+      // Extract data from the event
+      final gameId = data['game_id']?.toString() ?? '';
+      final source = data['source']?.toString() ?? 'deck'; // 'deck' or 'discard'
+      
+      if (gameId.isEmpty) {
+        Logger().error('Practice: No game_id provided for draw_card event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Validate source
+      if (source != 'deck' && source != 'discard') {
+        Logger().error('Practice: Invalid source for draw_card: $source', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get current games map
+      final currentGames = _getCurrentGamesMap();
+      if (!currentGames.containsKey(gameId)) {
+        Logger().error('Practice: Game $gameId not found for draw_card event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get the game state
+      final gameData = currentGames[gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for draw_card event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get the current player (should be the human player for practice games)
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      if (currentPlayer == null) {
+        Logger().error('Practice: No current player found for draw_card event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final playerId = currentPlayer['id']?.toString() ?? '';
+      if (playerId != 'practice_user') {
+        Logger().error('Practice: Current player is not the human player for draw_card event: $playerId', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Check if player status is 'drawing_card'
+      final playerStatus = currentPlayer['status']?.toString() ?? '';
+      if (playerStatus != 'drawing_card') {
+        Logger().error('Practice: Player status is not drawing_card for draw_card event: $playerStatus', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Validating draw_card for player $playerId from $source pile', isOn: LOGGING_SWITCH);
+      
+      // Route to PracticeGameRound for actual draw logic
+      if (_gameRound != null) {
+        final success = await _gameRound!.handleDrawCard(source);
+        if (success) {
+          Logger().info('Practice: Successfully handled draw_card from $source pile', isOn: LOGGING_SWITCH);
+          return true;
+        } else {
+          Logger().error('Practice: Failed to handle draw_card in PracticeGameRound', isOn: LOGGING_SWITCH);
+          return false;
+        }
+      } else {
+        Logger().error('Practice: No game round available for draw_card event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to handle draw_card event: $e', isOn: LOGGING_SWITCH);
+      return false;
     }
   }
 

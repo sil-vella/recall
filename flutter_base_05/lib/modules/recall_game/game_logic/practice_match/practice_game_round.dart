@@ -339,6 +339,121 @@ class PracticeGameRound {
   
 
 
+  /// Handle drawing a card from the specified pile (replicates backend _handle_draw_from_pile)
+  Future<bool> handleDrawCard(String source) async {
+    try {
+      Logger().info('Practice: Handling draw card from $source pile', isOn: LOGGING_SWITCH);
+      
+      // Validate source
+      if (source != 'deck' && source != 'discard') {
+        Logger().error('Practice: Invalid source for draw card: $source', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get current game state
+      final currentGames = _practiceCoordinator.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for draw card', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get current player
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      if (currentPlayer == null) {
+        Logger().error('Practice: No current player found for draw card', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final playerId = currentPlayer['id']?.toString() ?? '';
+      Logger().info('Practice: Drawing card for player $playerId from $source pile', isOn: LOGGING_SWITCH);
+      
+      // Draw card based on source
+      Map<String, dynamic>? drawnCard;
+      
+      if (source == 'deck') {
+        // Draw from draw pile
+        final drawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
+        if (drawPile.isEmpty) {
+          Logger().error('Practice: Cannot draw from empty draw pile', isOn: LOGGING_SWITCH);
+          return false;
+        }
+        
+        drawnCard = drawPile.removeLast(); // Remove last card (top of pile)
+        Logger().info('Practice: Drew card ${drawnCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
+        
+        // Check if draw pile is now empty
+        if (drawPile.isEmpty) {
+          Logger().info('Practice: Draw pile is now empty', isOn: LOGGING_SWITCH);
+        }
+        
+      } else if (source == 'discard') {
+        // Take from discard pile
+        final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+        if (discardPile.isEmpty) {
+          Logger().error('Practice: Cannot draw from empty discard pile', isOn: LOGGING_SWITCH);
+          return false;
+        }
+        
+        drawnCard = discardPile.removeLast(); // Remove last card (top of pile)
+        Logger().info('Practice: Drew card ${drawnCard['cardId']} from discard pile', isOn: LOGGING_SWITCH);
+      }
+      
+      if (drawnCard == null) {
+        Logger().error('Practice: Failed to draw card from $source pile', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get the current player's hand
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      final playerIndex = players.indexWhere((p) => p['id'] == playerId);
+      
+      if (playerIndex == -1) {
+        Logger().error('Practice: Player $playerId not found in players list', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final player = players[playerIndex];
+      final hand = player['hand'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Add card to player's hand (drawn cards always go to the end)
+      hand.add(drawnCard);
+      
+      // Set the drawn card property
+      player['drawnCard'] = drawnCard;
+      
+      Logger().info('Practice: Added card ${drawnCard['cardId']} to player $playerId hand', isOn: LOGGING_SWITCH);
+      
+      // Change player status from DRAWING_CARD to PLAYING_CARD
+      final statusUpdated = _practiceCoordinator.updatePlayerStatus('playing_card', playerId: playerId, updateMainState: true);
+      if (!statusUpdated) {
+        Logger().error('Practice: Failed to update player status to playing_card', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Player $playerId status changed from drawing_card to playing_card', isOn: LOGGING_SWITCH);
+      
+      // Log pile contents after successful draw
+      final drawPileCount = (gameState['drawPile'] as List?)?.length ?? 0;
+      final discardPileCount = (gameState['discardPile'] as List?)?.length ?? 0;
+      
+      Logger().info('Practice: === PILE CONTENTS AFTER DRAW ===', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Draw Pile Count: $drawPileCount', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Drawn Card: ${drawnCard['cardId']}', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: ================================', isOn: LOGGING_SWITCH);
+      
+      return true;
+      
+    } catch (e) {
+      Logger().error('Practice: Error handling draw card: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
   /// Dispose of resources
   void dispose() {
     _turnTimer?.cancel();

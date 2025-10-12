@@ -854,10 +854,16 @@ class PracticeGameCoordinator {
           'games': currentGames,
         });
       } else if (updateMainState) {
-        // For non-human players, only update the games map
+        // For non-human players, update the games map and currentPlayer/currentPlayerStatus
         Logger().info('Practice: Updating games state for non-human player $playerId with status: $status', isOn: LOGGING_SWITCH);
+        
+        // Get the current player from game state
+        final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+        
         updatePracticeGameState({
           'games': currentGames,
+          'currentPlayer': currentPlayer,
+          'currentPlayerStatus': status,
         });
         Logger().info('Practice: Games state updated for non-human player - opponentsPanel should be recomputed', isOn: LOGGING_SWITCH);
       }

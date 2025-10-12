@@ -21,7 +21,7 @@ class PracticeGameRound {
   /// Replicates backend _initial_peek_timeout() and start_turn() logic
   void initializeRound() {
     try {
-      Logger().info('Practice: Initializing round for game $_gameId', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: ===== INITIALIZING ROUND FOR GAME $_gameId =====', isOn: LOGGING_SWITCH);
       
       // Get current game state
       final gameState = _getCurrentGameState();
@@ -30,19 +30,29 @@ class PracticeGameRound {
         return;
       }
       
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      
+      Logger().info('Practice: Current game state - Players: ${players.length}, Current Player: ${currentPlayer?['name'] ?? 'None'}', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: All players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']}, status: ${p['status']})').join(', ')}', isOn: LOGGING_SWITCH);
+      
       // 1. Clear cards_to_peek for all players (peek phase is over)
+      Logger().info('Practice: Step 1 - Clearing cards_to_peek for all players', isOn: LOGGING_SWITCH);
       _clearPeekedCards(gameState);
       
       // 2. Set all players back to WAITING status
+      Logger().info('Practice: Step 2 - Setting all players to WAITING status', isOn: LOGGING_SWITCH);
       _setAllPlayersToWaiting(gameState);
       
       // 3. Initialize round state (replicates backend start_turn logic)
+      Logger().info('Practice: Step 3 - Initializing round state', isOn: LOGGING_SWITCH);
       _initializeRoundState(gameState);
       
       // 4. Start the first turn (this will set the current player to DRAWING_CARD status)
+      Logger().info('Practice: Step 4 - Starting first turn (will select current player)', isOn: LOGGING_SWITCH);
       _startNextTurn();
       
-      Logger().info('Practice: Round initialization completed successfully', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: ===== ROUND INITIALIZATION COMPLETED SUCCESSFULLY =====', isOn: LOGGING_SWITCH);
       
     } catch (e) {
       Logger().error('Practice: Failed to initialize round: $e', isOn: LOGGING_SWITCH);
@@ -160,11 +170,19 @@ class PracticeGameRound {
   /// Start the next player's turn
   void _startNextTurn() {
     try {
+      Logger().info('Practice: Starting next turn...', isOn: LOGGING_SWITCH);
+      
       final gameState = _getCurrentGameState();
-      if (gameState == null) return;
+      if (gameState == null) {
+        Logger().error('Practice: Failed to get game state for _startNextTurn', isOn: LOGGING_SWITCH);
+        return;
+      }
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       final currentPlayerId = gameState['currentPlayer']?['id'] as String?;
+      
+      Logger().info('Practice: Current player ID: $currentPlayerId', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Available players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']})').join(', ')}', isOn: LOGGING_SWITCH);
       
       // Find next player
       final nextPlayer = _getNextPlayer(players, currentPlayerId);
@@ -173,8 +191,11 @@ class PracticeGameRound {
         return;
       }
       
+      Logger().info('Practice: Selected next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+      
       // Update current player
       gameState['currentPlayer'] = nextPlayer;
+      Logger().info('Practice: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
       
       // Set player status to DRAWING_CARD (first action is to draw a card)
       // This matches backend behavior where first player status is DRAWING_CARD
@@ -192,9 +213,16 @@ class PracticeGameRound {
   
   /// Get the next player in rotation
   Map<String, dynamic>? _getNextPlayer(List<Map<String, dynamic>> players, String? currentPlayerId) {
-    if (players.isEmpty) return null;
+    Logger().info('Practice: _getNextPlayer called with currentPlayerId: $currentPlayerId', isOn: LOGGING_SWITCH);
+    
+    if (players.isEmpty) {
+      Logger().error('Practice: No players available for _getNextPlayer', isOn: LOGGING_SWITCH);
+      return null;
+    }
     
     if (currentPlayerId == null) {
+      Logger().info('Practice: No current player ID - this is the first turn', isOn: LOGGING_SWITCH);
+      
       // First turn - find human player and set as current
       final humanPlayer = players.firstWhere(
         (p) => p['isHuman'] == true,
@@ -202,18 +230,22 @@ class PracticeGameRound {
       );
       
       if (humanPlayer.isNotEmpty) {
-        Logger().info('Practice: No current player found, setting human player as current', isOn: LOGGING_SWITCH);
+        Logger().info('Practice: Found human player: ${humanPlayer['name']} (${humanPlayer['id']}) - setting as current', isOn: LOGGING_SWITCH);
         return humanPlayer;
       } else {
         // Fallback to first player if no human player found
-        Logger().warning('Practice: No human player found, using first player as fallback', isOn: LOGGING_SWITCH);
+        Logger().warning('Practice: No human player found, using first player as fallback: ${players.first['name']}', isOn: LOGGING_SWITCH);
         return players.first;
       }
     }
     
+    Logger().info('Practice: Looking for current player with ID: $currentPlayerId', isOn: LOGGING_SWITCH);
+    
     // Find current player index
     final currentIndex = players.indexWhere((p) => p['id'] == currentPlayerId);
     if (currentIndex == -1) {
+      Logger().warning('Practice: Current player $currentPlayerId not found in players list', isOn: LOGGING_SWITCH);
+      
       // Current player not found, find human player
       final humanPlayer = players.firstWhere(
         (p) => p['isHuman'] == true,
@@ -221,18 +253,24 @@ class PracticeGameRound {
       );
       
       if (humanPlayer.isNotEmpty) {
-        Logger().info('Practice: Current player not found, setting human player as current', isOn: LOGGING_SWITCH);
+        Logger().info('Practice: Setting human player as current: ${humanPlayer['name']} (${humanPlayer['id']})', isOn: LOGGING_SWITCH);
         return humanPlayer;
       } else {
         // Fallback to first player
-        Logger().warning('Practice: No human player found, using first player as fallback', isOn: LOGGING_SWITCH);
+        Logger().warning('Practice: No human player found, using first player as fallback: ${players.first['name']}', isOn: LOGGING_SWITCH);
         return players.first;
       }
     }
     
+    Logger().info('Practice: Found current player at index $currentIndex: ${players[currentIndex]['name']}', isOn: LOGGING_SWITCH);
+    
     // Get next player (wrap around)
     final nextIndex = (currentIndex + 1) % players.length;
-    return players[nextIndex];
+    final nextPlayer = players[nextIndex];
+    
+    Logger().info('Practice: Next player index: $nextIndex, next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+    
+    return nextPlayer;
   }
   
   /// Start turn timer

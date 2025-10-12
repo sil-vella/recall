@@ -224,6 +224,15 @@ class PracticeGameCoordinator {
       _initialPeekTimer = Timer(Duration(seconds: _initialPeekDurationSeconds), () {
         Logger().info('Practice: Initial peek timer completed, updating player status to waiting and initializing round', isOn: LOGGING_SWITCH);
         
+        // Check if initial peek has already been completed manually
+        if (_initialPeekCompleted) {
+          Logger().info('Practice: Initial peek already completed manually, skipping timer completion', isOn: LOGGING_SWITCH);
+          return;
+        }
+        
+        // Set flag to prevent duplicate calls
+        _initialPeekCompleted = true;
+        
         // Update all players to 'waiting' status
         final statusUpdated = updatePlayerStatus('waiting', updateMainState: true, triggerInstructions: false);
         

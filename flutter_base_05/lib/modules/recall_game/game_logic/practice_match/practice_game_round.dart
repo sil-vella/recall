@@ -729,42 +729,42 @@ class PracticeGameRound {
   }) async {
     try {
       Logger().info('Practice: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
-      
+
       // Get current game state
       final gameState = _getCurrentGameState();
       if (gameState == null) {
         Logger().error('Practice: Failed to get game state for Jack swap', isOn: LOGGING_SWITCH);
         return false;
       }
-      
+
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
-      
+
       // Validate both players exist
       final firstPlayer = players.firstWhere(
         (p) => p['id'] == firstPlayerId,
         orElse: () => <String, dynamic>{},
       );
-      
+
       final secondPlayer = players.firstWhere(
         (p) => p['id'] == secondPlayerId,
         orElse: () => <String, dynamic>{},
       );
-      
+
       if (firstPlayer.isEmpty || secondPlayer.isEmpty) {
         Logger().error('Practice: Invalid Jack swap - one or both players not found', isOn: LOGGING_SWITCH);
         return false;
       }
-      
+
       // Get player hands
       final firstPlayerHand = firstPlayer['hand'] as List<dynamic>? ?? [];
       final secondPlayerHand = secondPlayer['hand'] as List<dynamic>? ?? [];
-      
+
       // Find the cards in each player's hand
       Map<String, dynamic>? firstCard;
       int? firstCardIndex;
       Map<String, dynamic>? secondCard;
       int? secondCardIndex;
-      
+
       // Find first card
       for (int i = 0; i < firstPlayerHand.length; i++) {
         final card = firstPlayerHand[i];
@@ -774,7 +774,7 @@ class PracticeGameRound {
           break;
         }
       }
-      
+
       // Find second card
       for (int i = 0; i < secondPlayerHand.length; i++) {
         final card = secondPlayerHand[i];
@@ -784,35 +784,144 @@ class PracticeGameRound {
           break;
         }
       }
-      
+
       // Validate cards found
       if (firstCard == null || secondCard == null || firstCardIndex == null || secondCardIndex == null) {
         Logger().error('Practice: Invalid Jack swap - one or both cards not found in players\' hands', isOn: LOGGING_SWITCH);
         return false;
       }
-      
+
       Logger().info('Practice: Found cards - First card at index $firstCardIndex in player $firstPlayerId hand, Second card at index $secondCardIndex in player $secondPlayerId hand', isOn: LOGGING_SWITCH);
-      
+
       // Perform the swap
       firstPlayerHand[firstCardIndex] = secondCard;
       secondPlayerHand[secondCardIndex] = firstCard;
-      
+
       Logger().info('Practice: Successfully swapped cards: $firstCardId <-> $secondCardId', isOn: LOGGING_SWITCH);
       Logger().info('Practice: Player $firstPlayerId now has card $secondCardId at index $firstCardIndex', isOn: LOGGING_SWITCH);
       Logger().info('Practice: Player $secondPlayerId now has card $firstCardId at index $secondCardIndex', isOn: LOGGING_SWITCH);
-      
+
       // Update game state to trigger UI updates
       final currentGames = _practiceCoordinator.currentGamesMap;
       _practiceCoordinator.updatePracticeGameState({
         'games': currentGames,
       });
-      
+
       Logger().info('Practice: Jack swap completed - state updated', isOn: LOGGING_SWITCH);
-      
+
       return true;
-      
+
     } catch (e) {
       Logger().error('Practice: Error in handleJackSwap: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  /// Handle Queen peek action - peek at any one card from any player
+  /// Replicates backend's _handle_queen_peek method in game_round.py lines 1267-1318
+  Future<bool> handleQueenPeek({
+    required String peekingPlayerId,
+    required String targetCardId,
+    required String targetPlayerId,
+  }) async {
+    try {
+      Logger().info('Practice: Handling Queen peek - player $peekingPlayerId peeking at card $targetCardId from player $targetPlayerId', isOn: LOGGING_SWITCH);
+
+      // Get current game state
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        Logger().error('Practice: Failed to get game state for Queen peek', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+
+      // Find the target player (card owner)
+      final targetPlayer = players.firstWhere(
+        (p) => p['id'] == targetPlayerId,
+        orElse: () => <String, dynamic>{},
+      );
+
+      if (targetPlayer.isEmpty) {
+        Logger().error('Practice: Target player $targetPlayerId not found for Queen peek', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      // Find the peeking player (current player using Queen power)
+      final peekingPlayer = players.firstWhere(
+        (p) => p['id'] == peekingPlayerId,
+        orElse: () => <String, dynamic>{},
+      );
+
+      if (peekingPlayer.isEmpty) {
+        Logger().error('Practice: Peeking player $peekingPlayerId not found for Queen peek', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      // Find the target card in the target player's hand
+      final targetPlayerHand = targetPlayer['hand'] as List<dynamic>? ?? [];
+      Map<String, dynamic>? targetCard;
+
+      for (final card in targetPlayerHand) {
+        if (card != null && card is Map<String, dynamic> && card['cardId'] == targetCardId) {
+          targetCard = card;
+          break;
+        }
+      }
+
+      if (targetCard == null) {
+        Logger().error('Practice: Card $targetCardId not found in target player $targetPlayerId hand', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      Logger().info('Practice: Found target card: ${targetCard['rank']} of ${targetCard['suit']}', isOn: LOGGING_SWITCH);
+
+      // Get full card data (convert from ID-only if needed)
+      final fullCardData = _practiceCoordinator.getCardById(gameState, targetCardId);
+      if (fullCardData == null) {
+        Logger().error('Practice: Failed to get full card data for $targetCardId', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      Logger().info('Practice: Full card data: ${fullCardData['rank']} of ${fullCardData['suit']} (${fullCardData['points']} points)', isOn: LOGGING_SWITCH);
+
+      // Clear any existing cards_to_peek from previous peeks (backend line 1304)
+      final existingCardsToPeek = peekingPlayer['cardsToPeek'] as List<dynamic>? ?? [];
+      existingCardsToPeek.clear();
+      Logger().info('Practice: Cleared existing cards_to_peek for player $peekingPlayerId', isOn: LOGGING_SWITCH);
+
+      // Add the target card to the peeking player's cards_to_peek list (backend line 1307)
+      peekingPlayer['cardsToPeek'] = [fullCardData];
+      Logger().info('Practice: Added card ${fullCardData['cardId']} to player $peekingPlayerId cards_to_peek list', isOn: LOGGING_SWITCH);
+
+      // Set player status to PEEKING (backend line 1311)
+      peekingPlayer['status'] = 'peeking';
+      Logger().info('Practice: Set player $peekingPlayerId status to peeking', isOn: LOGGING_SWITCH);
+
+      // Update main state for the human player
+      if (peekingPlayerId == 'practice_user') {
+        final currentGames = _practiceCoordinator.currentGamesMap;
+        _practiceCoordinator.updatePracticeGameState({
+          'playerStatus': 'peeking',
+          'myCardsToPeek': [fullCardData],
+          'games': currentGames,
+        });
+        Logger().info('Practice: Updated main state for human player - myCardsToPeek updated', isOn: LOGGING_SWITCH);
+      } else {
+        // For computer players, just update the games map
+        final currentGames = _practiceCoordinator.currentGamesMap;
+        _practiceCoordinator.updatePracticeGameState({
+          'games': currentGames,
+        });
+        Logger().info('Practice: Updated games state for computer player', isOn: LOGGING_SWITCH);
+      }
+
+      Logger().info('Practice: Queen peek completed successfully', isOn: LOGGING_SWITCH);
+
+      return true;
+
+    } catch (e) {
+      Logger().error('Practice: Error in handleQueenPeek: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }

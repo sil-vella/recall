@@ -1036,11 +1036,13 @@ class PracticeGameCoordinator {
           return await _handleDrawCard(sessionId, data);
         case 'play_card':
           return await _handlePlayCard(sessionId, data);
-        case 'same_rank_play':
-          return await _handleSameRankPlay(sessionId, data);
-        case 'jack_swap':
-          return await _handleJackSwap(sessionId, data);
-        default:
+      case 'same_rank_play':
+        return await _handleSameRankPlay(sessionId, data);
+      case 'jack_swap':
+        return await _handleJackSwap(sessionId, data);
+      case 'queen_peek':
+        return await _handleQueenPeek(sessionId, data);
+      default:
           Logger().warning('Practice: Unknown event type: $eventName', isOn: LOGGING_SWITCH);
     return false;
       }
@@ -1457,13 +1459,13 @@ class PracticeGameCoordinator {
   Future<bool> _handleJackSwap(String sessionId, Map<String, dynamic> data) async {
     try {
       Logger().info('Practice: Handling jack_swap event with data: $data', isOn: LOGGING_SWITCH);
-      
+
       // Validate required data
       final firstCardId = data['first_card_id']?.toString();
       final firstPlayerId = data['first_player_id']?.toString();
       final secondCardId = data['second_card_id']?.toString();
       final secondPlayerId = data['second_player_id']?.toString();
-      
+
       if (firstCardId == null || firstCardId.isEmpty ||
           firstPlayerId == null || firstPlayerId.isEmpty ||
           secondCardId == null || secondCardId.isEmpty ||
@@ -1471,27 +1473,27 @@ class PracticeGameCoordinator {
         Logger().error('Practice: Invalid Jack swap data - missing required fields', isOn: LOGGING_SWITCH);
         return false;
       }
-      
+
       // Get current game state
       final currentGames = _getCurrentGamesMap();
       final currentGameId = _currentPracticeGameId;
-      
+
       if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
         Logger().error('Practice: No active practice game found for jack_swap event', isOn: LOGGING_SWITCH);
         return false;
       }
-      
+
       final gameData = currentGames[currentGameId];
       final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
-      
+
       if (gameState == null) {
         Logger().error('Practice: Game state is null for jack_swap event', isOn: LOGGING_SWITCH);
         return false;
       }
-      
+
       Logger().info('Practice: Validating jack_swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
-      
+
       // Route to PracticeGameRound for actual jack swap logic
       if (_gameRound != null) {
         final success = await _gameRound!.handleJackSwap(
@@ -1511,9 +1513,69 @@ class PracticeGameCoordinator {
         Logger().error('Practice: No game round available for jack_swap event', isOn: LOGGING_SWITCH);
         return false;
       }
-      
+
     } catch (e) {
       Logger().error('Practice: Failed to handle jack_swap event: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  /// Handle Queen peek event - peek at any one card from any player
+  /// Replicates backend's _handle_queen_peek method in game_round.py lines 1267-1318
+  Future<bool> _handleQueenPeek(String sessionId, Map<String, dynamic> data) async {
+    try {
+      Logger().info('Practice: Handling queen_peek event with data: $data', isOn: LOGGING_SWITCH);
+
+      // Extract data from action (matches backend field names)
+      final cardId = data['card_id']?.toString();
+      final ownerId = data['ownerId']?.toString(); // Note: using ownerId as per frontend
+
+      if (cardId == null || cardId.isEmpty || ownerId == null || ownerId.isEmpty) {
+        Logger().error('Practice: Invalid Queen peek data - missing required fields: card_id=$cardId, ownerId=$ownerId', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      // Get current game state
+      final currentGames = _getCurrentGamesMap();
+      final currentGameId = _currentPracticeGameId;
+
+      if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
+        Logger().error('Practice: No active practice game found for queen_peek event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      final gameData = currentGames[currentGameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for queen_peek event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      Logger().info('Practice: Validating queen_peek for card $cardId from player $ownerId', isOn: LOGGING_SWITCH);
+
+      // Route to PracticeGameRound for actual queen peek logic
+      if (_gameRound != null) {
+        final success = await _gameRound!.handleQueenPeek(
+          peekingPlayerId: sessionId,
+          targetCardId: cardId,
+          targetPlayerId: ownerId,
+        );
+        if (success) {
+          Logger().info('Practice: Successfully handled queen_peek', isOn: LOGGING_SWITCH);
+          return true;
+        } else {
+          Logger().error('Practice: Failed to handle queen_peek in PracticeGameRound', isOn: LOGGING_SWITCH);
+          return false;
+        }
+      } else {
+        Logger().error('Practice: No game round available for queen_peek event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+    } catch (e) {
+      Logger().error('Practice: Failed to handle queen_peek event: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }

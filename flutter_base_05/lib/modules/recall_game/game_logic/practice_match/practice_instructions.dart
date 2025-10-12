@@ -27,6 +27,29 @@ Game Rules
 
 ⏰ TIMER: 10 seconds remaining...''',
     },
+    'playing': {
+      'title': 'Game in Progress',
+      'content': '''🎮 GAME IN PROGRESS
+
+The game is now active! Follow the instructions for your current action:
+
+🃏 YOUR TURN:
+• Draw a card from draw pile or discard pile
+• Play a card to the discard pile
+• Use special card powers when available
+
+💡 REMEMBER:
+• Goal: Get rid of high-value cards
+• Keep low-value cards (Aces, 2s, 3s)
+• Watch what opponents are doing
+• Plan your strategy carefully
+
+🎯 WINNING:
+• First to empty hand wins
+• Or lowest points when "Recall" is called
+
+⏰ Take your time and think strategically!''',
+    },
   };
 
   /// Player status instructions - shown based on current player status
@@ -83,16 +106,18 @@ Choose a card to play to the discard pile:
 • Other players can see what you played
 
 💡 STRATEGY:
-• Get rid of high-value cards first
-• Keep low-value cards for later
+• Get rid of high-value cards first (10+ points)
+• Keep low-value cards for later (Aces, 2s, 3s)
 • Watch what others are discarding
+• Plan your moves carefully
 
 🎮 SPECIAL CARDS:
 • Queens: Let you peek at opponent's cards
 • Jacks: Let you swap cards with opponents
-• Use them strategically!
+• Kings: Worth 10 points (avoid if possible)
+• Use special powers strategically!
 
-⏰ Make your choice!''',
+⏰ Choose quickly! Timer is running...''',
     },
   };
 

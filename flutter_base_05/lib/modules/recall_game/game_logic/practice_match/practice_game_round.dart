@@ -124,35 +124,6 @@ class PracticeGameRound {
     }
   }
 
-  /// Set current player to DRAWING_CARD status (replicates backend logic)
-  void _setCurrentPlayerToDrawing(Map<String, dynamic> gameState) {
-    try {
-      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
-      
-      if (currentPlayer != null) {
-        // Update the currentPlayer reference
-        currentPlayer['status'] = 'drawing_card';
-        
-        // Also update the corresponding player in the players list
-        final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
-        final playerInList = players.firstWhere(
-          (p) => p['id'] == currentPlayer['id'],
-          orElse: () => <String, dynamic>{},
-        );
-        
-        if (playerInList.isNotEmpty) {
-          playerInList['status'] = 'drawing_card';
-        }
-        
-        Logger().info('Practice: Player ${currentPlayer['name']} status set to DRAWING_CARD', isOn: LOGGING_SWITCH);
-      } else {
-        Logger().warning('Practice: No current player found to set to drawing_card status', isOn: LOGGING_SWITCH);
-      }
-      
-    } catch (e) {
-      Logger().error('Practice: Failed to set current player to drawing: $e', isOn: LOGGING_SWITCH);
-    }
-  }
   
   /// Get the current game state from the practice coordinator
   Map<String, dynamic>? _getCurrentGameState() {
@@ -204,7 +175,7 @@ class PracticeGameRound {
       
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
       // This matches backend behavior where first player status is DRAWING_CARD
-      _practiceCoordinator.updatePlayerStatus('drawing_card', playerId: nextPlayer['id'], updateMainState: true);
+      _practiceCoordinator.updatePlayerStatus('drawing_card', playerId: nextPlayer['id'], updateMainState: true, triggerInstructions: true);
       
       // Start turn timer
       _startTurnTimer();
@@ -436,7 +407,7 @@ class PracticeGameRound {
       Logger().info('Practice: Added card ${drawnCard['cardId']} to player $playerId hand with full data', isOn: LOGGING_SWITCH);
       
       // Change player status from DRAWING_CARD to PLAYING_CARD
-      final statusUpdated = _practiceCoordinator.updatePlayerStatus('playing_card', playerId: playerId, updateMainState: true);
+      final statusUpdated = _practiceCoordinator.updatePlayerStatus('playing_card', playerId: playerId, updateMainState: true, triggerInstructions: true);
       if (!statusUpdated) {
         Logger().error('Practice: Failed to update player status to playing_card', isOn: LOGGING_SWITCH);
         return false;

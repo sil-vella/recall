@@ -1022,7 +1022,7 @@ class PracticeGameCoordinator {
           return await _handleDrawCard(sessionId, data);
         default:
           Logger().warning('Practice: Unknown event type: $eventName', isOn: LOGGING_SWITCH);
-          return false;
+    return false;
       }
     } catch (e) {
       Logger().error('Practice: Error handling event $eventName: $e', isOn: LOGGING_SWITCH);

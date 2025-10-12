@@ -881,7 +881,7 @@ class PracticeGameCoordinator {
             'isMyTurn': isCurrentPlayerHuman, // Update isMyTurn based on current player
             'myDrawnCard': drawnCard, // Update myDrawnCard so frontend can show the drawn card
           });
-        } else {
+        } else if (playerId != null) {
           // For non-human players, update the games map and currentPlayer/currentPlayerStatus
           Logger().info('Practice: Updating games state for non-human player $playerId with status: $status', isOn: LOGGING_SWITCH);
           
@@ -892,6 +892,20 @@ class PracticeGameCoordinator {
             'isMyTurn': isCurrentPlayerHuman, // Update isMyTurn based on current player
           });
           Logger().info('Practice: Games state updated for non-human player - opponentsPanel should be recomputed', isOn: LOGGING_SWITCH);
+        } else {
+          // Update ALL players (playerId == null)
+          // This is used for cases like same_rank_window where all players get the same status
+          // We need to update both human player status AND current player status for widgets
+          Logger().info('Practice: Updating main state for ALL players with status: $status', isOn: LOGGING_SWITCH);
+          
+          updatePracticeGameState({
+            'playerStatus': status, // Human player status for MyHandWidget
+            'games': currentGames, // Updated games map with all players' statuses
+            'currentPlayer': currentPlayer, // For OpponentsPanel
+            'currentPlayerStatus': status, // Current player's status for OpponentsPanel
+            'isMyTurn': isCurrentPlayerHuman, // Keep isMyTurn consistent
+          });
+          Logger().info('Practice: Main state updated for all players - all widgets should reflect new status', isOn: LOGGING_SWITCH);
         }
       }
       

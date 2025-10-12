@@ -1020,6 +1020,8 @@ class PracticeGameCoordinator {
           return await _handleCompletedInitialPeek(sessionId, data);
         case 'draw_card':
           return await _handleDrawCard(sessionId, data);
+        case 'play_card':
+          return await _handlePlayCard(sessionId, data);
         default:
           Logger().warning('Practice: Unknown event type: $eventName', isOn: LOGGING_SWITCH);
     return false;
@@ -1289,6 +1291,78 @@ class PracticeGameCoordinator {
     }
   }
 
+  /// Handle the play_card event from practice room
+  Future<bool> _handlePlayCard(String sessionId, Map<String, dynamic> data) async {
+    try {
+      Logger().info('Practice: Handling play_card event with data: $data', isOn: LOGGING_SWITCH);
+      
+      // Validate required data
+      final cardId = data['card_id']?.toString();
+      if (cardId == null || cardId.isEmpty) {
+        Logger().error('Practice: Missing card_id in play_card event data', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Validate current player and status
+      final currentGames = _getCurrentGamesMap();
+      final currentGameId = _currentPracticeGameId;
+      
+      if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
+        Logger().error('Practice: No active practice game found for play_card event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final gameData = currentGames[currentGameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for play_card event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      if (currentPlayer == null) {
+        Logger().error('Practice: No current player found for play_card event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final playerId = currentPlayer['id']?.toString() ?? '';
+      if (playerId != 'practice_user') {
+        Logger().error('Practice: Current player is not the human player for play_card event: $playerId', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Check if player status is 'playing_card'
+      final playerStatus = currentPlayer['status']?.toString() ?? '';
+      if (playerStatus != 'playing_card') {
+        Logger().error('Practice: Player status is not playing_card for play_card event: $playerStatus', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Validating play_card for player $playerId with card $cardId', isOn: LOGGING_SWITCH);
+      
+      // Route to PracticeGameRound for actual play card logic
+      if (_gameRound != null) {
+        final success = await _gameRound!.handlePlayCard(cardId);
+        if (success) {
+          Logger().info('Practice: Successfully handled play_card for card $cardId', isOn: LOGGING_SWITCH);
+          return true;
+        } else {
+          Logger().error('Practice: Failed to handle play_card in PracticeGameRound', isOn: LOGGING_SWITCH);
+          return false;
+        }
+      } else {
+        Logger().error('Practice: No game round available for play_card event', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to handle play_card event: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
   /// Find a card by its ID anywhere in the game (replicates backend get_card_by_id)
   /// Searches through all game locations: player hands, draw pile, discard pile
   /// Reconstructs full card data from original deck when needed
@@ -1317,6 +1391,82 @@ class PracticeGameCoordinator {
     } catch (e) {
       Logger().error('Practice: Error searching for card $cardId: $e', isOn: LOGGING_SWITCH);
       return null;
+    }
+  }
+
+  /// Add card to discard pile with full data (reusable method)
+  /// This ensures the card is added with complete card information for display
+  bool addToDiscardPile(Map<String, dynamic> card) {
+    try {
+      final currentGames = _getCurrentGamesMap();
+      final currentGameId = _currentPracticeGameId;
+
+      if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
+        Logger().error('Practice: No active practice game found for addToDiscardPile', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      final gameData = currentGames[currentGameId]['gameData'] as Map<String, dynamic>?;
+      final gameState = gameData?['game_state'] as Map<String, dynamic>?;
+
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for addToDiscardPile', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      // Get current discard pile WITHOUT modifying it (to ensure change detection works)
+      final currentDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Create NEW discard pile with the added card (don't modify the original!)
+      final newDiscardPile = List<Map<String, dynamic>>.from(currentDiscardPile)..add(card);
+
+      Logger().info('Practice: Added card ${card['cardId']} to discard pile with full data', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Discard pile now has ${newDiscardPile.length} cards', isOn: LOGGING_SWITCH);
+
+      // Create a DEEP copy of the games map to ensure change detection works properly
+      // This is critical because the state manager needs to detect that the 'games' field has changed
+      // A shallow copy would keep references to nested objects, preventing change detection
+      final updatedGames = Map<String, dynamic>.from(currentGames);
+      final updatedCurrentGame = Map<String, dynamic>.from(updatedGames[currentGameId] as Map<String, dynamic>);
+      final updatedGameData = Map<String, dynamic>.from(updatedCurrentGame['gameData'] as Map<String, dynamic>);
+      final updatedGameState = Map<String, dynamic>.from(updatedGameData['game_state'] as Map<String, dynamic>);
+
+      // Update the discard pile in the deep-copied game state with the NEW list
+      updatedGameState['discardPile'] = newDiscardPile;
+
+      // Reassemble the structure with new references
+      updatedGameData['game_state'] = updatedGameState;
+      updatedCurrentGame['gameData'] = updatedGameData;
+      updatedGames[currentGameId] = updatedCurrentGame;
+      
+      // Debug: Log the discard pile contents before state update
+      Logger().info('Practice: Discard pile contents before state update: ${newDiscardPile.map((c) => c['cardId']).toList()}', isOn: LOGGING_SWITCH);
+      
+      // Simulate what the backend's _send_game_state_partial_update does for discard_pile changes
+      // This replicates the frontend's handleGameStatePartialUpdate logic for discard_pile (lines 571-574)
+      // The backend sends BOTH:
+      // 1. The updated discardPile in the games map (for centerBoard slice computation)
+      // 2. The discardPile in the main state (for direct access)
+      
+      Logger().info('Practice: === DISCARD PILE STATE UPDATE DEBUG ===', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: New discard pile length: ${newDiscardPile.length}', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: New discard pile cards: ${newDiscardPile.map((c) => '${c['cardId']}: ${c['rank']} of ${c['suit']}').toList()}', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Updating games map with new structure', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Updating main state discardPile field', isOn: LOGGING_SWITCH);
+      
+      updatePracticeGameState({
+        'games': updatedGames,
+        'discardPile': newDiscardPile,  // CRITICAL: Also update main state discardPile like the backend does
+      });
+      
+      Logger().info('Practice: State update triggered for discard pile change (simulating backend partial update)', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: ========================================', isOn: LOGGING_SWITCH);
+
+      return true;
+
+    } catch (e) {
+      Logger().error('Practice: Failed to add card to discard pile: $e', isOn: LOGGING_SWITCH);
+      return false;
     }
   }
 

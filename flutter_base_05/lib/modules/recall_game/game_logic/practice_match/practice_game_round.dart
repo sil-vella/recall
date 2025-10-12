@@ -433,6 +433,244 @@ class PracticeGameRound {
     }
   }
 
+  /// Handle playing a card from the player's hand (replicates backend _handle_play_card)
+  Future<bool> handlePlayCard(String cardId) async {
+    try {
+      Logger().info('Practice: Handling play card: $cardId', isOn: LOGGING_SWITCH);
+      
+      // Get current game state
+      final currentGames = _practiceCoordinator.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for play card', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      if (currentPlayer == null) {
+        Logger().error('Practice: No current player found for play card', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final playerId = currentPlayer['id']?.toString() ?? '';
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Find the player in the players list
+      final player = players.firstWhere(
+        (p) => p['id'] == playerId,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      if (player.isEmpty) {
+        Logger().error('Practice: Player $playerId not found in players list', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Find the card in the player's hand
+      final hand = player['hand'] as List<Map<String, dynamic>>? ?? [];
+      Map<String, dynamic>? cardToPlay;
+      int cardIndex = -1;
+      
+      for (int i = 0; i < hand.length; i++) {
+        final card = hand[i];
+        if (card['cardId'] == cardId) {
+          cardToPlay = card;
+          cardIndex = i;
+          break;
+        }
+      }
+      
+      if (cardToPlay == null) {
+        Logger().error('Practice: Card $cardId not found in player $playerId hand', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      Logger().info('Practice: Found card $cardId at index $cardIndex in player $playerId hand', isOn: LOGGING_SWITCH);
+      
+      // Handle drawn card repositioning BEFORE removing the played card
+      final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
+      
+      // Remove the played card from hand
+      hand.removeAt(cardIndex);
+      Logger().info('Practice: Removed card $cardId from player $playerId hand', isOn: LOGGING_SWITCH);
+      
+      // Convert card to full data before adding to discard pile
+      // The player's hand contains ID-only cards, but discard pile needs full card data
+      final cardToPlayFullData = _practiceCoordinator.getCardById(gameState, cardId);
+      if (cardToPlayFullData == null) {
+        Logger().error('Practice: Failed to get full data for card $cardId', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      Logger().info('Practice: Converted card $cardId to full data for discard pile', isOn: LOGGING_SWITCH);
+      
+      // Add card to discard pile using reusable method (ensures full data and proper state updates)
+      final success = _practiceCoordinator.addToDiscardPile(cardToPlayFullData);
+      if (!success) {
+        Logger().error('Practice: Failed to add card $cardId to discard pile', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      Logger().info('Practice: Successfully added card $cardId to discard pile with full data', isOn: LOGGING_SWITCH);
+      
+      // Handle drawn card repositioning with smart blank slot system
+      if (drawnCard != null && drawnCard['cardId'] != cardId) {
+        // The drawn card should fill the blank slot left by the played card
+        // The blank slot is at cardIndex (where the played card was)
+        Logger().info('Practice: Repositioning drawn card ${drawnCard['cardId']} to index $cardIndex', isOn: LOGGING_SWITCH);
+        
+        // First, find and remove the drawn card from its original position
+        int? originalIndex;
+        for (int i = 0; i < hand.length; i++) {
+          if (hand[i]['cardId'] == drawnCard['cardId']) {
+            originalIndex = i;
+            break;
+          }
+        }
+        
+        if (originalIndex != null) {
+          // Remove the drawn card from its original position
+          hand.removeAt(originalIndex);
+          Logger().info('Practice: Removed drawn card from original position $originalIndex', isOn: LOGGING_SWITCH);
+          
+          // Adjust target index if we removed a card before it
+          if (originalIndex < cardIndex) {
+            cardIndex -= 1;
+          }
+        }
+        
+        // Place the drawn card in the blank slot left by the played card
+        // IMPORTANT: Convert drawn card to ID-only data when placing in hand (same as backend)
+        final drawnCardIdOnly = {
+          'cardId': drawnCard['cardId'],
+          'suit': '?',
+          'rank': '?',
+          'points': 0,
+          'displayName': 'Card ${drawnCard['cardId']}',
+          'color': 'black',
+        };
+        
+        if (cardIndex < hand.length) {
+          hand.insert(cardIndex, drawnCardIdOnly);
+          Logger().info('Practice: Placed drawn card (ID-only) in blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+        } else {
+          hand.add(drawnCardIdOnly);
+          Logger().info('Practice: Appended drawn card (ID-only) to end of hand', isOn: LOGGING_SWITCH);
+        }
+        
+        // Clear the drawn card property since it's no longer "drawn"
+        player['drawnCard'] = null;
+        Logger().info('Practice: Cleared drawn card property after repositioning', isOn: LOGGING_SWITCH);
+        
+        // Update the main state's myDrawnCard to null (same as backend)
+        _practiceCoordinator.updatePlayerStatus('waiting', playerId: playerId, updateMainState: true);
+        
+      } else if (drawnCard != null && drawnCard['cardId'] == cardId) {
+        // Clear the drawn card property since it's now in the discard pile
+        player['drawnCard'] = null;
+        Logger().info('Practice: Cleared drawn card property (played card was the drawn card)', isOn: LOGGING_SWITCH);
+        
+        // Update the main state's myDrawnCard to null (same as backend)
+        _practiceCoordinator.updatePlayerStatus('waiting', playerId: playerId, updateMainState: true);
+      }
+      
+      // Log pile contents after successful play
+      final drawPileCount = (gameState['drawPile'] as List?)?.length ?? 0;
+      final discardPileCount = (gameState['discardPile'] as List?)?.length ?? 0;
+
+      Logger().info('Practice: === PILE CONTENTS AFTER PLAY ===', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Draw Pile Count: $drawPileCount', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Played Card: ${cardToPlay['cardId']}', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: ================================', isOn: LOGGING_SWITCH);
+
+      // Note: State update is already handled by addToDiscardPile method
+      
+      // Check if the played card has special powers (Jack/Queen) - simplified for practice
+      final rank = cardToPlay['rank']?.toString() ?? '';
+      if (rank == 'Queen' || rank == 'Jack') {
+        Logger().info('Practice: Special card played: $rank - would trigger special powers in real game', isOn: LOGGING_SWITCH);
+        // In practice mode, we'll skip special powers for now
+      }
+      
+      // Move to next player (simplified turn management for practice)
+      await _moveToNextPlayer();
+      
+      return true;
+      
+    } catch (e) {
+      Logger().error('Practice: Error handling play card: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  /// Move to the next player (simplified version for practice)
+  Future<void> _moveToNextPlayer() async {
+    try {
+      Logger().info('Practice: Moving to next player', isOn: LOGGING_SWITCH);
+      
+      // Get current game state
+      final currentGames = _practiceCoordinator.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null for move to next player', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      
+      if (currentPlayer == null || players.isEmpty) {
+        Logger().error('Practice: No current player or players list for move to next player', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Set current player status to waiting before moving to next player
+      final currentPlayerId = currentPlayer['id']?.toString() ?? '';
+      _practiceCoordinator.updatePlayerStatus('waiting', playerId: currentPlayerId, updateMainState: true);
+      Logger().info('Practice: Set current player $currentPlayerId status to waiting', isOn: LOGGING_SWITCH);
+      
+      // Find current player index
+      int currentIndex = -1;
+      for (int i = 0; i < players.length; i++) {
+        if (players[i]['id'] == currentPlayerId) {
+          currentIndex = i;
+          break;
+        }
+      }
+      
+      if (currentIndex == -1) {
+        Logger().error('Practice: Current player $currentPlayerId not found in players list', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Move to next player (or first if at end)
+      final nextIndex = (currentIndex + 1) % players.length;
+      final nextPlayer = players[nextIndex];
+      final nextPlayerId = nextPlayer['id']?.toString() ?? '';
+      
+      // Update current player in game state
+      gameState['currentPlayer'] = nextPlayer;
+      Logger().info('Practice: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+      
+      // Set new current player status to DRAWING_CARD (first action is to draw a card)
+      // Don't call _startNextTurn() because it would call _getNextPlayer() again and skip this player!
+      _practiceCoordinator.updatePlayerStatus('drawing_card', playerId: nextPlayerId, updateMainState: true, triggerInstructions: true);
+      Logger().info('Practice: Set next player ${nextPlayer['name']} to drawing_card status', isOn: LOGGING_SWITCH);
+      
+      // Start turn timer for the new player
+      _startTurnTimer();
+      Logger().info('Practice: Started turn for player ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Error moving to next player: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
   /// Dispose of resources
   void dispose() {
     _turnTimer?.cancel();

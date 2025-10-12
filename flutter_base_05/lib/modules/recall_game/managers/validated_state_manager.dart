@@ -699,11 +699,15 @@ class RecallGameStateUpdater {
   
   /// Compute center board widget slice
   Map<String, dynamic> _computeCenterBoardSlice(Map<String, dynamic> state) {
+    print('🔍 DEBUG: _computeCenterBoardSlice CALLED');
     final currentGameId = state['currentGameId']?.toString() ?? '';
+    print('🔍 DEBUG: _computeCenterBoardSlice - currentGameId: $currentGameId');
     final games = state['games'] as Map<String, dynamic>? ?? {};
+    print('🔍 DEBUG: _computeCenterBoardSlice - games keys: ${games.keys.toList()}');
     
     // If no current game or game not found in games map
     if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
+      print('🔍 DEBUG: _computeCenterBoardSlice - No current game found, returning empty slice');
       return {
         'drawPileCount': 0,
         'topDiscard': null,
@@ -717,17 +721,37 @@ class RecallGameStateUpdater {
     final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     
+    print('🔍 DEBUG: _computeCenterBoardSlice - gameState keys: ${gameState.keys.toList()}');
+    
     // Get pile information from game state
     final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
     final drawPileCount = drawPile.length;
     
-    return {
+    print('🔍 DEBUG: _computeCenterBoardSlice - drawPile length: $drawPileCount');
+    print('🔍 DEBUG: _computeCenterBoardSlice - discardPile length: ${discardPile.length}');
+    
+    // Debug: Log discard pile contents when computing centerBoard slice
+    if (discardPile.isNotEmpty) {
+      print('🔍 DEBUG: _computeCenterBoardSlice - discardPile has ${discardPile.length} cards');
+      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard will be: ${discardPile.last}');
+      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard cardId: ${discardPile.last['cardId']}');
+      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard rank: ${discardPile.last['rank']}');
+      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard suit: ${discardPile.last['suit']}');
+    } else {
+      print('🔍 DEBUG: _computeCenterBoardSlice - discardPile is empty');
+    }
+    
+    final result = {
       'drawPileCount': drawPileCount,
       'topDiscard': discardPile.isNotEmpty ? discardPile.last : null,
       'canDrawFromDeck': drawPileCount > 0,
       'canTakeFromDiscard': discardPile.isNotEmpty,
     };
+    
+    print('🔍 DEBUG: _computeCenterBoardSlice - Returning result with topDiscard: ${result['topDiscard'] != null ? 'NOT NULL' : 'NULL'}');
+    
+    return result;
   }
   
   /// Compute opponents panel widget slice

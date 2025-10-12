@@ -32,9 +32,25 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
       builder: (context, child) {
         final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         
+        print('🔍 DEBUG: DiscardPileWidget build() called');
+        print('🔍 DEBUG: DiscardPileWidget - recallGameState keys: ${recallGameState.keys.toList()}');
+        
         // Get centerBoard state slice
         final centerBoard = recallGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+        print('🔍 DEBUG: DiscardPileWidget - centerBoard: $centerBoard');
+        
         final topDiscard = centerBoard['topDiscard'] as Map<String, dynamic>?;
+        print('🔍 DEBUG: DiscardPileWidget - topDiscard: $topDiscard');
+        
+        if (topDiscard != null) {
+          print('🔍 DEBUG: DiscardPileWidget - topDiscard cardId: ${topDiscard['cardId']}');
+          print('🔍 DEBUG: DiscardPileWidget - topDiscard rank: ${topDiscard['rank']}');
+          print('🔍 DEBUG: DiscardPileWidget - topDiscard suit: ${topDiscard['suit']}');
+          print('🔍 DEBUG: DiscardPileWidget - topDiscard has displayName: ${topDiscard.containsKey('displayName')}');
+        } else {
+          print('🔍 DEBUG: DiscardPileWidget - topDiscard is NULL');
+        }
+        
         final canTakeFromDiscard = centerBoard['canTakeFromDiscard'] ?? false;
         
         // Get additional game state for context

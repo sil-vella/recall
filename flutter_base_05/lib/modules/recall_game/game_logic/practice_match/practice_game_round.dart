@@ -418,6 +418,13 @@ class PracticeGameRound {
       
       Logger().info('Practice: Added card ${drawnCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
       
+      // Debug: Log all cards in hand after adding drawn card
+      Logger().info('Practice: DEBUG - Player hand after draw:', isOn: LOGGING_SWITCH);
+      for (int i = 0; i < hand.length; i++) {
+        final card = hand[i];
+        Logger().info('Practice: DEBUG -   Index $i: cardId=${card['cardId']}, hasFullData=${card.containsKey('rank')}', isOn: LOGGING_SWITCH);
+      }
+      
       // Change player status from DRAWING_CARD to PLAYING_CARD
       final statusUpdated = _practiceCoordinator.updatePlayerStatus('playing_card', playerId: playerId, updateMainState: true, triggerInstructions: true);
       if (!statusUpdated) {

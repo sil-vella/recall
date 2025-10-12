@@ -13,6 +13,7 @@ class PracticeGameRound {
   final PracticeGameCoordinator _practiceCoordinator;
   final String _gameId;
   Timer? _turnTimer;
+  Timer? _sameRankTimer; // Timer for same rank window (5 seconds)
   
   // Special card data storage - stores chronological list of special cards played
   // Matches backend's self.special_card_data list (game_round.py line 33)
@@ -604,7 +605,7 @@ class PracticeGameRound {
       _handleSameRankWindow();
 
       // Move to next player (simplified turn management for practice)
-      await _moveToNextPlayer();
+      // await _moveToNextPlayer();
       
       return true;
       
@@ -688,15 +689,68 @@ class PracticeGameRound {
       
       if (success) {
         Logger().info('Practice: Successfully set all players to same_rank_window status', isOn: LOGGING_SWITCH);
+        
+        // Start 5-second timer to automatically end same rank window
+        // Matches backend behavior (game_round.py line 579)
+        _startSameRankTimer();
       } else {
         Logger().error('Practice: Failed to set all players to same_rank_window status', isOn: LOGGING_SWITCH);
       }
       
-      // Note: For practice game, we'll skip the 5-second timer for now
-      // In a full implementation, would call _startSameRankTimer() here
-      
     } catch (e) {
       Logger().error('Practice: Error in _handleSameRankWindow: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Start a 5-second timer for the same rank window
+  /// Replicates backend's _start_same_rank_timer method in game_round.py lines 587-597
+  void _startSameRankTimer() {
+    try {
+      Logger().info('Practice: Starting 5-second same rank window timer', isOn: LOGGING_SWITCH);
+      
+      // Cancel existing timer if any
+      _sameRankTimer?.cancel();
+      
+      // Store timer reference for potential cancellation
+      _sameRankTimer = Timer(const Duration(seconds: 5), () {
+        _endSameRankWindow();
+      });
+      
+    } catch (e) {
+      Logger().error('Practice: Error starting same rank timer: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// End the same rank window and move to next player
+  /// Replicates backend's _end_same_rank_window method in game_round.py lines 599-616
+  void _endSameRankWindow() {
+    try {
+      Logger().info('Practice: Ending same rank window - resetting all players to waiting status', isOn: LOGGING_SWITCH);
+      
+      // TODO: Log same_rank_data if any players played matching cards (future implementation)
+      // For now, we just log that window is ending
+      Logger().info('Practice: No same rank plays recorded (simplified practice mode)', isOn: LOGGING_SWITCH);
+      
+      // Update all players' status to WAITING
+      final success = _practiceCoordinator.updatePlayerStatus(
+        'waiting',
+        playerId: null, // null = update ALL players
+        updateMainState: true,
+        triggerInstructions: false,
+      );
+      
+      if (success) {
+        Logger().info('Practice: Successfully reset all players to waiting status', isOn: LOGGING_SWITCH);
+      } else {
+        Logger().error('Practice: Failed to reset players to waiting status', isOn: LOGGING_SWITCH);
+      }
+      
+      // Now move to the next player
+      Logger().info('Practice: Same rank window ended, moving to next player', isOn: LOGGING_SWITCH);
+      _moveToNextPlayer();
+      
+    } catch (e) {
+      Logger().error('Practice: Error ending same rank window: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -769,6 +823,7 @@ class PracticeGameRound {
   /// Dispose of resources
   void dispose() {
     _turnTimer?.cancel();
+    _sameRankTimer?.cancel();
     Logger().info('Practice: PracticeGameRound disposed for game $_gameId', isOn: LOGGING_SWITCH);
   }
 }

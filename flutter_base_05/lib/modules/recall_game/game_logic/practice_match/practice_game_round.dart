@@ -264,18 +264,11 @@ class PracticeGameRound {
     
     Logger().info('Practice: Found current player at index $currentIndex: ${players[currentIndex]['name']}', isOn: LOGGING_SWITCH);
     
-    // Check if current player is human - if so, keep them as current (don't move to next)
-    final currentPlayer = players[currentIndex];
-    if (currentPlayer['isHuman'] == true) {
-      Logger().info('Practice: Current player is human player - keeping them as current (not moving to next)', isOn: LOGGING_SWITCH);
-      return currentPlayer;
-    }
-    
-    // Get next player (wrap around) - only for non-human players
+    // Get next player (wrap around)
     final nextIndex = (currentIndex + 1) % players.length;
     final nextPlayer = players[nextIndex];
     
-    Logger().info('Practice: Current player is not human, moving to next player index: $nextIndex, next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: Next player index: $nextIndex, next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
     
     return nextPlayer;
   }

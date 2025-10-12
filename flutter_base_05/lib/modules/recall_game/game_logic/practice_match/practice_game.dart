@@ -629,7 +629,7 @@ class PracticeGameCoordinator {
         
         // Player Management
         'players': dealtPlayers,
-        'currentPlayer': dealtPlayers.isNotEmpty ? dealtPlayers.first : null, // First player is current
+        'currentPlayer': null, // No current player initially - will be set by initializeRound()
         'playerCount': dealtPlayers.length,
         'activePlayerCount': dealtPlayers.length,
         

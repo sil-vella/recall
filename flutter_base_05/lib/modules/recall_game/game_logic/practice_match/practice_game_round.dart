@@ -192,11 +192,17 @@ class PracticeGameRound {
       
       Logger().info('Practice: Selected next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
       
+      // Reset previous current player's status to waiting (if there was one)
+      if (currentPlayerId != null) {
+        Logger().info('Practice: Resetting previous current player $currentPlayerId to waiting status', isOn: LOGGING_SWITCH);
+        _practiceCoordinator.updatePlayerStatus('waiting', playerId: currentPlayerId, updateMainState: true);
+      }
+      
       // Update current player
       gameState['currentPlayer'] = nextPlayer;
       Logger().info('Practice: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
       
-      // Set player status to DRAWING_CARD (first action is to draw a card)
+      // Set new current player status to DRAWING_CARD (first action is to draw a card)
       // This matches backend behavior where first player status is DRAWING_CARD
       _practiceCoordinator.updatePlayerStatus('drawing_card', playerId: nextPlayer['id'], updateMainState: true);
       

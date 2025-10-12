@@ -848,25 +848,31 @@ class PracticeGameCoordinator {
         Logger().info('Practice: Updated ${players.length} players to $status status', isOn: LOGGING_SWITCH);
       }
       
-      // Update main state if requested (only for human player)
-      if (updateMainState && playerId == 'practice_user') {
-        updatePracticeGameState({
-          'playerStatus': status,
-          'games': currentGames,
-        });
-      } else if (updateMainState) {
-        // For non-human players, update the games map and currentPlayer/currentPlayerStatus
-        Logger().info('Practice: Updating games state for non-human player $playerId with status: $status', isOn: LOGGING_SWITCH);
-        
+      // Update main state if requested
+      if (updateMainState) {
         // Get the current player from game state
         final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+        final isCurrentPlayerHuman = currentPlayer?['id'] == 'practice_user';
         
-        updatePracticeGameState({
-          'games': currentGames,
-          'currentPlayer': currentPlayer,
-          'currentPlayerStatus': status,
-        });
-        Logger().info('Practice: Games state updated for non-human player - opponentsPanel should be recomputed', isOn: LOGGING_SWITCH);
+        if (playerId == 'practice_user') {
+          // Updating human player status
+          updatePracticeGameState({
+            'playerStatus': status,
+            'games': currentGames,
+            'isMyTurn': isCurrentPlayerHuman, // Update isMyTurn based on current player
+          });
+        } else {
+          // For non-human players, update the games map and currentPlayer/currentPlayerStatus
+          Logger().info('Practice: Updating games state for non-human player $playerId with status: $status', isOn: LOGGING_SWITCH);
+          
+          updatePracticeGameState({
+            'games': currentGames,
+            'currentPlayer': currentPlayer,
+            'currentPlayerStatus': status,
+            'isMyTurn': isCurrentPlayerHuman, // Update isMyTurn based on current player
+          });
+          Logger().info('Practice: Games state updated for non-human player - opponentsPanel should be recomputed', isOn: LOGGING_SWITCH);
+        }
       }
       
       // Trigger contextual instructions if requested (respects _instructionsEnabled setting)

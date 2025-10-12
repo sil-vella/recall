@@ -487,11 +487,12 @@ class PracticeGameCoordinator {
   // ========================================
 
   /// Deal 4 cards to each player (replicating backend _deal_cards logic)
-  List<Map<String, dynamic>> _dealCardsToPlayers(List<Map<String, dynamic>> players, List<Map<String, dynamic>> deck) {
+  /// Returns a map with 'players' (dealt players) and 'remainingDeck' (cards not dealt)
+  Map<String, dynamic> _dealCardsToPlayers(List<Map<String, dynamic>> players, List<Map<String, dynamic>> deck) {
     Logger().info('Practice: Dealing cards to ${players.length} players', isOn: LOGGING_SWITCH);
     
-    // Create a copy of the deck to work with
-    final workingDeck = List<Map<String, dynamic>>.from(deck);
+    // Create a DEEP copy of the deck to work with (each card is a separate object)
+    final workingDeck = deck.map((card) => Map<String, dynamic>.from(card)).toList();
     
     // Deal 4 cards to each player
     for (final player in players) {
@@ -527,7 +528,12 @@ class PracticeGameCoordinator {
     }
     
     Logger().info('Practice: Card dealing complete. ${workingDeck.length} cards remaining in deck', isOn: LOGGING_SWITCH);
-    return players;
+    
+    // Return both the dealt players and the remaining deck (matches backend pattern)
+    return {
+      'players': players,
+      'remainingDeck': workingDeck,
+    };
   }
 
   /// Set up draw and discard piles (replicating backend _setup_piles logic)
@@ -621,10 +627,13 @@ class PracticeGameCoordinator {
       final deck = await _createDeck(gameId);
       
       // Deal cards to players (replicating backend _deal_cards logic)
-      final dealtPlayers = _dealCardsToPlayers(allPlayers, deck);
+      // Returns both players and remaining deck after dealing
+      final dealResult = _dealCardsToPlayers(allPlayers, deck);
+      final dealtPlayers = dealResult['players'] as List<Map<String, dynamic>>;
+      final remainingDeck = dealResult['remainingDeck'] as List<Map<String, dynamic>>;
       
-      // Set up draw and discard piles (replicating backend _setup_piles logic)
-      final pileSetup = _setupPiles(deck);
+      // Set up draw and discard piles using REMAINING deck after dealing (replicating backend _setup_piles logic)
+      final pileSetup = _setupPiles(remainingDeck);
       
       // Initialize game state properties (replicating backend GameState.__init__)
       final gameState = {

@@ -770,6 +770,15 @@ class RecallGameStateUpdater {
       );
     }
     
+    // Debug logging for opponents panel computation
+    print('🔍 OPPONENTS PANEL DEBUG:');
+    print('  currentGameId: $currentGameId');
+    print('  currentUserId: $currentUserId');
+    print('  allPlayers: ${allPlayers.map((p) => '${p['name']} (${p['id']}, status: ${p['status']})').join(', ')}');
+    print('  opponents: ${opponents.map((p) => '${p['name']} (${p['id']}, status: ${p['status']})').join(', ')}');
+    print('  currentPlayer: ${currentPlayer?['name']} (${currentPlayer?['id']})');
+    print('  currentTurnIndex: $currentTurnIndex');
+    
     return {
       'opponents': opponents,
       'currentTurnIndex': currentTurnIndex,

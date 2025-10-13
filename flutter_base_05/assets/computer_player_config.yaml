@@ -1,0 +1,156 @@
+# Computer Player Configuration for Recall Game
+# This file defines declarative behavior for computer players
+# Used by both Dart (frontend) and Python (backend) computer player logic
+
+# Global computer player settings
+computer_settings:
+  default_difficulty: "medium"
+  decision_delay_seconds: 1.0
+  error_rate: 0.05
+
+# Difficulty levels and their corresponding behaviors
+difficulties:
+  easy:
+    name: "Easy"
+    description: "Beginner-friendly AI with simple decision making"
+    decision_delay_seconds: 2.0
+    error_rate: 0.1  # 10% chance of making suboptimal decisions
+    
+    # Card selection strategy
+    card_selection:
+      strategy: "random"  # random, points_low, points_high, special_power
+      special_power_preference: 0.3  # 30% preference for special cards
+      
+    # Recall calling strategy
+    recall_strategy:
+      min_cards_threshold: 1
+      max_points_threshold: 3
+      call_probability: 0.8  # 80% chance to call when conditions met
+      
+    # Special card usage
+    special_cards:
+      jack_swap:
+        use_probability: 0.6  # 60% chance to use Jack swap
+        target_strategy: "random"  # random, lowest_points, highest_points
+      queen_peek:
+        use_probability: 0.7  # 70% chance to use Queen peek
+        target_strategy: "random"  # random, most_cards, least_cards
+
+  medium:
+    name: "Medium"
+    description: "Balanced AI with moderate decision making"
+    decision_delay_seconds: 1.5
+    error_rate: 0.05  # 5% chance of making suboptimal decisions
+    
+    card_selection:
+      strategy: "points_low"  # Prefer lower point cards
+      special_power_preference: 0.5  # 50% preference for special cards
+      
+    recall_strategy:
+      min_cards_threshold: 2
+      max_points_threshold: 5
+      call_probability: 0.9
+      
+    special_cards:
+      jack_swap:
+        use_probability: 0.8
+        target_strategy: "lowest_points"
+      queen_peek:
+        use_probability: 0.8
+        target_strategy: "most_cards"
+
+  hard:
+    name: "Hard"
+    description: "Advanced AI with strategic decision making"
+    decision_delay_seconds: 1.0
+    error_rate: 0.02  # 2% chance of making suboptimal decisions
+    
+    card_selection:
+      strategy: "strategic"  # Complex strategic evaluation
+      special_power_preference: 0.7  # 70% preference for special cards
+      
+    recall_strategy:
+      min_cards_threshold: 3
+      max_points_threshold: 7
+      call_probability: 0.95
+      
+    special_cards:
+      jack_swap:
+        use_probability: 0.9
+        target_strategy: "strategic"  # Complex target selection
+      queen_peek:
+        use_probability: 0.9
+        target_strategy: "strategic"
+
+  expert:
+    name: "Expert"
+    description: "Master-level AI with optimal decision making"
+    decision_delay_seconds: 0.5
+    error_rate: 0.0  # No errors
+    
+    card_selection:
+      strategy: "optimal"  # Perfect strategic evaluation
+      special_power_preference: 0.8  # 80% preference for special cards
+      
+    recall_strategy:
+      min_cards_threshold: 4
+      max_points_threshold: 10
+      call_probability: 1.0  # Always call when conditions met
+      
+    special_cards:
+      jack_swap:
+        use_probability: 1.0
+        target_strategy: "optimal"
+      queen_peek:
+        use_probability: 1.0
+        target_strategy: "optimal"
+
+# Event-specific behaviors
+events:
+  draw_card:
+    # Decision logic for drawing cards
+    draw_from_discard_probability:
+      easy: 0.3    # 30% chance to draw from discard
+      medium: 0.5  # 50% chance to draw from discard
+      hard: 0.7    # 70% chance to draw from discard
+      expert: 0.8  # 80% chance to draw from discard
+      
+  play_card:
+    # Decision logic for playing cards
+    card_evaluation_weights:
+      points: 0.4      # Weight for card points
+      special_power: 0.3  # Weight for special powers
+      game_phase: 0.2   # Weight for current game phase
+      opponent_analysis: 0.1  # Weight for opponent analysis
+      
+  same_rank_play:
+    # Decision logic for same rank plays
+    play_probability:
+      easy: 0.6    # 60% chance to play same rank
+      medium: 0.8  # 80% chance to play same rank
+      hard: 0.9    # 90% chance to play same rank
+      expert: 1.0  # Always play same rank if possible
+      
+  jack_swap:
+    # Decision logic for Jack swap
+    swap_targets:
+      strategy: "points_analysis"  # Analyze opponent points
+      preferred_targets: ["lowest_points", "most_cards"]
+      
+  queen_peek:
+    # Decision logic for Queen peek
+    peek_targets:
+      strategy: "information_gathering"
+      preferred_targets: ["most_cards", "unknown_hand"]
+
+# Computer player statistics (for validation)
+computer_stats:
+  total_difficulties: 4
+  supported_events: 5
+  config_version: "1.0"
+  
+  difficulty_distribution:
+    easy: 25
+    medium: 50
+    hard: 20
+    expert: 5

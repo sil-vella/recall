@@ -13,7 +13,8 @@ import threading
 from .game_state import GameState, GamePhase
 from ..models.player import Player, PlayerStatus
 from ..models.card import Card
-from tools.logger.custom_logging import custom_log 
+from tools.logger.custom_logging import custom_log
+from ..utils.computer_player_factory import ComputerPlayerFactory 
 
 LOGGING_SWITCH = True
 
@@ -26,6 +27,7 @@ class GameRound:
         self.round_start_time = None
         self.round_end_time = None
         self.current_turn_start_time = None
+        self._computer_player_factory = None  # YAML-based computer player factory
         self.turn_timeout_seconds = 30  # 30 seconds per turn
         self.actions_performed = []
 
@@ -263,6 +265,16 @@ class GameRound:
         try:
             custom_log(f"Processing computer player turn for: {computer_player.player_id}", level="INFO", isOn=LOGGING_SWITCH)
             
+            # Initialize computer player factory if not already done
+            if self._computer_player_factory is None:
+                try:
+                    config_path = "core/modules/recall_game/config/computer_player_config.yaml"
+                    self._computer_player_factory = ComputerPlayerFactory.from_file(config_path)
+                    custom_log("Computer player factory initialized with YAML config", level="INFO", isOn=LOGGING_SWITCH)
+                except Exception as e:
+                    custom_log(f"Failed to load computer player config, using default behavior: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+                    # Continue with default behavior if YAML loading fails
+            
             # Start the turn normally (sets status to DRAWING_CARD, etc.)
             self.start_turn()
             
@@ -272,8 +284,12 @@ class GameRound:
             
             custom_log(f"Computer player {computer_player.player_id} - Difficulty: {difficulty}, Event: {current_event}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Use declarative switch case approach (similar to frontend)
-            self._handle_computer_action(computer_player, difficulty, current_event)
+            # Use YAML-based computer player factory for decision making
+            if self._computer_player_factory is not None:
+                self._handle_computer_action_with_yaml(computer_player, difficulty, current_event)
+            else:
+                # Fallback to original logic if YAML not available
+                self._handle_computer_action(computer_player, difficulty, current_event)
             
         except Exception as e:
             custom_log(f"Error in _handle_computer_player_turn: {e}", level="ERROR", isOn=LOGGING_SWITCH)
@@ -303,6 +319,147 @@ class GameRound:
             custom_log(f"Error getting current computer event: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return 'draw_card'
     
+    def _handle_computer_action_with_yaml(self, computer_player, difficulty, event_name):
+        """Handle computer action using YAML-based configuration"""
+        try:
+            custom_log(f"Handling computer action with YAML - Player: {computer_player.player_id}, Difficulty: {difficulty}, Event: {event_name}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            if self._computer_player_factory is None:
+                custom_log("Computer player factory not initialized", level="ERROR", isOn=LOGGING_SWITCH)
+                self._move_to_next_player()
+                return
+            
+            # Get decision from YAML-based factory
+            game_state_dict = self._get_game_state_dict()
+            decision = None
+            
+            if event_name == 'draw_card':
+                decision = self._computer_player_factory.get_draw_card_decision(difficulty, game_state_dict)
+            elif event_name == 'play_card':
+                # TODO: Get available cards from game state
+                available_cards = []  # Placeholder for now
+                decision = self._computer_player_factory.get_play_card_decision(difficulty, game_state_dict, available_cards)
+            elif event_name == 'same_rank_play':
+                # TODO: Get available cards from game state
+                available_cards = []  # Placeholder for now
+                decision = self._computer_player_factory.get_same_rank_play_decision(difficulty, game_state_dict, available_cards)
+            elif event_name == 'jack_swap':
+                decision = self._computer_player_factory.get_jack_swap_decision(difficulty, game_state_dict, computer_player.player_id)
+            elif event_name == 'queen_peek':
+                decision = self._computer_player_factory.get_queen_peek_decision(difficulty, game_state_dict, computer_player.player_id)
+            else:
+                custom_log(f"Unknown event for computer action: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
+                self._move_to_next_player()
+                return
+            
+            custom_log(f"Computer decision: {decision}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Execute decision with delay from YAML config
+            delay_seconds = decision.get('delay_seconds', 1.0)
+            def delayed_execution():
+                self._execute_computer_decision_yaml(decision, computer_player, event_name)
+            
+            timer = threading.Timer(delay_seconds, delayed_execution)
+            timer.start()
+            
+        except Exception as e:
+            custom_log(f"Error in _handle_computer_action_with_yaml: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
+    
+    def _execute_computer_decision_yaml(self, decision, computer_player, event_name):
+        """Execute computer player decision based on YAML configuration"""
+        try:
+            custom_log(f"Executing computer decision: {decision}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            if event_name == 'draw_card':
+                source = decision.get('source', 'deck')
+                if source == 'discard':
+                    # TODO: Implement draw from discard pile
+                    custom_log("Computer drawing from discard pile", level="INFO", isOn=LOGGING_SWITCH)
+                else:
+                    # Draw from deck (default)
+                    action_data = {
+                        'source': 'deck',
+                        'player_id': computer_player.player_id
+                    }
+                    success = self._route_action('draw_from_deck', computer_player.player_id, action_data)
+                    if not success:
+                        custom_log(f"Computer player {computer_player.player_id} failed to draw card", level="ERROR", isOn=LOGGING_SWITCH)
+                        self._move_to_next_player()
+            
+            elif event_name == 'play_card':
+                card_id = decision.get('card_id')
+                if card_id:
+                    # TODO: Implement play card logic
+                    custom_log(f"Computer playing card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+                else:
+                    custom_log("No card selected for computer play", level="WARNING", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+            
+            elif event_name == 'same_rank_play':
+                should_play = decision.get('play', False)
+                if should_play:
+                    card_id = decision.get('card_id')
+                    if card_id:
+                        # TODO: Implement same rank play logic
+                        custom_log(f"Computer playing same rank card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                        self._move_to_next_player()
+                    else:
+                        custom_log("No card selected for computer same rank play", level="WARNING", isOn=LOGGING_SWITCH)
+                        self._move_to_next_player()
+                else:
+                    custom_log("Computer decided not to play same rank", level="INFO", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+            
+            elif event_name == 'jack_swap':
+                should_use = decision.get('use', False)
+                if should_use:
+                    # TODO: Implement Jack swap logic
+                    custom_log("Computer using Jack swap", level="INFO", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+                else:
+                    custom_log("Computer decided not to use Jack swap", level="INFO", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+            
+            elif event_name == 'queen_peek':
+                should_use = decision.get('use', False)
+                if should_use:
+                    # TODO: Implement Queen peek logic
+                    custom_log("Computer using Queen peek", level="INFO", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+                else:
+                    custom_log("Computer decided not to use Queen peek", level="INFO", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+            
+            else:
+                custom_log(f"Unknown event for computer decision execution: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
+                self._move_to_next_player()
+            
+        except Exception as e:
+            custom_log(f"Error executing computer decision: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
+    
+    def _get_game_state_dict(self):
+        """Convert game state to dictionary for YAML factory"""
+        try:
+            return {
+                'current_player_id': self.game_state.current_player_id,
+                'phase': self.game_state.phase.value,
+                'players': {pid: {
+                    'id': player.player_id,
+                    'name': player.name,
+                    'status': player.status.value if hasattr(player.status, 'value') else str(player.status),
+                    'hand': [card.card_id for card in player.hand],
+                    'points': getattr(player, 'points', 0)
+                } for pid, player in self.game_state.players.items()},
+                'discard_pile': [card.card_id for card in self.game_state.discard_pile],
+                'draw_pile_count': len(self.game_state.draw_pile)
+            }
+        except Exception as e:
+            custom_log(f"Error converting game state to dict: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return {}
+
     def _handle_computer_action(self, computer_player, difficulty, event_name):
         """Handle computer action using declarative switch case approach"""
         try:

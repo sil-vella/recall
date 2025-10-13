@@ -187,15 +187,194 @@ class PracticeGameRound {
       // This matches backend behavior where first player status is DRAWING_CARD
       _practiceCoordinator.updatePlayerStatus('drawing_card', playerId: nextPlayer['id'], updateMainState: true, triggerInstructions: true);
       
-      // Start turn timer
-      _startTurnTimer();
-      
-      Logger().info('Practice: Started turn for player ${nextPlayer['name']} - status: drawing_card', isOn: LOGGING_SWITCH);
+      // Check if this is a computer player and trigger computer turn logic
+      final isHuman = nextPlayer['isHuman'] as bool? ?? false;
+      if (!isHuman) {
+        Logger().info('Practice: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
+        _initComputerTurn(gameState);
+      } else {
+        // Start turn timer for human players
+        _startTurnTimer();
+        Logger().info('Practice: Started turn for human player ${nextPlayer['name']} - status: drawing_card', isOn: LOGGING_SWITCH);
+      }
       
     } catch (e) {
       Logger().error('Practice: Failed to start next turn: $e', isOn: LOGGING_SWITCH);
     }
   }
+
+  /// Initialize computer player turn logic
+  /// This method will handle the complete computer player turn flow
+  /// Uses declarative YAML configuration for computer behavior
+  void _initComputerTurn(Map<String, dynamic> gameState) {
+    try {
+      Logger().info('Practice: ===== INITIALIZING COMPUTER TURN =====', isOn: LOGGING_SWITCH);
+      
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      if (currentPlayer == null) {
+        Logger().error('Practice: No current player found for computer turn', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      final playerId = currentPlayer['id']?.toString() ?? 'unknown';
+      final playerName = currentPlayer['name']?.toString() ?? 'Unknown';
+      
+      Logger().info('Practice: Computer player $playerName ($playerId) starting turn', isOn: LOGGING_SWITCH);
+      
+      // Get computer player difficulty from game state
+      final difficulty = _getComputerDifficulty(gameState, playerId);
+      Logger().info('Practice: Computer player difficulty: $difficulty', isOn: LOGGING_SWITCH);
+      
+      // Determine the current event/action needed
+      final eventName = _getCurrentEventName(gameState, playerId);
+      Logger().info('Practice: Current event needed: $eventName', isOn: LOGGING_SWITCH);
+      
+      // Call declarative YAML configuration handler
+      _handleComputerAction(gameState, playerId, difficulty, eventName);
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _initComputerTurn: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Get computer player difficulty from game state
+  String _getComputerDifficulty(Map<String, dynamic> gameState, String playerId) {
+    try {
+      // For now, return a default difficulty
+      // Later this will be read from game configuration or player settings
+      return 'medium'; // Options: easy, medium, hard, expert
+    } catch (e) {
+      Logger().error('Practice: Error getting computer difficulty: $e', isOn: LOGGING_SWITCH);
+      return 'medium';
+    }
+  }
+
+  /// Determine what event/action the computer player needs to perform
+  String _getCurrentEventName(Map<String, dynamic> gameState, String playerId) {
+    try {
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      final player = players.firstWhere(
+        (p) => p['id'] == playerId,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      final playerStatus = player['status']?.toString() ?? 'unknown';
+      
+      // Map player status to event names (same as human players)
+      switch (playerStatus) {
+        case 'drawing_card':
+          return 'draw_card';
+        case 'playing_card':
+          return 'play_card';
+        case 'same_rank_window':
+          return 'same_rank_play';
+        case 'jack_swap':
+          return 'jack_swap';
+        case 'queen_peek':
+          return 'queen_peek';
+        default:
+          Logger().warning('Practice: Unknown player status for event mapping: $playerStatus', isOn: LOGGING_SWITCH);
+          return 'draw_card'; // Default to drawing a card
+      }
+    } catch (e) {
+      Logger().error('Practice: Error getting current event name: $e', isOn: LOGGING_SWITCH);
+      return 'draw_card';
+    }
+  }
+
+  /// Handle computer action using declarative YAML configuration
+  void _handleComputerAction(Map<String, dynamic> gameState, String playerId, String difficulty, String eventName) {
+    try {
+      Logger().info('Practice: Handling computer action - Player: $playerId, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
+      
+      // TODO: Load and parse declarative YAML configuration
+      // The YAML will define:
+      // - Decision trees for each event type
+      // - Difficulty-based behavior variations
+      // - Card selection strategies
+      // - Special card usage patterns
+      
+      Logger().info('Practice: Declarative YAML configuration will be implemented here', isOn: LOGGING_SWITCH);
+      
+      // Wire directly to existing human player methods - computers perform the same actions
+      switch (eventName) {
+        case 'draw_card':
+          // TODO: Use YAML to determine draw source (deck vs discard)
+          Timer(const Duration(seconds: 1), () async {
+            final success = await handleDrawCard('deck');
+            if (!success) {
+              Logger().error('Practice: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
+              _moveToNextPlayer();
+            }
+          });
+          break;
+        case 'play_card':
+          // TODO: Use YAML to determine which card to play
+          Timer(const Duration(seconds: 1), () async {
+            // TODO: Get card ID from YAML configuration
+            // For now, use a placeholder card ID
+            final success = await handlePlayCard('placeholder_card_id');
+            if (!success) {
+              Logger().error('Practice: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
+              _moveToNextPlayer();
+            }
+          });
+          break;
+        case 'same_rank_play':
+          // TODO: Use YAML to determine same rank play decision
+          Timer(const Duration(seconds: 1), () async {
+            // TODO: Get card ID from YAML configuration
+            // For now, use a placeholder card ID
+            final success = await handleSameRankPlay(playerId, 'placeholder_card_id');
+            if (!success) {
+              Logger().error('Practice: Computer player $playerId failed same rank play', isOn: LOGGING_SWITCH);
+              _moveToNextPlayer();
+            }
+          });
+          break;
+        case 'jack_swap':
+          // TODO: Use YAML to determine Jack swap targets
+          Timer(const Duration(seconds: 1), () async {
+            // TODO: Get swap targets from YAML configuration
+            // For now, use placeholder targets
+            final success = await handleJackSwap(
+              firstCardId: 'placeholder_first_card',
+              firstPlayerId: playerId,
+              secondCardId: 'placeholder_second_card',
+              secondPlayerId: 'placeholder_target_player',
+            );
+            if (!success) {
+              Logger().error('Practice: Computer player $playerId failed Jack swap', isOn: LOGGING_SWITCH);
+              _moveToNextPlayer();
+            }
+          });
+          break;
+        case 'queen_peek':
+          // TODO: Use YAML to determine Queen peek target
+          Timer(const Duration(seconds: 1), () async {
+            // TODO: Get peek target from YAML configuration
+            // For now, use placeholder targets
+            final success = await handleQueenPeek(
+              peekingPlayerId: playerId,
+              targetCardId: 'placeholder_target_card',
+              targetPlayerId: 'placeholder_target_player',
+            );
+            if (!success) {
+              Logger().error('Practice: Computer player $playerId failed Queen peek', isOn: LOGGING_SWITCH);
+              _moveToNextPlayer();
+            }
+          });
+          break;
+        default:
+          Logger().warning('Practice: Unknown event for computer action: $eventName', isOn: LOGGING_SWITCH);
+          _moveToNextPlayer();
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _handleComputerAction: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
   
   /// Get the next player in rotation
   Map<String, dynamic>? _getNextPlayer(List<Map<String, dynamic>> players, String? currentPlayerId) {

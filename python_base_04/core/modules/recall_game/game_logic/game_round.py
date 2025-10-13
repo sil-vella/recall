@@ -81,6 +81,25 @@ class GameRound:
                 if player:
                     player.set_status(PlayerStatus.DRAWING_CARD)
                     custom_log(f"Player {self.game_state.current_player_id} status set to DRAWING_CARD", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Check if this is a computer player and handle automatically
+                    if hasattr(player, 'player_type') and player.player_type.value == 'computer':
+                        custom_log(f"Computer player detected in start_turn: {self.game_state.current_player_id} - triggering automatic turn processing", level="INFO", isOn=LOGGING_SWITCH)
+                        # Use a timer to simulate human-like delay
+                        import threading
+                        def delayed_computer_turn():
+                            self._handle_computer_player_turn(player)
+                        timer = threading.Timer(1.0, delayed_computer_turn)  # 1 second delay
+                        timer.start()
+                        return {
+                            "success": True,
+                            "round_number": self.round_number,
+                            "round_start_time": datetime.fromtimestamp(self.round_start_time).isoformat(),
+                            "current_player": self.game_state.current_player_id,
+                            "game_phase": self.game_state.phase.value,
+                            "player_count": len(self.game_state.players),
+                            "computer_turn": True
+                        }
             
             # Initialize timed rounds if enabled
             if self.timed_rounds_enabled:
@@ -227,11 +246,242 @@ class GameRound:
             else:
                 pass
             
-            # Send turn started event to new player
-            self.start_turn()
+            # Check if the next player is a computer player and handle automatically
+            next_player = self.game_state.players.get(next_player_id)
+            if next_player and hasattr(next_player, 'player_type') and next_player.player_type.value == 'computer':
+                custom_log(f"Computer player detected: {next_player_id} - triggering automatic turn processing", level="INFO", isOn=LOGGING_SWITCH)
+                self._handle_computer_player_turn(next_player)
+            else:
+                # Send turn started event to human player
+                self.start_turn()
             
         except Exception as e:
             pass
+    
+    def _handle_computer_player_turn(self, computer_player):
+        """Handle automatic turn processing for computer players"""
+        try:
+            custom_log(f"Processing computer player turn for: {computer_player.player_id}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Start the turn normally (sets status to DRAWING_CARD, etc.)
+            self.start_turn()
+            
+            # Get computer player difficulty and current event
+            difficulty = getattr(computer_player, 'difficulty', 'medium')
+            current_event = self._get_current_computer_event(computer_player)
+            
+            custom_log(f"Computer player {computer_player.player_id} - Difficulty: {difficulty}, Event: {current_event}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Use declarative switch case approach (similar to frontend)
+            self._handle_computer_action(computer_player, difficulty, current_event)
+            
+        except Exception as e:
+            custom_log(f"Error in _handle_computer_player_turn: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            # Fallback: move to next player if computer turn fails
+            self._move_to_next_player()
+    
+    def _get_current_computer_event(self, computer_player):
+        """Determine what event/action the computer player needs to perform"""
+        try:
+            player_status = computer_player.status.value if hasattr(computer_player.status, 'value') else str(computer_player.status)
+            
+            # Map player status to event names (same as frontend)
+            if player_status == 'drawing_card':
+                return 'draw_card'
+            elif player_status == 'playing_card':
+                return 'play_card'
+            elif player_status == 'same_rank_window':
+                return 'same_rank_play'
+            elif player_status == 'jack_swap':
+                return 'jack_swap'
+            elif player_status == 'queen_peek':
+                return 'queen_peek'
+            else:
+                custom_log(f"Unknown player status for event mapping: {player_status}", level="WARNING", isOn=LOGGING_SWITCH)
+                return 'draw_card'  # Default to drawing a card
+        except Exception as e:
+            custom_log(f"Error getting current computer event: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return 'draw_card'
+    
+    def _handle_computer_action(self, computer_player, difficulty, event_name):
+        """Handle computer action using declarative switch case approach"""
+        try:
+            custom_log(f"Handling computer action - Player: {computer_player.player_id}, Difficulty: {difficulty}, Event: {event_name}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # TODO: Load and parse declarative YAML configuration
+            # The YAML will define:
+            # - Decision trees for each event type
+            # - Difficulty-based behavior variations
+            # - Card selection strategies
+            # - Special card usage patterns
+            
+            custom_log(f"Declarative YAML configuration will be implemented here", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Wire directly to existing action handlers - computers perform the same actions
+            if event_name == 'draw_card':
+                # TODO: Use YAML to determine draw source (deck vs discard)
+                import threading
+                def delayed_draw():
+                    self._handle_computer_draw_card(computer_player, 'deck')
+                timer = threading.Timer(1.0, delayed_draw)  # 1 second delay
+                timer.start()
+                
+            elif event_name == 'play_card':
+                # TODO: Use YAML to determine which card to play
+                import threading
+                def delayed_play():
+                    self._handle_computer_play_card(computer_player)
+                timer = threading.Timer(1.0, delayed_play)  # 1 second delay
+                timer.start()
+                
+            elif event_name == 'same_rank_play':
+                # TODO: Use YAML to determine same rank play decision
+                import threading
+                def delayed_same_rank():
+                    self._handle_computer_same_rank_play(computer_player)
+                timer = threading.Timer(1.0, delayed_same_rank)  # 1 second delay
+                timer.start()
+                
+            elif event_name == 'jack_swap':
+                # TODO: Use YAML to determine Jack swap targets
+                import threading
+                def delayed_jack_swap():
+                    self._handle_computer_jack_swap(computer_player)
+                timer = threading.Timer(1.0, delayed_jack_swap)  # 1 second delay
+                timer.start()
+                
+            elif event_name == 'queen_peek':
+                # TODO: Use YAML to determine Queen peek target
+                import threading
+                def delayed_queen_peek():
+                    self._handle_computer_queen_peek(computer_player)
+                timer = threading.Timer(1.0, delayed_queen_peek)  # 1 second delay
+                timer.start()
+                
+            else:
+                custom_log(f"Unknown event for computer action: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
+                self._move_to_next_player()
+                
+        except Exception as e:
+            custom_log(f"Error in _handle_computer_action: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
+    
+    def _execute_computer_decision(self, computer_player, decision):
+        """Execute the computer player's decision"""
+        try:
+            action = decision.get('action')
+            player_id = computer_player.player_id
+            
+            if action == 'call_recall':
+                custom_log(f"Computer player {player_id} calling recall", level="INFO", isOn=LOGGING_SWITCH)
+                # TODO: Implement call_recall logic - route to call_recall handler
+                # For now, just move to next player
+                self._move_to_next_player()
+                
+            elif action == 'play_card':
+                card_index = decision.get('card_index', 0)
+                custom_log(f"Computer player {player_id} playing card at index {card_index}", level="INFO", isOn=LOGGING_SWITCH)
+                
+                # Get the card from the computer player's hand
+                if card_index < len(computer_player.hand):
+                    card_to_play = computer_player.hand[card_index]
+                    card_id = card_to_play.card_id
+                    
+                    # Simulate the play_card action
+                    action_data = {
+                        'card_id': card_id,
+                        'player_id': player_id
+                    }
+                    
+                    # Route to the play_card handler
+                    success = self._route_action('play_card', player_id, action_data)
+                    if success:
+                        custom_log(f"Computer player {player_id} successfully played card {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                    else:
+                        custom_log(f"Computer player {player_id} failed to play card {card_id}", level="ERROR", isOn=LOGGING_SWITCH)
+                        self._move_to_next_player()
+                else:
+                    custom_log(f"Computer player {player_id} invalid card index {card_index}", level="ERROR", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+            else:
+                custom_log(f"Computer player {player_id} unknown action: {action}", level="WARNING", isOn=LOGGING_SWITCH)
+                self._move_to_next_player()
+                
+        except Exception as e:
+            custom_log(f"Error in _execute_computer_decision: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
+    
+    def _handle_computer_draw_card(self, computer_player, source):
+        """Handle computer player drawing a card"""
+        try:
+            custom_log(f"Computer player {computer_player.player_id} drawing card from {source}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Route to existing draw_card handler
+            action_data = {
+                'source': source,
+                'player_id': computer_player.player_id
+            }
+            
+            success = self._route_action('draw_from_deck', computer_player.player_id, action_data)
+            if not success:
+                custom_log(f"Computer player {computer_player.player_id} failed to draw card", level="ERROR", isOn=LOGGING_SWITCH)
+                self._move_to_next_player()
+                
+        except Exception as e:
+            custom_log(f"Error in _handle_computer_draw_card: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
+    
+    def _handle_computer_play_card(self, computer_player):
+        """Handle computer player playing a card"""
+        try:
+            custom_log(f"Computer player {computer_player.player_id} playing a card", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # TODO: Use YAML to determine which card to play
+            # For now, just move to next player (placeholder for card selection logic)
+            self._move_to_next_player()
+            
+        except Exception as e:
+            custom_log(f"Error in _handle_computer_play_card: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
+    
+    def _handle_computer_same_rank_play(self, computer_player):
+        """Handle computer player same rank play"""
+        try:
+            custom_log(f"Computer player {computer_player.player_id} same rank play", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # TODO: Use YAML to determine same rank play decision
+            # For now, just move to next player (placeholder for same rank logic)
+            self._move_to_next_player()
+            
+        except Exception as e:
+            custom_log(f"Error in _handle_computer_same_rank_play: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
+    
+    def _handle_computer_jack_swap(self, computer_player):
+        """Handle computer player Jack swap"""
+        try:
+            custom_log(f"Computer player {computer_player.player_id} Jack swap", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # TODO: Use YAML to determine Jack swap targets
+            # For now, just move to next player (placeholder for Jack swap logic)
+            self._move_to_next_player()
+            
+        except Exception as e:
+            custom_log(f"Error in _handle_computer_jack_swap: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
+    
+    def _handle_computer_queen_peek(self, computer_player):
+        """Handle computer player Queen peek"""
+        try:
+            custom_log(f"Computer player {computer_player.player_id} Queen peek", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # TODO: Use YAML to determine Queen peek target
+            # For now, just move to next player (placeholder for Queen peek logic)
+            self._move_to_next_player()
+            
+        except Exception as e:
+            custom_log(f"Error in _handle_computer_queen_peek: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
     
     def _handle_end_of_match(self):
         """Handle the end of the match"""

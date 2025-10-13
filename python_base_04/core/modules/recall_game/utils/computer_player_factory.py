@@ -7,7 +7,7 @@ Provides declarative AI decision making for computer players in the backend.
 import random
 import threading
 from typing import Dict, Any, List, Optional
-from utils.logging_utils import custom_log
+from tools.logger.custom_logging import custom_log
 from .computer_player_config_loader import ComputerPlayerConfigLoader
 
 LOGGING_SWITCH = True

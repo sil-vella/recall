@@ -84,24 +84,8 @@ class GameRound:
                     player.set_status(PlayerStatus.DRAWING_CARD)
                     custom_log(f"Player {self.game_state.current_player_id} status set to DRAWING_CARD", level="INFO", isOn=LOGGING_SWITCH)
                     
-                    # Check if this is a computer player and handle automatically
-                    if hasattr(player, 'player_type') and player.player_type.value == 'computer':
-                        custom_log(f"Computer player detected in start_turn: {self.game_state.current_player_id} - triggering automatic turn processing", level="INFO", isOn=LOGGING_SWITCH)
-                        # Use a timer to simulate human-like delay
-                        import threading
-                        def delayed_computer_turn():
-                            self._handle_computer_player_turn(player)
-                        timer = threading.Timer(1.0, delayed_computer_turn)  # 1 second delay
-                        timer.start()
-                        return {
-                            "success": True,
-                            "round_number": self.round_number,
-                            "round_start_time": datetime.fromtimestamp(self.round_start_time).isoformat(),
-                            "current_player": self.game_state.current_player_id,
-                            "game_phase": self.game_state.phase.value,
-                            "player_count": len(self.game_state.players),
-                            "computer_turn": True
-                        }
+                    # Note: Computer player detection is now handled in _move_to_next_player
+                    # to avoid duplicate processing
             
             # Initialize timed rounds if enabled
             if self.timed_rounds_enabled:
@@ -263,7 +247,7 @@ class GameRound:
     def _handle_computer_player_turn(self, computer_player):
         """Handle automatic turn processing for computer players"""
         try:
-            custom_log(f"Processing computer player turn for: {computer_player.player_id}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"=== COMPUTER TURN START === Player: {computer_player.player_id}, Hand size: {len(computer_player.hand)}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Initialize computer player factory if not already done
             if self._computer_player_factory is None:
@@ -275,8 +259,15 @@ class GameRound:
                     custom_log(f"Failed to load computer player config, using default behavior: {e}", level="ERROR", isOn=LOGGING_SWITCH)
                     # Continue with default behavior if YAML loading fails
             
-            # Start the turn normally (sets status to DRAWING_CARD, etc.)
-            self.start_turn()
+            # Check current status to determine what action to take
+            current_status = computer_player.status.value if hasattr(computer_player.status, 'value') else str(computer_player.status)
+            custom_log(f"Computer player {computer_player.player_id} current status: {current_status}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Only call start_turn if the player is in 'ready' or 'waiting' status
+            # This prevents resetting the status after a successful draw
+            if current_status in ['ready', 'waiting']:
+                custom_log(f"Starting turn for computer player {computer_player.player_id}", level="INFO", isOn=LOGGING_SWITCH)
+                self.start_turn()
             
             # Get computer player difficulty and current event
             difficulty = getattr(computer_player, 'difficulty', 'medium')
@@ -284,12 +275,23 @@ class GameRound:
             
             custom_log(f"Computer player {computer_player.player_id} - Difficulty: {difficulty}, Event: {current_event}", level="INFO", isOn=LOGGING_SWITCH)
             
+            # TODO: Implement play_card logic for computer players
+            # For now, skip processing if status is 'playing_card' and move to next player
+            if current_event == 'play_card':
+                custom_log(f"Computer player {computer_player.player_id} needs to play a card, but play_card logic not yet implemented. Moving to next player.", level="WARNING", isOn=LOGGING_SWITCH)
+                custom_log(f"=== COMPUTER TURN END (play_card not implemented) === Player: {computer_player.player_id}, Hand size: {len(computer_player.hand)}", level="INFO", isOn=LOGGING_SWITCH)
+                self._move_to_next_player()
+                return
+            
             # Use YAML-based computer player factory for decision making
             if self._computer_player_factory is not None:
+                custom_log(f"Calling _handle_computer_action_with_yaml for {computer_player.player_id}", level="INFO", isOn=LOGGING_SWITCH)
                 self._handle_computer_action_with_yaml(computer_player, difficulty, current_event)
             else:
                 # Fallback to original logic if YAML not available
                 self._handle_computer_action(computer_player, difficulty, current_event)
+            
+            custom_log(f"=== COMPUTER TURN END === Player: {computer_player.player_id}, Hand size: {len(computer_player.hand)}", level="INFO", isOn=LOGGING_SWITCH)
             
         except Exception as e:
             custom_log(f"Error in _handle_computer_player_turn: {e}", level="ERROR", isOn=LOGGING_SWITCH)
@@ -336,17 +338,9 @@ class GameRound:
             if event_name == 'draw_card':
                 decision = self._computer_player_factory.get_draw_card_decision(difficulty, game_state_dict)
             elif event_name == 'play_card':
-                # TODO: Get available cards from game state
-                available_cards = []  # Placeholder for now
+                # Get available cards from computer player's hand
+                available_cards = [card.card_id for card in computer_player.hand]
                 decision = self._computer_player_factory.get_play_card_decision(difficulty, game_state_dict, available_cards)
-            elif event_name == 'same_rank_play':
-                # TODO: Get available cards from game state
-                available_cards = []  # Placeholder for now
-                decision = self._computer_player_factory.get_same_rank_play_decision(difficulty, game_state_dict, available_cards)
-            elif event_name == 'jack_swap':
-                decision = self._computer_player_factory.get_jack_swap_decision(difficulty, game_state_dict, computer_player.player_id)
-            elif event_name == 'queen_peek':
-                decision = self._computer_player_factory.get_queen_peek_decision(difficulty, game_state_dict, computer_player.player_id)
             else:
                 custom_log(f"Unknown event for computer action: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
                 self._move_to_next_player()
@@ -373,64 +367,25 @@ class GameRound:
             
             if event_name == 'draw_card':
                 source = decision.get('source', 'deck')
-                if source == 'discard':
-                    # TODO: Implement draw from discard pile
-                    custom_log("Computer drawing from discard pile", level="INFO", isOn=LOGGING_SWITCH)
-                else:
-                    # Draw from deck (default)
-                    action_data = {
-                        'source': 'deck',
-                        'player_id': computer_player.player_id
-                    }
-                    success = self._route_action('draw_from_deck', computer_player.player_id, action_data)
-                    if not success:
-                        custom_log(f"Computer player {computer_player.player_id} failed to draw card", level="ERROR", isOn=LOGGING_SWITCH)
-                        self._move_to_next_player()
+                custom_log(f"Computer drawing from {source} pile", level="INFO", isOn=LOGGING_SWITCH)
+                
+                # Use existing _route_action logic (same as human players)
+                action_data = {
+                    'source': source,
+                    'player_id': computer_player.player_id
+                }
+                success = self._route_action('draw_from_deck', computer_player.player_id, action_data)
+                if not success:
+                    custom_log(f"Computer player {computer_player.player_id} failed to draw card", level="ERROR", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+                # Note: After successful draw, _handle_draw_from_pile sets status to PLAYING_CARD
+                # The next turn will detect this and handle play_card event
             
             elif event_name == 'play_card':
-                card_id = decision.get('card_id')
-                if card_id:
-                    # TODO: Implement play card logic
-                    custom_log(f"Computer playing card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
-                    self._move_to_next_player()
-                else:
-                    custom_log("No card selected for computer play", level="WARNING", isOn=LOGGING_SWITCH)
-                    self._move_to_next_player()
-            
-            elif event_name == 'same_rank_play':
-                should_play = decision.get('play', False)
-                if should_play:
-                    card_id = decision.get('card_id')
-                    if card_id:
-                        # TODO: Implement same rank play logic
-                        custom_log(f"Computer playing same rank card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
-                        self._move_to_next_player()
-                    else:
-                        custom_log("No card selected for computer same rank play", level="WARNING", isOn=LOGGING_SWITCH)
-                        self._move_to_next_player()
-                else:
-                    custom_log("Computer decided not to play same rank", level="INFO", isOn=LOGGING_SWITCH)
-                    self._move_to_next_player()
-            
-            elif event_name == 'jack_swap':
-                should_use = decision.get('use', False)
-                if should_use:
-                    # TODO: Implement Jack swap logic
-                    custom_log("Computer using Jack swap", level="INFO", isOn=LOGGING_SWITCH)
-                    self._move_to_next_player()
-                else:
-                    custom_log("Computer decided not to use Jack swap", level="INFO", isOn=LOGGING_SWITCH)
-                    self._move_to_next_player()
-            
-            elif event_name == 'queen_peek':
-                should_use = decision.get('use', False)
-                if should_use:
-                    # TODO: Implement Queen peek logic
-                    custom_log("Computer using Queen peek", level="INFO", isOn=LOGGING_SWITCH)
-                    self._move_to_next_player()
-                else:
-                    custom_log("Computer decided not to use Queen peek", level="INFO", isOn=LOGGING_SWITCH)
-                    self._move_to_next_player()
+                # TODO: Implement play_card logic
+                custom_log(f"Computer play_card decision received: {decision}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log("Play card logic not yet implemented for computer players", level="WARNING", isOn=LOGGING_SWITCH)
+                self._move_to_next_player()
             
             else:
                 custom_log(f"Unknown event for computer decision execution: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
@@ -1190,7 +1145,9 @@ class GameRound:
                     return False
             
             # Add card to player's hand (drawn cards always go to the end)
+            custom_log(f"BEFORE add_card_to_hand: Player {player_id} hand size: {len(player.hand)}", level="INFO", isOn=LOGGING_SWITCH)
             player.add_card_to_hand(drawn_card, is_drawn_card=True)
+            custom_log(f"AFTER add_card_to_hand: Player {player_id} hand size: {len(player.hand)}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Set the drawn card property
             player.set_drawn_card(drawn_card)

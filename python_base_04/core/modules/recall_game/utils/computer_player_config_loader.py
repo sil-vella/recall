@@ -8,7 +8,7 @@ structured access to AI behavior settings for the backend.
 import yaml
 import os
 from typing import Dict, Any, Optional
-from utils.logging_utils import custom_log
+from tools.logger.custom_logging import custom_log
 
 LOGGING_SWITCH = True
 

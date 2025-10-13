@@ -322,7 +322,14 @@ class GameRound:
                 # TODO: Use YAML to determine draw source (deck vs discard)
                 import threading
                 def delayed_draw():
-                    self._handle_computer_draw_card(computer_player, 'deck')
+                    action_data = {
+                        'source': 'deck',
+                        'player_id': computer_player.player_id
+                    }
+                    success = self._route_action('draw_from_deck', computer_player.player_id, action_data)
+                    if not success:
+                        custom_log(f"Computer player {computer_player.player_id} failed to draw card", level="ERROR", isOn=LOGGING_SWITCH)
+                        self._move_to_next_player()
                 timer = threading.Timer(1.0, delayed_draw)  # 1 second delay
                 timer.start()
                 
@@ -330,7 +337,9 @@ class GameRound:
                 # TODO: Use YAML to determine which card to play
                 import threading
                 def delayed_play():
-                    self._handle_computer_play_card(computer_player)
+                    # TODO: Get card ID from YAML configuration
+                    # For now, just move to next player (placeholder for card selection logic)
+                    self._move_to_next_player()
                 timer = threading.Timer(1.0, delayed_play)  # 1 second delay
                 timer.start()
                 
@@ -338,7 +347,9 @@ class GameRound:
                 # TODO: Use YAML to determine same rank play decision
                 import threading
                 def delayed_same_rank():
-                    self._handle_computer_same_rank_play(computer_player)
+                    # TODO: Get card ID from YAML configuration
+                    # For now, just move to next player (placeholder for same rank logic)
+                    self._move_to_next_player()
                 timer = threading.Timer(1.0, delayed_same_rank)  # 1 second delay
                 timer.start()
                 
@@ -346,7 +357,9 @@ class GameRound:
                 # TODO: Use YAML to determine Jack swap targets
                 import threading
                 def delayed_jack_swap():
-                    self._handle_computer_jack_swap(computer_player)
+                    # TODO: Get swap targets from YAML configuration
+                    # For now, just move to next player (placeholder for Jack swap logic)
+                    self._move_to_next_player()
                 timer = threading.Timer(1.0, delayed_jack_swap)  # 1 second delay
                 timer.start()
                 
@@ -354,7 +367,9 @@ class GameRound:
                 # TODO: Use YAML to determine Queen peek target
                 import threading
                 def delayed_queen_peek():
-                    self._handle_computer_queen_peek(computer_player)
+                    # TODO: Get peek target from YAML configuration
+                    # For now, just move to next player (placeholder for Queen peek logic)
+                    self._move_to_next_player()
                 timer = threading.Timer(1.0, delayed_queen_peek)  # 1 second delay
                 timer.start()
                 
@@ -411,77 +426,6 @@ class GameRound:
             custom_log(f"Error in _execute_computer_decision: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             self._move_to_next_player()
     
-    def _handle_computer_draw_card(self, computer_player, source):
-        """Handle computer player drawing a card"""
-        try:
-            custom_log(f"Computer player {computer_player.player_id} drawing card from {source}", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # Route to existing draw_card handler
-            action_data = {
-                'source': source,
-                'player_id': computer_player.player_id
-            }
-            
-            success = self._route_action('draw_from_deck', computer_player.player_id, action_data)
-            if not success:
-                custom_log(f"Computer player {computer_player.player_id} failed to draw card", level="ERROR", isOn=LOGGING_SWITCH)
-                self._move_to_next_player()
-                
-        except Exception as e:
-            custom_log(f"Error in _handle_computer_draw_card: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-            self._move_to_next_player()
-    
-    def _handle_computer_play_card(self, computer_player):
-        """Handle computer player playing a card"""
-        try:
-            custom_log(f"Computer player {computer_player.player_id} playing a card", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # TODO: Use YAML to determine which card to play
-            # For now, just move to next player (placeholder for card selection logic)
-            self._move_to_next_player()
-            
-        except Exception as e:
-            custom_log(f"Error in _handle_computer_play_card: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-            self._move_to_next_player()
-    
-    def _handle_computer_same_rank_play(self, computer_player):
-        """Handle computer player same rank play"""
-        try:
-            custom_log(f"Computer player {computer_player.player_id} same rank play", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # TODO: Use YAML to determine same rank play decision
-            # For now, just move to next player (placeholder for same rank logic)
-            self._move_to_next_player()
-            
-        except Exception as e:
-            custom_log(f"Error in _handle_computer_same_rank_play: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-            self._move_to_next_player()
-    
-    def _handle_computer_jack_swap(self, computer_player):
-        """Handle computer player Jack swap"""
-        try:
-            custom_log(f"Computer player {computer_player.player_id} Jack swap", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # TODO: Use YAML to determine Jack swap targets
-            # For now, just move to next player (placeholder for Jack swap logic)
-            self._move_to_next_player()
-            
-        except Exception as e:
-            custom_log(f"Error in _handle_computer_jack_swap: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-            self._move_to_next_player()
-    
-    def _handle_computer_queen_peek(self, computer_player):
-        """Handle computer player Queen peek"""
-        try:
-            custom_log(f"Computer player {computer_player.player_id} Queen peek", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # TODO: Use YAML to determine Queen peek target
-            # For now, just move to next player (placeholder for Queen peek logic)
-            self._move_to_next_player()
-            
-        except Exception as e:
-            custom_log(f"Error in _handle_computer_queen_peek: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-            self._move_to_next_player()
     
     def _handle_end_of_match(self):
         """Handle the end of the match"""

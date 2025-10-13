@@ -1569,8 +1569,12 @@ class PracticeGameCoordinator {
 
       // Route to PracticeGameRound for actual queen peek logic
       if (_gameRound != null) {
+        // Find the current player (the one doing the peek)
+        final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+        final currentPlayerId = currentPlayer?['id']?.toString() ?? 'practice_user';
+        
         final success = await _gameRound!.handleQueenPeek(
-          peekingPlayerId: sessionId,
+          peekingPlayerId: currentPlayerId,
           targetCardId: cardId,
           targetPlayerId: ownerId,
         );

@@ -689,7 +689,39 @@ class PracticeGameRound {
       // Validate that this is actually a same rank play
       if (!_validateSameRankPlay(gameState, cardRank)) {
         Logger().error('Practice: Same rank validation failed for card $cardId with rank $cardRank', isOn: LOGGING_SWITCH);
-        // TODO: Apply penalty - draw a card from the draw pile (future implementation)
+        
+        // Apply penalty: draw a card from the draw pile and add to player's hand
+        Logger().info('Practice: Applying penalty for wrong same rank play - drawing card from draw pile', isOn: LOGGING_SWITCH);
+        
+        final drawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
+        if (drawPile.isEmpty) {
+          Logger().error('Practice: Cannot apply penalty - draw pile is empty', isOn: LOGGING_SWITCH);
+          return false;
+        }
+        
+        // Draw a card from the draw pile (remove last card)
+        final penaltyCard = drawPile.removeLast();
+        Logger().info('Practice: Drew penalty card ${penaltyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
+        
+        // Add penalty card to player's hand as ID-only (same format as regular hand cards)
+        final penaltyCardIdOnly = {
+          'cardId': penaltyCard['cardId'],
+          'suit': '?',           // Face-down: hide suit
+          'rank': '?',           // Face-down: hide rank
+          'points': 0,           // Face-down: hide points
+          'displayName': '?',    // Face-down: hide display name
+          'color': 'black',      // Default color for face-down
+          'ownerId': playerId,   // Keep owner info
+        };
+        
+        hand.add(penaltyCardIdOnly);
+        Logger().info('Practice: Added penalty card ${penaltyCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
+        
+        // Update player state to reflect the new hand
+        _practiceCoordinator.updatePlayerStatus('waiting', playerId: playerId, updateMainState: true);
+        
+        Logger().info('Practice: Penalty applied successfully - player $playerId now has ${hand.length} cards', isOn: LOGGING_SWITCH);
+        
         return false;
       }
       
@@ -1233,8 +1265,29 @@ class PracticeGameRound {
         final specialData = _specialCardPlayers[0];
         final playerId = specialData['player_id']?.toString() ?? 'unknown';
         
-        // TODO: Get the player and clear their cards_to_peek (Queen peek timer expired)
-        // Future implementation
+        // Clear cards_to_peek for Queen peek timer expiration
+        final gameState = _getCurrentGameState();
+        if (gameState != null) {
+          final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+          final player = players.firstWhere(
+            (p) => p['id'] == playerId,
+            orElse: () => <String, dynamic>{},
+          );
+          
+          if (player.isNotEmpty) {
+            // Clear the player's cardsToPeek list (revert to ID-only cards)
+            player['cardsToPeek'] = [];
+            Logger().info('Practice: Cleared cardsToPeek for player $playerId - cards reverted to ID-only', isOn: LOGGING_SWITCH);
+            
+            // Update main state for human player
+            if (playerId == 'practice_user') {
+              _practiceCoordinator.updatePracticeGameState({
+                'myCardsToPeek': [],
+              });
+              Logger().info('Practice: Updated main state myCardsToPeek to empty list', isOn: LOGGING_SWITCH);
+            }
+          }
+        }
         
         _practiceCoordinator.updatePlayerStatus('waiting', playerId: playerId, updateMainState: true);
         Logger().info('Practice: Player $playerId special card timer expired - status reset to waiting', isOn: LOGGING_SWITCH);

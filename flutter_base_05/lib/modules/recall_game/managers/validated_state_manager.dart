@@ -381,6 +381,7 @@ class RecallGameStateUpdater {
         // Direct backend phase values (from GamePhase enum)
         'waiting_for_players',
         'dealing_cards',
+        'initial_peek',
         'player_turn',
         'same_rank_window',
         'special_play_window',

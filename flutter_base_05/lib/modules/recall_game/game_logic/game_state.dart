@@ -12,6 +12,7 @@ const bool LOGGING_SWITCH = true;
 enum GamePhase {
   waitingForPlayers,
   dealingCards,
+  initialPeek,
   playerTurn,
   sameRankWindow,
   specialPlayWindow,

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
+import '../../../../core/managers/state_manager.dart';
+import '../../../../tools/logging/logger.dart';
+import '../../game_logic/practice_match/practice_game.dart';
 import 'widgets/game_info_widget.dart';
 import 'widgets/opponents_panel_widget.dart';
 import 'widgets/draw_pile_widget.dart';
@@ -9,6 +12,8 @@ import 'widgets/my_hand_widget.dart';
 import 'widgets/instructions_widget.dart';
 import 'widgets/messages_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
+
+const bool LOGGING_SWITCH = true;
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);
@@ -22,6 +27,7 @@ class GamePlayScreen extends BaseScreen {
 
 class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   final WebSocketManager _websocketManager = WebSocketManager.instance;
+  String? _previousGameId; // Track game ID to detect navigation away
 
   @override
   void initState() {
@@ -31,6 +37,17 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       _setupEventCallbacks();
       _initializeGameState();
     });
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Get current game ID when screen loads
+    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    _previousGameId = recallGameState['currentGameId']?.toString();
+    
+    Logger().info('GamePlay: Screen loaded with game ID: $_previousGameId', isOn: LOGGING_SWITCH);
   }
 
   Future<void> _initializeWebSocket() async {
@@ -61,7 +78,27 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   }
   
   @override
+  void deactivate() {
+    // Check if we're navigating away from a practice game
+    if (_previousGameId != null && _previousGameId!.startsWith('practice_game_')) {
+      Logger().info('GamePlay: Navigating away from practice game $_previousGameId - cleaning up', isOn: LOGGING_SWITCH);
+      
+      // Clean up practice game state
+      PracticeGameCoordinator().cleanupPracticeState();
+    }
+    
+    super.deactivate();
+  }
+  
+  @override
   void dispose() {
+    // Additional cleanup on dispose (failsafe)
+    if (_previousGameId != null && _previousGameId!.startsWith('practice_game_')) {
+      Logger().info('GamePlay: Disposing practice game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
+      
+      PracticeGameCoordinator().cleanupPracticeState();
+    }
+    
     // Clean up any game-specific resources
     super.dispose();
   }

@@ -169,7 +169,10 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         
         final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
         final currentPlayerStatus = recallGameState['currentPlayerStatus']?.toString() ?? 'unknown';
-    
+        
+        // Determine if we're in initial peek phase - use gamePhase instead of playerStatus
+        final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
+        final isInitialPeekPhase = gamePhase == 'initial_peek';
     
     return Column(
       children: opponents.asMap().entries.map((entry) {
@@ -179,9 +182,21 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final isCurrentTurn = index == currentTurnIndex;
         final isCurrentPlayer = playerId == currentPlayerId;
         
+        // Extract known_cards from player data
+        final knownCards = player['known_cards'] as Map<String, dynamic>?;
+        
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: _buildOpponentCard(player, cardsToPeek, isCurrentTurn, isGameActive, isCurrentPlayer, currentPlayerStatus),
+          child: _buildOpponentCard(
+            player, 
+            cardsToPeek, 
+            isCurrentTurn, 
+            isGameActive, 
+            isCurrentPlayer, 
+            currentPlayerStatus,
+            knownCards,
+            isInitialPeekPhase
+          ),
         );
       }).toList(),
     );
@@ -190,7 +205,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build individual opponent card
-  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase) {
     final playerName = player['name']?.toString() ?? 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
@@ -265,7 +280,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           // Cards display - horizontal layout like my hand
           if (hand.isNotEmpty)
-            _buildCardsRow(hand, cardsToPeek, drawnCard, player['id']?.toString() ?? '')
+            _buildCardsRow(hand, cardsToPeek, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase)
           else
             _buildEmptyHand(),
         ],
@@ -274,7 +289,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build cards row - horizontal layout like my hand
-  Widget _buildCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, Map<String, dynamic>? drawnCard, String playerId) {
+  Widget _buildCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase) {
     return Container(
       height: 100,
       child: ListView.builder(
@@ -295,6 +310,16 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           final cardId = cardMap['cardId']?.toString();
           final drawnCardId = drawnCard?['cardId']?.toString();
           final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
+          
+          // Check if this card is known (peeked by AI or human during initial peek)
+          bool isKnownCard = false;
+          if (isInitialPeekPhase && knownCards != null && cardId != null) {
+            final playerKnownCards = knownCards[playerId] as Map<String, dynamic>?;
+            if (playerKnownCards != null) {
+              isKnownCard = playerKnownCards['card1'] == cardId || 
+                           playerKnownCards['card2'] == cardId;
+            }
+          }
           
           // Check if this card is in cardsToPeek (peeked cards have full data)
           // This is for when the current user is peeking at opponent cards (e.g., Queen peek)
@@ -318,7 +343,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
               right: 6,
               left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
             ),
-            child: _buildCardWidget(cardDataToUse, isDrawnCard, playerId),
+            child: _buildCardWidget(cardDataToUse, isDrawnCard, playerId, isKnownCard),
           );
         },
       ),
@@ -326,7 +351,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build individual card widget for opponents using the new CardWidget system
-  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId) {
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isKnownCard) {
     // Convert to CardModel
     final cardModel = CardModel.fromMap(card);
     
@@ -337,28 +362,77 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     // Update the card model with selection state
     final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
     
-    return Container(
-      decoration: isDrawnCard ? BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
-            blurRadius: 12,
-            spreadRadius: 2,
-            offset: const Offset(0, 0),
-          ),
-        ],
-      ) : null,
-      child: CardWidget(
-        card: updatedCardModel,
-        size: CardSize.small,
-        isSelectable: true,
-        isSelected: isSelected,
-        onTap: () => _handleCardClick(card, playerId),
-      ),
+    // Flashing border decoration for known cards during initial peek
+    Widget cardWidget = CardWidget(
+      card: updatedCardModel,
+      size: CardSize.small,
+      isSelectable: true,
+      isSelected: isSelected,
+      onTap: () => _handleCardClick(card, playerId),
     );
+    
+    // Wrap with flashing border if this is a known card
+    if (isKnownCard) {
+      cardWidget = _buildFlashingBorder(cardWidget);
+    }
+    
+    // Wrap with drawn card glow if needed
+    if (isDrawnCard) {
+      cardWidget = Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
+              blurRadius: 12,
+              spreadRadius: 2,
+              offset: const Offset(0, 0),
+            ),
+          ],
+        ),
+        child: cardWidget,
+      );
+    }
+    
+    return cardWidget;
   }
 
+  /// Build flashing border animation for known cards during initial peek
+  Widget _buildFlashingBorder(Widget child) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 800),
+      curve: Curves.easeInOut,
+      builder: (context, value, _) {
+        // Oscillate between 0.3 and 1.0 opacity
+        final opacity = 0.3 + (value * 0.7);
+        
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Colors.cyan.withOpacity(opacity),
+              width: 3,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.cyan.withOpacity(opacity * 0.5),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      onEnd: () {
+        // Restart animation (infinite loop)
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+  }
 
   /// Build empty hand state
   Widget _buildEmptyHand() {

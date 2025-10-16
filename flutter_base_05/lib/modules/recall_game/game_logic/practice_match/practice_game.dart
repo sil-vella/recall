@@ -7,6 +7,8 @@ import 'dart:async';
 import 'dart:math';
 import 'package:recall/tools/logging/logger.dart';
 import '../../../../core/managers/state_manager.dart';
+import '../../../../core/services/shared_preferences.dart';
+import '../../../../core/managers/services_manager.dart';
 import '../models/player.dart';
 import 'practice_game_round.dart';
 import 'practice_instructions.dart';
@@ -220,6 +222,9 @@ class PracticeGameCoordinator {
       // Cancel any existing timer
       _initialPeekTimer?.cancel();
       
+      // Process AI initial peeks immediately
+      _processAIInitialPeeks();
+      
       // Start new timer
       _initialPeekTimer = Timer(Duration(seconds: _initialPeekDurationSeconds), () {
         Logger().info('Practice: Initial peek timer completed, updating player status to waiting and initializing round', isOn: LOGGING_SWITCH);
@@ -233,11 +238,18 @@ class PracticeGameCoordinator {
         // Set flag to prevent duplicate calls
         _initialPeekCompleted = true;
         
-        // Update all players to 'waiting' status
-        final statusUpdated = updatePlayerStatus('waiting', updateMainState: true, triggerInstructions: false);
+        // Update all players to 'waiting' status and transition to player_turn phase
+        final statusUpdated = updatePlayerStatus('waiting', updateMainState: false, triggerInstructions: false);
         
         if (statusUpdated) {
           Logger().info('Practice: Successfully updated players to waiting status after initial peek timer', isOn: LOGGING_SWITCH);
+          
+          // Update game phase to player_turn
+          updatePracticeGameState({
+            'playerStatus': 'waiting',
+            'gamePhase': 'player_turn', // Transition to player_turn phase
+            'games': _getCurrentGamesMap(),
+          });
           
           // Initialize the game round for actual gameplay
           _initializeGameRound();
@@ -294,11 +306,18 @@ class PracticeGameCoordinator {
       // 1. Clear the cardsToPeek states that were updated during initial peek
       _clearCardsToPeekStates();
       
-      // 2. Update all players to 'waiting' status
-      final statusUpdated = updatePlayerStatus('waiting', updateMainState: true, triggerInstructions: false);
+      // 2. Update all players to 'waiting' status and transition to player_turn phase
+      final statusUpdated = updatePlayerStatus('waiting', updateMainState: false, triggerInstructions: false);
       
       if (statusUpdated) {
         Logger().info('Practice: Successfully updated players to waiting status after manual initial peek completion', isOn: LOGGING_SWITCH);
+        
+        // Update game phase to player_turn
+        updatePracticeGameState({
+          'playerStatus': 'waiting',
+          'gamePhase': 'player_turn', // Transition to player_turn phase
+          'games': _getCurrentGamesMap(),
+        });
         
         // 3. Initialize the game round for actual gameplay
         _initializeGameRound();
@@ -342,6 +361,82 @@ class PracticeGameCoordinator {
       
     } catch (e) {
       Logger().error('Practice: Failed to clear cardsToPeek states: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Clean up practice game state when navigating away
+  /// Restores actual user login from SharedPreferences
+  Future<void> cleanupPracticeState() async {
+    try {
+      Logger().info('Practice: Cleaning up practice game state', isOn: LOGGING_SWITCH);
+      
+      // Check if current user is the practice user
+      final loginState = _stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId']?.toString() ?? '';
+      
+      if (currentUserId == 'practice_user') {
+        Logger().info('Practice: Restoring actual login from SharedPreferences', isOn: LOGGING_SWITCH);
+        
+        // Get SharedPreferences service
+        final sharedPref = ServicesManager().getService<SharedPrefManager>('shared_pref');
+        
+        if (sharedPref != null) {
+          // Restore actual user from SharedPreferences
+          final isLoggedIn = sharedPref.getBool('is_logged_in') ?? false;
+          final userId = sharedPref.getString('user_id');
+          final username = sharedPref.getString('username');
+          final email = sharedPref.getString('email');
+          
+          Logger().info('Practice: Restored - userId: $userId, username: $username', isOn: LOGGING_SWITCH);
+          
+          _stateManager.updateModuleState('login', {
+            'isLoggedIn': isLoggedIn,
+            'userId': userId,
+            'username': username,
+            'email': email,
+            'error': null,
+          });
+        } else {
+          // Fallback: clear login state
+          Logger().warning('Practice: SharedPreferences not available - clearing login state', isOn: LOGGING_SWITCH);
+          _stateManager.updateModuleState('login', {
+            'isLoggedIn': false,
+            'userId': null,
+            'username': null,
+            'email': null,
+            'error': null,
+          });
+        }
+      }
+      
+      // Clear practice game state
+      _currentPracticeGameId = null;
+      _isPracticeGameActive = false;
+      
+      // Remove practice games from state
+      final recallGameState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final games = Map<String, dynamic>.from(recallGameState['games'] as Map<String, dynamic>? ?? {});
+      games.removeWhere((key, value) => key.startsWith('practice_game_'));
+      
+      // Clear currentGameId if it's a practice game
+      final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+      if (currentGameId.startsWith('practice_game_')) {
+        Logger().info('Practice: Clearing practice game as currentGameId', isOn: LOGGING_SWITCH);
+        _stateManager.updateModuleState('recall_game', {
+          'currentGameId': null,
+          'games': games,
+        });
+      } else if (games.isNotEmpty) {
+        _stateManager.updateModuleState('recall_game', {'games': games});
+      }
+      
+      // Dispose game round
+      _gameRound?.dispose();
+      _gameRound = null;
+      
+      Logger().info('Practice: Cleanup completed', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      Logger().error('Practice: Cleanup failed: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -488,20 +583,27 @@ class PracticeGameCoordinator {
 
   /// Deal 4 cards to each player (replicating backend _deal_cards logic)
   /// Returns a map with 'players' (dealt players) and 'remainingDeck' (cards not dealt)
+  /// JOKERS ARE EXCLUDED from initial dealing but remain in the draw pile
   Map<String, dynamic> _dealCardsToPlayers(List<Map<String, dynamic>> players, List<Map<String, dynamic>> deck) {
     Logger().info('Practice: Dealing cards to ${players.length} players', isOn: LOGGING_SWITCH);
     
     // Create a DEEP copy of the deck to work with (each card is a separate object)
     final workingDeck = deck.map((card) => Map<String, dynamic>.from(card)).toList();
     
-    // Deal 4 cards to each player
+    // Step 1: Separate jokers from non-joker cards
+    final jokerCards = workingDeck.where((card) => card['rank'] == 'joker').toList();
+    final nonJokerCards = workingDeck.where((card) => card['rank'] != 'joker').toList();
+    
+    Logger().info('Practice: Separated ${jokerCards.length} jokers from ${nonJokerCards.length} non-joker cards', isOn: LOGGING_SWITCH);
+    
+    // Step 2: Deal 4 cards to each player from non-joker cards only
     for (final player in players) {
       final playerHand = <Map<String, dynamic>>[];
       
-      // Deal 4 cards to this player
+      // Deal 4 cards to this player from non-joker cards only
       for (int i = 0; i < 4; i++) {
-        if (workingDeck.isNotEmpty) {
-          final fullCard = workingDeck.removeAt(0); // Draw from top of deck
+        if (nonJokerCards.isNotEmpty) {
+          final fullCard = nonJokerCards.removeAt(0); // Draw from non-joker cards
           
           // Convert to ID-only format for hand (matches backend _to_flutter_card with full_data=False)
           final idOnlyCard = {
@@ -524,15 +626,21 @@ class PracticeGameCoordinator {
       
       // Note: Instructions will be shown after main state update
       
-      Logger().info('Practice: Dealt ${playerHand.length} cards to player ${player['name']}', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Dealt ${playerHand.length} non-joker cards to player ${player['name']}', isOn: LOGGING_SWITCH);
     }
     
-    Logger().info('Practice: Card dealing complete. ${workingDeck.length} cards remaining in deck', isOn: LOGGING_SWITCH);
+    // Step 3: Combine remaining non-joker cards with jokers
+    final remainingDeck = [...nonJokerCards, ...jokerCards];
+    
+    // Step 4: Shuffle the combined deck
+    remainingDeck.shuffle();
+    
+    Logger().info('Practice: Card dealing complete. ${remainingDeck.length} cards remaining (including ${jokerCards.length} jokers)', isOn: LOGGING_SWITCH);
     
     // Return both the dealt players and the remaining deck (matches backend pattern)
     return {
       'players': players,
-      'remainingDeck': workingDeck,
+      'remainingDeck': remainingDeck,
     };
   }
 
@@ -618,6 +726,10 @@ class PracticeGameCoordinator {
         'hasCalledRecall': false,
         'drawnCard': null,
         'isActive': true,
+        // AI knowledge tracking - key: playerId, value: card data
+        'known_cards': <String, dynamic>{},
+        // Collection rank for AI strategy
+        'collection_rank': 'human',
       };
       
       // Combine all players
@@ -991,6 +1103,10 @@ class PracticeGameCoordinator {
         // Practice-specific properties
         'difficulty': difficultyLevel,
         'isActive': true,
+        // AI knowledge tracking - key: playerId, value: card data
+        'known_cards': <String, dynamic>{},
+        // Collection rank for AI strategy
+        'collection_rank': 'medium',
       };
       
       computerPlayers.add(computerPlayer);
@@ -1128,6 +1244,69 @@ class PracticeGameCoordinator {
     }
   }
 
+  /// Process AI initial peeks - select 2 random cards and store in known_cards
+  void _processAIInitialPeeks() {
+    try {
+      final currentGames = _getCurrentGamesMap();
+      final gameId = _currentPracticeGameId;
+      if (gameId == null || !currentGames.containsKey(gameId)) return;
+      
+      final gameData = currentGames[gameId];
+      final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
+      if (gameState == null) return;
+      
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Process each computer player
+      for (final player in players) {
+        if (player['isHuman'] != true) {
+          _selectAndStoreAIPeekCards(player);
+        }
+      }
+      
+      // Update state with modified players
+      updatePracticeGameState({'games': currentGames});
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to process AI initial peeks: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Select and store AI peek cards for a computer player
+  void _selectAndStoreAIPeekCards(Map<String, dynamic> computerPlayer) {
+    final hand = computerPlayer['hand'] as List<Map<String, dynamic>>? ?? [];
+    if (hand.length < 2) return;
+    
+    // Select 2 random cards
+    final random = Random();
+    final indices = <int>[];
+    while (indices.length < 2) {
+      final idx = random.nextInt(hand.length);
+      if (!indices.contains(idx)) indices.add(idx);
+    }
+    
+    // Get the computer player's ID
+    final playerId = computerPlayer['id'] as String;
+    
+    // Store selected cards in known_cards (key: own playerId, value: card IDs only)
+    final knownCards = computerPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+    knownCards[playerId] = {
+      'card1': hand[indices[0]]['cardId'],
+      'card2': hand[indices[1]]['cardId'],
+    };
+    computerPlayer['known_cards'] = knownCards;
+    
+    Logger().info('Practice: AI ${computerPlayer['name']} peeked at cards at positions $indices', isOn: LOGGING_SWITCH);
+    
+    // CRITICAL: Trigger immediate state update for this player (like backend's player_state_updated)
+    // This ensures OpponentsPanel rebuilds and shows flashing borders
+    final currentGames = _getCurrentGamesMap();
+    updatePracticeGameState({
+      'games': currentGames, // Updated games map with this player's known_cards
+    });
+    Logger().info('Practice: Triggered state update for AI ${computerPlayer['name']} known_cards', isOn: LOGGING_SWITCH);
+  }
+
   /// Handle the completed_initial_peek event from practice room
   /// Replicates backend on_completed_initial_peek logic exactly
   Future<bool> _handleCompletedInitialPeek(String sessionId, Map<String, dynamic> data) async {
@@ -1209,7 +1388,16 @@ class PracticeGameCoordinator {
       // 6. Update the player's cards_to_peek with full card data
       humanPlayer['cardsToPeek'] = cardsToPeek;
       
+      // 6.5. Store peeked cards in known_cards (same structure as AI players - ID-only format)
+      final humanKnownCards = humanPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+      humanKnownCards[humanPlayer['id'] as String] = {
+        'card1': cardsToPeek[0]['cardId'],
+        'card2': cardsToPeek.length > 1 ? cardsToPeek[1]['cardId'] : cardsToPeek[0]['cardId'],
+      };
+      humanPlayer['known_cards'] = humanKnownCards;
+      
       Logger().info('Practice: Human player peeked at $cardsUpdated cards: $cardIds', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Human player stored ${cardsToPeek.length} cards in known_cards', isOn: LOGGING_SWITCH);
       
       // 7. Update the main state's myCardsToPeek field (same as backend does via event handler)
       final stateManager = StateManager();
@@ -1725,10 +1913,10 @@ class PracticeGameCoordinator {
       }
       
       // Update the main game state with game phase
-      // Backend sets phase to PLAYER_TURN when entering initial_peek
+      // Set phase to initial_peek during initial peek phase
       updatePracticeGameState({
         'playerStatus': 'initial_peek',
-        'gamePhase': _mapBackendPhaseToFrontend('player_turn'), // Maps to 'playing' (matches backend behavior)
+        'gamePhase': 'initial_peek', // Use the new initial_peek phase
         'games': _getCurrentGamesMap(), // Update the games map with modified players
       });
       

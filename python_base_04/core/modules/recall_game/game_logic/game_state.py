@@ -22,6 +22,7 @@ class GamePhase(Enum):
     """Game phases"""
     WAITING_FOR_PLAYERS = "waiting_for_players"
     DEALING_CARDS = "dealing_cards"
+    INITIAL_PEEK = "initial_peek"
     PLAYER_TURN = "player_turn"
     SAME_RANK_WINDOW = "same_rank_window"
     SPECIAL_PLAY_WINDOW = "special_play_window"
@@ -870,13 +871,51 @@ class GameStateManager:
             
     # ========= CONSOLIDATED GAME START HELPER METHODS =========
     
+    def _process_ai_initial_peeks(self, game: GameState):
+        """Process AI player initial peeks - select 2 random cards and store in known_cards"""
+        try:
+            import random
+            
+            for player_id, player in game.players.items():
+                if player.player_type == PlayerType.COMPUTER:
+                    # Get player's hand (list of Card objects or None)
+                    hand = [card for card in player.hand if card is not None]
+                    
+                    if len(hand) < 2:
+                        continue
+                    
+                    # Select 2 random cards
+                    selected_cards = random.sample(hand, 2)
+                    
+                    # Store in known_cards: key = own player_id, value = dict with card data
+                    player.known_cards[player_id] = {
+                        'card1': selected_cards[0].to_dict(),
+                        'card2': selected_cards[1].to_dict(),
+                    }
+                    
+                    # Manually trigger change detection for this player's known_cards update
+                    if hasattr(player, '_track_change'):
+                        player._track_change('known_cards')
+                        player._send_changes_if_needed()
+                    
+                    custom_log(f"AI {player.name} peeked at 2 random cards and triggered state update", level="INFO", isOn=LOGGING_SWITCH)
+            
+        except Exception as e:
+            custom_log(f"Failed to process AI initial peeks: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
+
     def initial_peek(self, game: GameState):
         """Handle initial peek for the game - set all players to INITIAL_PEEK status with 10-second timer"""
         try:
+            # Set game phase to INITIAL_PEEK
+            game.phase = GamePhase.INITIAL_PEEK
+            
             # Set all players to INITIAL_PEEK status
             updated_count = game.update_all_players_status(PlayerStatus.INITIAL_PEEK, filter_active=True)
             
             custom_log(f"Initial peek phase started - {updated_count} players set to INITIAL_PEEK status", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Process AI initial peeks immediately
+            self._process_ai_initial_peeks(game)
             
             # Start threaded timer for 10 seconds
             timer_thread = threading.Timer(10.0, self._initial_peek_timeout, args=[game])
@@ -912,6 +951,10 @@ class GameStateManager:
             # Set all players back to WAITING status
             updated_count = game.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
             custom_log(f"Set {updated_count} players back to WAITING status", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Transition to PLAYER_TURN phase
+            game.phase = GamePhase.PLAYER_TURN
+            custom_log(f"Game phase transitioned to {game.phase.value}", level="INFO", isOn=LOGGING_SWITCH)
             
             game_round = game.get_round()
             custom_log("Starting game round turn", level="INFO", isOn=LOGGING_SWITCH)
@@ -1001,6 +1044,14 @@ class GameStateManager:
             
             custom_log(f"Player {user_id} peeked at {cards_updated} cards: {card_ids}", level="INFO", isOn=LOGGING_SWITCH)
             
+            # Store peeked cards in known_cards (same structure as AI players)
+            player.known_cards[player.player_id] = {
+                'card1': player.cards_to_peek[0].to_dict() if len(player.cards_to_peek) > 0 else None,
+                'card2': player.cards_to_peek[1].to_dict() if len(player.cards_to_peek) > 1 else None,
+            }
+            
+            custom_log(f"Human player {player.name} stored {len(player.cards_to_peek)} cards in known_cards", level="INFO", isOn=LOGGING_SWITCH)
+            
             # Manually trigger change detection ONCE after all cards have been added
             if hasattr(player, '_track_change'):
                 player._track_change('cards_to_peek')
@@ -1018,12 +1069,37 @@ class GameStateManager:
             return False
     
     def _deal_cards(self, game: GameState):
-        """Deal 4 cards to each player - moved from GameActions"""
+        """Deal 4 cards to each player, excluding jokers from initial hands - moved from GameActions"""
+        
+        # Step 1: Separate jokers from non-joker cards
+        joker_cards = [card for card in game.deck.cards if card.rank == 'joker']
+        non_joker_cards = [card for card in game.deck.cards if card.rank != 'joker']
+        
+        custom_log(f"Separated {len(joker_cards)} jokers from {len(non_joker_cards)} non-joker cards", 
+                   level="INFO", isOn=LOGGING_SWITCH)
+        
+        # Step 2: Deal 4 cards to each player from non-joker cards only
+        # Create a temporary deck with only non-joker cards
+        game.deck.cards = non_joker_cards.copy()
+        
         for player in game.players.values():
             for _ in range(4):
                 card = game.deck.draw_card()
                 if card:
                     player.add_card_to_hand(card)
+        
+        # Step 3: Combine remaining cards with jokers
+        remaining_cards = game.deck.cards + joker_cards
+        
+        # Step 4: Shuffle the combined deck
+        import random
+        random.shuffle(remaining_cards)
+        
+        # Update the deck with shuffled cards (including jokers)
+        game.deck.cards = remaining_cards
+        
+        custom_log(f"Card dealing complete. {len(remaining_cards)} cards remaining (including {len(joker_cards)} jokers)", 
+                   level="INFO", isOn=LOGGING_SWITCH)
     
     def _setup_piles(self, game: GameState):
         """Set up draw and discard piles - moved from GameActions"""
@@ -1104,6 +1180,31 @@ class GameStateManager:
             'color': 'red' if suit in ['hearts', 'diamonds'] else 'black',
         }
 
+    def _to_flutter_known_cards(self, known_cards: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert known_cards to Flutter format with ID-only data
+        
+        Args:
+            known_cards: Dict with player_id as key and card data as value
+            
+        Returns:
+            Dict with player_id as key and simplified card data as value
+        """
+        result = {}
+        for player_id, card_data in known_cards.items():
+            if isinstance(card_data, dict) and 'card1' in card_data and 'card2' in card_data:
+                # Convert card data to ID-only format
+                result[player_id] = {
+                    'card1': card_data['card1']['card_id'] if card_data['card1'] and 'card_id' in card_data['card1'] else None,
+                    'card2': card_data['card2']['card_id'] if card_data['card2'] and 'card_id' in card_data['card2'] else None,
+                }
+            else:
+                # Handle unexpected data structure
+                result[player_id] = {
+                    'card1': None,
+                    'card2': None,
+                }
+        return result
+
     def _to_flutter_player_data(self, player, is_current: bool = False) -> Dict[str, Any]:
         """
         Convert player to Flutter format - SINGLE SOURCE OF TRUTH for player data structure
@@ -1131,6 +1232,7 @@ class GameStateManager:
             'isCurrentPlayer': is_current,
             'hasCalledRecall': bool(player.has_called_recall),
             'drawnCard': self._to_flutter_card(player.drawn_card, full_data=True) if player.drawn_card and isinstance(player.drawn_card, Card) else None,  # Send face-up drawn card with safety check
+            'known_cards': self._to_flutter_known_cards(player.known_cards),  # Send known cards with ID-only data
         }
 
     def _to_flutter_game_data(self, game: GameState) -> Dict[str, Any]:

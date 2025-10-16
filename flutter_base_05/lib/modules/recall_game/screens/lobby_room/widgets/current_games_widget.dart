@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/navigation_manager.dart';
+import '../../../../../tools/logging/logger.dart';
 import '../../game_play/widgets/game_phase_chip_widget.dart';
 import '../../../managers/game_coordinator.dart';
 import '../../../utils/recall_game_helpers.dart';
+import '../../../game_logic/practice_match/practice_game.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display all joined rooms with join functionality
 /// 
@@ -289,8 +293,17 @@ class CurrentRoomWidget extends StatelessWidget {
   }
 
   /// Navigate to game play screen with game data
-  void _enterGameRoom(BuildContext context, Map<String, dynamic> gameData) {
+  void _enterGameRoom(BuildContext context, Map<String, dynamic> gameData) async {
     try {
+      // Clean up practice game state before joining real game
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId']?.toString() ?? '';
+      
+      if (currentUserId == 'practice_user') {
+        Logger().info('CurrentGames: Practice user detected - cleaning up before entering real game', isOn: LOGGING_SWITCH);
+        await PracticeGameCoordinator().cleanupPracticeState();
+      }
+      
       // Store game data in state for the game play screen to access
       final gameId = gameData['game_id']?.toString() ?? '';
       
@@ -299,10 +312,10 @@ class CurrentRoomWidget extends StatelessWidget {
       final gamePhase = gameState['phase']?.toString() ?? 'waiting';
       final gameStatus = gameState['status']?.toString() ?? 'inactive';
       
-      // Determine if current user is room owner
-      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-      final currentUserId = loginState['userId']?.toString() ?? '';
-      final isRoomOwner = gameData['owner_id']?.toString() == currentUserId;
+      // Determine if current user is room owner (re-get login state after potential cleanup)
+      final updatedLoginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final updatedUserId = updatedLoginState['userId']?.toString() ?? '';
+      final isRoomOwner = gameData['owner_id']?.toString() == updatedUserId;
       
       // Get current games map
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};

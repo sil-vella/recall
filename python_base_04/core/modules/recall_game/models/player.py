@@ -57,6 +57,11 @@ class Player:
         self.status = PlayerStatus.WAITING  # Player status
         self.drawn_card = None  # Most recently drawn card (Card object)
         
+        # AI knowledge tracking - key: playerId, value: card data
+        self.known_cards = {}  # Available for all players (human and computer)
+        # Collection rank for AI strategy
+        self.collection_rank = "human" if player_type == PlayerType.HUMAN else "medium"  # Default values
+        
         # Auto-change detection for player updates
         self._change_tracking_enabled = True
         self._pending_changes = set()  # Track which properties have changed
@@ -403,7 +408,7 @@ class Player:
         custom_log(f"Player {self.player_id} to_dict: hand has {len(self.hand)} slots, {len(hand_cards)} actual cards", level="DEBUG", isOn=LOGGING_SWITCH)
         custom_log(f"Hand slots: {[card.card_id if card else 'None' for card in self.hand]}", level="DEBUG", isOn=LOGGING_SWITCH)
         
-        return {
+        result = {
             "player_id": self.player_id,
             "player_type": self.player_type.value,
             "name": self.name,
@@ -418,6 +423,16 @@ class Player:
             "status": self.status.value,  # Include player status
             "drawn_card": self.drawn_card.to_dict() if self.drawn_card else None,  # Include drawn card
         }
+        
+        # Add properties available to all players
+        result["known_cards"] = getattr(self, 'known_cards', {})
+        result["collection_rank"] = getattr(self, 'collection_rank', 'medium')
+        
+        # Add computer-specific properties
+        if self.player_type == PlayerType.COMPUTER:
+            result["difficulty"] = getattr(self, 'difficulty', 'medium')
+        
+        return result
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Player':
@@ -459,6 +474,14 @@ class Player:
             player.status = PlayerStatus(status_str)
         except ValueError:
             player.status = PlayerStatus.WAITING  # Default fallback
+        
+        # Restore properties available to all players
+        player.known_cards = data.get("known_cards", {})
+        player.collection_rank = data.get("collection_rank", "medium")
+        
+        # Restore computer-specific properties
+        if player_type == PlayerType.COMPUTER:
+            player.difficulty = data.get("difficulty", "medium")
         
         return player
 
@@ -504,6 +527,7 @@ class ComputerPlayer(Player):
     def __init__(self, player_id: str, name: str, difficulty: str = "medium"):
         super().__init__(player_id, PlayerType.COMPUTER, name)
         self.difficulty = difficulty
+        # known_cards and collection_rank are now inherited from base Player class
     
     def make_decision(self, game_state: Dict[str, Any]) -> Dict[str, Any]:
         """Make AI decision based on game state using built-in logic"""
@@ -587,6 +611,58 @@ class ComputerPlayer(Player):
             return True
         
         return False 
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ComputerPlayer':
+        """Create computer player from dictionary"""
+        # Create computer player with proper constructor
+        player = cls(data["player_id"], data["name"], data.get("difficulty", "medium"))
+        
+        # Restore hand
+        for card_data in data.get("hand", []):
+            from .card import Card
+            card = Card.from_dict(card_data)
+            player.add_card_to_hand(card)
+        
+        # Restore visible cards
+        for card_data in data.get("visible_cards", []):
+            from .card import Card
+            card = Card.from_dict(card_data)
+            player.visible_cards.append(card)
+        
+        # Restore cards to peek
+        for card_data in data.get("cards_to_peek", []):
+            from .card import Card
+            card = Card.from_dict(card_data)
+            player.cards_to_peek.append(card)
+        
+        player.points = data.get("points", 0)
+        player.cards_remaining = data.get("cards_remaining", 4)
+        player.is_active = data.get("is_active", True)
+        player.has_called_recall = data.get("has_called_recall", False)
+        player.initial_peeks_remaining = data.get("initial_peeks_remaining", 2)
+        
+        # Restore drawn card
+        drawn_card_data = data.get("drawn_card")
+        if drawn_card_data:
+            from .card import Card
+            player.drawn_card = Card.from_dict(drawn_card_data)
+        else:
+            player.drawn_card = None
+        
+        # Restore player status
+        status_str = data.get("status", "waiting")
+        try:
+            player.status = PlayerStatus(status_str)
+        except ValueError:
+            player.status = PlayerStatus.WAITING  # Default fallback
+        
+        # Restore computer-specific properties
+        player.difficulty = data.get("difficulty", "medium")
+        player.known_cards = data.get("known_cards", {})
+        player.collection_rank = data.get("collection_rank", "medium")
+        
+        return player
     
     def _update_known_from_other_players(self, card: Card, game_state: Dict[str, Any]):
         """Update the player's known cards from other players list"""

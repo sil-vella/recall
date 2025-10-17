@@ -1321,6 +1321,7 @@ class GameStateManager:
             'hasCalledRecall': bool(player.has_called_recall),
             'drawnCard': self._to_flutter_card(player.drawn_card, full_data=True) if player.drawn_card and isinstance(player.drawn_card, Card) else None,  # Send face-up drawn card with safety check
             'known_cards': self._to_flutter_known_cards(player.known_cards),  # Send known cards with ID-only data
+            'collection_rank': player.collection_rank,  # Send player's collection rank string
             'collection_rank_cards': [self._to_flutter_card(card, full_data=True) for card in player.collection_rank_cards if card is not None and isinstance(card, Card)],  # Send collection rank cards with full data
         }
 

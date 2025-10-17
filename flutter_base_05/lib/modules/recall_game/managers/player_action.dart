@@ -66,14 +66,9 @@ class PlayerAction {
         // Queen peek executes immediately, no special handling needed
       }
       
-      // Set status to waiting for actions that need optimistic UI updates
-      // SKIP for play_card actions - backend will handle status correctly (including restoration on failure)
-      if (actionType != PlayerActionType.playCard) {
-        _setPlayerStatusToWaiting();
-        _logger.info('Player status set to waiting after action execution', isOn: LOGGING_SWITCH);
-      } else {
-        _logger.info('Skipping status set to waiting for play_card - backend will handle status', isOn: LOGGING_SWITCH);
-      }
+      // Set status to waiting after action execution to prevent multiple selections
+      _setPlayerStatusToWaiting();
+      _logger.info('Player status set to waiting after action execution', isOn: LOGGING_SWITCH);
       
       // Check if this is a practice game
       final isPracticeGame = _checkIfPracticeGame();

@@ -66,9 +66,10 @@ class PlayerAction {
         // Queen peek executes immediately, no special handling needed
       }
       
-      // Set status to waiting after action execution to prevent multiple selections
-      _setPlayerStatusToWaiting();
-      _logger.info('Player status set to waiting after action execution', isOn: LOGGING_SWITCH);
+      // Note: Removed _setPlayerStatusToWaiting() call
+      // Rapid-click prevention is now handled by local widget state (_isProcessingAction flag)
+      // This prevents the frontend from overriding backend status updates
+      _logger.info('Skipping optimistic status update - backend will control player status', isOn: LOGGING_SWITCH);
       
       // Check if this is a practice game
       final isPracticeGame = _checkIfPracticeGame();

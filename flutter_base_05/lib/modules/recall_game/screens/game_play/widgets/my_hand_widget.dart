@@ -31,6 +31,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   // Local state for initial peek card selections
   int _initialPeekSelectionCount = 0;
   List<String> _initialPeekSelectedCardIds = [];
+  
+  // Local flag to prevent rapid action execution (frontend-only, doesn't update backend state)
+  bool _isProcessingAction = false;
 
   @override
   Widget build(BuildContext context) {
@@ -324,6 +327,12 @@ class _MyHandWidgetState extends State<MyHandWidget> {
 
   /// Handle card selection with status validation
   void _handleCardSelection(BuildContext context, int index, Map<String, dynamic> card) async {
+    // Check local processing flag first (prevents rapid clicking without touching backend state)
+    if (_isProcessingAction) {
+      Logger().info('🚫 MyHandWidget - Action already in progress, ignoring card selection', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
     // Get current player status from state
     final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final currentPlayerStatus = currentState['playerStatus']?.toString() ?? 'unknown';
@@ -523,6 +532,12 @@ class _MyHandWidgetState extends State<MyHandWidget> {
             );
           }
         } else {
+          // Set local processing flag (prevents rapid clicking, frontend-only)
+          setState(() {
+            _isProcessingAction = true;
+          });
+          Logger().info('🔒 MyHandWidget - Set _isProcessingAction = true', isOn: LOGGING_SWITCH);
+          
           // Use regular play card action for other states
           final playAction = PlayerAction.playerPlayCard(
             gameId: currentGameId,
@@ -530,11 +545,29 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           );
           await playAction.execute();
           
+          // Reset processing flag after a short delay to allow backend response to arrive
+          // Backend will set the correct status (waiting on success, playing_card on failure)
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              setState(() {
+                _isProcessingAction = false;
+              });
+              Logger().info('🔓 MyHandWidget - Reset _isProcessingAction = false', isOn: LOGGING_SWITCH);
+            }
+          });
+          
           // Note: Success feedback removed to avoid showing success when action actually failed
           // Failed actions will show error messages via actionError state
           // Successful plays will be visible via game state updates (card moves to discard pile)
         }
       } catch (e) {
+        // Reset processing flag on error
+        if (mounted) {
+          setState(() {
+            _isProcessingAction = false;
+          });
+          Logger().info('🔓 MyHandWidget - Reset _isProcessingAction = false (error case)', isOn: LOGGING_SWITCH);
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to execute action: $e'),

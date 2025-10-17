@@ -1070,6 +1070,30 @@ class PracticeGameRound {
       final cardRank = playedCardFullData['rank']?.toString() ?? '';
       final cardSuit = playedCardFullData['suit']?.toString() ?? '';
       
+      // Check if card is in player's collection_rank_cards (cannot be played for same rank)
+      final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      for (var collectionCard in collectionRankCards) {
+        if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+          Logger().info('Practice: Card $cardId is a collection rank card and cannot be played for same rank', isOn: LOGGING_SWITCH);
+          
+          // Show error message to user via actionError state
+          final stateManager = StateManager();
+          final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+          stateManager.updateModuleState('recall_game', {
+            ...currentState,
+            'actionError': {
+              'message': 'This card is your collection rank and cannot be played for same rank. Choose another card.',
+              'timestamp': DateTime.now().millisecondsSinceEpoch,
+            },
+          });
+          
+          // No status change needed - status will change automatically when same rank window expires
+          Logger().info('Practice: Collection rank card rejected - status will auto-expire with same rank window', isOn: LOGGING_SWITCH);
+          
+          return false;
+        }
+      }
+      
       // Validate that this is actually a same rank play
       if (!_validateSameRankPlay(gameState, cardRank)) {
         Logger().error('Practice: Same rank validation failed for card $cardId with rank $cardRank', isOn: LOGGING_SWITCH);

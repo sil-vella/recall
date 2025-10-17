@@ -1367,6 +1367,21 @@ class GameRound:
             card_rank = played_card.rank
             card_suit = played_card.suit
             
+            # Check if card is in player's collection_rank_cards (cannot be played for same rank)
+            for collection_card in player.collection_rank_cards:
+                if hasattr(collection_card, 'card_id') and collection_card.card_id == card_id:
+                    custom_log(f"Card {card_id} is a collection rank card and cannot be played for same rank by player {user_id}", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Send error message to player using existing recall_error event
+                    if self.websocket_manager:
+                        self.websocket_manager.send_to_session(
+                            user_id, 
+                            'recall_error', 
+                            {'message': 'This card is your collection rank and cannot be played for same rank. Choose another card.'}
+                        )
+                    
+                    return False
+            
             # Validate that this is actually a same rank play
             if not self._validate_same_rank_play(card_rank):
                 

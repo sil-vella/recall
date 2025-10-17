@@ -821,6 +821,10 @@ class GameRound:
             else:
                 return False
         except Exception as e:
+            custom_log(f"Exception in _route_action: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            custom_log(f"Action: {action}, User: {user_id}", level="ERROR", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
     
     def _to_flutter_game_data(self) -> Dict[str, Any]:

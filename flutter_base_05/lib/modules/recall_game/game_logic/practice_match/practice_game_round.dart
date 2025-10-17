@@ -811,6 +811,118 @@ class PracticeGameRound {
     }
   }
 
+  /// Handle collecting card from discard pile if it matches player's collection rank
+  Future<bool> handleCollectFromDiscard(String playerId) async {
+    try {
+      Logger().info('Practice: Handling collect from discard for player $playerId', isOn: LOGGING_SWITCH);
+      
+      // Get current game state
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        Logger().error('Practice: Failed to get game state', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Check if game is in restricted phases
+      final gamePhase = gameState['gamePhase']?.toString() ?? 'unknown';
+      if (gamePhase == 'same_rank_window' || gamePhase == 'initial_peek') {
+        Logger().info('Practice: Cannot collect during $gamePhase phase', isOn: LOGGING_SWITCH);
+        
+        // Show error message
+        final stateManager = StateManager();
+        final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        stateManager.updateModuleState('recall_game', {
+          ...currentState,
+          'actionError': {
+            'message': 'Cannot collect cards during $gamePhase phase',
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          },
+        });
+        
+        return false;
+      }
+      
+      // Get player
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      final player = players.firstWhere(
+        (p) => p['id'] == playerId,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      if (player.isEmpty) {
+        Logger().error('Practice: Player $playerId not found', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get top card from discard pile
+      final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      if (discardPile.isEmpty) {
+        Logger().info('Practice: Discard pile is empty', isOn: LOGGING_SWITCH);
+        
+        final stateManager = StateManager();
+        final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        stateManager.updateModuleState('recall_game', {
+          ...currentState,
+          'actionError': {
+            'message': 'Discard pile is empty',
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          },
+        });
+        
+        return false;
+      }
+      
+      final topDiscardCard = discardPile.last;
+      final topDiscardRank = topDiscardCard['rank']?.toString() ?? '';
+      
+      // Get player's collection rank
+      final playerCollectionRank = player['collection_rank']?.toString() ?? '';
+      
+      // Check if ranks match
+      if (topDiscardRank.toLowerCase() != playerCollectionRank.toLowerCase()) {
+        Logger().info('Practice: Card rank $topDiscardRank doesn\'t match collection rank $playerCollectionRank', isOn: LOGGING_SWITCH);
+        
+        final stateManager = StateManager();
+        final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        stateManager.updateModuleState('recall_game', {
+          ...currentState,
+          'actionError': {
+            'message': 'You can only collect cards from the discard pile that match your collection rank',
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          },
+        });
+        
+        return false;
+      }
+      
+      // SUCCESS - Remove card from discard pile
+      final collectedCard = discardPile.removeLast();
+      Logger().info('Practice: Collected card ${collectedCard['cardId']} from discard pile', isOn: LOGGING_SWITCH);
+      
+      // Add to player's hand as ID-only
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      hand.add({'cardId': collectedCard['cardId']});
+      
+      // Add to player's collection_rank_cards (full data)
+      final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      collectionRankCards.add(collectedCard); // Full card data
+      
+      Logger().info('Practice: Added card to hand and collection_rank_cards', isOn: LOGGING_SWITCH);
+      
+      // Trigger state update (no status change, player continues in current state)
+      final currentGames = _practiceCoordinator.currentGamesMap;
+      _practiceCoordinator.updatePracticeGameState({
+        'games': currentGames,
+      });
+      
+      return true;
+      
+    } catch (e) {
+      Logger().error('Practice: Error handling collect from discard: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
   /// Handle playing a card from the player's hand (replicates backend _handle_play_card)
   Future<bool> handlePlayCard(String cardId) async {
     try {
@@ -1082,7 +1194,7 @@ class PracticeGameRound {
           stateManager.updateModuleState('recall_game', {
             ...currentState,
             'actionError': {
-              'message': 'This card is your collection rank and cannot be played for same rank. Choose another card.',
+              'message': 'This card is in your collection and cannot be played for same rank.',
               'timestamp': DateTime.now().millisecondsSinceEpoch,
             },
           });

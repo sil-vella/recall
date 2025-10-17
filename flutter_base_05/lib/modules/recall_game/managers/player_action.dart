@@ -10,6 +10,7 @@ enum PlayerActionType {
   drawCard,
   playCard,
   replaceCard,
+  collectFromDiscard,
   
   // Special actions
   callRecall,
@@ -186,6 +187,20 @@ class PlayerAction {
       payload: {
         'game_id': gameId,
         'source': source, // Backend expects 'deck' or 'discard'
+        // player_id will be automatically included by the event emitter
+      },
+    );
+  }
+
+  /// Collect a card from discard pile if it matches player's collection rank
+  static PlayerAction collectFromDiscard({
+    required String gameId,
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.collectFromDiscard,
+      eventName: 'collect_from_discard',
+      payload: {
+        'game_id': gameId,
         // player_id will be automatically included by the event emitter
       },
     );

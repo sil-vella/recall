@@ -163,69 +163,63 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
     });
   }
 
-  /// Handle pile click for card drawing
+  /// Handle pile click for collecting cards from discard pile
   void _handlePileClick() async {
-    // Get current player status from state
+    // Get current game phase and state
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+    final gamePhase = recallGameState['gamePhase']?.toString() ?? 'unknown';
     
-    // Check if current player can interact with discard pile (drawing_card status only)
-    if (currentPlayerStatus == 'drawing_card') {
-      try {
-        // Get current game ID from state
-        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-        if (currentGameId.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error: No active game found'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
-          return;
-        }
-        
-        // Create and execute the draw action (playerId is auto-added by event emitter)
-        final drawAction = PlayerAction.playerDraw(
-          pileType: 'discard_pile',
-          gameId: currentGameId,
-        );
-        await drawAction.execute();
-        
-        setState(() {
-          _clickedPileType = 'discard_pile';
-        });
-        
-        // Show success feedback
+    // Block during same_rank_window and initial_peek phases
+    if (gamePhase == 'same_rank_window' || gamePhase == 'initial_peek') {
+      String reason = gamePhase == 'same_rank_window' 
+        ? 'Cannot collect cards during same rank window'
+        : 'Cannot collect cards during initial peek phase';
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(reason),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    
+    // Otherwise allow collection attempt at any time
+    try {
+      final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+      if (currentGameId.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Card drawn from discard pile'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to draw card: $e'),
+            content: Text('Error: No active game found'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
           ),
         );
+        return;
       }
-    } else {
-      // Show invalid action feedback
+      
+      // Send collect_from_discard event (NEW event type)
+      final collectAction = PlayerAction.collectFromDiscard(
+        gameId: currentGameId,
+      );
+      await collectAction.execute();
+      
+      setState(() {
+        _clickedPileType = 'discard_pile';
+      });
+      
+      // Note: Success/error feedback will come from backend via recall_error event
+      // or successful state update showing card in collection_rank_cards
+      
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Invalid action: Cannot interact with discard pile while status is "$currentPlayerStatus"'
-          ),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
+          content: Text('Failed to collect card: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
         ),
       );
     }
   }
-
-
 }

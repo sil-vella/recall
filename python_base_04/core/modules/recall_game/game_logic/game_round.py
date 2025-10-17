@@ -1189,6 +1189,93 @@ class GameRound:
         except Exception as e:
             return False
 
+    def handle_collect_from_discard(self, user_id: str, action_data: Dict[str, Any]) -> bool:
+        """
+        Handle player collecting a card from discard pile if it matches their collection rank
+        This is NOT a draw action - it's a collection action that doesn't affect turn flow
+        """
+        try:
+            custom_log(f"handle_collect_from_discard called for player {user_id}", isOn=LOGGING_SWITCH)
+            
+            # Get player
+            player = self.game_state.players.get(user_id)
+            if not player:
+                custom_log(f"Player {user_id} not found", level="ERROR", isOn=LOGGING_SWITCH)
+                return False
+            
+            # Check if game is in restricted phases (same_rank_window or initial_peek)
+            if (self.game_state.game_phase == GamePhase.SAME_RANK_WINDOW or 
+                self.game_state.game_phase == GamePhase.INITIAL_PEEK):
+                
+                phase_name = "same rank window" if self.game_state.game_phase == GamePhase.SAME_RANK_WINDOW else "initial peek"
+                custom_log(f"Cannot collect during {phase_name} phase", level="INFO", isOn=LOGGING_SWITCH)
+                
+                if self.websocket_manager:
+                    self.websocket_manager.send_to_session(
+                        user_id,
+                        'recall_error',
+                        {'message': f'Cannot collect cards during {phase_name} phase'}
+                    )
+                return False
+            
+            # Get top card from discard pile
+            top_discard_card = self.game_state.get_top_discard_card()
+            if not top_discard_card:
+                custom_log(f"No cards in discard pile", level="INFO", isOn=LOGGING_SWITCH)
+                
+                if self.websocket_manager:
+                    self.websocket_manager.send_to_session(
+                        user_id,
+                        'recall_error',
+                        {'message': 'Discard pile is empty'}
+                    )
+                return False
+            
+            # Check if top discard card rank matches player's collection_rank
+            if top_discard_card.rank != player.collection_rank:
+                custom_log(
+                    f"Card rank {top_discard_card.rank} doesn't match player collection rank {player.collection_rank}", 
+                    level="INFO", 
+                    isOn=LOGGING_SWITCH
+                )
+                
+                if self.websocket_manager:
+                    self.websocket_manager.send_to_session(
+                        user_id,
+                        'recall_error',
+                        {'message': 'You can only collect cards from the discard pile that match your collection rank'}
+                    )
+                return False
+            
+            # SUCCESS - Remove card from discard pile
+            collected_card = self.game_state.draw_from_discard_pile()
+            if not collected_card:
+                custom_log(f"Failed to remove card from discard pile", level="ERROR", isOn=LOGGING_SWITCH)
+                return False
+            
+            # Add to player's hand
+            player.add_card_to_hand(collected_card, is_drawn_card=False)
+            
+            # Add to player's collection_rank_cards (full Card object)
+            player.collection_rank_cards.append(collected_card)
+            player._track_change('collection_rank_cards')
+            player._send_changes_if_needed()
+            
+            custom_log(
+                f"Player {user_id} collected {collected_card.rank} of {collected_card.suit} from discard pile",
+                level="INFO",
+                isOn=LOGGING_SWITCH
+            )
+            
+            # Note: No status change, no turn change - player continues in current state
+            return True
+            
+        except Exception as e:
+            custom_log(f"Error in handle_collect_from_discard: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
+            return False
+
     def _handle_play_card(self, player_id: str, action_data: Dict[str, Any]) -> bool:
         """Handle playing a card from the player's hand"""
         try:

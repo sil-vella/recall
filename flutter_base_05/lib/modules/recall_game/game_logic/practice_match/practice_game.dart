@@ -1203,6 +1203,8 @@ class PracticeGameCoordinator {
         return await _handleJackSwap(sessionId, data);
       case 'queen_peek':
         return await _handleQueenPeek(sessionId, data);
+      case 'collect_from_discard':
+        return await _handleCollectFromDiscard(sessionId, data);
       default:
           Logger().warning('Practice: Unknown event type: $eventName', isOn: LOGGING_SWITCH);
     return false;
@@ -1764,6 +1766,48 @@ class PracticeGameCoordinator {
       
     } catch (e) {
       Logger().error('Practice: Failed to handle same_rank_play event: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  /// Handle collect_from_discard event - player collecting card from discard if it matches collection rank
+  Future<bool> _handleCollectFromDiscard(String sessionId, Map<String, dynamic> data) async {
+    try {
+      Logger().info('Practice: Handling collect_from_discard event', isOn: LOGGING_SWITCH);
+      
+      // Get current game ID
+      final gameId = data['game_id']?.toString() ?? '';
+      if (gameId.isEmpty) {
+        Logger().error('Practice: No game_id provided for collect_from_discard', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Get game state
+      final currentGames = _getCurrentGamesMap();
+      if (!currentGames.containsKey(gameId)) {
+        Logger().error('Practice: Game $gameId not found', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final gameData = currentGames[gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        Logger().error('Practice: Game state is null', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      // Route to practice game round handler
+      if (_gameRound != null) {
+        return await _gameRound!.handleCollectFromDiscard('practice_user');
+      } else {
+        Logger().error('Practice: No game round available', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to handle collect_from_discard: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }

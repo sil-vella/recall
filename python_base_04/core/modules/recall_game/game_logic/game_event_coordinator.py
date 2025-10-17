@@ -99,6 +99,9 @@ class GameEventCoordinator:
                 # Add action type to data payload for queen_peek events
                 data_with_action = {**data, 'action': 'queen_peek'}
                 return self._handle_player_action_through_round(session_id, data_with_action)
+            elif event_name == 'collect_from_discard':
+                # Route to new collection handler
+                return self._handle_collect_from_discard(session_id, data)
             else:
                 return False
                 
@@ -130,6 +133,29 @@ class GameEventCoordinator:
             return action_result
             
         except Exception as e:
+            return False
+    
+    def _handle_collect_from_discard(self, session_id: str, data: dict) -> bool:
+        """Handle player attempting to collect card from discard pile"""
+        try:
+            game_id = data.get('game_id')
+            if not game_id:
+                return False
+            
+            game = self.game_state_manager.get_game(game_id)
+            if not game:
+                return False
+            
+            # Get game round instance
+            game_round = game.get_round()
+            if not game_round:
+                return False
+            
+            # Route to game round handler
+            return game_round.handle_collect_from_discard(session_id, data)
+            
+        except Exception as e:
+            custom_log(f"Failed to handle collect_from_discard: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
     
     # ========= COMMUNICATION METHODS =========

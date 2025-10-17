@@ -907,6 +907,9 @@ class PracticeGameRound {
       final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
       collectionRankCards.add(collectedCard); // Full card data
       
+      // Update player's collection_rank to match the collected card's rank
+      player['collection_rank'] = collectedCard['rank']?.toString() ?? 'unknown';
+      
       Logger().info('Practice: Added card to hand and collection_rank_cards', isOn: LOGGING_SWITCH);
       
       // Trigger state update (no status change, player continues in current state)

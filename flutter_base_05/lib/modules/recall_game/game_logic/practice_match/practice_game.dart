@@ -261,6 +261,9 @@ class PracticeGameCoordinator {
                 collectionRankCards.add(fullCardData);
                 humanPlayer['collection_rank_cards'] = collectionRankCards;
                 
+                // Update player's collection_rank to match the selected card's rank
+                humanPlayer['collection_rank'] = fullCardData['rank']?.toString() ?? 'unknown';
+                
                 Logger().info('Practice: Human player never peeked - randomly selected card for collection', isOn: LOGGING_SWITCH);
               }
             }
@@ -1508,6 +1511,9 @@ class PracticeGameCoordinator {
         final collectionRankCards = humanPlayer['collection_rank_cards'] as List<Map<String, dynamic>>? ?? [];
         collectionRankCards.add(fullCardData);
         humanPlayer['collection_rank_cards'] = collectionRankCards;
+        
+        // Update player's collection_rank to match the selected card's rank
+        humanPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
         
         Logger().info('Practice: Human player selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
       } else {

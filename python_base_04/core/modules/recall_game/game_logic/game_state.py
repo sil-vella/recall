@@ -893,6 +893,9 @@ class GameStateManager:
                     # Add the selected Card object to the player's collection_rank_cards list
                     player.collection_rank_cards.append(selected_card_for_collection)
                     
+                    # Update player's collection_rank to match the selected card's rank
+                    player.collection_rank = selected_card_for_collection.rank
+                    
                     # Store in known_cards: key = own player_id, value = dict with card data
                     player.known_cards[player_id] = {
                         'card1': selected_cards[0].to_dict(),
@@ -1011,6 +1014,9 @@ class GameStateManager:
                         random_card = random.choice([card for card in player.hand if card is not None])
                         player.collection_rank_cards.append(random_card)
                         
+                        # Update player's collection_rank to match the selected card's rank
+                        player.collection_rank = random_card.rank
+                        
                         # Manually trigger change detection
                         if hasattr(player, '_track_change'):
                             player._track_change('collection_rank_cards')
@@ -1124,6 +1130,9 @@ class GameStateManager:
                 import random
                 selected_card_for_collection = self._select_card_for_collection(peeked_cards[0], peeked_cards[1], random)
                 player.collection_rank_cards.append(selected_card_for_collection)
+                
+                # Update player's collection_rank to match the selected card's rank
+                player.collection_rank = selected_card_for_collection.rank
                 
                 # Manually trigger change detection
                 if hasattr(player, '_track_change'):

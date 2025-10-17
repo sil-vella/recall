@@ -1258,7 +1258,12 @@ class GameRound:
             
             # Add to player's collection_rank_cards (full Card object)
             player.collection_rank_cards.append(collected_card)
+            
+            # Update player's collection_rank to match the collected card's rank
+            player.collection_rank = collected_card.rank
+            
             player._track_change('collection_rank_cards')
+            player._track_change('collection_rank')
             player._send_changes_if_needed()
             
             custom_log(

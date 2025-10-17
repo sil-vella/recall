@@ -799,6 +799,12 @@ class GameRound:
                     if player:
                         player.set_status(PlayerStatus.PLAYING_CARD)
                         custom_log(f"Play failed - restored player {user_id} status to PLAYING_CARD", level="INFO", isOn=LOGGING_SWITCH)
+                        
+                        # Manually trigger game state players update to ensure frontend gets the status change
+                        if hasattr(self.game_state, '_track_change'):
+                            self.game_state._track_change('players')
+                            self.game_state._send_changes_if_needed()
+                            custom_log(f"Manually triggered players state update after status restore", level="INFO", isOn=LOGGING_SWITCH)
                 return play_result
             elif action == 'same_rank_play':
                 return self._handle_same_rank_play(user_id, action_data)

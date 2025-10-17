@@ -795,7 +795,7 @@ class GameRound:
                     same_rank_data = self._handle_same_rank_window(action_data)
                 else:
                     # Play failed - restore player status to playing_card so they can retry
-                    player = self.game_state.get_player(user_id)
+                    player = self.game_state.players.get(user_id)
                     if player:
                         player.set_status(PlayerStatus.PLAYING_CARD)
                         custom_log(f"Play failed - restored player {user_id} status to PLAYING_CARD", level="INFO", isOn=LOGGING_SWITCH)

@@ -44,6 +44,7 @@ class RecallGameEventEmitter {
     'jack_swap': {'game_id', 'first_card_id', 'first_player_id', 'second_card_id', 'second_player_id'}, // player_id auto-added
     'queen_peek': {'game_id', 'card_id', 'ownerId'}, // ownerId for card owner
     'completed_initial_peek': {'game_id', 'card_ids'}, // player_id auto-added
+    'collect_from_discard': {'game_id'}, // player_id auto-added
   };
   
   /// Define validation rules for each field

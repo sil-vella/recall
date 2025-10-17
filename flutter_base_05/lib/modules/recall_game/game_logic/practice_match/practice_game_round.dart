@@ -914,8 +914,13 @@ class PracticeGameRound {
       
       // Trigger state update (no status change, player continues in current state)
       final currentGames = _practiceCoordinator.currentGamesMap;
+      
+      // Get updated discard pile from game state
+      final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      
       _practiceCoordinator.updatePracticeGameState({
         'games': currentGames,
+        'discardPile': updatedDiscardPile,  // CRITICAL: Update main state discardPile field
       });
       
       return true;

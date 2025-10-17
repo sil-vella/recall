@@ -61,6 +61,10 @@ class RecallGameEventListenerValidator {
       schema: {'event_type', 'game_id', 'player_id', 'player_data', 'timestamp'},
       handlerMethod: 'handlePlayerStateUpdated',
     ),
+    'recall_error': EventConfig(
+      schema: {'message'},
+      handlerMethod: 'handleRecallError',
+    ),
     
     // Events without handlers (validation only)
     'game_joined': EventConfig(
@@ -256,6 +260,9 @@ class RecallGameEventListenerValidator {
           break;
         case 'handleQueenPeekResult':
           RecallEventHandlerCallbacks.handleQueenPeekResult(eventPayload);
+          break;
+        case 'handleRecallError':
+          RecallEventHandlerCallbacks.handleRecallError(eventPayload);
           break;
         default:
           return;

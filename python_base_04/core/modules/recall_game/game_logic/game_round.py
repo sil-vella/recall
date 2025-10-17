@@ -1199,6 +1199,21 @@ class GameRound:
             
             custom_log(f"Found card {card_id} at index {card_index} in player {player_id} hand", level="DEBUG", isOn=LOGGING_SWITCH)
             
+            # Check if card is in player's collection_rank_cards (cannot be played)
+            for collection_card in player.collection_rank_cards:
+                if hasattr(collection_card, 'card_id') and collection_card.card_id == card_id:
+                    custom_log(f"Card {card_id} is a collection rank card and cannot be played by player {player_id}", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Send error message to player using existing recall_error event
+                    if self.websocket_manager:
+                        self.websocket_manager.send_to_session(
+                            player_id, 
+                            'recall_error', 
+                            {'message': 'This card is your collection rank and cannot be played. Choose another card.'}
+                        )
+                    
+                    return False
+            
             # Handle drawn card repositioning BEFORE removing the played card
             drawn_card = player.get_drawn_card()
             drawn_card_original_index = -1

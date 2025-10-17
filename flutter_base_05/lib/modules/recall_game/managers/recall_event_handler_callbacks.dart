@@ -753,4 +753,29 @@ class RecallEventHandlerCallbacks {
   }
 
   /// Handle cards_to_peek event
+
+  /// Handle recall_error event
+  static void handleRecallError(Map<String, dynamic> data) {
+    final message = data['message']?.toString() ?? 'An error occurred';
+    
+    // Add session message about the error
+    _addSessionMessage(
+      level: 'error',
+      title: 'Action Error',
+      message: message,
+      data: data,
+    );
+    
+    // Update state with action error for UI display
+    final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    StateManager().updateModuleState('recall_game', {
+      ...currentState,
+      'actionError': {
+        'message': message,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+    });
+    
+    Logger().info('Recall Error: $message', isOn: LOGGING_SWITCH);
+  }
 }

@@ -54,6 +54,30 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
+        // Check for action errors and display snackbar
+        final actionError = recallGameState['actionError'] as Map<String, dynamic>?;
+        if (actionError != null) {
+          final message = actionError['message']?.toString() ?? 'Action failed';
+          
+          // Show snackbar with error message
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+            
+            // Clear the error after showing
+            final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+            StateManager().updateModuleState('recall_game', {
+              ...currentState,
+              'actionError': null,
+            });
+          });
+        }
+        
         // Debug logging
         Logger().info('🃏 MyHandWidget - playerStatus: $playerStatus', isOn: LOGGING_SWITCH);
         Logger().info('🃏 MyHandWidget - cards.length: ${cards.length}', isOn: LOGGING_SWITCH);

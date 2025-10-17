@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'package:recall/tools/logging/logger.dart';
+import '../../../../core/managers/state_manager.dart';
 import 'practice_game.dart';
 import 'utils/computer_player_factory.dart';
 
@@ -866,6 +867,27 @@ class PracticeGameRound {
       }
       
       Logger().info('Practice: Found card $cardId at index $cardIndex in player $playerId hand', isOn: LOGGING_SWITCH);
+      
+      // Check if card is in player's collection_rank_cards (cannot be played)
+      final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      for (var collectionCard in collectionRankCards) {
+        if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+          Logger().info('Practice: Card $cardId is a collection rank card and cannot be played', isOn: LOGGING_SWITCH);
+          
+          // Show error message to user
+          final stateManager = StateManager();
+          final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+          stateManager.updateModuleState('recall_game', {
+            ...currentState,
+            'actionError': {
+              'message': 'This card is your collection rank and cannot be played. Choose another card.',
+              'timestamp': DateTime.now().millisecondsSinceEpoch,
+            },
+          });
+          
+          return false;
+        }
+      }
       
       // Handle drawn card repositioning BEFORE removing the played card
       final drawnCard = player['drawnCard'] as Map<String, dynamic>?;

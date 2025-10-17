@@ -304,6 +304,11 @@ class RecallGameStateUpdater {
       },
       description: 'Message boards for session and rooms',
     ),
+    'actionError': RecallStateFieldSpec(
+      type: Map,
+      required: false,
+      description: 'Current action error to display to user',
+    ),
     
     // UI State
     'selectedCard': RecallStateFieldSpec(

@@ -235,6 +235,38 @@ class PracticeGameCoordinator {
         // Set flag to prevent duplicate calls
         _initialPeekCompleted = true;
         
+        // Check if human player completed initial peek
+        final currentGames = _getCurrentGamesMap();
+        final gameId = _currentPracticeGameId;
+        final gameData = currentGames[gameId];
+        final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
+        final players = gameState?['players'] as List<Map<String, dynamic>>? ?? [];
+        final humanPlayer = players.firstWhere((p) => p['isHuman'] == true, orElse: () => <String, dynamic>{});
+        
+        if (humanPlayer.isNotEmpty) {
+          final knownCards = humanPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+          final hasPlayerKnownCards = knownCards.containsKey(humanPlayer['id']);
+          
+          if (!hasPlayerKnownCards) {
+            // Player never peeked - randomly select 1 card from hand
+            final hand = humanPlayer['hand'] as List<Map<String, dynamic>>? ?? [];
+            if (hand.isNotEmpty) {
+              final random = Random();
+              final randomIndex = random.nextInt(hand.length);
+              final randomCardId = hand[randomIndex]['cardId'] as String;
+              
+              final fullCardData = getCardById(gameState!, randomCardId);
+              if (fullCardData != null) {
+                final collectionRankCards = humanPlayer['collection_rank_cards'] as List<Map<String, dynamic>>? ?? [];
+                collectionRankCards.add(fullCardData);
+                humanPlayer['collection_rank_cards'] = collectionRankCards;
+                
+                Logger().info('Practice: Human player never peeked - randomly selected card for collection', isOn: LOGGING_SWITCH);
+              }
+            }
+          }
+        }
+        
         // Update all players to 'waiting' status and transition to player_turn phase
         final statusUpdated = updatePlayerStatus('waiting', updateMainState: false, triggerInstructions: false);
         
@@ -1464,6 +1496,21 @@ class PracticeGameCoordinator {
       
       Logger().info('Practice: Human player peeked at $cardsUpdated cards: $cardIds', isOn: LOGGING_SWITCH);
       Logger().info('Practice: Human player stored ${cardsToPeek.length} cards in known_cards', isOn: LOGGING_SWITCH);
+      
+      // 6.7. Auto-select collection rank card for human player (same logic as AI)
+      final selectedCardForCollection = _selectCardForCollection(cardsToPeek[0], cardsToPeek[1], Random());
+      
+      // Get full card data using getCardById
+      final fullCardData = getCardById(gameState, selectedCardForCollection['cardId'] as String);
+      if (fullCardData != null) {
+        final collectionRankCards = humanPlayer['collection_rank_cards'] as List<Map<String, dynamic>>? ?? [];
+        collectionRankCards.add(fullCardData);
+        humanPlayer['collection_rank_cards'] = collectionRankCards;
+        
+        Logger().info('Practice: Human player selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
+      } else {
+        Logger().error('Practice: Failed to get full card data for human collection rank card', isOn: LOGGING_SWITCH);
+      }
       
       // 7. Update the main state's myCardsToPeek field (same as backend does via event handler)
       final stateManager = StateManager();

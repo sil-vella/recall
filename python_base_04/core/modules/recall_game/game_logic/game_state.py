@@ -999,6 +999,25 @@ class GameStateManager:
             updated_count = game.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
             custom_log(f"Set {updated_count} players back to WAITING status", level="INFO", isOn=LOGGING_SWITCH)
             
+            # Check each human player - if they didn't peek, randomly select collection rank
+            for player_id, player in game.players.items():
+                if player.player_type == PlayerType.HUMAN:
+                    # Check if player has known_cards (means they peeked)
+                    has_player_known_cards = player_id in player.known_cards
+                    
+                    if not has_player_known_cards and len(player.hand) > 0:
+                        # Player never peeked - randomly select 1 card from hand
+                        import random
+                        random_card = random.choice([card for card in player.hand if card is not None])
+                        player.collection_rank_cards.append(random_card)
+                        
+                        # Manually trigger change detection
+                        if hasattr(player, '_track_change'):
+                            player._track_change('collection_rank_cards')
+                            player._send_changes_if_needed()
+                        
+                        custom_log(f"Human {player.name} never peeked - randomly selected {random_card.rank} of {random_card.suit} for collection", level="INFO", isOn=LOGGING_SWITCH)
+            
             # Transition to PLAYER_TURN phase
             game.phase = GamePhase.PLAYER_TURN
             custom_log(f"Game phase transitioned to {game.phase.value}", level="INFO", isOn=LOGGING_SWITCH)
@@ -1098,6 +1117,19 @@ class GameStateManager:
             }
             
             custom_log(f"Human player {player.name} stored {len(player.cards_to_peek)} cards in known_cards", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Auto-select collection rank card for human player (same logic as AI)
+            peeked_cards = player.cards_to_peek
+            if len(peeked_cards) >= 2:
+                import random
+                selected_card_for_collection = self._select_card_for_collection(peeked_cards[0], peeked_cards[1], random)
+                player.collection_rank_cards.append(selected_card_for_collection)
+                
+                # Manually trigger change detection
+                if hasattr(player, '_track_change'):
+                    player._track_change('collection_rank_cards')
+                
+                custom_log(f"Human {player.name} selected {selected_card_for_collection.rank} of {selected_card_for_collection.suit} for collection ({selected_card_for_collection.points} points)", level="INFO", isOn=LOGGING_SWITCH)
             
             # Manually trigger change detection ONCE after all cards have been added
             if hasattr(player, '_track_change'):

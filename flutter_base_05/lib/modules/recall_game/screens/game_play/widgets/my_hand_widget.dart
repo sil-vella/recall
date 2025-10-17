@@ -198,6 +198,26 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final drawnCard = recallGameState['myDrawnCard'] as Map<String, dynamic>?;
         final drawnCardId = drawnCard?['cardId']?.toString();
         
+        // Get current player's collection rank cards from games map
+        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+        final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+        final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+        final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+        final players = gameState['players'] as List<dynamic>? ?? [];
+        
+        // Get login state for current user ID
+        final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+        final currentUserId = loginState['userId']?.toString() ?? '';
+        
+        // Find current player's collection rank cards
+        List<dynamic> myCollectionRankCards = [];
+        for (var player in players) {
+          if (player is Map<String, dynamic> && player['id']?.toString() == currentUserId) {
+            myCollectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+            break;
+          }
+        }
         
         return Container(
           height: 140,
@@ -231,39 +251,34 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 }
               }
               
-              // Determine which data to use (priority: drawn card > peeked card > ID-only hand card)
+              // Check if this card is in player's collection_rank_cards
+              Map<String, dynamic>? collectionRankCardData;
+              if (cardId != null && myCollectionRankCards.isNotEmpty) {
+                for (var collectionCard in myCollectionRankCards) {
+                  if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+                    collectionRankCardData = collectionCard;
+                    break;
+                  }
+                }
+              }
+              
+              // Determine which data to use (priority: drawn card > peeked card > collection rank card > ID-only hand card)
               final cardDataToUse = isDrawnCard && drawnCard != null 
                   ? drawnCard 
-                  : (peekedCardData ?? cardMap);
-              
-              // Convert to CardModel
-              final cardModel = CardModel.fromMap(cardDataToUse);
-              final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
+                  : (peekedCardData ?? collectionRankCardData ?? cardMap);
               
               return Padding(
                 padding: EdgeInsets.only(
                   right: 8,
                   left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
                 ),
-                child: Container(
-                  decoration: isDrawnCard ? BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
-                        blurRadius: 12,
-                        spreadRadius: 2,
-                        offset: const Offset(0, 0),
-                      ),
-                    ],
-                  ) : null,
-                  child: CardWidget(
-                    card: updatedCardModel,
-                    size: CardSize.large,
-                    isSelectable: true,
-                    isSelected: isSelected,
-                    onTap: () => _handleCardSelection(context, index, cardMap),
-                  ),
+                child: _buildCardWidget(
+                  cardDataToUse,
+                  isSelected,
+                  isDrawnCard,
+                  collectionRankCardData != null,
+                  index,
+                  cardMap,
                 ),
               );
             },
@@ -563,4 +578,64 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     );
   }
 
+  /// Build card widget with optional drawn card glow and collection rank border
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap) {
+    // Convert to CardModel
+    final cardModel = CardModel.fromMap(card);
+    final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
+    
+    Widget cardWidget = CardWidget(
+      card: updatedCardModel,
+      size: CardSize.large,
+      isSelectable: true,
+      isSelected: isSelected,
+      onTap: () => _handleCardSelection(context, index, cardMap),
+    );
+    
+    // Wrap with collection rank border if needed
+    if (isCollectionRankCard) {
+      cardWidget = _buildCollectionRankBorder(cardWidget);
+    }
+    
+    // Wrap with drawn card glow if needed
+    if (isDrawnCard) {
+      cardWidget = Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
+              blurRadius: 12,
+              spreadRadius: 2,
+              offset: const Offset(0, 0),
+            ),
+          ],
+        ),
+        child: cardWidget,
+      );
+    }
+    
+    return cardWidget;
+  }
+
+  /// Build collection rank border for player's selected collection rank card
+  Widget _buildCollectionRankBorder(Widget child) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.purple, // Purple border for collection rank cards
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purple.withOpacity(0.3),
+            blurRadius: 6,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
 }

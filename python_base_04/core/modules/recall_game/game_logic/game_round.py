@@ -789,8 +789,16 @@ class GameRound:
                 return self._handle_draw_from_pile(user_id, action_data)
             elif action == 'play_card':
                 play_result = self._handle_play_card(user_id, action_data)
-                # Note: _handle_play_card already calls _check_special_card internally
-                same_rank_data = self._handle_same_rank_window(action_data)
+                if play_result:
+                    # Only trigger same rank window if the play succeeded
+                    # Note: _handle_play_card already calls _check_special_card internally
+                    same_rank_data = self._handle_same_rank_window(action_data)
+                else:
+                    # Play failed - restore player status to playing_card so they can retry
+                    player = self.game_state.get_player(user_id)
+                    if player:
+                        player.set_status(PlayerStatus.PLAYING_CARD)
+                        custom_log(f"Play failed - restored player {user_id} status to PLAYING_CARD", level="INFO", isOn=LOGGING_SWITCH)
                 return play_result
             elif action == 'same_rank_play':
                 return self._handle_same_rank_play(user_id, action_data)

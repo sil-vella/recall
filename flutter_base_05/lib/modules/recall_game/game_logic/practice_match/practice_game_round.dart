@@ -885,6 +885,10 @@ class PracticeGameRound {
             },
           });
           
+          // CRITICAL: Restore player status to playing_card so they can retry
+          _practiceCoordinator.updatePlayerStatus('playing_card', playerId: playerId, updateMainState: true);
+          Logger().info('Practice: Restored player $playerId status to playing_card after failed collection rank play', isOn: LOGGING_SWITCH);
+          
           return false;
         }
       }

@@ -222,9 +222,6 @@ class PracticeGameCoordinator {
       // Cancel any existing timer
       _initialPeekTimer?.cancel();
       
-      // Process AI initial peeks immediately
-      _processAIInitialPeeks();
-      
       // Start new timer
       _initialPeekTimer = Timer(Duration(seconds: _initialPeekDurationSeconds), () {
         Logger().info('Practice: Initial peek timer completed, updating player status to waiting and initializing round', isOn: LOGGING_SWITCH);
@@ -730,6 +727,8 @@ class PracticeGameCoordinator {
         'known_cards': <String, dynamic>{},
         // Collection rank for AI strategy
         'collection_rank': 'human',
+        // Collection rank cards - list of full card data this player considers collection rank
+        'collection_rank_cards': <Map<String, dynamic>>[],
       };
       
       // Combine all players
@@ -1107,6 +1106,8 @@ class PracticeGameCoordinator {
         'known_cards': <String, dynamic>{},
         // Collection rank for AI strategy
         'collection_rank': 'medium',
+        // Collection rank cards - list of full card data this player considers collection rank
+        'collection_rank_cards': <Map<String, dynamic>>[],
       };
       
       computerPlayers.add(computerPlayer);
@@ -1296,15 +1297,80 @@ class PracticeGameCoordinator {
     };
     computerPlayer['known_cards'] = knownCards;
     
+    // AI Decision Logic: Determine which card should be marked as collection rank
+    final card1 = hand[indices[0]];
+    final card2 = hand[indices[1]];
+    final selectedCardForCollection = _selectCardForCollection(card1, card2, random);
+    
+    // Get full card data using getCardById (same pattern as queen peek)
+    final currentGames = _getCurrentGamesMap();
+    final gameId = _currentPracticeGameId;
+    final gameData = currentGames[gameId];
+    final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
+    final fullCardData = getCardById(gameState!, selectedCardForCollection['cardId'] as String);
+    if (fullCardData == null) {
+      Logger().error('Practice: Failed to get full card data for collection rank card ${selectedCardForCollection['cardId']}', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
+    // Add the selected card full data to the player's collection_rank_cards list
+    final collectionRankCards = computerPlayer['collection_rank_cards'] as List<Map<String, dynamic>>? ?? [];
+    collectionRankCards.add(fullCardData); // Use full card data, not just the selected card
+    computerPlayer['collection_rank_cards'] = collectionRankCards;
+    
     Logger().info('Practice: AI ${computerPlayer['name']} peeked at cards at positions $indices', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: AI ${computerPlayer['name']} selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
     
     // CRITICAL: Trigger immediate state update for this player (like backend's player_state_updated)
-    // This ensures OpponentsPanel rebuilds and shows flashing borders
-    final currentGames = _getCurrentGamesMap();
+    // This ensures OpponentsPanel rebuilds and shows collection rank cards with purple borders
+    
     updatePracticeGameState({
-      'games': currentGames, // Updated games map with this player's known_cards
+      'games': currentGames, // Updated games map with this player's known_cards and collection_rank_cards
     });
-    Logger().info('Practice: Triggered state update for AI ${computerPlayer['name']} known_cards', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: Triggered state update for AI ${computerPlayer['name']} known_cards and collection rank cards', isOn: LOGGING_SWITCH);
+  }
+
+  /// AI Decision Logic: Select which card should be marked as collection rank
+  /// Priority: Least points first, then by rank order (ace, number, king, queen, jack)
+  Map<String, dynamic> _selectCardForCollection(Map<String, dynamic> card1, Map<String, dynamic> card2, Random random) {
+    final points1 = card1['points'] as int? ?? 0;
+    final points2 = card2['points'] as int? ?? 0;
+    final rank1 = card1['rank'] as String? ?? '';
+    final rank2 = card2['rank'] as String? ?? '';
+    
+    // If points are different, select the one with least points
+    if (points1 != points2) {
+      return points1 < points2 ? card1 : card2;
+    }
+    
+    // If points are the same, use priority order: ace, number, king, queen, jack
+    final priority1 = _getCardPriority(rank1);
+    final priority2 = _getCardPriority(rank2);
+    
+    if (priority1 != priority2) {
+      return priority1 < priority2 ? card1 : card2;
+    }
+    
+    // If both cards have same rank, random pick
+    return random.nextBool() ? card1 : card2;
+  }
+
+  /// Get priority value for card rank (lower = higher priority)
+  int _getCardPriority(String rank) {
+    switch (rank) {
+      case 'ace':
+        return 1; // Highest priority
+      case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': case '10':
+        return 2; // Numbers
+      case 'king':
+        return 3; // Kings
+      case 'queen':
+        return 4; // Queens
+      case 'jack':
+        return 5; // Jacks (lowest priority)
+      default:
+        return 6; // Unknown ranks (lowest)
+    }
   }
 
   /// Handle the completed_initial_peek event from practice room
@@ -1919,6 +1985,10 @@ class PracticeGameCoordinator {
         'gamePhase': 'initial_peek', // Use the new initial_peek phase
         'games': _getCurrentGamesMap(), // Update the games map with modified players
       });
+      
+      // CRITICAL: Process AI initial peeks BEFORE instructions/timer
+      // AI players must select their collection rank cards regardless of instruction mode
+      _processAIInitialPeeks();
       
       // Trigger contextual instructions or start timer after state is fully updated
       // (respects _instructionsEnabled setting from practice room)

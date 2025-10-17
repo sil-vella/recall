@@ -887,21 +887,68 @@ class GameStateManager:
                     # Select 2 random cards
                     selected_cards = random.sample(hand, 2)
                     
+                    # AI Decision Logic: Determine which card should be marked as collection rank
+                    selected_card_for_collection = self._select_card_for_collection(selected_cards[0], selected_cards[1], random)
+                    
+                    # Add the selected Card object to the player's collection_rank_cards list
+                    player.collection_rank_cards.append(selected_card_for_collection)
+                    
                     # Store in known_cards: key = own player_id, value = dict with card data
                     player.known_cards[player_id] = {
                         'card1': selected_cards[0].to_dict(),
                         'card2': selected_cards[1].to_dict(),
                     }
                     
-                    # Manually trigger change detection for this player's known_cards update
+                    # Manually trigger change detection for this player's known_cards and collection_rank_cards update
                     if hasattr(player, '_track_change'):
                         player._track_change('known_cards')
+                        player._track_change('collection_rank_cards')
                         player._send_changes_if_needed()
                     
                     custom_log(f"AI {player.name} peeked at 2 random cards and triggered state update", level="INFO", isOn=LOGGING_SWITCH)
+                    custom_log(f"AI {player.name} selected {selected_card_for_collection.rank} of {selected_card_for_collection.suit} for collection ({selected_card_for_collection.points} points)", level="INFO", isOn=LOGGING_SWITCH)
+                    custom_log(f"AI {player.name} collection_rank_cards now has {len(player.collection_rank_cards)} cards: {[card.card_id for card in player.collection_rank_cards if isinstance(card, Card)]}", level="INFO", isOn=LOGGING_SWITCH)
             
         except Exception as e:
             custom_log(f"Failed to process AI initial peeks: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _select_card_for_collection(self, card1, card2, random):
+        """AI Decision Logic: Select which card should be marked as collection rank
+        Priority: Least points first, then by rank order (ace, number, king, queen, jack)
+        """
+        points1 = card1.points or 0
+        points2 = card2.points or 0
+        rank1 = card1.rank or ''
+        rank2 = card2.rank or ''
+        
+        # If points are different, select the one with least points
+        if points1 != points2:
+            return card1 if points1 < points2 else card2
+        
+        # If points are the same, use priority order: ace, number, king, queen, jack
+        priority1 = self._get_card_priority(rank1)
+        priority2 = self._get_card_priority(rank2)
+        
+        if priority1 != priority2:
+            return card1 if priority1 < priority2 else card2
+        
+        # If both cards have same rank, random pick
+        return card1 if random.choice([True, False]) else card2
+
+    def _get_card_priority(self, rank):
+        """Get priority value for card rank (lower = higher priority)"""
+        if rank == 'ace':
+            return 1  # Highest priority
+        elif rank in ['2', '3', '4', '5', '6', '7', '8', '9', '10']:
+            return 2  # Numbers
+        elif rank == 'king':
+            return 3  # Kings
+        elif rank == 'queen':
+            return 4  # Queens
+        elif rank == 'jack':
+            return 5  # Jacks (lowest priority)
+        else:
+            return 6  # Unknown ranks (lowest)
 
     def initial_peek(self, game: GameState):
         """Handle initial peek for the game - set all players to INITIAL_PEEK status with 10-second timer"""
@@ -1233,6 +1280,7 @@ class GameStateManager:
             'hasCalledRecall': bool(player.has_called_recall),
             'drawnCard': self._to_flutter_card(player.drawn_card, full_data=True) if player.drawn_card and isinstance(player.drawn_card, Card) else None,  # Send face-up drawn card with safety check
             'known_cards': self._to_flutter_known_cards(player.known_cards),  # Send known cards with ID-only data
+            'collection_rank_cards': [self._to_flutter_card(card, full_data=True) for card in player.collection_rank_cards if card is not None and isinstance(card, Card)],  # Send collection rank cards with full data
         }
 
     def _to_flutter_game_data(self, game: GameState) -> Dict[str, Any]:

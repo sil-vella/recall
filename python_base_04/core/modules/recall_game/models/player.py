@@ -61,6 +61,8 @@ class Player:
         self.known_cards = {}  # Available for all players (human and computer)
         # Collection rank for AI strategy
         self.collection_rank = "human" if player_type == PlayerType.HUMAN else "medium"  # Default values
+        # Collection rank cards - list of full card data this player considers collection rank
+        self.collection_rank_cards = []  # Available for all players (human and computer)
         
         # Auto-change detection for player updates
         self._change_tracking_enabled = True
@@ -427,6 +429,9 @@ class Player:
         # Add properties available to all players
         result["known_cards"] = getattr(self, 'known_cards', {})
         result["collection_rank"] = getattr(self, 'collection_rank', 'medium')
+        # Convert Card objects to dictionaries for serialization
+        collection_rank_cards = getattr(self, 'collection_rank_cards', [])
+        result["collection_rank_cards"] = [card.to_dict() if hasattr(card, 'to_dict') else card for card in collection_rank_cards]
         
         # Add computer-specific properties
         if self.player_type == PlayerType.COMPUTER:
@@ -478,6 +483,9 @@ class Player:
         # Restore properties available to all players
         player.known_cards = data.get("known_cards", {})
         player.collection_rank = data.get("collection_rank", "medium")
+        # Restore collection rank cards as Card objects
+        collection_rank_cards_data = data.get("collection_rank_cards", [])
+        player.collection_rank_cards = [Card.from_dict(card_data) if isinstance(card_data, dict) else card_data for card_data in collection_rank_cards_data]
         
         # Restore computer-specific properties
         if player_type == PlayerType.COMPUTER:
@@ -661,6 +669,10 @@ class ComputerPlayer(Player):
         player.difficulty = data.get("difficulty", "medium")
         player.known_cards = data.get("known_cards", {})
         player.collection_rank = data.get("collection_rank", "medium")
+        # Restore collection rank cards as Card objects
+        from .card import Card
+        collection_rank_cards_data = data.get("collection_rank_cards", [])
+        player.collection_rank_cards = [Card.from_dict(card_data) if isinstance(card_data, dict) else card_data for card_data in collection_rank_cards_data]
         
         return player
     

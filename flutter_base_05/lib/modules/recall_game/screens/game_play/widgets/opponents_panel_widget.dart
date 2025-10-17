@@ -190,6 +190,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           child: _buildOpponentCard(
             player, 
             cardsToPeek, 
+            player['collection_rank_cards'] as List<dynamic>? ?? [],
             isCurrentTurn, 
             isGameActive, 
             isCurrentPlayer, 
@@ -205,7 +206,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build individual opponent card
-  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase) {
     final playerName = player['name']?.toString() ?? 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
@@ -280,7 +281,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           // Cards display - horizontal layout like my hand
           if (hand.isNotEmpty)
-            _buildCardsRow(hand, cardsToPeek, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase)
+            _buildCardsRow(hand, cardsToPeek, playerCollectionRankCards, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase, player)
           else
             _buildEmptyHand(),
         ],
@@ -289,7 +290,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build cards row - horizontal layout like my hand
-  Widget _buildCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase) {
+  Widget _buildCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, Map<String, dynamic> player) {
     return Container(
       height: 100,
       child: ListView.builder(
@@ -333,17 +334,29 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             }
           }
           
-          // Determine which data to use (priority: drawn card > peeked card > ID-only hand card)
+          // Check if this card is in player's collection_rank_cards (AI decision cards have full data)
+          // This is for when players have selected cards as collection rank during initial peek
+          Map<String, dynamic>? collectionRankCardData;
+          if (cardId != null && playerCollectionRankCards.isNotEmpty) {
+            for (var collectionCard in playerCollectionRankCards) {
+              if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+                collectionRankCardData = collectionCard;
+                break;
+              }
+            }
+          }
+          
+          // Determine which data to use (priority: drawn card > peeked card > collection rank card > ID-only hand card)
           final cardDataToUse = isDrawnCard && drawnCard != null 
               ? drawnCard 
-              : (peekedCardData ?? cardMap);
+              : (peekedCardData ?? collectionRankCardData ?? cardMap);
           
           return Padding(
             padding: EdgeInsets.only(
               right: 6,
               left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
             ),
-            child: _buildCardWidget(cardDataToUse, isDrawnCard, playerId, isKnownCard),
+            child: _buildCardWidget(cardDataToUse, isDrawnCard, playerId, isKnownCard, collectionRankCardData != null),
           );
         },
       ),
@@ -351,7 +364,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build individual card widget for opponents using the new CardWidget system
-  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isKnownCard) {
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isKnownCard, bool isCollectionRankCard) {
     // Convert to CardModel
     final cardModel = CardModel.fromMap(card);
     
@@ -374,6 +387,11 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     // Wrap with flashing border if this is a known card
     if (isKnownCard) {
       cardWidget = _buildFlashingBorder(cardWidget);
+    }
+    
+    // Wrap with collection rank border if this is a collection rank card
+    if (isCollectionRankCard) {
+      cardWidget = _buildCollectionRankBorder(cardWidget);
     }
     
     // Wrap with drawn card glow if needed
@@ -431,6 +449,27 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           setState(() {});
         }
       },
+    );
+  }
+
+  /// Build collection rank border for AI-selected collection rank cards
+  Widget _buildCollectionRankBorder(Widget child) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.purple, // Purple border for collection rank cards
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purple.withOpacity(0.3),
+            blurRadius: 6,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 

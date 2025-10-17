@@ -862,8 +862,9 @@ class GameRound:
             if action_result:
                 self.game_state.last_action_time = time.time()
             
-            # Return the round completion result
-            return True
+            # Return the actual action result (not always True)
+            # This ensures failed actions (like trying to play collection rank cards) don't continue the game flow
+            return action_result
             
         except Exception as e:
             return False

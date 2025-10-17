@@ -530,16 +530,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           );
           await playAction.execute();
           
-          // Show success feedback for regular play
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Playing card: ${card['rank']} of ${card['suit']}'
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          // Note: Success feedback removed to avoid showing success when action actually failed
+          // Failed actions will show error messages via actionError state
+          // Successful plays will be visible via game state updates (card moves to discard pile)
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(

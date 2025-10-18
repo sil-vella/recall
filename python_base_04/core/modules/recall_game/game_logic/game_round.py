@@ -1202,12 +1202,16 @@ class GameRound:
                         isOn=LOGGING_SWITCH
                     )
                     
+                    custom_log(f"websocket_manager exists: {self.websocket_manager is not None}", level="DEBUG", isOn=LOGGING_SWITCH)
                     if self.websocket_manager:
+                        custom_log(f"Sending recall_error to player {player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
                         self.websocket_manager.send_to_session(
                             player_id,
                             'recall_error',
                             {'message': 'You can only collect cards from the discard pile that match your collection rank'}
                         )
+                    else:
+                        custom_log("websocket_manager is None, cannot send error", level="WARNING", isOn=LOGGING_SWITCH)
                     return False
                 
                 # SUCCESS - Draw from discard pile

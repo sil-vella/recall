@@ -110,10 +110,10 @@ events:
   draw_card:
     # Decision logic for drawing cards
     draw_from_discard_probability:
-      easy: 0.3    # 30% chance to draw from discard
-      medium: 0.5  # 50% chance to draw from discard
-      hard: 0.7    # 70% chance to draw from discard
-      expert: 0.8  # 80% chance to draw from discard
+      easy: 0.0    # 0% chance to draw from discard (always draw from deck)
+      medium: 0.0  # 0% chance to draw from discard (always draw from deck)
+      hard: 0.0    # 0% chance to draw from discard (always draw from deck)
+      expert: 0.0  # 0% chance to draw from discard (always draw from deck)
       
   play_card:
     # Decision logic for playing cards

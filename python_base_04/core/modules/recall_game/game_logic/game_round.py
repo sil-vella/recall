@@ -1267,6 +1267,9 @@ class GameRound:
             return True
             
         except Exception as e:
+            custom_log(f"Error in _handle_draw_from_pile: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
 
     def _handle_play_card(self, player_id: str, action_data: Dict[str, Any]) -> bool:

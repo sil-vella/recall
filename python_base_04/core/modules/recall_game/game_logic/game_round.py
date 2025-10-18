@@ -787,6 +787,15 @@ class GameRound:
                 custom_log(f"Discard Pile Top 3: {[card.card_id for card in self.game_state.discard_pile[:3]]}", isOn=LOGGING_SWITCH)
                 custom_log(f"=================================", isOn=LOGGING_SWITCH)
                 return self._handle_draw_from_pile(user_id, action_data)
+            elif action == 'draw_from_pile':
+                # Handle both normal draws and collection draws from discard pile
+                custom_log(f"=== PILE CONTENTS BEFORE DRAW ===", isOn=LOGGING_SWITCH)
+                custom_log(f"Draw Pile Count: {len(self.game_state.draw_pile)}", isOn=LOGGING_SWITCH)
+                custom_log(f"Draw Pile Top 3: {[card.card_id for card in self.game_state.draw_pile[:3]]}", isOn=LOGGING_SWITCH)
+                custom_log(f"Discard Pile Count: {len(self.game_state.discard_pile)}", isOn=LOGGING_SWITCH)
+                custom_log(f"Discard Pile Top 3: {[card.card_id for card in self.game_state.discard_pile[:3]]}", isOn=LOGGING_SWITCH)
+                custom_log(f"=================================", isOn=LOGGING_SWITCH)
+                return self._handle_draw_from_pile(user_id, action_data)
             elif action == 'play_card':
                 play_result = self._handle_play_card(user_id, action_data)
                 if play_result:

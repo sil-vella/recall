@@ -68,8 +68,14 @@ class GameEventCoordinator:
             if event_name == 'completed_initial_peek':
                 return self.game_state_manager.on_completed_initial_peek(session_id, data)
             elif event_name == 'draw_card':
-                # Add action type to data payload for draw_card events
-                data_with_action = {**data, 'action': 'draw_from_deck'}
+                # Check if this is a collection draw from discard pile
+                source = data.get('source', 'deck')
+                if source == 'discard':
+                    # Collection draw from discard pile - route to draw_from_pile action
+                    data_with_action = {**data, 'action': 'draw_from_pile'}
+                else:
+                    # Normal draw from deck - route to draw_from_deck action
+                    data_with_action = {**data, 'action': 'draw_from_deck'}
                 return self._handle_player_action_through_round(session_id, data_with_action)
             elif event_name == 'play_card':
                 # Add action type to data payload for play_card events

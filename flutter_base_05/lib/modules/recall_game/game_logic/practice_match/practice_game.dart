@@ -15,6 +15,7 @@ import 'practice_instructions.dart';
 import '../../managers/validated_state_manager.dart';
 import 'utils/deck_factory.dart';
 import 'models/card.dart';
+import 'utils/predefined_hands_loader.dart';
 
 const bool LOGGING_SWITCH = false;
 
@@ -616,8 +617,17 @@ class PracticeGameCoordinator {
   /// Deal 4 cards to each player (replicating backend _deal_cards logic)
   /// Returns a map with 'players' (dealt players) and 'remainingDeck' (cards not dealt)
   /// JOKERS ARE EXCLUDED from initial dealing but remain in the draw pile
-  Map<String, dynamic> _dealCardsToPlayers(List<Map<String, dynamic>> players, List<Map<String, dynamic>> deck) {
+  Future<Map<String, dynamic>> _dealCardsToPlayers(List<Map<String, dynamic>> players, List<Map<String, dynamic>> deck) async {
     Logger().info('Practice: Dealing cards to ${players.length} players', isOn: LOGGING_SWITCH);
+    
+    // Check if predefined hands are enabled
+    final handsLoader = PredefinedHandsLoader();
+    final config = await handsLoader.loadConfig();
+    
+    if (config['enabled'] == true) {
+      Logger().warning('Practice: Using PREDEFINED HANDS for testing');
+      return _dealPredefinedCards(players, deck, config);
+    }
     
     // Create a DEEP copy of the deck to work with (each card is a separate object)
     final workingDeck = deck.map((card) => Map<String, dynamic>.from(card)).toList();
@@ -670,6 +680,79 @@ class PracticeGameCoordinator {
     Logger().info('Practice: Card dealing complete. ${remainingDeck.length} cards remaining (including ${jokerCards.length} jokers)', isOn: LOGGING_SWITCH);
     
     // Return both the dealt players and the remaining deck (matches backend pattern)
+    return {
+      'players': players,
+      'remainingDeck': remainingDeck,
+    };
+  }
+
+  /// Deal predefined cards to players for testing
+  Map<String, dynamic> _dealPredefinedCards(
+    List<Map<String, dynamic>> players,
+    List<Map<String, dynamic>> deck,
+    Map<String, dynamic> config,
+  ) {
+    final workingDeck = deck.map((card) => Map<String, dynamic>.from(card)).toList();
+    final jokerCards = workingDeck.where((card) => card['rank'] == 'joker').toList();
+    final nonJokerCards = workingDeck.where((card) => card['rank'] != 'joker').toList();
+    
+    final handsLoader = PredefinedHandsLoader();
+    
+    for (int playerIdx = 0; playerIdx < players.length; playerIdx++) {
+      final player = players[playerIdx];
+      final playerHand = <Map<String, dynamic>>[];
+      final predefinedHand = handsLoader.getHandForPlayer(config, playerIdx);
+      
+      if (predefinedHand != null) {
+        // Deal predefined cards
+        for (final cardSpec in predefinedHand) {
+          final matchingCardIndex = nonJokerCards.indexWhere(
+            (card) => card['rank'] == cardSpec['rank'] && card['suit'] == cardSpec['suit']
+          );
+          
+          if (matchingCardIndex != -1) {
+            final fullCard = nonJokerCards.removeAt(matchingCardIndex);
+            final idOnlyCard = {
+              'cardId': fullCard['cardId'],
+              'suit': '?',
+              'rank': '?',
+              'points': 0,
+              'displayName': '?',
+              'color': 'black',
+              'ownerId': player['id'],
+            };
+            playerHand.add(idOnlyCard);
+            Logger().info('Practice: Dealt predefined ${cardSpec['rank']} of ${cardSpec['suit']} to ${player['name']}');
+          } else {
+            Logger().warning('Practice: Could not find ${cardSpec['rank']} of ${cardSpec['suit']}');
+          }
+        }
+      } else {
+        // No predefined hand, deal random cards
+        for (int i = 0; i < 4; i++) {
+          if (nonJokerCards.isNotEmpty) {
+            final fullCard = nonJokerCards.removeAt(0);
+            final idOnlyCard = {
+              'cardId': fullCard['cardId'],
+              'suit': '?',
+              'rank': '?',
+              'points': 0,
+              'displayName': '?',
+              'color': 'black',
+              'ownerId': player['id'],
+            };
+            playerHand.add(idOnlyCard);
+          }
+        }
+      }
+      
+      player['hand'] = playerHand;
+      player['status'] = 'waiting';
+    }
+    
+    final remainingDeck = [...nonJokerCards, ...jokerCards];
+    remainingDeck.shuffle();
+    
     return {
       'players': players,
       'remainingDeck': remainingDeck,
@@ -774,7 +857,7 @@ class PracticeGameCoordinator {
       
       // Deal cards to players (replicating backend _deal_cards logic)
       // Returns both players and remaining deck after dealing
-      final dealResult = _dealCardsToPlayers(allPlayers, deck);
+      final dealResult = await _dealCardsToPlayers(allPlayers, deck);
       final dealtPlayers = dealResult['players'] as List<Map<String, dynamic>>;
       final remainingDeck = dealResult['remainingDeck'] as List<Map<String, dynamic>>;
       

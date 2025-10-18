@@ -1159,6 +1159,16 @@ class GameStateManager:
     def _deal_cards(self, game: GameState):
         """Deal 4 cards to each player, excluding jokers from initial hands - moved from GameActions"""
         
+        # Check if predefined hands are enabled
+        from ..utils.predefined_hands_loader import PredefinedHandsLoader
+        hands_loader = PredefinedHandsLoader()
+        config = hands_loader.load_config()
+        
+        if config['enabled']:
+            custom_log("Using PREDEFINED HANDS for testing", level="WARNING", isOn=True)
+            self._deal_predefined_cards(game, config['hands'])
+            return
+        
         # Step 1: Separate jokers from non-joker cards
         joker_cards = [card for card in game.deck.cards if card.rank == 'joker']
         non_joker_cards = [card for card in game.deck.cards if card.rank != 'joker']
@@ -1188,6 +1198,55 @@ class GameStateManager:
         
         custom_log(f"Card dealing complete. {len(remaining_cards)} cards remaining (including {len(joker_cards)} jokers)", 
                    level="INFO", isOn=LOGGING_SWITCH)
+    
+    def _deal_predefined_cards(self, game: GameState, predefined_hands: dict):
+        """Deal predefined cards to players for testing"""
+        
+        # Get all cards from deck for matching
+        all_cards = game.deck.cards.copy()
+        
+        # Separate jokers for later
+        joker_cards = [card for card in all_cards if card.rank == 'joker']
+        non_joker_cards = [card for card in all_cards if card.rank != 'joker']
+        
+        player_list = list(game.players.values())
+        
+        for player_idx, player in enumerate(player_list):
+            player_key = f"player_{player_idx}"
+            
+            if player_key in predefined_hands:
+                # Deal predefined cards for this player
+                for card_spec in predefined_hands[player_key]:
+                    # Find matching card in deck
+                    matching_card = next(
+                        (card for card in non_joker_cards 
+                         if card.rank == card_spec['rank'] and card.suit == card_spec['suit']),
+                        None
+                    )
+                    
+                    if matching_card:
+                        non_joker_cards.remove(matching_card)
+                        player.add_card_to_hand(matching_card)
+                        custom_log(f"Dealt predefined card {matching_card.rank} of {matching_card.suit} to {player.name}", 
+                                  level="INFO", isOn=True)
+                    else:
+                        custom_log(f"Warning: Could not find card {card_spec['rank']} of {card_spec['suit']}", 
+                                  level="WARNING", isOn=True)
+            else:
+                # No predefined hand for this player, deal random cards
+                for _ in range(4):
+                    if non_joker_cards:
+                        card = non_joker_cards.pop(0)
+                        player.add_card_to_hand(card)
+        
+        # Combine remaining cards with jokers and shuffle
+        remaining_cards = non_joker_cards + joker_cards
+        import random
+        random.shuffle(remaining_cards)
+        game.deck.cards = remaining_cards
+        
+        custom_log(f"Predefined card dealing complete. {len(remaining_cards)} cards remaining", 
+                  level="INFO", isOn=True)
     
     def _setup_piles(self, game: GameState):
         """Set up draw and discard piles - moved from GameActions"""

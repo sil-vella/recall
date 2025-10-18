@@ -53,6 +53,9 @@ flutter:
     - assets/
     - assets/images/
     - assets/images/backgrounds/
+    - assets/deck_config.yaml
+    - assets/computer_player_config.yaml
+    - assets/predefined_hands.yaml
 
 # flutter_native_splash:
 #   color: "#ffffff" # Background color of the splash screen

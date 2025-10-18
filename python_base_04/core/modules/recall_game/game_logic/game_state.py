@@ -1165,7 +1165,7 @@ class GameStateManager:
         config = hands_loader.load_config()
         
         if config['enabled']:
-            custom_log("Using PREDEFINED HANDS for testing", level="WARNING", isOn=True)
+            custom_log("Using PREDEFINED HANDS for testing", level="WARNING", isOn=LOGGING_SWITCH)
             self._deal_predefined_cards(game, config['hands'])
             return
         
@@ -1227,11 +1227,9 @@ class GameStateManager:
                     if matching_card:
                         non_joker_cards.remove(matching_card)
                         player.add_card_to_hand(matching_card)
-                        custom_log(f"Dealt predefined card {matching_card.rank} of {matching_card.suit} to {player.name}", 
-                                  level="INFO", isOn=True)
+                        custom_log(f"Dealt predefined card {matching_card.rank} of {matching_card.suit} to {player.name}", level="INFO", isOn=LOGGING_SWITCH)
                     else:
-                        custom_log(f"Warning: Could not find card {card_spec['rank']} of {card_spec['suit']}", 
-                                  level="WARNING", isOn=True)
+                        custom_log(f"Warning: Could not find card {card_spec['rank']} of {card_spec['suit']}", level="WARNING", isOn=LOGGING_SWITCH)
             else:
                 # No predefined hand for this player, deal random cards
                 for _ in range(4):
@@ -1246,7 +1244,16 @@ class GameStateManager:
         game.deck.cards = remaining_cards
         
         custom_log(f"Predefined card dealing complete. {len(remaining_cards)} cards remaining", 
-                  level="INFO", isOn=True)
+                  level="INFO", isOn=LOGGING_SWITCH)
+        
+        # Store initial discard card spec for later use in _setup_piles
+        # This will be used when setting up the discard pile
+        from ..utils.predefined_hands_loader import PredefinedHandsLoader
+        hands_loader = PredefinedHandsLoader()
+        config = hands_loader.load_config()
+        if config.get('enabled') and 'initial_discard' in config:
+            game._predefined_initial_discard = config['initial_discard']
+            custom_log(f"Stored predefined initial discard card: {config['initial_discard']}", level="INFO", isOn=LOGGING_SWITCH)
     
     def _setup_piles(self, game: GameState):
         """Set up draw and discard piles - moved from GameActions"""
@@ -1255,13 +1262,38 @@ class GameStateManager:
             game.draw_pile = game.deck.cards.copy()
             game.deck.cards = []
             
-            # Start discard pile with first card from draw pile
-            if game.draw_pile:
-                first_card = game.draw_pile.pop(0)
-                game.discard_pile.append(first_card)
-                custom_log(f"Setup piles: {len(game.draw_pile)} cards in draw pile, {len(game.discard_pile)} cards in discard pile", level="INFO", isOn=LOGGING_SWITCH)
+            # Check if there's a predefined initial discard card
+            if hasattr(game, '_predefined_initial_discard') and game._predefined_initial_discard:
+                discard_spec = game._predefined_initial_discard
+                # Find the matching card in the draw pile
+                matching_card = next(
+                    (card for card in game.draw_pile 
+                     if card.rank == discard_spec['rank'] and card.suit == discard_spec['suit']),
+                    None
+                )
+                
+                if matching_card:
+                    game.draw_pile.remove(matching_card)
+                    game.discard_pile.append(matching_card)
+                    custom_log(f"Using predefined initial discard card: {matching_card.rank} of {matching_card.suit}", level="INFO", isOn=LOGGING_SWITCH)
+                else:
+                    custom_log(f"Warning: Could not find predefined discard card {discard_spec['rank']} of {discard_spec['suit']}, using random card", level="WARNING", isOn=LOGGING_SWITCH)
+                    # Fall back to random card
+                    if game.draw_pile:
+                        first_card = game.draw_pile.pop(0)
+                        game.discard_pile.append(first_card)
+                
+                # Clean up the temporary attribute
+                delattr(game, '_predefined_initial_discard')
             else:
-                custom_log("Warning: No cards in draw pile after dealing", level="WARNING", isOn=LOGGING_SWITCH)
+                # Start discard pile with first card from draw pile (normal behavior)
+                if game.draw_pile:
+                    first_card = game.draw_pile.pop(0)
+                    game.discard_pile.append(first_card)
+                else:
+                    custom_log("Warning: No cards in draw pile after dealing", level="WARNING", isOn=LOGGING_SWITCH)
+            
+            custom_log(f"Setup piles: {len(game.draw_pile)} cards in draw pile, {len(game.discard_pile)} cards in discard pile", level="INFO", isOn=LOGGING_SWITCH)
             
             # Trigger change detection for both piles
             if hasattr(game, '_track_change'):

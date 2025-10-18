@@ -26,3 +26,9 @@ hands:
       suit: "spades"
   
   # Add more players as needed (player_2, player_3, etc.)
+
+# Initial discard pile card (optional)
+# If not specified, a random card from the remaining deck will be used
+initial_discard:
+  rank: "5"
+  suit: "hearts"

@@ -8,7 +8,9 @@ for testing purposes in the Recall game.
 import os
 import yaml
 from typing import Dict, List, Any, Optional
-from utils.logging_utils import custom_log
+from tools.logger.custom_logging import custom_log
+
+LOGGING_SWITCH = True
 
 
 class PredefinedHandsLoader:
@@ -32,16 +34,13 @@ class PredefinedHandsLoader:
         try:
             with open(self.config_path, 'r') as file:
                 config = yaml.safe_load(file)
-                custom_log(f"Loaded predefined hands config: enabled={config.get('enabled', False)}", 
-                          level="INFO", isOn=True)
+                custom_log(f"Loaded predefined hands config: enabled={config.get('enabled', False)}", level="INFO", isOn=LOGGING_SWITCH)
                 return config
         except FileNotFoundError:
-            custom_log("Predefined hands config file not found, using default (disabled)", 
-                      level="WARNING", isOn=True)
+            custom_log("Predefined hands config file not found, using default (disabled)", level="WARNING", isOn=LOGGING_SWITCH)
             return {'enabled': False, 'hands': {}}
         except Exception as e:
-            custom_log(f"Error loading predefined hands config: {e}", 
-                      level="ERROR", isOn=True)
+            custom_log(f"Error loading predefined hands config: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return {'enabled': False, 'hands': {}}
     
     def get_hand_for_player(self, config: Dict[str, Any], player_index: int) -> Optional[List[Dict[str, str]]]:
@@ -66,10 +65,8 @@ class PredefinedHandsLoader:
         hand = hands.get(player_key)
         
         if hand is None:
-            custom_log(f"No predefined hand found for player {player_index}", 
-                      level="DEBUG", isOn=True)
+            custom_log(f"No predefined hand found for player {player_index}", level="DEBUG", isOn=LOGGING_SWITCH)
             return None
         
-        custom_log(f"Found predefined hand for player {player_index}: {len(hand)} cards", 
-                  level="DEBUG", isOn=True)
+        custom_log(f"Found predefined hand for player {player_index}: {len(hand)} cards", level="DEBUG", isOn=LOGGING_SWITCH)
         return hand

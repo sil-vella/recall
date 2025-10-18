@@ -753,24 +753,54 @@ class PracticeGameCoordinator {
     final remainingDeck = [...nonJokerCards, ...jokerCards];
     remainingDeck.shuffle();
     
+    // Store initial discard card spec if defined
+    Map<String, dynamic>? initialDiscardSpec;
+    if (config.containsKey('initial_discard')) {
+      initialDiscardSpec = Map<String, dynamic>.from(config['initial_discard']);
+      Logger().info('Practice: Stored predefined initial discard card: $initialDiscardSpec');
+    }
+    
     return {
       'players': players,
       'remainingDeck': remainingDeck,
+      'initialDiscardSpec': initialDiscardSpec,
     };
   }
 
   /// Set up draw and discard piles (replicating backend _setup_piles logic)
   /// Draw pile: ID-only format (face-down), Discard pile: Full data format (face-up)
-  Map<String, dynamic> _setupPiles(List<Map<String, dynamic>> remainingDeck) {
+  Map<String, dynamic> _setupPiles(List<Map<String, dynamic>> remainingDeck, {Map<String, dynamic>? initialDiscardSpec}) {
     Logger().info('Practice: Setting up piles with ${remainingDeck.length} remaining cards', isOn: LOGGING_SWITCH);
     
     // Start discard pile with first card from remaining deck (full data format)
     // IMPORTANT: Remove card BEFORE creating draw pile to avoid duplicate
     final discardPile = <Map<String, dynamic>>[];
-    if (remainingDeck.isNotEmpty) {
-      final firstCard = remainingDeck.removeAt(0); // Remove from original deck
-      discardPile.add(firstCard); // Add full card data to discard pile
-      Logger().info('Practice: Moved first card ${firstCard['cardId']} to discard pile', isOn: LOGGING_SWITCH);
+    
+    // Check if there's a predefined initial discard card
+    if (initialDiscardSpec != null) {
+      final matchingCardIndex = remainingDeck.indexWhere(
+        (card) => card['rank'] == initialDiscardSpec['rank'] && card['suit'] == initialDiscardSpec['suit']
+      );
+      
+      if (matchingCardIndex != -1) {
+        final matchingCard = remainingDeck.removeAt(matchingCardIndex);
+        discardPile.add(matchingCard);
+        Logger().info('Practice: Using predefined initial discard card: ${matchingCard['rank']} of ${matchingCard['suit']}');
+      } else {
+        Logger().warning('Practice: Could not find predefined discard card ${initialDiscardSpec['rank']} of ${initialDiscardSpec['suit']}, using random card');
+        // Fall back to random card
+        if (remainingDeck.isNotEmpty) {
+          final firstCard = remainingDeck.removeAt(0);
+          discardPile.add(firstCard);
+        }
+      }
+    } else {
+      // Normal behavior: use first card from remaining deck
+      if (remainingDeck.isNotEmpty) {
+        final firstCard = remainingDeck.removeAt(0); // Remove from original deck
+        discardPile.add(firstCard); // Add full card data to discard pile
+        Logger().info('Practice: Moved first card ${firstCard['cardId']} to discard pile', isOn: LOGGING_SWITCH);
+      }
     }
     
     // Convert remaining deck to ID-only format for draw pile (matches backend _to_flutter_card with full_data=False)
@@ -860,9 +890,10 @@ class PracticeGameCoordinator {
       final dealResult = await _dealCardsToPlayers(allPlayers, deck);
       final dealtPlayers = dealResult['players'] as List<Map<String, dynamic>>;
       final remainingDeck = dealResult['remainingDeck'] as List<Map<String, dynamic>>;
+      final initialDiscardSpec = dealResult['initialDiscardSpec'] as Map<String, dynamic>?;
       
       // Set up draw and discard piles using REMAINING deck after dealing (replicating backend _setup_piles logic)
-      final pileSetup = _setupPiles(remainingDeck);
+      final pileSetup = _setupPiles(remainingDeck, initialDiscardSpec: initialDiscardSpec);
       
       // Initialize game state properties (replicating backend GameState.__init__)
       final gameState = {

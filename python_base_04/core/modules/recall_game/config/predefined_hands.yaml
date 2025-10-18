@@ -30,5 +30,5 @@ hands:
 # Initial discard pile card (optional)
 # If not specified, a random card from the remaining deck will be used
 initial_discard:
-  rank: "5"
-  suit: "hearts"
+  rank: "ace"
+  suit: "clubs"

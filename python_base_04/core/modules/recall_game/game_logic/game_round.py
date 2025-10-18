@@ -1168,9 +1168,9 @@ class GameRound:
             elif source == 'discard':
                 # COLLECTION DRAW from discard pile
                 # Phase restrictions: cannot collect during same_rank_window or initial_peek
-                if (self.game_state.game_phase == GamePhase.SAME_RANK_WINDOW or 
-                    self.game_state.game_phase == GamePhase.INITIAL_PEEK):
-                    phase_name = "same rank window" if self.game_state.game_phase == GamePhase.SAME_RANK_WINDOW else "initial peek"
+                if (self.game_state.phase == GamePhase.SAME_RANK_WINDOW or 
+                    self.game_state.phase == GamePhase.INITIAL_PEEK):
+                    phase_name = "same rank window" if self.game_state.phase == GamePhase.SAME_RANK_WINDOW else "initial peek"
                     custom_log(f"Cannot collect during {phase_name} phase", level="INFO", isOn=LOGGING_SWITCH)
                     
                     if self.websocket_manager:

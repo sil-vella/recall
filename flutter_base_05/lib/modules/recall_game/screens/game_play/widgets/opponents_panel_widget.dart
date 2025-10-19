@@ -381,11 +381,18 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                 width: cardWidth,
                 height: cardHeight + (collectionRankWidgets.length - 1) * stackOffset,
                 child: Stack(
+                  clipBehavior: Clip.none,
                   children: collectionRankWidgets.asMap().entries.map((entry) {
+                    // Reverse index: first card (0) at bottom, last card at top
+                    final reverseIndex = collectionRankWidgets.length - 1 - entry.key;
                     return Positioned(
                       left: 0,
-                      top: entry.key * stackOffset,
-                      child: entry.value,
+                      bottom: reverseIndex * stackOffset, // Position from bottom
+                      child: SizedBox(
+                        width: cardWidth,
+                        height: cardHeight, // Ensure full height
+                        child: entry.value,
+                      ),
                     );
                   }).toList(),
                 ),

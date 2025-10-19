@@ -929,20 +929,15 @@ class GameRound:
     def _extract_user_id(self, session_id: str, data: Dict[str, Any]) -> str:
         """Extract user ID from session data or request data"""
         try:
-            custom_log(f"_extract_user_id DEBUG: session_id={session_id}", level="DEBUG", isOn=LOGGING_SWITCH)
-            custom_log(f"_extract_user_id DEBUG: self.websocket_manager is None? {self.websocket_manager is None}", level="DEBUG", isOn=LOGGING_SWITCH)
-            custom_log(f"_extract_user_id DEBUG: data.get('user_id')={data.get('user_id')}", level="DEBUG", isOn=LOGGING_SWITCH)
-            custom_log(f"_extract_user_id DEBUG: data.get('player_id')={data.get('player_id')}", level="DEBUG", isOn=LOGGING_SWITCH)
+            # Get websocket_manager from app_manager (since we removed self.websocket_manager)
+            websocket_manager = None
+            if self.game_state.app_manager:
+                websocket_manager = self.game_state.app_manager.get_websocket_manager()
             
-            session_data = self.websocket_manager.get_session_data(session_id) if self.websocket_manager else {}
-            result = str(session_data.get('user_id') or data.get('user_id') or data.get('player_id') or session_id)
-            
-            custom_log(f"_extract_user_id DEBUG: returning={result}", level="DEBUG", isOn=LOGGING_SWITCH)
-            return result
+            session_data = websocket_manager.get_session_data(session_id) if websocket_manager else {}
+            return str(session_data.get('user_id') or data.get('user_id') or data.get('player_id') or session_id)
         except Exception as e:
-            custom_log(f"_extract_user_id DEBUG: Exception caught: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-            import traceback
-            custom_log(f"_extract_user_id DEBUG: Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
+            custom_log(f"Error in _extract_user_id: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return session_id
     
     def _route_action(self, action: str, user_id: str, action_data: Dict[str, Any]) -> bool:

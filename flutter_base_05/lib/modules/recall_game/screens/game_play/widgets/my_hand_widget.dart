@@ -418,12 +418,23 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               
               // Normal card rendering (non-collection rank)
               final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, index, cardMap);
+              
+              // Wrap in SizedBox to ensure consistent dimensions like collection cards
+              const double cardHeight = 120.0;
+              const double cardWidth = 80.0;
+              
+              final sizedCardWidget = SizedBox(
+                width: cardWidth,
+                height: cardHeight,
+                child: cardWidget,
+              );
+              
               return Padding(
                 padding: EdgeInsets.only(
                   right: 8,
                   left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
                 ),
-                child: cardWidget,
+                child: sizedCardWidget,
               );
             },
           ),

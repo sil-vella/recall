@@ -485,12 +485,23 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           // Normal card rendering (non-collection rank)
           final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, isKnownCard, false);
+          
+          // Wrap in SizedBox to ensure consistent dimensions like collection cards
+          const double cardHeight = 70.0;
+          const double cardWidth = 50.0;
+          
+          final sizedCardWidget = SizedBox(
+            width: cardWidth,
+            height: cardHeight,
+            child: cardWidget,
+          );
+          
           return Padding(
             padding: EdgeInsets.only(
               right: 6,
               left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
             ),
-            child: cardWidget,
+            child: sizedCardWidget,
           );
         },
       ),

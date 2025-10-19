@@ -419,7 +419,7 @@ class RecallGameStateUpdater {
     'actionBar': {'currentGameId', 'games', 'isRoomOwner', 'isGameActive', 'isMyTurn'},
     'statusBar': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'playerStatus'},
     'myHand': {'currentGameId', 'games', 'isMyTurn', 'playerStatus'},
-    'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
+    'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile'},
     'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'currentPlayerStatus'},
     'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
     'joinedGamesSlice': {'joinedGames', 'totalJoinedGames', 'joinedGamesTimestamp'},

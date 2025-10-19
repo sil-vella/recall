@@ -1546,6 +1546,14 @@ class PracticeGameRound {
       if (success) {
         Logger().info('Practice: Successfully set all players to same_rank_window status', isOn: LOGGING_SWITCH);
         
+        // CRITICAL: Set gamePhase to same_rank_window to match backend behavior
+        // Backend sets game_state.phase = GamePhase.SAME_RANK_WINDOW (game_round.py line 906)
+        // This ensures collection from discard pile is properly blocked during same rank window
+        _practiceCoordinator.updatePracticeGameState({
+          'gamePhase': 'same_rank_window',
+        });
+        Logger().info('Practice: Set gamePhase to same_rank_window', isOn: LOGGING_SWITCH);
+        
         // Start 5-second timer to automatically end same rank window
         // Matches backend behavior (game_round.py line 579)
         _startSameRankTimer();
@@ -1597,6 +1605,14 @@ class PracticeGameRound {
       
       if (success) {
         Logger().info('Practice: Successfully reset all players to waiting status', isOn: LOGGING_SWITCH);
+        
+        // CRITICAL: Reset gamePhase back to player_turn to match backend behavior
+        // Backend transitions to ENDING_TURN phase (game_round.py line 634)
+        // For practice game, we use player_turn as the main gameplay phase
+        _practiceCoordinator.updatePracticeGameState({
+          'gamePhase': 'player_turn',
+        });
+        Logger().info('Practice: Reset gamePhase to player_turn', isOn: LOGGING_SWITCH);
       } else {
         Logger().error('Practice: Failed to reset players to waiting status', isOn: LOGGING_SWITCH);
       }

@@ -52,13 +52,32 @@ class GameRound:
         self.round_time_limit_seconds = 300  # 5 minutes default
         self.round_time_remaining = None
         
-        # WebSocket manager reference for sending events
-        self.websocket_manager = getattr(game_state, 'websocket_manager', None)
-        
         # Load player action timeout from config
         from utils.config.config import Config
         self.player_action_timeout = Config.RECALL_PLAYER_ACTION_TIMEOUT
         custom_log(f"GameRound initialized with player action timeout: {self.player_action_timeout} seconds", level="INFO", isOn=LOGGING_SWITCH)
+    
+    def _send_error_to_player(self, player_id: str, message: str):
+        """Send error message to a player using the coordinator"""
+        try:
+            # Get session_id from game_state
+            session_id = self.game_state.player_sessions.get(player_id)
+            if not session_id:
+                custom_log(f"No session found for player {player_id}, cannot send error", level="WARNING", isOn=LOGGING_SWITCH)
+                return
+            
+            # Get coordinator from app_manager
+            if self.game_state.app_manager:
+                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    custom_log(f"Sending error to player {player_id} via session {session_id}: {message}", level="INFO", isOn=LOGGING_SWITCH)
+                    coordinator._send_error(session_id, message)
+                else:
+                    custom_log("No coordinator found, cannot send error", level="WARNING", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("No app_manager found, cannot send error", level="WARNING", isOn=LOGGING_SWITCH)
+        except Exception as e:
+            custom_log(f"Error sending error message to player: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         
     def start_turn(self) -> Dict[str, Any]:
         """Start a new round of gameplay"""
@@ -177,19 +196,10 @@ class GameRound:
             )
             
             # Send timeout error to the player
-            if self.websocket_manager:
-                session_id = self.game_state.player_sessions.get(player_id)
-                if session_id:
-                    custom_log(f"Sending draw timeout error to player {player_id} via session {session_id}", level="INFO", isOn=LOGGING_SWITCH)
-                    self.websocket_manager.send_to_session(
-                        session_id,
-                        'recall_error',
-                        {'message': f'Draw phase timeout - you have {self.player_action_timeout} seconds to draw a card'}
-                    )
-                else:
-                    custom_log(f"No session found for player {player_id}, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
-            else:
-                custom_log("websocket_manager is None, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
+            self._send_error_to_player(
+                player_id,
+                f'Draw phase timeout - you have {self.player_action_timeout} seconds to draw a card'
+            )
             
             # Clean up timer state
             self.current_turn_player_id = None
@@ -246,19 +256,10 @@ class GameRound:
             )
             
             # Send timeout error to the player
-            if self.websocket_manager:
-                session_id = self.game_state.player_sessions.get(player_id)
-                if session_id:
-                    custom_log(f"Sending play timeout error to player {player_id} via session {session_id}", level="INFO", isOn=LOGGING_SWITCH)
-                    self.websocket_manager.send_to_session(
-                        session_id,
-                        'recall_error',
-                        {'message': f'Play phase timeout - you have {self.player_action_timeout} seconds to play a card'}
-                    )
-                else:
-                    custom_log(f"No session found for player {player_id}, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
-            else:
-                custom_log("websocket_manager is None, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
+            self._send_error_to_player(
+                player_id,
+                f'Play phase timeout - you have {self.player_action_timeout} seconds to play a card'
+            )
             
             # Clear drawn card state (keeps card in hand but removes "drawn" status)
             player = self.game_state.players.get(player_id)
@@ -1329,12 +1330,7 @@ class GameRound:
                     phase_name = "same rank window" if self.game_state.phase == GamePhase.SAME_RANK_WINDOW else "initial peek"
                     custom_log(f"Cannot collect during {phase_name} phase", level="INFO", isOn=LOGGING_SWITCH)
                     
-                    if self.websocket_manager:
-                        self.websocket_manager.send_to_session(
-                            player_id,
-                            'recall_error',
-                            {'message': f'Cannot collect cards during {phase_name} phase'}
-                        )
+                    self._send_error_to_player(player_id, f'Cannot collect cards during {phase_name} phase')
                     return False
                 
                 # Get top card to check collection rank match
@@ -1342,12 +1338,7 @@ class GameRound:
                 if not top_discard_card:
                     custom_log(f"No cards in discard pile", level="INFO", isOn=LOGGING_SWITCH)
                     
-                    if self.websocket_manager:
-                        self.websocket_manager.send_to_session(
-                            player_id,
-                            'recall_error',
-                            {'message': 'Discard pile is empty'}
-                        )
+                    self._send_error_to_player(player_id, 'Discard pile is empty')
                     return False
                 
                 # Validate collection rank match
@@ -1358,20 +1349,11 @@ class GameRound:
                         isOn=LOGGING_SWITCH
                     )
                     
-                    custom_log(f"websocket_manager exists: {self.websocket_manager is not None}", level="DEBUG", isOn=LOGGING_SWITCH)
-                    if self.websocket_manager:
-                        session_id = self.game_state.player_sessions.get(player_id)
-                        if session_id:
-                            custom_log(f"Sending recall_error to player {player_id} via session {session_id}", level="DEBUG", isOn=LOGGING_SWITCH)
-                            self.websocket_manager.send_to_session(
-                                session_id,
-                                'recall_error',
-                                {'message': 'You can only collect cards from the discard pile that match your collection rank'}
-                            )
-                        else:
-                            custom_log(f"No session found for player {player_id}, cannot send error", level="WARNING", isOn=LOGGING_SWITCH)
-                    else:
-                        custom_log("websocket_manager is None, cannot send error", level="WARNING", isOn=LOGGING_SWITCH)
+                    # Send error to player
+                    self._send_error_to_player(
+                        player_id,
+                        'You can only collect cards from the discard pile that match your collection rank'
+                    )
                     return False
                 
                 # SUCCESS - Draw from discard pile
@@ -1474,18 +1456,11 @@ class GameRound:
                 if hasattr(collection_card, 'card_id') and collection_card.card_id == card_id:
                     custom_log(f"Card {card_id} is a collection rank card and cannot be played by player {player_id}", level="INFO", isOn=LOGGING_SWITCH)
                     
-                    # Send error message to player using existing recall_error event
-                    if self.websocket_manager:
-                        session_id = self.game_state.player_sessions.get(player_id)
-                        if session_id:
-                            self.websocket_manager.send_to_session(
-                                session_id, 
-                                'recall_error', 
-                                {'message': 'This card is your collection rank and cannot be played. Choose another card.'}
-                            )
-                        else:
-                            custom_log(f"No session found for player {player_id}, cannot send error", level="WARNING", isOn=LOGGING_SWITCH)
-                    
+                    # Send error message to player
+                    self._send_error_to_player(
+                        player_id,
+                        'This card is your collection rank and cannot be played. Choose another card.'
+                    )
                     return False
             
             # Handle drawn card repositioning BEFORE removing the played card
@@ -1627,18 +1602,11 @@ class GameRound:
                 if hasattr(collection_card, 'card_id') and collection_card.card_id == card_id:
                     custom_log(f"Card {card_id} is a collection rank card and cannot be played for same rank by player {user_id}", level="INFO", isOn=LOGGING_SWITCH)
                     
-                    # Send error message to player using existing recall_error event
-                    if self.websocket_manager:
-                        session_id = self.game_state.player_sessions.get(user_id)
-                        if session_id:
-                            self.websocket_manager.send_to_session(
-                                session_id, 
-                                'recall_error', 
-                                {'message': 'This card is your collection rank and cannot be played for same rank. Choose another card.'}
-                            )
-                        else:
-                            custom_log(f"No session found for player {user_id}, cannot send error", level="WARNING", isOn=LOGGING_SWITCH)
-                    
+                    # Send error message to player
+                    self._send_error_to_player(
+                        user_id,
+                        'This card is your collection rank and cannot be played for same rank. Choose another card.'
+                    )
                     return False
             
             # Validate that this is actually a same rank play

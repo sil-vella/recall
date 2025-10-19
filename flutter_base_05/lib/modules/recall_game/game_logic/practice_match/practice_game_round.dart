@@ -14,7 +14,6 @@ const bool LOGGING_SWITCH = false;
 class PracticeGameRound {
   final PracticeGameCoordinator _practiceCoordinator;
   final String _gameId;
-  Timer? _turnTimer;
   Timer? _sameRankTimer; // Timer for same rank window (5 seconds)
   Timer? _specialCardTimer; // Timer for special card window (10 seconds per card)
   
@@ -198,8 +197,6 @@ class PracticeGameRound {
         Logger().info('Practice: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
         _initComputerTurn(gameState);
       } else {
-        // Turn timer disabled for practice games (for now)
-        // _startTurnTimer();
         Logger().info('Practice: Started turn for human player ${nextPlayer['name']} - status: drawing_card (no timer)', isOn: LOGGING_SWITCH);
       }
       
@@ -613,67 +610,6 @@ class PracticeGameRound {
     
     return nextPlayer;
   }
-  
-  /// Start turn timer
-  // ignore: unused_element
-  void _startTurnTimer() {
-    _turnTimer?.cancel();
-    
-    // Get timer settings from practice game configuration
-    final turnTimeLimit = _getTurnTimeLimit();
-    
-    // Only start timer if it's enabled (turnTimeLimit > 0)
-    if (turnTimeLimit > 0) {
-      _turnTimer = Timer(Duration(seconds: turnTimeLimit), () {
-        Logger().info('Practice: Turn timer expired (${turnTimeLimit}s), moving to next player', isOn: LOGGING_SWITCH);
-        _handleTurnTimeout();
-      });
-      Logger().info('Practice: Started turn timer for ${turnTimeLimit} seconds', isOn: LOGGING_SWITCH);
-    } else {
-      Logger().info('Practice: Turn timer is disabled (no time limit)', isOn: LOGGING_SWITCH);
-    }
-  }
-  
-  /// Handle turn timeout
-  void _handleTurnTimeout() {
-    try {
-      // Auto-draw a card for the current player
-
-      
-      // Move to next player
-      _startNextTurn();
-      
-    } catch (e) {
-      Logger().error('Practice: Failed to handle turn timeout: $e', isOn: LOGGING_SWITCH);
-    }
-  }
-  
-  /// Get turn time limit from practice game configuration
-  int _getTurnTimeLimit() {
-    try {
-      // Get the current game state to access timer settings
-      final currentGames = _practiceCoordinator.currentGamesMap;
-      final gameData = currentGames[_gameId];
-      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
-      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
-      
-      if (gameState == null) {
-        Logger().warning('Practice: Game state is null, using default timer (30s)', isOn: LOGGING_SWITCH);
-        return 30; // Default fallback
-      }
-      
-      // Get turn time limit from game state (stored during game creation)
-      final turnTimeLimit = gameState['turnTimeLimit'] as int? ?? 30;
-      
-      Logger().info('Practice: Retrieved turn time limit from game state: ${turnTimeLimit}s', isOn: LOGGING_SWITCH);
-      return turnTimeLimit;
-      
-    } catch (e) {
-      Logger().error('Practice: Failed to get turn time limit: $e, using default (30s)', isOn: LOGGING_SWITCH);
-      return 30; // Default fallback
-    }
-  }
-  
 
 
   /// Handle drawing a card from the specified pile (replicates backend _handle_draw_from_pile)
@@ -1922,8 +1858,6 @@ class PracticeGameRound {
         Logger().info('Practice: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
         _initComputerTurn(gameState);
       } else {
-        // Turn timer disabled for practice games (for now)
-        // _startTurnTimer();
         Logger().info('Practice: Started turn for human player ${nextPlayer['name']} - status: drawing_card (no timer)', isOn: LOGGING_SWITCH);
       }
       
@@ -1934,7 +1868,6 @@ class PracticeGameRound {
 
   /// Dispose of resources
   void dispose() {
-    _turnTimer?.cancel();
     _sameRankTimer?.cancel();
     _specialCardTimer?.cancel();
     Logger().info('Practice: PracticeGameRound disposed for game $_gameId', isOn: LOGGING_SWITCH);

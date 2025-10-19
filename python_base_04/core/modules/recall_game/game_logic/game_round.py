@@ -37,9 +37,11 @@ class GameRound:
         self.same_rank_timer = None  # Timer for same rank window
         self.special_card_timer = None  # Timer for special card window
         self.special_card_players = []  # List of players who played special cards
-        self.player_action_timer = None  # Timer for player action timeout
-        self.current_action_player = None  # Track which player is currently acting
-        self.current_action_type = None  # Track the type of action being performed
+        
+        # Turn-based timers for drawing and playing phases
+        self.draw_phase_timer = None  # Timer for drawing phase (10 seconds)
+        self.play_phase_timer = None  # Timer for playing phase (10 seconds)
+        self.current_turn_player_id = None  # Track which player's turn it is
 
         self.pending_events = [] # List of pending events to process before ending round
 
@@ -92,6 +94,9 @@ class GameRound:
                     player.set_status(PlayerStatus.DRAWING_CARD)
                     custom_log(f"Player {self.game_state.current_player_id} status set to DRAWING_CARD", level="INFO", isOn=LOGGING_SWITCH)
                     
+                    # Start draw phase timer (10 seconds)
+                    self._start_draw_phase_timer(self.game_state.current_player_id)
+                    
                     # Note: Computer player detection is now handled in _move_to_next_player
                     # to avoid duplicate processing
             
@@ -130,6 +135,150 @@ class GameRound:
         except Exception as e:
             return {"error": f"Failed to start round: {str(e)}"}
 
+    def _start_draw_phase_timer(self, player_id: str):
+        """Start the 10-second timer for the drawing phase"""
+        try:
+            self._cancel_draw_phase_timer()
+            self.current_turn_player_id = player_id
+            self.draw_phase_timer = threading.Timer(
+                self.player_action_timeout,
+                self._on_draw_phase_timeout
+            )
+            self.draw_phase_timer.start()
+            custom_log(
+                f"Started {self.player_action_timeout}-second draw phase timer for player {player_id}",
+                level="INFO",
+                isOn=LOGGING_SWITCH
+            )
+        except Exception as e:
+            custom_log(f"Error starting draw phase timer: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _cancel_draw_phase_timer(self):
+        """Cancel the draw phase timer if it's running"""
+        try:
+            if self.draw_phase_timer and self.draw_phase_timer.is_alive():
+                self.draw_phase_timer.cancel()
+                self.draw_phase_timer = None
+                custom_log("Cancelled draw phase timer", level="DEBUG", isOn=LOGGING_SWITCH)
+        except Exception as e:
+            custom_log(f"Error cancelling draw phase timer: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _on_draw_phase_timeout(self):
+        """Called when draw phase timer expires - player didn't draw in time"""
+        try:
+            if not self.current_turn_player_id:
+                return
+            
+            player_id = self.current_turn_player_id
+            custom_log(
+                f"Draw phase timeout for player {player_id} - {self.player_action_timeout} seconds expired",
+                level="WARNING",
+                isOn=LOGGING_SWITCH
+            )
+            
+            # Send timeout error to the player
+            if self.websocket_manager:
+                session_id = self.game_state.player_sessions.get(player_id)
+                if session_id:
+                    custom_log(f"Sending draw timeout error to player {player_id} via session {session_id}", level="INFO", isOn=LOGGING_SWITCH)
+                    self.websocket_manager.send_to_session(
+                        session_id,
+                        'recall_error',
+                        {'message': f'Draw phase timeout - you have {self.player_action_timeout} seconds to draw a card'}
+                    )
+                else:
+                    custom_log(f"No session found for player {player_id}, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("websocket_manager is None, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
+            
+            # Clean up timer state
+            self.current_turn_player_id = None
+            self.draw_phase_timer = None
+            
+            # Move to next player (existing logic handles status changes)
+            custom_log(f"Moving to next player after draw timeout", level="INFO", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
+            
+        except Exception as e:
+            custom_log(f"Error in draw phase timeout handler: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _start_play_phase_timer(self, player_id: str):
+        """Start the 10-second timer for the playing phase"""
+        try:
+            self._cancel_play_phase_timer()
+            self.current_turn_player_id = player_id
+            self.play_phase_timer = threading.Timer(
+                self.player_action_timeout,
+                self._on_play_phase_timeout
+            )
+            self.play_phase_timer.start()
+            custom_log(
+                f"Started {self.player_action_timeout}-second play phase timer for player {player_id}",
+                level="INFO",
+                isOn=LOGGING_SWITCH
+            )
+        except Exception as e:
+            custom_log(f"Error starting play phase timer: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _cancel_play_phase_timer(self):
+        """Cancel the play phase timer if it's running"""
+        try:
+            if self.play_phase_timer and self.play_phase_timer.is_alive():
+                self.play_phase_timer.cancel()
+                self.play_phase_timer = None
+                custom_log("Cancelled play phase timer", level="DEBUG", isOn=LOGGING_SWITCH)
+        except Exception as e:
+            custom_log(f"Error cancelling play phase timer: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _on_play_phase_timeout(self):
+        """Called when play phase timer expires - player didn't play in time"""
+        try:
+            if not self.current_turn_player_id:
+                return
+            
+            player_id = self.current_turn_player_id
+            custom_log(
+                f"Play phase timeout for player {player_id} - {self.player_action_timeout} seconds expired",
+                level="WARNING",
+                isOn=LOGGING_SWITCH
+            )
+            
+            # Send timeout error to the player
+            if self.websocket_manager:
+                session_id = self.game_state.player_sessions.get(player_id)
+                if session_id:
+                    custom_log(f"Sending play timeout error to player {player_id} via session {session_id}", level="INFO", isOn=LOGGING_SWITCH)
+                    self.websocket_manager.send_to_session(
+                        session_id,
+                        'recall_error',
+                        {'message': f'Play phase timeout - you have {self.player_action_timeout} seconds to play a card'}
+                    )
+                else:
+                    custom_log(f"No session found for player {player_id}, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("websocket_manager is None, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
+            
+            # Clear drawn card state (keeps card in hand but removes "drawn" status)
+            player = self.game_state.players.get(player_id)
+            if player:
+                player.clear_drawn_card()
+                custom_log(f"Cleared drawn card state for player {player_id} after play timeout", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Clean up timer state
+            self.current_turn_player_id = None
+            self.play_phase_timer = None
+            
+            # Move to next player (existing logic handles status changes)
+            custom_log(f"Moving to next player after play timeout", level="INFO", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
+            
+        except Exception as e:
+            custom_log(f"Error in play phase timeout handler: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            import traceback
+            custom_log(f"Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
+
     def continue_turn(self):
         """Complete the current round after a player action"""
         try:
@@ -145,6 +294,8 @@ class GameRound:
                 self._check_pending_events_before_ending_round()
                 
             if self.game_state.phase == GamePhase.ENDING_ROUND:
+                # Cancel play phase timer before moving to next player
+                self._cancel_play_phase_timer()
                 self._move_to_next_player()
             
             return True
@@ -870,11 +1021,8 @@ class GameRound:
     # =======================================================
 
     def on_player_action(self, session_id: str, data: Dict[str, Any]) -> bool:
-        """Handle player actions through the game round with 10-second timer"""
+        """Handle player actions through the game round"""
         try:
-            # Cancel any existing player action timer
-            self._cancel_player_action_timer()
-            
             action = data.get('action') or data.get('action_type')
             if not action:
                 custom_log(f"on_player_action: No action found in data: {data}", level="DEBUG", isOn=LOGGING_SWITCH)
@@ -889,163 +1037,21 @@ class GameRound:
                 custom_log(f"on_player_action: Player {user_id} not found in game state players: {list(self.game_state.players.keys())}", level="DEBUG", isOn=LOGGING_SWITCH)
                 return False
             
-            # Start player action timer (10 seconds from config)
-            self._start_player_action_timer(user_id, action)
-            
             # Build action data for the round
             action_data = self._build_action_data(data)
             
             # Route to appropriate action handler based on action type and wait for completion
             action_result = self._route_action(action, user_id, action_data)
             
-            # Cancel timer if action completed successfully
+            # Update game state timestamp after successful action
             if action_result:
-                self._cancel_player_action_timer()
                 self.game_state.last_action_time = time.time()
             
-            # Return the actual action result (not always True)
-            # This ensures failed actions (like trying to play collection rank cards) don't continue the game flow
             return action_result
             
         except Exception as e:
-            self._cancel_player_action_timer()
             custom_log(f"Error in on_player_action: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
-
-    def _start_player_action_timer(self, user_id: str, action: str):
-        """Start player action timer (configured timeout from Config)"""
-        try:
-            self.current_action_player = user_id
-            self.current_action_type = action
-            self.player_action_timer = threading.Timer(
-                self.player_action_timeout, 
-                self._on_player_action_timeout
-            )
-            self.player_action_timer.start()
-            custom_log(
-                f"Started {self.player_action_timeout}-second timer for player {user_id} action: {action}", 
-                level="INFO", 
-                isOn=LOGGING_SWITCH
-            )
-        except Exception as e:
-            custom_log(f"Error starting player action timer: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-
-    def _cancel_player_action_timer(self):
-        """Cancel the player action timer if it's running"""
-        try:
-            if self.player_action_timer and self.player_action_timer.is_alive():
-                self.player_action_timer.cancel()
-                self.player_action_timer = None
-                self.current_action_player = None
-                self.current_action_type = None
-                custom_log("Cancelled player action timer", level="DEBUG", isOn=LOGGING_SWITCH)
-        except Exception as e:
-            custom_log(f"Error cancelling player action timer: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-
-    def _on_player_action_timeout(self):
-        """Called when player action timer expires - handle auto-actions"""
-        try:
-            if not self.current_action_player or not self.current_action_type:
-                return
-            
-            player_id = self.current_action_player
-            action_type = self.current_action_type
-            
-            custom_log(
-                f"Player action timeout for {player_id} - {self.player_action_timeout} seconds expired for action: {action_type}", 
-                level="WARNING", 
-                isOn=LOGGING_SWITCH
-            )
-            
-            # Send timeout error to the player
-            if self.websocket_manager:
-                session_id = self.game_state.player_sessions.get(player_id)
-                if session_id:
-                    custom_log(f"Sending timeout error to player {player_id} via session {session_id}", level="INFO", isOn=LOGGING_SWITCH)
-                    self.websocket_manager.send_to_session(
-                        session_id, 
-                        'recall_error', 
-                        {'message': f'Action timeout - you have {self.player_action_timeout} seconds to complete your action'}
-                    )
-                else:
-                    custom_log(f"No session found for player {player_id}, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
-            else:
-                custom_log("websocket_manager is None, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
-            
-            # Auto-action logic based on action type
-            self._handle_auto_action_on_timeout(player_id, action_type)
-            
-            # Clean up timer state
-            self.current_action_player = None
-            self.current_action_type = None
-            self.player_action_timer = None
-            
-        except Exception as e:
-            custom_log(f"Error in player action timeout handler: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-            import traceback
-            custom_log(f"Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
-
-    def _handle_auto_action_on_timeout(self, player_id: str, action_type: str):
-        """
-        Handle automatic actions when player times out
-        
-        This method implements auto-play logic for different action types when
-        a player fails to complete their action within the timeout period.
-        
-        Args:
-            player_id: The ID of the player who timed out
-            action_type: The type of action that timed out (draw_from_pile, play_card, etc.)
-        """
-        try:
-            custom_log(
-                f"Auto-action triggered for player {player_id}, action: {action_type}", 
-                level="INFO", 
-                isOn=LOGGING_SWITCH
-            )
-            
-            # Switch case for different action types
-            # For now, we just pass to allow the predefined next player logic to work
-            # TODO: Implement specific auto-action logic for each case
-            
-            if action_type in ['draw_from_deck', 'draw_from_pile']:
-                # TODO: Auto-draw a card from the draw pile
-                custom_log(f"TODO: Auto-draw card for player {player_id}", level="INFO", isOn=LOGGING_SWITCH)
-                pass
-                
-            elif action_type == 'play_card':
-                # TODO: Auto-play a random card from player's hand
-                # If player drew a card but didn't play, need to handle pending draw
-                custom_log(f"TODO: Auto-play card for player {player_id}", level="INFO", isOn=LOGGING_SWITCH)
-                pass
-                
-            else:
-                # Other action types - no auto-action for now
-                custom_log(
-                    f"No auto-action defined for action type: {action_type}", 
-                    level="INFO", 
-                    isOn=LOGGING_SWITCH
-                )
-                pass
-            
-            # Reset player status to allow game to continue
-            player = self.game_state.players.get(player_id)
-            if player:
-                player.set_status(PlayerStatus.WAITING)
-                custom_log(
-                    f"Reset player {player_id} status to WAITING after timeout", 
-                    level="INFO", 
-                    isOn=LOGGING_SWITCH
-                )
-            
-            # Move to next player to continue game flow
-            custom_log(f"Moving to next player after timeout for player {player_id}", level="INFO", isOn=LOGGING_SWITCH)
-            self._move_to_next_player()
-            
-        except Exception as e:
-            custom_log(f"Error in auto-action handler: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-            import traceback
-            custom_log(f"Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
-
 
     def _handle_same_rank_window(self, action_data: Dict[str, Any]) -> bool:
         """Handle same rank window action - sets all players to same_rank_window status"""
@@ -1408,6 +1414,10 @@ class GameRound:
             # Change player status from DRAWING_CARD to PLAYING_CARD after successful draw
             player.set_status(PlayerStatus.PLAYING_CARD)
             custom_log(f"Player {player_id} status changed from DRAWING_CARD to PLAYING_CARD", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Cancel draw phase timer and start play phase timer
+            self._cancel_draw_phase_timer()
+            self._start_play_phase_timer(player_id)
             
             # Log pile contents after successful draw using helper methods
             custom_log(f"=== PILE CONTENTS AFTER DRAW ===", isOn=LOGGING_SWITCH)

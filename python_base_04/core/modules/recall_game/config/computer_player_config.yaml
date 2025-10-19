@@ -134,6 +134,47 @@ events:
     strategies:
       best_option: "random_unknown_card"  # Play random card not in known_cards
       fallback_option: "highest_known_points"  # Play highest points from known_cards (exclude Jacks)
+    
+    # NEW: YAML-driven strategy rules
+    strategy_rules:
+      # Rule 1: Play random unknown card (best option)
+      - name: "play_random_unknown_card"
+        priority: 1
+        description: "Play a random card that is not in known_cards"
+        condition:
+          type: "and"
+          conditions:
+            - field: "unknown_cards"
+              operator: "not_empty"
+        action:
+          type: "select_random"
+          source: "unknown_cards"
+      
+      # Rule 2: Play highest points from known cards (fallback)
+      - name: "play_highest_known_points"
+        priority: 2
+        description: "Play card with highest points from known_cards, excluding Jacks"
+        condition:
+          type: "and"
+          conditions:
+            - field: "known_cards"
+              operator: "not_empty"
+        action:
+          type: "select_highest_points"
+          source: "known_cards"
+          filters:
+            - type: "exclude_rank"
+              value: "jack"
+      
+      # Rule 3: Random fallback (worst option)
+      - name: "play_random_playable"
+        priority: 3
+        description: "Play any random playable card"
+        condition:
+          type: "always"
+        action:
+          type: "select_random"
+          source: "playable_cards"
       
   same_rank_play:
     # Decision logic for same rank plays

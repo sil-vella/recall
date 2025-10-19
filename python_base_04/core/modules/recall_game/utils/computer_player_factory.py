@@ -9,6 +9,7 @@ import threading
 from typing import Dict, Any, List, Optional
 from tools.logger.custom_logging import custom_log
 from .computer_player_config_loader import ComputerPlayerConfigLoader
+from .yaml_rules_engine import YamlRulesEngine
 
 LOGGING_SWITCH = True
 
@@ -169,6 +170,83 @@ class ComputerPlayerFactory:
     def _select_card(self, available_cards: List[str], card_selection: Dict[str, Any], 
                     evaluation_weights: Dict[str, float], game_state: Dict[str, Any]) -> str:
         """Select a card based on strategy and evaluation weights"""
+        strategy = card_selection.get('strategy', 'random')
+        
+        # Get current player from game state
+        current_player_data = game_state.get('current_player')
+        if not current_player_data:
+            return self._random.choice(available_cards)
+        
+        # Prepare game data for YAML rules engine
+        game_data = self._prepare_game_data_for_yaml(available_cards, current_player_data, game_state)
+        
+        # Get YAML rules from config
+        play_card_config = self.config.get_event_config('play_card')
+        strategy_rules = play_card_config.get('strategy_rules', [])
+        
+        if not strategy_rules:
+            # Fallback to old logic if no YAML rules defined
+            return self._select_card_legacy(available_cards, card_selection, evaluation_weights, game_state)
+        
+        # Determine if we should play optimally
+        optimal_play_prob = self._get_optimal_play_probability(strategy)
+        should_play_optimal = self._random.random() < optimal_play_prob
+        
+        # Execute YAML rules
+        rules_engine = YamlRulesEngine()
+        return rules_engine.execute_rules(strategy_rules, game_data, should_play_optimal)
+    
+    def _prepare_game_data_for_yaml(self, available_cards: List[str], 
+                                    current_player_data: Dict[str, Any], 
+                                    game_state: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare game data for YAML rules engine"""
+        # Get player's known_cards and collection_rank_cards
+        known_cards = current_player_data.get('known_cards', {})
+        collection_rank_cards = current_player_data.get('collection_rank_cards', [])
+        collection_card_ids = {card['id'] for card in collection_rank_cards if isinstance(card, dict)}
+        
+        # Filter out collection rank cards
+        playable_cards = [card_id for card_id in available_cards if card_id not in collection_card_ids]
+        
+        # Extract known card IDs
+        known_card_ids = set()
+        for player_known_cards in known_cards.values():
+            if isinstance(player_known_cards, dict):
+                if player_known_cards.get('card1'):
+                    known_card_ids.add(player_known_cards['card1'])
+                if player_known_cards.get('card2'):
+                    known_card_ids.add(player_known_cards['card2'])
+        
+        # Get unknown cards
+        unknown_cards = [card_id for card_id in playable_cards if card_id not in known_card_ids]
+        
+        # Get known playable cards
+        known_playable_cards = [card_id for card_id in playable_cards if card_id in known_card_ids]
+        
+        # Get all cards data for filters
+        all_cards_data = []
+        players = game_state.get('players', [])
+        for player in players:
+            hand = player.get('hand', [])
+            for card in hand:
+                if isinstance(card, dict):
+                    all_cards_data.append(card)
+        
+        # Return comprehensive game data
+        return {
+            'available_cards': available_cards,
+            'playable_cards': playable_cards,
+            'unknown_cards': unknown_cards,
+            'known_cards': known_playable_cards,
+            'collection_cards': list(collection_card_ids),
+            'all_cards_data': all_cards_data,
+            'current_player': current_player_data,
+            'game_state': game_state,
+        }
+    
+    def _select_card_legacy(self, available_cards: List[str], card_selection: Dict[str, Any], 
+                           evaluation_weights: Dict[str, float], game_state: Dict[str, Any]) -> str:
+        """Legacy card selection (fallback if YAML rules not defined)"""
         strategy = card_selection.get('strategy', 'random')
         
         # Get current player from game state

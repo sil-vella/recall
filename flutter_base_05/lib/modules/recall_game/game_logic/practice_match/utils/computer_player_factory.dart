@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'computer_player_config_parser.dart';
+import 'yaml_rules_engine.dart';
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {
@@ -168,6 +169,87 @@ class ComputerPlayerFactory {
 
   /// Select a card based on strategy and evaluation weights
   String _selectCard(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState) {
+    final strategy = cardSelection['strategy'] ?? 'random';
+    
+    // Get current player from game state
+    final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+    if (currentPlayer == null) return availableCards[_random.nextInt(availableCards.length)];
+    
+    // Prepare game data for YAML rules engine
+    final gameData = _prepareGameDataForYAML(availableCards, currentPlayer, gameState);
+    
+    // Get YAML rules from config
+    final playCardConfig = config.getEventConfig('play_card');
+    final strategyRules = playCardConfig['strategy_rules'] as List<dynamic>? ?? [];
+    
+    if (strategyRules.isEmpty) {
+      // Fallback to old logic if no YAML rules defined
+      return _selectCardLegacy(availableCards, cardSelection, evaluationWeights, gameState);
+    }
+    
+    // Determine if we should play optimally
+    final optimalPlayProb = _getOptimalPlayProbability(strategy);
+    final shouldPlayOptimal = _random.nextDouble() < optimalPlayProb;
+    
+    // Execute YAML rules
+    final rulesEngine = YamlRulesEngine();
+    return rulesEngine.executeRules(strategyRules, gameData, shouldPlayOptimal);
+  }
+  
+  /// Prepare game data for YAML rules engine
+  Map<String, dynamic> _prepareGameDataForYAML(List<String> availableCards, 
+                                                Map<String, dynamic> currentPlayer, 
+                                                Map<String, dynamic> gameState) {
+    // Get player's known_cards and collection_rank_cards
+    final knownCards = currentPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+    final collectionRankCards = currentPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+    final collectionCardIds = collectionRankCards.map((c) => c['id'].toString()).toSet();
+    
+    // Filter out collection rank cards
+    final playableCards = availableCards.where((cardId) => !collectionCardIds.contains(cardId)).toList();
+    
+    // Extract known card IDs
+    final knownCardIds = <String>{};
+    for (final playerKnownCards in knownCards.values) {
+      if (playerKnownCards is Map) {
+        if (playerKnownCards['card1'] != null) knownCardIds.add(playerKnownCards['card1'].toString());
+        if (playerKnownCards['card2'] != null) knownCardIds.add(playerKnownCards['card2'].toString());
+      }
+    }
+    
+    // Get unknown cards
+    final unknownCards = playableCards.where((cardId) => !knownCardIds.contains(cardId)).toList();
+    
+    // Get known playable cards
+    final knownPlayableCards = playableCards.where((cardId) => knownCardIds.contains(cardId)).toList();
+    
+    // Get all cards data for filters
+    final allCardsData = <Map<String, dynamic>>[];
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    for (final player in players) {
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      for (final card in hand) {
+        if (card is Map<String, dynamic>) {
+          allCardsData.add(card);
+        }
+      }
+    }
+    
+    // Return comprehensive game data
+    return {
+      'available_cards': availableCards,
+      'playable_cards': playableCards,
+      'unknown_cards': unknownCards,
+      'known_cards': knownPlayableCards,
+      'collection_cards': collectionCardIds.toList(),
+      'all_cards_data': allCardsData,
+      'current_player': currentPlayer,
+      'game_state': gameState,
+    };
+  }
+  
+  /// Legacy card selection (fallback if YAML rules not defined)
+  String _selectCardLegacy(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState) {
     final strategy = cardSelection['strategy'] ?? 'random';
     
     // Get current player from game state

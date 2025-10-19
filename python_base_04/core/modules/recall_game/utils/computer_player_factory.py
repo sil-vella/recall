@@ -171,25 +171,92 @@ class ComputerPlayerFactory:
         """Select a card based on strategy and evaluation weights"""
         strategy = card_selection.get('strategy', 'random')
         
-        if strategy == 'random':
+        # Get current player from game state
+        current_player_data = game_state.get('current_player')
+        if not current_player_data:
             return self._random.choice(available_cards)
-        elif strategy == 'points_low':
-            # TODO: Implement points-based selection
+        
+        # Get player's known_cards and collection_rank_cards
+        known_cards = current_player_data.get('known_cards', {})
+        collection_rank_cards = current_player_data.get('collection_rank_cards', [])
+        collection_card_ids = {card['id'] for card in collection_rank_cards if isinstance(card, dict)}
+        
+        # Filter out collection rank cards
+        playable_cards = [card_id for card_id in available_cards if card_id not in collection_card_ids]
+        
+        if not playable_cards:
             return self._random.choice(available_cards)
-        elif strategy == 'points_high':
-            # TODO: Implement points-based selection
-            return self._random.choice(available_cards)
-        elif strategy == 'special_power':
-            # TODO: Implement special power preference
-            return self._random.choice(available_cards)
-        elif strategy == 'strategic':
-            # TODO: Implement complex strategic evaluation
-            return self._random.choice(available_cards)
-        elif strategy == 'optimal':
-            # TODO: Implement optimal selection
-            return self._random.choice(available_cards)
-        else:
-            return self._random.choice(available_cards)
+        
+        # Extract known card IDs
+        known_card_ids = set()
+        for player_known_cards in known_cards.values():
+            if isinstance(player_known_cards, dict):
+                if player_known_cards.get('card1'):
+                    known_card_ids.add(player_known_cards['card1'])
+                if player_known_cards.get('card2'):
+                    known_card_ids.add(player_known_cards['card2'])
+        
+        # Strategy 1: Unknown cards
+        unknown_cards = [card_id for card_id in playable_cards if card_id not in known_card_ids]
+        
+        # Strategy 2: Known cards
+        known_playable_cards = [card_id for card_id in playable_cards if card_id in known_card_ids]
+        
+        # Determine optimal play probability
+        optimal_play_prob = self._get_optimal_play_probability(strategy)
+        should_play_optimal = self._random.random() < optimal_play_prob
+        
+        if should_play_optimal:
+            # Best option: Random unknown card
+            if unknown_cards:
+                return self._random.choice(unknown_cards)
+            
+            # Fallback: Highest points from known cards (exclude Jacks)
+            if known_playable_cards:
+                return self._select_highest_points_card(known_playable_cards, game_state)
+        
+        # Random fallback
+        return self._random.choice(playable_cards)
+    
+    def _get_optimal_play_probability(self, difficulty: str) -> float:
+        """Get probability of playing optimally based on difficulty"""
+        probabilities = {
+            'easy': 0.6,
+            'medium': 0.8,
+            'hard': 0.95,
+            'expert': 1.0
+        }
+        return probabilities.get(difficulty.lower(), 0.8)
+    
+    def _select_highest_points_card(self, card_ids: List[str], game_state: Dict[str, Any]) -> str:
+        """Select card with highest points from given card IDs, excluding Jacks"""
+        # Get all cards from game state
+        all_cards = []
+        
+        # Extract cards from players' hands
+        players = game_state.get('players', [])
+        for player in players:
+            hand = player.get('hand', [])
+            for card in hand:
+                if isinstance(card, dict):
+                    all_cards.append(card)
+        
+        # Filter to candidate cards
+        candidate_cards = [card for card in all_cards if card.get('id') in card_ids]
+        
+        if not candidate_cards:
+            return self._random.choice(card_ids)
+        
+        # Filter out Jacks
+        non_jack_cards = [card for card in candidate_cards if card.get('rank') != 'jack']
+        
+        if not non_jack_cards:
+            return self._random.choice(card_ids)
+        
+        # Find highest points
+        highest_card = max(non_jack_cards, key=lambda c: c.get('points', 0))
+        
+        return highest_card.get('id', self._random.choice(card_ids))
     
     def _select_jack_swap_targets(self, game_state: Dict[str, Any], player_id: str, target_strategy: str) -> Dict[str, str]:
         """Select Jack swap targets based on strategy"""

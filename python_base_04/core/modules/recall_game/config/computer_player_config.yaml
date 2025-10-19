@@ -122,6 +122,18 @@ events:
       special_power: 0.3  # Weight for special powers
       game_phase: 0.2   # Weight for current game phase
       opponent_analysis: 0.1  # Weight for opponent analysis
+    
+    # Strategy selection probabilities
+    optimal_play_probability:
+      easy: 0.6      # 60% chance to play optimally
+      medium: 0.8    # 80% chance to play optimally
+      hard: 0.95     # 95% chance to play optimally
+      expert: 1.0    # 100% chance to play optimally (always optimal)
+    
+    # Strategy definitions
+    strategies:
+      best_option: "random_unknown_card"  # Play random card not in known_cards
+      fallback_option: "highest_known_points"  # Play highest points from known_cards (exclude Jacks)
       
   same_rank_play:
     # Decision logic for same rank plays

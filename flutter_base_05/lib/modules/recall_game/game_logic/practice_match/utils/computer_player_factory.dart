@@ -170,33 +170,112 @@ class ComputerPlayerFactory {
   String _selectCard(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState) {
     final strategy = cardSelection['strategy'] ?? 'random';
     
-    switch (strategy) {
-      case 'random':
-        return availableCards[_random.nextInt(availableCards.length)];
-        
-      case 'points_low':
-        // TODO: Implement points-based selection
-        return availableCards[_random.nextInt(availableCards.length)];
-        
-      case 'points_high':
-        // TODO: Implement points-based selection
-        return availableCards[_random.nextInt(availableCards.length)];
-        
-      case 'special_power':
-        // TODO: Implement special power preference
-        return availableCards[_random.nextInt(availableCards.length)];
-        
-      case 'strategic':
-        // TODO: Implement complex strategic evaluation
-        return availableCards[_random.nextInt(availableCards.length)];
-        
-      case 'optimal':
-        // TODO: Implement optimal selection
-        return availableCards[_random.nextInt(availableCards.length)];
-        
-      default:
-        return availableCards[_random.nextInt(availableCards.length)];
+    // Get current player from game state
+    final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+    if (currentPlayer == null) return availableCards[_random.nextInt(availableCards.length)];
+    
+    // Get player's known_cards and collection_rank_cards
+    final knownCards = currentPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+    final collectionRankCards = currentPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+    final collectionCardIds = collectionRankCards.map((c) => c['id'].toString()).toSet();
+    
+    // Filter out collection rank cards from available cards
+    final playableCards = availableCards.where((cardId) => !collectionCardIds.contains(cardId)).toList();
+    
+    if (playableCards.isEmpty) {
+      return availableCards[_random.nextInt(availableCards.length)]; // Fallback if all are collection cards
     }
+    
+    // Extract known card IDs from known_cards structure
+    final knownCardIds = <String>{};
+    for (final playerKnownCards in knownCards.values) {
+      if (playerKnownCards is Map) {
+        if (playerKnownCards['card1'] != null) knownCardIds.add(playerKnownCards['card1'].toString());
+        if (playerKnownCards['card2'] != null) knownCardIds.add(playerKnownCards['card2'].toString());
+      }
+    }
+    
+    // Strategy 1: Get unknown cards (cards NOT in known_cards)
+    final unknownCards = playableCards.where((cardId) => !knownCardIds.contains(cardId)).toList();
+    
+    // Strategy 2: Get known cards with points (exclude Jacks)
+    final knownPlayableCards = playableCards.where((cardId) => knownCardIds.contains(cardId)).toList();
+    
+    // Determine if we should play optimally based on difficulty
+    final optimalPlayProb = _getOptimalPlayProbability(strategy);
+    final shouldPlayOptimal = _random.nextDouble() < optimalPlayProb;
+    
+    if (shouldPlayOptimal) {
+      // Best option: Random unknown card
+      if (unknownCards.isNotEmpty) {
+        return unknownCards[_random.nextInt(unknownCards.length)];
+      }
+      
+      // Fallback: Highest points from known cards (exclude Jacks)
+      if (knownPlayableCards.isNotEmpty) {
+        return _selectHighestPointsCard(knownPlayableCards, gameState);
+      }
+    }
+    
+    // Random fallback (for non-optimal play or if strategies fail)
+    return playableCards[_random.nextInt(playableCards.length)];
+  }
+  
+  /// Get probability of playing optimally based on difficulty
+  double _getOptimalPlayProbability(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'easy': return 0.6;
+      case 'medium': return 0.8;
+      case 'hard': return 0.95;
+      case 'expert': return 1.0;
+      default: return 0.8;
+    }
+  }
+  
+  /// Select card with highest points from given card IDs, excluding Jacks
+  String _selectHighestPointsCard(List<String> cardIds, Map<String, dynamic> gameState) {
+    // Get all cards from game state (drawPile, discardPile, or player hands)
+    final allCards = <Map<String, dynamic>>[];
+    
+    // Extract cards from players' hands
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    for (final player in players) {
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      for (final card in hand) {
+        if (card is Map<String, dynamic>) {
+          allCards.add(card);
+        }
+      }
+    }
+    
+    // Filter to only the cards we're considering
+    final candidateCards = allCards.where((card) => cardIds.contains(card['id'])).toList();
+    
+    if (candidateCards.isEmpty) {
+      return cardIds[_random.nextInt(cardIds.length)];
+    }
+    
+    // Filter out Jacks
+    final nonJackCards = candidateCards.where((card) => card['rank'] != 'jack').toList();
+    
+    if (nonJackCards.isEmpty) {
+      // If all are Jacks, return random
+      return cardIds[_random.nextInt(cardIds.length)];
+    }
+    
+    // Find card with highest points
+    Map<String, dynamic>? highestCard;
+    int highestPoints = -1;
+    
+    for (final card in nonJackCards) {
+      final points = card['points'] as int? ?? 0;
+      if (points > highestPoints) {
+        highestPoints = points;
+        highestCard = card;
+      }
+    }
+    
+    return highestCard?['id'] ?? cardIds[_random.nextInt(cardIds.length)];
   }
 
   /// Select Jack swap targets based on strategy

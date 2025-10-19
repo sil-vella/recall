@@ -319,8 +319,21 @@ class PracticeGameRound {
           decision = _computerPlayerFactory!.getDrawCardDecision(difficulty, gameState);
           break;
         case 'play_card':
-          // TODO: Get available cards from game state
-          final availableCards = <String>[]; // Placeholder for now
+          // Get available cards from current computer player's hand
+          final players = gameState['players'] as List<dynamic>? ?? [];
+          final computerPlayer = players.firstWhere(
+            (p) => p['id'] == playerId,
+            orElse: () => <String, dynamic>{},
+          );
+          final hand = computerPlayer['hand'] as List<dynamic>? ?? [];
+          final availableCards = hand.map((card) {
+            if (card is Map<String, dynamic>) {
+              return card['id'].toString();
+            } else {
+              return card.toString();
+            }
+          }).toList();
+          
           decision = _computerPlayerFactory!.getPlayCardDecision(difficulty, gameState, availableCards);
           break;
         case 'same_rank_play':

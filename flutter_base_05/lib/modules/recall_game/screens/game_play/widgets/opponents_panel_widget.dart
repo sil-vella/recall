@@ -298,8 +298,36 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         .where((id) => id != null)
         .toSet();
     
-    // Collect collection rank card widgets for stacking
-    List<Widget> collectionRankWidgets = [];
+    // Pre-build collection rank widgets map
+    Map<String, Widget> collectionRankWidgets = {};
+    
+    // First pass: build all collection rank widgets
+    for (int i = 0; i < cards.length; i++) {
+      final card = cards[i];
+      if (card == null) continue;
+      
+      final cardMap = card as Map<String, dynamic>;
+      final cardId = cardMap['cardId']?.toString();
+      if (cardId == null) continue;
+      
+      // Check if this card is a collection rank card
+      Map<String, dynamic>? collectionRankCardData;
+      if (playerCollectionRankCards.isNotEmpty) {
+        for (var collectionCard in playerCollectionRankCards) {
+          if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+            collectionRankCardData = collectionCard;
+            break;
+          }
+        }
+      }
+      
+      if (collectionRankCardData != null) {
+        // Build the collection rank card widget
+        final cardDataToUse = collectionRankCardData;
+        final cardWidget = _buildCardWidget(cardDataToUse, false, playerId, false, false);
+        collectionRankWidgets[cardId] = cardWidget;
+      }
+    }
     
     return Container(
       height: 100,
@@ -363,28 +391,46 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
               ? drawnCard 
               : (peekedCardData ?? collectionRankCardData ?? cardMap);
           
-          // Build the card widget
-          final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, isKnownCard, false); // Don't add border for collection cards
-          
-          // If this is a collection rank card, add it to the collection list and skip normal rendering
-          if (isCollectionRankCard) {
-            collectionRankWidgets.add(cardWidget);
+          // If this is a collection rank card, render the stack (only once, at the first collection card)
+          if (isCollectionRankCard && collectionRankWidgets.containsKey(cardId)) {
+            // Check if this is the first collection card in the hand
+            bool isFirstCollectionCard = true;
+            for (int i = 0; i < index; i++) {
+              final prevCard = cards[i];
+              if (prevCard != null && prevCard is Map<String, dynamic>) {
+                final prevCardId = prevCard['cardId']?.toString();
+                if (prevCardId != null && collectionRankCardIds.contains(prevCardId)) {
+                  isFirstCollectionCard = false;
+                  break;
+                }
+              }
+            }
             
-            // Only render the stack when we've collected all collection cards (at the last collection card)
-            if (index == cards.length - 1 || !collectionRankCardIds.contains(cards[index + 1] is Map ? cards[index + 1]['cardId']?.toString() : null)) {
-              // This is the last collection card in sequence, render the stack
+            if (isFirstCollectionCard) {
+              // This is the first collection card, render the entire stack
               const double cardHeight = 70.0;
               const double stackOffset = cardHeight * 0.15; // 10.5px
               const double cardWidth = 50.0;
               
+              // Get all collection rank widgets in order
+              List<Widget> orderedCollectionWidgets = [];
+              for (var collectionCard in playerCollectionRankCards) {
+                if (collectionCard is Map<String, dynamic>) {
+                  final collectionCardId = collectionCard['cardId']?.toString();
+                  if (collectionCardId != null && collectionRankWidgets.containsKey(collectionCardId)) {
+                    orderedCollectionWidgets.add(collectionRankWidgets[collectionCardId]!);
+                  }
+                }
+              }
+              
               final stackWidget = SizedBox(
                 width: cardWidth,
-                height: cardHeight + (collectionRankWidgets.length - 1) * stackOffset,
+                height: cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset,
                 child: Stack(
                   clipBehavior: Clip.none,
-                  children: collectionRankWidgets.asMap().entries.map((entry) {
+                  children: orderedCollectionWidgets.asMap().entries.map((entry) {
                     // Reverse index: first card (0) at bottom, last card at top
-                    final reverseIndex = collectionRankWidgets.length - 1 - entry.key;
+                    final reverseIndex = orderedCollectionWidgets.length - 1 - entry.key;
                     return Positioned(
                       left: 0,
                       bottom: reverseIndex * stackOffset, // Position from bottom
@@ -398,19 +444,18 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                 ),
               );
               
-              collectionRankWidgets.clear(); // Reset for next group
-              
               return Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: stackWidget,
               );
             } else {
-              // Not the last collection card, skip rendering
+              // Not the first collection card, skip rendering (already handled in stack)
               return const SizedBox.shrink();
             }
           }
           
           // Normal card rendering (non-collection rank)
+          final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, isKnownCard, false);
           return Padding(
             padding: EdgeInsets.only(
               right: 6,

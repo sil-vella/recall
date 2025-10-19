@@ -1,53 +1,47 @@
-# ✅ FIXED: Error Messages Now Use GameEventCoordinator
+# ✅ COMPLETED: Fix Draw Pile Issue
 
 ## Problem
-Both timeout errors and collection rank errors were not showing as snackbars in the frontend.
+After removing `self.websocket_manager` from GameRound, drawing from the draw pile stopped working. The `_extract_user_id` method was returning `session_id` instead of `player_id`.
 
 ## Root Cause
-`GameRound` was trying to use `self.websocket_manager`, which was set to `None` because:
-1. Line 56 tried to get it from `game_state`: `self.websocket_manager = getattr(game_state, 'websocket_manager', None)`
-2. `GameState` doesn't have a `websocket_manager` attribute
-3. All error messages were failing silently with "websocket_manager is None" warnings
+When we removed `self.websocket_manager` from `GameRound.__init__`, accessing it in `_extract_user_id` threw an `AttributeError`. This exception was caught, causing the method to return `session_id` as a fallback instead of extracting `player_id` from the data.
 
-## Solution
-Instead of directly accessing `websocket_manager`, `GameRound` now uses the existing `GameEventCoordinator._send_error()` method:
-
-### Added Helper Method
-```python
-def _send_error_to_player(self, player_id: str, message: str):
-    """Send error message to a player using the coordinator"""
-    # Get session_id from game_state
-    session_id = self.game_state.player_sessions.get(player_id)
-    
-    # Get coordinator from app_manager
-    coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
-    
-    # Send error through coordinator
-    coordinator._send_error(session_id, message)
-```
-
-### Updated All Error Handlers
-1. **Timeout errors** (draw phase, play phase)
-2. **Collection rank errors** (discard pile, play card, same rank)
-3. **Phase check errors** (same rank window, initial peek, empty discard)
-
-All now use: `self._send_error_to_player(player_id, message)`
+## Fix Applied
+Modified `_extract_user_id` to get `websocket_manager` from `game_state.app_manager.get_websocket_manager()` instead of using the removed `self.websocket_manager` attribute.
 
 ## Result
-✅ All error messages now properly reach the frontend as snackbars
-✅ No more "websocket_manager is None" warnings
-✅ Consistent error handling pattern across all error types
-✅ Uses existing coordinator infrastructure (proper architecture)
+✅ Draw from draw pile now works correctly
+✅ Error messages (timeouts, collection rank) work correctly
+✅ All functionality restored
 
-## Files Modified
-- `python_base_04/core/modules/recall_game/game_logic/game_round.py`
-  - Removed `self.websocket_manager` initialization
-  - Added `_send_error_to_player()` helper method
-  - Updated 8 error message sending locations
+---
 
-## Testing
-Test in a backend multiplayer game:
-1. ✅ Draw timeout: Wait 10+ seconds without drawing → snackbar appears
-2. ✅ Play timeout: Draw card, wait 10+ seconds → snackbar appears
-3. ✅ Collection rank errors: Try to collect/play wrong cards → snackbar appears
+# 📋 FUTURE TASK: Collection Rank Cards UI Stacking
 
+## Feature Request
+Implement visual stacking for collection rank cards in the OpponentsPanelWidget.
+
+## Requirements
+- Collection rank cards should stack on top of each other
+- Each subsequent card should be positioned slightly lower than the previous one
+- This creates a cascading/stacked effect that shows all cards in the collection
+- Should clearly display the rank of all cards in the collection
+
+## Implementation Location
+- `flutter_base_05/lib/modules/recall_game/widgets/opponents_panel_widget.dart`
+- Specifically in the `_buildCardsRow()` method where collection rank cards are displayed
+
+## Current Behavior
+Collection rank cards are displayed side by side in a row.
+
+## Desired Behavior
+Collection rank cards should overlap vertically with a slight offset, creating a stacked appearance that shows all card ranks while saving horizontal space.
+
+## Technical Approach (suggested)
+- Use a `Stack` widget instead of `Row` for collection rank cards
+- Position each card with an incremental vertical offset (e.g., 10-15 pixels per card)
+- Ensure the top card is fully visible and subsequent cards show enough to identify their rank
+- Consider z-index ordering so the most recent card is on top
+
+## Priority
+Medium - Visual enhancement for better UX when players have multiple collection rank cards

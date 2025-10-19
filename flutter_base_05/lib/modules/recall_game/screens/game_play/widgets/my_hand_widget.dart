@@ -246,6 +246,16 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           }
         }
         
+        // Build list of card IDs that are collection rank cards
+        final collectionRankCardIds = myCollectionRankCards
+            .where((c) => c is Map<String, dynamic>)
+            .map((c) => (c as Map<String, dynamic>)['cardId']?.toString())
+            .where((id) => id != null)
+            .toSet();
+        
+        // Collect collection rank card widgets for stacking
+        List<Widget> collectionRankWidgets = [];
+        
         return Container(
           height: 140,
           child: ListView.builder(
@@ -280,10 +290,12 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               
               // Check if this card is in player's collection_rank_cards
               Map<String, dynamic>? collectionRankCardData;
+              bool isCollectionRankCard = false;
               if (cardId != null && myCollectionRankCards.isNotEmpty) {
                 for (var collectionCard in myCollectionRankCards) {
                   if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
                     collectionRankCardData = collectionCard;
+                    isCollectionRankCard = true;
                     break;
                   }
                 }
@@ -294,19 +306,60 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                   ? drawnCard 
                   : (peekedCardData ?? collectionRankCardData ?? cardMap);
               
+              // Build the card widget
+              final cardWidget = _buildCardWidget(
+                cardDataToUse,
+                isSelected,
+                isDrawnCard,
+                false, // Don't add border for collection cards
+                index,
+                cardMap,
+              );
+              
+              // If this is a collection rank card, add it to the collection list and skip normal rendering
+              if (isCollectionRankCard) {
+                collectionRankWidgets.add(cardWidget);
+                
+                // Only render the stack when we've collected all collection cards (at the last collection card)
+                if (index == cards.length - 1 || !collectionRankCardIds.contains(cards[index + 1] is Map ? cards[index + 1]['cardId']?.toString() : null)) {
+                  // This is the last collection card in sequence, render the stack
+                  const double cardHeight = 120.0;
+                  const double stackOffset = cardHeight * 0.15; // 18px
+                  const double cardWidth = 80.0;
+                  
+                  final stackWidget = SizedBox(
+                    width: cardWidth,
+                    height: cardHeight + (collectionRankWidgets.length - 1) * stackOffset,
+                    child: Stack(
+                      children: collectionRankWidgets.asMap().entries.map((entry) {
+                        return Positioned(
+                          left: 0,
+                          top: entry.key * stackOffset,
+                          child: entry.value,
+                        );
+                      }).toList(),
+                    ),
+                  );
+                  
+                  collectionRankWidgets.clear(); // Reset for next group
+                  
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: stackWidget,
+                  );
+                } else {
+                  // Not the last collection card, skip rendering
+                  return const SizedBox.shrink();
+                }
+              }
+              
+              // Normal card rendering (non-collection rank)
               return Padding(
                 padding: EdgeInsets.only(
                   right: 8,
                   left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
                 ),
-                child: _buildCardWidget(
-                  cardDataToUse,
-                  isSelected,
-                  isDrawnCard,
-                  collectionRankCardData != null,
-                  index,
-                  cardMap,
-                ),
+                child: cardWidget,
               );
             },
           ),
@@ -642,10 +695,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       onTap: () => _handleCardSelection(context, index, cardMap),
     );
     
-    // Wrap with collection rank border if needed
-    if (isCollectionRankCard) {
-      cardWidget = _buildCollectionRankBorder(cardWidget);
-    }
+    // Note: Collection rank cards no longer get a border - they're visually distinct through stacking + full data
     
     // Wrap with drawn card glow if needed
     if (isDrawnCard) {
@@ -668,24 +718,4 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     return cardWidget;
   }
 
-  /// Build collection rank border for player's selected collection rank card
-  Widget _buildCollectionRankBorder(Widget child) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.purple, // Purple border for collection rank cards
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.withOpacity(0.3),
-            blurRadius: 6,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
 }

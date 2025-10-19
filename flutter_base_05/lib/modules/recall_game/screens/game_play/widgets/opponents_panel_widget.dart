@@ -301,7 +301,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     // Pre-build collection rank widgets map
     Map<String, Widget> collectionRankWidgets = {};
     
-    // First pass: build all collection rank widgets
+    // First pass: build all collection rank widgets with proper parameters
     for (int i = 0; i < cards.length; i++) {
       final card = cards[i];
       if (card == null) continue;
@@ -309,6 +309,31 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       final cardMap = card as Map<String, dynamic>;
       final cardId = cardMap['cardId']?.toString();
       if (cardId == null) continue;
+      
+      // Get the same parameters as normal card building
+      final drawnCardId = drawnCard?['cardId']?.toString();
+      final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
+      
+      // Check if this card is known (peeked by AI or human during initial peek)
+      bool isKnownCard = false;
+      if (isInitialPeekPhase && knownCards != null) {
+        final playerKnownCards = knownCards[playerId] as Map<String, dynamic>?;
+        if (playerKnownCards != null) {
+          isKnownCard = playerKnownCards['card1'] == cardId || 
+                       playerKnownCards['card2'] == cardId;
+        }
+      }
+      
+      // Check if this card is in cardsToPeek (peeked cards have full data)
+      Map<String, dynamic>? peekedCardData;
+      if (cardsToPeek.isNotEmpty) {
+        for (var peekedCard in cardsToPeek) {
+          if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
+            peekedCardData = peekedCard;
+            break;
+          }
+        }
+      }
       
       // Check if this card is a collection rank card
       Map<String, dynamic>? collectionRankCardData;
@@ -322,9 +347,13 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       }
       
       if (collectionRankCardData != null) {
-        // Build the collection rank card widget
-        final cardDataToUse = collectionRankCardData;
-        final cardWidget = _buildCardWidget(cardDataToUse, false, playerId, false, false);
+        // Determine which data to use (same priority as normal cards)
+        final cardDataToUse = isDrawnCard && drawnCard != null
+            ? drawnCard 
+            : (peekedCardData ?? collectionRankCardData ?? cardMap);
+        
+        // Build the collection rank card widget with proper parameters
+        final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, isKnownCard, false);
         collectionRankWidgets[cardId] = cardWidget;
       }
     }

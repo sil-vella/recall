@@ -198,9 +198,9 @@ class PracticeGameRound {
         Logger().info('Practice: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
         _initComputerTurn(gameState);
       } else {
-        // Start turn timer for human players
-        _startTurnTimer();
-        Logger().info('Practice: Started turn for human player ${nextPlayer['name']} - status: drawing_card', isOn: LOGGING_SWITCH);
+        // Turn timer disabled for practice games (for now)
+        // _startTurnTimer();
+        Logger().info('Practice: Started turn for human player ${nextPlayer['name']} - status: drawing_card (no timer)', isOn: LOGGING_SWITCH);
       }
       
     } catch (e) {
@@ -615,6 +615,7 @@ class PracticeGameRound {
   }
   
   /// Start turn timer
+  // ignore: unused_element
   void _startTurnTimer() {
     _turnTimer?.cancel();
     
@@ -1921,9 +1922,9 @@ class PracticeGameRound {
         Logger().info('Practice: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
         _initComputerTurn(gameState);
       } else {
-        // Start turn timer for human players
-        _startTurnTimer();
-        Logger().info('Practice: Started turn for human player ${nextPlayer['name']} - status: drawing_card', isOn: LOGGING_SWITCH);
+        // Turn timer disabled for practice games (for now)
+        // _startTurnTimer();
+        Logger().info('Practice: Started turn for human player ${nextPlayer['name']} - status: drawing_card (no timer)', isOn: LOGGING_SWITCH);
       }
       
     } catch (e) {

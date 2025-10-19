@@ -961,11 +961,16 @@ class GameRound:
             if self.websocket_manager:
                 session_id = self.game_state.player_sessions.get(player_id)
                 if session_id:
+                    custom_log(f"Sending timeout error to player {player_id} via session {session_id}", level="INFO", isOn=LOGGING_SWITCH)
                     self.websocket_manager.send_to_session(
                         session_id, 
                         'recall_error', 
                         {'message': f'Action timeout - you have {self.player_action_timeout} seconds to complete your action'}
                     )
+                else:
+                    custom_log(f"No session found for player {player_id}, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("websocket_manager is None, cannot send timeout error", level="WARNING", isOn=LOGGING_SWITCH)
             
             # Auto-action logic based on action type
             self._handle_auto_action_on_timeout(player_id, action_type)
@@ -1031,6 +1036,10 @@ class GameRound:
                     level="INFO", 
                     isOn=LOGGING_SWITCH
                 )
+            
+            # Move to next player to continue game flow
+            custom_log(f"Moving to next player after timeout for player {player_id}", level="INFO", isOn=LOGGING_SWITCH)
+            self._move_to_next_player()
             
         except Exception as e:
             custom_log(f"Error in auto-action handler: {e}", level="ERROR", isOn=LOGGING_SWITCH)

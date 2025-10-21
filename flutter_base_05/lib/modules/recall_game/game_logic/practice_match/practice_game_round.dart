@@ -4,11 +4,11 @@
 /// for practice sessions, including turn rotation, card actions, and AI decision making.
 
 import 'dart:async';
+import 'dart:math';
 import 'package:recall/tools/logging/logger.dart';
 import '../../../../core/managers/state_manager.dart';
 import 'practice_game.dart';
 import 'utils/computer_player_factory.dart';
-import 'utils/knowledge_manager.dart';
 
 const bool LOGGING_SWITCH = false;
 
@@ -20,9 +20,6 @@ class PracticeGameRound {
   
   // Computer player factory for YAML-based AI behavior
   ComputerPlayerFactory? _computerPlayerFactory;
-  
-  // Knowledge manager for updating computer players' known_cards
-  KnowledgeManager? _knowledgeManager;
   
   // Special card data storage - stores chronological list of special cards played
   // Matches backend's self.special_card_data list (game_round.py line 33)
@@ -232,10 +229,6 @@ class PracticeGameRound {
         try {
           _computerPlayerFactory = await ComputerPlayerFactory.fromFile('assets/computer_player_config.yaml');
           Logger().info('Practice: Computer player factory initialized with YAML config', isOn: LOGGING_SWITCH);
-          
-          // Initialize knowledge manager with the same config
-          _knowledgeManager = KnowledgeManager(_computerPlayerFactory!.config);
-          Logger().info('Practice: Knowledge manager initialized', isOn: LOGGING_SWITCH);
         } catch (e) {
           Logger().error('Practice: Failed to load computer player config, using default behavior: $e', isOn: LOGGING_SWITCH);
           // Continue with default behavior if YAML loading fails
@@ -1104,14 +1097,11 @@ class PracticeGameRound {
       // This allows other players to play cards of the same rank out-of-turn
       _handleSameRankWindow();
 
+      // Update all players' known_cards after successful card play
+      updateKnownCards('play_card', playerId, [cardId]);
+
       // Move to next player (simplified turn management for practice)
       // await _moveToNextPlayer();
-      
-      // Update all players' known_cards (remove the played card)
-      if (_knowledgeManager != null) {
-        Logger().info('Practice: Updating all players\' known_cards after play - card: $cardId', isOn: LOGGING_SWITCH);
-        _knowledgeManager!.updateAfterCardPlay(players, cardId, 'play');
-      }
       
       return true;
       
@@ -1268,11 +1258,8 @@ class PracticeGameRound {
       // For now, we just log the successful play
       Logger().info('Practice: Same rank play data would be stored here (future implementation)', isOn: LOGGING_SWITCH);
       
-      // Update all players' known_cards (remove the played card)
-      if (_knowledgeManager != null) {
-        Logger().info('Practice: Updating all players\' known_cards after same rank play - card: $cardId', isOn: LOGGING_SWITCH);
-        _knowledgeManager!.updateAfterCardPlay(players, cardId, 'same_rank_play');
-      }
+      // Update all players' known_cards after successful same rank play
+      updateKnownCards('same_rank_play', playerId, [cardId]);
       
       return true;
       
@@ -1372,15 +1359,11 @@ class PracticeGameRound {
 
       Logger().info('Practice: Jack swap completed - state updated', isOn: LOGGING_SWITCH);
 
-      // Update all players' known_cards (update card ownership after swap)
-      if (_knowledgeManager != null) {
-        Logger().info('Practice: Updating all players\' known_cards after Jack swap', isOn: LOGGING_SWITCH);
-        _knowledgeManager!.updateAfterJackSwap(
-          players,
-          firstCardId, firstPlayerId, secondPlayerId,
-          secondCardId, secondPlayerId, firstPlayerId
-        );
-      }
+      // Update all players' known_cards after successful Jack swap
+      updateKnownCards('jack_swap', firstPlayerId, [firstCardId, secondCardId], swapData: {
+        'sourcePlayerId': firstPlayerId,
+        'targetPlayerId': secondPlayerId,
+      });
 
       return true;
 
@@ -1947,6 +1930,223 @@ class PracticeGameRound {
     } catch (e) {
       Logger().error('Practice: Error moving to next player: $e', isOn: LOGGING_SWITCH);
     }
+  }
+
+  /// Update all players' known_cards based on game events
+  /// 
+  /// This method is called after any card play action to maintain accurate
+  /// knowledge tracking for all players (both human and computer).
+  /// 
+  /// [eventType]: Type of event ('play_card', 'same_rank_play', 'jack_swap')
+  /// [actingPlayerId]: ID of the player who performed the action
+  /// [affectedCardIds]: List of card IDs involved in the action
+  /// [swapData]: Optional data for Jack swap (sourcePlayerId, targetPlayerId)
+  void updateKnownCards(
+    String eventType, 
+    String actingPlayerId, 
+    List<String> affectedCardIds,
+    {Map<String, String>? swapData}
+  ) {
+    try {
+      final currentGames = _practiceCoordinator._getCurrentGamesMap();
+      final gameId = _practiceCoordinator._currentPracticeGameId;
+      if (gameId == null || !currentGames.containsKey(gameId)) return;
+      
+      final gameData = currentGames[gameId];
+      final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
+      if (gameState == null) return;
+      
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Process each player's known_cards
+      for (final player in players) {
+        final playerId = player['id'] as String;
+        final difficulty = player['difficulty'] as String? ?? 'medium';
+        final isHuman = player['isHuman'] as bool? ?? false;
+        
+        // Get remember probability based on difficulty
+        final rememberProb = _getRememberProbability(difficulty);
+        
+        // Get player's known_cards
+        final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+        
+        if (eventType == 'play_card' || eventType == 'same_rank_play') {
+          _processPlayCardUpdate(knownCards, affectedCardIds, rememberProb);
+        } else if (eventType == 'jack_swap' && swapData != null) {
+          _processJackSwapUpdate(knownCards, affectedCardIds, swapData, rememberProb);
+        }
+        
+        player['known_cards'] = knownCards;
+      }
+      
+      // Update state
+      _practiceCoordinator.updatePracticeGameState({'games': currentGames});
+      
+      Logger().info('Practice: Updated known_cards for all players after $eventType', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      Logger().error('Practice: Failed to update known_cards: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Get remember probability based on difficulty
+  double _getRememberProbability(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'easy': return 0.70;
+      case 'medium': return 0.80;
+      case 'hard': return 0.90;
+      case 'expert': return 1.0;
+      default: return 0.80;
+    }
+  }
+
+  /// Process known_cards update for play_card or same_rank_play events
+  void _processPlayCardUpdate(
+    Map<String, dynamic> knownCards,
+    List<String> affectedCardIds,
+    double rememberProb
+  ) {
+    final random = Random();
+    final playedCardId = affectedCardIds.isNotEmpty ? affectedCardIds[0] : null;
+    if (playedCardId == null) return;
+    
+    // Iterate through each tracked player's cards
+    final keysToRemove = <String>[];
+    for (final entry in knownCards.entries) {
+      final trackedPlayerId = entry.key;
+      final trackedCards = entry.value as Map<String, dynamic>?;
+      if (trackedCards == null) continue;
+      
+      // Check card1
+      final card1 = trackedCards['card1'];
+      final card1Id = _extractCardId(card1);
+      if (card1Id == playedCardId) {
+        // Roll probability: should this player remember the card was played?
+        if (random.nextDouble() <= rememberProb) {
+          // Remember: remove this card
+          trackedCards['card1'] = null;
+        }
+        // Forget: do nothing, player "forgot" this card was played
+      }
+      
+      // Check card2
+      final card2 = trackedCards['card2'];
+      final card2Id = _extractCardId(card2);
+      if (card2Id == playedCardId) {
+        if (random.nextDouble() <= rememberProb) {
+          trackedCards['card2'] = null;
+        }
+      }
+      
+      // If both cards are now null, remove this player entry
+      if (trackedCards['card1'] == null && trackedCards['card2'] == null) {
+        keysToRemove.add(trackedPlayerId);
+      }
+    }
+    
+    // Remove empty entries
+    for (final key in keysToRemove) {
+      knownCards.remove(key);
+    }
+  }
+
+  /// Process known_cards update for jack_swap event
+  void _processJackSwapUpdate(
+    Map<String, dynamic> knownCards,
+    List<String> affectedCardIds,
+    Map<String, String> swapData,
+    double rememberProb
+  ) {
+    final random = Random();
+    if (affectedCardIds.length < 2) return;
+    
+    final cardId1 = affectedCardIds[0];
+    final cardId2 = affectedCardIds[1];
+    final sourcePlayerId = swapData['sourcePlayerId'];
+    final targetPlayerId = swapData['targetPlayerId'];
+    
+    if (sourcePlayerId == null || targetPlayerId == null) return;
+    
+    // Track cards that need to be moved
+    final cardsToMove = <String, Map<String, dynamic>>{};
+    final keysToRemove = <String>[];
+    
+    // Iterate through each tracked player's cards
+    for (final entry in knownCards.entries) {
+      final trackedPlayerId = entry.key;
+      final trackedCards = entry.value as Map<String, dynamic>?;
+      if (trackedCards == null) continue;
+      
+      // Check card1
+      final card1 = trackedCards['card1'];
+      final card1Id = _extractCardId(card1);
+      if (card1Id == cardId1 && trackedPlayerId == sourcePlayerId) {
+        if (random.nextDouble() <= rememberProb) {
+          // Remember: this card moved to targetPlayerId
+          cardsToMove[targetPlayerId] = {'card1': card1};
+          trackedCards['card1'] = null;
+        }
+        // Forget: remove the card
+      } else if (card1Id == cardId2 && trackedPlayerId == targetPlayerId) {
+        if (random.nextDouble() <= rememberProb) {
+          // Remember: this card moved to sourcePlayerId
+          cardsToMove[sourcePlayerId] = {'card1': card1};
+          trackedCards['card1'] = null;
+        }
+      }
+      
+      // Check card2 (same logic)
+      final card2 = trackedCards['card2'];
+      final card2Id = _extractCardId(card2);
+      if (card2Id == cardId1 && trackedPlayerId == sourcePlayerId) {
+        if (random.nextDouble() <= rememberProb) {
+          cardsToMove[targetPlayerId] = {'card2': card2};
+          trackedCards['card2'] = null;
+        }
+      } else if (card2Id == cardId2 && trackedPlayerId == targetPlayerId) {
+        if (random.nextDouble() <= rememberProb) {
+          cardsToMove[sourcePlayerId] = {'card2': card2};
+          trackedCards['card2'] = null;
+        }
+      }
+      
+      // If both cards are now null, remove this player entry
+      if (trackedCards['card1'] == null && trackedCards['card2'] == null) {
+        keysToRemove.add(trackedPlayerId);
+      }
+    }
+    
+    // Remove empty entries
+    for (final key in keysToRemove) {
+      knownCards.remove(key);
+    }
+    
+    // Add moved cards to new owners
+    for (final entry in cardsToMove.entries) {
+      final newOwnerId = entry.key;
+      final cardToMove = entry.value;
+      
+      if (!knownCards.containsKey(newOwnerId)) {
+        knownCards[newOwnerId] = {'card1': null, 'card2': null};
+      }
+      
+      final ownerCards = knownCards[newOwnerId] as Map<String, dynamic>;
+      if (ownerCards['card1'] == null) {
+        ownerCards['card1'] = cardToMove['card1'] ?? cardToMove['card2'];
+      } else if (ownerCards['card2'] == null) {
+        ownerCards['card2'] = cardToMove['card1'] ?? cardToMove['card2'];
+      }
+    }
+  }
+
+  /// Extract card ID from card object or string
+  String? _extractCardId(dynamic card) {
+    if (card == null) return null;
+    if (card is String) return card;
+    if (card is Map) {
+      return card['cardId']?.toString() ?? card['id']?.toString();
+    }
+    return null;
   }
 
   /// Dispose of resources

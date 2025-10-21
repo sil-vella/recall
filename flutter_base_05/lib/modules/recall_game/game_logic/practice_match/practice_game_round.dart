@@ -304,6 +304,7 @@ class PracticeGameRound {
   /// This method uses the computer player factory to make decisions based on YAML config
   void _handleComputerActionWithYAML(Map<String, dynamic> gameState, String playerId, String difficulty, String eventName) {
     try {
+      Logger().info('Practice: DEBUG - _handleComputerActionWithYAML called with event: $eventName', isOn: LOGGING_SWITCH);
       Logger().info('Practice: Handling computer action with YAML - Player: $playerId, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
       
       if (_computerPlayerFactory == null) {
@@ -394,7 +395,11 @@ class PracticeGameRound {
             final gameState = _getCurrentGameState();
             if (gameState != null) {
               final difficulty = _getComputerDifficulty(gameState, playerId);
+              Logger().info('Practice: DEBUG - About to call _handleComputerActionWithYAML for play_card', isOn: LOGGING_SWITCH);
               _handleComputerActionWithYAML(gameState, playerId, difficulty, 'play_card');
+              Logger().info('Practice: DEBUG - _handleComputerActionWithYAML call completed', isOn: LOGGING_SWITCH);
+            } else {
+              Logger().error('Practice: DEBUG - Game state is null, cannot continue with play_card', isOn: LOGGING_SWITCH);
             }
           }
           break;

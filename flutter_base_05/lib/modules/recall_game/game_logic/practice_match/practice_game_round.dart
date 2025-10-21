@@ -327,6 +327,7 @@ class PracticeGameRound {
             orElse: () => <String, dynamic>{},
           );
           final hand = computerPlayer['hand'] as List<dynamic>? ?? [];
+          Logger().info('Practice: DEBUG - Computer player hand: $hand', isOn: LOGGING_SWITCH);
           final availableCards = hand.map((card) {
             if (card is Map<String, dynamic>) {
               return card['id'].toString();
@@ -334,6 +335,7 @@ class PracticeGameRound {
               return card.toString();
             }
           }).toList();
+          Logger().info('Practice: DEBUG - Available cards after mapping: $availableCards', isOn: LOGGING_SWITCH);
           
           decision = _computerPlayerFactory!.getPlayCardDecision(difficulty, gameState, availableCards);
           break;

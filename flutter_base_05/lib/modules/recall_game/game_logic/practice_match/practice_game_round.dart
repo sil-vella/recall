@@ -8,6 +8,7 @@ import 'package:recall/tools/logging/logger.dart';
 import '../../../../core/managers/state_manager.dart';
 import 'practice_game.dart';
 import 'utils/computer_player_factory.dart';
+import 'utils/knowledge_manager.dart';
 
 const bool LOGGING_SWITCH = false;
 
@@ -19,6 +20,9 @@ class PracticeGameRound {
   
   // Computer player factory for YAML-based AI behavior
   ComputerPlayerFactory? _computerPlayerFactory;
+  
+  // Knowledge manager for updating computer players' known_cards
+  KnowledgeManager? _knowledgeManager;
   
   // Special card data storage - stores chronological list of special cards played
   // Matches backend's self.special_card_data list (game_round.py line 33)
@@ -228,6 +232,10 @@ class PracticeGameRound {
         try {
           _computerPlayerFactory = await ComputerPlayerFactory.fromFile('assets/computer_player_config.yaml');
           Logger().info('Practice: Computer player factory initialized with YAML config', isOn: LOGGING_SWITCH);
+          
+          // Initialize knowledge manager with the same config
+          _knowledgeManager = KnowledgeManager(_computerPlayerFactory!.config);
+          Logger().info('Practice: Knowledge manager initialized', isOn: LOGGING_SWITCH);
         } catch (e) {
           Logger().error('Practice: Failed to load computer player config, using default behavior: $e', isOn: LOGGING_SWITCH);
           // Continue with default behavior if YAML loading fails
@@ -1099,6 +1107,12 @@ class PracticeGameRound {
       // Move to next player (simplified turn management for practice)
       // await _moveToNextPlayer();
       
+      // Update all players' known_cards (remove the played card)
+      if (_knowledgeManager != null) {
+        Logger().info('Practice: Updating all players\' known_cards after play - card: $cardId', isOn: LOGGING_SWITCH);
+        _knowledgeManager!.updateAfterCardPlay(players, cardId, 'play');
+      }
+      
       return true;
       
     } catch (e) {
@@ -1254,6 +1268,12 @@ class PracticeGameRound {
       // For now, we just log the successful play
       Logger().info('Practice: Same rank play data would be stored here (future implementation)', isOn: LOGGING_SWITCH);
       
+      // Update all players' known_cards (remove the played card)
+      if (_knowledgeManager != null) {
+        Logger().info('Practice: Updating all players\' known_cards after same rank play - card: $cardId', isOn: LOGGING_SWITCH);
+        _knowledgeManager!.updateAfterCardPlay(players, cardId, 'same_rank_play');
+      }
+      
       return true;
       
     } catch (e) {
@@ -1351,6 +1371,16 @@ class PracticeGameRound {
       });
 
       Logger().info('Practice: Jack swap completed - state updated', isOn: LOGGING_SWITCH);
+
+      // Update all players' known_cards (update card ownership after swap)
+      if (_knowledgeManager != null) {
+        Logger().info('Practice: Updating all players\' known_cards after Jack swap', isOn: LOGGING_SWITCH);
+        _knowledgeManager!.updateAfterJackSwap(
+          players,
+          firstCardId, firstPlayerId, secondPlayerId,
+          secondCardId, secondPlayerId, firstPlayerId
+        );
+      }
 
       return true;
 

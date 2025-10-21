@@ -14,7 +14,9 @@ from .game_state import GameState, GamePhase
 from ..models.player import Player, PlayerStatus
 from ..models.card import Card
 from tools.logger.custom_logging import custom_log
-from ..utils.computer_player_factory import ComputerPlayerFactory 
+from ..utils.computer_player_factory import ComputerPlayerFactory
+from ..utils.knowledge_manager import KnowledgeManager
+from ..utils.computer_player_config_loader import ComputerPlayerConfigLoader
 
 LOGGING_SWITCH = True
 
@@ -28,6 +30,7 @@ class GameRound:
         self.round_end_time = None
         self.current_turn_start_time = None
         self._computer_player_factory = None  # YAML-based computer player factory
+        self._knowledge_manager = None  # Knowledge manager for updating known_cards
         # self.turn_timeout_seconds = 30  # 30 seconds per turn - DEPRECATED: Now using Config.RECALL_PLAYER_ACTION_TIMEOUT
         self.actions_performed = []
 
@@ -415,6 +418,11 @@ class GameRound:
                     config_path = "core/modules/recall_game/config/computer_player_config.yaml"
                     self._computer_player_factory = ComputerPlayerFactory.from_file(config_path)
                     custom_log("Computer player factory initialized with YAML config", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Initialize knowledge manager with the same config
+                    config_loader = ComputerPlayerConfigLoader.from_file(config_path)
+                    self._knowledge_manager = KnowledgeManager(config_loader)
+                    custom_log("Knowledge manager initialized", level="INFO", isOn=LOGGING_SWITCH)
                 except Exception as e:
                     custom_log(f"Failed to load computer player config, using default behavior: {e}", level="ERROR", isOn=LOGGING_SWITCH)
                     # Continue with default behavior if YAML loading fails
@@ -1618,6 +1626,11 @@ class GameRound:
                 'suit': card_to_play.suit
             })
             
+            # Update all players' known_cards (remove the played card)
+            if self._knowledge_manager:
+                custom_log(f"Updating all players' known_cards after play - card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                self._knowledge_manager.update_after_card_play(self.game_state.players, card_id, 'play')
+            
             return True
             
         except Exception as e:
@@ -1720,6 +1733,11 @@ class GameRound:
             # Log all current plays for debugging
             for pid, play in self.same_rank_data.items():
                 pass
+            
+            # Update all players' known_cards (remove the played card)
+            if self._knowledge_manager:
+                custom_log(f"Updating all players' known_cards after same rank play - card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                self._knowledge_manager.update_after_card_play(self.game_state.players, card_id, 'same_rank_play')
             
             return True
             
@@ -1895,6 +1913,15 @@ class GameRound:
             custom_log(f"Successfully swapped cards: {first_card.card_id} <-> {second_card.card_id}", level="INFO", isOn=LOGGING_SWITCH)
             custom_log(f"Player {first_player_id} now has: {[card.card_id if card else None for card in first_player.hand]}", level="DEBUG", isOn=LOGGING_SWITCH)
             custom_log(f"Player {second_player_id} now has: {[card.card_id if card else None for card in second_player.hand]}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Update all players' known_cards (update card ownership after swap)
+            if self._knowledge_manager:
+                custom_log(f"Updating all players' known_cards after Jack swap", level="INFO", isOn=LOGGING_SWITCH)
+                self._knowledge_manager.update_after_jack_swap(
+                    self.game_state.players,
+                    first_card_id, first_player_id, second_player_id,
+                    second_card_id, second_player_id, first_player_id
+                )
             
             return True
             

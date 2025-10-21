@@ -1955,4 +1955,163 @@ class GameRound:
             custom_log(f"Error in _handle_queen_peek: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return False
 
+    def update_known_cards(self, event_type: str, acting_player_id: str, affected_card_ids: List[str], swap_data: Dict[str, str] = None):
+        """Update all players' known_cards based on game events
+        
+        This method is called after any card play action to maintain accurate
+        knowledge tracking for all players (both human and computer).
+        
+        Args:
+            event_type: Type of event ('play_card', 'same_rank_play', 'jack_swap')
+            acting_player_id: ID of the player who performed the action
+            affected_card_ids: List of card IDs involved in the action
+            swap_data: Optional dict for Jack swap with 'source_player_id' and 'target_player_id'
+        """
+        try:
+            for player_id, player in self.game_state.players.items():
+                difficulty = getattr(player, 'difficulty', 'medium')
+                
+                # Get remember probability based on difficulty
+                remember_prob = self._get_remember_probability(difficulty)
+                
+                # Get player's known_cards
+                known_cards = player.known_cards
+                
+                if event_type in ['play_card', 'same_rank_play']:
+                    self._process_play_card_update(known_cards, affected_card_ids, remember_prob)
+                elif event_type == 'jack_swap' and swap_data:
+                    self._process_jack_swap_update(known_cards, affected_card_ids, swap_data, remember_prob)
+                
+                # Trigger state update for this player
+                if hasattr(player, '_track_change'):
+                    player._track_change('known_cards')
+            
+            custom_log(f"Updated known_cards for all players after {event_type}", level="INFO", isOn=LOGGING_SWITCH)
+            
+        except Exception as e:
+            custom_log(f"Failed to update known_cards: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _get_remember_probability(self, difficulty: str) -> float:
+        """Get remember probability based on difficulty"""
+        difficulty_probs = {
+            'easy': 0.70,
+            'medium': 0.80,
+            'hard': 0.90,
+            'expert': 1.0
+        }
+        return difficulty_probs.get(difficulty.lower(), 0.80)
+
+    def _process_play_card_update(self, known_cards: Dict[str, Any], affected_card_ids: List[str], remember_prob: float):
+        """Process known_cards update for play_card or same_rank_play events"""
+        import random
+        if not affected_card_ids:
+            return
+        
+        played_card_id = affected_card_ids[0]
+        keys_to_remove = []
+        
+        # Iterate through each tracked player's cards
+        for tracked_player_id, tracked_cards in list(known_cards.items()):
+            if not isinstance(tracked_cards, dict):
+                continue
+            
+            # Check card1
+            card1 = tracked_cards.get('card1')
+            card1_id = self._extract_card_id(card1)
+            if card1_id == played_card_id:
+                if random.random() <= remember_prob:
+                    tracked_cards['card1'] = None
+            
+            # Check card2
+            card2 = tracked_cards.get('card2')
+            card2_id = self._extract_card_id(card2)
+            if card2_id == played_card_id:
+                if random.random() <= remember_prob:
+                    tracked_cards['card2'] = None
+            
+            # If both cards are now None, mark for removal
+            if tracked_cards.get('card1') is None and tracked_cards.get('card2') is None:
+                keys_to_remove.append(tracked_player_id)
+        
+        # Remove empty entries
+        for key in keys_to_remove:
+            known_cards.pop(key, None)
+
+    def _process_jack_swap_update(self, known_cards: Dict[str, Any], affected_card_ids: List[str], swap_data: Dict[str, str], remember_prob: float):
+        """Process known_cards update for jack_swap event"""
+        import random
+        if len(affected_card_ids) < 2:
+            return
+        
+        card_id1 = affected_card_ids[0]
+        card_id2 = affected_card_ids[1]
+        source_player_id = swap_data.get('source_player_id')
+        target_player_id = swap_data.get('target_player_id')
+        
+        if not source_player_id or not target_player_id:
+            return
+        
+        cards_to_move = {}
+        keys_to_remove = []
+        
+        # Iterate through each tracked player's cards
+        for tracked_player_id, tracked_cards in list(known_cards.items()):
+            if not isinstance(tracked_cards, dict):
+                continue
+            
+            # Check card1
+            card1 = tracked_cards.get('card1')
+            card1_id = self._extract_card_id(card1)
+            if card1_id == card_id1 and tracked_player_id == source_player_id:
+                if random.random() <= remember_prob:
+                    cards_to_move[target_player_id] = {'card1': card1}
+                    tracked_cards['card1'] = None
+            elif card1_id == card_id2 and tracked_player_id == target_player_id:
+                if random.random() <= remember_prob:
+                    cards_to_move[source_player_id] = {'card1': card1}
+                    tracked_cards['card1'] = None
+            
+            # Check card2
+            card2 = tracked_cards.get('card2')
+            card2_id = self._extract_card_id(card2)
+            if card2_id == card_id1 and tracked_player_id == source_player_id:
+                if random.random() <= remember_prob:
+                    cards_to_move[target_player_id] = {'card2': card2}
+                    tracked_cards['card2'] = None
+            elif card2_id == card_id2 and tracked_player_id == target_player_id:
+                if random.random() <= remember_prob:
+                    cards_to_move[source_player_id] = {'card2': card2}
+                    tracked_cards['card2'] = None
+            
+            # If both cards are now None, mark for removal
+            if tracked_cards.get('card1') is None and tracked_cards.get('card2') is None:
+                keys_to_remove.append(tracked_player_id)
+        
+        # Remove empty entries
+        for key in keys_to_remove:
+            known_cards.pop(key, None)
+        
+        # Add moved cards to new owners
+        for new_owner_id, card_to_move in cards_to_move.items():
+            if new_owner_id not in known_cards:
+                known_cards[new_owner_id] = {'card1': None, 'card2': None}
+            
+            owner_cards = known_cards[new_owner_id]
+            if owner_cards.get('card1') is None:
+                owner_cards['card1'] = card_to_move.get('card1') or card_to_move.get('card2')
+            elif owner_cards.get('card2') is None:
+                owner_cards['card2'] = card_to_move.get('card1') or card_to_move.get('card2')
+
+    def _extract_card_id(self, card: Any) -> Optional[str]:
+        """Extract card ID from card object or string"""
+        if card is None:
+            return None
+        if isinstance(card, str):
+            return card
+        if isinstance(card, dict):
+            return card.get('cardId') or card.get('id')
+        if hasattr(card, 'card_id'):
+            return card.card_id
+        return None
+
     

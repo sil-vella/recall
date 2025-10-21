@@ -46,11 +46,17 @@ class ComputerPlayerFactory {
 
   /// Get computer player decision for play card event
   Map<String, dynamic> getPlayCardDecision(String difficulty, Map<String, dynamic> gameState, List<String> availableCards) {
+    Logger().info('Practice: DEBUG - getPlayCardDecision called with difficulty: $difficulty, availableCards: ${availableCards.length}', isOn: LOGGING_SWITCH);
+    
     final decisionDelay = config.getDecisionDelay(difficulty);
     final cardSelection = config.getCardSelectionStrategy(difficulty);
     final evaluationWeights = config.getCardEvaluationWeights();
     
+    Logger().info('Practice: DEBUG - Card selection strategy: $cardSelection', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: DEBUG - Evaluation weights: $evaluationWeights', isOn: LOGGING_SWITCH);
+    
     if (availableCards.isEmpty) {
+      Logger().warning('Practice: DEBUG - No cards available to play', isOn: LOGGING_SWITCH);
       return {
         'action': 'play_card',
         'card_id': null,
@@ -60,8 +66,12 @@ class ComputerPlayerFactory {
       };
     }
     
+    Logger().info('Practice: DEBUG - Available cards: $availableCards', isOn: LOGGING_SWITCH);
+    
     // Select card based on strategy
     final selectedCard = _selectCard(availableCards, cardSelection, evaluationWeights, gameState);
+    
+    Logger().info('Practice: DEBUG - Selected card: $selectedCard', isOn: LOGGING_SWITCH);
     
     return {
       'action': 'play_card',
@@ -173,20 +183,40 @@ class ComputerPlayerFactory {
 
   /// Select a card based on strategy and evaluation weights
   String _selectCard(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState) {
+    Logger().info('Practice: DEBUG - _selectCard called with ${availableCards.length} available cards', isOn: LOGGING_SWITCH);
+    
     final strategy = cardSelection['strategy'] ?? 'random';
+    Logger().info('Practice: DEBUG - Strategy: $strategy', isOn: LOGGING_SWITCH);
     
     // Get current player from game state
     final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
-    if (currentPlayer == null) return availableCards[_random.nextInt(availableCards.length)];
+    if (currentPlayer == null) {
+      Logger().warning('Practice: DEBUG - No current player found, using random fallback', isOn: LOGGING_SWITCH);
+      return availableCards[_random.nextInt(availableCards.length)];
+    }
+    
+    Logger().info('Practice: DEBUG - Current player: ${currentPlayer['name']}', isOn: LOGGING_SWITCH);
     
     // Prepare game data for YAML rules engine
     final gameData = _prepareGameDataForYAML(availableCards, currentPlayer, gameState);
+    Logger().info('Practice: DEBUG - Game data prepared: ${gameData.keys.join(', ')}', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: DEBUG - Available cards: ${gameData['available_cards']}', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: DEBUG - Playable cards: ${gameData['playable_cards']}', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: DEBUG - Unknown cards: ${gameData['unknown_cards']}', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: DEBUG - Known cards: ${gameData['known_cards']}', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: DEBUG - Collection cards: ${gameData['collection_cards']}', isOn: LOGGING_SWITCH);
     
     // Get YAML rules from config
     final playCardConfig = config.getEventConfig('play_card');
     final strategyRules = playCardConfig['strategy_rules'] as List<dynamic>? ?? [];
     
+    Logger().info('Practice: DEBUG - YAML strategy rules count: ${strategyRules.length}', isOn: LOGGING_SWITCH);
+    if (strategyRules.isNotEmpty) {
+      Logger().info('Practice: DEBUG - YAML rules: ${strategyRules.map((r) => r['name']).join(', ')}', isOn: LOGGING_SWITCH);
+    }
+    
     if (strategyRules.isEmpty) {
+      Logger().info('Practice: DEBUG - No YAML rules defined, using legacy logic', isOn: LOGGING_SWITCH);
       // Fallback to old logic if no YAML rules defined
       return _selectCardLegacy(availableCards, cardSelection, evaluationWeights, gameState);
     }
@@ -195,22 +225,35 @@ class ComputerPlayerFactory {
     final optimalPlayProb = _getOptimalPlayProbability(strategy);
     final shouldPlayOptimal = _random.nextDouble() < optimalPlayProb;
     
+    Logger().info('Practice: DEBUG - Optimal play probability: $optimalPlayProb, Should play optimal: $shouldPlayOptimal', isOn: LOGGING_SWITCH);
+    
     // Execute YAML rules
     final rulesEngine = YamlRulesEngine();
-    return rulesEngine.executeRules(strategyRules, gameData, shouldPlayOptimal);
+    final result = rulesEngine.executeRules(strategyRules, gameData, shouldPlayOptimal);
+    
+    Logger().info('Practice: DEBUG - YAML rules engine returned: $result', isOn: LOGGING_SWITCH);
+    
+    return result;
   }
   
   /// Prepare game data for YAML rules engine
   Map<String, dynamic> _prepareGameDataForYAML(List<String> availableCards, 
                                                 Map<String, dynamic> currentPlayer, 
                                                 Map<String, dynamic> gameState) {
+    Logger().info('Practice: DEBUG - _prepareGameDataForYAML called with ${availableCards.length} available cards', isOn: LOGGING_SWITCH);
+    
     // Get player's known_cards and collection_rank_cards
     final knownCards = currentPlayer['known_cards'] as Map<String, dynamic>? ?? {};
     final collectionRankCards = currentPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
     final collectionCardIds = collectionRankCards.map((c) => c['id'].toString()).toSet();
     
+    Logger().info('Practice: DEBUG - Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: DEBUG - Player collection_rank_cards: ${collectionRankCards.length} cards', isOn: LOGGING_SWITCH);
+    Logger().info('Practice: DEBUG - Collection card IDs: $collectionCardIds', isOn: LOGGING_SWITCH);
+    
     // Filter out collection rank cards
     final playableCards = availableCards.where((cardId) => !collectionCardIds.contains(cardId)).toList();
+    Logger().info('Practice: DEBUG - Playable cards (after filtering collection): ${playableCards.length}', isOn: LOGGING_SWITCH);
     
     // Extract known card IDs
     final knownCardIds = <String>{};
@@ -220,12 +263,15 @@ class ComputerPlayerFactory {
         if (playerKnownCards['card2'] != null) knownCardIds.add(playerKnownCards['card2'].toString());
       }
     }
+    Logger().info('Practice: DEBUG - Known card IDs: $knownCardIds', isOn: LOGGING_SWITCH);
     
     // Get unknown cards
     final unknownCards = playableCards.where((cardId) => !knownCardIds.contains(cardId)).toList();
+    Logger().info('Practice: DEBUG - Unknown cards: ${unknownCards.length}', isOn: LOGGING_SWITCH);
     
     // Get known playable cards
     final knownPlayableCards = playableCards.where((cardId) => knownCardIds.contains(cardId)).toList();
+    Logger().info('Practice: DEBUG - Known playable cards: ${knownPlayableCards.length}', isOn: LOGGING_SWITCH);
     
     // Get all cards data for filters
     final allCardsData = <Map<String, dynamic>>[];
@@ -238,9 +284,10 @@ class ComputerPlayerFactory {
         }
       }
     }
+    Logger().info('Practice: DEBUG - All cards data: ${allCardsData.length} cards', isOn: LOGGING_SWITCH);
     
     // Return comprehensive game data
-    return {
+    final result = {
       'available_cards': availableCards,
       'playable_cards': playableCards,
       'unknown_cards': unknownCards,
@@ -250,6 +297,10 @@ class ComputerPlayerFactory {
       'current_player': currentPlayer,
       'game_state': gameState,
     };
+    
+    Logger().info('Practice: DEBUG - Prepared game data with keys: ${result.keys.join(', ')}', isOn: LOGGING_SWITCH);
+    
+    return result;
   }
   
   /// Legacy card selection (fallback if YAML rules not defined)

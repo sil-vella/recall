@@ -383,6 +383,19 @@ class PracticeGameRound {
           if (!success) {
             Logger().error('Practice: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
             _moveToNextPlayer();
+          } else {
+            // After successful draw, continue computer turn with play_card action
+            Logger().info('Practice: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
+            
+            // Add a small delay to simulate thinking time
+            await Future.delayed(const Duration(milliseconds: 500));
+            
+            // Continue computer turn with play_card action
+            final gameState = _getCurrentGameState();
+            if (gameState != null) {
+              final difficulty = _getComputerDifficulty(gameState, playerId);
+              _handleComputerActionWithYAML(gameState, playerId, difficulty, 'play_card');
+            }
           }
           break;
           
@@ -392,6 +405,10 @@ class PracticeGameRound {
             final success = await handlePlayCard(cardId);
             if (!success) {
               Logger().error('Practice: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
+              _moveToNextPlayer();
+            } else {
+              Logger().info('Practice: Computer player $playerId successfully played card, turn complete', isOn: LOGGING_SWITCH);
+              // Computer turn is complete, move to next player
               _moveToNextPlayer();
             }
           } else {

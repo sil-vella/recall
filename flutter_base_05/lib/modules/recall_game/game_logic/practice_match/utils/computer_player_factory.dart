@@ -245,7 +245,12 @@ class ComputerPlayerFactory {
     // Get player's known_cards and collection_rank_cards
     final knownCards = currentPlayer['known_cards'] as Map<String, dynamic>? ?? {};
     final collectionRankCards = currentPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-    final collectionCardIds = collectionRankCards.map((c) => c['id'].toString()).toSet();
+    final collectionCardIds = collectionRankCards.map((c) {
+      if (c is Map<String, dynamic>) {
+        return c['cardId']?.toString() ?? c['id']?.toString() ?? '';
+      }
+      return c.toString();
+    }).where((id) => id.isNotEmpty).toSet();
     
     Logger().info('Practice: DEBUG - Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
     Logger().info('Practice: DEBUG - Player collection_rank_cards: ${collectionRankCards.length} cards', isOn: LOGGING_SWITCH);
@@ -329,13 +334,18 @@ class ComputerPlayerFactory {
     final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
     if (currentPlayer == null) {
       Logger().error('Practice: No current player found in game state', isOn: LOGGING_SWITCH);
-      return availableCards[_random.nextInt(availableCards.length)];
+        return availableCards[_random.nextInt(availableCards.length)];
     }
     
     // Get player's known_cards and collection_rank_cards
     final knownCards = currentPlayer['known_cards'] as Map<String, dynamic>? ?? {};
     final collectionRankCards = currentPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-    final collectionCardIds = collectionRankCards.map((c) => c['id'].toString()).toSet();
+    final collectionCardIds = collectionRankCards.map((c) {
+      if (c is Map<String, dynamic>) {
+        return c['cardId']?.toString() ?? c['id']?.toString() ?? '';
+      }
+      return c.toString();
+    }).where((id) => id.isNotEmpty).toSet();
     
     // Filter out collection rank cards from available cards
     final playableCards = availableCards.where((cardId) => !collectionCardIds.contains(cardId)).toList();

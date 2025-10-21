@@ -415,9 +415,10 @@ class PracticeGameRound {
               Logger().error('Practice: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             } else {
-              Logger().info('Practice: Computer player $playerId successfully played card, turn complete', isOn: LOGGING_SWITCH);
-              // Computer turn is complete, move to next player
-              _moveToNextPlayer();
+              Logger().info('Practice: Computer player $playerId successfully played card', isOn: LOGGING_SWITCH);
+              // Note: Do NOT call _moveToNextPlayer() here
+              // The same rank window (triggered in handlePlayCard) will handle moving to next player
+              // Flow: _handleSameRankWindow() -> 5s timer -> _endSameRankWindow() -> _handleSpecialCardsWindow() -> _moveToNextPlayer()
             }
           } else {
             Logger().warning('Practice: No card selected for computer play', isOn: LOGGING_SWITCH);
@@ -1948,9 +1949,9 @@ class PracticeGameRound {
     {Map<String, String>? swapData}
   ) {
     try {
-      final currentGames = _practiceCoordinator._getCurrentGamesMap();
-      final gameId = _practiceCoordinator._currentPracticeGameId;
-      if (gameId == null || !currentGames.containsKey(gameId)) return;
+      final currentGames = _practiceCoordinator.currentGamesMap;
+      final gameId = _gameId;
+      if (!currentGames.containsKey(gameId)) return;
       
       final gameData = currentGames[gameId];
       final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;

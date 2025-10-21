@@ -203,7 +203,11 @@ class ComputerPlayerFactory:
         # Get player's known_cards and collection_rank_cards
         known_cards = current_player_data.get('known_cards', {})
         collection_rank_cards = current_player_data.get('collection_rank_cards', [])
-        collection_card_ids = {card['id'] for card in collection_rank_cards if isinstance(card, dict)}
+        collection_card_ids = {
+            card.get('cardId') or card.get('id') 
+            for card in collection_rank_cards 
+            if isinstance(card, dict) and (card.get('cardId') or card.get('id'))
+        }
         
         # Filter out collection rank cards
         playable_cards = [card_id for card_id in available_cards if card_id not in collection_card_ids]
@@ -273,7 +277,11 @@ class ComputerPlayerFactory:
         # Get player's known_cards and collection_rank_cards
         known_cards = current_player_data.get('known_cards', {})
         collection_rank_cards = current_player_data.get('collection_rank_cards', [])
-        collection_card_ids = {card['id'] for card in collection_rank_cards if isinstance(card, dict)}
+        collection_card_ids = {
+            card.get('cardId') or card.get('id') 
+            for card in collection_rank_cards 
+            if isinstance(card, dict) and (card.get('cardId') or card.get('id'))
+        }
         
         # Filter out collection rank cards
         playable_cards = [card_id for card_id in available_cards if card_id not in collection_card_ids]

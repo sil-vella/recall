@@ -435,12 +435,28 @@ class GameRound:
             
             custom_log(f"Computer player {computer_player.player_id} - Difficulty: {difficulty}, Event: {current_event}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # TODO: Implement play_card logic for computer players
-            # For now, skip processing if status is 'playing_card' and move to next player
+            # Handle play_card event for computer players
             if current_event == 'play_card':
-                custom_log(f"Computer player {computer_player.player_id} needs to play a card, but play_card logic not yet implemented. Moving to next player.", level="WARNING", isOn=LOGGING_SWITCH)
-                custom_log(f"=== COMPUTER TURN END (play_card not implemented) === Player: {computer_player.player_id}, Hand size: {len(computer_player.hand)}", level="INFO", isOn=LOGGING_SWITCH)
-                self._move_to_next_player()
+                custom_log(f"Computer player {computer_player.player_id} needs to play a card", level="INFO", isOn=LOGGING_SWITCH)
+                
+                # Get available cards from computer player's hand
+                available_cards = [card.card_id for card in computer_player.hand if card is not None]
+                
+                if not available_cards:
+                    custom_log(f"Computer player {computer_player.player_id} has no cards to play", level="WARNING", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+                    return
+                
+                # Use YAML-based computer player factory for play card decision
+                if self._computer_player_factory is not None:
+                    decision = self._computer_player_factory.get_play_card_decision(difficulty, self.game_state.to_dict(), available_cards)
+                    custom_log(f"Computer play card decision: {decision}", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Execute the play card decision
+                    self._execute_computer_decision_yaml(decision, computer_player, 'play_card')
+                else:
+                    custom_log(f"Computer player factory not available for play card decision", level="ERROR", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
                 return
             
             # Use YAML-based computer player factory for decision making
@@ -542,10 +558,26 @@ class GameRound:
                 # The next turn will detect this and handle play_card event
             
             elif event_name == 'play_card':
-                # TODO: Implement play_card logic
-                custom_log(f"Computer play_card decision received: {decision}", level="INFO", isOn=LOGGING_SWITCH)
-                custom_log("Play card logic not yet implemented for computer players", level="WARNING", isOn=LOGGING_SWITCH)
-                self._move_to_next_player()
+                card_id = decision.get('card_id')
+                if card_id:
+                    custom_log(f"Computer playing card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Use existing _route_action logic (same as human players)
+                    action_data = {
+                        'card_id': card_id,
+                        'player_id': computer_player.player_id
+                    }
+                    success = self._route_action('play_card', computer_player.player_id, action_data)
+                    if not success:
+                        custom_log(f"Computer player {computer_player.player_id} failed to play card {card_id}", level="ERROR", isOn=LOGGING_SWITCH)
+                        self._move_to_next_player()
+                    else:
+                        custom_log(f"Computer player {computer_player.player_id} successfully played card {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                        # Computer turn is complete, move to next player
+                        self._move_to_next_player()
+                else:
+                    custom_log(f"No card selected for computer play", level="WARNING", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
             
             else:
                 custom_log(f"Unknown event for computer decision execution: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
@@ -1406,6 +1438,22 @@ class GameRound:
             # Change player status from DRAWING_CARD to PLAYING_CARD after successful draw
             player.set_status(PlayerStatus.PLAYING_CARD)
             custom_log(f"Player {player_id} status changed from DRAWING_CARD to PLAYING_CARD", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Check if this is a computer player and continue their turn
+            if hasattr(player, 'player_type') and player.player_type.value == 'computer':
+                custom_log(f"Computer player {player_id} drew card successfully, continuing with play_card action", level="INFO", isOn=LOGGING_SWITCH)
+                # Add a small delay to simulate thinking time
+                import threading
+                import time
+                
+                def continue_computer_turn():
+                    time.sleep(0.5)  # 500ms delay
+                    self._handle_computer_player_turn(player)
+                
+                # Start the continuation in a separate thread to avoid blocking
+                continuation_thread = threading.Thread(target=continue_computer_turn)
+                continuation_thread.daemon = True
+                continuation_thread.start()
             
             # Cancel draw phase timer and start play phase timer
             self._cancel_draw_phase_timer()

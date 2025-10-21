@@ -254,7 +254,10 @@ class ComputerPlayerFactory {
     
     // Get current player from game state
     final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
-    if (currentPlayer == null) return availableCards[_random.nextInt(availableCards.length)];
+    if (currentPlayer == null) {
+      Logger().error('Practice: No current player found in game state', isOn: LOGGING_SWITCH);
+      return availableCards[_random.nextInt(availableCards.length)];
+    }
     
     // Get player's known_cards and collection_rank_cards
     final knownCards = currentPlayer['known_cards'] as Map<String, dynamic>? ?? {};
@@ -264,7 +267,10 @@ class ComputerPlayerFactory {
     // Filter out collection rank cards from available cards
     final playableCards = availableCards.where((cardId) => !collectionCardIds.contains(cardId)).toList();
     
+    Logger().info('Practice: DEBUG - Available cards: ${availableCards.length}, Playable cards: ${playableCards.length}, Collection cards: ${collectionCardIds.length}', isOn: LOGGING_SWITCH);
+    
     if (playableCards.isEmpty) {
+      Logger().warning('Practice: All available cards are collection rank cards, using fallback', isOn: LOGGING_SWITCH);
       return availableCards[_random.nextInt(availableCards.length)]; // Fallback if all are collection cards
     }
     
@@ -283,24 +289,34 @@ class ComputerPlayerFactory {
     // Strategy 2: Get known cards with points (exclude Jacks)
     final knownPlayableCards = playableCards.where((cardId) => knownCardIds.contains(cardId)).toList();
     
+    Logger().info('Practice: DEBUG - Unknown cards: ${unknownCards.length}, Known playable cards: ${knownPlayableCards.length}', isOn: LOGGING_SWITCH);
+    
     // Determine if we should play optimally based on difficulty
     final optimalPlayProb = _getOptimalPlayProbability(strategy);
     final shouldPlayOptimal = _random.nextDouble() < optimalPlayProb;
     
+    Logger().info('Practice: DEBUG - Strategy: $strategy, Optimal prob: $optimalPlayProb, Should play optimal: $shouldPlayOptimal', isOn: LOGGING_SWITCH);
+    
     if (shouldPlayOptimal) {
       // Best option: Random unknown card
       if (unknownCards.isNotEmpty) {
-        return unknownCards[_random.nextInt(unknownCards.length)];
+        final selectedCard = unknownCards[_random.nextInt(unknownCards.length)];
+        Logger().info('Practice: DEBUG - Selected unknown card: $selectedCard', isOn: LOGGING_SWITCH);
+        return selectedCard;
       }
       
       // Fallback: Highest points from known cards (exclude Jacks)
       if (knownPlayableCards.isNotEmpty) {
-        return _selectHighestPointsCard(knownPlayableCards, gameState);
+        final selectedCard = _selectHighestPointsCard(knownPlayableCards, gameState);
+        Logger().info('Practice: DEBUG - Selected highest points card: $selectedCard', isOn: LOGGING_SWITCH);
+        return selectedCard;
       }
     }
     
     // Random fallback (for non-optimal play or if strategies fail)
-    return playableCards[_random.nextInt(playableCards.length)];
+    final selectedCard = playableCards[_random.nextInt(playableCards.length)];
+    Logger().info('Practice: DEBUG - Selected random fallback card: $selectedCard', isOn: LOGGING_SWITCH);
+    return selectedCard;
   }
   
   /// Get probability of playing optimally based on difficulty
@@ -316,6 +332,8 @@ class ComputerPlayerFactory {
   
   /// Select card with highest points from given card IDs, excluding Jacks
   String _selectHighestPointsCard(List<String> cardIds, Map<String, dynamic> gameState) {
+    Logger().info('Practice: DEBUG - _selectHighestPointsCard called with ${cardIds.length} card IDs', isOn: LOGGING_SWITCH);
+    
     // Get all cards from game state (drawPile, discardPile, or player hands)
     final allCards = <Map<String, dynamic>>[];
     
@@ -330,18 +348,26 @@ class ComputerPlayerFactory {
       }
     }
     
+    Logger().info('Practice: DEBUG - Found ${allCards.length} total cards in game state', isOn: LOGGING_SWITCH);
+    
     // Filter to only the cards we're considering
     final candidateCards = allCards.where((card) => cardIds.contains(card['id'])).toList();
     
+    Logger().info('Practice: DEBUG - Found ${candidateCards.length} candidate cards', isOn: LOGGING_SWITCH);
+    
     if (candidateCards.isEmpty) {
+      Logger().warning('Practice: No candidate cards found, using random fallback', isOn: LOGGING_SWITCH);
       return cardIds[_random.nextInt(cardIds.length)];
     }
     
     // Filter out Jacks
     final nonJackCards = candidateCards.where((card) => card['rank'] != 'jack').toList();
     
+    Logger().info('Practice: DEBUG - Found ${nonJackCards.length} non-Jack cards', isOn: LOGGING_SWITCH);
+    
     if (nonJackCards.isEmpty) {
       // If all are Jacks, return random
+      Logger().warning('Practice: All candidate cards are Jacks, using random fallback', isOn: LOGGING_SWITCH);
       return cardIds[_random.nextInt(cardIds.length)];
     }
     
@@ -357,7 +383,9 @@ class ComputerPlayerFactory {
       }
     }
     
-    return highestCard?['id'] ?? cardIds[_random.nextInt(cardIds.length)];
+    final selectedCard = highestCard?['id'] ?? cardIds[_random.nextInt(cardIds.length)];
+    Logger().info('Practice: DEBUG - Selected highest points card: $selectedCard (points: $highestPoints)', isOn: LOGGING_SWITCH);
+    return selectedCard;
   }
 
   /// Select Jack swap targets based on strategy

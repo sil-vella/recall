@@ -208,14 +208,30 @@ class ComputerPlayerFactory:
         # Filter out collection rank cards
         playable_cards = [card_id for card_id in available_cards if card_id not in collection_card_ids]
         
-        # Extract known card IDs
+        # Extract known card IDs (handles both card objects and card ID strings)
         known_card_ids = set()
         for player_known_cards in known_cards.values():
             if isinstance(player_known_cards, dict):
-                if player_known_cards.get('card1'):
-                    known_card_ids.add(player_known_cards['card1'])
-                if player_known_cards.get('card2'):
-                    known_card_ids.add(player_known_cards['card2'])
+                card1 = player_known_cards.get('card1')
+                card2 = player_known_cards.get('card2')
+                
+                # Handle card1 (can be dict or string)
+                if card1:
+                    if isinstance(card1, dict):
+                        card_id = card1.get('cardId') or card1.get('id')
+                        if card_id:
+                            known_card_ids.add(card_id)
+                    else:
+                        known_card_ids.add(str(card1))
+                
+                # Handle card2 (can be dict, string, or None)
+                if card2:
+                    if isinstance(card2, dict):
+                        card_id = card2.get('cardId') or card2.get('id')
+                        if card_id:
+                            known_card_ids.add(card_id)
+                    else:
+                        known_card_ids.add(str(card2))
         
         # Get unknown cards
         unknown_cards = [card_id for card_id in playable_cards if card_id not in known_card_ids]

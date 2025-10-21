@@ -1438,25 +1438,36 @@ class PracticeGameCoordinator {
     // Get the computer player's ID
     final playerId = computerPlayer['id'] as String;
     
-    // Store selected cards in known_cards (key: own playerId, value: card IDs only)
-    final knownCards = computerPlayer['known_cards'] as Map<String, dynamic>? ?? {};
-    knownCards[playerId] = {
-      'card1': hand[indices[0]]['cardId'],
-      'card2': hand[indices[1]]['cardId'],
-    };
-    computerPlayer['known_cards'] = knownCards;
-    
-    // AI Decision Logic: Determine which card should be marked as collection rank
+    // AI Decision Logic: Determine which card should be marked as collection rank FIRST
     final card1 = hand[indices[0]];
     final card2 = hand[indices[1]];
     final selectedCardForCollection = _selectCardForCollection(card1, card2, random);
     
-    // Get full card data using getCardById (same pattern as queen peek)
+    // Determine which card is NOT the collection card
+    final nonCollectionCard = selectedCardForCollection['cardId'] == card1['cardId'] ? card2 : card1;
+    
+    // Get full card data for the non-collection card using getCardById
     final currentGames = _getCurrentGamesMap();
     final gameId = _currentPracticeGameId;
     final gameData = currentGames[gameId];
     final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
-    final fullCardData = getCardById(gameState!, selectedCardForCollection['cardId'] as String);
+    final fullNonCollectionCardData = getCardById(gameState!, nonCollectionCard['cardId'] as String);
+    
+    if (fullNonCollectionCardData == null) {
+      Logger().error('Practice: Failed to get full card data for non-collection card ${nonCollectionCard['cardId']}', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
+    // Store only the non-collection card in known_cards with full card data
+    final knownCards = computerPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+    knownCards[playerId] = {
+      'card1': fullNonCollectionCardData,
+      'card2': null, // Only one card stored
+    };
+    computerPlayer['known_cards'] = knownCards;
+    
+    // Get full card data for collection card (same as before)
+    final fullCardData = getCardById(gameState, selectedCardForCollection['cardId'] as String);
     if (fullCardData == null) {
       Logger().error('Practice: Failed to get full card data for collection rank card ${selectedCardForCollection['cardId']}', isOn: LOGGING_SWITCH);
       return;

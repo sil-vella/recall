@@ -890,17 +890,20 @@ class GameStateManager:
                     # AI Decision Logic: Determine which card should be marked as collection rank
                     selected_card_for_collection = self._select_card_for_collection(selected_cards[0], selected_cards[1], random)
                     
+                    # Determine which card is NOT the collection card
+                    non_collection_card = selected_cards[1] if selected_card_for_collection == selected_cards[0] else selected_cards[0]
+                    
+                    # Store only the non-collection card in known_cards with full card data
+                    player.known_cards[player_id] = {
+                        'card1': non_collection_card.to_dict(),
+                        'card2': None,  # Only one card stored
+                    }
+                    
                     # Add the selected Card object to the player's collection_rank_cards list
                     player.collection_rank_cards.append(selected_card_for_collection)
                     
                     # Update player's collection_rank to match the selected card's rank
                     player.collection_rank = selected_card_for_collection.rank
-                    
-                    # Store in known_cards: key = own player_id, value = dict with card data
-                    player.known_cards[player_id] = {
-                        'card1': selected_cards[0].to_dict(),
-                        'card2': selected_cards[1].to_dict(),
-                    }
                     
                     # Manually trigger change detection for this player's known_cards and collection_rank_cards update
                     if hasattr(player, '_track_change'):

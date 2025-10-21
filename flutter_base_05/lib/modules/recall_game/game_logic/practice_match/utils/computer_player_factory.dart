@@ -255,12 +255,30 @@ class ComputerPlayerFactory {
     final playableCards = availableCards.where((cardId) => !collectionCardIds.contains(cardId)).toList();
     Logger().info('Practice: DEBUG - Playable cards (after filtering collection): ${playableCards.length}', isOn: LOGGING_SWITCH);
     
-    // Extract known card IDs
+    // Extract known card IDs (handles both card ID strings and full card objects)
     final knownCardIds = <String>{};
     for (final playerKnownCards in knownCards.values) {
       if (playerKnownCards is Map) {
-        if (playerKnownCards['card1'] != null) knownCardIds.add(playerKnownCards['card1'].toString());
-        if (playerKnownCards['card2'] != null) knownCardIds.add(playerKnownCards['card2'].toString());
+        final card1 = playerKnownCards['card1'];
+        final card2 = playerKnownCards['card2'];
+        
+        // Handle card1 (can be full object or card ID string)
+        if (card1 != null) {
+          if (card1 is Map) {
+            knownCardIds.add(card1['cardId']?.toString() ?? card1['id']?.toString() ?? '');
+          } else {
+            knownCardIds.add(card1.toString());
+          }
+        }
+        
+        // Handle card2 (can be full object, card ID string, or null)
+        if (card2 != null) {
+          if (card2 is Map) {
+            knownCardIds.add(card2['cardId']?.toString() ?? card2['id']?.toString() ?? '');
+          } else {
+            knownCardIds.add(card2.toString());
+          }
+        }
       }
     }
     Logger().info('Practice: DEBUG - Known card IDs: $knownCardIds', isOn: LOGGING_SWITCH);

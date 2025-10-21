@@ -15,6 +15,7 @@ difficulties:
     description: "Beginner-friendly AI with simple decision making"
     decision_delay_seconds: 2.0
     error_rate: 0.1  # 10% chance of making suboptimal decisions
+    memory_probability: 0.7  # 70% chance to remember/update known cards
     
     # Card selection strategy
     card_selection:
@@ -41,6 +42,7 @@ difficulties:
     description: "Balanced AI with moderate decision making"
     decision_delay_seconds: 1.5
     error_rate: 0.05  # 5% chance of making suboptimal decisions
+    memory_probability: 0.8  # 80% chance to remember/update known cards
     
     card_selection:
       strategy: "points_low"  # Prefer lower point cards
@@ -64,6 +66,7 @@ difficulties:
     description: "Advanced AI with strategic decision making"
     decision_delay_seconds: 1.0
     error_rate: 0.02  # 2% chance of making suboptimal decisions
+    memory_probability: 0.9  # 90% chance to remember/update known cards
     
     card_selection:
       strategy: "strategic"  # Complex strategic evaluation
@@ -87,6 +90,7 @@ difficulties:
     description: "Master-level AI with optimal decision making"
     decision_delay_seconds: 0.5
     error_rate: 0.0  # No errors
+    memory_probability: 1.0  # 100% chance to remember/update known cards (perfect memory)
     
     card_selection:
       strategy: "optimal"  # Perfect strategic evaluation

@@ -131,6 +131,11 @@ class ComputerPlayerConfigLoader:
         queen_peek_config = self.get_event_config('queen_peek')
         return queen_peek_config.get('peek_targets', {})
     
+    def get_memory_probability(self, difficulty: str) -> float:
+        """Get memory probability for difficulty level"""
+        difficulty_config = self.get_difficulty_config(difficulty)
+        return difficulty_config.get('memory_probability', 0.8)
+    
     def get_summary(self) -> Dict[str, Any]:
         """Get configuration summary"""
         return {

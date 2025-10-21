@@ -157,6 +157,12 @@ class ComputerPlayerConfig {
     return queenPeekConfig['peek_targets'] ?? {};
   }
   
+  /// Get memory probability for difficulty level
+  double getMemoryProbability(String difficulty) {
+    final difficultyConfig = getDifficultyConfig(difficulty);
+    return (difficultyConfig['memory_probability'] as num?)?.toDouble() ?? 0.8;
+  }
+  
   /// Get configuration summary
   Map<String, dynamic> getSummary() {
     return {

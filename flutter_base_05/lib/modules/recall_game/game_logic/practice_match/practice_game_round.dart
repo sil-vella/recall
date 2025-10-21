@@ -330,7 +330,7 @@ class PracticeGameRound {
           Logger().info('Practice: DEBUG - Computer player hand: $hand', isOn: LOGGING_SWITCH);
           final availableCards = hand.map((card) {
             if (card is Map<String, dynamic>) {
-              return card['id'].toString();
+              return card['cardId']?.toString() ?? card['id']?.toString() ?? card.toString();
             } else {
               return card.toString();
             }

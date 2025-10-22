@@ -640,7 +640,7 @@ class PracticeGameCoordinator {
     
     // Step 2: Deal 4 cards to each player from non-joker cards only
     for (final player in players) {
-      final playerHand = <Map<String, dynamic>>[];
+      final playerHand = <dynamic>[];  // Use dynamic to allow null values (blank slots)
       
       // Deal 4 cards to this player from non-joker cards only
       for (int i = 0; i < 4; i++) {
@@ -700,7 +700,7 @@ class PracticeGameCoordinator {
     
     for (int playerIdx = 0; playerIdx < players.length; playerIdx++) {
       final player = players[playerIdx];
-      final playerHand = <Map<String, dynamic>>[];
+      final playerHand = <dynamic>[];  // Use dynamic to allow null values (blank slots)
       final predefinedHand = handsLoader.getHandForPlayer(config, playerIdx);
       
       if (predefinedHand != null) {

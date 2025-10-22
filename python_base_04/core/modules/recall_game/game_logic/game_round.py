@@ -537,10 +537,16 @@ class GameRound:
         try:
             custom_log(f"Handling computer action with YAML - Player: {computer_player.player_id}, Difficulty: {difficulty}, Event: {event_name}", level="INFO", isOn=LOGGING_SWITCH)
             
+            # Initialize computer player factory if not already initialized
             if self._computer_player_factory is None:
-                custom_log("Computer player factory not initialized", level="ERROR", isOn=LOGGING_SWITCH)
-                self._move_to_next_player()
-                return
+                try:
+                    config_path = "core/modules/recall_game/config/computer_player_config.yaml"
+                    self._computer_player_factory = ComputerPlayerFactory.from_file(config_path)
+                    custom_log("Computer player factory initialized with YAML config", level="INFO", isOn=LOGGING_SWITCH)
+                except Exception as e:
+                    custom_log(f"Failed to load computer player config: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+                    self._move_to_next_player()
+                    return
             
             # Get decision from YAML-based factory
             game_state_dict = self._get_game_state_dict()

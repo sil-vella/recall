@@ -1405,11 +1405,11 @@ class PracticeGameCoordinator {
       final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
       if (gameState == null) return;
       
-      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      final players = gameState['players'] as List<dynamic>? ?? [];
       
       // Process each computer player
       for (final player in players) {
-        if (player['isHuman'] != true) {
+        if (player is Map<String, dynamic> && player['isHuman'] != true) {
           _selectAndStoreAIPeekCards(player);
         }
       }
@@ -1424,7 +1424,7 @@ class PracticeGameCoordinator {
 
   /// Select and store AI peek cards for a computer player
   void _selectAndStoreAIPeekCards(Map<String, dynamic> computerPlayer) {
-    final hand = computerPlayer['hand'] as List<Map<String, dynamic>>? ?? [];
+    final hand = computerPlayer['hand'] as List<dynamic>? ?? [];
     if (hand.length < 2) return;
     
     // Select 2 random cards
@@ -1439,19 +1439,30 @@ class PracticeGameCoordinator {
     final playerId = computerPlayer['id'] as String;
     
     // AI Decision Logic: Determine which card should be marked as collection rank FIRST
-    final card1 = hand[indices[0]];
-    final card2 = hand[indices[1]];
+    // CRITICAL: Get full card data for BOTH cards (hand contains ID-only cards)
+    final currentGames = _getCurrentGamesMap();
+    final gameId = _currentPracticeGameId;
+    final gameData = currentGames[gameId];
+    final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
+    
+    final card1IdOnly = hand[indices[0]] as Map<String, dynamic>;
+    final card2IdOnly = hand[indices[1]] as Map<String, dynamic>;
+    
+    final card1 = getCardById(gameState!, card1IdOnly['cardId'] as String);
+    final card2 = getCardById(gameState, card2IdOnly['cardId'] as String);
+    
+    if (card1 == null || card2 == null) {
+      Logger().error('Practice: Failed to get full card data for peeked cards', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
     final selectedCardForCollection = _selectCardForCollection(card1, card2, random);
     
     // Determine which card is NOT the collection card
     final nonCollectionCard = selectedCardForCollection['cardId'] == card1['cardId'] ? card2 : card1;
     
-    // Get full card data for the non-collection card using getCardById
-    final currentGames = _getCurrentGamesMap();
-    final gameId = _currentPracticeGameId;
-    final gameData = currentGames[gameId];
-    final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
-    final fullNonCollectionCardData = getCardById(gameState!, nonCollectionCard['cardId'] as String);
+    // Get full card data for the non-collection card (already have it)
+    final fullNonCollectionCardData = nonCollectionCard;
     
     if (fullNonCollectionCardData == null) {
       Logger().error('Practice: Failed to get full card data for non-collection card ${nonCollectionCard['cardId']}', isOn: LOGGING_SWITCH);
@@ -1466,16 +1477,10 @@ class PracticeGameCoordinator {
     };
     computerPlayer['known_cards'] = knownCards;
     
-    // Get full card data for collection card (same as before)
-    final fullCardData = getCardById(gameState, selectedCardForCollection['cardId'] as String);
-    if (fullCardData == null) {
-      Logger().error('Practice: Failed to get full card data for collection rank card ${selectedCardForCollection['cardId']}', isOn: LOGGING_SWITCH);
-      return;
-    }
-    
     // Add the selected card full data to the player's collection_rank_cards list
-    final collectionRankCards = computerPlayer['collection_rank_cards'] as List<Map<String, dynamic>>? ?? [];
-    collectionRankCards.add(fullCardData); // Use full card data, not just the selected card
+    // (selectedCardForCollection is already full card data from getCardById)
+    final collectionRankCards = computerPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+    collectionRankCards.add(selectedCardForCollection); // Already has full card data
     computerPlayer['collection_rank_cards'] = collectionRankCards;
     
     Logger().info('Practice: AI ${computerPlayer['name']} peeked at cards at positions $indices', isOn: LOGGING_SWITCH);

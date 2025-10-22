@@ -139,6 +139,25 @@ class PracticeGameRound {
     }
   }
 
+  /// Determine if we should create a blank slot at the given index
+  /// Replicates backend player.py _should_create_blank_slot_at_index() lines 203-218
+  bool _shouldCreateBlankSlotAtIndex(List<dynamic> hand, int index) {
+    // If index is 3 or less, always create a blank slot (maintain initial 4-card structure)
+    if (index <= 3) {
+      return true;
+    }
+    
+    // For index 4 and beyond, only create blank slot if there are actual cards further up
+    for (int i = index + 1; i < hand.length; i++) {
+      if (hand[i] != null) {
+        return true;
+      }
+    }
+    
+    // No actual cards beyond this index, so remove the card entirely
+    return false;
+  }
+
   
   /// Get the current game state from the practice coordinator
   Map<String, dynamic>? _getCurrentGameState() {
@@ -736,12 +755,28 @@ class PracticeGameRound {
       }
       
       final player = players[playerIndex];
-      final hand = player['hand'] as List<Map<String, dynamic>>? ?? [];
+      final hand = player['hand'] as List<dynamic>? ?? [];
       
       // Add card to player's hand as ID-only (player hands always store ID-only cards)
       // Backend replicates this in player.py add_card_to_hand method
       final idOnlyCard = {'cardId': drawnCard['cardId']};
-      hand.add(idOnlyCard);
+      
+      // Add card to player's hand - look for a blank slot (null) to fill first
+      bool filledBlankSlot = false;
+      for (int i = 0; i < hand.length; i++) {
+        if (hand[i] == null) {
+          hand[i] = idOnlyCard;
+          filledBlankSlot = true;
+          Logger().info('Practice: Filled blank slot at index $i with drawn card', isOn: LOGGING_SWITCH);
+          break;
+        }
+      }
+      
+      // If no blank slot found, append to the end
+      if (!filledBlankSlot) {
+        hand.add(idOnlyCard);
+        Logger().info('Practice: Added drawn card to end of hand', isOn: LOGGING_SWITCH);
+      }
       
       // Set the drawn card property - FULL CARD DATA for human players, ID-only for computer players
       // This is what allows the frontend to show the front of the card (only for human players)
@@ -944,7 +979,7 @@ class PracticeGameRound {
       }
       
       // Find the card in the player's hand
-      final hand = player['hand'] as List<Map<String, dynamic>>? ?? [];
+      final hand = player['hand'] as List<dynamic>? ?? [];
       Map<String, dynamic>? cardToPlay;
       int cardIndex = -1;
       
@@ -992,9 +1027,18 @@ class PracticeGameRound {
       // Handle drawn card repositioning BEFORE removing the played card
       final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
       
-      // Remove the played card from hand
-      hand.removeAt(cardIndex);
-      Logger().info('Practice: Removed card $cardId from player $playerId hand', isOn: LOGGING_SWITCH);
+      // Check if we should create a blank slot or remove the card entirely
+      final shouldCreateBlankSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndex);
+      
+      if (shouldCreateBlankSlot) {
+        // Replace the card with null (blank slot) to maintain index positions
+        hand[cardIndex] = null;
+        Logger().info('Practice: Created blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+      } else {
+        // Remove the card entirely and shift remaining cards
+        hand.removeAt(cardIndex);
+        Logger().info('Practice: Removed card entirely from index $cardIndex, shifted remaining cards', isOn: LOGGING_SWITCH);
+      }
       
       // Convert card to full data before adding to discard pile
       // The player's hand contains ID-only cards, but discard pile needs full card data
@@ -1029,13 +1073,19 @@ class PracticeGameRound {
         }
         
         if (originalIndex != null) {
-          // Remove the drawn card from its original position
-          hand.removeAt(originalIndex);
-          Logger().info('Practice: Removed drawn card from original position $originalIndex', isOn: LOGGING_SWITCH);
+          // Apply smart blank slot logic to the original position
+          final shouldKeepOriginalSlot = _shouldCreateBlankSlotAtIndex(hand, originalIndex);
           
-          // Adjust target index if we removed a card before it
-          if (originalIndex < cardIndex) {
-            cardIndex -= 1;
+          if (shouldKeepOriginalSlot) {
+            hand[originalIndex] = null;  // Create blank slot
+            Logger().info('Practice: Created blank slot at original position $originalIndex', isOn: LOGGING_SWITCH);
+          } else {
+            hand.removeAt(originalIndex);  // Remove entirely
+            Logger().info('Practice: Removed card entirely from original position $originalIndex', isOn: LOGGING_SWITCH);
+            // Adjust target index if we removed a card before it
+            if (originalIndex < cardIndex) {
+              cardIndex -= 1;
+            }
           }
         }
         
@@ -1050,12 +1100,22 @@ class PracticeGameRound {
           'color': 'black',
         };
         
-        if (cardIndex < hand.length) {
-          hand.insert(cardIndex, drawnCardIdOnly);
-          Logger().info('Practice: Placed drawn card (ID-only) in blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+        // Apply smart blank slot logic to the target position
+        final shouldPlaceInSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndex);
+        
+        if (shouldPlaceInSlot) {
+          // Place it in the blank slot left by the played card
+          if (cardIndex < hand.length) {
+            hand[cardIndex] = drawnCardIdOnly;
+            Logger().info('Practice: Placed drawn card in blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+          } else {
+            hand.insert(cardIndex, drawnCardIdOnly);
+            Logger().info('Practice: Inserted drawn card at index $cardIndex', isOn: LOGGING_SWITCH);
+          }
         } else {
+          // The slot shouldn't exist, so append the drawn card to the end
           hand.add(drawnCardIdOnly);
-          Logger().info('Practice: Appended drawn card (ID-only) to end of hand', isOn: LOGGING_SWITCH);
+          Logger().info('Practice: Appended drawn card to end of hand (slot $cardIndex should not exist)', isOn: LOGGING_SWITCH);
         }
         
         // Clear the drawn card property since it's no longer "drawn"
@@ -1235,9 +1295,18 @@ class PracticeGameRound {
       Logger().info('Practice: Same rank validation passed for card $cardId with rank $cardRank', isOn: LOGGING_SWITCH);
       
       // SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
-      // Remove card from player's hand
-      hand.removeAt(cardIndex);
-      Logger().info('Practice: Successfully removed same rank play card $cardId from player $playerId hand', isOn: LOGGING_SWITCH);
+      // Check if we should create a blank slot or remove the card entirely
+      final shouldCreateBlankSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndex);
+      
+      if (shouldCreateBlankSlot) {
+        // Replace the card with null (blank slot) to maintain index positions
+        hand[cardIndex] = null;
+        Logger().info('Practice: Created blank slot at index $cardIndex for same rank play', isOn: LOGGING_SWITCH);
+      } else {
+        // Remove the card entirely and shift remaining cards
+        hand.removeAt(cardIndex);
+        Logger().info('Practice: Removed same rank card entirely from index $cardIndex', isOn: LOGGING_SWITCH);
+      }
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       final success = _practiceCoordinator.addToDiscardPile(playedCardFullData);

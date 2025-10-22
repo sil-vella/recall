@@ -827,8 +827,9 @@ class GameStateManager:
             min_players = game.min_players
             
             if current_players < min_players:
-                # Add computer players to reach minimum
-                players_needed = min_players - current_players
+                # Add 3 computer players (fixed number for testing)
+                # This ensures consistent multi-player game testing with 1 human + 3 computers = 4 players total
+                players_needed = 3  # Always add 3 computer players
                 
                 for i in range(players_needed):
                     computer_id = f"computer_{game.game_id}_{i}"

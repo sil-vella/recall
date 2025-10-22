@@ -985,7 +985,7 @@ class PracticeGameRound {
       
       for (int i = 0; i < hand.length; i++) {
         final card = hand[i];
-        if (card['cardId'] == cardId) {
+        if (card != null && card is Map<String, dynamic> && card['cardId'] == cardId) {
           cardToPlay = card;
           cardIndex = i;
           break;
@@ -1066,7 +1066,7 @@ class PracticeGameRound {
         // First, find and remove the drawn card from its original position
         int? originalIndex;
         for (int i = 0; i < hand.length; i++) {
-          if (hand[i]['cardId'] == drawnCard['cardId']) {
+          if (hand[i] != null && hand[i] is Map<String, dynamic> && hand[i]['cardId'] == drawnCard['cardId']) {
             originalIndex = i;
             break;
           }

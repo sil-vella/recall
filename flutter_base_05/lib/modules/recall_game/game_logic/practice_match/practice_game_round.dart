@@ -1771,13 +1771,18 @@ class PracticeGameRound {
     try {
       Logger().info('Practice: Processing computer player same rank plays', isOn: LOGGING_SWITCH);
       
-      final gameState = _practiceCoordinator.getCurrentGameState();
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        Logger().info('Practice: Failed to get game state', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       final players = gameState['players'] as List<dynamic>? ?? [];
       
       // Get computer players
       final computerPlayers = players.where((p) => 
         p is Map<String, dynamic> && 
-        p['isComputer'] == true &&
+        p['isHuman'] == false &&
         p['isActive'] == true
       ).toList();
       
@@ -1787,6 +1792,15 @@ class PracticeGameRound {
       }
       
       Logger().info('Practice: Found ${computerPlayers.length} computer players', isOn: LOGGING_SWITCH);
+      
+      // Debug: Log computer player details
+      for (final player in computerPlayers) {
+        final playerId = player['id']?.toString() ?? 'unknown';
+        final playerName = player['name']?.toString() ?? 'Unknown';
+        final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+        final hand = player['hand'] as List<dynamic>? ?? [];
+        Logger().info('Practice: Computer player $playerName ($playerId) - hand: ${hand.length} cards, known_cards: ${knownCards.keys.length} players tracked', isOn: LOGGING_SWITCH);
+      }
       
       // Shuffle for random order
       computerPlayers.shuffle();
@@ -1845,16 +1859,22 @@ class PracticeGameRound {
     final availableCards = <String>[];
     
     try {
+      Logger().info('Practice: DEBUG - Getting available same rank cards for player $playerId', isOn: LOGGING_SWITCH);
+      
       // Get discard pile to determine target rank
       final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
       if (discardPile.isEmpty) {
+        Logger().info('Practice: DEBUG - Discard pile is empty, no same rank cards possible', isOn: LOGGING_SWITCH);
         return availableCards;
       }
       
       final lastCard = discardPile.last as Map<String, dynamic>?;
       final targetRank = lastCard?['rank']?.toString() ?? '';
       
+      Logger().info('Practice: DEBUG - Target rank for same rank play: $targetRank', isOn: LOGGING_SWITCH);
+      
       if (targetRank.isEmpty) {
+        Logger().info('Practice: DEBUG - Target rank is empty, no same rank cards possible', isOn: LOGGING_SWITCH);
         return availableCards;
       }
       
@@ -1873,11 +1893,17 @@ class PracticeGameRound {
       final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
       final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
       
+      Logger().info('Practice: DEBUG - Player $playerId has ${hand.length} cards in hand', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: DEBUG - Player $playerId known_cards structure: ${knownCards.keys.toList()}', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: DEBUG - Player $playerId collection_rank_cards: ${collectionRankCards.length} cards', isOn: LOGGING_SWITCH);
+      
       // Get collection card IDs
       final collectionCardIds = collectionRankCards
         .map((c) => c is Map ? (c['cardId']?.toString() ?? '') : '')
         .where((id) => id.isNotEmpty)
         .toSet();
+      
+      Logger().info('Practice: DEBUG - Collection card IDs: ${collectionCardIds.toList()}', isOn: LOGGING_SWITCH);
       
       // Get known card IDs
       final knownCardIds = <String>{};
@@ -1897,19 +1923,43 @@ class PracticeGameRound {
         }
       }
       
+      Logger().info('Practice: DEBUG - Known card IDs: ${knownCardIds.toList()}', isOn: LOGGING_SWITCH);
+      
       // Find matching rank cards in hand
-      for (final card in hand) {
-        if (card == null || card is! Map<String, dynamic>) continue;
+      Logger().info('Practice: DEBUG - Checking ${hand.length} cards in hand for matching rank $targetRank', isOn: LOGGING_SWITCH);
+      
+      for (int i = 0; i < hand.length; i++) {
+        final card = hand[i];
+        if (card == null || card is! Map<String, dynamic>) {
+          Logger().info('Practice: DEBUG - Card at index $i is null or not a map, skipping', isOn: LOGGING_SWITCH);
+          continue;
+        }
         
         final cardId = card['cardId']?.toString() ?? '';
         final cardRank = card['rank']?.toString() ?? '';
         
-        if (cardRank != targetRank) continue;
-        if (!knownCardIds.contains(cardId)) continue;
-        if (collectionCardIds.contains(cardId)) continue;
+        Logger().info('Practice: DEBUG - Card at index $i: id=$cardId, rank=$cardRank', isOn: LOGGING_SWITCH);
         
+        if (cardRank != targetRank) {
+          Logger().info('Practice: DEBUG - Card rank $cardRank != target rank $targetRank, skipping', isOn: LOGGING_SWITCH);
+          continue;
+        }
+        
+        if (!knownCardIds.contains(cardId)) {
+          Logger().info('Practice: DEBUG - Card $cardId not in known_cards, skipping', isOn: LOGGING_SWITCH);
+          continue;
+        }
+        
+        if (collectionCardIds.contains(cardId)) {
+          Logger().info('Practice: DEBUG - Card $cardId is a collection card, skipping', isOn: LOGGING_SWITCH);
+          continue;
+        }
+        
+        Logger().info('Practice: DEBUG - Card $cardId is available for same rank play!', isOn: LOGGING_SWITCH);
         availableCards.add(cardId);
       }
+      
+      Logger().info('Practice: DEBUG - Found ${availableCards.length} available same rank cards: ${availableCards.toList()}', isOn: LOGGING_SWITCH);
       
     } catch (e) {
       Logger().error('Practice: Error in _getAvailableSameRankCards: $e', isOn: LOGGING_SWITCH);
@@ -2180,9 +2230,7 @@ class PracticeGameRound {
       
       // Process each player's known_cards
       for (final player in players) {
-        final playerId = player['id'] as String;
         final difficulty = player['difficulty'] as String? ?? 'medium';
-        final isHuman = player['isHuman'] as bool? ?? false;
         
         // Get remember probability based on difficulty
         final rememberProb = _getRememberProbability(difficulty);

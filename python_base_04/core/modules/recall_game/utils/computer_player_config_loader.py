@@ -115,6 +115,12 @@ class ComputerPlayerConfigLoader:
         probabilities = same_rank_config.get('play_probability', {})
         return probabilities.get(difficulty, 0.8)
     
+    def get_wrong_rank_probability(self, difficulty: str) -> float:
+        """Get wrong rank play probability for difficulty"""
+        same_rank_config = self.get_event_config('same_rank_play')
+        probabilities = same_rank_config.get('wrong_rank_probability', {})
+        return probabilities.get(difficulty, 0.0)
+    
     def get_card_evaluation_weights(self) -> Dict[str, float]:
         """Get card evaluation weights for play_card event"""
         play_card_config = self.get_event_config('play_card')

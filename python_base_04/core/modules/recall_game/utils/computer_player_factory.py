@@ -75,24 +75,55 @@ class ComputerPlayerFactory:
         }
     
     def get_same_rank_play_decision(self, difficulty: str, game_state: Dict[str, Any], available_cards: List[str]) -> Dict[str, Any]:
-        """Get computer player decision for same rank play event"""
+        """Get computer player decision for same rank play event with YAML-driven intelligence"""
         decision_delay = self.config.get_decision_delay(difficulty)
         play_probability = self.config.get_same_rank_play_probability(difficulty)
+        wrong_rank_probability = self.config.get_wrong_rank_probability(difficulty)
         
-        should_play = self._random.random() < play_probability
+        # Check if computer player will attempt to play (miss chance)
+        should_attempt = self._random.random() < play_probability
         
-        if not should_play or not available_cards:
+        if not should_attempt or not available_cards:
             return {
                 'action': 'same_rank_play',
                 'play': False,
                 'card_id': None,
                 'delay_seconds': decision_delay,
                 'difficulty': difficulty,
-                'reasoning': f"Decided not to play same rank ({(1 - play_probability) * 100:.1f}% probability)"
+                'reasoning': f"Decided not to play same rank ({(1 - play_probability) * 100:.1f}% miss probability)"
             }
         
-        # Select a card to play
-        selected_card = self._random.choice(available_cards)
+        # Check if computer player will play wrong card (accuracy)
+        will_play_wrong = self._random.random() < wrong_rank_probability
+        
+        if will_play_wrong:
+            # Get all cards from hand that are NOT the same rank
+            current_player_data = game_state.get('current_player')
+            if current_player_data:
+                hand = current_player_data.get('hand', [])
+                # Get last card rank from discard pile
+                discard_pile = game_state.get('discard_pile', [])
+                if discard_pile:
+                    last_card = discard_pile[-1]
+                    target_rank = last_card.get('rank') if isinstance(last_card, dict) else None
+                    # Get wrong cards (different rank from known_cards)
+                    known_cards_list = self._get_known_cards_list(current_player_data)
+                    wrong_cards = [c for c in known_cards_list if self._get_card_rank(c, game_state) != target_rank]
+                    if wrong_cards:
+                        selected_card = self._random.choice(wrong_cards)
+                        return {
+                            'action': 'same_rank_play',
+                            'play': True,
+                            'card_id': selected_card,
+                            'delay_seconds': decision_delay,
+                            'difficulty': difficulty,
+                            'reasoning': f"Playing WRONG card (inaccuracy: {wrong_rank_probability * 100:.1f}%)"
+                        }
+        
+        # Play correct card using YAML rules
+        card_selection = self.config.get_card_selection_strategy(difficulty)
+        evaluation_weights = self.config.get_card_evaluation_weights()
+        selected_card = self._select_same_rank_card(available_cards, card_selection, evaluation_weights, game_state)
         
         return {
             'action': 'same_rank_play',
@@ -100,7 +131,7 @@ class ComputerPlayerFactory:
             'card_id': selected_card,
             'delay_seconds': decision_delay,
             'difficulty': difficulty,
-            'reasoning': f"Playing same rank card ({play_probability * 100:.1f}% probability)"
+            'reasoning': f"Playing same rank card using YAML strategy ({play_probability * 100:.1f}% play probability)"
         }
     
     def get_jack_swap_decision(self, difficulty: str, game_state: Dict[str, Any], player_id: str) -> Dict[str, Any]:
@@ -263,6 +294,108 @@ class ComputerPlayerFactory:
             'current_player': current_player_data,
             'game_state': game_state,
         }
+    
+    def _select_same_rank_card(self, available_cards: List[str], card_selection: Dict[str, Any],
+                               evaluation_weights: Dict[str, float], game_state: Dict[str, Any]) -> str:
+        """Select a same rank card using YAML rules engine"""
+        # Get current player from game state
+        current_player_data = game_state.get('current_player')
+        if not current_player_data:
+            return self._random.choice(available_cards)
+        
+        # Prepare game data for YAML rules engine
+        game_data = self._prepare_same_rank_game_data(available_cards, current_player_data, game_state)
+        
+        # Get YAML rules from config
+        same_rank_config = self.config.get_event_config('same_rank_play')
+        strategy_rules = same_rank_config.get('strategy_rules', [])
+        
+        if not strategy_rules:
+            # Fallback to random if no YAML rules defined
+            return self._random.choice(available_cards)
+        
+        # Determine if we should play optimally
+        strategy = card_selection.get('strategy', 'random')
+        optimal_play_prob = self._get_optimal_play_probability(strategy)
+        should_play_optimal = self._random.random() < optimal_play_prob
+        
+        # Execute YAML rules
+        rules_engine = YamlRulesEngine()
+        return rules_engine.execute_rules(strategy_rules, game_data, should_play_optimal)
+    
+    def _prepare_same_rank_game_data(self, available_cards: List[str],
+                                      current_player_data: Dict[str, Any],
+                                      game_state: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare game data for same rank play YAML rules"""
+        known_cards = current_player_data.get('known_cards', {})
+        collection_rank_cards = current_player_data.get('collection_rank_cards', [])
+        
+        # Extract known card IDs (same as _prepare_game_data_for_yaml)
+        known_card_ids = set()
+        for player_known_cards in known_cards.values():
+            if isinstance(player_known_cards, dict):
+                card1 = player_known_cards.get('card1')
+                card2 = player_known_cards.get('card2')
+                # Handle both card objects and card ID strings
+                for card in [card1, card2]:
+                    if card:
+                        if isinstance(card, dict):
+                            known_card_ids.add(card.get('id') or card.get('cardId'))
+                        else:
+                            known_card_ids.add(str(card))
+        
+        known_card_ids.discard(None)
+        
+        # Split available cards into known and unknown
+        known_same_rank_cards = [c for c in available_cards if c in known_card_ids]
+        unknown_same_rank_cards = [c for c in available_cards if c not in known_card_ids]
+        
+        # Get all cards data for point calculations
+        all_cards_data = []
+        players = game_state.get('players', [])
+        for player in players:
+            hand = player.get('hand', [])
+            for card in hand:
+                if isinstance(card, dict):
+                    all_cards_data.append(card)
+        
+        return {
+            'available_same_rank_cards': available_cards,
+            'known_same_rank_cards': known_same_rank_cards,
+            'unknown_same_rank_cards': unknown_same_rank_cards,
+            'all_cards_data': all_cards_data,
+        }
+    
+    def _get_known_cards_list(self, player_data: Dict[str, Any]) -> List[str]:
+        """Get list of known card IDs from player's known_cards"""
+        known_card_ids = []
+        known_cards = player_data.get('known_cards', {})
+        
+        for player_known_cards in known_cards.values():
+            if isinstance(player_known_cards, dict):
+                card1 = player_known_cards.get('card1')
+                card2 = player_known_cards.get('card2')
+                for card in [card1, card2]:
+                    if card:
+                        if isinstance(card, dict):
+                            card_id = card.get('id') or card.get('cardId')
+                            if card_id:
+                                known_card_ids.append(card_id)
+                        else:
+                            known_card_ids.append(str(card))
+        
+        return known_card_ids
+    
+    def _get_card_rank(self, card_id: str, game_state: Dict[str, Any]) -> Optional[str]:
+        """Get rank of a card by its ID"""
+        players = game_state.get('players', [])
+        for player in players:
+            hand = player.get('hand', [])
+            for card in hand:
+                if isinstance(card, dict):
+                    if (card.get('id') == card_id or card.get('cardId') == card_id):
+                        return card.get('rank')
+        return None
     
     def _select_card_legacy(self, available_cards: List[str], card_selection: Dict[str, Any], 
                            evaluation_weights: Dict[str, float], game_state: Dict[str, Any]) -> str:

@@ -1767,20 +1767,155 @@ class PracticeGameRound {
   }
 
   /// Check for same rank plays from computer players during the same rank window
-  /// TODO: Implement computer player AI logic for same rank plays
   void _checkComputerPlayerSameRankPlays() {
     try {
-      Logger().info('Practice: Same rank check for computer players still needs to be done', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Processing computer player same rank plays', isOn: LOGGING_SWITCH);
       
-      // TODO: Implement computer player same rank play logic
-      // - Check each computer player's hand for matching rank cards
-      // - Decide which computer players should play matching cards
-      // - Process computer player same rank plays
-      // - Update game state accordingly
+      final gameState = _practiceCoordinator.getCurrentGameState();
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      
+      // Get computer players
+      final computerPlayers = players.where((p) => 
+        p is Map<String, dynamic> && 
+        p['isComputer'] == true &&
+        p['isActive'] == true
+      ).toList();
+      
+      if (computerPlayers.isEmpty) {
+        Logger().info('Practice: No computer players to process', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      Logger().info('Practice: Found ${computerPlayers.length} computer players', isOn: LOGGING_SWITCH);
+      
+      // Shuffle for random order
+      computerPlayers.shuffle();
+      
+      // Process each computer player
+      for (final computerPlayer in computerPlayers) {
+        final playerId = computerPlayer['id']?.toString() ?? '';
+        final difficulty = computerPlayer['difficulty']?.toString() ?? 'medium';
+        
+        _handleComputerSameRankPlay(playerId, difficulty, gameState);
+      }
       
     } catch (e) {
       Logger().error('Practice: Error in _checkComputerPlayerSameRankPlays: $e', isOn: LOGGING_SWITCH);
     }
+  }
+
+  /// Handle computer player same rank play decision
+  void _handleComputerSameRankPlay(String playerId, String difficulty, Map<String, dynamic> gameState) {
+    try {
+      // Get available same rank cards for this computer player
+      final availableCards = _getAvailableSameRankCards(playerId, gameState);
+      
+      if (availableCards.isEmpty) {
+        Logger().info('Practice: Computer player $playerId has no same rank cards', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      Logger().info('Practice: Computer player $playerId has ${availableCards.length} available same rank cards', isOn: LOGGING_SWITCH);
+      
+      // Get YAML decision
+      final decision = _computerPlayerFactory!.getSameRankPlayDecision(difficulty, gameState, availableCards);
+      Logger().info('Practice: Computer same rank decision: $decision', isOn: LOGGING_SWITCH);
+      
+      // Execute decision with delay
+      if (decision['play'] == true) {
+        final delay = decision['delay_seconds'] as double? ?? 1.0;
+        // Add random variation (0.5s to 1.5s)
+        final totalDelay = delay + (0.5 + Random().nextDouble());
+        
+        Future.delayed(Duration(milliseconds: (totalDelay * 1000).toInt()), () async {
+          final cardId = decision['card_id'] as String?;
+          if (cardId != null) {
+            await handleSameRankPlay(playerId, cardId);
+          }
+        });
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _handleComputerSameRankPlay: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Get available same rank cards from player's known_cards (excluding collection cards)
+  List<String> _getAvailableSameRankCards(String playerId, Map<String, dynamic> gameState) {
+    final availableCards = <String>[];
+    
+    try {
+      // Get discard pile to determine target rank
+      final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+      if (discardPile.isEmpty) {
+        return availableCards;
+      }
+      
+      final lastCard = discardPile.last as Map<String, dynamic>?;
+      final targetRank = lastCard?['rank']?.toString() ?? '';
+      
+      if (targetRank.isEmpty) {
+        return availableCards;
+      }
+      
+      // Get player
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      final player = players.firstWhere(
+        (p) => p is Map && p['id'] == playerId,
+        orElse: () => <String, dynamic>{},
+      ) as Map<String, dynamic>?;
+      
+      if (player == null || player.isEmpty) {
+        return availableCards;
+      }
+      
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+      final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      
+      // Get collection card IDs
+      final collectionCardIds = collectionRankCards
+        .map((c) => c is Map ? (c['cardId']?.toString() ?? '') : '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+      
+      // Get known card IDs
+      final knownCardIds = <String>{};
+      for (final playerKnownCards in knownCards.values) {
+        if (playerKnownCards is Map) {
+          final card1 = playerKnownCards['card1'];
+          final card2 = playerKnownCards['card2'];
+          for (final card in [card1, card2]) {
+            if (card != null) {
+              if (card is Map) {
+                knownCardIds.add(card['cardId']?.toString() ?? '');
+              } else {
+                knownCardIds.add(card.toString());
+              }
+            }
+          }
+        }
+      }
+      
+      // Find matching rank cards in hand
+      for (final card in hand) {
+        if (card == null || card is! Map<String, dynamic>) continue;
+        
+        final cardId = card['cardId']?.toString() ?? '';
+        final cardRank = card['rank']?.toString() ?? '';
+        
+        if (cardRank != targetRank) continue;
+        if (!knownCardIds.contains(cardId)) continue;
+        if (collectionCardIds.contains(cardId)) continue;
+        
+        availableCards.add(cardId);
+      }
+      
+    } catch (e) {
+      Logger().error('Practice: Error in _getAvailableSameRankCards: $e', isOn: LOGGING_SWITCH);
+    }
+    
+    return availableCards;
   }
 
   /// Handle special cards window - process each player's special card with 10-second timer

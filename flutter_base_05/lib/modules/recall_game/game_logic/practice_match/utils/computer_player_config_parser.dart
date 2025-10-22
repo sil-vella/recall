@@ -136,6 +136,13 @@ class ComputerPlayerConfig {
     return (probabilities[difficulty] ?? 0.8).toDouble();
   }
   
+  /// Get wrong rank play probability for difficulty
+  double getWrongRankProbability(String difficulty) {
+    final sameRankConfig = getEventConfig('same_rank_play');
+    final probabilities = sameRankConfig['wrong_rank_probability'] ?? {};
+    return (probabilities[difficulty] ?? 0.0).toDouble();
+  }
+  
   /// Get card evaluation weights for play_card event
   Map<String, double> getCardEvaluationWeights() {
     final playCardConfig = getEventConfig('play_card');

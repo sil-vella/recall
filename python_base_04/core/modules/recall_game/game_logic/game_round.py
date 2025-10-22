@@ -675,14 +675,42 @@ class GameRound:
                 timer.start()
                 
             elif event_name == 'same_rank_play':
-                # TODO: Use YAML to determine same rank play decision
-                import threading
-                def delayed_same_rank():
-                    # TODO: Get card ID from YAML configuration
-                    # For now, just move to next player (placeholder for same rank logic)
-                    self._move_to_next_player()
-                timer = threading.Timer(1.0, delayed_same_rank)  # 1 second delay
-                timer.start()
+                # Get available same rank cards from computer player's known_cards
+                discard_pile = self.game_state.discard_pile
+                if not discard_pile:
+                    return
+                
+                last_card = discard_pile[-1]
+                target_rank = last_card.rank
+                
+                # Get cards from known_cards that match the rank and are NOT in collection
+                available_same_rank_cards = self._get_available_same_rank_cards(computer_player, target_rank)
+                
+                if not available_same_rank_cards:
+                    custom_log(f"Computer player {computer_player.player_id} has no available same rank cards", level="INFO", isOn=LOGGING_SWITCH)
+                    return
+                
+                custom_log(f"Computer player {computer_player.player_id} has {len(available_same_rank_cards)} available same rank cards", level="INFO", isOn=LOGGING_SWITCH)
+                
+                # Get YAML decision
+                decision = self._computer_player_factory.get_same_rank_play_decision(difficulty, self.game_state.to_dict(), available_same_rank_cards)
+                custom_log(f"Computer same rank decision: {decision}", level="INFO", isOn=LOGGING_SWITCH)
+                
+                # Execute decision with delay
+                if decision.get('play', False):
+                    delay = decision.get('delay_seconds', 1.0)
+                    # Add random variation (0.5s to 1.5s extra)
+                    import random
+                    delay += random.uniform(0.5, 1.5)
+                    
+                    def delayed_same_rank():
+                        card_id = decision.get('card_id')
+                        if card_id:
+                            action_data = {'card_id': card_id}
+                            self._handle_same_rank_play(computer_player.player_id, action_data)
+                    
+                    timer = threading.Timer(delay, delayed_same_rank)
+                    timer.start()
                 
             elif event_name == 'jack_swap':
                 # TODO: Use YAML to determine Jack swap targets
@@ -1176,6 +1204,9 @@ class GameRound:
             updated_count = self.game_state.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
             custom_log(f"Updated {updated_count} players' status to WAITING", level="INFO", isOn=LOGGING_SWITCH)
             
+            # Iterate through computer players for same rank plays
+            self._process_computer_same_rank_plays()
+            
             # Check if any player has no cards left (automatic win condition)
             for player_id, player in self.game_state.players.items():
                 if not player.is_active:
@@ -1215,6 +1246,72 @@ class GameRound:
                 pass
         except Exception as e:
             pass
+    
+    def _process_computer_same_rank_plays(self):
+        """Process same rank plays for all computer players with randomized timing"""
+        try:
+            from ..models.player import PlayerType
+            computer_players = [p for p in self.game_state.players.values() if p.player_type == PlayerType.COMPUTER and p.is_active]
+            
+            if not computer_players:
+                return
+            
+            custom_log(f"Processing same rank plays for {len(computer_players)} computer players", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Shuffle computer players for random order
+            import random
+            random.shuffle(computer_players)
+            
+            # Process each computer player
+            for computer_player in computer_players:
+                self._handle_computer_action_with_yaml(computer_player, computer_player.difficulty, 'same_rank_play')
+                
+        except Exception as e:
+            custom_log(f"Error processing computer same rank plays: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+    
+    def _get_available_same_rank_cards(self, player, target_rank: str) -> List[str]:
+        """Get available same rank cards from player's known_cards (excluding collection cards)"""
+        available_cards = []
+        
+        # Get cards from known_cards that match the target rank
+        for card in player.hand:
+            if card is None:
+                continue
+            
+            # Check if card matches target rank
+            if card.rank != target_rank:
+                continue
+            
+            # Check if card is in known_cards
+            card_id = card.card_id
+            is_known = False
+            
+            for player_known_cards in player.known_cards.values():
+                if isinstance(player_known_cards, dict):
+                    card1 = player_known_cards.get('card1')
+                    card2 = player_known_cards.get('card2')
+                    for known_card in [card1, card2]:
+                        if known_card:
+                            known_id = known_card.get('cardId') if isinstance(known_card, dict) else str(known_card)
+                            if known_id == card_id:
+                                is_known = True
+                                break
+                    if is_known:
+                        break
+            
+            if not is_known:
+                continue
+            
+            # Check if card is NOT in collection_rank_cards
+            is_in_collection = any(
+                (c.get('cardId') if isinstance(c, dict) else str(c)) == card_id
+                for c in player.collection_rank_cards
+            )
+            
+            if not is_in_collection:
+                available_cards.append(card_id)
+        
+        return available_cards
 
     def _handle_special_cards_window(self):
         """Handle special cards window - process each player's special card with 10-second timer"""

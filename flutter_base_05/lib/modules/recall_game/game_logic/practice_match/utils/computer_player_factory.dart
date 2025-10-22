@@ -82,26 +82,61 @@ class ComputerPlayerFactory {
     };
   }
 
-  /// Get computer player decision for same rank play event
+  /// Get computer player decision for same rank play event with YAML-driven intelligence
   Map<String, dynamic> getSameRankPlayDecision(String difficulty, Map<String, dynamic> gameState, List<String> availableCards) {
     final decisionDelay = config.getDecisionDelay(difficulty);
     final playProbability = config.getSameRankPlayProbability(difficulty);
+    final wrongRankProbability = config.getWrongRankProbability(difficulty);
     
-    final shouldPlay = _random.nextDouble() < playProbability;
+    // Check if computer player will attempt to play (miss chance)
+    final shouldAttempt = _random.nextDouble() < playProbability;
     
-    if (!shouldPlay || availableCards.isEmpty) {
+    if (!shouldAttempt || availableCards.isEmpty) {
       return {
         'action': 'same_rank_play',
         'play': false,
         'card_id': null,
         'delay_seconds': decisionDelay,
         'difficulty': difficulty,
-        'reasoning': 'Decided not to play same rank (${((1 - playProbability) * 100).toStringAsFixed(1)}% probability)',
+        'reasoning': 'Decided not to play same rank (${((1 - playProbability) * 100).toStringAsFixed(1)}% miss probability)',
       };
     }
     
-    // Select a card to play
-    final selectedCard = availableCards[_random.nextInt(availableCards.length)];
+    // Check if computer player will play wrong card (accuracy)
+    final willPlayWrong = _random.nextDouble() < wrongRankProbability;
+    
+    if (willPlayWrong) {
+      // Get all cards from hand that are NOT the same rank
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      if (currentPlayer != null) {
+        final hand = currentPlayer['hand'] as List<dynamic>? ?? [];
+        // Get last card rank from discard pile
+        final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+        if (discardPile.isNotEmpty) {
+          final lastCard = discardPile.last as Map<String, dynamic>?;
+          final targetRank = lastCard?['rank']?.toString() ?? '';
+          // Get wrong cards (different rank from known_cards)
+          final knownCardsList = _getKnownCardsList(currentPlayer);
+          final wrongCards = knownCardsList.where((c) => _getCardRank(c, gameState) != targetRank).toList();
+          if (wrongCards.isNotEmpty) {
+            final selectedCard = wrongCards[_random.nextInt(wrongCards.length)];
+            return {
+              'action': 'same_rank_play',
+              'play': true,
+              'card_id': selectedCard,
+              'delay_seconds': decisionDelay,
+              'difficulty': difficulty,
+              'reasoning': 'Playing WRONG card (inaccuracy: ${(wrongRankProbability * 100).toStringAsFixed(1)}%)',
+            };
+          }
+        }
+      }
+    }
+    
+    // Play correct card using YAML rules
+    final cardSelection = config.getCardSelectionStrategy(difficulty);
+    final evaluationWeights = config.getCardEvaluationWeights();
+    final selectedCard = _selectSameRankCard(availableCards, cardSelection, evaluationWeights, gameState);
     
     return {
       'action': 'same_rank_play',
@@ -109,7 +144,7 @@ class ComputerPlayerFactory {
       'card_id': selectedCard,
       'delay_seconds': decisionDelay,
       'difficulty': difficulty,
-      'reasoning': 'Playing same rank card (${(playProbability * 100).toStringAsFixed(1)}% probability)',
+      'reasoning': 'Playing same rank card using YAML strategy (${(playProbability * 100).toStringAsFixed(1)}% play probability)',
     };
   }
 
@@ -469,6 +504,130 @@ class ComputerPlayerFactory {
     final selectedCard = highestCard?['id'] ?? cardIds[_random.nextInt(cardIds.length)];
     Logger().info('Practice: DEBUG - Selected highest points card: $selectedCard (points: $highestPoints)', isOn: LOGGING_SWITCH);
     return selectedCard;
+  }
+
+  /// Select a same rank card using YAML rules engine
+  String _selectSameRankCard(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState) {
+    // Get current player from game state
+    final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+    if (currentPlayer == null) {
+      return availableCards[_random.nextInt(availableCards.length)];
+    }
+    
+    // Prepare game data for YAML rules engine
+    final gameData = _prepareSameRankGameData(availableCards, currentPlayer, gameState);
+    
+    // Get YAML rules from config
+    final sameRankConfig = config.getEventConfig('same_rank_play');
+    final strategyRules = sameRankConfig['strategy_rules'] as List<dynamic>? ?? [];
+    
+    if (strategyRules.isEmpty) {
+      // Fallback to random if no YAML rules defined
+      return availableCards[_random.nextInt(availableCards.length)];
+    }
+    
+    // Determine if we should play optimally
+    final strategy = cardSelection['strategy'] ?? 'random';
+    final optimalPlayProb = _getOptimalPlayProbability(strategy);
+    final shouldPlayOptimal = _random.nextDouble() < optimalPlayProb;
+    
+    // Execute YAML rules
+    final rulesEngine = YamlRulesEngine();
+    return rulesEngine.executeRules(strategyRules, gameData, shouldPlayOptimal);
+  }
+  
+  /// Prepare game data for same rank play YAML rules
+  Map<String, dynamic> _prepareSameRankGameData(List<String> availableCards, Map<String, dynamic> currentPlayer, Map<String, dynamic> gameState) {
+    final knownCards = currentPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+    final collectionRankCards = currentPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+    
+    // Extract known card IDs (same as _prepareGameDataForYAML)
+    final knownCardIds = <String>{};
+    for (final playerKnownCards in knownCards.values) {
+      if (playerKnownCards is Map) {
+        final card1 = playerKnownCards['card1'];
+        final card2 = playerKnownCards['card2'];
+        // Handle both card objects and card ID strings
+        for (final card in [card1, card2]) {
+          if (card != null) {
+            if (card is Map) {
+              knownCardIds.add(card['id']?.toString() ?? card['cardId']?.toString() ?? '');
+            } else {
+              knownCardIds.add(card.toString());
+            }
+          }
+        }
+      }
+    }
+    
+    knownCardIds.remove('');
+    knownCardIds.remove(null);
+    
+    // Split available cards into known and unknown
+    final knownSameRankCards = availableCards.where((c) => knownCardIds.contains(c)).toList();
+    final unknownSameRankCards = availableCards.where((c) => !knownCardIds.contains(c)).toList();
+    
+    // Get all cards data for point calculations
+    final allCardsData = <Map<String, dynamic>>[];
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    for (final player in players) {
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      for (final card in hand) {
+        if (card is Map<String, dynamic>) {
+          allCardsData.add(card);
+        }
+      }
+    }
+    
+    return {
+      'available_same_rank_cards': availableCards,
+      'known_same_rank_cards': knownSameRankCards,
+      'unknown_same_rank_cards': unknownSameRankCards,
+      'all_cards_data': allCardsData,
+    };
+  }
+  
+  /// Get list of known card IDs from player's known_cards
+  List<String> _getKnownCardsList(Map<String, dynamic> playerData) {
+    final knownCardIds = <String>[];
+    final knownCards = playerData['known_cards'] as Map<String, dynamic>? ?? {};
+    
+    for (final playerKnownCards in knownCards.values) {
+      if (playerKnownCards is Map) {
+        final card1 = playerKnownCards['card1'];
+        final card2 = playerKnownCards['card2'];
+        for (final card in [card1, card2]) {
+          if (card != null) {
+            if (card is Map) {
+              final cardId = card['id']?.toString() ?? card['cardId']?.toString() ?? '';
+              if (cardId.isNotEmpty) {
+                knownCardIds.add(cardId);
+              }
+            } else {
+              knownCardIds.add(card.toString());
+            }
+          }
+        }
+      }
+    }
+    
+    return knownCardIds;
+  }
+  
+  /// Get rank of a card by its ID
+  String? _getCardRank(String cardId, Map<String, dynamic> gameState) {
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    for (final player in players) {
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      for (final card in hand) {
+        if (card is Map<String, dynamic>) {
+          if ((card['id'] == cardId || card['cardId'] == cardId)) {
+            return card['rank']?.toString();
+          }
+        }
+      }
+    }
+    return null;
   }
 
   /// Select Jack swap targets based on strategy

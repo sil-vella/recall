@@ -761,22 +761,11 @@ class PracticeGameRound {
       // Backend replicates this in player.py add_card_to_hand method
       final idOnlyCard = {'cardId': drawnCard['cardId']};
       
-      // Add card to player's hand - look for a blank slot (null) to fill first
-      bool filledBlankSlot = false;
-      for (int i = 0; i < hand.length; i++) {
-        if (hand[i] == null) {
-          hand[i] = idOnlyCard;
-          filledBlankSlot = true;
-          Logger().info('Practice: Filled blank slot at index $i with drawn card', isOn: LOGGING_SWITCH);
-          break;
-        }
-      }
-      
-      // If no blank slot found, append to the end
-      if (!filledBlankSlot) {
-        hand.add(idOnlyCard);
-        Logger().info('Practice: Added drawn card to end of hand', isOn: LOGGING_SWITCH);
-      }
+      // IMPORTANT: Drawn cards ALWAYS go to the end of the hand (not in blank slots)
+      // This matches backend logic in player.py add_card_to_hand() lines 78-88
+      // Blank slots are only filled by penalty cards, not drawn cards
+      hand.add(idOnlyCard);
+      Logger().info('Practice: Added drawn card to end of hand (index ${hand.length - 1})', isOn: LOGGING_SWITCH);
       
       // Set the drawn card property - FULL CARD DATA for human players, ID-only for computer players
       // This is what allows the frontend to show the front of the card (only for human players)

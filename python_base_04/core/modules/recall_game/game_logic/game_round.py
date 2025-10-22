@@ -611,8 +611,19 @@ class GameRound:
                 if not success:
                     custom_log(f"Computer player {computer_player.player_id} failed to draw card", level="ERROR", isOn=LOGGING_SWITCH)
                     self._move_to_next_player()
-                # Note: After successful draw, _handle_draw_from_pile sets status to PLAYING_CARD
-                # The next turn will detect this and handle play_card event
+                else:
+                    # CRITICAL: Continue computer turn with play_card action after successful draw
+                    # This matches practice mode logic (practice_game_round.dart lines 410-422)
+                    custom_log(f"Computer player {computer_player.player_id} successfully drew card, continuing with play_card action", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Add small delay to simulate thinking time (0.5 seconds)
+                    time.sleep(0.5)
+                    
+                    # Continue computer turn with play_card action
+                    # Call _handle_computer_action_with_yaml with play_card event
+                    custom_log(f"DEBUG - About to call _handle_computer_action_with_yaml for play_card", level="INFO", isOn=LOGGING_SWITCH)
+                    self._handle_computer_action_with_yaml(computer_player, computer_player.difficulty, 'play_card')
+                    custom_log(f"DEBUG - _handle_computer_action_with_yaml call completed", level="INFO", isOn=LOGGING_SWITCH)
             
             elif event_name == 'play_card':
                 card_id = decision.get('card_id')

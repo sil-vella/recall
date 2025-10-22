@@ -524,8 +524,15 @@ class GameRound:
             custom_log(f"Error getting current computer event: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return 'draw_card'
     
-    def _handle_computer_action_with_yaml(self, computer_player, difficulty, event_name):
-        """Handle computer action using YAML-based configuration"""
+    def _handle_computer_action_with_yaml(self, computer_player, difficulty, event_name, use_sync_delay=False):
+        """Handle computer action using YAML-based configuration
+        
+        Args:
+            computer_player: The computer player object
+            difficulty: The difficulty level
+            event_name: The event name (draw_card, play_card, same_rank_play)
+            use_sync_delay: If True, use time.sleep() instead of threading.Timer (for same_rank_play)
+        """
         try:
             custom_log(f"Handling computer action with YAML - Player: {computer_player.player_id}, Difficulty: {difficulty}, Event: {event_name}", level="INFO", isOn=LOGGING_SWITCH)
             
@@ -544,6 +551,17 @@ class GameRound:
                 # Get available cards from computer player's hand
                 available_cards = [card.card_id for card in computer_player.hand]
                 decision = self._computer_player_factory.get_play_card_decision(difficulty, game_state_dict, available_cards)
+            elif event_name == 'same_rank_play':
+                # Get discard pile to determine target rank
+                if not self.game_state.discard_pile:
+                    custom_log(f"No discard pile for same rank play", level="INFO", isOn=LOGGING_SWITCH)
+                    return
+                last_card = self.game_state.discard_pile[-1]
+                target_rank = last_card.rank
+                
+                # Get available same rank cards
+                available_cards = self._get_available_same_rank_cards(computer_player, target_rank)
+                decision = self._computer_player_factory.get_same_rank_play_decision(difficulty, game_state_dict, available_cards)
             else:
                 custom_log(f"Unknown event for computer action: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
                 self._move_to_next_player()
@@ -553,11 +571,22 @@ class GameRound:
             
             # Execute decision with delay from YAML config
             delay_seconds = decision.get('delay_seconds', 1.0)
-            def delayed_execution():
-                self._execute_computer_decision_yaml(decision, computer_player, event_name)
             
-            timer = threading.Timer(delay_seconds, delayed_execution)
-            timer.start()
+            if use_sync_delay:
+                # SYNCHRONOUS execution - used for same_rank_play to ensure all plays complete
+                # before special cards window starts
+                import time
+                import random
+                total_delay = delay_seconds + (0.5 + random.random())  # Add random variation
+                time.sleep(total_delay)
+                self._execute_computer_decision_yaml(decision, computer_player, event_name)
+            else:
+                # ASYNCHRONOUS execution - used for regular turns (draw_card, play_card)
+                def delayed_execution():
+                    self._execute_computer_decision_yaml(decision, computer_player, event_name)
+                
+                timer = threading.Timer(delay_seconds, delayed_execution)
+                timer.start()
             
         except Exception as e:
             custom_log(f"Error in _handle_computer_action_with_yaml: {e}", level="ERROR", isOn=LOGGING_SWITCH)
@@ -605,6 +634,28 @@ class GameRound:
                 else:
                     custom_log(f"No card selected for computer play", level="WARNING", isOn=LOGGING_SWITCH)
                     self._move_to_next_player()
+            
+            elif event_name == 'same_rank_play':
+                should_play = decision.get('play', False)
+                if should_play:
+                    card_id = decision.get('card_id')
+                    if card_id:
+                        custom_log(f"Computer playing same rank card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                        
+                        # Use existing _route_action logic (same as human players)
+                        action_data = {
+                            'card_id': card_id,
+                            'player_id': computer_player.player_id
+                        }
+                        success = self._route_action('same_rank_play', computer_player.player_id, action_data)
+                        if not success:
+                            custom_log(f"Computer player {computer_player.player_id} failed same rank play", level="ERROR", isOn=LOGGING_SWITCH)
+                        else:
+                            custom_log(f"Computer player {computer_player.player_id} successfully played same rank card {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                    else:
+                        custom_log(f"No card selected for computer same rank play", level="WARNING", isOn=LOGGING_SWITCH)
+                else:
+                    custom_log(f"Computer decided not to play same rank", level="INFO", isOn=LOGGING_SWITCH)
             
             else:
                 custom_log(f"Unknown event for computer decision execution: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
@@ -1248,23 +1299,32 @@ class GameRound:
             pass
     
     def _process_computer_same_rank_plays(self):
-        """Process same rank plays for all computer players with randomized timing"""
+        """Process same rank plays for all computer players with randomized timing
+        
+        CRITICAL: This method uses SYNCHRONOUS execution (time.sleep) instead of threading
+        to ensure ALL computer same rank plays complete BEFORE we move to special cards window.
+        This matches the fixed practice mode behavior.
+        """
         try:
             from ..models.player import PlayerType
             computer_players = [p for p in self.game_state.players.values() if p.player_type == PlayerType.COMPUTER and p.is_active]
             
             if not computer_players:
+                custom_log(f"No computer players to process for same rank", level="INFO", isOn=LOGGING_SWITCH)
                 return
             
-            custom_log(f"Processing same rank plays for {len(computer_players)} computer players", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Processing same rank plays for {len(computer_players)} computer players (SYNCHRONOUSLY)", level="INFO", isOn=LOGGING_SWITCH)
             
             # Shuffle computer players for random order
             import random
             random.shuffle(computer_players)
             
-            # Process each computer player
+            # Process each computer player SYNCHRONOUSLY
+            # use_sync_delay=True ensures time.sleep() instead of threading.Timer
             for computer_player in computer_players:
-                self._handle_computer_action_with_yaml(computer_player, computer_player.difficulty, 'same_rank_play')
+                self._handle_computer_action_with_yaml(computer_player, computer_player.difficulty, 'same_rank_play', use_sync_delay=True)
+            
+            custom_log(f"All computer same rank plays completed", level="INFO", isOn=LOGGING_SWITCH)
                 
         except Exception as e:
             custom_log(f"Error processing computer same rank plays: {e}", level="ERROR", isOn=LOGGING_SWITCH)

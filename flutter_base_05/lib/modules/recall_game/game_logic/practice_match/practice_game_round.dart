@@ -792,7 +792,11 @@ class PracticeGameRound {
       Logger().info('Practice: DEBUG - Player hand after draw:', isOn: LOGGING_SWITCH);
       for (int i = 0; i < hand.length; i++) {
         final card = hand[i];
-        Logger().info('Practice: DEBUG -   Index $i: cardId=${card['cardId']}, hasFullData=${card.containsKey('rank')}', isOn: LOGGING_SWITCH);
+        if (card == null) {
+          Logger().info('Practice: DEBUG -   Index $i: EMPTY SLOT (null)', isOn: LOGGING_SWITCH);
+        } else {
+          Logger().info('Practice: DEBUG -   Index $i: cardId=${card['cardId']}, hasFullData=${card.containsKey('rank')}', isOn: LOGGING_SWITCH);
+        }
       }
       
       // Change player status from DRAWING_CARD to PLAYING_CARD

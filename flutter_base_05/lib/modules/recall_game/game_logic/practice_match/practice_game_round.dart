@@ -1711,8 +1711,8 @@ class PracticeGameRound {
       _sameRankTimer?.cancel();
       
       // Store timer reference for potential cancellation
-      _sameRankTimer = Timer(const Duration(seconds: 5), () {
-        _endSameRankWindow();
+      _sameRankTimer = Timer(const Duration(seconds: 5), () async {
+        await _endSameRankWindow();
       });
       
     } catch (e) {
@@ -1722,7 +1722,7 @@ class PracticeGameRound {
 
   /// End the same rank window and move to next player
   /// Replicates backend's _end_same_rank_window method in game_round.py lines 599-643
-  void _endSameRankWindow() {
+  Future<void> _endSameRankWindow() async {
     try {
       Logger().info('Practice: Ending same rank window - resetting all players to waiting status', isOn: LOGGING_SWITCH);
       
@@ -1755,10 +1755,13 @@ class PracticeGameRound {
       // TODO: Check if any player has no cards left (automatic win condition)
       // Future implementation - for now, we skip this check
       
-      // Check for same rank plays from computer players
-      _checkComputerPlayerSameRankPlays();
+      // CRITICAL: AWAIT computer same rank plays to complete BEFORE processing special cards
+      // This ensures all queens played during same rank window are added to _specialCardData
+      // before we start the special cards window
+      await _checkComputerPlayerSameRankPlays();
       
       // Check for special cards and handle them (backend game_round.py line 640)
+      // All same rank special cards are now in the list
       _handleSpecialCardsWindow();
       
     } catch (e) {
@@ -1767,7 +1770,8 @@ class PracticeGameRound {
   }
 
   /// Check for same rank plays from computer players during the same rank window
-  void _checkComputerPlayerSameRankPlays() {
+  /// Returns a Future that completes when ALL computer same rank plays are done
+  Future<void> _checkComputerPlayerSameRankPlays() async {
     try {
       Logger().info('Practice: Processing computer player same rank plays', isOn: LOGGING_SWITCH);
       
@@ -1805,13 +1809,23 @@ class PracticeGameRound {
       // Shuffle for random order
       computerPlayers.shuffle();
       
+      // CRITICAL: Create list of futures for all computer plays
+      // We must AWAIT all of them before continuing
+      final playFutures = <Future<void>>[];
+      
       // Process each computer player
       for (final computerPlayer in computerPlayers) {
         final playerId = computerPlayer['id']?.toString() ?? '';
         final difficulty = computerPlayer['difficulty']?.toString() ?? 'medium';
         
-        _handleComputerSameRankPlay(playerId, difficulty, gameState);
+        // Add future to list (don't await yet)
+        playFutures.add(_handleComputerSameRankPlay(playerId, difficulty, gameState));
       }
+      
+      // AWAIT all computer plays to complete
+      await Future.wait(playFutures);
+      
+      Logger().info('Practice: All computer same rank plays completed', isOn: LOGGING_SWITCH);
       
     } catch (e) {
       Logger().error('Practice: Error in _checkComputerPlayerSameRankPlays: $e', isOn: LOGGING_SWITCH);
@@ -1819,7 +1833,8 @@ class PracticeGameRound {
   }
 
   /// Handle computer player same rank play decision
-  void _handleComputerSameRankPlay(String playerId, String difficulty, Map<String, dynamic> gameState) {
+  /// Returns a Future that completes when this player's same rank play is done
+  Future<void> _handleComputerSameRankPlay(String playerId, String difficulty, Map<String, dynamic> gameState) async {
     try {
       // Get available same rank cards for this computer player
       final availableCards = _getAvailableSameRankCards(playerId, gameState);
@@ -1841,12 +1856,13 @@ class PracticeGameRound {
         // Add random variation (0.5s to 1.5s)
         final totalDelay = delay + (0.5 + Random().nextDouble());
         
-        Future.delayed(Duration(milliseconds: (totalDelay * 1000).toInt()), () async {
-          final cardId = decision['card_id'] as String?;
-          if (cardId != null) {
-            await handleSameRankPlay(playerId, cardId);
-          }
-        });
+        // CRITICAL: AWAIT the delay - this makes the future wait for the full play to complete
+        await Future.delayed(Duration(milliseconds: (totalDelay * 1000).toInt()));
+        
+        final cardId = decision['card_id'] as String?;
+        if (cardId != null) {
+          await handleSameRankPlay(playerId, cardId);
+        }
       }
       
     } catch (e) {

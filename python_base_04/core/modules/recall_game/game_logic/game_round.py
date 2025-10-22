@@ -613,17 +613,20 @@ class GameRound:
                     self._move_to_next_player()
                 else:
                     # CRITICAL: Continue computer turn with play_card action after successful draw
-                    # This matches practice mode logic (practice_game_round.dart lines 410-422)
-                    custom_log(f"Computer player {computer_player.player_id} successfully drew card, continuing with play_card action", level="INFO", isOn=LOGGING_SWITCH)
+                    # Use threading.Timer to schedule play_card action AFTER draw completes
+                    # This prevents recursive/nested execution
+                    custom_log(f"Computer player {computer_player.player_id} successfully drew card, scheduling play_card action", level="INFO", isOn=LOGGING_SWITCH)
                     
-                    # Add small delay to simulate thinking time (0.5 seconds)
-                    time.sleep(0.5)
+                    # Schedule play_card action with 0.5s delay using threading.Timer
+                    # This allows the draw action to complete and return before play_card starts
+                    def continue_with_play_card():
+                        custom_log(f"DEBUG - About to call _handle_computer_action_with_yaml for play_card", level="INFO", isOn=LOGGING_SWITCH)
+                        self._handle_computer_action_with_yaml(computer_player, computer_player.difficulty, 'play_card')
+                        custom_log(f"DEBUG - _handle_computer_action_with_yaml call completed", level="INFO", isOn=LOGGING_SWITCH)
                     
-                    # Continue computer turn with play_card action
-                    # Call _handle_computer_action_with_yaml with play_card event
-                    custom_log(f"DEBUG - About to call _handle_computer_action_with_yaml for play_card", level="INFO", isOn=LOGGING_SWITCH)
-                    self._handle_computer_action_with_yaml(computer_player, computer_player.difficulty, 'play_card')
-                    custom_log(f"DEBUG - _handle_computer_action_with_yaml call completed", level="INFO", isOn=LOGGING_SWITCH)
+                    timer = threading.Timer(0.5, continue_with_play_card)
+                    timer.start()
+                    custom_log(f"Scheduled play_card action for {computer_player.player_id} in 0.5 seconds", level="INFO", isOn=LOGGING_SWITCH)
             
             elif event_name == 'play_card':
                 card_id = decision.get('card_id')

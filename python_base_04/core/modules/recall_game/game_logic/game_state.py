@@ -827,9 +827,8 @@ class GameStateManager:
             min_players = game.min_players
             
             if current_players < min_players:
-                # Add 3 computer players (fixed number for testing)
-                # This ensures consistent multi-player game testing with 1 human + 3 computers = 4 players total
-                players_needed = 3  # Always add 3 computer players
+                # Add computer players to reach minimum
+                players_needed = min_players - current_players
                 
                 for i in range(players_needed):
                     computer_id = f"computer_{game.game_id}_{i}"
@@ -1033,8 +1032,13 @@ class GameStateManager:
             custom_log(f"Game phase transitioned to {game.phase.value}", level="INFO", isOn=LOGGING_SWITCH)
             
             game_round = game.get_round()
-            custom_log("Starting game round turn", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log("Initializing game round", level="INFO", isOn=LOGGING_SWITCH)
             start_turn_result = game_round.start_turn()
+            
+            # CRITICAL: Start the first player's turn (new pattern after refactor)
+            # start_turn() only initializes the round, _move_to_next_player() actually starts turns
+            custom_log("Starting first player's turn", level="INFO", isOn=LOGGING_SWITCH)
+            game_round._move_to_next_player()
 
         except Exception as e:
             custom_log(f"Failed to handle initial peek timeout: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)

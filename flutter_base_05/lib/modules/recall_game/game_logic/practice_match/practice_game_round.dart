@@ -1032,21 +1032,43 @@ class PracticeGameRound {
       final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
       
       // Check if we should create a blank slot or remove the card entirely
-      final shouldCreateBlankSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndex);
+      bool shouldCreateBlankSlot;
+      try {
+        Logger().info('Practice: About to call _shouldCreateBlankSlotAtIndex for index $cardIndex, hand.length=${hand.length}', isOn: LOGGING_SWITCH);
+        shouldCreateBlankSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndex);
+        Logger().info('Practice: _shouldCreateBlankSlotAtIndex returned: $shouldCreateBlankSlot', isOn: LOGGING_SWITCH);
+      } catch (e) {
+        Logger().error('Practice: Error in _shouldCreateBlankSlotAtIndex: $e', isOn: LOGGING_SWITCH);
+        rethrow;
+      }
       
       if (shouldCreateBlankSlot) {
         // Replace the card with null (blank slot) to maintain index positions
-        hand[cardIndex] = null;
-        Logger().info('Practice: Created blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+        try {
+          Logger().info('Practice: About to set hand[$cardIndex] = null', isOn: LOGGING_SWITCH);
+          hand[cardIndex] = null;
+          Logger().info('Practice: Created blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+        } catch (e) {
+          Logger().error('Practice: Error creating blank slot: $e', isOn: LOGGING_SWITCH);
+          rethrow;
+        }
       } else {
         // Remove the card entirely and shift remaining cards
-        hand.removeAt(cardIndex);
-        Logger().info('Practice: Removed card entirely from index $cardIndex, shifted remaining cards', isOn: LOGGING_SWITCH);
+        try {
+          Logger().info('Practice: About to removeAt($cardIndex)', isOn: LOGGING_SWITCH);
+          hand.removeAt(cardIndex);
+          Logger().info('Practice: Removed card entirely from index $cardIndex, shifted remaining cards', isOn: LOGGING_SWITCH);
+        } catch (e) {
+          Logger().error('Practice: Error removing card: $e', isOn: LOGGING_SWITCH);
+          rethrow;
+        }
       }
       
       // Convert card to full data before adding to discard pile
       // The player's hand contains ID-only cards, but discard pile needs full card data
+      Logger().info('Practice: About to get full card data for $cardId', isOn: LOGGING_SWITCH);
       final cardToPlayFullData = _practiceCoordinator.getCardById(gameState, cardId);
+      Logger().info('Practice: Got full card data for $cardId', isOn: LOGGING_SWITCH);
       if (cardToPlayFullData == null) {
         Logger().error('Practice: Failed to get full data for card $cardId', isOn: LOGGING_SWITCH);
         return false;

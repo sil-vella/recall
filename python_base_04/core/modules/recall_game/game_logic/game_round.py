@@ -100,15 +100,16 @@ class GameRound:
             if self.same_rank_data:
                 self.same_rank_data.clear()
             
-            # Only clear special card data if we're not in the middle of processing special cards
-            # This prevents clearing data during special card processing
-            if self.special_card_data and self.game_state.phase not in [GamePhase.SPECIAL_PLAY_WINDOW]:
+            # Only clear special card data if we're not in same rank window or special play window
+            # This prevents clearing data during same rank window (where special cards are being added)
+            # or during special card processing
+            if self.special_card_data and self.game_state.phase not in [GamePhase.SAME_RANK_WINDOW, GamePhase.SPECIAL_PLAY_WINDOW]:
                 custom_log(f"DEBUG: Clearing {len(self.special_card_data)} special cards in start_turn (phase: {self.game_state.phase})", level="INFO", isOn=LOGGING_SWITCH)
                 self.special_card_data.clear()
                 custom_log("Special card data cleared in start_turn (new turn)", level="INFO", isOn=LOGGING_SWITCH)
-            elif self.special_card_data and self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
-                custom_log(f"DEBUG: NOT clearing {len(self.special_card_data)} special cards in start_turn (processing special cards)", level="INFO", isOn=LOGGING_SWITCH)
-                custom_log("Special card data NOT cleared in start_turn (processing special cards)", level="INFO", isOn=LOGGING_SWITCH)
+            elif self.special_card_data and self.game_state.phase in [GamePhase.SAME_RANK_WINDOW, GamePhase.SPECIAL_PLAY_WINDOW]:
+                custom_log(f"DEBUG: NOT clearing {len(self.special_card_data)} special cards in start_turn (phase: {self.game_state.phase})", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Special card data NOT cleared in start_turn (in {self.game_state.phase.name})", level="INFO", isOn=LOGGING_SWITCH)
             else:
                 custom_log("DEBUG: No special card data to clear in start_turn", level="INFO", isOn=LOGGING_SWITCH)
                 

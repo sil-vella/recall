@@ -1936,9 +1936,17 @@ class PracticeGameRound {
         }
         
         final cardId = card['cardId']?.toString() ?? '';
-        final cardRank = card['rank']?.toString() ?? '';
         
-        Logger().info('Practice: DEBUG - Card at index $i: id=$cardId, rank=$cardRank', isOn: LOGGING_SWITCH);
+        // CRITICAL: Get full card data to check rank (hand contains ID-only cards with rank=?)
+        final fullCardData = _practiceCoordinator.getCardById(gameState, cardId);
+        if (fullCardData == null) {
+          Logger().info('Practice: DEBUG - Failed to get full card data for $cardId, skipping', isOn: LOGGING_SWITCH);
+          continue;
+        }
+        
+        final cardRank = fullCardData['rank']?.toString() ?? '';
+        
+        Logger().info('Practice: DEBUG - Card at index $i: id=$cardId, rank=$cardRank (from full data)', isOn: LOGGING_SWITCH);
         
         if (cardRank != targetRank) {
           Logger().info('Practice: DEBUG - Card rank $cardRank != target rank $targetRank, skipping', isOn: LOGGING_SWITCH);

@@ -80,59 +80,20 @@ class GameRound:
             custom_log(f"Error sending error message to player: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         
     def start_turn(self) -> Dict[str, Any]:
-        """Start a new round of gameplay"""
+        """
+        Initialize a new round of gameplay (called ONCE at the start of the game).
+        
+        NOTE: This method is only called once when the round starts (after initial peek).
+        Individual player turns are managed by _move_to_next_player().
+        """
         try:
-            # Cancel any running timers from the previous turn
-            # BUT: Do NOT cancel special card timer if we're still processing special cards
-            # The special cards window should complete before starting a new turn
-            self.cancel_same_rank_timer()
-            if self.game_state.phase != GamePhase.SPECIAL_PLAY_WINDOW:
-                self.cancel_special_card_timer()
-                custom_log("All timers cancelled at start of new turn (except special card timer if processing)", level="INFO", isOn=LOGGING_SWITCH)
-            else:
-                custom_log("WARNING: Starting new turn while still in SPECIAL_PLAY_WINDOW phase - this should not happen", level="WARNING", isOn=LOGGING_SWITCH)
-                custom_log("Cancelling special card timer and forcing cleanup", level="WARNING", isOn=LOGGING_SWITCH)
-                self.cancel_special_card_timer()
-            self._cancel_draw_phase_timer()
-            self._cancel_play_phase_timer()
+            custom_log("=== INITIALIZING ROUND (start_turn called) ===", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Clear same rank data
-            if self.same_rank_data:
-                self.same_rank_data.clear()
-            
-            # Only clear special card data if we're not in same rank window or special play window
-            # This prevents clearing data during same rank window (where special cards are being added)
-            # or during special card processing
-            if self.special_card_data and self.game_state.phase not in [GamePhase.SAME_RANK_WINDOW, GamePhase.SPECIAL_PLAY_WINDOW]:
-                custom_log(f"DEBUG: Clearing {len(self.special_card_data)} special cards in start_turn (phase: {self.game_state.phase})", level="INFO", isOn=LOGGING_SWITCH)
-                self.special_card_data.clear()
-                custom_log("Special card data cleared in start_turn (new turn)", level="INFO", isOn=LOGGING_SWITCH)
-            elif self.special_card_data and self.game_state.phase in [GamePhase.SAME_RANK_WINDOW, GamePhase.SPECIAL_PLAY_WINDOW]:
-                custom_log(f"DEBUG: NOT clearing {len(self.special_card_data)} special cards in start_turn (phase: {self.game_state.phase})", level="INFO", isOn=LOGGING_SWITCH)
-                custom_log(f"Special card data NOT cleared in start_turn (in {self.game_state.phase.name})", level="INFO", isOn=LOGGING_SWITCH)
-            else:
-                custom_log("DEBUG: No special card data to clear in start_turn", level="INFO", isOn=LOGGING_SWITCH)
-                
             # Initialize round state
             self.round_start_time = time.time()
             self.current_turn_start_time = self.round_start_time
             self.round_status = "active"
             self.actions_performed = []
-
-            self.game_state.phase = GamePhase.PLAYER_TURN
-            
-            # Set current player status to drawing_card (they need to draw a card)
-            if self.game_state.current_player_id:
-                player = self.game_state.players.get(self.game_state.current_player_id)
-                if player:
-                    player.set_status(PlayerStatus.DRAWING_CARD)
-                    custom_log(f"Player {self.game_state.current_player_id} status set to DRAWING_CARD", level="INFO", isOn=LOGGING_SWITCH)
-                    
-                    # Start draw phase timer (10 seconds)
-                    self._start_draw_phase_timer(self.game_state.current_player_id)
-                    
-                    # Note: Computer player detection is now handled in _move_to_next_player
-                    # to avoid duplicate processing
             
             # Initialize timed rounds if enabled
             if self.timed_rounds_enabled:
@@ -145,17 +106,10 @@ class GameRound:
                 "player_count": len(self.game_state.players)
             })
             
-                        # Update turn start time
-            self.current_turn_start_time = time.time()
+            custom_log(f"Round initialized - current_player: {self.game_state.current_player_id}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Send game state update to all players
-            if self.game_state.app_manager:
-                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator._send_game_state_update(self.game_state.game_id)
-            
-            # Send turn started event to current player
-            self._send_turn_started_event()
+            # NOTE: Player status and timers are now managed by _move_to_next_player()
+            # This ensures proper sequencing and avoids race conditions
             
             return {
                 "success": True,
@@ -383,6 +337,29 @@ class GameRound:
             if not active_player_ids:
                 return
             
+            # === CLEANUP PHASE: Cancel timers and clear data from previous turn ===
+            custom_log("=== STARTING NEW TURN: Cleaning up previous turn ===", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Cancel all timers from previous turn
+            self.cancel_same_rank_timer()
+            if self.game_state.phase != GamePhase.SPECIAL_PLAY_WINDOW:
+                self.cancel_special_card_timer()
+            self._cancel_draw_phase_timer()
+            self._cancel_play_phase_timer()
+            custom_log("All timers cancelled before moving to next player", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Clear same rank data
+            if self.same_rank_data:
+                self.same_rank_data.clear()
+                custom_log("Cleared same_rank_data", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Clear special card data (only if not processing special cards)
+            if self.special_card_data and self.game_state.phase not in [GamePhase.SPECIAL_PLAY_WINDOW]:
+                custom_log(f"Clearing {len(self.special_card_data)} special cards before new turn", level="INFO", isOn=LOGGING_SWITCH)
+                self.special_card_data.clear()
+            elif self.special_card_data and self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
+                custom_log(f"NOT clearing {len(self.special_card_data)} special cards (still processing)", level="INFO", isOn=LOGGING_SWITCH)
+            
             # Set current player status to ready before moving to next player
             if self.game_state.current_player_id:
                 player = self.game_state.players.get(self.game_state.current_player_id)
@@ -402,30 +379,52 @@ class GameRound:
             # Update current player
             old_player_id = self.game_state.current_player_id
             self.game_state.current_player_id = next_player_id
+            custom_log(f"Updated current_player_id from {old_player_id} to {next_player_id}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Check if recall has been called
             if hasattr(self.game_state, 'recall_called_by') and self.game_state.recall_called_by:
-                
                 # Check if current player is the one who called recall
                 if self.game_state.current_player_id == self.game_state.recall_called_by:
                     self._handle_end_of_match()
                     return
-                else:
-                    pass
-            else:
-                pass
+            
+            # === INITIALIZE NEW PLAYER'S TURN ===
+            next_player = self.game_state.players.get(next_player_id)
+            if not next_player:
+                custom_log(f"ERROR: Next player {next_player_id} not found", level="ERROR", isOn=LOGGING_SWITCH)
+                return
+            
+            # Set game phase to PLAYER_TURN
+            self.game_state.phase = GamePhase.PLAYER_TURN
+            
+            # Set NEW player status to DRAWING_CARD
+            next_player.set_status(PlayerStatus.DRAWING_CARD)
+            custom_log(f"Player {next_player_id} status set to DRAWING_CARD", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Start draw phase timer for new player
+            self._start_draw_phase_timer(next_player_id)
+            
+            # Update turn start time
+            self.current_turn_start_time = time.time()
+            
+            # Send game state update to all players
+            if self.game_state.app_manager:
+                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._send_game_state_update(self.game_state.game_id)
+            
+            # Send turn started event
+            self._send_turn_started_event()
             
             # Check if the next player is a computer player and handle automatically
-            next_player = self.game_state.players.get(next_player_id)
-            if next_player and hasattr(next_player, 'player_type') and next_player.player_type.value == 'computer':
+            if hasattr(next_player, 'player_type') and next_player.player_type.value == 'computer':
                 custom_log(f"Computer player detected: {next_player_id} - triggering automatic turn processing", level="INFO", isOn=LOGGING_SWITCH)
                 self._handle_computer_player_turn(next_player)
             else:
-                # Send turn started event to human player
-                self.start_turn()
+                custom_log(f"Human player {next_player_id} turn started - waiting for player action", level="INFO", isOn=LOGGING_SWITCH)
             
         except Exception as e:
-            pass
+            custom_log(f"Error in _move_to_next_player: {e}", level="ERROR", isOn=LOGGING_SWITCH)
     
     def _handle_computer_player_turn(self, computer_player):
         """Handle automatic turn processing for computer players"""
@@ -525,28 +524,15 @@ class GameRound:
             custom_log(f"Error getting current computer event: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return 'draw_card'
     
-    def _handle_computer_action_with_yaml(self, computer_player, difficulty, event_name, use_sync_delay=False):
-        """Handle computer action using YAML-based configuration
-        
-        Args:
-            computer_player: The computer player object
-            difficulty: The difficulty level
-            event_name: The event name (draw_card, play_card, same_rank_play)
-            use_sync_delay: If True, use time.sleep() instead of threading.Timer (for same_rank_play)
-        """
+    def _handle_computer_action_with_yaml(self, computer_player, difficulty, event_name):
+        """Handle computer action using YAML-based configuration"""
         try:
             custom_log(f"Handling computer action with YAML - Player: {computer_player.player_id}, Difficulty: {difficulty}, Event: {event_name}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Initialize computer player factory if not already initialized
             if self._computer_player_factory is None:
-                try:
-                    config_path = "core/modules/recall_game/config/computer_player_config.yaml"
-                    self._computer_player_factory = ComputerPlayerFactory.from_file(config_path)
-                    custom_log("Computer player factory initialized with YAML config", level="INFO", isOn=LOGGING_SWITCH)
-                except Exception as e:
-                    custom_log(f"Failed to load computer player config: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-                    self._move_to_next_player()
-                    return
+                custom_log("Computer player factory not initialized", level="ERROR", isOn=LOGGING_SWITCH)
+                self._move_to_next_player()
+                return
             
             # Get decision from YAML-based factory
             game_state_dict = self._get_game_state_dict()
@@ -558,17 +544,6 @@ class GameRound:
                 # Get available cards from computer player's hand
                 available_cards = [card.card_id for card in computer_player.hand]
                 decision = self._computer_player_factory.get_play_card_decision(difficulty, game_state_dict, available_cards)
-            elif event_name == 'same_rank_play':
-                # Get discard pile to determine target rank
-                if not self.game_state.discard_pile:
-                    custom_log(f"No discard pile for same rank play", level="INFO", isOn=LOGGING_SWITCH)
-                    return
-                last_card = self.game_state.discard_pile[-1]
-                target_rank = last_card.rank
-                
-                # Get available same rank cards
-                available_cards = self._get_available_same_rank_cards(computer_player, target_rank)
-                decision = self._computer_player_factory.get_same_rank_play_decision(difficulty, game_state_dict, available_cards)
             else:
                 custom_log(f"Unknown event for computer action: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
                 self._move_to_next_player()
@@ -578,22 +553,11 @@ class GameRound:
             
             # Execute decision with delay from YAML config
             delay_seconds = decision.get('delay_seconds', 1.0)
-            
-            if use_sync_delay:
-                # SYNCHRONOUS execution - used for same_rank_play to ensure all plays complete
-                # before special cards window starts
-                import time
-                import random
-                total_delay = delay_seconds + (0.5 + random.random())  # Add random variation
-                time.sleep(total_delay)
+            def delayed_execution():
                 self._execute_computer_decision_yaml(decision, computer_player, event_name)
-            else:
-                # ASYNCHRONOUS execution - used for regular turns (draw_card, play_card)
-                def delayed_execution():
-                    self._execute_computer_decision_yaml(decision, computer_player, event_name)
-                
-                timer = threading.Timer(delay_seconds, delayed_execution)
-                timer.start()
+            
+            timer = threading.Timer(delay_seconds, delayed_execution)
+            timer.start()
             
         except Exception as e:
             custom_log(f"Error in _handle_computer_action_with_yaml: {e}", level="ERROR", isOn=LOGGING_SWITCH)
@@ -617,22 +581,8 @@ class GameRound:
                 if not success:
                     custom_log(f"Computer player {computer_player.player_id} failed to draw card", level="ERROR", isOn=LOGGING_SWITCH)
                     self._move_to_next_player()
-                else:
-                    # CRITICAL: Continue computer turn with play_card action after successful draw
-                    # Use threading.Timer to schedule play_card action AFTER draw completes
-                    # This prevents recursive/nested execution
-                    custom_log(f"Computer player {computer_player.player_id} successfully drew card, scheduling play_card action", level="INFO", isOn=LOGGING_SWITCH)
-                    
-                    # Schedule play_card action with 0.5s delay using threading.Timer
-                    # This allows the draw action to complete and return before play_card starts
-                    def continue_with_play_card():
-                        custom_log(f"DEBUG - About to call _handle_computer_action_with_yaml for play_card", level="INFO", isOn=LOGGING_SWITCH)
-                        self._handle_computer_action_with_yaml(computer_player, computer_player.difficulty, 'play_card')
-                        custom_log(f"DEBUG - _handle_computer_action_with_yaml call completed", level="INFO", isOn=LOGGING_SWITCH)
-                    
-                    timer = threading.Timer(0.5, continue_with_play_card)
-                    timer.start()
-                    custom_log(f"Scheduled play_card action for {computer_player.player_id} in 0.5 seconds", level="INFO", isOn=LOGGING_SWITCH)
+                # Note: After successful draw, _handle_draw_from_pile sets status to PLAYING_CARD
+                # The next turn will detect this and handle play_card event
             
             elif event_name == 'play_card':
                 card_id = decision.get('card_id')
@@ -655,28 +605,6 @@ class GameRound:
                 else:
                     custom_log(f"No card selected for computer play", level="WARNING", isOn=LOGGING_SWITCH)
                     self._move_to_next_player()
-            
-            elif event_name == 'same_rank_play':
-                should_play = decision.get('play', False)
-                if should_play:
-                    card_id = decision.get('card_id')
-                    if card_id:
-                        custom_log(f"Computer playing same rank card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
-                        
-                        # Use existing _route_action logic (same as human players)
-                        action_data = {
-                            'card_id': card_id,
-                            'player_id': computer_player.player_id
-                        }
-                        success = self._route_action('same_rank_play', computer_player.player_id, action_data)
-                        if not success:
-                            custom_log(f"Computer player {computer_player.player_id} failed same rank play", level="ERROR", isOn=LOGGING_SWITCH)
-                        else:
-                            custom_log(f"Computer player {computer_player.player_id} successfully played same rank card {card_id}", level="INFO", isOn=LOGGING_SWITCH)
-                    else:
-                        custom_log(f"No card selected for computer same rank play", level="WARNING", isOn=LOGGING_SWITCH)
-                else:
-                    custom_log(f"Computer decided not to play same rank", level="INFO", isOn=LOGGING_SWITCH)
             
             else:
                 custom_log(f"Unknown event for computer decision execution: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
@@ -1229,6 +1157,12 @@ class GameRound:
         try:
             custom_log("🔄 SAME_RANK: Starting same rank window - setting all players to SAME_RANK_WINDOW status", level="INFO", isOn=LOGGING_SWITCH)
             
+            # CRITICAL: Cancel draw and play phase timers when entering same rank window
+            # This prevents timers from expiring during the same rank window and causing premature turn changes
+            self._cancel_draw_phase_timer()
+            self._cancel_play_phase_timer()
+            custom_log("🔄 SAME_RANK: Cancelled draw and play phase timers", level="INFO", isOn=LOGGING_SWITCH)
+            
             # Set game state phase to SAME_RANK_WINDOW
             self.game_state.phase = GamePhase.SAME_RANK_WINDOW
             custom_log("🔄 SAME_RANK: Set game phase to SAME_RANK_WINDOW", level="INFO", isOn=LOGGING_SWITCH)
@@ -1320,32 +1254,23 @@ class GameRound:
             pass
     
     def _process_computer_same_rank_plays(self):
-        """Process same rank plays for all computer players with randomized timing
-        
-        CRITICAL: This method uses SYNCHRONOUS execution (time.sleep) instead of threading
-        to ensure ALL computer same rank plays complete BEFORE we move to special cards window.
-        This matches the fixed practice mode behavior.
-        """
+        """Process same rank plays for all computer players with randomized timing"""
         try:
             from ..models.player import PlayerType
             computer_players = [p for p in self.game_state.players.values() if p.player_type == PlayerType.COMPUTER and p.is_active]
             
             if not computer_players:
-                custom_log(f"No computer players to process for same rank", level="INFO", isOn=LOGGING_SWITCH)
                 return
             
-            custom_log(f"Processing same rank plays for {len(computer_players)} computer players (SYNCHRONOUSLY)", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Processing same rank plays for {len(computer_players)} computer players", level="INFO", isOn=LOGGING_SWITCH)
             
             # Shuffle computer players for random order
             import random
             random.shuffle(computer_players)
             
-            # Process each computer player SYNCHRONOUSLY
-            # use_sync_delay=True ensures time.sleep() instead of threading.Timer
+            # Process each computer player
             for computer_player in computer_players:
-                self._handle_computer_action_with_yaml(computer_player, computer_player.difficulty, 'same_rank_play', use_sync_delay=True)
-            
-            custom_log(f"All computer same rank plays completed", level="INFO", isOn=LOGGING_SWITCH)
+                self._handle_computer_action_with_yaml(computer_player, computer_player.difficulty, 'same_rank_play')
                 
         except Exception as e:
             custom_log(f"Error processing computer same rank plays: {e}", level="ERROR", isOn=LOGGING_SWITCH)

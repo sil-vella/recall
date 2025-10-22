@@ -317,6 +317,60 @@ class GameRound:
         except Exception as e:
             custom_log(f"Error in _check_pending_events_before_ending_round: {e}", level="ERROR", isOn=LOGGING_SWITCH)
 
+    def _get_available_playable_cards(self, computer_player):
+        """
+        Get cards that computer player can play (excluding collection cards).
+        Only returns cards from known_cards list.
+        
+        Returns:
+            List[str]: List of card IDs that can be played
+        """
+        available_cards = []
+        
+        try:
+            # Get collection card IDs
+            collection_card_ids = set()
+            if hasattr(computer_player, 'collection_rank_cards'):
+                collection_card_ids = {card.card_id for card in computer_player.collection_rank_cards if card is not None}
+            
+            # Get known card IDs from player's known_cards
+            known_card_ids = set()
+            if hasattr(computer_player, 'known_cards'):
+                for player_id, cards_data in computer_player.known_cards.items():
+                    if isinstance(cards_data, dict):
+                        card1 = cards_data.get('card1')
+                        card2 = cards_data.get('card2')
+                        for card in [card1, card2]:
+                            if card is not None:
+                                if isinstance(card, str):
+                                    known_card_ids.add(card)
+                                elif hasattr(card, 'card_id'):
+                                    known_card_ids.add(card.card_id)
+            
+            # Filter hand cards
+            for card in computer_player.hand:
+                if card is None:
+                    continue
+                
+                card_id = card.card_id
+                
+                # Skip if not in known_cards
+                if card_id not in known_card_ids:
+                    continue
+                
+                # Skip if in collection_rank_cards
+                if card_id in collection_card_ids:
+                    continue
+                
+                available_cards.append(card_id)
+            
+            custom_log(f"Computer {computer_player.player_id}: Total hand={len(computer_player.hand)}, Known={len(known_card_ids)}, Collection={len(collection_card_ids)}, Playable={len(available_cards)}", level="INFO", isOn=LOGGING_SWITCH)
+            
+        except Exception as e:
+            custom_log(f"Error getting available playable cards: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        
+        return available_cards
+    
     def _move_to_next_player(self):
         """Move to the next player in the game"""
         try:
@@ -462,8 +516,8 @@ class GameRound:
                 custom_log(f"🎯 Computer player {computer_player.player_id} needs to play a card", level="INFO", isOn=LOGGING_SWITCH)
                 custom_log(f"🎯 Computer player {computer_player.player_id} current hand size: {len(computer_player.hand)}", level="INFO", isOn=LOGGING_SWITCH)
                 
-                # Get available cards from computer player's hand
-                available_cards = [card.card_id for card in computer_player.hand if card is not None]
+                # Get available cards from computer player's hand (excluding collection cards)
+                available_cards = self._get_available_playable_cards(computer_player)
                 custom_log(f"🎯 Computer player {computer_player.player_id} available cards: {available_cards}", level="INFO", isOn=LOGGING_SWITCH)
                 
                 if not available_cards:
@@ -541,8 +595,8 @@ class GameRound:
             if event_name == 'draw_card':
                 decision = self._computer_player_factory.get_draw_card_decision(difficulty, game_state_dict)
             elif event_name == 'play_card':
-                # Get available cards from computer player's hand
-                available_cards = [card.card_id for card in computer_player.hand]
+                # Get available cards from computer player's hand (excluding collection cards)
+                available_cards = self._get_available_playable_cards(computer_player)
                 decision = self._computer_player_factory.get_play_card_decision(difficulty, game_state_dict, available_cards)
             else:
                 custom_log(f"Unknown event for computer action: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
@@ -597,7 +651,7 @@ class GameRound:
                     success = self._route_action('play_card', computer_player.player_id, action_data)
                     if not success:
                         custom_log(f"Computer player {computer_player.player_id} failed to play card {card_id}", level="ERROR", isOn=LOGGING_SWITCH)
-                        self._move_to_next_player()
+                        # Don't skip turn - let timeout handle it or retry with different logic
                     else:
                         custom_log(f"Computer player {computer_player.player_id} successfully played card {card_id}", level="INFO", isOn=LOGGING_SWITCH)
                         # Note: Do NOT call _move_to_next_player() here - let the same rank window timer handle turn progression

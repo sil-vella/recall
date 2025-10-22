@@ -624,10 +624,10 @@ class GameRound:
                     'id': player.player_id,
                     'name': player.name,
                     'status': player.status.value if hasattr(player.status, 'value') else str(player.status),
-                    'hand': [card.card_id for card in player.hand],
+                    'hand': [card.card_id for card in player.hand if card is not None],
                     'points': getattr(player, 'points', 0)
                 } for pid, player in self.game_state.players.items()},
-                'discard_pile': [card.card_id for card in self.game_state.discard_pile],
+                'discard_pile': [card.card_id for card in self.game_state.discard_pile if card is not None],
                 'draw_pile_count': len(self.game_state.draw_pile)
             }
         except Exception as e:

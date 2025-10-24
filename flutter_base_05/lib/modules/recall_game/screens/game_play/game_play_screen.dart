@@ -13,7 +13,7 @@ import 'widgets/instructions_widget.dart';
 import 'widgets/messages_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);

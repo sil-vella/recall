@@ -179,55 +179,10 @@ events:
   same_rank_play:
     # Decision logic for same rank plays
     play_probability:
-      easy: 0.9     # 90% chance to attempt (10% miss)
-      medium: 0.95  # 95% chance to attempt (5% miss)
-      hard: 0.98    # 98% chance to attempt (2% miss)
-      expert: 1.0   # 100% chance - never misses
-    
-    # Probability of playing WRONG rank (accuracy)
-    wrong_rank_probability:
-      easy: 0.25    # 25% chance to play wrong card
-      medium: 0.10  # 10% chance to play wrong card
-      hard: 0.02    # 2% chance to play wrong card
-      expert: 0.0   # 0% chance - always accurate
-    
-    # NEW: Strategy rules for intelligent card selection
-    strategy_rules:
-      # Rule 1: Prefer unknown cards of same rank (best strategy)
-      - name: "play_unknown_same_rank"
-        priority: 1
-        description: "Prefer unknown cards of same rank (best strategy)"
-        condition:
-          type: "and"
-          conditions:
-            - field: "unknown_same_rank_cards"
-              operator: "not_empty"
-        action:
-          type: "select_random"
-          source: "unknown_same_rank_cards"
-      
-      # Rule 2: Play highest points card of same rank from known cards
-      - name: "play_highest_points_same_rank"
-        priority: 2
-        description: "Play highest points card of same rank from known cards"
-        condition:
-          type: "and"
-          conditions:
-            - field: "known_same_rank_cards"
-              operator: "not_empty"
-        action:
-          type: "select_highest_points"
-          source: "known_same_rank_cards"
-      
-      # Rule 3: Random fallback
-      - name: "random_fallback_same_rank"
-        priority: 3
-        description: "Play any available same rank card"
-        condition:
-          type: "always"
-        action:
-          type: "select_random"
-          source: "available_same_rank_cards"
+      easy: 0.6    # 60% chance to play same rank
+      medium: 0.8  # 80% chance to play same rank
+      hard: 0.9    # 90% chance to play same rank
+      expert: 1.0  # Always play same rank if possible
       
   jack_swap:
     # Decision logic for Jack swap

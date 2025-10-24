@@ -8,7 +8,7 @@ import '../../../../../../utils/consts/theme_consts.dart';
 import '../../../../../tools/logging/logger.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Widget to display the player's hand
 /// 

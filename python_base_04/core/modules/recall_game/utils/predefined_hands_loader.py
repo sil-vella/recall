@@ -10,7 +10,7 @@ import yaml
 from typing import Dict, List, Any, Optional
 from tools.logger.custom_logging import custom_log
 
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class PredefinedHandsLoader:

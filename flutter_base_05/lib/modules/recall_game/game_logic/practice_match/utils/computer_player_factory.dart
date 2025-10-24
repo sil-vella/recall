@@ -4,7 +4,7 @@ import 'package:recall/tools/logging/logger.dart';
 import 'computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {
@@ -109,7 +109,6 @@ class ComputerPlayerFactory {
       // Get all cards from hand that are NOT the same rank
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       if (currentPlayer != null) {
-        final hand = currentPlayer['hand'] as List<dynamic>? ?? [];
         // Get last card rank from discard pile
         final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
         if (discardPile.isNotEmpty) {
@@ -295,29 +294,14 @@ class ComputerPlayerFactory {
     final playableCards = availableCards.where((cardId) => !collectionCardIds.contains(cardId)).toList();
     Logger().info('Practice: DEBUG - Playable cards (after filtering collection): ${playableCards.length}', isOn: LOGGING_SWITCH);
     
-    // Extract known card IDs (handles both card ID strings and full card objects)
+    // Extract player's own known card IDs (card-ID-based structure)
     final knownCardIds = <String>{};
-    for (final playerKnownCards in knownCards.values) {
-      if (playerKnownCards is Map) {
-        final card1 = playerKnownCards['card1'];
-        final card2 = playerKnownCards['card2'];
-        
-        // Handle card1 (can be full object or card ID string)
-        if (card1 != null) {
-          if (card1 is Map) {
-            knownCardIds.add(card1['cardId']?.toString() ?? card1['id']?.toString() ?? '');
-          } else {
-            knownCardIds.add(card1.toString());
-          }
-        }
-        
-        // Handle card2 (can be full object, card ID string, or null)
-        if (card2 != null) {
-          if (card2 is Map) {
-            knownCardIds.add(card2['cardId']?.toString() ?? card2['id']?.toString() ?? '');
-          } else {
-            knownCardIds.add(card2.toString());
-          }
+    final playerId = currentPlayer['id']?.toString() ?? '';
+    final playerOwnKnownCards = knownCards[playerId] as Map<String, dynamic>?;
+    if (playerOwnKnownCards != null) {
+      for (final cardId in playerOwnKnownCards.keys) {
+        if (cardId.toString().isNotEmpty) {
+          knownCardIds.add(cardId.toString());
         }
       }
     }
@@ -330,6 +314,13 @@ class ComputerPlayerFactory {
     // Get known playable cards
     final knownPlayableCards = playableCards.where((cardId) => knownCardIds.contains(cardId)).toList();
     Logger().info('Practice: DEBUG - Known playable cards: ${knownPlayableCards.length}', isOn: LOGGING_SWITCH);
+    
+    // Filter out null cards and collection cards from all lists
+    availableCards.removeWhere((card) => card.toString() == 'null');
+    playableCards.removeWhere((card) => card.toString() == 'null');
+    unknownCards.removeWhere((card) => card.toString() == 'null');
+    knownPlayableCards.removeWhere((card) => card.toString() == 'null');
+    Logger().info('Practice: DEBUG - After null filtering - Available: ${availableCards.length}, Playable: ${playableCards.length}, Unknown: ${unknownCards.length}, Known: ${knownPlayableCards.length}', isOn: LOGGING_SWITCH);
     
     // Get all cards data for filters
     final allCardsData = <Map<String, dynamic>>[];
@@ -539,23 +530,15 @@ class ComputerPlayerFactory {
   /// Prepare game data for same rank play YAML rules
   Map<String, dynamic> _prepareSameRankGameData(List<String> availableCards, Map<String, dynamic> currentPlayer, Map<String, dynamic> gameState) {
     final knownCards = currentPlayer['known_cards'] as Map<String, dynamic>? ?? {};
-    final collectionRankCards = currentPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
     
-    // Extract known card IDs (same as _prepareGameDataForYAML)
+    // Extract player's own known card IDs (card-ID-based structure)
     final knownCardIds = <String>{};
-    for (final playerKnownCards in knownCards.values) {
-      if (playerKnownCards is Map) {
-        final card1 = playerKnownCards['card1'];
-        final card2 = playerKnownCards['card2'];
-        // Handle both card objects and card ID strings
-        for (final card in [card1, card2]) {
-          if (card != null) {
-            if (card is Map) {
-              knownCardIds.add(card['id']?.toString() ?? card['cardId']?.toString() ?? '');
-            } else {
-              knownCardIds.add(card.toString());
-            }
-          }
+    final playerId = currentPlayer['id']?.toString() ?? '';
+    final playerOwnKnownCards = knownCards[playerId] as Map<String, dynamic>?;
+    if (playerOwnKnownCards != null) {
+      for (final cardId in playerOwnKnownCards.keys) {
+        if (cardId.toString().isNotEmpty) {
+          knownCardIds.add(cardId.toString());
         }
       }
     }
@@ -566,6 +549,12 @@ class ComputerPlayerFactory {
     // Split available cards into known and unknown
     final knownSameRankCards = availableCards.where((c) => knownCardIds.contains(c)).toList();
     final unknownSameRankCards = availableCards.where((c) => !knownCardIds.contains(c)).toList();
+    
+    // Filter out null cards from all same rank card lists
+    availableCards.removeWhere((card) => card.toString() == 'null');
+    knownSameRankCards.removeWhere((card) => card.toString() == 'null');
+    unknownSameRankCards.removeWhere((card) => card.toString() == 'null');
+    Logger().info('Practice: DEBUG - After null filtering same rank - Available: ${availableCards.length}, Known: ${knownSameRankCards.length}, Unknown: ${unknownSameRankCards.length}', isOn: LOGGING_SWITCH);
     
     // Get all cards data for point calculations
     final allCardsData = <Map<String, dynamic>>[];
@@ -592,21 +581,13 @@ class ComputerPlayerFactory {
     final knownCardIds = <String>[];
     final knownCards = playerData['known_cards'] as Map<String, dynamic>? ?? {};
     
-    for (final playerKnownCards in knownCards.values) {
-      if (playerKnownCards is Map) {
-        final card1 = playerKnownCards['card1'];
-        final card2 = playerKnownCards['card2'];
-        for (final card in [card1, card2]) {
-          if (card != null) {
-            if (card is Map) {
-              final cardId = card['id']?.toString() ?? card['cardId']?.toString() ?? '';
-              if (cardId.isNotEmpty) {
-                knownCardIds.add(cardId);
-              }
-            } else {
-              knownCardIds.add(card.toString());
-            }
-          }
+    // Get current player's own known card IDs
+    final playerId = playerData['id']?.toString() ?? '';
+    final playerOwnKnownCards = knownCards[playerId] as Map<String, dynamic>?;
+    if (playerOwnKnownCards != null) {
+      for (final cardId in playerOwnKnownCards.keys) {
+        if (cardId.toString().isNotEmpty) {
+          knownCardIds.add(cardId.toString());
         }
       }
     }

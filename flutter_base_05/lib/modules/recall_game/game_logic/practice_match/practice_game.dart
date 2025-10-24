@@ -17,7 +17,7 @@ import 'utils/deck_factory.dart';
 import 'models/card.dart';
 import 'utils/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class PracticeGameCoordinator {
   /// Coordinates practice game sessions for the Recall game
@@ -36,15 +36,13 @@ class PracticeGameCoordinator {
   String? _currentPracticeGameId;
   List<Player> _aiPlayers = [];
   
-  // Timer management for initial peek phase
-  Timer? _initialPeekTimer;
-  static const int _initialPeekDurationSeconds = 10;
+  // Timer management removed - practice game waits for manual completion
   
   // Round management
   PracticeGameRound? _gameRound;
   int _turnTimerSeconds = 30; // User's choice from practice room
   bool _instructionsEnabled = true; // User's choice from practice room
-  bool _initialPeekCompleted = false; // Flag to prevent double completion
+  // Flag removed - no timer means no need to prevent double completion
   
   // Practice game settings (set by practice room)
   int _numberOfOpponents = 3;
@@ -214,85 +212,31 @@ class PracticeGameCoordinator {
     }
   }
 
-  /// Start a non-disruptive 10-second timer for the initial peek phase
-  /// After timer completes, updates player status to 'waiting' and initializes the game round
-  void _startInitialPeekTimer() {
+  // Timer method removed - practice game now waits for manual completion only
+
+  /// Proceed with game initialization after initial peek is completed
+  void _proceedWithGameInitialization() {
     try {
-      Logger().info('Practice: Starting ${_initialPeekDurationSeconds}-second initial peek timer (non-disruptive)', isOn: LOGGING_SWITCH);
+      // Update all players to 'waiting' status and transition to player_turn phase
+      final statusUpdated = updatePlayerStatus('waiting', updateMainState: false, triggerInstructions: false);
       
-      // Cancel any existing timer
-      _initialPeekTimer?.cancel();
-      
-      // Start new timer
-      _initialPeekTimer = Timer(Duration(seconds: _initialPeekDurationSeconds), () {
-        Logger().info('Practice: Initial peek timer completed, updating player status to waiting and initializing round', isOn: LOGGING_SWITCH);
+      if (statusUpdated) {
+        Logger().info('Practice: Successfully updated players to waiting status after initial peek timer', isOn: LOGGING_SWITCH);
         
-        // Check if initial peek has already been completed manually
-        if (_initialPeekCompleted) {
-          Logger().info('Practice: Initial peek already completed manually, skipping timer completion', isOn: LOGGING_SWITCH);
-          return;
-        }
+        // Update game phase to player_turn
+        updatePracticeGameState({
+          'playerStatus': 'waiting',
+          'gamePhase': 'player_turn', // Transition to player_turn phase
+          'games': _getCurrentGamesMap(),
+        });
         
-        // Set flag to prevent duplicate calls
-        _initialPeekCompleted = true;
-        
-        // Check if human player completed initial peek
-        final currentGames = _getCurrentGamesMap();
-        final gameId = _currentPracticeGameId;
-        final gameData = currentGames[gameId];
-        final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
-        final players = gameState?['players'] as List<Map<String, dynamic>>? ?? [];
-        final humanPlayer = players.firstWhere((p) => p['isHuman'] == true, orElse: () => <String, dynamic>{});
-        
-        if (humanPlayer.isNotEmpty) {
-          final knownCards = humanPlayer['known_cards'] as Map<String, dynamic>? ?? {};
-          final hasPlayerKnownCards = knownCards.containsKey(humanPlayer['id']);
-          
-          if (!hasPlayerKnownCards) {
-            // Player never peeked - randomly select 1 card from hand
-            final hand = humanPlayer['hand'] as List<Map<String, dynamic>>? ?? [];
-            if (hand.isNotEmpty) {
-              final random = Random();
-              final randomIndex = random.nextInt(hand.length);
-              final randomCardId = hand[randomIndex]['cardId'] as String;
-              
-              final fullCardData = getCardById(gameState!, randomCardId);
-              if (fullCardData != null) {
-                final collectionRankCards = humanPlayer['collection_rank_cards'] as List<Map<String, dynamic>>? ?? [];
-                collectionRankCards.add(fullCardData);
-                humanPlayer['collection_rank_cards'] = collectionRankCards;
-                
-                // Update player's collection_rank to match the selected card's rank
-                humanPlayer['collection_rank'] = fullCardData['rank']?.toString() ?? 'unknown';
-                
-                Logger().info('Practice: Human player never peeked - randomly selected card for collection', isOn: LOGGING_SWITCH);
-              }
-            }
-          }
-        }
-        
-        // Update all players to 'waiting' status and transition to player_turn phase
-        final statusUpdated = updatePlayerStatus('waiting', updateMainState: false, triggerInstructions: false);
-        
-        if (statusUpdated) {
-          Logger().info('Practice: Successfully updated players to waiting status after initial peek timer', isOn: LOGGING_SWITCH);
-          
-          // Update game phase to player_turn
-          updatePracticeGameState({
-            'playerStatus': 'waiting',
-            'gamePhase': 'player_turn', // Transition to player_turn phase
-            'games': _getCurrentGamesMap(),
-          });
-          
-          // Initialize the game round for actual gameplay
-          _initializeGameRound();
-        } else {
-          Logger().error('Practice: Failed to update players to waiting status after initial peek timer', isOn: LOGGING_SWITCH);
-        }
-      });
-      
+        // Initialize the game round for actual gameplay
+        _initializeGameRound();
+      } else {
+        Logger().error('Practice: Failed to update players to waiting status after initial peek timer', isOn: LOGGING_SWITCH);
+      }
     } catch (e) {
-      Logger().error('Practice: Failed to start initial peek timer: $e', isOn: LOGGING_SWITCH);
+      Logger().error('Practice: Failed to proceed with game initialization: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -325,38 +269,13 @@ class PracticeGameCoordinator {
   /// This should be called when the user dismisses the instructions or completes their peek
   void completeInitialPeek() {
     try {
-      // Check if initial peek has already been completed
-      if (_initialPeekCompleted) {
-        Logger().info('Practice: Initial peek already completed, skipping duplicate call', isOn: LOGGING_SWITCH);
-        return;
-      }
-      
       Logger().info('Practice: User completed initial peek phase manually', isOn: LOGGING_SWITCH);
-      
-      // Set flag to prevent duplicate calls
-      _initialPeekCompleted = true;
       
       // 1. Clear the cardsToPeek states that were updated during initial peek
       _clearCardsToPeekStates();
       
-      // 2. Update all players to 'waiting' status and transition to player_turn phase
-      final statusUpdated = updatePlayerStatus('waiting', updateMainState: false, triggerInstructions: false);
-      
-      if (statusUpdated) {
-        Logger().info('Practice: Successfully updated players to waiting status after manual initial peek completion', isOn: LOGGING_SWITCH);
-        
-        // Update game phase to player_turn
-        updatePracticeGameState({
-          'playerStatus': 'waiting',
-          'gamePhase': 'player_turn', // Transition to player_turn phase
-          'games': _getCurrentGamesMap(),
-        });
-        
-        // 3. Initialize the game round for actual gameplay
-        _initializeGameRound();
-      } else {
-        Logger().error('Practice: Failed to update players to waiting status after manual initial peek completion', isOn: LOGGING_SWITCH);
-      }
+      // 2. Proceed with game initialization
+      _proceedWithGameInitialization();
       
     } catch (e) {
       Logger().error('Practice: Failed to complete initial peek manually: $e', isOn: LOGGING_SWITCH);
@@ -1363,8 +1282,7 @@ class PracticeGameCoordinator {
       _currentPracticeGameId = gameId;
       _isPracticeGameActive = true;
       
-      // Reset initial peek completion flag for new game
-      _initialPeekCompleted = false;
+      // No timer flag needed - practice game waits for manual completion
       
       // Update turn timer seconds for the coordinator
       _turnTimerSeconds = _turnTimer ?? 0;
@@ -1464,16 +1382,13 @@ class PracticeGameCoordinator {
     // Get full card data for the non-collection card (already have it)
     final fullNonCollectionCardData = nonCollectionCard;
     
-    if (fullNonCollectionCardData == null) {
-      Logger().error('Practice: Failed to get full card data for non-collection card ${nonCollectionCard['cardId']}', isOn: LOGGING_SWITCH);
-      return;
-    }
+    // fullNonCollectionCardData is already the nonCollectionCard, so it can't be null
     
-    // Store only the non-collection card in known_cards with full card data
+    // Store only the non-collection card in known_cards with card-ID-based structure
     final knownCards = computerPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+    final cardId = fullNonCollectionCardData['cardId'] as String;
     knownCards[playerId] = {
-      'card1': fullNonCollectionCardData,
-      'card2': null, // Only one card stored
+      cardId: fullNonCollectionCardData,
     };
     computerPlayer['known_cards'] = knownCards;
     
@@ -1619,12 +1534,18 @@ class PracticeGameCoordinator {
       // 6. Update the player's cards_to_peek with full card data
       humanPlayer['cardsToPeek'] = cardsToPeek;
       
-      // 6.5. Store peeked cards in known_cards (same structure as AI players - ID-only format)
+      // 6.5. Store peeked cards in known_cards with card-ID-based structure
       final humanKnownCards = humanPlayer['known_cards'] as Map<String, dynamic>? ?? {};
-      humanKnownCards[humanPlayer['id'] as String] = {
-        'card1': cardsToPeek[0]['cardId'],
-        'card2': cardsToPeek.length > 1 ? cardsToPeek[1]['cardId'] : cardsToPeek[0]['cardId'],
-      };
+      final playerId = humanPlayer['id'] as String;
+      humanKnownCards[playerId] = {};
+      
+      // Add each peeked card with its card ID as the key
+      for (final card in cardsToPeek) {
+        if (card['cardId'] != null) {
+          final cardId = card['cardId'] as String;
+          humanKnownCards[playerId][cardId] = card;
+        }
+      }
       humanPlayer['known_cards'] = humanKnownCards;
       
       Logger().info('Practice: Human player peeked at $cardsUpdated cards: $cardIds', isOn: LOGGING_SWITCH);
@@ -2199,14 +2120,14 @@ class PracticeGameCoordinator {
       // AI players must select their collection rank cards regardless of instruction mode
       _processAIInitialPeeks();
       
-      // Trigger contextual instructions or start timer after state is fully updated
+      // Trigger contextual instructions - game will wait for manual completion
       // (respects _instructionsEnabled setting from practice room)
       if (_instructionsEnabled) {
         showContextualInstructions();
         // Note: Round will be initialized when user manually completes initial peek
       } else {
-        // Start non-disruptive 10-second timer for initial peek phase
-        _startInitialPeekTimer();
+        // No timer - wait for manual completion
+        Logger().info('Practice: Waiting for human player to manually complete initial peek', isOn: LOGGING_SWITCH);
       }
       
       Logger().info('Practice: Match started - all players set to initial_peek', isOn: LOGGING_SWITCH);

@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import time
 import threading
+import asyncio
 from .game_state import GameState, GamePhase
 from ..models.player import Player, PlayerStatus
 from ..models.card import Card
@@ -80,20 +81,58 @@ class GameRound:
             custom_log(f"Error sending error message to player: {e}", level="ERROR", isOn=LOGGING_SWITCH)
         
     def start_turn(self) -> Dict[str, Any]:
-        """
-        Initialize a new round of gameplay (called ONCE at the start of the game).
-        
-        NOTE: This method is only called once when the round starts (after initial peek).
-        Individual player turns are managed by _move_to_next_player().
-        """
+        """Start a new round of gameplay"""
         try:
-            custom_log("=== INITIALIZING ROUND (start_turn called) ===", level="INFO", isOn=LOGGING_SWITCH)
+            # Cancel any running timers from the previous turn
+            # BUT: Do NOT cancel special card timer if we're still processing special cards
+            # The special cards window should complete before starting a new turn
+            self.cancel_same_rank_timer()
+            if self.game_state.phase != GamePhase.SPECIAL_PLAY_WINDOW:
+                self.cancel_special_card_timer()
+                custom_log("All timers cancelled at start of new turn (except special card timer if processing)", level="INFO", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("WARNING: Starting new turn while still in SPECIAL_PLAY_WINDOW phase - this should not happen", level="WARNING", isOn=LOGGING_SWITCH)
+                custom_log("Cancelling special card timer and forcing cleanup", level="WARNING", isOn=LOGGING_SWITCH)
+                self.cancel_special_card_timer()
+            self._cancel_draw_phase_timer()
+            self._cancel_play_phase_timer()
             
+            # Clear same rank data
+            if self.same_rank_data:
+                self.same_rank_data.clear()
+            
+            # Only clear special card data if we're not in the middle of processing special cards
+            # This prevents clearing data during special card processing
+            if self.special_card_data and self.game_state.phase not in [GamePhase.SPECIAL_PLAY_WINDOW]:
+                custom_log(f"DEBUG: Clearing {len(self.special_card_data)} special cards in start_turn (phase: {self.game_state.phase})", level="INFO", isOn=LOGGING_SWITCH)
+                self.special_card_data.clear()
+                custom_log("Special card data cleared in start_turn (new turn)", level="INFO", isOn=LOGGING_SWITCH)
+            elif self.special_card_data and self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
+                custom_log(f"DEBUG: NOT clearing {len(self.special_card_data)} special cards in start_turn (processing special cards)", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log("Special card data NOT cleared in start_turn (processing special cards)", level="INFO", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("DEBUG: No special card data to clear in start_turn", level="INFO", isOn=LOGGING_SWITCH)
+                
             # Initialize round state
             self.round_start_time = time.time()
             self.current_turn_start_time = self.round_start_time
             self.round_status = "active"
             self.actions_performed = []
+
+            self.game_state.phase = GamePhase.PLAYER_TURN
+            
+            # Set current player status to drawing_card (they need to draw a card)
+            if self.game_state.current_player_id:
+                player = self.game_state.players.get(self.game_state.current_player_id)
+                if player:
+                    player.set_status(PlayerStatus.DRAWING_CARD)
+                    custom_log(f"Player {self.game_state.current_player_id} status set to DRAWING_CARD", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Start draw phase timer (10 seconds)
+                    self._start_draw_phase_timer(self.game_state.current_player_id)
+                    
+                    # Note: Computer player detection is now handled in _move_to_next_player
+                    # to avoid duplicate processing
             
             # Initialize timed rounds if enabled
             if self.timed_rounds_enabled:
@@ -106,10 +145,17 @@ class GameRound:
                 "player_count": len(self.game_state.players)
             })
             
-            custom_log(f"Round initialized - current_player: {self.game_state.current_player_id}", level="INFO", isOn=LOGGING_SWITCH)
+                        # Update turn start time
+            self.current_turn_start_time = time.time()
             
-            # NOTE: Player status and timers are now managed by _move_to_next_player()
-            # This ensures proper sequencing and avoids race conditions
+            # Send game state update to all players
+            if self.game_state.app_manager:
+                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._send_game_state_update(self.game_state.game_id)
+            
+            # Send turn started event to current player
+            self._send_turn_started_event()
             
             return {
                 "success": True,
@@ -224,6 +270,14 @@ class GameRound:
                 isOn=LOGGING_SWITCH
             )
             
+            # Check if this is a computer player in special play window
+            player = self.game_state.players.get(player_id)
+            if player and hasattr(player, 'type') and player.type == 'computer':
+                if player.status in ['queen_peek', 'jack_switch']:
+                    custom_log(f"COMPUTER SPECIAL PLAY TIMEOUT: {player_id} timed out in special play window ({player.status}) - using regular play timeout instead of special play timer", level="ERROR", isOn=LOGGING_SWITCH)
+                else:
+                    custom_log(f"COMPUTER TIMEOUT: {player_id} timed out in regular play (status: {player.status})", level="WARNING", isOn=LOGGING_SWITCH)
+            
             # Send timeout error to the player
             self._send_error_to_player(
                 player_id,
@@ -317,60 +371,6 @@ class GameRound:
         except Exception as e:
             custom_log(f"Error in _check_pending_events_before_ending_round: {e}", level="ERROR", isOn=LOGGING_SWITCH)
 
-    def _get_available_playable_cards(self, computer_player):
-        """
-        Get cards that computer player can play (excluding collection cards).
-        Only returns cards from known_cards list.
-        
-        Returns:
-            List[str]: List of card IDs that can be played
-        """
-        available_cards = []
-        
-        try:
-            # Get collection card IDs
-            collection_card_ids = set()
-            if hasattr(computer_player, 'collection_rank_cards'):
-                collection_card_ids = {card.card_id for card in computer_player.collection_rank_cards if card is not None}
-            
-            # Get known card IDs from player's known_cards
-            known_card_ids = set()
-            if hasattr(computer_player, 'known_cards'):
-                for player_id, cards_data in computer_player.known_cards.items():
-                    if isinstance(cards_data, dict):
-                        card1 = cards_data.get('card1')
-                        card2 = cards_data.get('card2')
-                        for card in [card1, card2]:
-                            if card is not None:
-                                if isinstance(card, str):
-                                    known_card_ids.add(card)
-                                elif hasattr(card, 'card_id'):
-                                    known_card_ids.add(card.card_id)
-            
-            # Filter hand cards
-            for card in computer_player.hand:
-                if card is None:
-                    continue
-                
-                card_id = card.card_id
-                
-                # Skip if not in known_cards
-                if card_id not in known_card_ids:
-                    continue
-                
-                # Skip if in collection_rank_cards
-                if card_id in collection_card_ids:
-                    continue
-                
-                available_cards.append(card_id)
-            
-            custom_log(f"Computer {computer_player.player_id}: Total hand={len(computer_player.hand)}, Known={len(known_card_ids)}, Collection={len(collection_card_ids)}, Playable={len(available_cards)}", level="INFO", isOn=LOGGING_SWITCH)
-            
-        except Exception as e:
-            custom_log(f"Error getting available playable cards: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-        
-        return available_cards
-    
     def _move_to_next_player(self):
         """Move to the next player in the game"""
         try:
@@ -391,29 +391,6 @@ class GameRound:
             if not active_player_ids:
                 return
             
-            # === CLEANUP PHASE: Cancel timers and clear data from previous turn ===
-            custom_log("=== STARTING NEW TURN: Cleaning up previous turn ===", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # Cancel all timers from previous turn
-            self.cancel_same_rank_timer()
-            if self.game_state.phase != GamePhase.SPECIAL_PLAY_WINDOW:
-                self.cancel_special_card_timer()
-            self._cancel_draw_phase_timer()
-            self._cancel_play_phase_timer()
-            custom_log("All timers cancelled before moving to next player", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # Clear same rank data
-            if self.same_rank_data:
-                self.same_rank_data.clear()
-                custom_log("Cleared same_rank_data", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # Clear special card data (only if not processing special cards)
-            if self.special_card_data and self.game_state.phase not in [GamePhase.SPECIAL_PLAY_WINDOW]:
-                custom_log(f"Clearing {len(self.special_card_data)} special cards before new turn", level="INFO", isOn=LOGGING_SWITCH)
-                self.special_card_data.clear()
-            elif self.special_card_data and self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
-                custom_log(f"NOT clearing {len(self.special_card_data)} special cards (still processing)", level="INFO", isOn=LOGGING_SWITCH)
-            
             # Set current player status to ready before moving to next player
             if self.game_state.current_player_id:
                 player = self.game_state.players.get(self.game_state.current_player_id)
@@ -433,52 +410,39 @@ class GameRound:
             # Update current player
             old_player_id = self.game_state.current_player_id
             self.game_state.current_player_id = next_player_id
-            custom_log(f"Updated current_player_id from {old_player_id} to {next_player_id}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Log player state at start of turn
+            next_player = self.game_state.players.get(next_player_id)
+            if next_player:
+                custom_log(f"=== TURN START for {next_player_id} ===", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player hand: {[c.card_id if c else None for c in next_player.hand]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player known_cards: {next_player.known_cards}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank: {next_player.collection_rank}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank_cards: {[c.card_id if hasattr(c, 'card_id') else str(c) for c in next_player.collection_rank_cards]}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Check if recall has been called
             if hasattr(self.game_state, 'recall_called_by') and self.game_state.recall_called_by:
+                
                 # Check if current player is the one who called recall
                 if self.game_state.current_player_id == self.game_state.recall_called_by:
                     self._handle_end_of_match()
                     return
-            
-            # === INITIALIZE NEW PLAYER'S TURN ===
-            next_player = self.game_state.players.get(next_player_id)
-            if not next_player:
-                custom_log(f"ERROR: Next player {next_player_id} not found", level="ERROR", isOn=LOGGING_SWITCH)
-                return
-            
-            # Set game phase to PLAYER_TURN
-            self.game_state.phase = GamePhase.PLAYER_TURN
-            
-            # Set NEW player status to DRAWING_CARD
-            next_player.set_status(PlayerStatus.DRAWING_CARD)
-            custom_log(f"Player {next_player_id} status set to DRAWING_CARD", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # Start draw phase timer for new player
-            self._start_draw_phase_timer(next_player_id)
-            
-            # Update turn start time
-            self.current_turn_start_time = time.time()
-            
-            # Send game state update to all players
-            if self.game_state.app_manager:
-                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
-                if coordinator:
-                    coordinator._send_game_state_update(self.game_state.game_id)
-            
-            # Send turn started event
-            self._send_turn_started_event()
+                else:
+                    pass
+            else:
+                pass
             
             # Check if the next player is a computer player and handle automatically
-            if hasattr(next_player, 'player_type') and next_player.player_type.value == 'computer':
+            next_player = self.game_state.players.get(next_player_id)
+            if next_player and hasattr(next_player, 'player_type') and next_player.player_type.value == 'computer':
                 custom_log(f"Computer player detected: {next_player_id} - triggering automatic turn processing", level="INFO", isOn=LOGGING_SWITCH)
                 self._handle_computer_player_turn(next_player)
             else:
-                custom_log(f"Human player {next_player_id} turn started - waiting for player action", level="INFO", isOn=LOGGING_SWITCH)
+                # Send turn started event to human player
+                self.start_turn()
             
         except Exception as e:
-            custom_log(f"Error in _move_to_next_player: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            pass
     
     def _handle_computer_player_turn(self, computer_player):
         """Handle automatic turn processing for computer players"""
@@ -516,8 +480,8 @@ class GameRound:
                 custom_log(f"🎯 Computer player {computer_player.player_id} needs to play a card", level="INFO", isOn=LOGGING_SWITCH)
                 custom_log(f"🎯 Computer player {computer_player.player_id} current hand size: {len(computer_player.hand)}", level="INFO", isOn=LOGGING_SWITCH)
                 
-                # Get available cards from computer player's hand (excluding collection cards)
-                available_cards = self._get_available_playable_cards(computer_player)
+                # Get available cards from computer player's hand
+                available_cards = [card.card_id for card in computer_player.hand if card is not None]
                 custom_log(f"🎯 Computer player {computer_player.player_id} available cards: {available_cards}", level="INFO", isOn=LOGGING_SWITCH)
                 
                 if not available_cards:
@@ -583,6 +547,7 @@ class GameRound:
         try:
             custom_log(f"Handling computer action with YAML - Player: {computer_player.player_id}, Difficulty: {difficulty}, Event: {event_name}", level="INFO", isOn=LOGGING_SWITCH)
             
+            
             if self._computer_player_factory is None:
                 custom_log("Computer player factory not initialized", level="ERROR", isOn=LOGGING_SWITCH)
                 self._move_to_next_player()
@@ -590,13 +555,47 @@ class GameRound:
             
             # Get decision from YAML-based factory
             game_state_dict = self._get_game_state_dict()
+            
+            # Log game state being passed to YAML factory
+            custom_log(f"=== YAML FACTORY INPUT for {computer_player.player_id} ===", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Event: {event_name}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Discard pile top: {game_state_dict.get('discard_pile', [{}])[-1] if game_state_dict.get('discard_pile') else 'None'}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Computer player hand: {[c.card_id for c in computer_player.hand if c is not None]}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Computer player known_cards: {computer_player.known_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
             decision = None
             
             if event_name == 'draw_card':
+                custom_log(f"=== BEFORE YAML DRAW_CARD DECISION for {computer_player.player_id} ===", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player hand: {[c.card_id if c else None for c in computer_player.hand]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player known_cards: {computer_player.known_cards}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank: {computer_player.collection_rank}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank_cards: {[c.card_id if hasattr(c, 'card_id') else str(c) for c in computer_player.collection_rank_cards]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Getting draw_card decision for {computer_player.player_id} with game state: {game_state_dict}", level="DEBUG", isOn=LOGGING_SWITCH)
                 decision = self._computer_player_factory.get_draw_card_decision(difficulty, game_state_dict)
             elif event_name == 'play_card':
-                # Get available cards from computer player's hand (excluding collection cards)
-                available_cards = self._get_available_playable_cards(computer_player)
+                # Get available cards from computer player's hand, EXCLUDING collection rank cards
+                all_cards = [card.card_id for card in computer_player.hand if card is not None]
+                
+                # Get collection rank card IDs that cannot be played
+                collection_card_ids = set()
+                for collection_card in computer_player.collection_rank_cards:
+                    if hasattr(collection_card, 'card_id'):
+                        collection_card_ids.add(collection_card.card_id)
+                
+                # Filter out collection rank cards from available cards
+                available_cards = [card_id for card_id in all_cards if card_id not in collection_card_ids]
+                
+                custom_log(f"=== BEFORE YAML PLAY_CARD DECISION for {computer_player.player_id} ===", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player hand: {[c.card_id if c else None for c in computer_player.hand]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player known_cards: {computer_player.known_cards}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank: {computer_player.collection_rank}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank_cards: {[c.card_id if hasattr(c, 'card_id') else str(c) for c in computer_player.collection_rank_cards]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Getting play_card decision for {computer_player.player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+                custom_log(f"All cards in hand: {all_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+                custom_log(f"Collection rank cards (excluded): {list(collection_card_ids)}", level="DEBUG", isOn=LOGGING_SWITCH)
+                custom_log(f"Available cards (playable): {available_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+                custom_log(f"Game state for play_card: {game_state_dict}", level="DEBUG", isOn=LOGGING_SWITCH)
                 decision = self._computer_player_factory.get_play_card_decision(difficulty, game_state_dict, available_cards)
             else:
                 custom_log(f"Unknown event for computer action: {event_name}", level="WARNING", isOn=LOGGING_SWITCH)
@@ -641,21 +640,76 @@ class GameRound:
             elif event_name == 'play_card':
                 card_id = decision.get('card_id')
                 if card_id:
-                    custom_log(f"Computer playing card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                    # CRITICAL: Validate that the suggested card exists in the player's current hand
+                    custom_log(f"Validating suggested card {card_id} for {computer_player.player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+                    card_exists = False
+                    for card in computer_player.hand:
+                        if card is not None and card.card_id == card_id:
+                            card_exists = True
+                            custom_log(f"Card {card_id} found in hand - validation PASSED", level="DEBUG", isOn=LOGGING_SWITCH)
+                            break
                     
-                    # Use existing _route_action logic (same as human players)
-                    action_data = {
-                        'card_id': card_id,
-                        'player_id': computer_player.player_id
-                    }
-                    success = self._route_action('play_card', computer_player.player_id, action_data)
-                    if not success:
-                        custom_log(f"Computer player {computer_player.player_id} failed to play card {card_id}", level="ERROR", isOn=LOGGING_SWITCH)
-                        # Don't skip turn - let timeout handle it or retry with different logic
+                    if card_exists:
+                        custom_log(f"Card validation PASSED for {computer_player.player_id} - card {card_id} exists in hand", level="DEBUG", isOn=LOGGING_SWITCH)
                     else:
-                        custom_log(f"Computer player {computer_player.player_id} successfully played card {card_id}", level="INFO", isOn=LOGGING_SWITCH)
-                        # Note: Do NOT call _move_to_next_player() here - let the same rank window timer handle turn progression
-                        # The _route_action already triggered _handle_same_rank_window which will handle the turn flow
+                        custom_log(f"Card validation FAILED for {computer_player.player_id} - card {card_id} not found in hand", level="DEBUG", isOn=LOGGING_SWITCH)
+                    
+                    if not card_exists:
+                        custom_log(f"Computer player {computer_player.player_id} YAML suggested card {card_id} not found in hand - getting fresh decision", level="WARNING", isOn=LOGGING_SWITCH)
+                        custom_log(f"Computer player {computer_player.player_id} current hand: {[c.card_id for c in computer_player.hand if c is not None]}", level="INFO", isOn=LOGGING_SWITCH)
+                        
+                        # Get a fresh decision with current game state, EXCLUDING collection rank cards
+                        game_state_dict = self._get_game_state_dict()
+                        all_cards = [card.card_id for card in computer_player.hand if card is not None]
+                        
+                        # Get collection rank card IDs that cannot be played
+                        collection_card_ids = set()
+                        for collection_card in computer_player.collection_rank_cards:
+                            if hasattr(collection_card, 'card_id'):
+                                collection_card_ids.add(collection_card.card_id)
+                        
+                        # Filter out collection rank cards from available cards
+                        available_cards = [card_id for card_id in all_cards if card_id not in collection_card_ids]
+                        
+                        custom_log(f"Getting FRESH play_card decision for {computer_player.player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+                        custom_log(f"Fresh all cards in hand: {all_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+                        custom_log(f"Fresh collection rank cards (excluded): {list(collection_card_ids)}", level="DEBUG", isOn=LOGGING_SWITCH)
+                        custom_log(f"Fresh available cards (playable): {available_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+                        custom_log(f"Fresh game state: {game_state_dict}", level="DEBUG", isOn=LOGGING_SWITCH)
+                        fresh_decision = self._computer_player_factory.get_play_card_decision(
+                            computer_player.difficulty, 
+                            game_state_dict, 
+                            available_cards
+                        )
+                        custom_log(f"Fresh decision result: {fresh_decision}", level="DEBUG", isOn=LOGGING_SWITCH)
+                        card_id = fresh_decision.get('card_id')
+                        custom_log(f"Computer player {computer_player.player_id} fresh decision card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    if card_id:
+                        custom_log(f"Computer playing card: {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                        
+                        # Use existing _route_action logic (same as human players)
+                        action_data = {
+                            'card_id': card_id,
+                            'player_id': computer_player.player_id
+                        }
+                        success = self._route_action('play_card', computer_player.player_id, action_data)
+                        if not success:
+                            custom_log(f"Computer player {computer_player.player_id} failed to play card {card_id}", level="ERROR", isOn=LOGGING_SWITCH)
+                            self._move_to_next_player()
+                        else:
+                            custom_log(f"Computer player {computer_player.player_id} successfully played card {card_id}", level="INFO", isOn=LOGGING_SWITCH)
+                            # Log player state after card play
+                            custom_log(f"=== AFTER PLAY_CARD EXECUTION for {computer_player.player_id} ===", level="INFO", isOn=LOGGING_SWITCH)
+                            custom_log(f"Player hand: {[c.card_id if c else None for c in computer_player.hand]}", level="INFO", isOn=LOGGING_SWITCH)
+                            custom_log(f"Player known_cards: {computer_player.known_cards}", level="INFO", isOn=LOGGING_SWITCH)
+                            custom_log(f"Player collection_rank: {computer_player.collection_rank}", level="INFO", isOn=LOGGING_SWITCH)
+                            custom_log(f"Player collection_rank_cards: {[c.card_id if hasattr(c, 'card_id') else str(c) for c in computer_player.collection_rank_cards]}", level="INFO", isOn=LOGGING_SWITCH)
+                            # Note: Do NOT call _move_to_next_player() here - let the same rank window timer handle turn progression
+                            # The _route_action already triggered _handle_same_rank_window which will handle the turn flow
+                    else:
+                        custom_log(f"No valid card available for computer play", level="WARNING", isOn=LOGGING_SWITCH)
+                        self._move_to_next_player()
                 else:
                     custom_log(f"No card selected for computer play", level="WARNING", isOn=LOGGING_SWITCH)
                     self._move_to_next_player()
@@ -681,7 +735,7 @@ class GameRound:
                     'hand': [card.card_id for card in player.hand if card is not None],
                     'points': getattr(player, 'points', 0)
                 } for pid, player in self.game_state.players.items()},
-                'discard_pile': [card.card_id for card in self.game_state.discard_pile if card is not None],
+                'discard_pile': [card.card_id for card in self.game_state.discard_pile],
                 'draw_pile_count': len(self.game_state.draw_pile)
             }
         except Exception as e:
@@ -729,42 +783,14 @@ class GameRound:
                 timer.start()
                 
             elif event_name == 'same_rank_play':
-                # Get available same rank cards from computer player's known_cards
-                discard_pile = self.game_state.discard_pile
-                if not discard_pile:
-                    return
-                
-                last_card = discard_pile[-1]
-                target_rank = last_card.rank
-                
-                # Get cards from known_cards that match the rank and are NOT in collection
-                available_same_rank_cards = self._get_available_same_rank_cards(computer_player, target_rank)
-                
-                if not available_same_rank_cards:
-                    custom_log(f"Computer player {computer_player.player_id} has no available same rank cards", level="INFO", isOn=LOGGING_SWITCH)
-                    return
-                
-                custom_log(f"Computer player {computer_player.player_id} has {len(available_same_rank_cards)} available same rank cards", level="INFO", isOn=LOGGING_SWITCH)
-                
-                # Get YAML decision
-                decision = self._computer_player_factory.get_same_rank_play_decision(difficulty, self.game_state.to_dict(), available_same_rank_cards)
-                custom_log(f"Computer same rank decision: {decision}", level="INFO", isOn=LOGGING_SWITCH)
-                
-                # Execute decision with delay
-                if decision.get('play', False):
-                    delay = decision.get('delay_seconds', 1.0)
-                    # Add random variation (0.5s to 1.5s extra)
-                    import random
-                    delay += random.uniform(0.5, 1.5)
-                    
-                    def delayed_same_rank():
-                        card_id = decision.get('card_id')
-                        if card_id:
-                            action_data = {'card_id': card_id}
-                            self._handle_same_rank_play(computer_player.player_id, action_data)
-                    
-                    timer = threading.Timer(delay, delayed_same_rank)
-                    timer.start()
+                # TODO: Use YAML to determine same rank play decision
+                import threading
+                def delayed_same_rank():
+                    # TODO: Get card ID from YAML configuration
+                    # For now, just move to next player (placeholder for same rank logic)
+                    self._move_to_next_player()
+                timer = threading.Timer(1.0, delayed_same_rank)  # 1 second delay
+                timer.start()
                 
             elif event_name == 'jack_swap':
                 # TODO: Use YAML to determine Jack swap targets
@@ -1211,12 +1237,6 @@ class GameRound:
         try:
             custom_log("🔄 SAME_RANK: Starting same rank window - setting all players to SAME_RANK_WINDOW status", level="INFO", isOn=LOGGING_SWITCH)
             
-            # CRITICAL: Cancel draw and play phase timers when entering same rank window
-            # This prevents timers from expiring during the same rank window and causing premature turn changes
-            self._cancel_draw_phase_timer()
-            self._cancel_play_phase_timer()
-            custom_log("🔄 SAME_RANK: Cancelled draw and play phase timers", level="INFO", isOn=LOGGING_SWITCH)
-            
             # Set game state phase to SAME_RANK_WINDOW
             self.game_state.phase = GamePhase.SAME_RANK_WINDOW
             custom_log("🔄 SAME_RANK: Set game phase to SAME_RANK_WINDOW", level="INFO", isOn=LOGGING_SWITCH)
@@ -1240,15 +1260,19 @@ class GameRound:
         try:
             import threading
             
+            # Use a simple callback that calls the sync version
+            def timer_callback():
+                self._end_same_rank_window_sync()
+            
             # Store timer reference for potential cancellation
-            self.same_rank_timer = threading.Timer(5.0, self._end_same_rank_window)
+            self.same_rank_timer = threading.Timer(5.0, timer_callback)
             self.same_rank_timer.start()
             
         except Exception as e:
-            pass
+            custom_log(f'Error starting same rank timer: {e}', level="ERROR", isOn=LOGGING_SWITCH)
     
-    def _end_same_rank_window(self):
-        """End the same rank window and transition to ENDING_ROUND phase"""
+    def _end_same_rank_window_sync(self):
+        """End the same rank window and transition to ENDING_ROUND phase (sync version)"""
         try:
             custom_log("Ending same rank window - resetting all players to WAITING status", level="INFO", isOn=LOGGING_SWITCH)
             
@@ -1263,9 +1287,6 @@ class GameRound:
             # Update all players' status to WAITING efficiently (single game state update)
             updated_count = self.game_state.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
             custom_log(f"Updated {updated_count} players' status to WAITING", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # Iterate through computer players for same rank plays
-            self._process_computer_same_rank_plays()
             
             # Check if any player has no cards left (automatic win condition)
             for player_id, player in self.game_state.players.items():
@@ -1290,11 +1311,82 @@ class GameRound:
                 if coordinator:
                     coordinator._send_game_state_update(self.game_state.game_id)
 
-            # Check for special cards and handle them
+            # CRITICAL: Process computer same rank plays BEFORE processing special cards
+            # This ensures all queens played during same rank window are added to special_card_data
+            # before we start the special cards window
+            self._check_computer_player_same_rank_plays_sync()
+
+            # Process any pending special cards from regular play_card actions
+            if hasattr(self, 'pending_special_cards') and self.pending_special_cards:
+                custom_log(f"Processing {len(self.pending_special_cards)} pending special cards after same rank window", level="INFO", isOn=LOGGING_SWITCH)
+                for special_card_info in self.pending_special_cards:
+                    player_id = special_card_info['player_id']
+                    card_data = special_card_info['card_data']
+                    custom_log(f"Processing pending special card for {player_id}: {card_data}", level="DEBUG", isOn=LOGGING_SWITCH)
+                    self._check_special_card(player_id, card_data)
+                
+                # Clear the pending special cards after processing
+                self.pending_special_cards = []
+                custom_log("Cleared pending special cards after processing", level="DEBUG", isOn=LOGGING_SWITCH)
+
+            # Check for special cards and handle them (backend game_round.py line 640)
+            # All same rank special cards are now in the list
             self._handle_special_cards_window()
             
         except Exception as e:
-            pass
+            custom_log(f"Error in _end_same_rank_window_sync: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+
+    async def _end_same_rank_window(self):
+        """End the same rank window and transition to ENDING_ROUND phase (async version)"""
+        try:
+            custom_log("Ending same rank window - resetting all players to WAITING status", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Log the same_rank_data before clearing it
+            if self.same_rank_data:
+                custom_log(f"Same rank plays recorded: {len(self.same_rank_data)} players", level="INFO", isOn=LOGGING_SWITCH)
+                for player_id, play_data in self.same_rank_data.items():
+                    custom_log(f"Player {player_id} played: {play_data.get('rank')} of {play_data.get('suit')}", level="INFO", isOn=LOGGING_SWITCH)
+            else:
+                custom_log("No same rank plays recorded", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Update all players' status to WAITING efficiently (single game state update)
+            updated_count = self.game_state.update_all_players_status(PlayerStatus.WAITING, filter_active=True)
+            custom_log(f"Updated {updated_count} players' status to WAITING", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Check if any player has no cards left (automatic win condition)
+            for player_id, player in self.game_state.players.items():
+                if not player.is_active:
+                    continue
+                
+                # Count actual cards (excluding None/blank slots)
+                actual_cards = [card for card in player.hand if card is not None]
+                card_count = len(actual_cards)
+                
+                if card_count == 0:
+                    custom_log(f"Player {player_id} ({player.name}) has no cards left - triggering end of match", level="INFO", isOn=LOGGING_SWITCH)
+                    self._handle_end_of_match()
+                    return  # Exit early since game is ending
+                        
+            # Clear same_rank_data after changing game phase using custom method
+            self.game_state.clear_same_rank_data()
+            
+            # Send game state update to all players
+            if self.game_state.app_manager:
+                coordinator = getattr(self.game_state.app_manager, 'game_event_coordinator', None)
+                if coordinator:
+                    coordinator._send_game_state_update(self.game_state.game_id)
+
+            # CRITICAL: AWAIT computer same rank plays to complete BEFORE processing special cards
+            # This ensures all queens played during same rank window are added to special_card_data
+            # before we start the special cards window
+            await self._check_computer_player_same_rank_plays()
+
+            # Check for special cards and handle them (backend game_round.py line 640)
+            # All same rank special cards are now in the list
+            self._handle_special_cards_window()
+            
+        except Exception as e:
+            custom_log(f"Error in _end_same_rank_window: {e}", level="ERROR", isOn=LOGGING_SWITCH)
     
     def cancel_same_rank_timer(self):
         """Cancel the same rank window timer if it's running"""
@@ -1306,70 +1398,287 @@ class GameRound:
                 pass
         except Exception as e:
             pass
-    
-    def _process_computer_same_rank_plays(self):
-        """Process same rank plays for all computer players with randomized timing"""
+
+    def _check_computer_player_same_rank_plays_sync(self):
+        """Check for same rank plays from computer players during the same rank window (sync version)
+        Returns when ALL computer same rank plays are done"""
         try:
-            from ..models.player import PlayerType
-            computer_players = [p for p in self.game_state.players.values() if p.player_type == PlayerType.COMPUTER and p.is_active]
+            custom_log('Processing computer player same rank plays', level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Get all active computer players
+            computer_players = [
+                player for player in self.game_state.players.values()
+                if player.player_type.value == 'computer' and player.is_active
+            ]
             
             if not computer_players:
+                custom_log('No computer players to process', level="INFO", isOn=LOGGING_SWITCH)
                 return
             
-            custom_log(f"Processing same rank plays for {len(computer_players)} computer players", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f'Found {len(computer_players)} computer players', level="INFO", isOn=LOGGING_SWITCH)
             
-            # Shuffle computer players for random order
+            # Shuffle for random order
             import random
             random.shuffle(computer_players)
             
-            # Process each computer player
-            for computer_player in computer_players:
-                self._handle_computer_action_with_yaml(computer_player, computer_player.difficulty, 'same_rank_play')
-                
+            # Process each computer player sequentially with delays
+            for player in computer_players:
+                self._handle_computer_same_rank_play_sync(player.player_id, player.difficulty)
+            
+            custom_log('All computer same rank plays completed', level="INFO", isOn=LOGGING_SWITCH)
+            
         except Exception as e:
-            custom_log(f"Error processing computer same rank plays: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-    
-    def _get_available_same_rank_cards(self, player, target_rank: str) -> List[str]:
+            custom_log(f'Error in _check_computer_player_same_rank_plays_sync: {e}', level="ERROR", isOn=LOGGING_SWITCH)
+
+    async def _check_computer_player_same_rank_plays(self):
+        """Check for same rank plays from computer players during the same rank window
+        Returns when ALL computer same rank plays are done"""
+        try:
+            custom_log('Processing computer player same rank plays', level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Get all active computer players
+            computer_players = [
+                player for player in self.game_state.players.values()
+                if player.player_type.value == 'computer' and player.is_active
+            ]
+            
+            if not computer_players:
+                custom_log('No computer players to process', level="INFO", isOn=LOGGING_SWITCH)
+                return
+            
+            custom_log(f'Found {len(computer_players)} computer players', level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Shuffle for random order
+            import random
+            random.shuffle(computer_players)
+            
+            # Create list of coroutines for all computer plays
+            # Process them in parallel using asyncio.gather
+            play_tasks = [
+                self._handle_computer_same_rank_play(player.player_id, player.difficulty)
+                for player in computer_players
+            ]
+            
+            # AWAIT all computer plays to complete
+            await asyncio.gather(*play_tasks)
+            
+            custom_log('All computer same rank plays completed', level="INFO", isOn=LOGGING_SWITCH)
+            
+        except Exception as e:
+            custom_log(f'Error in _check_computer_player_same_rank_plays: {e}', level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _handle_computer_same_rank_play_sync(self, player_id: str, difficulty: str):
+        """Handle computer player same rank play decision (sync version)
+        Returns when this player's same rank play is done"""
+        try:
+            # Get available same rank cards for this computer player
+            available_cards = self._get_available_same_rank_cards(player_id)
+            
+            if not available_cards:
+                custom_log(f'Computer player {player_id} has no same rank cards', level="INFO", isOn=LOGGING_SWITCH)
+                return
+            
+            custom_log(f'Computer player {player_id} has {len(available_cards)} available same rank cards', level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Get YAML decision from factory
+            if self._computer_player_factory is None:
+                custom_log('Computer player factory not initialized', level="ERROR", isOn=LOGGING_SWITCH)
+                return
+            
+            game_state_dict = self._get_game_state_dict()
+            
+            # Log player state before YAML decision
+            player = self.game_state.players.get(player_id)
+            if player:
+                custom_log(f"=== BEFORE YAML SAME_RANK DECISION for {player_id} ===", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player hand: {[c.card_id if c else None for c in player.hand]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player known_cards: {player.known_cards}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank: {player.collection_rank}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank_cards: {[c.card_id if hasattr(c, 'card_id') else str(c) for c in player.collection_rank_cards]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Available same rank cards: {available_cards}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            decision = self._computer_player_factory.get_same_rank_play_decision(
+                difficulty, 
+                game_state_dict, 
+                available_cards
+            )
+            
+            custom_log(f'Computer same rank decision: {decision}', level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Execute decision with delay
+            if decision.get('play') == True:
+                delay = decision.get('delay_seconds', 1.0)
+                # Add random variation (0.5s to 1.5s)
+                import random
+                import time
+                total_delay = delay + (0.5 + random.random())
+                
+                # CRITICAL: Use time.sleep for sync version
+                time.sleep(total_delay)
+                
+                card_id = decision.get('card_id')
+                if card_id:
+                    # Execute same rank play
+                    action_data = {'card_id': card_id}
+                    success = self._handle_same_rank_play(player_id, action_data)
+                    if success:
+                        custom_log(f'Computer player {player_id} successfully played same rank card {card_id}', level="INFO", isOn=LOGGING_SWITCH)
+                    else:
+                        custom_log(f'Computer player {player_id} failed to play same rank card {card_id}', level="ERROR", isOn=LOGGING_SWITCH)
+            else:
+                custom_log(f'Computer player {player_id} decided not to play same rank', level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Log player state after same rank decision execution
+            player = self.game_state.players.get(player_id)
+            if player:
+                custom_log(f"=== AFTER SAME_RANK EXECUTION for {player_id} ===", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player hand: {[c.card_id if c else None for c in player.hand]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player known_cards: {player.known_cards}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank: {player.collection_rank}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank_cards: {[c.card_id if hasattr(c, 'card_id') else str(c) for c in player.collection_rank_cards]}", level="INFO", isOn=LOGGING_SWITCH)
+            
+        except Exception as e:
+            custom_log(f'Error in _handle_computer_same_rank_play_sync for {player_id}: {e}', level="ERROR", isOn=LOGGING_SWITCH)
+
+    async def _handle_computer_same_rank_play(self, player_id: str, difficulty: str):
+        """Handle computer player same rank play decision
+        Returns when this player's same rank play is done"""
+        try:
+            # Get available same rank cards for this computer player
+            available_cards = self._get_available_same_rank_cards(player_id)
+            
+            if not available_cards:
+                custom_log(f'Computer player {player_id} has no same rank cards', level="INFO", isOn=LOGGING_SWITCH)
+                return
+            
+            custom_log(f'Computer player {player_id} has {len(available_cards)} available same rank cards', level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Get YAML decision from factory
+            if self._computer_player_factory is None:
+                custom_log('Computer player factory not initialized', level="ERROR", isOn=LOGGING_SWITCH)
+                return
+            
+            game_state_dict = self._get_game_state_dict()
+            
+            # Log player state before YAML decision
+            player = self.game_state.players.get(player_id)
+            if player:
+                custom_log(f"=== BEFORE YAML SAME_RANK DECISION (ASYNC) for {player_id} ===", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player hand: {[c.card_id if c else None for c in player.hand]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player known_cards: {player.known_cards}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank: {player.collection_rank}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank_cards: {[c.card_id if hasattr(c, 'card_id') else str(c) for c in player.collection_rank_cards]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Available same rank cards: {available_cards}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            decision = self._computer_player_factory.get_same_rank_play_decision(
+                difficulty, 
+                game_state_dict, 
+                available_cards
+            )
+            
+            custom_log(f'Computer same rank decision: {decision}', level="INFO", isOn=LOGGING_SWITCH)
+            
+            custom_log(f"=== YAML SAME_RANK DECISION RESULT (ASYNC) for {player_id} ===", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Decision to play: {decision.get('play')}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"Card to play: {decision.get('card_id')}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Execute decision with delay
+            if decision.get('play') == True:
+                delay = decision.get('delay_seconds', 1.0)
+                # Add random variation (0.5s to 1.5s)
+                import random
+                total_delay = delay + (0.5 + random.random())
+                
+                # CRITICAL: AWAIT the delay - this makes the coroutine wait for the full play to complete
+                await asyncio.sleep(total_delay)
+                
+                card_id = decision.get('card_id')
+                if card_id:
+                    # Execute same rank play
+                    action_data = {'card_id': card_id}
+                    success = self._handle_same_rank_play(player_id, action_data)
+                    if success:
+                        custom_log(f'Computer player {player_id} successfully played same rank card {card_id}', level="INFO", isOn=LOGGING_SWITCH)
+                    else:
+                        custom_log(f'Computer player {player_id} failed to play same rank card {card_id}', level="ERROR", isOn=LOGGING_SWITCH)
+            else:
+                custom_log(f'Computer player {player_id} decided not to play same rank', level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Log player state after same rank decision execution
+            player = self.game_state.players.get(player_id)
+            if player:
+                custom_log(f"=== AFTER SAME_RANK EXECUTION (ASYNC) for {player_id} ===", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player hand: {[c.card_id if c else None for c in player.hand]}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player known_cards: {player.known_cards}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank: {player.collection_rank}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"Player collection_rank_cards: {[c.card_id if hasattr(c, 'card_id') else str(c) for c in player.collection_rank_cards]}", level="INFO", isOn=LOGGING_SWITCH)
+            
+        except Exception as e:
+            custom_log(f'Error in _handle_computer_same_rank_play for {player_id}: {e}', level="ERROR", isOn=LOGGING_SWITCH)
+
+    def _get_available_same_rank_cards(self, player_id: str) -> List[str]:
         """Get available same rank cards from player's known_cards (excluding collection cards)"""
         available_cards = []
         
-        # Get cards from known_cards that match the target rank
-        for card in player.hand:
-            if card is None:
-                continue
+        try:
+            custom_log(f'DEBUG - Getting available same rank cards for player {player_id}', level="INFO", isOn=LOGGING_SWITCH)
             
-            # Check if card matches target rank
-            if card.rank != target_rank:
-                continue
+            # Get discard pile to determine target rank
+            if not self.game_state.discard_pile:
+                custom_log('DEBUG - Discard pile is empty, no same rank cards possible', level="INFO", isOn=LOGGING_SWITCH)
+                return available_cards
             
-            # Check if card is in known_cards
-            card_id = card.card_id
-            is_known = False
+            last_card = self.game_state.discard_pile[-1]
+            target_rank = last_card.rank
             
-            for player_known_cards in player.known_cards.values():
-                if isinstance(player_known_cards, dict):
-                    card1 = player_known_cards.get('card1')
-                    card2 = player_known_cards.get('card2')
-                    for known_card in [card1, card2]:
-                        if known_card:
-                            known_id = known_card.get('cardId') if isinstance(known_card, dict) else str(known_card)
-                            if known_id == card_id:
-                                is_known = True
-                                break
-                    if is_known:
-                        break
+            custom_log(f'DEBUG - Target rank for same rank play: {target_rank}', level="INFO", isOn=LOGGING_SWITCH)
             
-            if not is_known:
-                continue
+            if not target_rank:
+                custom_log('DEBUG - Target rank is empty, no same rank cards possible', level="INFO", isOn=LOGGING_SWITCH)
+                return available_cards
             
-            # Check if card is NOT in collection_rank_cards
-            is_in_collection = any(
-                (c.get('cardId') if isinstance(c, dict) else str(c)) == card_id
-                for c in player.collection_rank_cards
-            )
+            # Get player
+            player = self.game_state.players.get(player_id)
+            if not player:
+                custom_log(f'DEBUG - Player {player_id} not found', level="ERROR", isOn=LOGGING_SWITCH)
+                return available_cards
             
-            if not is_in_collection:
-                available_cards.append(card_id)
+            # Get player's known cards for themselves (card-ID-based structure)
+            player_known_cards = player.known_cards.get(player_id, {})
+            
+            custom_log(f'DEBUG - Player {player_id} known_cards for self: {list(player_known_cards.keys())}', level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Get collection card IDs to exclude
+            collection_card_ids = set(c.card_id for c in player.collection_rank_cards if c and hasattr(c, 'card_id'))
+            
+            # Check each known card
+            for card_id, card_data in player_known_cards.items():
+                if not card_data:
+                    continue
+                
+                custom_log(f'DEBUG - Checking card {card_id} for same rank play', level="DEBUG", isOn=LOGGING_SWITCH)
+                
+                # Verify card is in player's hand
+                card_in_hand = any(hand_card and hand_card.card_id == card_id for hand_card in player.hand)
+                
+                if not card_in_hand:
+                    custom_log(f'DEBUG - Card {card_id} not found in hand', level="DEBUG", isOn=LOGGING_SWITCH)
+                    continue
+                
+                # Get rank from card_data
+                card_rank = card_data.get('rank')
+                
+                # Check if card matches target rank and is not a collection card
+                if card_rank == target_rank and card_id not in collection_card_ids:
+                    custom_log(f'DEBUG - Card {card_id} is available for same rank play!', level="INFO", isOn=LOGGING_SWITCH)
+                    available_cards.append(card_id)
+                elif card_id in collection_card_ids:
+                    custom_log(f'DEBUG - Card {card_id} is collection card, skipping', level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            custom_log(f'DEBUG - Found {len(available_cards)} available same rank cards: {available_cards}', level="INFO", isOn=LOGGING_SWITCH)
+            
+        except Exception as e:
+            custom_log(f'Error in _get_available_same_rank_cards: {e}', level="ERROR", isOn=LOGGING_SWITCH)
         
         return available_cards
 
@@ -1436,6 +1745,11 @@ class GameRound:
             custom_log(f"  Description: {description}", level="INFO", isOn=LOGGING_SWITCH)
             custom_log(f"  Remaining cards to process: {len(self.special_card_players)}", level="INFO", isOn=LOGGING_SWITCH)
             
+            # CRITICAL: Cancel regular play timeout when entering special play window
+            # This prevents the regular play timeout from interfering with special card timer
+            self._cancel_play_phase_timer()
+            custom_log(f"Cancelled regular play timeout for player {player_id} - entering special play window", level="INFO", isOn=LOGGING_SWITCH)
+            
             # Set player status based on special power
             if special_power == 'jack_swap':
                 # Use the efficient batch update method to set player status
@@ -1454,6 +1768,8 @@ class GameRound:
             self.special_card_timer = threading.Timer(10.0, self._on_special_card_timer_expired)
             self.special_card_timer.start()
             custom_log(f"10-second timer started for player {player_id}'s {special_power}", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log(f"DEBUG: Timer object created: {self.special_card_timer}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"DEBUG: Timer is_alive: {self.special_card_timer.is_alive()}", level="DEBUG", isOn=LOGGING_SWITCH)
             
         except Exception as e:
             custom_log(f"Error in _process_next_special_card: {e}", level="ERROR", isOn=LOGGING_SWITCH)
@@ -1461,6 +1777,7 @@ class GameRound:
     def _on_special_card_timer_expired(self):
         """Called when the special card timer expires - move to next player or end window"""
         try:
+            custom_log(f"DEBUG: _on_special_card_timer_expired called at {time.time()}", level="DEBUG", isOn=LOGGING_SWITCH)
             # Reset current player's status to WAITING (if there are still cards to process)
             if self.special_card_players:
                 special_data = self.special_card_players[0]
@@ -1626,6 +1943,21 @@ class GameRound:
             # Set the drawn card property
             player.set_drawn_card(drawn_card)
             
+            # Update all players' known_cards after successful card draw
+            # This ensures all players know about the new card the player drew
+            custom_log(f"=== BEFORE update_known_cards (draw_card) ===", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Acting player: {player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Drawn card: {drawn_card.card_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+            for pid, p in self.game_state.players.items():
+                custom_log(f"Player {pid} known_cards BEFORE: {p.known_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            self.update_known_cards('draw_card', player_id, [drawn_card.card_id])
+            
+            custom_log(f"=== AFTER update_known_cards (draw_card) ===", level="DEBUG", isOn=LOGGING_SWITCH)
+            for pid, p in self.game_state.players.items():
+                custom_log(f"Player {pid} known_cards AFTER: {p.known_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"=== END update_known_cards logging ===", level="DEBUG", isOn=LOGGING_SWITCH)
+            
             # Change player status from DRAWING_CARD to PLAYING_CARD after successful draw
             player.set_status(PlayerStatus.PLAYING_CARD)
             custom_log(f"Player {player_id} status changed from DRAWING_CARD to PLAYING_CARD", level="INFO", isOn=LOGGING_SWITCH)
@@ -1635,20 +1967,14 @@ class GameRound:
                 custom_log(f"Computer player {player_id} drew card successfully, continuing with play_card action", level="INFO", isOn=LOGGING_SWITCH)
                 custom_log(f"Computer player {player_id} status before continuation: {player.status.value if hasattr(player.status, 'value') else str(player.status)}", level="INFO", isOn=LOGGING_SWITCH)
                 custom_log(f"Computer player {player_id} hand size after draw: {len(player.hand)}", level="INFO", isOn=LOGGING_SWITCH)
-                # Add a small delay to simulate thinking time
-                import threading
-                import time
                 
-                def continue_computer_turn():
-                    time.sleep(0.5)  # 500ms delay
-                    custom_log(f"🤖 CONTINUING computer turn for {player_id} after draw delay", level="INFO", isOn=LOGGING_SWITCH)
-                    self._handle_computer_player_turn(player)
+                # CRITICAL FIX: Call play_card action directly in the same thread
+                # This ensures the computer player plays a card immediately after drawing
+                custom_log(f"🤖 CONTINUING computer turn for {player_id} - calling play_card action directly", level="INFO", isOn=LOGGING_SWITCH)
                 
-                # Start the continuation in a separate thread to avoid blocking
-                continuation_thread = threading.Thread(target=continue_computer_turn)
-                continuation_thread.daemon = True
-                continuation_thread.start()
-                custom_log(f"Computer player {player_id} continuation thread started", level="INFO", isOn=LOGGING_SWITCH)
+                # Call the computer player's play_card action directly
+                self._handle_computer_action_with_yaml(player, player.difficulty, 'play_card')
+                custom_log(f"Computer player {player_id} play_card action completed", level="INFO", isOn=LOGGING_SWITCH)
             
             # Cancel draw phase timer and start play phase timer
             self._cancel_draw_phase_timer()
@@ -1806,12 +2132,44 @@ class GameRound:
             custom_log(f"Played Card: {card_to_play.card_id if card_to_play else 'None'}", isOn=LOGGING_SWITCH)
             custom_log(f"=================================", isOn=LOGGING_SWITCH)
             
-            # Check if the played card has special powers (Jack/Queen)
-            self._check_special_card(player_id, {
+            # Store special card data for processing after same rank window
+            # Don't process special cards immediately to avoid conflict with same rank window
+            special_card_data = {
                 'card_id': card_id,
                 'rank': card_to_play.rank,
                 'suit': card_to_play.suit
+            }
+            
+            # Store the special card data for later processing
+            if not hasattr(self, 'pending_special_cards'):
+                self.pending_special_cards = []
+            self.pending_special_cards.append({
+                'player_id': player_id,
+                'card_data': special_card_data
             })
+            
+            custom_log(f"Stored special card data for later processing: {special_card_data}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # === PRE-UPDATE LOGGING: Verify game state before update_known_cards ===
+            custom_log(f"=== BEFORE update_known_cards (play_card) ===", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Acting player: {player_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Played card: {card_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Discard pile top card: {self.game_state.discard_pile[-1].card_id if self.game_state.discard_pile else 'None'}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Log all players' current state
+            for pid, p in self.game_state.players.items():
+                hand_cards = [c.card_id if c else None for c in p.hand]
+                custom_log(f"Player {pid} hand: {hand_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+                custom_log(f"Player {pid} known_cards BEFORE: {p.known_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Update all players' known_cards after successful card play
+            self.update_known_cards('play_card', player_id, [card_id])
+            
+            # === POST-UPDATE LOGGING: Verify known_cards were updated ===
+            custom_log(f"=== AFTER update_known_cards (play_card) ===", level="DEBUG", isOn=LOGGING_SWITCH)
+            for pid, p in self.game_state.players.items():
+                custom_log(f"Player {pid} known_cards AFTER: {p.known_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"=== END update_known_cards logging ===", level="DEBUG", isOn=LOGGING_SWITCH)
             
             return True
             
@@ -1898,6 +2256,27 @@ class GameRound:
                 'suit': card_suit
             }
             self._check_special_card(user_id, card_data)
+            
+            # === PRE-UPDATE LOGGING: Verify game state before update_known_cards ===
+            custom_log(f"=== BEFORE update_known_cards (same_rank_play) ===", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Acting player: {user_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Played card: {card_id}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Discard pile top card: {self.game_state.discard_pile[-1].card_id if self.game_state.discard_pile else 'None'}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Log all players' current state
+            for pid, p in self.game_state.players.items():
+                hand_cards = [c.card_id if c else None for c in p.hand]
+                custom_log(f"Player {pid} hand: {hand_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+                custom_log(f"Player {pid} known_cards BEFORE: {p.known_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Update all players' known_cards after successful same rank play
+            self.update_known_cards('same_rank_play', user_id, [card_id])
+            
+            # === POST-UPDATE LOGGING: Verify known_cards were updated ===
+            custom_log(f"=== AFTER update_known_cards (same_rank_play) ===", level="DEBUG", isOn=LOGGING_SWITCH)
+            for pid, p in self.game_state.players.items():
+                custom_log(f"Player {pid} known_cards AFTER: {p.known_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"=== END update_known_cards logging ===", level="DEBUG", isOn=LOGGING_SWITCH)
             
             # Create play data structure
             play_data = {
@@ -2159,12 +2538,14 @@ class GameRound:
         knowledge tracking for all players (both human and computer).
         
         Args:
-            event_type: Type of event ('play_card', 'same_rank_play', 'jack_swap')
+            event_type: Type of event ('play_card', 'same_rank_play', 'draw_card', 'jack_swap')
             acting_player_id: ID of the player who performed the action
             affected_card_ids: List of card IDs involved in the action
             swap_data: Optional dict for Jack swap with 'source_player_id' and 'target_player_id'
         """
         try:
+            custom_log(f"DEBUG: update_known_cards called with event_type={event_type}, acting_player_id={acting_player_id}, affected_card_ids={affected_card_ids}", level="DEBUG", isOn=LOGGING_SWITCH)
+            
             for player_id, player in self.game_state.players.items():
                 difficulty = getattr(player, 'difficulty', 'medium')
                 
@@ -2174,10 +2555,18 @@ class GameRound:
                 # Get player's known_cards
                 known_cards = player.known_cards
                 
+                # Log before processing
+                custom_log(f"  Processing player {player_id}: known_cards={known_cards}, difficulty={difficulty}, remember_prob={remember_prob}", level="DEBUG", isOn=LOGGING_SWITCH)
+                
                 if event_type in ['play_card', 'same_rank_play']:
                     self._process_play_card_update(known_cards, affected_card_ids, remember_prob)
+                elif event_type == 'draw_card':
+                    self._process_draw_card_update(known_cards, affected_card_ids, acting_player_id, player_id, remember_prob)
                 elif event_type == 'jack_swap' and swap_data:
                     self._process_jack_swap_update(known_cards, affected_card_ids, swap_data, remember_prob)
+                
+                # Log after processing
+                custom_log(f"  Player {player_id} known_cards after processing: {known_cards}", level="DEBUG", isOn=LOGGING_SWITCH)
                 
                 # Trigger state update for this player
                 if hasattr(player, '_track_change'):
@@ -2205,34 +2594,26 @@ class GameRound:
             return
         
         played_card_id = affected_card_ids[0]
-        keys_to_remove = []
+        players_to_clean = []
         
         # Iterate through each tracked player's cards
         for tracked_player_id, tracked_cards in list(known_cards.items()):
             if not isinstance(tracked_cards, dict):
                 continue
             
-            # Check card1
-            card1 = tracked_cards.get('card1')
-            card1_id = self._extract_card_id(card1)
-            if card1_id == played_card_id:
+            # Check if the played card is in this player's known cards
+            if played_card_id in tracked_cards:
                 if random.random() <= remember_prob:
-                    tracked_cards['card1'] = None
+                    # Remove the played card
+                    tracked_cards.pop(played_card_id, None)
             
-            # Check card2
-            card2 = tracked_cards.get('card2')
-            card2_id = self._extract_card_id(card2)
-            if card2_id == played_card_id:
-                if random.random() <= remember_prob:
-                    tracked_cards['card2'] = None
-            
-            # If both cards are now None, mark for removal
-            if tracked_cards.get('card1') is None and tracked_cards.get('card2') is None:
-                keys_to_remove.append(tracked_player_id)
+            # If no cards remain for this player, mark for removal
+            if not tracked_cards:
+                players_to_clean.append(tracked_player_id)
         
-        # Remove empty entries
-        for key in keys_to_remove:
-            known_cards.pop(key, None)
+        # Remove empty player entries
+        for player_id in players_to_clean:
+            known_cards.pop(player_id, None)
 
     def _process_jack_swap_update(self, known_cards: Dict[str, Any], affected_card_ids: List[str], swap_data: Dict[str, str], remember_prob: float):
         """Process known_cards update for jack_swap event"""
@@ -2248,56 +2629,55 @@ class GameRound:
         if not source_player_id or not target_player_id:
             return
         
-        cards_to_move = {}
-        keys_to_remove = []
-        
-        # Iterate through each tracked player's cards
-        for tracked_player_id, tracked_cards in list(known_cards.items()):
-            if not isinstance(tracked_cards, dict):
+        # Iterate through each player's known_cards
+        for player_id, player_cards in list(known_cards.items()):
+            if not isinstance(player_cards, dict):
                 continue
             
-            # Check card1
-            card1 = tracked_cards.get('card1')
-            card1_id = self._extract_card_id(card1)
-            if card1_id == card_id1 and tracked_player_id == source_player_id:
+            # If this player knows about card_id1 from source_player, move it to target_player
+            if source_player_id in known_cards and card_id1 in known_cards[source_player_id]:
                 if random.random() <= remember_prob:
-                    cards_to_move[target_player_id] = {'card1': card1}
-                    tracked_cards['card1'] = None
-            elif card1_id == card_id2 and tracked_player_id == target_player_id:
-                if random.random() <= remember_prob:
-                    cards_to_move[source_player_id] = {'card1': card1}
-                    tracked_cards['card1'] = None
+                    card_data = known_cards[source_player_id].pop(card_id1, None)
+                    if card_data:
+                        if target_player_id not in known_cards:
+                            known_cards[target_player_id] = {}
+                        known_cards[target_player_id][card_id1] = card_data
             
-            # Check card2
-            card2 = tracked_cards.get('card2')
-            card2_id = self._extract_card_id(card2)
-            if card2_id == card_id1 and tracked_player_id == source_player_id:
+            # If this player knows about card_id2 from target_player, move it to source_player
+            if target_player_id in known_cards and card_id2 in known_cards[target_player_id]:
                 if random.random() <= remember_prob:
-                    cards_to_move[target_player_id] = {'card2': card2}
-                    tracked_cards['card2'] = None
-            elif card2_id == card_id2 and tracked_player_id == target_player_id:
-                if random.random() <= remember_prob:
-                    cards_to_move[source_player_id] = {'card2': card2}
-                    tracked_cards['card2'] = None
+                    card_data = known_cards[target_player_id].pop(card_id2, None)
+                    if card_data:
+                        if source_player_id not in known_cards:
+                            known_cards[source_player_id] = {}
+                        known_cards[source_player_id][card_id2] = card_data
             
-            # If both cards are now None, mark for removal
-            if tracked_cards.get('card1') is None and tracked_cards.get('card2') is None:
-                keys_to_remove.append(tracked_player_id)
+            # Clean up empty player entries
+            if source_player_id in known_cards and not known_cards[source_player_id]:
+                known_cards.pop(source_player_id, None)
+            if target_player_id in known_cards and not known_cards[target_player_id]:
+                known_cards.pop(target_player_id, None)
+
+    def _process_draw_card_update(self, known_cards: Dict[str, Any], affected_card_ids: List[str], acting_player_id: str, current_player_id: str, remember_prob: float):
+        """Process known_cards update for draw_card event"""
+        import random
+        if not affected_card_ids:
+            return
         
-        # Remove empty entries
-        for key in keys_to_remove:
-            known_cards.pop(key, None)
+        # Only update if this is not the acting player (they already know their own cards)
+        if current_player_id == acting_player_id:
+            return
         
-        # Add moved cards to new owners
-        for new_owner_id, card_to_move in cards_to_move.items():
-            if new_owner_id not in known_cards:
-                known_cards[new_owner_id] = {'card1': None, 'card2': None}
+        # Get the drawn card ID
+        drawn_card_id = affected_card_ids[0]
+        
+        # Add to the acting player's known cards (if remember probability succeeds)
+        if random.random() <= remember_prob:
+            if acting_player_id not in known_cards:
+                known_cards[acting_player_id] = {}
             
-            owner_cards = known_cards[new_owner_id]
-            if owner_cards.get('card1') is None:
-                owner_cards['card1'] = card_to_move.get('card1') or card_to_move.get('card2')
-            elif owner_cards.get('card2') is None:
-                owner_cards['card2'] = card_to_move.get('card1') or card_to_move.get('card2')
+            # Add the drawn card with its ID as the key
+            known_cards[acting_player_id][drawn_card_id] = {'card_id': drawn_card_id}
 
     def _extract_card_id(self, card: Any) -> Optional[str]:
         """Extract card ID from card object or string"""

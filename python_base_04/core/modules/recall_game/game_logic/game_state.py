@@ -16,7 +16,7 @@ import time
 import uuid
 import threading
 
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 class GamePhase(Enum):
     """Game phases"""
@@ -37,7 +37,7 @@ class GamePhase(Enum):
 class GameState:
     """Represents the current state of a Recall game"""
     
-    def __init__(self, game_id: str, max_players: int = 4, min_players: int = 2, permission: str = 'public', app_manager=None):
+    def __init__(self, game_id: str, max_players: int = 4, min_players: int = 4, permission: str = 'public', app_manager=None):
         self.game_id = game_id
         self.max_players = max_players
         self.min_players = min_players
@@ -664,14 +664,14 @@ class GameStateManager:
         except Exception as e:
             return False
     
-    def create_game(self, max_players: int = 4, min_players: int = 2, permission: str = 'public') -> str:
+    def create_game(self, max_players: int = 4, min_players: int = 4, permission: str = 'public') -> str:
         """Create a new game"""
         game_id = str(uuid.uuid4())
         game_state = GameState(game_id, max_players, min_players, permission, self.app_manager)
         self.active_games[game_id] = game_state
         return game_id
     
-    def create_game_with_id(self, game_id: str, max_players: int = 4, min_players: int = 2, permission: str = 'public') -> str:
+    def create_game_with_id(self, game_id: str, max_players: int = 4, min_players: int = 4, permission: str = 'public') -> str:
         """Create a new game using a provided identifier (e.g., room_id).
 
         This aligns backend game identity with the room identifier used by the
@@ -894,9 +894,10 @@ class GameStateManager:
                     non_collection_card = selected_cards[1] if selected_card_for_collection == selected_cards[0] else selected_cards[0]
                     
                     # Store only the non-collection card in known_cards with full card data
+                    card_data = non_collection_card.to_dict()
+                    card_id = card_data['card_id']
                     player.known_cards[player_id] = {
-                        'card1': non_collection_card.to_dict(),
-                        'card2': None,  # Only one card stored
+                        card_id: card_data
                     }
                     
                     # Add the selected Card object to the player's collection_rank_cards list
@@ -1032,13 +1033,8 @@ class GameStateManager:
             custom_log(f"Game phase transitioned to {game.phase.value}", level="INFO", isOn=LOGGING_SWITCH)
             
             game_round = game.get_round()
-            custom_log("Initializing game round", level="INFO", isOn=LOGGING_SWITCH)
+            custom_log("Starting game round turn", level="INFO", isOn=LOGGING_SWITCH)
             start_turn_result = game_round.start_turn()
-            
-            # CRITICAL: Start the first player's turn (new pattern after refactor)
-            # start_turn() only initializes the round, _move_to_next_player() actually starts turns
-            custom_log("Starting first player's turn", level="INFO", isOn=LOGGING_SWITCH)
-            game_round._move_to_next_player()
 
         except Exception as e:
             custom_log(f"Failed to handle initial peek timeout: {str(e)}", level="ERROR", isOn=LOGGING_SWITCH)
@@ -1124,11 +1120,13 @@ class GameStateManager:
             
             custom_log(f"Player {user_id} peeked at {cards_updated} cards: {card_ids}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Store peeked cards in known_cards (same structure as AI players)
-            player.known_cards[player.player_id] = {
-                'card1': player.cards_to_peek[0].to_dict() if len(player.cards_to_peek) > 0 else None,
-                'card2': player.cards_to_peek[1].to_dict() if len(player.cards_to_peek) > 1 else None,
-            }
+            # Store peeked cards in known_cards (card-ID-based structure)
+            player.known_cards[player.player_id] = {}
+            for card in player.cards_to_peek:
+                if card:
+                    card_data = card.to_dict()
+                    card_id = card_data['card_id']
+                    player.known_cards[player.player_id][card_id] = card_data
             
             custom_log(f"Human player {player.name} stored {len(player.cards_to_peek)} cards in known_cards", level="INFO", isOn=LOGGING_SWITCH)
             

@@ -10,7 +10,7 @@ import '../../../../core/managers/state_manager.dart';
 import 'practice_game.dart';
 import 'utils/computer_player_factory.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class PracticeGameRound {
   final PracticeGameCoordinator _practiceCoordinator;
@@ -767,12 +767,40 @@ class PracticeGameRound {
       hand.add(idOnlyCard);
       Logger().info('Practice: Added drawn card to end of hand (index ${hand.length - 1})', isOn: LOGGING_SWITCH);
       
+      // Log player state after drawing card
+      Logger().info('Practice: === AFTER DRAW CARD for $playerId ===', isOn: LOGGING_SWITCH);
+      final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
+      Logger().info('Practice: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+      Logger().info('Practice: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      final collectionRank = player['collection_rank']?.toString() ?? 'none';
+      Logger().info('Practice: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      final collectionRankCardsList = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      final collectionCardIds = collectionRankCardsList.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
+      Logger().info('Practice: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      
       // Set the drawn card property - FULL CARD DATA for human players, ID-only for computer players
       // This is what allows the frontend to show the front of the card (only for human players)
       if (playerId == 'practice_user') {
         player['drawnCard'] = drawnCard; // Full card data for human player
       } else {
         player['drawnCard'] = {'cardId': drawnCard['cardId']}; // ID-only for computer players
+        
+        // IMPORTANT: Add the drawn card to computer player's known_cards so they can use it for same rank plays
+        final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+        final playerIdKey = playerId;
+        if (!knownCards.containsKey(playerIdKey)) {
+          knownCards[playerIdKey] = {};
+        }
+        knownCards[playerIdKey][drawnCard['cardId']] = {
+          'cardId': drawnCard['cardId'],
+          'rank': drawnCard['rank'],
+          'suit': drawnCard['suit'],
+          'points': drawnCard['points'],
+          'specialPower': drawnCard['specialPower'],
+        };
+        player['known_cards'] = knownCards;
+        Logger().info('Practice: Added drawn card ${drawnCard['cardId']} to computer player $playerId known_cards', isOn: LOGGING_SWITCH);
       }
       
       Logger().info('Practice: Added card ${drawnCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
@@ -1072,6 +1100,18 @@ class PracticeGameRound {
       }
       Logger().info('Practice: Successfully added card $cardId to discard pile with full data', isOn: LOGGING_SWITCH);
       
+      // Log player state after playing card
+      Logger().info('Practice: === AFTER PLAY CARD for $playerId ===', isOn: LOGGING_SWITCH);
+      final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
+      Logger().info('Practice: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+      Logger().info('Practice: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      final collectionRank = player['collection_rank']?.toString() ?? 'none';
+      Logger().info('Practice: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      final collectionRankCardsList = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      final collectionCardIds = collectionRankCardsList.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
+      Logger().info('Practice: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      
       // Handle drawn card repositioning with smart blank slot system
       if (drawnCard != null && drawnCard['cardId'] != cardId) {
         // The drawn card should fill the blank slot left by the played card
@@ -1331,6 +1371,18 @@ class PracticeGameRound {
       }
       
       Logger().info('Practice: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile', isOn: LOGGING_SWITCH);
+      
+      // Log player state after same rank play
+      Logger().info('Practice: === AFTER SAME RANK PLAY for $playerId ===', isOn: LOGGING_SWITCH);
+      final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
+      Logger().info('Practice: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+      Logger().info('Practice: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      final collectionRank = player['collection_rank']?.toString() ?? 'none';
+      Logger().info('Practice: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      final collectionRankCardsList = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      final collectionCardIds = collectionRankCardsList.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
+      Logger().info('Practice: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
       
       // Check for special cards (Jack/Queen) and store data if applicable
       _checkSpecialCard(playerId, {
@@ -1921,20 +1973,13 @@ class PracticeGameRound {
       
       Logger().info('Practice: DEBUG - Collection card IDs: ${collectionCardIds.toList()}', isOn: LOGGING_SWITCH);
       
-      // Get known card IDs
+      // Get player's own known card IDs (card-ID-based structure)
       final knownCardIds = <String>{};
-      for (final playerKnownCards in knownCards.values) {
-        if (playerKnownCards is Map) {
-          final card1 = playerKnownCards['card1'];
-          final card2 = playerKnownCards['card2'];
-          for (final card in [card1, card2]) {
-            if (card != null) {
-              if (card is Map) {
-                knownCardIds.add(card['cardId']?.toString() ?? '');
-              } else {
-                knownCardIds.add(card.toString());
-              }
-            }
+      final playerOwnKnownCards = knownCards[playerId] as Map<String, dynamic>?;
+      if (playerOwnKnownCards != null) {
+        for (final cardId in playerOwnKnownCards.keys) {
+          if (cardId.toString().isNotEmpty) {
+            knownCardIds.add(cardId.toString());
           }
         }
       }
@@ -2208,6 +2253,19 @@ class PracticeGameRound {
       gameState['currentPlayer'] = nextPlayer;
       Logger().info('Practice: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
       
+      // Log player state at start of turn
+      Logger().info('Practice: === TURN START for $nextPlayerId ===', isOn: LOGGING_SWITCH);
+      final hand = nextPlayer['hand'] as List<dynamic>? ?? [];
+      final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
+      Logger().info('Practice: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      final knownCards = nextPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+      Logger().info('Practice: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      final collectionRank = nextPlayer['collection_rank']?.toString() ?? 'none';
+      Logger().info('Practice: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      final collectionRankCards = nextPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+      final collectionCardIds = collectionRankCards.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
+      Logger().info('Practice: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
       _practiceCoordinator.updatePlayerStatus('drawing_card', playerId: nextPlayerId, updateMainState: true, triggerInstructions: true);
       Logger().info('Practice: Set next player ${nextPlayer['name']} to drawing_card status', isOn: LOGGING_SWITCH);
@@ -2306,32 +2364,21 @@ class PracticeGameRound {
     final keysToRemove = <String>[];
     for (final entry in knownCards.entries) {
       final trackedPlayerId = entry.key;
-      final trackedCards = entry.value as Map<String, dynamic>?;
+      final trackedCards = entry.value is Map ? Map<String, dynamic>.from(entry.value as Map) : null;
       if (trackedCards == null) continue;
       
-      // Check card1
-      final card1 = trackedCards['card1'];
-      final card1Id = _extractCardId(card1);
-      if (card1Id == playedCardId) {
+      // Check if the played card is in this player's known cards (card-ID-based structure)
+      if (trackedCards.containsKey(playedCardId)) {
         // Roll probability: should this player remember the card was played?
         if (random.nextDouble() <= rememberProb) {
           // Remember: remove this card
-          trackedCards['card1'] = null;
+          trackedCards.remove(playedCardId);
         }
         // Forget: do nothing, player "forgot" this card was played
       }
       
-      // Check card2
-      final card2 = trackedCards['card2'];
-      final card2Id = _extractCardId(card2);
-      if (card2Id == playedCardId) {
-        if (random.nextDouble() <= rememberProb) {
-          trackedCards['card2'] = null;
-        }
-      }
-      
-      // If both cards are now null, remove this player entry
-      if (trackedCards['card1'] == null && trackedCards['card2'] == null) {
+      // If no cards remain for this player, mark for removal
+      if (trackedCards.isEmpty) {
         keysToRemove.add(trackedPlayerId);
       }
     }
@@ -2366,44 +2413,39 @@ class PracticeGameRound {
     // Iterate through each tracked player's cards
     for (final entry in knownCards.entries) {
       final trackedPlayerId = entry.key;
-      final trackedCards = entry.value as Map<String, dynamic>?;
+      final trackedCards = entry.value is Map ? Map<String, dynamic>.from(entry.value as Map) : null;
       if (trackedCards == null) continue;
       
-      // Check card1
-      final card1 = trackedCards['card1'];
-      final card1Id = _extractCardId(card1);
-      if (card1Id == cardId1 && trackedPlayerId == sourcePlayerId) {
+      // Check if cardId1 is in this player's known cards
+      if (trackedCards.containsKey(cardId1) && trackedPlayerId == sourcePlayerId) {
         if (random.nextDouble() <= rememberProb) {
           // Remember: this card moved to targetPlayerId
-          cardsToMove[targetPlayerId] = {'card1': card1};
-          trackedCards['card1'] = null;
+          final cardData = trackedCards.remove(cardId1);
+          if (cardData != null) {
+            if (!cardsToMove.containsKey(targetPlayerId)) {
+              cardsToMove[targetPlayerId] = {};
+            }
+            cardsToMove[targetPlayerId]![cardId1] = cardData;
+          }
         }
-        // Forget: remove the card
-      } else if (card1Id == cardId2 && trackedPlayerId == targetPlayerId) {
+      }
+      
+      // Check if cardId2 is in this player's known cards
+      if (trackedCards.containsKey(cardId2) && trackedPlayerId == targetPlayerId) {
         if (random.nextDouble() <= rememberProb) {
           // Remember: this card moved to sourcePlayerId
-          cardsToMove[sourcePlayerId] = {'card1': card1};
-          trackedCards['card1'] = null;
+          final cardData = trackedCards.remove(cardId2);
+          if (cardData != null) {
+            if (!cardsToMove.containsKey(sourcePlayerId)) {
+              cardsToMove[sourcePlayerId] = {};
+            }
+            cardsToMove[sourcePlayerId]![cardId2] = cardData;
+          }
         }
       }
       
-      // Check card2 (same logic)
-      final card2 = trackedCards['card2'];
-      final card2Id = _extractCardId(card2);
-      if (card2Id == cardId1 && trackedPlayerId == sourcePlayerId) {
-        if (random.nextDouble() <= rememberProb) {
-          cardsToMove[targetPlayerId] = {'card2': card2};
-          trackedCards['card2'] = null;
-        }
-      } else if (card2Id == cardId2 && trackedPlayerId == targetPlayerId) {
-        if (random.nextDouble() <= rememberProb) {
-          cardsToMove[sourcePlayerId] = {'card2': card2};
-          trackedCards['card2'] = null;
-        }
-      }
-      
-      // If both cards are now null, remove this player entry
-      if (trackedCards['card1'] == null && trackedCards['card2'] == null) {
+      // If no cards remain for this player, mark for removal
+      if (trackedCards.isEmpty) {
         keysToRemove.add(trackedPlayerId);
       }
     }
@@ -2416,30 +2458,17 @@ class PracticeGameRound {
     // Add moved cards to new owners
     for (final entry in cardsToMove.entries) {
       final newOwnerId = entry.key;
-      final cardToMove = entry.value;
+      final cardsToAdd = entry.value;
       
       if (!knownCards.containsKey(newOwnerId)) {
-        knownCards[newOwnerId] = {'card1': null, 'card2': null};
+        knownCards[newOwnerId] = {};
       }
       
       final ownerCards = knownCards[newOwnerId] as Map<String, dynamic>;
-      if (ownerCards['card1'] == null) {
-        ownerCards['card1'] = cardToMove['card1'] ?? cardToMove['card2'];
-      } else if (ownerCards['card2'] == null) {
-        ownerCards['card2'] = cardToMove['card1'] ?? cardToMove['card2'];
-      }
+      ownerCards.addAll(cardsToAdd);
     }
   }
 
-  /// Extract card ID from card object or string
-  String? _extractCardId(dynamic card) {
-    if (card == null) return null;
-    if (card is String) return card;
-    if (card is Map) {
-      return card['cardId']?.toString() ?? card['id']?.toString();
-    }
-    return null;
-  }
 
   /// Dispose of resources
   void dispose() {

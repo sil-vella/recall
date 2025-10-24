@@ -17,8 +17,7 @@
 /// - **Password**: Optional password field for non-public rooms
 /// 
 /// ### Player Settings:
-/// - **Max Players**: Slider control (2-10 players)
-/// - **Min Players**: Slider control (2 to max players)
+/// - **Players**: Fixed at 4 players (hardcoded)
 /// 
 /// ### Game Settings:
 /// - **Turn Time Limit**: Slider control (15-120 seconds per turn)
@@ -118,8 +117,6 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
   // State variables
   String _selectedPermission = 'public';
   String _selectedGameType = 'classic';
-  int _maxPlayers = 6;
-  int _minPlayers = 2;
   int _turnTimeLimit = 30;
   bool _autoStart = true;
   bool _isCreating = false;
@@ -152,8 +149,8 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
     final roomSettings = {
       'permission': _selectedPermission,
       'gameType': _selectedGameType,
-      'maxPlayers': _maxPlayers,
-      'minPlayers': _minPlayers,
+      'maxPlayers': 4,
+      'minPlayers': 4,
       'turnTimeLimit': _turnTimeLimit,
       'autoStart': _autoStart,
       'password': _passwordController.text.trim(),
@@ -297,72 +294,6 @@ class _CreateRoomModalState extends State<CreateRoomModal> {
                         const SizedBox(height: 16),
                       ],
                       
-                      // Player Count Settings
-                      const Text(
-                        'Player Settings',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      
-                      // Max Players
-                      Row(
-                        children: [
-                          const Text('Max Players: '),
-                          Expanded(
-                             child: Semantics(
-                               label: 'create_room_slider_max_players',
-                               identifier: 'create_room_slider_max_players',
-                               child: Slider(
-                              value: _maxPlayers.toDouble(),
-                              min: 2,
-                              max: 10,
-                              divisions: 8,
-                              label: _maxPlayers.toString(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _maxPlayers = value.round();
-                                  if (_minPlayers > _maxPlayers) {
-                                    _minPlayers = _maxPlayers;
-                                  }
-                                });
-                              },
-                             ),
-                             ),
-                          ),
-                          Text('${_maxPlayers}'),
-                        ],
-                      ),
-                      
-                      // Min Players
-                      Row(
-                        children: [
-                          const Text('Min Players: '),
-                          Expanded(
-                             child: Semantics(
-                               label: 'create_room_slider_min_players',
-                               identifier: 'create_room_slider_min_players',
-                               child: Slider(
-                              value: _minPlayers.toDouble(),
-                              min: 2,
-                              max: _maxPlayers.toDouble(),
-                              divisions: (_maxPlayers - 2).clamp(1, 8),
-                              label: _minPlayers.toString(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _minPlayers = value.round();
-                                });
-                              },
-                             ),
-                             ),
-                          ),
-                          Text('${_minPlayers}'),
-                        ],
-                      ),
-                      
-                      const SizedBox(height: 16),
                       
                       // Game Settings
                       const Text(

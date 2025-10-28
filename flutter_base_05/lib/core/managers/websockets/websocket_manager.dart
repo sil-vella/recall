@@ -1,4 +1,3 @@
-import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:async';
 import '../../../tools/logging/logger.dart';
 import '../../../utils/consts/config.dart';
@@ -11,6 +10,7 @@ import 'ws_event_listener.dart';
 import 'ws_event_handler.dart';
 import 'websocket_events.dart';
 import 'websocket_state_validator.dart';
+import 'native_websocket_adapter.dart';
 
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();
@@ -21,7 +21,7 @@ class WebSocketManager {
 
   static final Logger _log = Logger();
   
-  IO.Socket? _socket;
+  NativeWebSocketAdapter? _socket;
   bool _isInitialized = false;
   bool _isConnected = false; // Track connection state explicitly
   bool _isConnecting = false; // Track if we're in the process of connecting
@@ -46,7 +46,7 @@ class WebSocketManager {
   WSEventHandler? _eventHandler;
 
   // Getters
-  IO.Socket? get socket => _socket;
+  NativeWebSocketAdapter? get socket => _socket;
   bool get isInitialized => _isInitialized;
   
   // Event streams for UI
@@ -136,10 +136,9 @@ class WebSocketManager {
         return false;
       }
       
-      // Create Socket.IO connection
-      _socket = IO.io(Config.wsUrl, <String, dynamic>{
-        'transports': ['websocket'],
-        'autoConnect': false,
+      // Create native WebSocket connection
+      _socket = NativeWebSocketAdapter();
+      final connected = await _socket!.connect(Config.wsUrl, <String, dynamic>{
         'query': {
           'token': authToken,
           'client_id': 'flutter_app_${DateTime.now().millisecondsSinceEpoch}',
@@ -149,6 +148,11 @@ class WebSocketManager {
           'token': authToken,
         },
       });
+
+      if (!connected) {
+        _socket = null;
+        return false;
+      }
       
       // Initialize event manager
       eventManager.initialize();
@@ -238,22 +242,7 @@ class WebSocketManager {
       // Events are handled through the stream system, not direct handlers
     });
 
-    _socket!.onDisconnect((_) {
-      // Update our tracked connection state and use validated system
-      _isConnected = false;
-      WebSocketStateHelpers.updateConnectionStatus(
-        isConnected: false,
-      );
-      
-      // Emit disconnection event
-      final event = ConnectionStatusEvent(
-        status: ConnectionStatus.disconnected,
-      );
-      _connectionController.add(event);
-      _eventController.add(event);
-      
-      // Events are handled through the stream system, not direct handlers
-    });
+    _socket!.onDisconnect();
 
     // Use 'connect_error' event instead of onConnectError to avoid conflicts
     _socket!.on('connect_error', (error) {
@@ -540,13 +529,10 @@ class WebSocketManager {
       }
       
       // Add one-time event listeners (these will be removed after use)
-      _socket!.once('connect', onConnect);
+      _socket!.once('connected', onConnect);
       _socket!.once('connect_error', onConnectError);
       
-      // Start connection
-      _socket!.connect();
-      
-      // Wait for connection with timeout
+      // Connection is already established in initialize(), just wait for confirmation
       try {
         final result = await completer.future.timeout(
           Duration(seconds: Config.websocketTimeout),

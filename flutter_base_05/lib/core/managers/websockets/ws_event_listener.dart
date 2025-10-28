@@ -1,22 +1,22 @@
-import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../state_manager.dart';
 import '../module_manager.dart';
 import 'ws_event_handler.dart';
+import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// WebSocket Event Listener
 /// Centralized Socket.IO event listener registration and management
 class WSEventListener {
-  final IO.Socket? _socket;
+  final NativeWebSocketAdapter? _socket;
   final WSEventHandler _eventHandler;
   final StateManager _stateManager;
   final ModuleManager _moduleManager;
   static final Logger _logger = Logger();
 
   WSEventListener({
-    required IO.Socket? socket,
+    required NativeWebSocketAdapter? socket,
     required WSEventHandler eventHandler,
     required StateManager stateManager,
     required ModuleManager moduleManager,
@@ -56,14 +56,20 @@ class WSEventListener {
     // Error events
     _registerErrorListener();
     
+    // Game event acknowledgment listeners
+    _registerGameEventAcknowledgmentListeners();
+    
+    // Authentication events
+    _registerAuthenticationListeners();
+    
     _logger.info('✅ All WebSocket event listeners registered successfully', isOn: LOGGING_SWITCH);
   }
 
   /// Register connection event listener
   void _registerConnectListener() {
     _logger.debug('🎧 Registering connect event listener', isOn: LOGGING_SWITCH);
-    _socket?.on('connect', (data) {
-      _logger.debug('📡 Connect event received', isOn: LOGGING_SWITCH);
+    _socket?.on('connected', (data) {
+      _logger.debug('📡 Connected event received', isOn: LOGGING_SWITCH);
       _eventHandler.handleConnect(data);
     });
   }
@@ -216,5 +222,43 @@ class WSEventListener {
   /// Unregister a specific listener
   void unregisterListener(String eventName) {
     _socket?.off(eventName);
+  }
+  
+  /// Register game event acknowledgment listeners
+  void _registerGameEventAcknowledgmentListeners() {
+    _logger.debug('🎧 Registering game event acknowledgment listeners', isOn: LOGGING_SWITCH);
+    
+    final gameEvents = [
+      'start_match', 'draw_card', 'play_card', 'discard_card',
+      'take_from_discard', 'call_recall', 'same_rank_play',
+      'jack_swap', 'queen_peek', 'completed_initial_peek'
+    ];
+    
+    for (final event in gameEvents) {
+      _socket?.on('${event}_acknowledged', (data) {
+        _logger.info('✅ Acknowledged: $event', isOn: LOGGING_SWITCH);
+        _eventHandler.handleCustomEvent(event, data);
+      });
+    }
+  }
+  
+  /// Register authentication event listeners
+  void _registerAuthenticationListeners() {
+    _logger.debug('🎧 Registering authentication event listeners', isOn: LOGGING_SWITCH);
+    
+    _socket?.on('authenticated', (data) {
+      _logger.info('🔐 Authentication successful', isOn: LOGGING_SWITCH);
+      _eventHandler.handleAuthenticationSuccess(data);
+    });
+    
+    _socket?.on('authentication_failed', (data) {
+      _logger.error('❌ Authentication failed', isOn: LOGGING_SWITCH);
+      _eventHandler.handleAuthenticationFailed(data);
+    });
+    
+    _socket?.on('authentication_error', (data) {
+      _logger.error('❌ Authentication error', isOn: LOGGING_SWITCH);
+      _eventHandler.handleAuthenticationError(data);
+    });
   }
 } 

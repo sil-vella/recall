@@ -9,7 +9,7 @@ import os
 import importlib
 import inspect
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 class ModuleRegistry:
     """
@@ -109,8 +109,8 @@ class ModuleRegistry:
             "wallet_module": ["user_management_module"],  # Needs user management
             "transactions_module": ["user_management_module", "wallet_module"],  # Needs users and wallet
             "recall_game": ["user_management_module"],  # Needs user management for JWT auth
-            "communications_module": [],  # Communications module - no dependencies
-            "stripe_module": ["user_management_module"],  # Needs user management
+            # "communications_module": [],  # Communications module - no dependencies (temporarily disabled due to missing debugpy)
+            # "stripe_module": ["user_management_module"],  # Needs user management (temporarily disabled due to missing stripe)
         }
         return dependencies
     

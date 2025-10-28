@@ -18,7 +18,7 @@ class RecallGameEventEmitter {
   // Dependencies
   final WebSocketManager _wsManager = WebSocketManager.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   
   /// Define allowed fields for each event type
   static const Map<String, Set<String>> _allowedEventFields = {

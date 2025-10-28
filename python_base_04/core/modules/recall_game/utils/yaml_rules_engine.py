@@ -104,16 +104,23 @@ class YamlRulesEngine:
         # Get source data
         source_data = list(game_data.get(source, []))
         
+        # Filter out null cards from source data
+        source_data = [card for card in source_data if card and str(card) != 'null']
+        
         # Apply filters
         for filter_def in filters:
             if isinstance(filter_def, dict):
                 source_data = self._apply_filter(source_data, filter_def, game_data)
         
         if not source_data:
+            # Fallback to playable_cards
             source_data = list(game_data.get('playable_cards', []))
+            source_data = [card for card in source_data if card and str(card) != 'null']
         
         if not source_data:
+            # Fallback to available_cards
             source_data = list(game_data.get('available_cards', []))
+            source_data = [card for card in source_data if card and str(card) != 'null']
         
         # Execute action type
         if action_type == 'select_random':

@@ -18,7 +18,7 @@ from datetime import datetime
 from functools import wraps
 import json
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 class WebSocketManager:
     def __init__(self):

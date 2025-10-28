@@ -21,7 +21,7 @@ class Config {
   // WebSocket URL for external app
   static const String wsUrl = String.fromEnvironment(
     'WS_URL_LOCAL',
-    defaultValue: 'ws://127.0.0.1:8081',
+    defaultValue: 'ws://127.0.0.1:8080', // Changed from 8081 to 8080 (Dart server)
   );
 
   // HTTP Request Timeout Configuration

@@ -5,7 +5,7 @@
 # Global computer player settings
 computer_settings:
   default_difficulty: "medium"
-  decision_delay_seconds: 1.0
+  # decision_delay_seconds: 1.0  # DEPRECATED: Now using random 1-3 second delays
   error_rate: 0.05
 
 # Difficulty levels and their corresponding behaviors
@@ -13,7 +13,7 @@ difficulties:
   easy:
     name: "Easy"
     description: "Beginner-friendly AI with simple decision making"
-    decision_delay_seconds: 2.0
+    # decision_delay_seconds: 2.0  # DEPRECATED: Now using random 1-3 second delays
     error_rate: 0.1  # 10% chance of making suboptimal decisions
     
     # Card selection strategy
@@ -39,7 +39,7 @@ difficulties:
   medium:
     name: "Medium"
     description: "Balanced AI with moderate decision making"
-    decision_delay_seconds: 1.5
+    # decision_delay_seconds: 1.5  # DEPRECATED: Now using random 1-3 second delays
     error_rate: 0.05  # 5% chance of making suboptimal decisions
     
     card_selection:
@@ -62,7 +62,7 @@ difficulties:
   hard:
     name: "Hard"
     description: "Advanced AI with strategic decision making"
-    decision_delay_seconds: 1.0
+    # decision_delay_seconds: 1.0  # DEPRECATED: Now using random 1-3 second delays
     error_rate: 0.02  # 2% chance of making suboptimal decisions
     
     card_selection:
@@ -85,7 +85,7 @@ difficulties:
   expert:
     name: "Expert"
     description: "Master-level AI with optimal decision making"
-    decision_delay_seconds: 0.5
+    # decision_delay_seconds: 0.5  # DEPRECATED: Now using random 1-3 second delays
     error_rate: 0.0  # No errors
     
     card_selection:

@@ -66,12 +66,27 @@ class RecallGameMain(BaseModule):
     
     def register_routes(self):
         """Register all Recall game routes."""
-        
-        # Register the get-available-games endpoint with JWT authentication
-        self._register_route_helper("/userauth/recall/get-available-games", self.get_available_games, methods=["GET"], auth="jwt")
-        
-        # Register the find-room endpoint with JWT authentication
-        self._register_route_helper("/userauth/recall/find-room", self.find_room, methods=["POST"], auth="jwt")
+        try:
+            custom_log("🔐 RecallGame: Starting route registration", level="INFO", isOn=True)
+            
+            # Import and register API blueprint
+            from .api_endpoints import recall_api
+            custom_log("🔐 RecallGame: Imported API blueprint", level="INFO", isOn=True)
+            
+            self.app.register_blueprint(recall_api)
+            custom_log("🔐 RecallGame: API blueprint registered successfully", level="INFO", isOn=True)
+            
+            # Register the get-available-games endpoint with JWT authentication
+            self._register_route_helper("/userauth/recall/get-available-games", self.get_available_games, methods=["GET"], auth="jwt")
+            
+            # Register the find-room endpoint with JWT authentication
+            self._register_route_helper("/userauth/recall/find-room", self.find_room, methods=["POST"], auth="jwt")
+
+            custom_log("🔐 RecallGame: All routes registered successfully", level="INFO", isOn=True)
+            return True
+        except Exception as e:
+            custom_log(f"❌ RecallGame: Error registering routes: {e}", level="ERROR", isOn=True)
+            return False
     
 
     

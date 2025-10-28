@@ -14,7 +14,7 @@ import '../../../../../tools/logging/logger.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class GameInfoWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false; // Enable logging for debugging start button
+  static const bool LOGGING_SWITCH = true; // Enable logging for debugging start button
   
   const GameInfoWidget({Key? key}) : super(key: key);
 

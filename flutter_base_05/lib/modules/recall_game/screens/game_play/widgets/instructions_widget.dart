@@ -11,7 +11,7 @@ import '../../../utils/modal_template_widget.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class InstructionsWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   
   const InstructionsWidget({Key? key}) : super(key: key);
 

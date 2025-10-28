@@ -16,7 +16,7 @@ class RecallGameStateUpdater {
   RecallGameStateUpdater._internal();
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   // Dependencies
   final StateManager _stateManager = StateManager();
   
@@ -889,7 +889,7 @@ class RecallGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

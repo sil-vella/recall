@@ -4,7 +4,7 @@ import 'package:recall/tools/logging/logger.dart';
 import 'computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {

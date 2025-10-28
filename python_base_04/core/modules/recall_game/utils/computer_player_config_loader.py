@@ -10,7 +10,7 @@ import os
 from typing import Dict, Any, Optional
 from tools.logger.custom_logging import custom_log
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 class ComputerPlayerConfigLoader:
     """Loads and provides access to computer player YAML configuration"""
@@ -78,9 +78,9 @@ class ComputerPlayerConfigLoader:
         return {}
     
     def get_decision_delay(self, difficulty: str) -> float:
-        """Get decision delay for a difficulty level"""
-        config = self.get_difficulty_config(difficulty)
-        return config.get('decision_delay_seconds', 1.5)
+        """Get random decision delay between 1-3 seconds (no difficulty dependence)"""
+        import random
+        return 1.0 + (random.random() * 2.0)  # Random 1.0-3.0 seconds
     
     def get_error_rate(self, difficulty: str) -> float:
         """Get error rate for a difficulty level"""

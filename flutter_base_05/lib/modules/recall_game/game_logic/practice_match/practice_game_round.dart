@@ -410,10 +410,7 @@ class PracticeGameRound {
             // After successful draw, continue computer turn with play_card action
             Logger().info('Practice: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
             
-            // Add a small delay to simulate thinking time
-            await Future.delayed(const Duration(milliseconds: 500));
-            
-            // Continue computer turn with play_card action
+            // Continue computer turn with play_card action (delay already handled by YAML config)
             final gameState = _getCurrentGameState();
             if (gameState != null) {
               final difficulty = _getComputerDifficulty(gameState, playerId);
@@ -1905,11 +1902,8 @@ class PracticeGameRound {
       // Execute decision with delay
       if (decision['play'] == true) {
         final delay = decision['delay_seconds'] as double? ?? 1.0;
-        // Add random variation (0.5s to 1.5s)
-        final totalDelay = delay + (0.5 + Random().nextDouble());
-        
-        // CRITICAL: AWAIT the delay - this makes the future wait for the full play to complete
-        await Future.delayed(Duration(milliseconds: (totalDelay * 1000).toInt()));
+        // Use delay directly from decision (already randomized in config)
+        await Future.delayed(Duration(milliseconds: (delay * 1000).toInt()));
         
         final cardId = decision['card_id'] as String?;
         if (cardId != null) {

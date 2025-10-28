@@ -87,13 +87,19 @@ class GameRound:
             # BUT: Do NOT cancel special card timer if we're still processing special cards
             # The special cards window should complete before starting a new turn
             self.cancel_same_rank_timer()
-            if self.game_state.phase != GamePhase.SPECIAL_PLAY_WINDOW:
-                self.cancel_special_card_timer()
-                custom_log("All timers cancelled at start of new turn (except special card timer if processing)", level="INFO", isOn=LOGGING_SWITCH)
-            else:
+            
+            # Check if special cards are being processed (more reliable than phase check)
+            if self.special_card_data and len(self.special_card_data) > 0:
+                custom_log(f"WARNING: Starting new turn while {len(self.special_card_data)} special cards are being processed - this should not happen", level="WARNING", isOn=LOGGING_SWITCH)
+                custom_log("NOT cancelling special card timer - letting special cards complete", level="WARNING", isOn=LOGGING_SWITCH)
+            elif self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
                 custom_log("WARNING: Starting new turn while still in SPECIAL_PLAY_WINDOW phase - this should not happen", level="WARNING", isOn=LOGGING_SWITCH)
                 custom_log("Cancelling special card timer and forcing cleanup", level="WARNING", isOn=LOGGING_SWITCH)
                 self.cancel_special_card_timer()
+            else:
+                # Only cancel special card timer if no special cards are being processed
+                self.cancel_special_card_timer()
+                custom_log("All timers cancelled at start of new turn (no special cards processing)", level="INFO", isOn=LOGGING_SWITCH)
             self._cancel_draw_phase_timer()
             self._cancel_play_phase_timer()
             
@@ -101,15 +107,11 @@ class GameRound:
             if self.same_rank_data:
                 self.same_rank_data.clear()
             
-            # Only clear special card data if we're not in the middle of processing special cards
-            # This prevents clearing data during special card processing
-            if self.special_card_data and self.game_state.phase not in [GamePhase.SPECIAL_PLAY_WINDOW]:
-                custom_log(f"DEBUG: Clearing {len(self.special_card_data)} special cards in start_turn (phase: {self.game_state.phase})", level="INFO", isOn=LOGGING_SWITCH)
-                self.special_card_data.clear()
-                custom_log("Special card data cleared in start_turn (new turn)", level="INFO", isOn=LOGGING_SWITCH)
-            elif self.special_card_data and self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
-                custom_log(f"DEBUG: NOT clearing {len(self.special_card_data)} special cards in start_turn (processing special cards)", level="INFO", isOn=LOGGING_SWITCH)
-                custom_log("Special card data NOT cleared in start_turn (processing special cards)", level="INFO", isOn=LOGGING_SWITCH)
+            # DO NOT clear special card data in start_turn - it should only be cleared after 
+            # all special cards have been processed in _end_special_cards_window()
+            # This prevents losing special cards that were added during same rank plays
+            if self.special_card_data:
+                custom_log(f"DEBUG: NOT clearing {len(self.special_card_data)} special cards in start_turn - will be cleared after processing", level="INFO", isOn=LOGGING_SWITCH)
             else:
                 custom_log("DEBUG: No special card data to clear in start_turn", level="INFO", isOn=LOGGING_SWITCH)
                 
@@ -220,6 +222,12 @@ class GameRound:
             self.current_turn_player_id = None
             self.draw_phase_timer = None
             
+            # Check if we're in a special play window
+            # If so, don't move to next player - let the special card window handle it
+            if self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
+                custom_log(f"Draw timeout occurred during SPECIAL_PLAY_WINDOW - not moving to next player, letting special card window handle it", level="INFO", isOn=LOGGING_SWITCH)
+                return
+            
             # Move to next player (existing logic handles status changes)
             custom_log(f"Moving to next player after draw timeout", level="INFO", isOn=LOGGING_SWITCH)
             self._move_to_next_player()
@@ -293,6 +301,17 @@ class GameRound:
             # Clean up timer state
             self.current_turn_player_id = None
             self.play_phase_timer = None
+            
+            # Check if we're in a special play window or if player is in special card status
+            # If so, don't move to next player - let the special card window handle it
+            if self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
+                custom_log(f"Play timeout occurred during SPECIAL_PLAY_WINDOW - not moving to next player, letting special card window handle it", level="INFO", isOn=LOGGING_SWITCH)
+                return
+            
+            # Also check if the player is in a special card status
+            if player and player.status in [PlayerStatus.JACK_SWAP, PlayerStatus.QUEEN_PEEK]:
+                custom_log(f"Play timeout occurred while player {player_id} is in special card status ({player.status}) - not moving to next player", level="INFO", isOn=LOGGING_SWITCH)
+                return
             
             # Move to next player (existing logic handles status changes)
             custom_log(f"Moving to next player after play timeout", level="INFO", isOn=LOGGING_SWITCH)
@@ -374,6 +393,15 @@ class GameRound:
     def _move_to_next_player(self):
         """Move to the next player in the game"""
         try:
+            # CRITICAL: Check if there are special cards to process first
+            if self.special_card_data and len(self.special_card_data) > 0:
+                custom_log(f"Cannot move to next player - {len(self.special_card_data)} special cards need to be processed first", level="WARNING", isOn=LOGGING_SWITCH)
+                # Trigger special cards window if not already in it
+                if self.game_state.phase != GamePhase.SPECIAL_PLAY_WINDOW:
+                    custom_log(f"Triggering special cards window from _move_to_next_player", level="INFO", isOn=LOGGING_SWITCH)
+                    self._handle_special_cards_window()
+                return  # Don't move to next player yet
+            
             # DO NOT move to next player if we're still processing special cards
             # The special cards window must complete first
             if self.game_state.phase == GamePhase.SPECIAL_PLAY_WINDOW:
@@ -1316,18 +1344,8 @@ class GameRound:
             # before we start the special cards window
             self._check_computer_player_same_rank_plays_sync()
 
-            # Process any pending special cards from regular play_card actions
-            if hasattr(self, 'pending_special_cards') and self.pending_special_cards:
-                custom_log(f"Processing {len(self.pending_special_cards)} pending special cards after same rank window", level="INFO", isOn=LOGGING_SWITCH)
-                for special_card_info in self.pending_special_cards:
-                    player_id = special_card_info['player_id']
-                    card_data = special_card_info['card_data']
-                    custom_log(f"Processing pending special card for {player_id}: {card_data}", level="DEBUG", isOn=LOGGING_SWITCH)
-                    self._check_special_card(player_id, card_data)
-                
-                # Clear the pending special cards after processing
-                self.pending_special_cards = []
-                custom_log("Cleared pending special cards after processing", level="DEBUG", isOn=LOGGING_SWITCH)
+            # Special cards are now processed immediately in _handle_play_card
+            # No need to process pending special cards here
 
             # Check for special cards and handle them (backend game_round.py line 640)
             # All same rank special cards are now in the list
@@ -1508,13 +1526,9 @@ class GameRound:
             # Execute decision with delay
             if decision.get('play') == True:
                 delay = decision.get('delay_seconds', 1.0)
-                # Add random variation (0.5s to 1.5s)
-                import random
+                # Use delay directly from decision (already randomized in config loader)
                 import time
-                total_delay = delay + (0.5 + random.random())
-                
-                # CRITICAL: Use time.sleep for sync version
-                time.sleep(total_delay)
+                time.sleep(delay)
                 
                 card_id = decision.get('card_id')
                 if card_id:
@@ -1585,12 +1599,8 @@ class GameRound:
             # Execute decision with delay
             if decision.get('play') == True:
                 delay = decision.get('delay_seconds', 1.0)
-                # Add random variation (0.5s to 1.5s)
-                import random
-                total_delay = delay + (0.5 + random.random())
-                
-                # CRITICAL: AWAIT the delay - this makes the coroutine wait for the full play to complete
-                await asyncio.sleep(total_delay)
+                # Use delay directly from decision (already randomized in config loader)
+                await asyncio.sleep(delay)
                 
                 card_id = decision.get('card_id')
                 if card_id:
@@ -1725,82 +1735,134 @@ class GameRound:
     def _process_next_special_card(self):
         """Process the next player's special card with 10-second timer"""
         try:
-            # Check if we've processed all special cards (list is empty)
-            if not self.special_card_players:
-                custom_log("All special cards processed - transitioning to ENDING_ROUND", level="INFO", isOn=LOGGING_SWITCH)
-                self._end_special_cards_window()
+            # CRITICAL: Use lock to prevent race conditions when multiple calls happen simultaneously
+            if not hasattr(self, '_special_card_processing_lock'):
+                import threading
+                self._special_card_processing_lock = threading.Lock()
+            
+            # Try to acquire the lock, but don't block if another call is already processing
+            if not self._special_card_processing_lock.acquire(blocking=False):
+                custom_log(f"WARNING: Special card processing already in progress - skipping duplicate call", level="WARNING", isOn=LOGGING_SWITCH)
                 return
             
-            # Get the first special card data (chronological order)
-            special_data = self.special_card_players[0]
-            player_id = special_data.get('player_id', 'unknown')
-            
-            card_rank = special_data.get('rank', 'unknown')
-            card_suit = special_data.get('suit', 'unknown')
-            special_power = special_data.get('special_power', 'unknown')
-            description = special_data.get('description', 'No description')
-            
-            custom_log(f"Processing special card for player {player_id}: {card_rank} of {card_suit}", level="INFO", isOn=LOGGING_SWITCH)
-            custom_log(f"  Special Power: {special_power}", level="INFO", isOn=LOGGING_SWITCH)
-            custom_log(f"  Description: {description}", level="INFO", isOn=LOGGING_SWITCH)
-            custom_log(f"  Remaining cards to process: {len(self.special_card_players)}", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # CRITICAL: Cancel regular play timeout when entering special play window
-            # This prevents the regular play timeout from interfering with special card timer
-            self._cancel_play_phase_timer()
-            custom_log(f"Cancelled regular play timeout for player {player_id} - entering special play window", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # Set player status based on special power
-            if special_power == 'jack_swap':
-                # Use the efficient batch update method to set player status
-                self.game_state.update_players_status_by_ids([player_id], PlayerStatus.JACK_SWAP)
-                custom_log(f"Player {player_id} status set to JACK_SWAP - 10 second timer started", level="INFO", isOn=LOGGING_SWITCH)
-            elif special_power == 'queen_peek':
-                # Use the efficient batch update method to set player status
-                self.game_state.update_players_status_by_ids([player_id], PlayerStatus.QUEEN_PEEK)
-                custom_log(f"Player {player_id} status set to PEEKING - 10 second timer started", level="INFO", isOn=LOGGING_SWITCH)
-            else:
-                custom_log(f"Unknown special power: {special_power} for player {player_id}", level="WARNING", isOn=LOGGING_SWITCH)
-                # Remove this card and move to next
-                self.special_card_players.pop(0)
-            
-            # Start 10-second timer for this player's special card play
-            self.special_card_timer = threading.Timer(10.0, self._on_special_card_timer_expired)
-            self.special_card_timer.start()
-            custom_log(f"10-second timer started for player {player_id}'s {special_power}", level="INFO", isOn=LOGGING_SWITCH)
-            custom_log(f"DEBUG: Timer object created: {self.special_card_timer}", level="DEBUG", isOn=LOGGING_SWITCH)
-            custom_log(f"DEBUG: Timer is_alive: {self.special_card_timer.is_alive()}", level="DEBUG", isOn=LOGGING_SWITCH)
+            try:
+                # Check if we've processed all special cards (list is empty)
+                if not self.special_card_players:
+                    custom_log("All special cards processed - transitioning to ENDING_ROUND", level="INFO", isOn=LOGGING_SWITCH)
+                    self._end_special_cards_window()
+                    return
+                
+                # Get the first special card data (chronological order)
+                special_data = self.special_card_players[0]
+                player_id = special_data.get('player_id', 'unknown')
+                
+                card_rank = special_data.get('rank', 'unknown')
+                card_suit = special_data.get('suit', 'unknown')
+                special_power = special_data.get('special_power', 'unknown')
+                description = special_data.get('description', 'No description')
+                
+                custom_log(f"Processing special card for player {player_id}: {card_rank} of {card_suit}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"  Special Power: {special_power}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"  Description: {description}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"  Remaining cards to process: {len(self.special_card_players)}", level="INFO", isOn=LOGGING_SWITCH)
+                
+                # CRITICAL: Cancel regular play timeout when entering special play window
+                # This prevents the regular play timeout from interfering with special card timer
+                self._cancel_play_phase_timer()
+                custom_log(f"Cancelled regular play timeout for player {player_id} - entering special play window", level="INFO", isOn=LOGGING_SWITCH)
+                
+                # Set player status based on special power
+                if special_power == 'jack_swap':
+                    # Use the efficient batch update method to set player status
+                    self.game_state.update_players_status_by_ids([player_id], PlayerStatus.JACK_SWAP)
+                    custom_log(f"Player {player_id} status set to JACK_SWAP - 10 second timer started", level="INFO", isOn=LOGGING_SWITCH)
+                elif special_power == 'queen_peek':
+                    # Use the efficient batch update method to set player status
+                    self.game_state.update_players_status_by_ids([player_id], PlayerStatus.QUEEN_PEEK)
+                    custom_log(f"Player {player_id} status set to PEEKING - 10 second timer started", level="INFO", isOn=LOGGING_SWITCH)
+                else:
+                    custom_log(f"Unknown special power: {special_power} for player {player_id}", level="WARNING", isOn=LOGGING_SWITCH)
+                    # Remove this card and move to next
+                    self.special_card_players.pop(0)
+                    return
+                
+                # Start 10-second timer for this player's special card play
+                # CRITICAL: Always cancel existing timer before creating new one to prevent race conditions
+                if hasattr(self, 'special_card_timer') and self.special_card_timer and self.special_card_timer.is_alive():
+                    custom_log(f"WARNING: Special card timer already running - cancelling existing timer before starting new one for {player_id}", level="WARNING", isOn=LOGGING_SWITCH)
+                    custom_log(f"DEBUG: Existing timer: {self.special_card_timer}", level="DEBUG", isOn=LOGGING_SWITCH)
+                    self.special_card_timer.cancel()
+                    self.special_card_timer = None
+                
+                # Create new timer
+                self.special_card_timer = threading.Timer(10.0, self._on_special_card_timer_expired)
+                self.special_card_timer.start()
+                custom_log(f"10-second timer started for player {player_id}'s {special_power}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"DEBUG: Timer object created: {self.special_card_timer}", level="DEBUG", isOn=LOGGING_SWITCH)
+                custom_log(f"DEBUG: Timer is_alive: {self.special_card_timer.is_alive()}", level="DEBUG", isOn=LOGGING_SWITCH)
+                
+            finally:
+                # Always release the lock
+                self._special_card_processing_lock.release()
             
         except Exception as e:
             custom_log(f"Error in _process_next_special_card: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            # Ensure lock is released even if exception occurs
+            if hasattr(self, '_special_card_processing_lock'):
+                try:
+                    self._special_card_processing_lock.release()
+                except:
+                    pass
     
     def _on_special_card_timer_expired(self):
         """Called when the special card timer expires - move to next player or end window"""
         try:
             custom_log(f"DEBUG: _on_special_card_timer_expired called at {time.time()}", level="DEBUG", isOn=LOGGING_SWITCH)
-            # Reset current player's status to WAITING (if there are still cards to process)
-            if self.special_card_players:
-                special_data = self.special_card_players[0]
-                player_id = special_data.get('player_id', 'unknown')
-                
-                # Get the player and clear their cards_to_peek (Queen peek timer expired)
-                player = self._get_player(player_id)
-                if player and player.cards_to_peek:
-                    player.clear_cards_to_peek()
-                    custom_log(f"Cleared cards_to_peek for player {player_id} (Queen peek timer expired)", level="INFO", isOn=LOGGING_SWITCH)
-                
-                self.game_state.update_players_status_by_ids([player_id], PlayerStatus.WAITING)
-                custom_log(f"Player {player_id} special card timer expired - status reset to WAITING", level="INFO", isOn=LOGGING_SWITCH)
-                
-                # Remove the processed card from the list
-                self.special_card_players.pop(0)
-                custom_log(f"Removed processed card from list. Remaining cards: {len(self.special_card_players)}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Process next special card or end window
-            self._process_next_special_card()
+            # CRITICAL: Prevent race conditions by ensuring only one timer callback runs at a time
+            if not hasattr(self, '_special_card_timer_lock'):
+                import threading
+                self._special_card_timer_lock = threading.Lock()
+            
+            # Try to acquire the lock, but don't block if another callback is already running
+            if not self._special_card_timer_lock.acquire(blocking=False):
+                custom_log(f"WARNING: Timer callback already running - skipping duplicate call", level="WARNING", isOn=LOGGING_SWITCH)
+                return
+            
+            try:
+                # Reset current player's status to WAITING (if there are still cards to process)
+                if self.special_card_players:
+                    special_data = self.special_card_players[0]
+                    player_id = special_data.get('player_id', 'unknown')
+                    
+                    # Get the player and clear their cards_to_peek (Queen peek timer expired)
+                    player = self._get_player(player_id)
+                    if player and player.cards_to_peek:
+                        player.clear_cards_to_peek()
+                        custom_log(f"Cleared cards_to_peek for player {player_id} (Queen peek timer expired)", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    self.game_state.update_players_status_by_ids([player_id], PlayerStatus.WAITING)
+                    custom_log(f"Player {player_id} special card timer expired - status reset to WAITING", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Remove the processed card from the list
+                    self.special_card_players.pop(0)
+                    custom_log(f"Removed processed card from list. Remaining cards: {len(self.special_card_players)}", level="INFO", isOn=LOGGING_SWITCH)
+                
+                # Process next special card or end window
+                self._process_next_special_card()
+                
+            finally:
+                # Always release the lock
+                self._special_card_timer_lock.release()
             
         except Exception as e:
             custom_log(f"Error in _on_special_card_timer_expired: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            # Ensure lock is released even if exception occurs
+            if hasattr(self, '_special_card_timer_lock'):
+                try:
+                    self._special_card_timer_lock.release()
+                except:
+                    pass
     
     def _end_special_cards_window(self):
         """End the special cards window and transition to ENDING_ROUND"""
@@ -2132,23 +2194,16 @@ class GameRound:
             custom_log(f"Played Card: {card_to_play.card_id if card_to_play else 'None'}", isOn=LOGGING_SWITCH)
             custom_log(f"=================================", isOn=LOGGING_SWITCH)
             
-            # Store special card data for processing after same rank window
-            # Don't process special cards immediately to avoid conflict with same rank window
-            special_card_data = {
+            # Check for special cards (Jack/Queen) and add to list if applicable
+            # This just adds to special_card_data list - doesn't trigger window yet
+            card_data = {
                 'card_id': card_id,
                 'rank': card_to_play.rank,
                 'suit': card_to_play.suit
             }
+            self._check_special_card(player_id, card_data)
             
-            # Store the special card data for later processing
-            if not hasattr(self, 'pending_special_cards'):
-                self.pending_special_cards = []
-            self.pending_special_cards.append({
-                'player_id': player_id,
-                'card_data': special_card_data
-            })
-            
-            custom_log(f"Stored special card data for later processing: {special_card_data}", level="DEBUG", isOn=LOGGING_SWITCH)
+            custom_log(f"Checked special card: {card_data}", level="DEBUG", isOn=LOGGING_SWITCH)
             
             # === PRE-UPDATE LOGGING: Verify game state before update_known_cards ===
             custom_log(f"=== BEFORE update_known_cards (play_card) ===", level="DEBUG", isOn=LOGGING_SWITCH)
@@ -2472,6 +2527,13 @@ class GameRound:
             custom_log(f"Player {first_player_id} now has: {[card.card_id if card else None for card in first_player.hand]}", level="DEBUG", isOn=LOGGING_SWITCH)
             custom_log(f"Player {second_player_id} now has: {[card.card_id if card else None for card in second_player.hand]}", level="DEBUG", isOn=LOGGING_SWITCH)
             
+            # Action completed successfully - cancel timer and move to next special card
+            self.cancel_special_card_timer()
+            if self.special_card_players:
+                self.special_card_players.pop(0)
+                custom_log(f"Jack swap completed - removed from queue. Remaining: {len(self.special_card_players)}", level="INFO", isOn=LOGGING_SWITCH)
+            self._process_next_special_card()
+            
             return True
             
         except Exception as e:
@@ -2524,6 +2586,13 @@ class GameRound:
             # Set player status to PEEKING
             current_player.set_status(PlayerStatus.PEEKING)
             custom_log(f"Set player {user_id} status to PEEKING", level="DEBUG", isOn=LOGGING_SWITCH)
+            
+            # Action completed successfully - cancel timer and move to next special card  
+            self.cancel_special_card_timer()
+            if self.special_card_players:
+                self.special_card_players.pop(0)
+                custom_log(f"Queen peek completed - removed from queue. Remaining: {len(self.special_card_players)}", level="INFO", isOn=LOGGING_SWITCH)
+            self._process_next_special_card()
             
             return True
             
@@ -2664,14 +2733,22 @@ class GameRound:
         if not affected_card_ids:
             return
         
-        # Only update if this is not the acting player (they already know their own cards)
-        if current_player_id == acting_player_id:
-            return
-        
-        # Get the drawn card ID
         drawn_card_id = affected_card_ids[0]
         
-        # Add to the acting player's known cards (if remember probability succeeds)
+        # If this is the acting player (the one who drew the card)
+        if current_player_id == acting_player_id:
+            # Computer player should add drawn card to their own known_cards
+            if acting_player_id not in known_cards:
+                known_cards[acting_player_id] = {}
+            
+            # Get full card data from game state
+            drawn_card = self.game_state.get_card_by_id(drawn_card_id)
+            if drawn_card:
+                known_cards[acting_player_id][drawn_card_id] = drawn_card.to_dict()
+                custom_log(f"Added drawn card {drawn_card_id} to computer player {acting_player_id} known_cards", level="INFO", isOn=LOGGING_SWITCH)
+            return
+        
+        # Other players track the drawn card based on remember probability
         if random.random() <= remember_prob:
             if acting_player_id not in known_cards:
                 known_cards[acting_player_id] = {}

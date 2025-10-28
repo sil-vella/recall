@@ -1,7 +1,7 @@
 import '../state_manager.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// WebSocket State Field Specification
 class WebSocketStateFieldSpec {
@@ -358,5 +358,25 @@ class WebSocketStateHelpers {
     });
     
     _logger.info('✅ Joined rooms information updated successfully', isOn: LOGGING_SWITCH);
+  }
+  
+  /// Update authentication status
+  static void updateAuthenticationStatus({
+    required bool isAuthenticated,
+    String? userId,
+    String? error,
+  }) {
+    final stateManager = StateManager();
+    final currentState = stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    
+    stateManager.updateModuleState('websocket', {
+      ...currentState,
+      'is_authenticated': isAuthenticated,
+      'user_id': userId,
+      'auth_error': error,
+      'auth_timestamp': DateTime.now().toIso8601String(),
+    });
+    
+    _logger.info('✅ Authentication status updated: authenticated=$isAuthenticated', isOn: LOGGING_SWITCH);
   }
 }

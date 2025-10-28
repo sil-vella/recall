@@ -1,24 +1,24 @@
-import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../state_manager.dart';
 import '../module_manager.dart';
 import '../hooks_manager.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
+import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
 class WSEventHandler {
-  final IO.Socket? _socket;
+  final NativeWebSocketAdapter? _socket;
   final WSEventManager _eventManager;
   final StateManager _stateManager;
   final ModuleManager _moduleManager;
   static final Logger _logger = Logger();
 
   WSEventHandler({
-    required IO.Socket? socket,
+    required NativeWebSocketAdapter? socket,
     required WSEventManager eventManager,
     required StateManager stateManager,
     required ModuleManager moduleManager,
@@ -660,6 +660,68 @@ class WSEventHandler {
       }
     } catch (e) {
       // Error in unified event handler
+    }
+  }
+  
+  /// Handle authentication success
+  void handleAuthenticationSuccess(dynamic data) {
+    try {
+      _logger.info('🔐 User authenticated', isOn: LOGGING_SWITCH);
+      
+      WebSocketStateHelpers.updateAuthenticationStatus(
+        isAuthenticated: true,
+        userId: data is Map ? data['user_id'] : null,
+      );
+    } catch (e) {
+      _logger.error('Error handling authentication success: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Handle authentication failure
+  void handleAuthenticationFailed(dynamic data) {
+    try {
+      _logger.warning('Authentication failed', isOn: LOGGING_SWITCH);
+      
+      WebSocketStateHelpers.updateAuthenticationStatus(
+        isAuthenticated: false,
+        error: data is Map ? data['message'] : 'Authentication failed',
+      );
+    } catch (e) {
+      _logger.error('Error handling authentication failure: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Handle authentication error
+  void handleAuthenticationError(dynamic data) {
+    try {
+      _logger.error('Authentication error', isOn: LOGGING_SWITCH);
+      
+      WebSocketStateHelpers.updateAuthenticationStatus(
+        isAuthenticated: false,
+        error: data is Map ? data['message'] : 'Authentication error',
+      );
+    } catch (e) {
+      _logger.error('Error handling authentication error: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Handle custom events (like game event acknowledgments)
+  void handleCustomEvent(String eventType, dynamic data) {
+    try {
+      _logger.info('🎮 Custom event received: $eventType', isOn: LOGGING_SWITCH);
+      
+      // Trigger event callbacks
+      _eventManager.triggerCallbacks(eventType, data);
+      
+      // Trigger hooks for other modules
+      HooksManager().triggerHookWithData('websocket_custom_event', {
+        'event_type': eventType,
+        'data': data,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+    } catch (e) {
+      _logger.error('Error handling custom event $eventType: $e', isOn: LOGGING_SWITCH);
     }
   }
 } 

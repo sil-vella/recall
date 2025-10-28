@@ -11,7 +11,7 @@ from tools.logger.custom_logging import custom_log
 from .computer_player_config_loader import ComputerPlayerConfigLoader
 from .yaml_rules_engine import YamlRulesEngine
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 class ComputerPlayerFactory:
     """Factory for creating computer player behavior based on YAML configuration"""
@@ -79,9 +79,12 @@ class ComputerPlayerFactory:
         decision_delay = self.config.get_decision_delay(difficulty)
         play_probability = self.config.get_same_rank_play_probability(difficulty)
         
+        # Filter out null cards from available cards
+        filtered_cards = [card for card in available_cards if card and str(card) != 'null']
+        
         should_play = self._random.random() < play_probability
         
-        if not should_play or not available_cards:
+        if not should_play or not filtered_cards:
             return {
                 'action': 'same_rank_play',
                 'play': False,
@@ -91,8 +94,8 @@ class ComputerPlayerFactory:
                 'reasoning': f"Decided not to play same rank ({(1 - play_probability) * 100:.1f}% probability)"
             }
         
-        # Select a card to play
-        selected_card = self._random.choice(available_cards)
+        # Select a card to play from filtered cards
+        selected_card = self._random.choice(filtered_cards)
         
         return {
             'action': 'same_rank_play',
@@ -204,38 +207,29 @@ class ComputerPlayerFactory:
         known_cards = current_player_data.get('known_cards', {})
         collection_rank_cards = current_player_data.get('collection_rank_cards', [])
         collection_card_ids = {
-            card.get('cardId') or card.get('id') 
+            card.get('card_id') or card.get('cardId') or card.get('id') 
             for card in collection_rank_cards 
-            if isinstance(card, dict) and (card.get('cardId') or card.get('id'))
+            if isinstance(card, dict) and (card.get('card_id') or card.get('cardId') or card.get('id'))
         }
         
-        # Filter out collection rank cards
+        # Filter out null cards and collection rank cards from all lists
+        available_cards = [card for card in available_cards if card and str(card) != 'null']
         playable_cards = [card_id for card_id in available_cards if card_id not in collection_card_ids]
         
-        # Extract known card IDs (handles both card objects and card ID strings)
+        # Extract known card IDs using card-ID-based structure (player_id -> card_id -> card_data)
         known_card_ids = set()
-        for player_known_cards in known_cards.values():
+        player_id = current_player_data.get('player_id') or current_player_data.get('id')
+        if player_id and player_id in known_cards:
+            player_known_cards = known_cards[player_id]
             if isinstance(player_known_cards, dict):
-                card1 = player_known_cards.get('card1')
-                card2 = player_known_cards.get('card2')
-                
-                # Handle card1 (can be dict or string)
-                if card1:
-                    if isinstance(card1, dict):
-                        card_id = card1.get('cardId') or card1.get('id')
-                        if card_id:
-                            known_card_ids.add(card_id)
-                    else:
-                        known_card_ids.add(str(card1))
-                
-                # Handle card2 (can be dict, string, or None)
-                if card2:
-                    if isinstance(card2, dict):
-                        card_id = card2.get('cardId') or card2.get('id')
-                        if card_id:
-                            known_card_ids.add(card_id)
-                    else:
-                        known_card_ids.add(str(card2))
+                # Card-ID-based structure: card_id -> card_data
+                for card_id in player_known_cards.keys():
+                    if card_id and str(card_id) != 'null':
+                        known_card_ids.add(str(card_id))
+        
+        # Filter out null cards from all lists
+        playable_cards = [card for card in playable_cards if card and str(card) != 'null']
+        known_card_ids = {card_id for card_id in known_card_ids if card_id and str(card_id) != 'null'}
         
         # Get unknown cards
         unknown_cards = [card_id for card_id in playable_cards if card_id not in known_card_ids]
@@ -278,9 +272,9 @@ class ComputerPlayerFactory:
         known_cards = current_player_data.get('known_cards', {})
         collection_rank_cards = current_player_data.get('collection_rank_cards', [])
         collection_card_ids = {
-            card.get('cardId') or card.get('id') 
+            card.get('card_id') or card.get('cardId') or card.get('id') 
             for card in collection_rank_cards 
-            if isinstance(card, dict) and (card.get('cardId') or card.get('id'))
+            if isinstance(card, dict) and (card.get('card_id') or card.get('cardId') or card.get('id'))
         }
         
         # Filter out collection rank cards
@@ -344,7 +338,7 @@ class ComputerPlayerFactory:
                     all_cards.append(card)
         
         # Filter to candidate cards
-        candidate_cards = [card for card in all_cards if card.get('id') in card_ids]
+        candidate_cards = [card for card in all_cards if card.get('card_id') or card.get('cardId') or card.get('id') in card_ids]
         
         if not candidate_cards:
             return self._random.choice(card_ids)
@@ -358,7 +352,7 @@ class ComputerPlayerFactory:
         # Find highest points
         highest_card = max(non_jack_cards, key=lambda c: c.get('points', 0))
         
-        return highest_card.get('id', self._random.choice(card_ids))
+        return highest_card.get('card_id') or highest_card.get('cardId') or highest_card.get('id', self._random.choice(card_ids))
     
     def _select_jack_swap_targets(self, game_state: Dict[str, Any], player_id: str, target_strategy: str) -> Dict[str, str]:
         """Select Jack swap targets based on strategy"""

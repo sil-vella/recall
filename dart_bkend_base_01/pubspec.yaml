@@ -1,0 +1,16 @@
+name: dart_game_server
+description: Recall game WebSocket server
+version: 1.0.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  shelf: ^1.4.0              # HTTP server
+  shelf_web_socket: ^2.0.0   # WebSocket support
+  web_socket_channel: ^2.4.0 # WebSocket channel
+  uuid: ^4.0.0               # Generate IDs
+  http: ^1.1.0               # For Python API calls
+  
+dev_dependencies:
+  lints: ^3.0.0

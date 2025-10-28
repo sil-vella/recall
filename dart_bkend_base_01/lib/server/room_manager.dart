@@ -56,6 +56,9 @@ class RoomManager {
   final Map<String, Room> _rooms = {};
   final Map<String, String> _sessionToRoom = {}; // sessionId -> roomId
   
+  // Callback for room closure events
+  Function(String roomId, String reason)? onRoomClosed;
+  
   String createRoom(String creatorSessionId, String userId, {
     int? maxSize,
     int? minPlayers,
@@ -130,11 +133,32 @@ class RoomManager {
     
     // Destroy empty rooms
     if (room != null && room.sessionIds.isEmpty) {
+      // 🎣 Trigger room_closed hook before cleanup
+      onRoomClosed?.call(roomId, 'empty');
+      
       _rooms.remove(roomId);
       print('🗑️  Room destroyed: $roomId (empty)');
     }
   }
   
+  /// Manually close a room (for TTL expiry, admin action, etc.)
+  void closeRoom(String roomId, String reason) {
+    final room = _rooms[roomId];
+    if (room == null) return;
+    
+    // 🎣 Trigger room_closed hook before cleanup
+    onRoomClosed?.call(roomId, reason);
+    
+    // Remove all sessions from this room
+    for (final sessionId in List.from(room.sessionIds)) {
+      _sessionToRoom.remove(sessionId);
+    }
+    
+    // Remove the room
+    _rooms.remove(roomId);
+    print('🗑️  Room manually closed: $roomId (reason: $reason)');
+  }
+
   void handleDisconnect(String sessionId) {
     leaveRoom(sessionId);
   }

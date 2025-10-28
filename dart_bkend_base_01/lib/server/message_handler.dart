@@ -126,6 +126,18 @@ class MessageHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
+      // 🎣 Trigger room_created hook
+      _server.triggerHook('room_created', data: {
+        'room_id': roomId,
+        'owner_id': room.ownerId,
+        'current_size': room.currentSize,
+        'max_size': room.maxSize,
+        'min_players': room.minPlayers,
+        'game_type': room.gameType,
+        'permission': room.permission,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      
       // Also send room_joined (auto-join creator like Python does)
       _server.sendToSession(sessionId, {
         'event': 'room_joined',
@@ -136,6 +148,17 @@ class MessageHandler {
         'current_size': room.currentSize,
         'max_size': room.maxSize,
         'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      // 🎣 Trigger room_joined hook (for auto-join creator)
+      _server.triggerHook('room_joined', data: {
+        'room_id': roomId,
+        'session_id': sessionId,
+        'user_id': userId,
+        'owner_id': room.ownerId,
+        'current_size': room.currentSize,
+        'max_size': room.maxSize,
+        'joined_at': DateTime.now().toIso8601String(),
       });
       
       _logger.room('✅ Room created and creator auto-joined: $roomId', isOn: LOGGING_SWITCH);
@@ -241,6 +264,17 @@ class MessageHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
+      // 🎣 Trigger room_joined hook
+      _server.triggerHook('room_joined', data: {
+        'room_id': roomId,
+        'session_id': sessionId,
+        'user_id': userId,
+        'owner_id': room.ownerId,
+        'current_size': room.currentSize,
+        'max_size': room.maxSize,
+        'joined_at': DateTime.now().toIso8601String(),
+      });
+      
       // Broadcast to other room members
       _server.broadcastToRoom(roomId, {
         'event': 'player_joined',
@@ -264,6 +298,7 @@ class MessageHandler {
     final roomId = _roomManager.getRoomForSession(sessionId);
     if (roomId != null) {
       final room = _roomManager.getRoomInfo(roomId);
+      final userId = _server.getUserIdForSession(sessionId) ?? sessionId; // Get userId from server
       _roomManager.leaveRoom(sessionId);
       
       // Send leave_room_success (primary event matching Python)
@@ -272,6 +307,14 @@ class MessageHandler {
         'room_id': roomId,
         'session_id': sessionId,
         'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      // 🎣 Trigger leave_room hook
+      _server.triggerHook('leave_room', data: {
+        'room_id': roomId,
+        'session_id': sessionId,
+        'user_id': userId,
+        'left_at': DateTime.now().toIso8601String(),
       });
       
       // Broadcast to remaining room members

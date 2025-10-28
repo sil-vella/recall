@@ -33,13 +33,16 @@ class WSEventHandler {
       _logger.info('🔌 WebSocket connection established', isOn: LOGGING_SWITCH);
       if (data is Map<String, dynamic>) {
         _logger.debug('Connection data: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+        _logger.debug('Session ID: ${data['session_id']}', isOn: LOGGING_SWITCH);
       }
       
       // Use validated state updater
+      _logger.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus()', isOn: LOGGING_SWITCH);
       WebSocketStateHelpers.updateConnectionStatus(
         isConnected: true,
         sessionData: data is Map<String, dynamic> ? data : null,
       );
+      _logger.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed', isOn: LOGGING_SWITCH);
       
       // 🎣 Trigger websocket_connect hook for other modules
       HooksManager().triggerHookWithData('websocket_connect', {

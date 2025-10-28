@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../managers/state_manager.dart';
 import '../../managers/websockets/websocket_manager.dart';
+import '../../../tools/logging/logger.dart';
+
+// Logging switch for this file
+const bool LOGGING_SWITCH = true;
 
 /// State-aware connection status feature widget
 /// 
@@ -9,6 +13,8 @@ import '../../managers/websockets/websocket_manager.dart';
 /// widgets in the app using ListenableBuilder.
 class StateAwareConnectionStatusFeature extends StatelessWidget {
   const StateAwareConnectionStatusFeature({Key? key}) : super(key: key);
+  
+  static final Logger _logger = Logger();
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +28,10 @@ class StateAwareConnectionStatusFeature extends StatelessWidget {
         // Get connecting state from WebSocketManager
         final websocketManager = WebSocketManager.instance;
         final isConnecting = websocketManager.isConnecting;
+        
+        // Debug logging for connection indicator
+        _logger.debug('🔍 Connection Indicator: websocketState=$websocketState', isOn: LOGGING_SWITCH);
+        _logger.debug('🔍 Connection Indicator: isConnected=$isConnected, isConnecting=$isConnecting', isOn: LOGGING_SWITCH);
         
         // Determine icon and color based on state
         IconData icon;

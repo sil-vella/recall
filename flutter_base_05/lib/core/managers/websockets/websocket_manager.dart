@@ -12,6 +12,8 @@ import 'websocket_events.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 
+const bool LOGGING_SWITCH = true;
+
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();
   factory WebSocketManager() {
@@ -136,8 +138,35 @@ class WebSocketManager {
         return false;
       }
       
-      // Create native WebSocket connection
+      // Create native WebSocket adapter (but don't connect yet)
       _socket = NativeWebSocketAdapter();
+      
+      // Initialize event manager BEFORE connecting
+      eventManager.initialize();
+      
+      // Set up hook triggering logic
+      _setupHookTriggers();
+      
+      // Initialize new centralized event listener and handler BEFORE connecting
+      final stateManager = StateManager();
+      _eventHandler = WSEventHandler(
+        socket: _socket,
+        eventManager: eventManager,
+        stateManager: stateManager,
+        moduleManager: _moduleManager,
+      );
+      
+      _eventListener = WSEventListener(
+        socket: _socket,
+        eventHandler: _eventHandler!,
+        stateManager: stateManager,
+        moduleManager: _moduleManager,
+      );
+      
+      // Register all event listeners BEFORE connecting
+      _eventListener!.registerAllListeners();
+      
+      // NOW establish the WebSocket connection (after listeners are ready)
       final connected = await _socket!.connect(Config.wsUrl, <String, dynamic>{
         'query': {
           'token': authToken,
@@ -154,30 +183,14 @@ class WebSocketManager {
         return false;
       }
       
-      // Initialize event manager
-      eventManager.initialize();
-      
-      // Set up hook triggering logic
-      _setupHookTriggers();
-      
-      // Initialize new centralized event listener and handler
-      final stateManager = StateManager();
-      _eventHandler = WSEventHandler(
-        socket: _socket,
-        eventManager: eventManager,
-        stateManager: stateManager,
-        moduleManager: _moduleManager,
+      // Update connection state in StateManager since connection is established
+      _log.info('🔌 Connection established in initialize(), updating StateManager', isOn: LOGGING_SWITCH);
+      _isConnected = true;
+      WebSocketStateHelpers.updateConnectionStatus(
+        isConnected: true,
+        sessionData: null, // No session data available yet
       );
-      
-      _eventListener = WSEventListener(
-        socket: _socket,
-        eventHandler: _eventHandler!,
-        stateManager: stateManager,
-        moduleManager: _moduleManager,
-      );
-      
-      // Register all event listeners
-      _eventListener!.registerAllListeners();
+      _log.info('✅ StateManager updated with connection status in initialize()', isOn: LOGGING_SWITCH);
       
       // Token refresh is now handled by AuthManager
       // No need to setup token refresh here
@@ -498,14 +511,20 @@ class WebSocketManager {
       _connectionController.add(connectingEvent);
       _eventController.add(connectingEvent);
       
-      // Create a completer to wait for the connection event
-      final completer = Completer<bool>();
-      
-      // Set up a one-time listener for the connect event
-      void onConnect(dynamic _) {
-        // Update our tracked connection state
+      // Check if connection is already established (from initialize())
+      if (_socket!.connected) {
+        _log.info('🔌 Connection already established, updating state immediately', isOn: LOGGING_SWITCH);
+        // Connection already established, update state immediately
         _isConnected = true;
-        _isConnecting = false; // Reset connecting state
+        _isConnecting = false;
+        
+        _log.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus() for pre-established connection', isOn: LOGGING_SWITCH);
+        // Update StateManager for UI indicators
+        WebSocketStateHelpers.updateConnectionStatus(
+          isConnected: true,
+          sessionData: null, // No session data available for pre-established connection
+        );
+        _log.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed for pre-established connection', isOn: LOGGING_SWITCH);
         
         // 🎣 Trigger websocket_connected hook for other modules
         HooksManager().triggerHookWithData('websocket_connected', {
@@ -516,15 +535,52 @@ class WebSocketManager {
           'timestamp': DateTime.now().toIso8601String(),
         });
         
+        return true;
+      }
+      
+      // Create a completer to wait for the connection event
+      final completer = Completer<bool>();
+      
+      // Set up a one-time listener for the connect event
+      void onConnect(dynamic data) {
+        _log.info('🔌 onConnect callback executing with data: $data', isOn: LOGGING_SWITCH);
+        
+        // Update our tracked connection state
+        _log.info('🔄 Updating _isConnected to true', isOn: LOGGING_SWITCH);
+        _isConnected = true;
+        _isConnecting = false; // Reset connecting state
+        
+        _log.info('🔄 Calling WebSocketStateHelpers.updateConnectionStatus()', isOn: LOGGING_SWITCH);
+        // Update StateManager for UI indicators
+        WebSocketStateHelpers.updateConnectionStatus(
+          isConnected: true,
+          sessionData: data is Map<String, dynamic> ? data : null,
+        );
+        _log.info('✅ WebSocketStateHelpers.updateConnectionStatus() completed', isOn: LOGGING_SWITCH);
+        
+        // 🎣 Trigger websocket_connected hook for other modules
+        _log.info('🎣 Triggering websocket_connected hook', isOn: LOGGING_SWITCH);
+        HooksManager().triggerHookWithData('websocket_connected', {
+          'websocket_manager': this,
+          'socket_id': _socket!.id,
+          'event_listener': _eventListener,
+          'event_manager': _eventManager,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        
+        _log.info('✅ Completing completer with true', isOn: LOGGING_SWITCH);
         completer.complete(true);
       }
       
       // Set up a one-time listener for connection errors
       void onConnectError(dynamic error) {
+        _log.error('❌ onConnectError callback executing with error: $error', isOn: LOGGING_SWITCH);
+        
         // Update our tracked connection state
         _isConnected = false;
         _isConnecting = false;
         
+        _log.error('❌ Completing completer with false due to error', isOn: LOGGING_SWITCH);
         completer.complete(false);
       }
       
@@ -532,7 +588,7 @@ class WebSocketManager {
       _socket!.once('connected', onConnect);
       _socket!.once('connect_error', onConnectError);
       
-      // Connection is already established in initialize(), just wait for confirmation
+      // Wait for connection confirmation
       try {
         final result = await completer.future.timeout(
           Duration(seconds: Config.websocketTimeout),

@@ -32,12 +32,14 @@ class WebSocketServer {
 
     _logger.connection('✅ Client connected: $sessionId (Total: ${_connections.length})', isOn: LOGGING_SWITCH);
 
+    _logger.connection('📤 Sending connected event to session: $sessionId', isOn: LOGGING_SWITCH);
     sendToSession(sessionId, {
       'event': 'connected',
       'session_id': sessionId,
       'message': 'Welcome to Recall Game Server',
       'authenticated': false,
     });
+    _logger.connection('✅ Connected event sent to session: $sessionId', isOn: LOGGING_SWITCH);
 
     webSocket.stream.listen(
       (message) => _onMessage(sessionId, message),
@@ -52,7 +54,7 @@ class WebSocketServer {
 
       // Check for authentication token
       if (data.containsKey('token') && !_authenticatedSessions[sessionId]!) {
-        _validateAndAuthenticate(sessionId, data['token'] as String);
+        validateAndAuthenticate(sessionId, data['token'] as String);
       }
 
       // Route to unified message handler
@@ -66,7 +68,7 @@ class WebSocketServer {
     }
   }
   
-  Future<void> _validateAndAuthenticate(String sessionId, String token) async {
+  Future<void> validateAndAuthenticate(String sessionId, String token) async {
     _logger.auth('🔐 Validating token for session: $sessionId', isOn: LOGGING_SWITCH);
     
     try {
@@ -101,10 +103,30 @@ class WebSocketServer {
   
   void _onDisconnect(String sessionId) {
     _logger.connection('👋 Client disconnected: $sessionId', isOn: LOGGING_SWITCH);
+    
+    // Get user's current room before cleanup
+    final roomId = _roomManager.getRoomForSession(sessionId);
+    final room = roomId != null ? _roomManager.getRoomInfo(roomId) : null;
+    
+    // Clean up connections and authentication
     _connections.remove(sessionId);
     _sessionToUser.remove(sessionId);
     _authenticatedSessions.remove(sessionId);
+    
+    // Handle room cleanup
     _roomManager.handleDisconnect(sessionId);
+    
+    // Broadcast to remaining room members if user was in a room
+    if (roomId != null && room != null) {
+      _logger.room('📢 Broadcasting player_left to room $roomId', isOn: LOGGING_SWITCH);
+      broadcastToRoom(roomId, {
+        'event': 'player_left',
+        'room_id': roomId,
+        'player_count': room.currentSize,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    }
+    
     _logger.connection('📊 Active connections: ${_connections.length}', isOn: LOGGING_SWITCH);
   }
 

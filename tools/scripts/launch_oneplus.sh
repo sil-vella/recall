@@ -76,7 +76,7 @@ flutter run \
     -d 84fbcf31 \
     --dart-define=API_URL_LOCAL=http://192.168.178.81:5001 \
     --dart-define=API_URL=https://fmif.reignofplay.com \
-    --dart-define=WS_URL_LOCAL=ws://192.168.178.81:5001 \
+    --dart-define=WS_URL_LOCAL=ws://192.168.178.81:8080 \
     --dart-define=WS_URL=wss://fmif.reignofplay.com \
     --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
     --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \

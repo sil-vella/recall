@@ -6,14 +6,13 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:recall/tools/logging/logger.dart';
-import '../../../../core/managers/state_manager.dart';
-import 'practice_game.dart';
 import 'utils/computer_player_factory.dart';
+import 'game_state_callback.dart';
 
 const bool LOGGING_SWITCH = true;
 
 class PracticeGameRound {
-  final PracticeGameCoordinator _practiceCoordinator;
+  final GameStateCallback _stateCallback;
   final String _gameId;
   Timer? _sameRankTimer; // Timer for same rank window (5 seconds)
   Timer? _specialCardTimer; // Timer for special card window (10 seconds per card)
@@ -29,7 +28,7 @@ class PracticeGameRound {
   // Matches backend's self.special_card_players list (game_round.py line 686)
   List<Map<String, dynamic>> _specialCardPlayers = [];
   
-  PracticeGameRound(this._practiceCoordinator, this._gameId);
+  PracticeGameRound(this._stateCallback, this._gameId);
   
   /// Initialize the round with the current game state
   /// Replicates backend _initial_peek_timeout() and start_turn() logic
@@ -159,16 +158,31 @@ class PracticeGameRound {
   }
 
   
-  /// Get the current game state from the practice coordinator
+  /// Get the current game state from the callback
   Map<String, dynamic>? _getCurrentGameState() {
     try {
-      final currentGames = _practiceCoordinator.currentGamesMap;
-      final gameData = currentGames[_gameId];
-      return gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
+      return _stateCallback.getCurrentGameState();
     } catch (e) {
       Logger().error('Practice: Failed to get current game state: $e', isOn: LOGGING_SWITCH);
       return null;
     }
+  }
+
+  /// Add card to discard pile directly (for use by GameRound)
+  /// Updates the discard pile in game state and notifies callback
+  void _addToDiscardPile(Map<String, dynamic> card) {
+    final gameState = _getCurrentGameState();
+    if (gameState == null) {
+      Logger().error('Practice: Cannot add to discard pile - game state is null', isOn: LOGGING_SWITCH);
+      return;
+    }
+
+    final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+    discardPile.add(card);
+    gameState['discardPile'] = discardPile;
+    
+    // Notify callback that discard pile changed
+    _stateCallback.onDiscardPileChanged();
   }
   
   /// Start the next player's turn
@@ -200,7 +214,7 @@ class PracticeGameRound {
       // Reset previous current player's status to waiting (if there was one)
       if (currentPlayerId != null) {
         Logger().info('Practice: Resetting previous current player $currentPlayerId to waiting status', isOn: LOGGING_SWITCH);
-        _practiceCoordinator.updatePlayerStatus('waiting', playerId: currentPlayerId, updateMainState: true);
+        _stateCallback.onPlayerStatusChanged('waiting', playerId: currentPlayerId, updateMainState: true);
       }
       
       // Update current player
@@ -209,7 +223,7 @@ class PracticeGameRound {
       
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
       // This matches backend behavior where first player status is DRAWING_CARD
-      _practiceCoordinator.updatePlayerStatus('drawing_card', playerId: nextPlayer['id'], updateMainState: true, triggerInstructions: true);
+      _stateCallback.onPlayerStatusChanged('drawing_card', playerId: nextPlayer['id'], updateMainState: true, triggerInstructions: true);
       
       // Check if this is a computer player and trigger computer turn logic
       final isHuman = nextPlayer['isHuman'] as bool? ?? false;
@@ -348,14 +362,23 @@ class PracticeGameRound {
           );
           final hand = computerPlayer['hand'] as List<dynamic>? ?? [];
           Logger().info('Practice: DEBUG - Computer player hand: $hand', isOn: LOGGING_SWITCH);
-          final availableCards = hand.map((card) {
+          
+          // Map hand to card IDs, filtering out null cards
+          final availableCards = hand
+              .where((card) => card != null) // Filter out null cards first
+              .map((card) {
             if (card is Map<String, dynamic>) {
-              return card['cardId']?.toString() ?? card['id']?.toString() ?? card.toString();
+              final cardId = card['cardId']?.toString() ?? card['id']?.toString();
+              return cardId ?? '';
             } else {
-              return card.toString();
+              final cardStr = card.toString();
+              return cardStr == 'null' ? '' : cardStr;
             }
-          }).toList();
-          Logger().info('Practice: DEBUG - Available cards after mapping: $availableCards', isOn: LOGGING_SWITCH);
+          })
+              .where((cardId) => cardId.isNotEmpty) // Filter out empty strings (null conversions)
+              .toList();
+          
+          Logger().info('Practice: DEBUG - Available cards after mapping (nulls filtered): $availableCards', isOn: LOGGING_SWITCH);
           
           decision = _computerPlayerFactory!.getPlayCardDecision(difficulty, gameState, availableCards);
           break;
@@ -446,7 +469,8 @@ class PracticeGameRound {
           final shouldPlay = decision['play'] as bool? ?? false;
           if (shouldPlay) {
             final cardId = decision['card_id'] as String?;
-            if (cardId != null) {
+            if (_isValidCardId(cardId) && cardId != null) {
+              // cardId is guaranteed non-null after _isValidCardId check
               final success = await handleSameRankPlay(playerId, cardId);
               if (!success) {
                 Logger().error('Practice: Computer player $playerId failed same rank play', isOn: LOGGING_SWITCH);
@@ -679,7 +703,7 @@ class PracticeGameRound {
       }
       
       // Get current game state
-      final currentGames = _practiceCoordinator.currentGamesMap;
+      final currentGames = _stateCallback.currentGamesMap;
       final gameData = currentGames[_gameId];
       final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
@@ -714,7 +738,7 @@ class PracticeGameRound {
         Logger().info('Practice: Drew card ${idOnlyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
         
         // Convert ID-only card to full card data using the coordinator's method
-        drawnCard = _practiceCoordinator.getCardById(gameState, idOnlyCard['cardId']);
+        drawnCard = _stateCallback.getCardById(gameState, idOnlyCard['cardId']);
         if (drawnCard == null) {
           Logger().error('Practice: Failed to get full card data for ${idOnlyCard['cardId']}', isOn: LOGGING_SWITCH);
           return false;
@@ -784,7 +808,13 @@ class PracticeGameRound {
         player['drawnCard'] = {'cardId': drawnCard['cardId']}; // ID-only for computer players
         
         // IMPORTANT: Add the drawn card to computer player's known_cards so they can use it for same rank plays
-        final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+        final knownCardsRaw = player['known_cards'];
+        Map<String, dynamic> knownCards;
+        if (knownCardsRaw is Map) {
+          knownCards = Map<String, dynamic>.from(knownCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
+        } else {
+          knownCards = {};
+        }
         final playerIdKey = playerId;
         if (!knownCards.containsKey(playerIdKey)) {
           knownCards[playerIdKey] = {};
@@ -814,11 +844,7 @@ class PracticeGameRound {
       }
       
       // Change player status from DRAWING_CARD to PLAYING_CARD
-      final statusUpdated = _practiceCoordinator.updatePlayerStatus('playing_card', playerId: playerId, updateMainState: true, triggerInstructions: true);
-      if (!statusUpdated) {
-        Logger().error('Practice: Failed to update player status to playing_card', isOn: LOGGING_SWITCH);
-        return false;
-      }
+      _stateCallback.onPlayerStatusChanged('playing_card', playerId: playerId, updateMainState: true, triggerInstructions: true);
       
       Logger().info('Practice: Player $playerId status changed from drawing_card to playing_card', isOn: LOGGING_SWITCH);
       
@@ -858,15 +884,10 @@ class PracticeGameRound {
         Logger().info('Practice: Cannot collect during $gamePhase phase', isOn: LOGGING_SWITCH);
         
         // Show error message
-        final stateManager = StateManager();
-        final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-        stateManager.updateModuleState('recall_game', {
-          ...currentState,
-          'actionError': {
-            'message': 'Cannot collect cards during $gamePhase phase',
-            'timestamp': DateTime.now().millisecondsSinceEpoch,
-          },
-        });
+        _stateCallback.onActionError(
+          'Cannot collect cards during $gamePhase phase',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
         
         return false;
       }
@@ -888,15 +909,10 @@ class PracticeGameRound {
       if (discardPile.isEmpty) {
         Logger().info('Practice: Discard pile is empty', isOn: LOGGING_SWITCH);
         
-        final stateManager = StateManager();
-        final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-        stateManager.updateModuleState('recall_game', {
-          ...currentState,
-          'actionError': {
-            'message': 'Discard pile is empty',
-            'timestamp': DateTime.now().millisecondsSinceEpoch,
-          },
-        });
+        _stateCallback.onActionError(
+          'Discard pile is empty',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
         
         return false;
       }
@@ -911,15 +927,10 @@ class PracticeGameRound {
       if (topDiscardRank.toLowerCase() != playerCollectionRank.toLowerCase()) {
         Logger().info('Practice: Card rank $topDiscardRank doesn\'t match collection rank $playerCollectionRank', isOn: LOGGING_SWITCH);
         
-        final stateManager = StateManager();
-        final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-        stateManager.updateModuleState('recall_game', {
-          ...currentState,
-          'actionError': {
-            'message': 'You can only collect cards from the discard pile that match your collection rank',
-            'timestamp': DateTime.now().millisecondsSinceEpoch,
-          },
-        });
+        _stateCallback.onActionError(
+          'You can only collect cards from the discard pile that match your collection rank',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
         
         return false;
       }
@@ -942,12 +953,12 @@ class PracticeGameRound {
       Logger().info('Practice: Added card to hand and collection_rank_cards', isOn: LOGGING_SWITCH);
       
       // Trigger state update (no status change, player continues in current state)
-      final currentGames = _practiceCoordinator.currentGamesMap;
+      final currentGames = _stateCallback.currentGamesMap;
       
       // Get updated discard pile from game state
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
-      _practiceCoordinator.updatePracticeGameState({
+      _stateCallback.onGameStateChanged({
         'games': currentGames,
         'discardPile': updatedDiscardPile,  // CRITICAL: Update main state discardPile field
       });
@@ -966,7 +977,7 @@ class PracticeGameRound {
       Logger().info('Practice: Handling play card: $cardId', isOn: LOGGING_SWITCH);
       
       // Get current game state
-      final currentGames = _practiceCoordinator.currentGamesMap;
+      final currentGames = _stateCallback.currentGamesMap;
       final gameData = currentGames[_gameId];
       final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
@@ -1024,18 +1035,13 @@ class PracticeGameRound {
           Logger().info('Practice: Card $cardId is a collection rank card and cannot be played', isOn: LOGGING_SWITCH);
           
           // Show error message to user
-          final stateManager = StateManager();
-          final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-          stateManager.updateModuleState('recall_game', {
-            ...currentState,
-            'actionError': {
-              'message': 'This card is your collection rank and cannot be played. Choose another card.',
-              'timestamp': DateTime.now().millisecondsSinceEpoch,
-            },
-          });
+          _stateCallback.onActionError(
+            'This card is your collection rank and cannot be played. Choose another card.',
+            data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+          );
           
           // CRITICAL: Restore player status to playing_card so they can retry
-          _practiceCoordinator.updatePlayerStatus('playing_card', playerId: playerId, updateMainState: true);
+          _stateCallback.onPlayerStatusChanged('playing_card', playerId: playerId, updateMainState: true);
           Logger().info('Practice: Restored player $playerId status to playing_card after failed collection rank play', isOn: LOGGING_SWITCH);
           
           return false;
@@ -1081,7 +1087,7 @@ class PracticeGameRound {
       // Convert card to full data before adding to discard pile
       // The player's hand contains ID-only cards, but discard pile needs full card data
       Logger().info('Practice: About to get full card data for $cardId', isOn: LOGGING_SWITCH);
-      final cardToPlayFullData = _practiceCoordinator.getCardById(gameState, cardId);
+      final cardToPlayFullData = _stateCallback.getCardById(gameState, cardId);
       Logger().info('Practice: Got full card data for $cardId', isOn: LOGGING_SWITCH);
       if (cardToPlayFullData == null) {
         Logger().error('Practice: Failed to get full data for card $cardId', isOn: LOGGING_SWITCH);
@@ -1090,12 +1096,7 @@ class PracticeGameRound {
       Logger().info('Practice: Converted card $cardId to full data for discard pile', isOn: LOGGING_SWITCH);
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
-      final success = _practiceCoordinator.addToDiscardPile(cardToPlayFullData);
-      if (!success) {
-        Logger().error('Practice: Failed to add card $cardId to discard pile', isOn: LOGGING_SWITCH);
-        return false;
-      }
-      Logger().info('Practice: Successfully added card $cardId to discard pile with full data', isOn: LOGGING_SWITCH);
+      _addToDiscardPile(cardToPlayFullData);
       
       // Log player state after playing card
       Logger().info('Practice: === AFTER PLAY CARD for $playerId ===', isOn: LOGGING_SWITCH);
@@ -1109,7 +1110,36 @@ class PracticeGameRound {
       final collectionCardIds = collectionRankCardsList.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
       Logger().info('Practice: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
       
+      // Log pile contents after successful play
+      final drawPileCount = (gameState['drawPile'] as List?)?.length ?? 0;
+      final discardPileCount = (gameState['discardPile'] as List?)?.length ?? 0;
+
+      Logger().info('Practice: === PILE CONTENTS AFTER PLAY ===', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Draw Pile Count: $drawPileCount', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: Played Card: ${cardToPlay['cardId']}', isOn: LOGGING_SWITCH);
+      Logger().info('Practice: ================================', isOn: LOGGING_SWITCH);
+
+      // Note: State update is already handled by addToDiscardPile method
+      
+      // Check if the played card has special powers (Jack/Queen)
+      // Replicates backend flow: check special card FIRST (game_round.py line 989)
+      _checkSpecialCard(playerId, {
+        'cardId': cardId,
+        'rank': cardToPlayFullData['rank'],
+        'suit': cardToPlayFullData['suit']
+      });
+
+      // Then trigger same rank window (backend game_round.py line 487)
+      // This allows other players to play cards of the same rank out-of-turn
+      _handleSameRankWindow();
+
+      // CRITICAL: Update known_cards BEFORE clearing drawnCard property
+      // This ensures the just-drawn card detection logic can work properly
+      updateKnownCards('play_card', playerId, [cardId]);
+      
       // Handle drawn card repositioning with smart blank slot system
+      // This must happen AFTER updateKnownCards so the detection logic can check drawnCard
       if (drawnCard != null && drawnCard['cardId'] != cardId) {
         // The drawn card should fill the blank slot left by the played card
         // The blank slot is at cardIndex (where the played card was)
@@ -1174,44 +1204,19 @@ class PracticeGameRound {
         player['drawnCard'] = null;
         Logger().info('Practice: Cleared drawn card property after repositioning', isOn: LOGGING_SWITCH);
         
-        // Update the main state's myDrawnCard to null (same as backend)
-        _practiceCoordinator.updatePlayerStatus('waiting', playerId: playerId, updateMainState: true);
+        // NOTE: Do NOT update status here - all players already have 'same_rank_window' status
+        // set by _handleSameRankWindow() (called earlier). Updating to 'waiting' would overwrite
+        // the correct status for the playing player.
         
       } else if (drawnCard != null && drawnCard['cardId'] == cardId) {
         // Clear the drawn card property since it's now in the discard pile
         player['drawnCard'] = null;
         Logger().info('Practice: Cleared drawn card property (played card was the drawn card)', isOn: LOGGING_SWITCH);
         
-        // Update the main state's myDrawnCard to null (same as backend)
-        _practiceCoordinator.updatePlayerStatus('waiting', playerId: playerId, updateMainState: true);
+        // NOTE: Do NOT update status here - all players already have 'same_rank_window' status
+        // set by _handleSameRankWindow() (called earlier). Updating to 'waiting' would overwrite
+        // the correct status for the playing player.
       }
-      
-      // Log pile contents after successful play
-      final drawPileCount = (gameState['drawPile'] as List?)?.length ?? 0;
-      final discardPileCount = (gameState['discardPile'] as List?)?.length ?? 0;
-
-      Logger().info('Practice: === PILE CONTENTS AFTER PLAY ===', isOn: LOGGING_SWITCH);
-      Logger().info('Practice: Draw Pile Count: $drawPileCount', isOn: LOGGING_SWITCH);
-      Logger().info('Practice: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
-      Logger().info('Practice: Played Card: ${cardToPlay['cardId']}', isOn: LOGGING_SWITCH);
-      Logger().info('Practice: ================================', isOn: LOGGING_SWITCH);
-
-      // Note: State update is already handled by addToDiscardPile method
-      
-      // Check if the played card has special powers (Jack/Queen)
-      // Replicates backend flow: check special card FIRST (game_round.py line 989)
-      _checkSpecialCard(playerId, {
-        'cardId': cardId,
-        'rank': cardToPlayFullData['rank'],
-        'suit': cardToPlayFullData['suit']
-      });
-
-      // Then trigger same rank window (backend game_round.py line 487)
-      // This allows other players to play cards of the same rank out-of-turn
-      _handleSameRankWindow();
-
-      // Update all players' known_cards after successful card play
-      updateKnownCards('play_card', playerId, [cardId]);
 
       // Move to next player (simplified turn management for practice)
       // await _moveToNextPlayer();
@@ -1222,6 +1227,11 @@ class PracticeGameRound {
       Logger().error('Practice: Error handling play card: $e', isOn: LOGGING_SWITCH);
       return false;
     }
+  }
+
+  /// Validate card ID is not null, empty, or the string 'null'
+  bool _isValidCardId(String? cardId) {
+    return cardId != null && cardId != 'null' && cardId.isNotEmpty;
   }
 
   /// Handle same rank play action - validates rank match and moves card to discard pile
@@ -1265,14 +1275,14 @@ class PracticeGameRound {
       }
       
       if (playedCard == null) {
-        Logger().error('Practice: Card $cardId not found in player $playerId hand for same rank play', isOn: LOGGING_SWITCH);
+        Logger().info('Practice: Card $cardId not found in player $playerId hand for same rank play (likely already played by another player)', isOn: LOGGING_SWITCH);
         return false;
       }
       
       Logger().info('Practice: Found card $cardId for same rank play in player $playerId hand at index $cardIndex', isOn: LOGGING_SWITCH);
       
       // Get full card data
-      final playedCardFullData = _practiceCoordinator.getCardById(gameState, cardId);
+      final playedCardFullData = _stateCallback.getCardById(gameState, cardId);
       if (playedCardFullData == null) {
         Logger().error('Practice: Failed to get full card data for $cardId', isOn: LOGGING_SWITCH);
         return false;
@@ -1288,15 +1298,10 @@ class PracticeGameRound {
           Logger().info('Practice: Card $cardId is a collection rank card and cannot be played for same rank', isOn: LOGGING_SWITCH);
           
           // Show error message to user via actionError state
-          final stateManager = StateManager();
-          final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-          stateManager.updateModuleState('recall_game', {
-            ...currentState,
-            'actionError': {
-              'message': 'This card is in your collection and cannot be played for same rank.',
-              'timestamp': DateTime.now().millisecondsSinceEpoch,
-            },
-          });
+          _stateCallback.onActionError(
+            'This card is in your collection and cannot be played for same rank.',
+            data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+          );
           
           // No status change needed - status will change automatically when same rank window expires
           Logger().info('Practice: Collection rank card rejected - status will auto-expire with same rank window', isOn: LOGGING_SWITCH);
@@ -1307,7 +1312,7 @@ class PracticeGameRound {
       
       // Validate that this is actually a same rank play
       if (!_validateSameRankPlay(gameState, cardRank)) {
-        Logger().error('Practice: Same rank validation failed for card $cardId with rank $cardRank', isOn: LOGGING_SWITCH);
+        Logger().info('Practice: Same rank validation failed for card $cardId with rank $cardRank (expected behavior - player forgot/wrong card)', isOn: LOGGING_SWITCH);
         
         // Apply penalty: draw a card from the draw pile and add to player's hand
         Logger().info('Practice: Applying penalty for wrong same rank play - drawing card from draw pile', isOn: LOGGING_SWITCH);
@@ -1337,11 +1342,12 @@ class PracticeGameRound {
         Logger().info('Practice: Added penalty card ${penaltyCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
         
         // Update player state to reflect the new hand
-        _practiceCoordinator.updatePlayerStatus('waiting', playerId: playerId, updateMainState: true);
+        _stateCallback.onPlayerStatusChanged('waiting', playerId: playerId, updateMainState: true);
         
         Logger().info('Practice: Penalty applied successfully - player $playerId now has ${hand.length} cards', isOn: LOGGING_SWITCH);
         
-        return false;
+        // Return true since using penalty was handled successfully (expected gameplay, not an error)
+        return true;
       }
       
       Logger().info('Practice: Same rank validation passed for card $cardId with rank $cardRank', isOn: LOGGING_SWITCH);
@@ -1361,11 +1367,7 @@ class PracticeGameRound {
       }
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
-      final success = _practiceCoordinator.addToDiscardPile(playedCardFullData);
-      if (!success) {
-        Logger().error('Practice: Failed to add card $cardId to discard pile', isOn: LOGGING_SWITCH);
-        return false;
-      }
+      _addToDiscardPile(playedCardFullData);
       
       Logger().info('Practice: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile', isOn: LOGGING_SWITCH);
       
@@ -1486,8 +1488,8 @@ class PracticeGameRound {
       Logger().info('Practice: Player $secondPlayerId now has card $firstCardId at index $secondCardIndex', isOn: LOGGING_SWITCH);
 
       // Update game state to trigger UI updates
-      final currentGames = _practiceCoordinator.currentGamesMap;
-      _practiceCoordinator.updatePracticeGameState({
+      final currentGames = _stateCallback.currentGamesMap;
+      _stateCallback.onGameStateChanged({
         'games': currentGames,
       });
 
@@ -1567,7 +1569,7 @@ class PracticeGameRound {
       Logger().info('Practice: Found target card: ${targetCard['rank']} of ${targetCard['suit']}', isOn: LOGGING_SWITCH);
 
       // Get full card data (convert from ID-only if needed)
-      final fullCardData = _practiceCoordinator.getCardById(gameState, targetCardId);
+      final fullCardData = _stateCallback.getCardById(gameState, targetCardId);
       if (fullCardData == null) {
         Logger().error('Practice: Failed to get full card data for $targetCardId', isOn: LOGGING_SWITCH);
         return false;
@@ -1590,8 +1592,8 @@ class PracticeGameRound {
 
       // Update main state for the human player
       if (peekingPlayerId == 'practice_user') {
-        final currentGames = _practiceCoordinator.currentGamesMap;
-        _practiceCoordinator.updatePracticeGameState({
+        final currentGames = _stateCallback.currentGamesMap;
+        _stateCallback.onGameStateChanged({
           'playerStatus': 'peeking',
           'myCardsToPeek': [fullCardData],
           'games': currentGames,
@@ -1599,8 +1601,8 @@ class PracticeGameRound {
         Logger().info('Practice: Updated main state for human player - myCardsToPeek updated', isOn: LOGGING_SWITCH);
       } else {
         // For computer players, just update the games map
-        final currentGames = _practiceCoordinator.currentGamesMap;
-        _practiceCoordinator.updatePracticeGameState({
+        final currentGames = _stateCallback.currentGamesMap;
+        _stateCallback.onGameStateChanged({
           'games': currentGames,
         });
         Logger().info('Practice: Updated games state for computer player', isOn: LOGGING_SWITCH);
@@ -1720,30 +1722,23 @@ class PracticeGameRound {
       // 3. Update currentPlayer and currentPlayerStatus (for OpponentsPanel)
       // 4. Update isMyTurn (for ActionBar and MyHandWidget)
       // 5. Update games map in main state (for all state slices)
-      final success = _practiceCoordinator.updatePlayerStatus(
+      _stateCallback.onPlayerStatusChanged(
         'same_rank_window',
         playerId: null, // null = update ALL players
         updateMainState: true,
         triggerInstructions: false, // Don't trigger instructions for same rank window
       );
       
-      if (success) {
-        Logger().info('Practice: Successfully set all players to same_rank_window status', isOn: LOGGING_SWITCH);
-        
-        // CRITICAL: Set gamePhase to same_rank_window to match backend behavior
-        // Backend sets game_state.phase = GamePhase.SAME_RANK_WINDOW (game_round.py line 906)
-        // This ensures collection from discard pile is properly blocked during same rank window
-        _practiceCoordinator.updatePracticeGameState({
-          'gamePhase': 'same_rank_window',
-        });
-        Logger().info('Practice: Set gamePhase to same_rank_window', isOn: LOGGING_SWITCH);
-        
-        // Start 5-second timer to automatically end same rank window
-        // Matches backend behavior (game_round.py line 579)
-        _startSameRankTimer();
-      } else {
-        Logger().error('Practice: Failed to set all players to same_rank_window status', isOn: LOGGING_SWITCH);
-      }
+      Logger().info('Practice: Successfully set all players to same_rank_window status', isOn: LOGGING_SWITCH);
+      // This ensures collection from discard pile is properly blocked during same rank window
+      _stateCallback.onGameStateChanged({
+        'gamePhase': 'same_rank_window',
+      });
+      Logger().info('Practice: Set gamePhase to same_rank_window', isOn: LOGGING_SWITCH);
+      
+      // Start 5-second timer to automatically end same rank window
+      // Matches backend behavior (game_round.py line 579)
+      _startSameRankTimer();
       
     } catch (e) {
       Logger().error('Practice: Error in _handleSameRankWindow: $e', isOn: LOGGING_SWITCH);
@@ -1780,26 +1775,22 @@ class PracticeGameRound {
       Logger().info('Practice: No same rank plays recorded (simplified practice mode)', isOn: LOGGING_SWITCH);
       
       // Update all players' status to WAITING
-      final success = _practiceCoordinator.updatePlayerStatus(
+      _stateCallback.onPlayerStatusChanged(
         'waiting',
         playerId: null, // null = update ALL players
         updateMainState: true,
         triggerInstructions: false,
       );
       
-      if (success) {
-        Logger().info('Practice: Successfully reset all players to waiting status', isOn: LOGGING_SWITCH);
-        
-        // CRITICAL: Reset gamePhase back to player_turn to match backend behavior
-        // Backend transitions to ENDING_TURN phase (game_round.py line 634)
-        // For practice game, we use player_turn as the main gameplay phase
-        _practiceCoordinator.updatePracticeGameState({
-          'gamePhase': 'player_turn',
-        });
-        Logger().info('Practice: Reset gamePhase to player_turn', isOn: LOGGING_SWITCH);
-      } else {
-        Logger().error('Practice: Failed to reset players to waiting status', isOn: LOGGING_SWITCH);
-      }
+      Logger().info('Practice: Successfully reset all players to waiting status', isOn: LOGGING_SWITCH);
+      
+      // CRITICAL: Reset gamePhase back to player_turn to match backend behavior
+      // Backend transitions to ENDING_TURN phase (game_round.py line 634)
+      // For practice game, we use player_turn as the main gameplay phase
+      _stateCallback.onGameStateChanged({
+        'gamePhase': 'player_turn',
+      });
+      Logger().info('Practice: Reset gamePhase to player_turn', isOn: LOGGING_SWITCH);
       
       // TODO: Check if any player has no cards left (automatic win condition)
       // Future implementation - for now, we skip this check
@@ -1906,8 +1897,11 @@ class PracticeGameRound {
         await Future.delayed(Duration(milliseconds: (delay * 1000).toInt()));
         
         final cardId = decision['card_id'] as String?;
-        if (cardId != null) {
+        if (_isValidCardId(cardId) && cardId != null) {
+          // cardId is guaranteed non-null after _isValidCardId check
           await handleSameRankPlay(playerId, cardId);
+        } else {
+          Logger().info('Practice: Computer player $playerId same rank play skipped - invalid card ID', isOn: LOGGING_SWITCH);
         }
       }
       
@@ -1969,7 +1963,11 @@ class PracticeGameRound {
       
       // Get player's own known card IDs (card-ID-based structure)
       final knownCardIds = <String>{};
-      final playerOwnKnownCards = knownCards[playerId] as Map<String, dynamic>?;
+      final playerOwnKnownCardsRaw = knownCards[playerId];
+      Map<String, dynamic>? playerOwnKnownCards;
+      if (playerOwnKnownCardsRaw is Map) {
+        playerOwnKnownCards = Map<String, dynamic>.from(playerOwnKnownCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
+      }
       if (playerOwnKnownCards != null) {
         for (final cardId in playerOwnKnownCards.keys) {
           if (cardId.toString().isNotEmpty) {
@@ -1993,7 +1991,7 @@ class PracticeGameRound {
         final cardId = card['cardId']?.toString() ?? '';
         
         // CRITICAL: Get full card data to check rank (hand contains ID-only cards with rank=?)
-        final fullCardData = _practiceCoordinator.getCardById(gameState, cardId);
+        final fullCardData = _stateCallback.getCardById(gameState, cardId);
         if (fullCardData == null) {
           Logger().info('Practice: DEBUG - Failed to get full card data for $cardId, skipping', isOn: LOGGING_SWITCH);
           continue;
@@ -2095,10 +2093,10 @@ class PracticeGameRound {
       
       // Set player status based on special power
       if (specialPower == 'jack_swap') {
-        _practiceCoordinator.updatePlayerStatus('jack_swap', playerId: playerId, updateMainState: true);
+        _stateCallback.onPlayerStatusChanged('jack_swap', playerId: playerId, updateMainState: true);
         Logger().info('Practice: Player $playerId status set to jack_swap - 10 second timer started', isOn: LOGGING_SWITCH);
       } else if (specialPower == 'queen_peek') {
-        _practiceCoordinator.updatePlayerStatus('queen_peek', playerId: playerId, updateMainState: true);
+        _stateCallback.onPlayerStatusChanged('queen_peek', playerId: playerId, updateMainState: true);
         Logger().info('Practice: Player $playerId status set to queen_peek - 10 second timer started', isOn: LOGGING_SWITCH);
       } else {
         Logger().warning('Practice: Unknown special power: $specialPower for player $playerId', isOn: LOGGING_SWITCH);
@@ -2145,7 +2143,7 @@ class PracticeGameRound {
             
             // Update main state for human player
             if (playerId == 'practice_user') {
-              _practiceCoordinator.updatePracticeGameState({
+              _stateCallback.onGameStateChanged({
                 'myCardsToPeek': [],
               });
               Logger().info('Practice: Updated main state myCardsToPeek to empty list', isOn: LOGGING_SWITCH);
@@ -2153,7 +2151,7 @@ class PracticeGameRound {
           }
         }
         
-        _practiceCoordinator.updatePlayerStatus('waiting', playerId: playerId, updateMainState: true);
+        _stateCallback.onPlayerStatusChanged('waiting', playerId: playerId, updateMainState: true);
         Logger().info('Practice: Player $playerId special card timer expired - status reset to waiting', isOn: LOGGING_SWITCH);
         
         // Remove the processed card from the list
@@ -2201,7 +2199,7 @@ class PracticeGameRound {
       Logger().info('Practice: Moving to next player', isOn: LOGGING_SWITCH);
       
       // Get current game state
-      final currentGames = _practiceCoordinator.currentGamesMap;
+      final currentGames = _stateCallback.currentGamesMap;
       final gameData = currentGames[_gameId];
       final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
@@ -2221,7 +2219,7 @@ class PracticeGameRound {
       
       // Set current player status to waiting before moving to next player
       final currentPlayerId = currentPlayer['id']?.toString() ?? '';
-      _practiceCoordinator.updatePlayerStatus('waiting', playerId: currentPlayerId, updateMainState: true);
+      _stateCallback.onPlayerStatusChanged('waiting', playerId: currentPlayerId, updateMainState: true);
       Logger().info('Practice: Set current player $currentPlayerId status to waiting', isOn: LOGGING_SWITCH);
       
       // Find current player index
@@ -2261,7 +2259,7 @@ class PracticeGameRound {
       Logger().info('Practice: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
       
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
-      _practiceCoordinator.updatePlayerStatus('drawing_card', playerId: nextPlayerId, updateMainState: true, triggerInstructions: true);
+      _stateCallback.onPlayerStatusChanged('drawing_card', playerId: nextPlayerId, updateMainState: true, triggerInstructions: true);
       Logger().info('Practice: Set next player ${nextPlayer['name']} to drawing_card status', isOn: LOGGING_SWITCH);
       
       // Check if this is a computer player and trigger computer turn logic
@@ -2294,7 +2292,7 @@ class PracticeGameRound {
     {Map<String, String>? swapData}
   ) {
     try {
-      final currentGames = _practiceCoordinator.currentGamesMap;
+      final currentGames = _stateCallback.currentGamesMap;
       final gameId = _gameId;
       if (!currentGames.containsKey(gameId)) return;
       
@@ -2303,6 +2301,12 @@ class PracticeGameRound {
       if (gameState == null) return;
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Find the acting player to check their drawnCard
+      final actingPlayer = players.firstWhere(
+        (p) => p['id']?.toString() == actingPlayerId,
+        orElse: () => <String, dynamic>{},
+      );
       
       // Process each player's known_cards
       for (final player in players) {
@@ -2315,7 +2319,7 @@ class PracticeGameRound {
         final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
         
         if (eventType == 'play_card' || eventType == 'same_rank_play') {
-          _processPlayCardUpdate(knownCards, affectedCardIds, rememberProb);
+          _processPlayCardUpdate(knownCards, affectedCardIds, rememberProb, actingPlayerId, actingPlayer);
         } else if (eventType == 'jack_swap' && swapData != null) {
           _processJackSwapUpdate(knownCards, affectedCardIds, swapData, rememberProb);
         }
@@ -2324,7 +2328,7 @@ class PracticeGameRound {
       }
       
       // Update state
-      _practiceCoordinator.updatePracticeGameState({'games': currentGames});
+      _stateCallback.onGameStateChanged({'games': currentGames});
       
       Logger().info('Practice: Updated known_cards for all players after $eventType', isOn: LOGGING_SWITCH);
       
@@ -2348,18 +2352,51 @@ class PracticeGameRound {
   void _processPlayCardUpdate(
     Map<String, dynamic> knownCards,
     List<String> affectedCardIds,
-    double rememberProb
+    double rememberProb,
+    String actingPlayerId,
+    Map<String, dynamic> actingPlayer
   ) {
     final random = Random();
     final playedCardId = affectedCardIds.isNotEmpty ? affectedCardIds[0] : null;
     if (playedCardId == null) return;
     
-    // Iterate through each tracked player's cards
+    // STEP 1: Check if acting player just drew this card - if so, remove immediately (100% certainty)
+    final drawnCard = actingPlayer['drawnCard'] as Map<String, dynamic>?;
+    final drawnCardId = drawnCard?['cardId']?.toString();
+    final isJustDrawnCard = drawnCardId != null && drawnCardId == playedCardId;
+    
+    if (isJustDrawnCard && knownCards.containsKey(actingPlayerId)) {
+      final actingPlayerCardsRaw = knownCards[actingPlayerId];
+      if (actingPlayerCardsRaw is Map) {
+        final actingPlayerCards = Map<String, dynamic>.from(actingPlayerCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
+        actingPlayerCards.remove(playedCardId);
+        
+        // If acting player has no more tracked cards, remove the entry
+        if (actingPlayerCards.isEmpty) {
+          knownCards.remove(actingPlayerId);
+        } else {
+          knownCards[actingPlayerId] = actingPlayerCards;
+        }
+        
+        Logger().info('Practice: Removed just-drawn card $playedCardId from $actingPlayerId known_cards (100% certainty)', isOn: LOGGING_SWITCH);
+      }
+    }
+    
+    // STEP 2: Process all players' tracking with probability (including acting player if not just-drawn)
+    // This handles:
+    // - Acting player playing non-drawn cards (probability applies)
+    // - Other players tracking the played card (probability applies)
     final keysToRemove = <String>[];
     for (final entry in knownCards.entries) {
       final trackedPlayerId = entry.key;
-      final trackedCards = entry.value is Map ? Map<String, dynamic>.from(entry.value as Map) : null;
+      final trackedCardsRaw = entry.value;
+      final trackedCards = trackedCardsRaw is Map ? Map<String, dynamic>.from(trackedCardsRaw.map((k, v) => MapEntry(k.toString(), v))) : null;
       if (trackedCards == null) continue;
+      
+      // Skip if we already removed this card from acting player above
+      if (trackedPlayerId == actingPlayerId && isJustDrawnCard) {
+        continue;
+      }
       
       // Check if the played card is in this player's known cards (card-ID-based structure)
       if (trackedCards.containsKey(playedCardId)) {
@@ -2374,6 +2411,8 @@ class PracticeGameRound {
       // If no cards remain for this player, mark for removal
       if (trackedCards.isEmpty) {
         keysToRemove.add(trackedPlayerId);
+      } else {
+        knownCards[trackedPlayerId] = trackedCards;
       }
     }
     
@@ -2458,8 +2497,15 @@ class PracticeGameRound {
         knownCards[newOwnerId] = {};
       }
       
-      final ownerCards = knownCards[newOwnerId] as Map<String, dynamic>;
+      final ownerCardsRaw = knownCards[newOwnerId];
+      Map<String, dynamic> ownerCards;
+      if (ownerCardsRaw is Map) {
+        ownerCards = Map<String, dynamic>.from(ownerCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
+      } else {
+        ownerCards = {};
+      }
       ownerCards.addAll(cardsToAdd);
+      knownCards[newOwnerId] = ownerCards;
     }
   }
 

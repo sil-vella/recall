@@ -142,6 +142,31 @@ class YamlRulesEngine {
     List<dynamic> sourceData = gameData[source] as List<dynamic>? ?? [];
     Logger().info('Practice: DEBUG - Initial source data from $source: ${sourceData.length} items', isOn: LOGGING_SWITCH);
     
+    // CRITICAL: Always filter out null cards and collection cards from any source
+    // Get collection card IDs from gameData
+    final collectionCardIds = (gameData['collection_cards'] as List<dynamic>? ?? [])
+        .map((id) => id.toString())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    
+    // Filter out nulls and collection cards
+    sourceData = sourceData
+        .where((cardId) {
+          final cardIdStr = cardId.toString();
+          // Filter out null cards (null, 'null', or empty strings)
+          if (cardIdStr.isEmpty || cardIdStr == 'null') {
+            return false;
+          }
+          // Filter out collection rank cards
+          if (collectionCardIds.contains(cardIdStr)) {
+            return false;
+          }
+          return true;
+        })
+        .toList();
+    
+    Logger().info('Practice: DEBUG - Source data after null/collection filtering: ${sourceData.length} items', isOn: LOGGING_SWITCH);
+    
     // Apply filters
     for (final filter in filters) {
       if (filter is Map<String, dynamic>) {
@@ -155,17 +180,37 @@ class YamlRulesEngine {
       // Fallback to playable cards
       sourceData = gameData['playable_cards'] as List<dynamic>? ?? [];
       Logger().info('Practice: DEBUG - Source data empty, using playable cards fallback: ${sourceData.length} items', isOn: LOGGING_SWITCH);
+      
+      // Filter fallback data too
+      sourceData = sourceData
+          .where((cardId) {
+            final cardIdStr = cardId.toString();
+            if (cardIdStr.isEmpty || cardIdStr == 'null') return false;
+            if (collectionCardIds.contains(cardIdStr)) return false;
+            return true;
+          })
+          .toList();
     }
     
     if (sourceData.isEmpty) {
       // Last resort: available cards
       sourceData = gameData['available_cards'] as List<dynamic>? ?? [];
       Logger().info('Practice: DEBUG - Still empty, using available cards fallback: ${sourceData.length} items', isOn: LOGGING_SWITCH);
+      
+      // Filter fallback data too (but this shouldn't be used if playable_cards exists)
+      sourceData = sourceData
+          .where((cardId) {
+            final cardIdStr = cardId.toString();
+            if (cardIdStr.isEmpty || cardIdStr == 'null') return false;
+            if (collectionCardIds.contains(cardIdStr)) return false;
+            return true;
+          })
+          .toList();
     }
     
     if (sourceData.isEmpty) {
-      Logger().error('Practice: DEBUG - All fallbacks failed, no cards available!', isOn: LOGGING_SWITCH);
-      return 'null'; // This will cause the error we're seeing
+      Logger().warning('Practice: DEBUG - All fallbacks failed, no cards available!', isOn: LOGGING_SWITCH);
+      return ''; // Return empty string to indicate no card available
     }
     
     // Execute action type

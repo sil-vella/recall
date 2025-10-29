@@ -297,7 +297,11 @@ class ComputerPlayerFactory {
     // Extract player's own known card IDs (card-ID-based structure)
     final knownCardIds = <String>{};
     final playerId = currentPlayer['id']?.toString() ?? '';
-    final playerOwnKnownCards = knownCards[playerId] as Map<String, dynamic>?;
+    final playerOwnKnownCardsRaw = knownCards[playerId];
+    Map<String, dynamic>? playerOwnKnownCards;
+    if (playerOwnKnownCardsRaw is Map) {
+      playerOwnKnownCards = Map<String, dynamic>.from(playerOwnKnownCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
+    }
     if (playerOwnKnownCards != null) {
       for (final cardId in playerOwnKnownCards.keys) {
         if (cardId.toString().isNotEmpty) {

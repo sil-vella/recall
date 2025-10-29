@@ -16,10 +16,11 @@ import '../../managers/validated_state_manager.dart';
 import 'utils/deck_factory.dart';
 import 'models/card.dart';
 import 'utils/predefined_hands_loader.dart';
+import 'game_state_callback.dart';
 
 const bool LOGGING_SWITCH = true;
 
-class PracticeGameCoordinator {
+class PracticeGameCoordinator implements GameStateCallback {
   /// Coordinates practice game sessions for the Recall game
   
   // Singleton pattern
@@ -2086,6 +2087,91 @@ class PracticeGameCoordinator {
       return false;
     }
   }
+
+  // ========================================
+  // GameStateCallback Interface Implementation
+  // ========================================
+
+  @override
+  void onPlayerStatusChanged(String status, {
+    String? playerId,
+    bool updateMainState = true,
+    bool triggerInstructions = false,
+  }) {
+    updatePlayerStatus(status, 
+      playerId: playerId, 
+      updateMainState: updateMainState, 
+      triggerInstructions: triggerInstructions,
+    );
+  }
+
+  @override
+  void onGameStateChanged(Map<String, dynamic> updates) {
+    updatePracticeGameState(updates);
+  }
+
+  @override
+  void onDiscardPileChanged() {
+    // The discard pile update is already handled in addToDiscardPile
+    // This method is called after direct discard pile modifications in GameRound
+    final currentGames = _getCurrentGamesMap();
+    final currentGameId = _currentPracticeGameId;
+    
+    if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
+      return;
+    }
+
+    final gameData = currentGames[currentGameId]['gameData'] as Map<String, dynamic>?;
+    final gameState = gameData?['game_state'] as Map<String, dynamic>?;
+    
+    if (gameState == null) {
+      return;
+    }
+
+    final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+    
+    updatePracticeGameState({
+      'games': currentGames,
+      'discardPile': discardPile,
+    });
+  }
+
+  @override
+  void onActionError(String message, {Map<String, dynamic>? data}) {
+    try {
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      _stateManager.updateModuleState('recall_game', {
+        'games': currentGames, // Preserve games map
+        'actionError': {
+          'message': message,
+          'data': data ?? {},
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      Logger().error('Practice: Failed to set action error: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  @override
+  Map<String, dynamic> getCurrentGameState() {
+    final currentGames = _getCurrentGamesMap();
+    final currentGameId = _currentPracticeGameId;
+    
+    if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
+      return {};
+    }
+
+    final gameData = currentGames[currentGameId]['gameData'] as Map<String, dynamic>?;
+    final gameState = gameData?['game_state'] as Map<String, dynamic>?;
+    
+    return gameState ?? {};
+  }
+
+  // getCardById and currentGamesMap are already implemented above
 
   /// Handle start match directly from widget (bypasses PlayerAction)
   Future<bool> matchStart() async {

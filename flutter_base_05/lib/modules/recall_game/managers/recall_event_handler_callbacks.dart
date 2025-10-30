@@ -387,12 +387,16 @@ class RecallEventHandlerCallbacks {
     // Check if game exists in games map, if not add it
     final currentGames = _getCurrentGamesMap();
     if (!currentGames.containsKey(gameId)) {
-      // Add the game to the games map with the complete game state (including owner_id)
-      _addGameToMap(gameId, {
+      // Add the game to the games map with the complete game state.
+      // IMPORTANT: Do not overwrite ownership with null. Only include owner_id if present.
+      final base = {
         'game_id': gameId,
         'game_state': gameState,
-        'owner_id': ownerId, // Pass owner_id so _isCurrentUserRoomOwner can access it
-      });
+      };
+      if (ownerId != null) {
+        base['owner_id'] = ownerId;
+      }
+      _addGameToMap(gameId, base);
     } else {
       // Update existing game's game_state
       Logger().info('🔍 Updating existing game: $gameId', isOn: LOGGING_SWITCH);
@@ -410,7 +414,11 @@ class RecallEventHandlerCallbacks {
           'isRoomOwner': ownerId == currentUserId,
         });
       } else {
-        Logger().info('🔍 ownerId is null, not updating ownership', isOn: LOGGING_SWITCH);
+        Logger().info('🔍 ownerId is null, preserving previous ownership', isOn: LOGGING_SWITCH);
+        // Preserve main state's isRoomOwner when ownerId is missing
+        final currentMain = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final prevIsOwner = currentMain['isRoomOwner'] as bool? ?? false;
+        _updateMainGameState({'isRoomOwner': prevIsOwner});
       }
     }
     

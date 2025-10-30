@@ -423,9 +423,15 @@ class RecallEventHandlerCallbacks {
     }
     
     // Update the main game state with the new information using helper method
+    // Normalize backend phase to UI phase
+    final rawPhase = gameState['phase']?.toString();
+    final uiPhase = rawPhase == 'waiting_for_players'
+        ? 'waiting'
+        : (rawPhase ?? 'playing');
+
     _updateMainGameState({
       'currentGameId': gameId,  // Ensure currentGameId is set
-      'gamePhase': gameState['phase'] ?? 'playing',
+      'gamePhase': uiPhase,
       'isGameActive': true,
       'roundNumber': roundNumber,
       'currentPlayer': currentPlayer,
@@ -529,9 +535,13 @@ class RecallEventHandlerCallbacks {
       
       switch (propName) {
         case 'phase':
-          // Update main state only - game map phase will be derived from main state
+          // Update main state only - normalize backend phase to UI phase
+          final rawPhase = updatedGameState['phase']?.toString();
+          final uiPhase = rawPhase == 'waiting_for_players'
+              ? 'waiting'
+              : (rawPhase ?? 'playing');
           _updateMainGameState({
-            'gamePhase': updatedGameState['phase'] ?? 'playing',
+            'gamePhase': uiPhase,
           });
           break;
         case 'players':

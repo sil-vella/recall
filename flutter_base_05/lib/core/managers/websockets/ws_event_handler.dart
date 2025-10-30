@@ -1,6 +1,7 @@
 import '../state_manager.dart';
 import '../module_manager.dart';
 import '../hooks_manager.dart';
+import '../../../modules/recall_game/utils/recall_game_helpers.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
@@ -153,6 +154,12 @@ class WSEventHandler {
         roomId: roomId,
         roomInfo: roomData,
       );
+      
+      // Also reflect ownership in Recall game main state so UI (GameInfoWidget) can gate Start button
+      RecallGameHelpers.updateUIState({
+        'isRoomOwner': isRoomOwner,
+        'isInGame': true,
+      });
       
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {

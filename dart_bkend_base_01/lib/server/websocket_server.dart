@@ -6,6 +6,7 @@ import 'message_handler.dart';
 import '../services/python_api_client.dart';
 import '../utils/server_logger.dart';
 import '../managers/hooks_manager.dart';
+import '../modules/recall_game/recall_game_main.dart';
 
 // Logging switch for this file
 const bool LOGGING_SWITCH = true;
@@ -19,6 +20,8 @@ class WebSocketServer {
   late PythonApiClient _pythonClient;
   final ServerLogger _logger = ServerLogger();
   final HooksManager _hooksManager = HooksManager();
+  // ignore: unused_field
+  late RecallGameModule _recallGameModule;
 
   WebSocketServer() {
     _logger.initialize();
@@ -40,34 +43,19 @@ class WebSocketServer {
     // Initialize hooks for room events
     _initializeHooks();
     
+    // Initialize Recall Game module (registers hooks for game lifecycle)
+    _recallGameModule = RecallGameModule(this, _roomManager, _hooksManager);
+    
     _logger.info('📡 WebSocket server initialized', isOn: LOGGING_SWITCH);
   }
   
-  /// Initialize hooks for room events (example usage for testing)
+  /// Initialize hooks for room events
   void _initializeHooks() {
-    // Register hooks for room events
+    // Register hook event types
     _hooksManager.registerHook('room_joined');
     _hooksManager.registerHook('room_created');
     _hooksManager.registerHook('leave_room');
     _hooksManager.registerHook('room_closed');
-    
-    // Example: Register a callback for room_joined (will be used for game creation later)
-    _hooksManager.registerHookCallback('room_joined', (data) {
-      _logger.info('🎣 Hook triggered: room_joined with data: $data', isOn: LOGGING_SWITCH);
-      // Future: Trigger game creation logic here
-    }, priority: 10);
-    
-    // Example: Register a callback for room_created
-    _hooksManager.registerHookCallback('room_created', (data) {
-      _logger.info('🎣 Hook triggered: room_created with data: $data', isOn: LOGGING_SWITCH);
-      // Future: Room analytics/logging logic here
-    }, priority: 20);
-    
-    // Example: Register a callback for room_closed
-    _hooksManager.registerHookCallback('room_closed', (data) {
-      _logger.info('🎣 Hook triggered: room_closed with data: $data', isOn: LOGGING_SWITCH);
-      // Future: Game cleanup logic here
-    }, priority: 10);
     
     _logger.info('🎣 Hooks initialized for room events', isOn: LOGGING_SWITCH);
   }
@@ -75,6 +63,16 @@ class WebSocketServer {
   /// Get user ID for a session
   String? getUserIdForSession(String sessionId) {
     return _sessionToUser[sessionId];
+  }
+
+  /// Get session ID for a user (reverse lookup)
+  String? getSessionForUser(String userId) {
+    for (final entry in _sessionToUser.entries) {
+      if (entry.value == userId) {
+        return entry.key;
+      }
+    }
+    return null;
   }
 
   /// Trigger a hook with optional data and context

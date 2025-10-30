@@ -65,12 +65,21 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
 
   @override
   void onGameStateChanged(Map<String, dynamic> updates) {
-    // Merge into root to preserve structure compatible with Flutter
+    // Merge into state root
     _store.mergeRoot(roomId, updates);
+    // Read the full game_state after merge for snapshot
+    final state = _store.getState(roomId);
+    final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
+    // Ensure phase key and playerCount
+    gameState['phase'] = gameState['phase'] ?? 'playing';
+    gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
+    // Owner info for gating
+    final ownerId = server.getRoomOwner(roomId);
     server.broadcastToRoom(roomId, {
       'event': 'game_state_updated',
-      'room_id': roomId,
-      'updates': updates,
+      'game_id': roomId,
+      'game_state': gameState,
+      if (ownerId != null) 'owner_id': ownerId,
       'timestamp': DateTime.now().toIso8601String(),
     });
   }

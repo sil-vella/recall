@@ -91,7 +91,8 @@ class GameEventCoordinator {
       'drawPile': <String>[],
       'gameType': 'multiplayer',
       'isGameActive': true,
-      'gamePhase': 'setup',
+      // Use 'phase' key to align with frontend mapping
+      'phase': 'setup',
     };
     stateRoot['game_state'] = gameState;
     _store.mergeRoot(roomId, stateRoot);

@@ -156,10 +156,12 @@ class RecallGameModule {
       // Send snapshot to the joiner
       _sendGameSnapshot(sessionId, roomId);
 
-      // Broadcast player_joined to room (optional, already done in message_handler)
+      // Broadcast player_joined to room (include owner_id like Python)
+      final ownerId = roomManager.getRoomInfo(roomId)?.ownerId;
       server.broadcastToRoom(roomId, {
         'event': 'recall_new_player_joined',
         'room_id': roomId,
+        if (ownerId != null) 'owner_id': ownerId,
         'joined_player': {
           'user_id': userId,
           'session_id': sessionId,

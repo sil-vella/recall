@@ -161,6 +161,17 @@ class WSEventHandler {
         'isInGame': true,
       });
       
+      // Ensure games map entry reflects ownership immediately
+      try {
+        final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final games = Map<String, dynamic>.from(recallState['games'] as Map<String, dynamic>? ?? {});
+        final current = Map<String, dynamic>.from(games[roomId] as Map<String, dynamic>? ?? {'gameData': {}});
+        current['isRoomOwner'] = isRoomOwner;
+        current['isInGame'] = true;
+        games[roomId] = current;
+        RecallGameHelpers.updateUIState({'games': games});
+      } catch (_) {}
+      
       // Trigger event callbacks for room management screen
       _eventManager.triggerCallbacks('room', {
         'action': 'joined',

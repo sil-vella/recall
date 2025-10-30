@@ -70,7 +70,8 @@ class RecallGameModule {
           'maxPlayers': maxSize,
           'minPlayers': minPlayers,
           'isGameActive': false,
-          'gamePhase': 'waiting_for_players',
+          // Match Python: use 'phase' so Flutter reads it correctly
+          'phase': 'waiting_for_players',
           'players': <Map<String, dynamic>>[
             // Creator added as first player (auto-joined)
             {
@@ -168,7 +169,12 @@ class RecallGameModule {
           'name': 'Player_${userId.substring(0, userId.length > 8 ? 8 : userId.length)}',
           'joined_at': DateTime.now().toIso8601String(),
         },
-        'game_state': store.getState(roomId)['game_state'],
+        'game_state': () {
+          final gs = Map<String, dynamic>.from(store.getState(roomId)['game_state'] as Map<String, dynamic>);
+          // Ensure 'phase' key exists on join snapshot too
+          gs.putIfAbsent('phase', () => 'waiting_for_players');
+          return gs;
+        }(),
         'timestamp': DateTime.now().toIso8601String(),
       });
 

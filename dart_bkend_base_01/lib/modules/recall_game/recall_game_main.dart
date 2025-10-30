@@ -72,6 +72,8 @@ class RecallGameModule {
           'isGameActive': false,
           // Match Python: use 'phase' so Flutter reads it correctly
           'phase': 'waiting_for_players',
+          // Ensure counts available for UI slices
+          'playerCount': 1,
           'players': <Map<String, dynamic>>[
             // Creator added as first player (auto-joined)
             {
@@ -100,6 +102,8 @@ class RecallGameModule {
           'event': 'game_state_updated',
           'game_id': roomId,
           'game_state': initialState['game_state'],
+          // Seed ownership for Flutter to gate Start button
+          'owner_id': ownerId,
           'timestamp': DateTime.now().toIso8601String(),
         },
       );
@@ -152,6 +156,8 @@ class RecallGameModule {
       });
 
       gameState['players'] = players;
+      // Maintain playerCount for UI
+      gameState['playerCount'] = players.length;
       store.setGameState(roomId, gameState);
 
       // Send snapshot to the joiner
@@ -173,6 +179,8 @@ class RecallGameModule {
           final gs = Map<String, dynamic>.from(store.getState(roomId)['game_state'] as Map<String, dynamic>);
           // Ensure 'phase' key exists on join snapshot too
           gs.putIfAbsent('phase', () => 'waiting_for_players');
+          // Ensure playerCount present
+          gs['playerCount'] = (gs['players'] as List<dynamic>? ?? []).length;
           return gs;
         }(),
         'timestamp': DateTime.now().toIso8601String(),
@@ -244,11 +252,16 @@ class RecallGameModule {
     try {
       final store = GameStateStore.instance;
       final state = store.getState(roomId);
+      // Compute owner and ensure counts
+      final ownerId = roomManager.getRoomInfo(roomId)?.ownerId;
+      final gs = Map<String, dynamic>.from(state['game_state'] as Map<String, dynamic>? ?? {});
+      gs['playerCount'] = (gs['players'] as List<dynamic>? ?? []).length;
 
       server.sendToSession(sessionId, {
         'event': 'game_state_updated',
         'game_id': roomId,
-        'game_state': state['game_state'],
+        'game_state': gs,
+        if (ownerId != null) 'owner_id': ownerId,
         'timestamp': DateTime.now().toIso8601String(),
       });
 

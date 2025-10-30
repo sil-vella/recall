@@ -4,6 +4,8 @@ import '../services/game_state_store.dart';
 import '../../../server/room_manager.dart';
 import '../../../server/websocket_server.dart';
 import '../../../utils/server_logger.dart';
+import '../utils/deck_factory.dart';
+import '../models/card.dart';
 
 const bool LOGGING_SWITCH = true;
 
@@ -124,13 +126,42 @@ class GameEventCoordinator {
       needed--;
     }
 
+    // Build deck and deal 4 cards per player (as in practice)
+    final deckFactory = getDeckFactory(roomId) as dynamic; // returns DeckFactory or TestingDeckFactory
+    final List<Card> fullDeck = deckFactory.buildDeck();
+
+    // Helper to convert Card to Map
+    Map<String, dynamic> _cardToMap(Card c) => {
+      'cardId': c.cardId,
+      'rank': c.rank,
+      'suit': c.suit,
+      'points': c.points,
+      if (c.specialPower != null) 'specialPower': c.specialPower,
+    };
+
+    // Deal 4 to each player in order
+    final originalDeckMaps = fullDeck.map(_cardToMap).toList();
+    final drawStack = List<Card>.from(fullDeck);
+    for (final p in players) {
+      final hand = <Map<String, dynamic>>[];
+      for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
+        final c = drawStack.removeAt(0);
+        hand.add(_cardToMap(c));
+      }
+      p['hand'] = hand;
+    }
+
+    // Remaining draw pile as cardIds
+    final drawPileIds = drawStack.map((c) => c.cardId).toList();
+
     // Build updated game_state
     final gameState = <String, dynamic>{
       'gameId': roomId,
       'gameName': 'Recall Game $roomId',
       'players': players,
       'discardPile': <Map<String, dynamic>>[],
-      'drawPile': <String>[],
+      'drawPile': drawPileIds,
+      'originalDeck': originalDeckMaps,
       'gameType': 'multiplayer',
       'isGameActive': true,
       'phase': 'setup',

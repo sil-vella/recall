@@ -1,6 +1,7 @@
 import 'room_manager.dart';
 import 'websocket_server.dart';
 import '../utils/server_logger.dart';
+import '../modules/recall_game/coordinator/game_event_coordinator.dart';
 
 // Logging switch for this file
 const bool LOGGING_SWITCH = true;
@@ -9,8 +10,11 @@ class MessageHandler {
   final RoomManager _roomManager;
   final WebSocketServer _server;
   final ServerLogger _logger = ServerLogger();
+  late final GameEventCoordinator _gameCoordinator;
 
-  MessageHandler(this._roomManager, this._server);
+  MessageHandler(this._roomManager, this._server) {
+    _gameCoordinator = GameEventCoordinator(_roomManager, _server);
+  }
   
   /// Unified event handler - ALL events come through here
   void handleMessage(String sessionId, Map<String, dynamic> data) {
@@ -355,19 +359,7 @@ class MessageHandler {
   ) {
     _logger.game('🎮 Game event: $event', isOn: LOGGING_SWITCH);
     _logger.game('📦 Data: $data', isOn: LOGGING_SWITCH);
-
-    // For now, just acknowledge receipt
-    // Game logic execution will be added in future phase
-    _server.sendToSession(sessionId, {
-      'event': '${event}_acknowledged',
-      'original_event': event,
-      'session_id': sessionId,
-      'message': 'Event received and acknowledged',
-      'timestamp': DateTime.now().toIso8601String(),
-      'data': data, // Echo back the data
-    });
-
-    _logger.game('✅ Game event acknowledged: $event', isOn: LOGGING_SWITCH);
+    _gameCoordinator.handle(sessionId, event, data);
   }
 
   /// Handle authenticate event

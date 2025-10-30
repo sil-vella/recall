@@ -104,10 +104,11 @@ class CardModel {
   /// Returns true if card has complete rank, suit, and points data
   /// Returns false if only cardId is present (ID-only scenario)
   bool get hasFullData {
-    return cardId.isNotEmpty && 
-           rank != '?' && 
-           suit != '?' && 
-           points > 0;
+    return cardId.isNotEmpty &&
+           rank != '?' &&
+           suit != '?' &&
+           // Treat jokers as full data even though points == 0
+           (points > 0 || rank.toLowerCase() == 'joker');
   }
 
   /// Get the color for this card
@@ -121,6 +122,8 @@ class CardModel {
   /// Get the suit symbol
   String get suitSymbol {
     switch (suit.toLowerCase()) {
+      case 'joker':
+        return '★';
       case 'hearts':
         return '♥';
       case 'diamonds':

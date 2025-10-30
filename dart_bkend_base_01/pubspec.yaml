@@ -11,6 +11,7 @@ dependencies:
   web_socket_channel: ^2.4.0 # WebSocket channel
   uuid: ^4.0.0               # Generate IDs
   http: ^1.1.0               # For Python API calls
+  yaml: ^3.1.2               # YAML parsing for server-side configs
   
 dev_dependencies:
   lints: ^3.0.0

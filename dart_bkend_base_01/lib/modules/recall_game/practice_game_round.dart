@@ -789,7 +789,13 @@ class PracticeGameRound {
       
       // Add card to player's hand as ID-only (player hands always store ID-only cards)
       // Backend replicates this in player.py add_card_to_hand method
-      final idOnlyCard = {'cardId': drawnCard['cardId']};
+      // Format matches practice game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
+      final idOnlyCard = {
+        'cardId': drawnCard['cardId'],
+        'suit': '?',      // Face-down: hide suit
+        'rank': '?',      // Face-down: hide rank
+        'points': 0,      // Face-down: hide points
+      };
       
       // IMPORTANT: Drawn cards ALWAYS go to the end of the hand (not in blank slots)
       // This matches backend logic in player.py add_card_to_hand() lines 78-88
@@ -811,10 +817,16 @@ class PracticeGameRound {
       
       // Set the drawn card property - FULL CARD DATA for human players, ID-only for computer players
       // This is what allows the frontend to show the front of the card (only for human players)
-      if (playerId == 'practice_user') {
+      final isHuman = player['isHuman'] as bool? ?? false;
+      if (isHuman) {
         player['drawnCard'] = drawnCard; // Full card data for human player
       } else {
-        player['drawnCard'] = {'cardId': drawnCard['cardId']}; // ID-only for computer players
+        player['drawnCard'] = {
+          'cardId': drawnCard['cardId'],
+          'suit': '?',      // ID-only for computer players
+          'rank': '?',
+          'points': 0,
+        };
         
         // IMPORTANT: Add the drawn card to computer player's known_cards so they can use it for same rank plays
         final knownCardsRaw = player['known_cards'];
@@ -948,9 +960,14 @@ class PracticeGameRound {
       final collectedCard = discardPile.removeLast();
       _logger.info('Practice: Collected card ${collectedCard['cardId']} from discard pile', isOn: LOGGING_SWITCH);
       
-      // Add to player's hand as ID-only
+      // Add to player's hand as ID-only (same format as regular hand cards)
       final hand = player['hand'] as List<dynamic>? ?? [];
-      hand.add({'cardId': collectedCard['cardId']});
+      hand.add({
+        'cardId': collectedCard['cardId'],
+        'suit': '?',      // Face-down: hide suit
+        'rank': '?',      // Face-down: hide rank
+        'points': 0,      // Face-down: hide points
+      });
       
       // Add to player's collection_rank_cards (full data)
       final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
@@ -1182,13 +1199,12 @@ class PracticeGameRound {
         
         // Place the drawn card in the blank slot left by the played card
         // IMPORTANT: Convert drawn card to ID-only data when placing in hand (same as backend)
+        // Format matches practice game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
         final drawnCardIdOnly = {
           'cardId': drawnCard['cardId'],
-          'suit': '?',
-          'rank': '?',
-          'points': 0,
-          'displayName': 'Card ${drawnCard['cardId']}',
-          'color': 'black',
+          'suit': '?',      // Face-down: hide suit
+          'rank': '?',      // Face-down: hide rank
+          'points': 0,      // Face-down: hide points
         };
         
         // Apply smart blank slot logic to the target position
@@ -1337,14 +1353,12 @@ class PracticeGameRound {
         _logger.info('Practice: Drew penalty card ${penaltyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
         
         // Add penalty card to player's hand as ID-only (same format as regular hand cards)
+        // Format matches practice game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
         final penaltyCardIdOnly = {
           'cardId': penaltyCard['cardId'],
-          'suit': '?',           // Face-down: hide suit
-          'rank': '?',           // Face-down: hide rank
-          'points': 0,           // Face-down: hide points
-          'displayName': '?',    // Face-down: hide display name
-          'color': 'black',      // Default color for face-down
-          'ownerId': playerId,   // Keep owner info
+          'suit': '?',      // Face-down: hide suit
+          'rank': '?',      // Face-down: hide rank
+          'points': 0,      // Face-down: hide points
         };
         
         hand.add(penaltyCardIdOnly);

@@ -135,7 +135,7 @@ class GameEventCoordinator {
     final deckFactory = getDeckFactory(roomId) as dynamic; // returns DeckFactory or TestingDeckFactory
     final List<Card> fullDeck = deckFactory.buildDeck();
 
-    // Helper to convert Card to Map
+    // Helper to convert Card to Map (full data for originalDeck lookup)
     Map<String, dynamic> _cardToMap(Card c) => {
       'cardId': c.cardId,
       'rank': c.rank,
@@ -144,28 +144,46 @@ class GameEventCoordinator {
       if (c.specialPower != null) 'specialPower': c.specialPower,
     };
 
+    // Helper to create ID-only card (for hands - shows card back)
+    // Matches practice game format: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
+    Map<String, dynamic> _cardToIdOnly(Card c) => {
+      'cardId': c.cardId,
+      'suit': '?',      // Face-down: hide suit
+      'rank': '?',      // Face-down: hide rank
+      'points': 0,      // Face-down: hide points
+    };
+
     // Deal 4 to each player in order
-    final originalDeckMaps = fullDeck.map(_cardToMap).toList();
+    final originalDeckMaps = fullDeck.map(_cardToMap).toList(); // Full data for lookup
     final drawStack = List<Card>.from(fullDeck);
     for (final p in players) {
       final hand = <Map<String, dynamic>>[];
       for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
         final c = drawStack.removeAt(0);
-        hand.add(_cardToMap(c));
+        hand.add(_cardToIdOnly(c)); // ID-only for hands (card backs)
       }
       p['hand'] = hand;
     }
 
-    // Remaining draw pile as cardIds
-    final drawPileIds = drawStack.map((c) => c.cardId).toList();
+    // Set up discard pile with first card (full data - face-up)
+    // Matches practice game: discard pile starts with first card from remaining deck
+    final discardPile = <Map<String, dynamic>>[];
+    if (drawStack.isNotEmpty) {
+      final firstCard = drawStack.removeAt(0);
+      discardPile.add(_cardToMap(firstCard)); // Full data for discard pile (face-up)
+      _logger.info('GameEventCoordinator: Moved first card ${firstCard.cardId} to discard pile', isOn: LOGGING_SWITCH);
+    }
+
+    // Remaining draw pile as ID-only card maps (matches practice game format)
+    final drawPileIds = drawStack.map((c) => _cardToIdOnly(c)).toList();
 
     // Build updated game_state - set to initial_peek phase
     final gameState = <String, dynamic>{
       'gameId': roomId,
       'gameName': 'Recall Game $roomId',
       'players': players,
-      'discardPile': <Map<String, dynamic>>[],
-      'drawPile': drawPileIds,
+      'discardPile': discardPile, // Full data (face-up)
+      'drawPile': drawPileIds,    // ID-only (face-down)
       'originalDeck': originalDeckMaps,
       'gameType': 'multiplayer',
       'isGameActive': true,

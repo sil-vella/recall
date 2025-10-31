@@ -104,6 +104,81 @@ class RecallEventHandlerCallbacks {
     // Removed lastUpdated - causes unnecessary state updates
   }
 
+  /// Sync widget-specific states from game state
+  /// Extracts current user's player data and updates widget state slices
+  /// This ensures computed slices (like myHand.cards) stay in sync with game_state
+  static void _syncWidgetStatesFromGameState(String gameId, Map<String, dynamic> gameState) {
+    try {
+      // Extract current user ID from login state
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId']?.toString() ?? '';
+      
+      if (currentUserId.isEmpty) {
+        Logger().debug('_syncWidgetStatesFromGameState: No current user ID found', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Find player in gameState['players'] matching current user ID
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      Map<String, dynamic>? myPlayer;
+      
+      try {
+        myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
+          (player) => player['id']?.toString() == currentUserId,
+        );
+      } catch (e) {
+        Logger().debug('_syncWidgetStatesFromGameState: Current user not found in players list', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Extract widget-specific data from player
+      final hand = myPlayer['hand'] as List<dynamic>? ?? [];
+      final cardsToPeek = myPlayer['cardsToPeek'] as List<dynamic>? ?? [];
+      final drawnCard = myPlayer['drawnCard'] as Map<String, dynamic>?;
+      
+      // Extract score (can be 'points' or 'score' field)
+      final score = myPlayer['score'] as int? ?? myPlayer['points'] as int? ?? 0;
+      
+      // Extract status
+      final status = myPlayer['status']?.toString() ?? 'unknown';
+      
+      // Determine if it's current player's turn
+      // Check both gameState['currentPlayer'] and player['isCurrentPlayer']
+      final currentPlayerRaw = gameState['currentPlayer'];
+      bool isCurrentPlayer = false;
+      if (currentPlayerRaw is Map<String, dynamic>) {
+        isCurrentPlayer = currentPlayerRaw['id']?.toString() == currentUserId;
+      } else if (currentPlayerRaw is String) {
+        isCurrentPlayer = currentPlayerRaw == currentUserId;
+      } else {
+        isCurrentPlayer = myPlayer['isCurrentPlayer'] == true;
+      }
+      
+      // Update games map with widget-specific data
+      final widgetUpdates = <String, dynamic>{
+        'myHandCards': hand,
+        'myDrawnCard': drawnCard,
+        'isMyTurn': isCurrentPlayer,
+      };
+      
+      // Update main game state with player information
+      _updateMainGameState({
+        'playerStatus': status,
+        'myScore': score,
+        'isMyTurn': isCurrentPlayer,
+        'myDrawnCard': drawnCard,
+        'myCardsToPeek': cardsToPeek,
+      });
+      
+      // Apply widget updates to games map
+      _updateGameInMap(gameId, widgetUpdates);
+      
+      Logger().debug('_syncWidgetStatesFromGameState: Synced widget states for game $gameId', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      Logger().error('_syncWidgetStatesFromGameState: Error syncing widget states: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
   /// Add a session message to the message board
   static void _addSessionMessage({required String? level, required String? title, required String? message, Map<String, dynamic>? data}) {
     final entry = {
@@ -261,6 +336,9 @@ class RecallEventHandlerCallbacks {
       'selectedCardIndex': -1,
     });
     
+    // 🎯 CRITICAL: Sync widget states from game state to ensure all widget slices are up to date
+    _syncWidgetStatesFromGameState(gameId, gameState);
+    
     // Add session message about game started
     _addSessionMessage(
       level: 'success',
@@ -366,23 +444,8 @@ class RecallEventHandlerCallbacks {
     final drawPileCount = drawPile.length;
     final discardPileCount = discardPile.length;
     
-    // 🎯 CRITICAL: Extract players and find current user's hand
+    // Extract players list (used for game map update, widget sync handled separately)
     final players = gameState['players'] as List<dynamic>? ?? [];
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserId = loginState['userId']?.toString() ?? '';
-    Map<String, dynamic>? myPlayer;
-    try {
-      myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
-        (player) => player['id'] == currentUserId,
-      );
-    } catch (e) {
-      myPlayer = null;
-    }
-    
-    Logger().info('🔍 handleGameStateUpdated: Found myPlayer: ${myPlayer != null}', isOn: LOGGING_SWITCH);
-    if (myPlayer != null) {
-      Logger().info('🔍 handleGameStateUpdated: myPlayer hand: ${myPlayer['hand']}', isOn: LOGGING_SWITCH);
-    }
     
     // Check if game exists in games map, if not add it
     final currentGames = _getCurrentGamesMap();
@@ -476,14 +539,11 @@ class RecallEventHandlerCallbacks {
       'players': players,  // Include all players data
     };
     
-    // 🎯 CRITICAL: If we found the current user's player data, extract their hand
-    if (myPlayer != null) {
-      final myHand = myPlayer['hand'] as List<dynamic>? ?? [];
-      updateData['myHandCards'] = myHand;
-      Logger().info('🔍 handleGameStateUpdated: Setting myHandCards with ${myHand.length} cards', isOn: LOGGING_SWITCH);
-    }
-    
     _updateGameInMap(gameId, updateData);
+    
+    // 🎯 CRITICAL: Sync widget states from game state (myHandCards, myDrawnCard, etc.)
+    // This ensures computed slices stay in sync with game_state
+    _syncWidgetStatesFromGameState(gameId, gameState);
     
     // Add session message about game state update
     _addSessionMessage(
@@ -529,6 +589,7 @@ class RecallEventHandlerCallbacks {
     
     // Update specific UI fields based on changed properties
     final updates = <String, dynamic>{};
+    bool shouldSyncWidgetStates = false;
     
     for (final property in changedProperties) {
       final propName = property.toString();
@@ -545,42 +606,14 @@ class RecallEventHandlerCallbacks {
           });
           break;
         case 'players':
-          // Extract my player data from the players list
-          final players = updatedGameState['players'] as List<dynamic>? ?? [];
-          final currentUserId = _getCurrentUserId();
-          
-          for (var player in players) {
-            if (player is Map<String, dynamic>) {
-              final playerId = player['id']?.toString();
-              if (playerId == currentUserId) {
-                // Extract player data fields
-                final hand = player['hand'] as List<dynamic>? ?? [];
-                final cardsToPeek = player['cardsToPeek'] as List<dynamic>? ?? [];
-                final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
-                final score = player['score'] as int? ?? 0;
-                final status = player['status']?.toString() ?? 'unknown';
-                final isCurrentPlayer = player['isCurrentPlayer'] == true;
-                
-                // Update main game state
-                _updateMainGameState({
-                  'playerStatus': status,
-                  'myScore': score,
-                  'isMyTurn': isCurrentPlayer,
-                  'myDrawnCard': drawnCard,
-                  'myCardsToPeek': cardsToPeek,
-                });
-                
-                // Update game map with hand info
-                updates['myHandCards'] = hand;
-                updates['isMyTurn'] = isCurrentPlayer;
-                updates['myDrawnCard'] = drawnCard;
-                break;
-              }
-            }
-          }
+          // Mark that we need to sync widget states since players changed
+          shouldSyncWidgetStates = true;
           break;
         case 'current_player_id':
-          updates['currentPlayer'] = updatedGameState['current_player_id'];
+        case 'currentPlayer':
+          // Mark that we need to sync widget states since current player changed
+          shouldSyncWidgetStates = true;
+          updates['currentPlayer'] = updatedGameState['current_player_id'] ?? updatedGameState['currentPlayer'];
           break;
         case 'draw_pile':
           final drawPile = updatedGameState['drawPile'] as List<dynamic>? ?? [];
@@ -607,6 +640,12 @@ class RecallEventHandlerCallbacks {
     // Apply UI updates if any
     if (updates.isNotEmpty) {
       _updateGameInMap(gameId, updates);
+    }
+    
+    // 🎯 CRITICAL: Sync widget states if players or currentPlayer changed
+    // This ensures computed slices (myHand.cards, etc.) stay in sync
+    if (shouldSyncWidgetStates) {
+      _syncWidgetStatesFromGameState(gameId, updatedGameState);
     }
     
     // Add session message about partial update

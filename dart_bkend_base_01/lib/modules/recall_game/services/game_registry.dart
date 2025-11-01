@@ -36,6 +36,7 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   final String roomId;
   final WebSocketServer server;
   final _store = GameStateStore.instance;
+  // ignore: unused_field
   final ServerLogger _logger = ServerLogger();
 
   _ServerGameStateCallbackImpl(this.roomId, this.server);
@@ -54,6 +55,19 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
       state['playerStatus'] = status;
     }
     _store.setGameState(roomId, state);
+    
+    // Also broadcast full game_state_updated to ensure currentPlayer is included
+    // This is needed when starting a new turn and currentPlayer changes
+    final ownerId = server.getRoomOwner(roomId);
+    server.broadcastToRoom(roomId, {
+      'event': 'game_state_updated',
+      'game_id': roomId,
+      'game_state': state, // Include full state with currentPlayer
+      if (ownerId != null) 'owner_id': ownerId,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+    
+    // Also send player_status_updated for backward compatibility
     server.broadcastToRoom(roomId, {
       'event': 'player_status_updated',
       'room_id': roomId,
@@ -118,7 +132,22 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   }
 
   @override
-  Map<String, dynamic> get currentGamesMap => _store.getState(roomId);
+  Map<String, dynamic> get currentGamesMap {
+    // Return state in Flutter format: {gameId: {'gameData': {'game_state': ...}}}
+    // This matches the format expected by handlePlayCard in practice_game_round.dart
+    final state = _store.getState(roomId);
+    final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
+    
+    return {
+      roomId: {
+        'gameData': {
+          'game_id': roomId,
+          'game_state': gameState,
+          'owner_id': server.getRoomOwner(roomId),
+        },
+      },
+    };
+  }
 }
 
 

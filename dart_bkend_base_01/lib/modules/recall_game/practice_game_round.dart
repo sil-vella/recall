@@ -566,6 +566,59 @@ class PracticeGameRound {
             if (!success) {
               _logger.error('Practice: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
+            } else {
+              // After successful draw, continue computer turn with play_card action
+              _logger.info('Practice: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
+              
+              // Continue computer turn with play_card action (delay already handled by Timer above)
+              final gameState = _getCurrentGameState();
+              if (gameState != null) {
+                // Try to use YAML-based method if factory is available, otherwise use fallback
+                if (_computerPlayerFactory != null) {
+                  final difficulty = _getComputerDifficulty(gameState, playerId);
+                  _logger.info('Practice: DEBUG - About to call _handleComputerActionWithYAML for play_card', isOn: LOGGING_SWITCH);
+                  _handleComputerActionWithYAML(gameState, playerId, difficulty, 'play_card');
+                } else {
+                  // Fallback: continue with simple play logic
+                  _logger.info('Practice: DEBUG - Factory not available, using fallback play_card logic', isOn: LOGGING_SWITCH);
+                  // Trigger play_card action in fallback
+                  Timer(const Duration(seconds: 1), () async {
+                    // Get available cards from player's hand
+                    final players = gameState['players'] as List<dynamic>? ?? [];
+                    final computerPlayer = players.firstWhere(
+                      (p) => p['id'] == playerId,
+                      orElse: () => <String, dynamic>{},
+                    );
+                    final hand = computerPlayer['hand'] as List<dynamic>? ?? [];
+                    final availableCards = hand
+                        .where((card) => card != null)
+                        .map((card) {
+                      if (card is Map<String, dynamic>) {
+                        return card['cardId']?.toString() ?? card['id']?.toString() ?? '';
+                      }
+                      return card.toString() == 'null' ? '' : card.toString();
+                    })
+                        .where((cardId) => cardId.isNotEmpty)
+                        .toList();
+                    
+                    if (availableCards.isNotEmpty) {
+                      // Play the first available card as a simple fallback
+                      final cardId = availableCards.first;
+                      _logger.info('Practice: Fallback - Playing card $cardId', isOn: LOGGING_SWITCH);
+                      final success = await handlePlayCard(cardId);
+                      if (!success) {
+                        _logger.error('Practice: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
+                        _moveToNextPlayer();
+                      }
+                    } else {
+                      _logger.warning('Practice: No cards available for computer player $playerId to play', isOn: LOGGING_SWITCH);
+                      _moveToNextPlayer();
+                    }
+                  });
+                }
+              } else {
+                _logger.error('Practice: DEBUG - Game state is null, cannot continue with play_card', isOn: LOGGING_SWITCH);
+              }
             }
           });
           break;
@@ -649,20 +702,13 @@ class PracticeGameRound {
     if (currentPlayerId == null) {
       _logger.info('Practice: No current player ID - this is the first turn', isOn: LOGGING_SWITCH);
       
-      // First turn - find human player and set as current
-      final humanPlayer = players.firstWhere(
-        (p) => p['isHuman'] == true,
-        orElse: () => <String, dynamic>{},
-      );
+      // First turn - randomly select any player (human or CPU)
+      final random = Random();
+      final randomIndex = random.nextInt(players.length);
+      final randomPlayer = players[randomIndex];
       
-      if (humanPlayer.isNotEmpty) {
-        _logger.info('Practice: Found human player: ${humanPlayer['name']} (${humanPlayer['id']}) - setting as current', isOn: LOGGING_SWITCH);
-        return humanPlayer;
-      } else {
-        // Fallback to first player if no human player found
-        _logger.warning('Practice: No human player found, using first player as fallback: ${players.first['name']}', isOn: LOGGING_SWITCH);
-        return players.first;
-      }
+      _logger.info('Practice: Randomly selected starting player: ${randomPlayer['name']} (${randomPlayer['id']}, isHuman: ${randomPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+      return randomPlayer;
     }
     
     _logger.info('Practice: Looking for current player with ID: $currentPlayerId', isOn: LOGGING_SWITCH);
@@ -712,10 +758,7 @@ class PracticeGameRound {
       }
       
       // Get current game state
-      final currentGames = _stateCallback.currentGamesMap;
-      final gameData = currentGames[_gameId];
-      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
-      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      final gameState = _getCurrentGameState();
       
       if (gameState == null) {
         _logger.error('Practice: Game state is null for draw card', isOn: LOGGING_SWITCH);
@@ -1034,7 +1077,9 @@ class PracticeGameRound {
       }
       
       // Find the card in the player's hand
-      final hand = player['hand'] as List<dynamic>? ?? [];
+      // Convert to a list that allows null values for blank slots
+      final handRaw = player['hand'] as List<dynamic>? ?? [];
+      final hand = List<dynamic>.from(handRaw); // Convert to mutable list to allow nulls
       Map<String, dynamic>? cardToPlay;
       int cardIndex = -1;
       
@@ -1120,6 +1165,9 @@ class PracticeGameRound {
         return false;
       }
       _logger.info('Practice: Converted card $cardId to full data for discard pile', isOn: LOGGING_SWITCH);
+      
+      // Update player's hand back to game state (hand list was modified with nulls)
+      player['hand'] = hand;
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(cardToPlayFullData);
@@ -1229,6 +1277,9 @@ class PracticeGameRound {
         player['drawnCard'] = null;
         _logger.info('Practice: Cleared drawn card property after repositioning', isOn: LOGGING_SWITCH);
         
+        // Update player's hand back to game state (hand list was modified)
+        player['hand'] = hand;
+        
         // NOTE: Do NOT update status here - all players already have 'same_rank_window' status
         // set by _handleSameRankWindow() (called earlier). Updating to 'waiting' would overwrite
         // the correct status for the playing player.
@@ -1286,7 +1337,9 @@ class PracticeGameRound {
       }
       
       // Find the card in player's hand
-      final hand = player['hand'] as List<dynamic>? ?? [];
+      // Convert to a list that allows null values for blank slots
+      final handRaw = player['hand'] as List<dynamic>? ?? [];
+      final hand = List<dynamic>.from(handRaw); // Convert to mutable list to allow nulls
       Map<String, dynamic>? playedCard;
       int cardIndex = -1;
       
@@ -1388,6 +1441,9 @@ class PracticeGameRound {
         hand.removeAt(cardIndex);
         _logger.info('Practice: Removed same rank card entirely from index $cardIndex', isOn: LOGGING_SWITCH);
       }
+      
+      // Update player's hand back to game state (hand list was modified with nulls)
+      player['hand'] = hand;
       
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(playedCardFullData);
@@ -2241,10 +2297,7 @@ class PracticeGameRound {
       _logger.info('Practice: Moving to next player', isOn: LOGGING_SWITCH);
       
       // Get current game state
-      final currentGames = _stateCallback.currentGamesMap;
-      final gameData = currentGames[_gameId];
-      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
-      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      final gameState = _getCurrentGameState();
       
       if (gameState == null) {
         _logger.error('Practice: Game state is null for move to next player', isOn: LOGGING_SWITCH);

@@ -104,9 +104,9 @@ class CardModel {
   /// Returns true if card has complete rank, suit, and points data
   /// Returns false if only cardId is present (ID-only scenario)
   bool get hasFullData {
-    return cardId.isNotEmpty &&
-           rank != '?' &&
-           suit != '?' &&
+    return cardId.isNotEmpty && 
+           rank != '?' && 
+           suit != '?' && 
            // Treat jokers as full data even though points == 0
            (points > 0 || rank.toLowerCase() == 'joker');
   }

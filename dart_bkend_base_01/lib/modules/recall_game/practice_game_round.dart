@@ -1591,6 +1591,30 @@ class PracticeGameRound {
         'targetPlayerId': secondPlayerId,
       });
 
+      // Action completed successfully - cancel timer and move to next special card
+      _specialCardTimer?.cancel();
+      _logger.info('Practice: Cancelled special card timer after Jack swap completion', isOn: LOGGING_SWITCH);
+
+      // Set the current player's status to waiting
+      // The player who completed the swap is the one in the first entry of _specialCardPlayers
+      if (_specialCardPlayers.isNotEmpty) {
+        final currentSpecialData = _specialCardPlayers[0];
+        final currentPlayerId = currentSpecialData['player_id']?.toString();
+        
+        if (currentPlayerId != null && currentPlayerId.isNotEmpty) {
+          // Set player status to waiting
+          _stateCallback.onPlayerStatusChanged('waiting', playerId: currentPlayerId, updateMainState: true);
+          _logger.info('Practice: Player $currentPlayerId status set to waiting after Jack swap completion', isOn: LOGGING_SWITCH);
+          
+          // Remove the processed card from the list
+          _specialCardPlayers.removeAt(0);
+          _logger.info('Practice: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
+        }
+      }
+
+      // Process next special card or end window
+      _processNextSpecialCard();
+
       return true;
 
     } catch (e) {

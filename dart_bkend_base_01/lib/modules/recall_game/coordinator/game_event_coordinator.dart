@@ -347,11 +347,28 @@ class GameEventCoordinator {
 
   /// AI Decision Logic: Select which card should be marked as collection rank
   /// Priority: Least points first, then by rank order (ace, number, king, queen, jack)
+  /// Jokers are excluded from collection rank selection
   Map<String, dynamic> _selectCardForCollection(Map<String, dynamic> card1, Map<String, dynamic> card2, Random random) {
-    final points1 = card1['points'] as int? ?? 0;
-    final points2 = card2['points'] as int? ?? 0;
     final rank1 = card1['rank'] as String? ?? '';
     final rank2 = card2['rank'] as String? ?? '';
+    final isJoker1 = rank1.toLowerCase() == 'joker';
+    final isJoker2 = rank2.toLowerCase() == 'joker';
+    
+    // Exclude jokers from collection rank selection
+    // If one card is a joker and the other is not, select the non-joker
+    if (isJoker1 && !isJoker2) {
+      return card2;
+    }
+    if (isJoker2 && !isJoker1) {
+      return card1;
+    }
+    // If both are jokers, pick randomly (shouldn't happen in normal gameplay)
+    if (isJoker1 && isJoker2) {
+      return random.nextBool() ? card1 : card2;
+    }
+    
+    final points1 = card1['points'] as int? ?? 0;
+    final points2 = card2['points'] as int? ?? 0;
 
     // If points are different, select the one with least points
     if (points1 != points2) {

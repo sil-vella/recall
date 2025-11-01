@@ -9,7 +9,7 @@ const bool LOGGING_SWITCH = true;
 class MessageHandler {
   final RoomManager _roomManager;
   final WebSocketServer _server;
-  final ServerLogger _logger = ServerLogger();
+  final Logger _logger = Logger();
   late final GameEventCoordinator _gameCoordinator;
 
   MessageHandler(this._roomManager, this._server) {

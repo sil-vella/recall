@@ -11,7 +11,7 @@ const bool LOGGING_SWITCH = true;
 class GameRegistry {
   static final GameRegistry instance = GameRegistry._internal();
   final Map<String, PracticeGameRound> _roomIdToRound = {};
-  final ServerLogger _logger = ServerLogger();
+  final Logger _logger = Logger();
 
   GameRegistry._internal();
 
@@ -37,7 +37,7 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   final WebSocketServer server;
   final _store = GameStateStore.instance;
   // ignore: unused_field
-  final ServerLogger _logger = ServerLogger();
+  final Logger _logger = Logger();
 
   _ServerGameStateCallbackImpl(this.roomId, this.server);
 

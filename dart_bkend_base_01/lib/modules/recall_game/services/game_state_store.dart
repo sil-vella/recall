@@ -8,7 +8,7 @@ const bool LOGGING_SWITCH = true;
 class GameStateStore {
   static final GameStateStore instance = GameStateStore._internal();
   final Map<String, Map<String, dynamic>> _roomIdToState = {};
-  final ServerLogger _logger = ServerLogger();
+  final Logger _logger = Logger();
 
   GameStateStore._internal();
 

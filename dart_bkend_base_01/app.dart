@@ -9,7 +9,7 @@ const bool LOGGING_SWITCH = true;
 
 void main(List<String> args) async {
   // Initialize logger first
-  final logger = ServerLogger();
+  final logger = Logger();
   logger.initialize();
   
   final port = int.tryParse(Platform.environment['PORT'] ?? '8080') ?? 8080;

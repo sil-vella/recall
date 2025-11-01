@@ -14,7 +14,7 @@ class RecallGameModule {
   final RoomManager roomManager;
   final HooksManager hooksManager;
   late final GameEventCoordinator coordinator;
-  final ServerLogger _logger = ServerLogger();
+  final Logger _logger = Logger();
 
   RecallGameModule(this.server, this.roomManager, this.hooksManager) {
     coordinator = GameEventCoordinator(roomManager, server);

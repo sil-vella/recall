@@ -7,7 +7,7 @@ const bool LOGGING_SWITCH = true;
 
 class PythonApiClient {
   final String baseUrl;
-  final ServerLogger _logger = ServerLogger();
+  final Logger _logger = Logger();
   
   PythonApiClient({required this.baseUrl});
   

@@ -122,8 +122,8 @@ class RecallGameEventEmitter {
     ),
     'player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'Player ID in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'Player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, or MongoDB ObjectId',
     ),
     'card_id': RecallEventFieldSpec(
       type: String,
@@ -169,8 +169,8 @@ class RecallGameEventEmitter {
     ),
     'first_player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'First player ID in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'First player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, or MongoDB ObjectId',
     ),
     'second_card_id': RecallEventFieldSpec(
       type: String,
@@ -179,8 +179,8 @@ class RecallGameEventEmitter {
     ),
     'second_player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'Second player ID in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'Second player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, or MongoDB ObjectId',
     ),
     'queen_peek_card_id': RecallEventFieldSpec(
       type: String,
@@ -189,13 +189,13 @@ class RecallGameEventEmitter {
     ),
     'queen_peek_player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'Player ID whose card to peek at in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'Player ID whose card to peek at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, or MongoDB ObjectId',
     ),
     'ownerId': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'Owner ID of the card being peeked at in format: player_xxxxx, computer_xxxxx, or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
+      description: 'Owner ID of the card being peeked at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, or MongoDB ObjectId',
     ),
   };
   

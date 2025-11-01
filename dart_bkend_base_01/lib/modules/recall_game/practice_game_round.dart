@@ -12,7 +12,7 @@ import '../../utils/server_logger.dart';
 const bool LOGGING_SWITCH = true;
 
 class PracticeGameRound {
-  final ServerLogger _logger = ServerLogger();
+  final Logger _logger = Logger();
   final GameStateCallback _stateCallback;
   final String _gameId;
   Timer? _sameRankTimer; // Timer for same rank window (5 seconds)
@@ -1417,8 +1417,19 @@ class PracticeGameRound {
         hand.add(penaltyCardIdOnly);
         _logger.info('Practice: Added penalty card ${penaltyCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
         
-        // Update player state to reflect the new hand
+        // CRITICAL: Persist changes to game state
+        player['hand'] = hand;  // Update player's hand with the penalty card
+        gameState['drawPile'] = drawPile;  // Update draw pile after removing penalty card
+        
+        // Update player state to reflect the new hand and draw pile
         _stateCallback.onPlayerStatusChanged('waiting', playerId: playerId, updateMainState: true);
+        
+        // Broadcast the updated game state (hand and drawPile changes)
+        // Get current games map (should already include our gameState modifications)
+        final currentGames = _stateCallback.currentGamesMap;
+        _stateCallback.onGameStateChanged({
+          'games': currentGames,
+        });
         
         _logger.info('Practice: Penalty applied successfully - player $playerId now has ${hand.length} cards', isOn: LOGGING_SWITCH);
         
@@ -1669,8 +1680,9 @@ class PracticeGameRound {
       peekingPlayer['status'] = 'peeking';
       _logger.info('Practice: Set player $peekingPlayerId status to peeking', isOn: LOGGING_SWITCH);
 
-      // Update main state for the human player
-      if (peekingPlayerId == 'practice_user') {
+      // Update main state for the human player (check isHuman field instead of 'practice_user')
+      final isHuman = peekingPlayer['isHuman'] as bool? ?? false;
+      if (isHuman) {
         final currentGames = _stateCallback.currentGamesMap;
         _stateCallback.onGameStateChanged({
           'playerStatus': 'peeking',

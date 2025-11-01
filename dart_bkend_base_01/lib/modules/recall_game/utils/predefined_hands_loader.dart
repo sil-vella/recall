@@ -10,6 +10,7 @@ const bool LOGGING_SWITCH = true;
 /// This class provides functionality to load predefined hands configuration
 /// for testing purposes in the Recall game.
 class PredefinedHandsLoader {
+  final Logger _logger = Logger();
   /// Load the predefined hands configuration from YAML file
   /// 
   /// Returns a Map containing 'enabled' flag and 'hands' data
@@ -23,11 +24,11 @@ class PredefinedHandsLoader {
       final yamlString = await file.readAsString();
       final yamlMap = loadYaml(yamlString);
       final config = Map<String, dynamic>.from(yamlMap as Map);
-      ServerLogger().info('Loaded predefined hands config: enabled=${config['enabled']}', isOn: LOGGING_SWITCH);
+      _logger.info('Loaded predefined hands config: enabled=${config['enabled']}', isOn: LOGGING_SWITCH);
       return config;
     } catch (e) {
       // Return disabled config if file doesn't exist
-      ServerLogger().warning('Predefined hands config load failed, defaulting to disabled: $e', isOn: LOGGING_SWITCH);
+      _logger.warning('Predefined hands config load failed, defaulting to disabled: $e', isOn: LOGGING_SWITCH);
       return {'enabled': false, 'hands': {}};
     }
   }
@@ -48,11 +49,11 @@ class PredefinedHandsLoader {
     final hand = hands[playerKey] as List<dynamic>?;
     
     if (hand == null) {
-      ServerLogger().debug('No predefined hand found for player $playerIndex', isOn: LOGGING_SWITCH);
+      _logger.debug('No predefined hand found for player $playerIndex', isOn: LOGGING_SWITCH);
       return null;
     }
     
-    ServerLogger().debug('Found predefined hand for player $playerIndex: ${hand.length} cards', isOn: LOGGING_SWITCH);
+    _logger.debug('Found predefined hand for player $playerIndex: ${hand.length} cards', isOn: LOGGING_SWITCH);
     return hand.map((card) => {
       'rank': card['rank'].toString(),
       'suit': card['suit'].toString(),

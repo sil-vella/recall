@@ -17,7 +17,7 @@ class GameEventCoordinator {
   final WebSocketServer server;
   final _registry = GameRegistry.instance;
   final _store = GameStateStore.instance;
-  final ServerLogger _logger = ServerLogger();
+  final Logger _logger = Logger();
 
   GameEventCoordinator(this.roomManager, this.server);
 
@@ -60,9 +60,42 @@ class GameEventCoordinator {
           }
           break;
         case 'queen_peek':
+          final cardId = (data['card_id'] as String?) ?? (data['cardId'] as String?);
+          final ownerId = data['ownerId'] as String?;
+          
+          if (cardId != null && cardId.isNotEmpty && ownerId != null && ownerId.isNotEmpty) {
+            // Get the peeking player ID from event data (user_id) - this is the actual player making the action
+            // During special card window, currentPlayer may be a CPU, but user_id is always the human player
+            final peekingPlayerId = (data['user_id'] as String?) ?? 
+                                   (data['player_id'] as String?) ?? 
+                                   (data['playerId'] as String?);
+            
+            if (peekingPlayerId != null && peekingPlayerId.isNotEmpty) {
+              await round.handleQueenPeek(
+                peekingPlayerId: peekingPlayerId,
+                targetCardId: cardId,
+                targetPlayerId: ownerId,
+              );
+            }
+          }
+          break;
         case 'jack_swap':
-          // Placeholders: these are handled within PracticeGameRound through special card window
-          // When front-end triggers structured events, wire here accordingly
+          final firstCardId = (data['first_card_id'] as String?) ?? (data['firstCardId'] as String?);
+          final firstPlayerId = (data['first_player_id'] as String?) ?? (data['firstPlayerId'] as String?);
+          final secondCardId = (data['second_card_id'] as String?) ?? (data['secondCardId'] as String?);
+          final secondPlayerId = (data['second_player_id'] as String?) ?? (data['secondPlayerId'] as String?);
+          
+          if (firstCardId != null && firstCardId.isNotEmpty &&
+              firstPlayerId != null && firstPlayerId.isNotEmpty &&
+              secondCardId != null && secondCardId.isNotEmpty &&
+              secondPlayerId != null && secondPlayerId.isNotEmpty) {
+            await round.handleJackSwap(
+              firstCardId: firstCardId,
+              firstPlayerId: firstPlayerId,
+              secondCardId: secondCardId,
+              secondPlayerId: secondPlayerId,
+            );
+          }
           break;
         default:
           // Acknowledge unknown-but-allowed for forward-compat
@@ -127,6 +160,8 @@ class GameEventCoordinator {
         'points': 0,
         'known_cards': <String, dynamic>{},
         'collection_rank_cards': <String>[],
+        'isActive': true,  // Required for same rank play filtering
+        'difficulty': 'medium',  // Default difficulty for computer players
       });
       needed--;
     }

@@ -1,14 +1,14 @@
 import 'dart:io';
 
-class ServerLogger {
+class Logger {
   // Private constructor
-  ServerLogger._();
+  Logger._();
 
   // The single instance of Logger
-  static final ServerLogger _instance = ServerLogger._();
+  static final Logger _instance = Logger._();
 
   // Factory constructor to return the same instance
-  factory ServerLogger() {
+  factory Logger() {
     return _instance;
   }
 
@@ -29,7 +29,7 @@ class ServerLogger {
       _initialized = true;
       
       // Log initialization
-      info('🚀 Server Logger initialized - logging to $_logFileName', isOn: true);
+      info('🚀 Logger initialized - logging to $_logFileName', isOn: true);
     } catch (e) {
       print('❌ Failed to initialize logger: $e');
     }
@@ -37,7 +37,7 @@ class ServerLogger {
 
   /// General log method
   void log(String message, {
-    String name = 'ServerLogger',
+    String name = 'Logger',
     Object? error,
     StackTrace? stackTrace,
     int level = 0,

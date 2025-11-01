@@ -18,7 +18,7 @@ class WebSocketServer {
   final RoomManager _roomManager = RoomManager();
   late MessageHandler _messageHandler;
   late PythonApiClient _pythonClient;
-  final ServerLogger _logger = ServerLogger();
+  final Logger _logger = Logger();
   final HooksManager _hooksManager = HooksManager();
   // ignore: unused_field
   late RecallGameModule _recallGameModule;

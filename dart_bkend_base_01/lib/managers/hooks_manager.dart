@@ -21,7 +21,7 @@ class HooksManager {
     'app_startup': [], // Predefined default hook
   };
   
-  final ServerLogger _logger = ServerLogger();
+  final Logger _logger = Logger();
 
   /// Register a new hook with the given name
   void registerHook(String hookName) {

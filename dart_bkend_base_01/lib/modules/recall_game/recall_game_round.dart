@@ -1,7 +1,7 @@
-/// Practice Game Round Manager for Recall Game
+/// Recall Game Round Manager for Recall Game
 ///
 /// This class handles the actual gameplay rounds, turn management, and game logic
-/// for practice sessions, including turn rotation, card actions, and AI decision making.
+/// for recall sessions, including turn rotation, card actions, and AI decision making.
 
 import 'dart:async';
 import 'dart:math';
@@ -11,7 +11,7 @@ import '../../utils/server_logger.dart';
 
 const bool LOGGING_SWITCH = true;
 
-class PracticeGameRound {
+class RecallGameRound {
   final Logger _logger = Logger();
   final GameStateCallback _stateCallback;
   final String _gameId;
@@ -29,47 +29,47 @@ class PracticeGameRound {
   // Matches backend's self.special_card_players list (game_round.py line 686)
   List<Map<String, dynamic>> _specialCardPlayers = [];
   
-  PracticeGameRound(this._stateCallback, this._gameId);
+  RecallGameRound(this._stateCallback, this._gameId);
   
   /// Initialize the round with the current game state
   /// Replicates backend _initial_peek_timeout() and start_turn() logic
   void initializeRound() {
     try {
-      _logger.info('Practice: ===== INITIALIZING ROUND FOR GAME $_gameId =====', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: ===== INITIALIZING ROUND FOR GAME $_gameId =====', isOn: LOGGING_SWITCH);
       
       // Get current game state
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.error('Practice: Failed to get game state for round initialization', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Failed to get game state for round initialization', isOn: LOGGING_SWITCH);
         return;
       }
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       
-      _logger.info('Practice: Current game state - Players: ${players.length}, Current Player: ${currentPlayer?['name'] ?? 'None'}', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: All players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']}, status: ${p['status']})').join(', ')}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Current game state - Players: ${players.length}, Current Player: ${currentPlayer?['name'] ?? 'None'}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: All players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']}, status: ${p['status']})').join(', ')}', isOn: LOGGING_SWITCH);
       
       // 1. Clear cards_to_peek for all players (peek phase is over)
-      _logger.info('Practice: Step 1 - Clearing cards_to_peek for all players', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Step 1 - Clearing cards_to_peek for all players', isOn: LOGGING_SWITCH);
       _clearPeekedCards(gameState);
       
       // 2. Set all players back to WAITING status
-      _logger.info('Practice: Step 2 - Setting all players to WAITING status', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Step 2 - Setting all players to WAITING status', isOn: LOGGING_SWITCH);
       _setAllPlayersToWaiting(gameState);
       
       // 3. Initialize round state (replicates backend start_turn logic)
-      _logger.info('Practice: Step 3 - Initializing round state', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Step 3 - Initializing round state', isOn: LOGGING_SWITCH);
       _initializeRoundState(gameState);
       
       // 4. Start the first turn (this will set the current player to DRAWING_CARD status)
-      _logger.info('Practice: Step 4 - Starting first turn (will select current player)', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Step 4 - Starting first turn (will select current player)', isOn: LOGGING_SWITCH);
       _startNextTurn();
       
-      _logger.info('Practice: ===== ROUND INITIALIZATION COMPLETED SUCCESSFULLY =====', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: ===== ROUND INITIALIZATION COMPLETED SUCCESSFULLY =====', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      _logger.error('Practice: Failed to initialize round: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Failed to initialize round: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -86,10 +86,10 @@ class PracticeGameRound {
         }
       }
       
-      _logger.info('Practice: Cleared cards_to_peek for $clearedCount players', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Cleared cards_to_peek for $clearedCount players', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      _logger.error('Practice: Failed to clear peeked cards: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Failed to clear peeked cards: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -102,10 +102,10 @@ class PracticeGameRound {
         player['status'] = 'waiting';
       }
       
-      _logger.info('Practice: Set ${players.length} players back to WAITING status', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Set ${players.length} players back to WAITING status', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      _logger.error('Practice: Failed to set players to waiting: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Failed to set players to waiting: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -132,10 +132,10 @@ class PracticeGameRound {
       // Set game phase to PLAYER_TURN (already set in matchStart, but ensure consistency)
       gameState['phase'] = 'player_turn';
       
-      _logger.info('Practice: Round state initialized - phase: player_turn, status: active', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Round state initialized - phase: player_turn, status: active', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      _logger.error('Practice: Failed to initialize round state: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Failed to initialize round state: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -164,7 +164,7 @@ class PracticeGameRound {
     try {
       return _stateCallback.getCurrentGameState();
     } catch (e) {
-      _logger.error('Practice: Failed to get current game state: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Failed to get current game state: $e', isOn: LOGGING_SWITCH);
       return null;
     }
   }
@@ -174,7 +174,7 @@ class PracticeGameRound {
   void _addToDiscardPile(Map<String, dynamic> card) {
     final gameState = _getCurrentGameState();
     if (gameState == null) {
-      _logger.error('Practice: Cannot add to discard pile - game state is null', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Cannot add to discard pile - game state is null', isOn: LOGGING_SWITCH);
       return;
     }
 
@@ -189,38 +189,38 @@ class PracticeGameRound {
   /// Start the next player's turn
   void _startNextTurn() {
     try {
-      _logger.info('Practice: Starting next turn...', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Starting next turn...', isOn: LOGGING_SWITCH);
       
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.error('Practice: Failed to get game state for _startNextTurn', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Failed to get game state for _startNextTurn', isOn: LOGGING_SWITCH);
         return;
       }
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       final currentPlayerId = gameState['currentPlayer']?['id'] as String?;
       
-      _logger.info('Practice: Current player ID: $currentPlayerId', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: Available players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']})').join(', ')}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Current player ID: $currentPlayerId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Available players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']})').join(', ')}', isOn: LOGGING_SWITCH);
       
       // Find next player
       final nextPlayer = _getNextPlayer(players, currentPlayerId);
       if (nextPlayer == null) {
-        _logger.error('Practice: No next player found', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: No next player found', isOn: LOGGING_SWITCH);
         return;
       }
       
-      _logger.info('Practice: Selected next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Selected next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
       
       // Reset previous current player's status to waiting (if there was one)
       if (currentPlayerId != null) {
-        _logger.info('Practice: Resetting previous current player $currentPlayerId to waiting status', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Resetting previous current player $currentPlayerId to waiting status', isOn: LOGGING_SWITCH);
         _stateCallback.onPlayerStatusChanged('waiting', playerId: currentPlayerId, updateMainState: true);
       }
       
       // Update current player
       gameState['currentPlayer'] = nextPlayer;
-      _logger.info('Practice: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
       
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
       // This matches backend behavior where first player status is DRAWING_CARD
@@ -229,14 +229,14 @@ class PracticeGameRound {
       // Check if this is a computer player and trigger computer turn logic
       final isHuman = nextPlayer['isHuman'] as bool? ?? false;
       if (!isHuman) {
-        _logger.info('Practice: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
         _initComputerTurn(gameState);
       } else {
-        _logger.info('Practice: Started turn for human player ${nextPlayer['name']} - status: drawing_card (no timer)', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Started turn for human player ${nextPlayer['name']} - status: drawing_card (no timer)', isOn: LOGGING_SWITCH);
       }
       
     } catch (e) {
-      _logger.error('Practice: Failed to start next turn: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Failed to start next turn: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -245,29 +245,29 @@ class PracticeGameRound {
   /// Uses declarative YAML configuration for computer behavior
   void _initComputerTurn(Map<String, dynamic> gameState) async {
     try {
-      _logger.info('Practice: ===== INITIALIZING COMPUTER TURN =====', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: ===== INITIALIZING COMPUTER TURN =====', isOn: LOGGING_SWITCH);
       
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       if (currentPlayer == null) {
-        _logger.error('Practice: No current player found for computer turn', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: No current player found for computer turn', isOn: LOGGING_SWITCH);
         return;
       }
       
       final playerId = currentPlayer['id']?.toString() ?? 'unknown';
       final playerName = currentPlayer['name']?.toString() ?? 'Unknown';
       
-      _logger.info('Practice: Computer player $playerName ($playerId) starting turn', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Computer player $playerName ($playerId) starting turn', isOn: LOGGING_SWITCH);
       
       // Initialize computer player factory if not already done
       await _ensureComputerFactory();
       
       // Get computer player difficulty from game state
       final difficulty = _getComputerDifficulty(gameState, playerId);
-      _logger.info('Practice: Computer player difficulty: $difficulty', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Computer player difficulty: $difficulty', isOn: LOGGING_SWITCH);
       
       // Determine the current event/action needed
       final eventName = _getCurrentEventName(gameState, playerId);
-      _logger.info('Practice: Current event needed: $eventName', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Current event needed: $eventName', isOn: LOGGING_SWITCH);
       
       // Use YAML-based computer player factory for decision making
       if (_computerPlayerFactory != null) {
@@ -278,7 +278,7 @@ class PracticeGameRound {
       }
       
     } catch (e) {
-      _logger.error('Practice: Error in _initComputerTurn: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _initComputerTurn: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -288,13 +288,13 @@ class PracticeGameRound {
       if (_computerPlayerFactory == null) {
         try {
           _computerPlayerFactory = await ComputerPlayerFactory.fromFile('assets/computer_player_config.yaml');
-          _logger.info('Practice: Computer player factory initialized with YAML config', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Computer player factory initialized with YAML config', isOn: LOGGING_SWITCH);
         } catch (e) {
-          _logger.error('Practice: Failed to load computer player config, using default behavior: $e', isOn: LOGGING_SWITCH);
+          _logger.error('Recall: Failed to load computer player config, using default behavior: $e', isOn: LOGGING_SWITCH);
         }
       }
     } catch (e) {
-      _logger.error('Practice: Error ensuring computer factory: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error ensuring computer factory: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -305,7 +305,7 @@ class PracticeGameRound {
       // Later this will be read from game configuration or player settings
       return 'medium'; // Options: easy, medium, hard, expert
     } catch (e) {
-      _logger.error('Practice: Error getting computer difficulty: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error getting computer difficulty: $e', isOn: LOGGING_SWITCH);
       return 'medium';
     }
   }
@@ -334,11 +334,11 @@ class PracticeGameRound {
         case 'queen_peek':
           return 'queen_peek';
         default:
-          _logger.warning('Practice: Unknown player status for event mapping: $playerStatus', isOn: LOGGING_SWITCH);
+          _logger.warning('Recall: Unknown player status for event mapping: $playerStatus', isOn: LOGGING_SWITCH);
           return 'draw_card'; // Default to drawing a card
       }
     } catch (e) {
-      _logger.error('Practice: Error getting current event name: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error getting current event name: $e', isOn: LOGGING_SWITCH);
       return 'draw_card';
     }
   }
@@ -347,11 +347,11 @@ class PracticeGameRound {
   /// This method uses the computer player factory to make decisions based on YAML config
   void _handleComputerActionWithYAML(Map<String, dynamic> gameState, String playerId, String difficulty, String eventName) {
     try {
-      _logger.info('Practice: DEBUG - _handleComputerActionWithYAML called with event: $eventName', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: Handling computer action with YAML - Player: $playerId, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - _handleComputerActionWithYAML called with event: $eventName', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Handling computer action with YAML - Player: $playerId, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
       
       if (_computerPlayerFactory == null) {
-        _logger.error('Practice: Computer player factory not initialized', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Computer player factory not initialized', isOn: LOGGING_SWITCH);
         _moveToNextPlayer();
         return;
       }
@@ -370,7 +370,7 @@ class PracticeGameRound {
             orElse: () => <String, dynamic>{},
           );
           final hand = computerPlayer['hand'] as List<dynamic>? ?? [];
-          _logger.info('Practice: DEBUG - Computer player hand: $hand', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: DEBUG - Computer player hand: $hand', isOn: LOGGING_SWITCH);
           
           // Map hand to card IDs, filtering out null cards
           final availableCards = hand
@@ -387,7 +387,7 @@ class PracticeGameRound {
               .where((cardId) => cardId.isNotEmpty) // Filter out empty strings (null conversions)
               .toList();
           
-          _logger.info('Practice: DEBUG - Available cards after mapping (nulls filtered): $availableCards', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: DEBUG - Available cards after mapping (nulls filtered): $availableCards', isOn: LOGGING_SWITCH);
           
           decision = _computerPlayerFactory!.getPlayCardDecision(difficulty, gameState, availableCards);
           break;
@@ -403,12 +403,12 @@ class PracticeGameRound {
           decision = _computerPlayerFactory!.getQueenPeekDecision(difficulty, gameState, playerId);
           break;
         default:
-          _logger.warning('Practice: Unknown event for computer action: $eventName', isOn: LOGGING_SWITCH);
+          _logger.warning('Recall: Unknown event for computer action: $eventName', isOn: LOGGING_SWITCH);
           _moveToNextPlayer();
           return;
       }
       
-      _logger.info('Practice: Computer decision: $decision', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Computer decision: $decision', isOn: LOGGING_SWITCH);
       
       // Execute decision with delay from YAML config
       final delaySeconds = (decision['delay_seconds'] ?? 1.0).toDouble();
@@ -417,7 +417,7 @@ class PracticeGameRound {
       });
       
     } catch (e) {
-      _logger.error('Practice: Error in _handleComputerActionWithYAML: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _handleComputerActionWithYAML: $e', isOn: LOGGING_SWITCH);
       _moveToNextPlayer();
     }
   }
@@ -425,32 +425,32 @@ class PracticeGameRound {
   /// Execute computer player decision based on YAML configuration
   Future<void> _executeComputerDecision(Map<String, dynamic> decision, String playerId, String eventName) async {
     try {
-      _logger.info('Practice: Executing computer decision: $decision', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Executing computer decision: $decision', isOn: LOGGING_SWITCH);
       
       switch (eventName) {
         case 'draw_card':
           final source = decision['source'] as String?;
           // Convert YAML source to handleDrawCard parameter
           final drawSource = source == 'discard' ? 'discard' : 'deck';
-          _logger.info('Practice: Computer drawing from ${source == 'discard' ? 'discard pile' : 'deck'}', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Computer drawing from ${source == 'discard' ? 'discard pile' : 'deck'}', isOn: LOGGING_SWITCH);
           
           final success = await handleDrawCard(drawSource);
           if (!success) {
-            _logger.error('Practice: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
+            _logger.error('Recall: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
             _moveToNextPlayer();
           } else {
             // After successful draw, continue computer turn with play_card action
-            _logger.info('Practice: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
             
             // Continue computer turn with play_card action (delay already handled by YAML config)
             final gameState = _getCurrentGameState();
             if (gameState != null) {
               final difficulty = _getComputerDifficulty(gameState, playerId);
-              _logger.info('Practice: DEBUG - About to call _handleComputerActionWithYAML for play_card', isOn: LOGGING_SWITCH);
+              _logger.info('Recall: DEBUG - About to call _handleComputerActionWithYAML for play_card', isOn: LOGGING_SWITCH);
               _handleComputerActionWithYAML(gameState, playerId, difficulty, 'play_card');
-              _logger.info('Practice: DEBUG - _handleComputerActionWithYAML call completed', isOn: LOGGING_SWITCH);
+              _logger.info('Recall: DEBUG - _handleComputerActionWithYAML call completed', isOn: LOGGING_SWITCH);
             } else {
-              _logger.error('Practice: DEBUG - Game state is null, cannot continue with play_card', isOn: LOGGING_SWITCH);
+              _logger.error('Recall: DEBUG - Game state is null, cannot continue with play_card', isOn: LOGGING_SWITCH);
             }
           }
           break;
@@ -460,16 +460,16 @@ class PracticeGameRound {
           if (cardId != null) {
             final success = await handlePlayCard(cardId);
             if (!success) {
-              _logger.error('Practice: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
+              _logger.error('Recall: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             } else {
-              _logger.info('Practice: Computer player $playerId successfully played card', isOn: LOGGING_SWITCH);
+              _logger.info('Recall: Computer player $playerId successfully played card', isOn: LOGGING_SWITCH);
               // Note: Do NOT call _moveToNextPlayer() here
               // The same rank window (triggered in handlePlayCard) will handle moving to next player
               // Flow: _handleSameRankWindow() -> 5s timer -> _endSameRankWindow() -> _handleSpecialCardsWindow() -> _moveToNextPlayer()
             }
           } else {
-            _logger.warning('Practice: No card selected for computer play', isOn: LOGGING_SWITCH);
+            _logger.warning('Recall: No card selected for computer play', isOn: LOGGING_SWITCH);
             _moveToNextPlayer();
           }
           break;
@@ -482,15 +482,15 @@ class PracticeGameRound {
               // cardId is guaranteed non-null after _isValidCardId check
               final success = await handleSameRankPlay(playerId, cardId);
               if (!success) {
-                _logger.error('Practice: Computer player $playerId failed same rank play', isOn: LOGGING_SWITCH);
+                _logger.error('Recall: Computer player $playerId failed same rank play', isOn: LOGGING_SWITCH);
                 _moveToNextPlayer();
               }
             } else {
-              _logger.warning('Practice: No card selected for computer same rank play', isOn: LOGGING_SWITCH);
+              _logger.warning('Recall: No card selected for computer same rank play', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             }
           } else {
-            _logger.info('Practice: Computer decided not to play same rank', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: Computer decided not to play same rank', isOn: LOGGING_SWITCH);
             _moveToNextPlayer();
           }
           break;
@@ -505,11 +505,11 @@ class PracticeGameRound {
               secondPlayerId: decision['second_player_id'] as String? ?? 'placeholder_target_player',
             );
             if (!success) {
-              _logger.error('Practice: Computer player $playerId failed Jack swap', isOn: LOGGING_SWITCH);
+              _logger.error('Recall: Computer player $playerId failed Jack swap', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             }
           } else {
-            _logger.info('Practice: Computer decided not to use Jack swap', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: Computer decided not to use Jack swap', isOn: LOGGING_SWITCH);
             _moveToNextPlayer();
           }
           break;
@@ -523,22 +523,22 @@ class PracticeGameRound {
               targetPlayerId: decision['target_player_id'] as String? ?? 'placeholder_target_player',
             );
             if (!success) {
-              _logger.error('Practice: Computer player $playerId failed Queen peek', isOn: LOGGING_SWITCH);
+              _logger.error('Recall: Computer player $playerId failed Queen peek', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             }
           } else {
-            _logger.info('Practice: Computer decided not to use Queen peek', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: Computer decided not to use Queen peek', isOn: LOGGING_SWITCH);
             _moveToNextPlayer();
           }
           break;
           
         default:
-          _logger.warning('Practice: Unknown event for computer decision execution: $eventName', isOn: LOGGING_SWITCH);
+          _logger.warning('Recall: Unknown event for computer decision execution: $eventName', isOn: LOGGING_SWITCH);
           _moveToNextPlayer();
       }
       
     } catch (e) {
-      _logger.error('Practice: Error executing computer decision: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error executing computer decision: $e', isOn: LOGGING_SWITCH);
       _moveToNextPlayer();
     }
   }
@@ -546,7 +546,7 @@ class PracticeGameRound {
   /// Handle computer action using declarative YAML configuration
   void _handleComputerAction(Map<String, dynamic> gameState, String playerId, String difficulty, String eventName) {
     try {
-      _logger.info('Practice: Handling computer action - Player: $playerId, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Handling computer action - Player: $playerId, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
       
       // TODO: Load and parse declarative YAML configuration
       // The YAML will define:
@@ -555,7 +555,7 @@ class PracticeGameRound {
       // - Card selection strategies
       // - Special card usage patterns
       
-      _logger.info('Practice: Declarative YAML configuration will be implemented here', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Declarative YAML configuration will be implemented here', isOn: LOGGING_SWITCH);
       
       // Wire directly to existing human player methods - computers perform the same actions
       switch (eventName) {
@@ -564,11 +564,11 @@ class PracticeGameRound {
           Timer(const Duration(seconds: 1), () async {
             final success = await handleDrawCard('deck');
             if (!success) {
-              _logger.error('Practice: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
+              _logger.error('Recall: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             } else {
               // After successful draw, continue computer turn with play_card action
-              _logger.info('Practice: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
+              _logger.info('Recall: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
               
               // Continue computer turn with play_card action (delay already handled by Timer above)
               final gameState = _getCurrentGameState();
@@ -576,11 +576,11 @@ class PracticeGameRound {
                 // Try to use YAML-based method if factory is available, otherwise use fallback
                 if (_computerPlayerFactory != null) {
                   final difficulty = _getComputerDifficulty(gameState, playerId);
-                  _logger.info('Practice: DEBUG - About to call _handleComputerActionWithYAML for play_card', isOn: LOGGING_SWITCH);
+                  _logger.info('Recall: DEBUG - About to call _handleComputerActionWithYAML for play_card', isOn: LOGGING_SWITCH);
                   _handleComputerActionWithYAML(gameState, playerId, difficulty, 'play_card');
                 } else {
                   // Fallback: continue with simple play logic
-                  _logger.info('Practice: DEBUG - Factory not available, using fallback play_card logic', isOn: LOGGING_SWITCH);
+                  _logger.info('Recall: DEBUG - Factory not available, using fallback play_card logic', isOn: LOGGING_SWITCH);
                   // Trigger play_card action in fallback
                   Timer(const Duration(seconds: 1), () async {
                     // Get available cards from player's hand
@@ -604,20 +604,20 @@ class PracticeGameRound {
                     if (availableCards.isNotEmpty) {
                       // Play the first available card as a simple fallback
                       final cardId = availableCards.first;
-                      _logger.info('Practice: Fallback - Playing card $cardId', isOn: LOGGING_SWITCH);
+                      _logger.info('Recall: Fallback - Playing card $cardId', isOn: LOGGING_SWITCH);
                       final success = await handlePlayCard(cardId);
                       if (!success) {
-                        _logger.error('Practice: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
+                        _logger.error('Recall: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
                         _moveToNextPlayer();
                       }
                     } else {
-                      _logger.warning('Practice: No cards available for computer player $playerId to play', isOn: LOGGING_SWITCH);
+                      _logger.warning('Recall: No cards available for computer player $playerId to play', isOn: LOGGING_SWITCH);
                       _moveToNextPlayer();
                     }
                   });
                 }
               } else {
-                _logger.error('Practice: DEBUG - Game state is null, cannot continue with play_card', isOn: LOGGING_SWITCH);
+                _logger.error('Recall: DEBUG - Game state is null, cannot continue with play_card', isOn: LOGGING_SWITCH);
               }
             }
           });
@@ -629,7 +629,7 @@ class PracticeGameRound {
             // For now, use a placeholder card ID
             final success = await handlePlayCard('placeholder_card_id');
             if (!success) {
-              _logger.error('Practice: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
+              _logger.error('Recall: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             }
           });
@@ -641,7 +641,7 @@ class PracticeGameRound {
             // For now, use a placeholder card ID
             final success = await handleSameRankPlay(playerId, 'placeholder_card_id');
             if (!success) {
-              _logger.error('Practice: Computer player $playerId failed same rank play', isOn: LOGGING_SWITCH);
+              _logger.error('Recall: Computer player $playerId failed same rank play', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             }
           });
@@ -658,7 +658,7 @@ class PracticeGameRound {
               secondPlayerId: 'placeholder_target_player',
             );
             if (!success) {
-              _logger.error('Practice: Computer player $playerId failed Jack swap', isOn: LOGGING_SWITCH);
+              _logger.error('Recall: Computer player $playerId failed Jack swap', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             }
           });
@@ -674,49 +674,49 @@ class PracticeGameRound {
               targetPlayerId: 'placeholder_target_player',
             );
             if (!success) {
-              _logger.error('Practice: Computer player $playerId failed Queen peek', isOn: LOGGING_SWITCH);
+              _logger.error('Recall: Computer player $playerId failed Queen peek', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             }
           });
           break;
         default:
-          _logger.warning('Practice: Unknown event for computer action: $eventName', isOn: LOGGING_SWITCH);
+          _logger.warning('Recall: Unknown event for computer action: $eventName', isOn: LOGGING_SWITCH);
           _moveToNextPlayer();
       }
       
     } catch (e) {
-      _logger.error('Practice: Error in _handleComputerAction: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _handleComputerAction: $e', isOn: LOGGING_SWITCH);
     }
   }
 
   
   /// Get the next player in rotation
   Map<String, dynamic>? _getNextPlayer(List<Map<String, dynamic>> players, String? currentPlayerId) {
-    _logger.info('Practice: _getNextPlayer called with currentPlayerId: $currentPlayerId', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: _getNextPlayer called with currentPlayerId: $currentPlayerId', isOn: LOGGING_SWITCH);
     
     if (players.isEmpty) {
-      _logger.error('Practice: No players available for _getNextPlayer', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: No players available for _getNextPlayer', isOn: LOGGING_SWITCH);
       return null;
     }
     
     if (currentPlayerId == null) {
-      _logger.info('Practice: No current player ID - this is the first turn', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: No current player ID - this is the first turn', isOn: LOGGING_SWITCH);
       
       // First turn - randomly select any player (human or CPU)
       final random = Random();
       final randomIndex = random.nextInt(players.length);
       final randomPlayer = players[randomIndex];
       
-      _logger.info('Practice: Randomly selected starting player: ${randomPlayer['name']} (${randomPlayer['id']}, isHuman: ${randomPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Randomly selected starting player: ${randomPlayer['name']} (${randomPlayer['id']}, isHuman: ${randomPlayer['isHuman']})', isOn: LOGGING_SWITCH);
       return randomPlayer;
     }
     
-    _logger.info('Practice: Looking for current player with ID: $currentPlayerId', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: Looking for current player with ID: $currentPlayerId', isOn: LOGGING_SWITCH);
     
     // Find current player index
     final currentIndex = players.indexWhere((p) => p['id'] == currentPlayerId);
     if (currentIndex == -1) {
-      _logger.warning('Practice: Current player $currentPlayerId not found in players list', isOn: LOGGING_SWITCH);
+      _logger.warning('Recall: Current player $currentPlayerId not found in players list', isOn: LOGGING_SWITCH);
       
       // Current player not found, find human player
       final humanPlayer = players.firstWhere(
@@ -725,22 +725,22 @@ class PracticeGameRound {
       );
       
       if (humanPlayer.isNotEmpty) {
-        _logger.info('Practice: Setting human player as current: ${humanPlayer['name']} (${humanPlayer['id']})', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Setting human player as current: ${humanPlayer['name']} (${humanPlayer['id']})', isOn: LOGGING_SWITCH);
         return humanPlayer;
       } else {
         // Fallback to first player
-        _logger.warning('Practice: No human player found, using first player as fallback: ${players.first['name']}', isOn: LOGGING_SWITCH);
+        _logger.warning('Recall: No human player found, using first player as fallback: ${players.first['name']}', isOn: LOGGING_SWITCH);
         return players.first;
       }
     }
     
-    _logger.info('Practice: Found current player at index $currentIndex: ${players[currentIndex]['name']}', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: Found current player at index $currentIndex: ${players[currentIndex]['name']}', isOn: LOGGING_SWITCH);
     
     // Get next player (wrap around)
     final nextIndex = (currentIndex + 1) % players.length;
     final nextPlayer = players[nextIndex];
     
-    _logger.info('Practice: Next player index: $nextIndex, next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: Next player index: $nextIndex, next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
     
     return nextPlayer;
   }
@@ -749,11 +749,11 @@ class PracticeGameRound {
   /// Handle drawing a card from the specified pile (replicates backend _handle_draw_from_pile)
   Future<bool> handleDrawCard(String source) async {
     try {
-      _logger.info('Practice: Handling draw card from $source pile', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Handling draw card from $source pile', isOn: LOGGING_SWITCH);
       
       // Validate source
       if (source != 'deck' && source != 'discard') {
-        _logger.error('Practice: Invalid source for draw card: $source', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Invalid source for draw card: $source', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -761,19 +761,19 @@ class PracticeGameRound {
       final gameState = _getCurrentGameState();
       
       if (gameState == null) {
-        _logger.error('Practice: Game state is null for draw card', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Game state is null for draw card', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Get current player
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       if (currentPlayer == null) {
-        _logger.error('Practice: No current player found for draw card', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: No current player found for draw card', isOn: LOGGING_SWITCH);
         return false;
       }
       
       final playerId = currentPlayer['id']?.toString() ?? '';
-      _logger.info('Practice: Drawing card for player $playerId from $source pile', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Drawing card for player $playerId from $source pile', isOn: LOGGING_SWITCH);
       
       // Draw card based on source
       Map<String, dynamic>? drawnCard;
@@ -782,39 +782,39 @@ class PracticeGameRound {
         // Draw from draw pile
         final drawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
         if (drawPile.isEmpty) {
-          _logger.error('Practice: Cannot draw from empty draw pile', isOn: LOGGING_SWITCH);
+          _logger.error('Recall: Cannot draw from empty draw pile', isOn: LOGGING_SWITCH);
           return false;
         }
         
         final idOnlyCard = drawPile.removeLast(); // Remove last card (top of pile)
-        _logger.info('Practice: Drew card ${idOnlyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Drew card ${idOnlyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
         
         // Convert ID-only card to full card data using the coordinator's method
         drawnCard = _stateCallback.getCardById(gameState, idOnlyCard['cardId']);
         if (drawnCard == null) {
-          _logger.error('Practice: Failed to get full card data for ${idOnlyCard['cardId']}', isOn: LOGGING_SWITCH);
+          _logger.error('Recall: Failed to get full card data for ${idOnlyCard['cardId']}', isOn: LOGGING_SWITCH);
           return false;
         }
         
         // Check if draw pile is now empty
         if (drawPile.isEmpty) {
-          _logger.info('Practice: Draw pile is now empty', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Draw pile is now empty', isOn: LOGGING_SWITCH);
         }
         
       } else if (source == 'discard') {
         // Take from discard pile
         final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
         if (discardPile.isEmpty) {
-          _logger.error('Practice: Cannot draw from empty discard pile', isOn: LOGGING_SWITCH);
+          _logger.error('Recall: Cannot draw from empty discard pile', isOn: LOGGING_SWITCH);
           return false;
         }
         
         drawnCard = discardPile.removeLast(); // Remove last card (top of pile)
-        _logger.info('Practice: Drew card ${drawnCard['cardId']} from discard pile', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Drew card ${drawnCard['cardId']} from discard pile', isOn: LOGGING_SWITCH);
       }
       
       if (drawnCard == null) {
-        _logger.error('Practice: Failed to draw card from $source pile', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Failed to draw card from $source pile', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -823,7 +823,7 @@ class PracticeGameRound {
       final playerIndex = players.indexWhere((p) => p['id'] == playerId);
       
       if (playerIndex == -1) {
-        _logger.error('Practice: Player $playerId not found in players list', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Player $playerId not found in players list', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -832,7 +832,7 @@ class PracticeGameRound {
       
       // Add card to player's hand as ID-only (player hands always store ID-only cards)
       // Backend replicates this in player.py add_card_to_hand method
-      // Format matches practice game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
+      // Format matches recall game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
       final idOnlyCard = {
         'cardId': drawnCard['cardId'],
         'suit': '?',      // Face-down: hide suit
@@ -844,19 +844,19 @@ class PracticeGameRound {
       // This matches backend logic in player.py add_card_to_hand() lines 78-88
       // Blank slots are only filled by penalty cards, not drawn cards
       hand.add(idOnlyCard);
-      _logger.info('Practice: Added drawn card to end of hand (index ${hand.length - 1})', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Added drawn card to end of hand (index ${hand.length - 1})', isOn: LOGGING_SWITCH);
       
       // Log player state after drawing card
-      _logger.info('Practice: === AFTER DRAW CARD for $playerId ===', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: === AFTER DRAW CARD for $playerId ===', isOn: LOGGING_SWITCH);
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Practice: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
       final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
-      _logger.info('Practice: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
       final collectionRank = player['collection_rank']?.toString() ?? 'none';
-      _logger.info('Practice: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
       final collectionRankCardsList = player['collection_rank_cards'] as List<dynamic>? ?? [];
       final collectionCardIds = collectionRankCardsList.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Practice: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
       
       // Set the drawn card property - FULL CARD DATA for human players, ID-only for computer players
       // This is what allows the frontend to show the front of the card (only for human players)
@@ -891,41 +891,41 @@ class PracticeGameRound {
           'specialPower': drawnCard['specialPower'],
         };
         player['known_cards'] = knownCards;
-        _logger.info('Practice: Added drawn card ${drawnCard['cardId']} to computer player $playerId known_cards', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Added drawn card ${drawnCard['cardId']} to computer player $playerId known_cards', isOn: LOGGING_SWITCH);
       }
       
-      _logger.info('Practice: Added card ${drawnCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Added card ${drawnCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
       
       // Debug: Log all cards in hand after adding drawn card
-      _logger.info('Practice: DEBUG - Player hand after draw:', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Player hand after draw:', isOn: LOGGING_SWITCH);
       for (int i = 0; i < hand.length; i++) {
         final card = hand[i];
         if (card == null) {
-          _logger.info('Practice: DEBUG -   Index $i: EMPTY SLOT (null)', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: DEBUG -   Index $i: EMPTY SLOT (null)', isOn: LOGGING_SWITCH);
         } else {
-          _logger.info('Practice: DEBUG -   Index $i: cardId=${card['cardId']}, hasFullData=${card.containsKey('rank')}', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: DEBUG -   Index $i: cardId=${card['cardId']}, hasFullData=${card.containsKey('rank')}', isOn: LOGGING_SWITCH);
         }
       }
       
       // Change player status from DRAWING_CARD to PLAYING_CARD
       _stateCallback.onPlayerStatusChanged('playing_card', playerId: playerId, updateMainState: true, triggerInstructions: true);
       
-      _logger.info('Practice: Player $playerId status changed from drawing_card to playing_card', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player $playerId status changed from drawing_card to playing_card', isOn: LOGGING_SWITCH);
       
       // Log pile contents after successful draw
       final drawPileCount = (gameState['drawPile'] as List?)?.length ?? 0;
       final discardPileCount = (gameState['discardPile'] as List?)?.length ?? 0;
       
-      _logger.info('Practice: === PILE CONTENTS AFTER DRAW ===', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: Draw Pile Count: $drawPileCount', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: Drawn Card: ${drawnCard['cardId']}', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: ================================', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: === PILE CONTENTS AFTER DRAW ===', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Draw Pile Count: $drawPileCount', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Drawn Card: ${drawnCard['cardId']}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: ================================', isOn: LOGGING_SWITCH);
       
       return true;
       
     } catch (e) {
-      _logger.error('Practice: Error handling draw card: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error handling draw card: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -933,19 +933,19 @@ class PracticeGameRound {
   /// Handle collecting card from discard pile if it matches player's collection rank
   Future<bool> handleCollectFromDiscard(String playerId) async {
     try {
-      _logger.info('Practice: Handling collect from discard for player $playerId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Handling collect from discard for player $playerId', isOn: LOGGING_SWITCH);
       
       // Get current game state
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.error('Practice: Failed to get game state', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Failed to get game state', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Check if game is in restricted phases
       final gamePhase = gameState['gamePhase']?.toString() ?? 'unknown';
       if (gamePhase == 'same_rank_window' || gamePhase == 'initial_peek') {
-        _logger.info('Practice: Cannot collect during $gamePhase phase', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Cannot collect during $gamePhase phase', isOn: LOGGING_SWITCH);
         
         // Show error message
         _stateCallback.onActionError(
@@ -964,14 +964,14 @@ class PracticeGameRound {
       );
       
       if (player.isEmpty) {
-        _logger.error('Practice: Player $playerId not found', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Player $playerId not found', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Get top card from discard pile
       final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       if (discardPile.isEmpty) {
-        _logger.info('Practice: Discard pile is empty', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Discard pile is empty', isOn: LOGGING_SWITCH);
         
         _stateCallback.onActionError(
           'Discard pile is empty',
@@ -989,7 +989,7 @@ class PracticeGameRound {
       
       // Check if ranks match
       if (topDiscardRank.toLowerCase() != playerCollectionRank.toLowerCase()) {
-        _logger.info('Practice: Card rank $topDiscardRank doesn\'t match collection rank $playerCollectionRank', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Card rank $topDiscardRank doesn\'t match collection rank $playerCollectionRank', isOn: LOGGING_SWITCH);
         
         _stateCallback.onActionError(
           'You can only collect cards from the discard pile that match your collection rank',
@@ -1001,7 +1001,7 @@ class PracticeGameRound {
       
       // SUCCESS - Remove card from discard pile
       final collectedCard = discardPile.removeLast();
-      _logger.info('Practice: Collected card ${collectedCard['cardId']} from discard pile', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Collected card ${collectedCard['cardId']} from discard pile', isOn: LOGGING_SWITCH);
       
       // Add to player's hand as ID-only (same format as regular hand cards)
       final hand = player['hand'] as List<dynamic>? ?? [];
@@ -1019,7 +1019,7 @@ class PracticeGameRound {
       // Update player's collection_rank to match the collected card's rank
       player['collection_rank'] = collectedCard['rank']?.toString() ?? 'unknown';
       
-      _logger.info('Practice: Added card to hand and collection_rank_cards', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Added card to hand and collection_rank_cards', isOn: LOGGING_SWITCH);
       
       // Trigger state update (no status change, player continues in current state)
       final currentGames = _stateCallback.currentGamesMap;
@@ -1035,7 +1035,7 @@ class PracticeGameRound {
       return true;
       
     } catch (e) {
-      _logger.error('Practice: Error handling collect from discard: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error handling collect from discard: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -1043,7 +1043,7 @@ class PracticeGameRound {
   /// Handle playing a card from the player's hand (replicates backend _handle_play_card)
   Future<bool> handlePlayCard(String cardId) async {
     try {
-      _logger.info('Practice: Handling play card: $cardId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Handling play card: $cardId', isOn: LOGGING_SWITCH);
       
       // Get current game state
       final currentGames = _stateCallback.currentGamesMap;
@@ -1052,13 +1052,13 @@ class PracticeGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        _logger.error('Practice: Game state is null for play card', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Game state is null for play card', isOn: LOGGING_SWITCH);
         return false;
       }
       
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       if (currentPlayer == null) {
-        _logger.error('Practice: No current player found for play card', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: No current player found for play card', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -1072,7 +1072,7 @@ class PracticeGameRound {
       );
       
       if (player.isEmpty) {
-        _logger.error('Practice: Player $playerId not found in players list', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Player $playerId not found in players list', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -1093,17 +1093,17 @@ class PracticeGameRound {
       }
       
       if (cardToPlay == null) {
-        _logger.error('Practice: Card $cardId not found in player $playerId hand', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Card $cardId not found in player $playerId hand', isOn: LOGGING_SWITCH);
         return false;
       }
       
-      _logger.info('Practice: Found card $cardId at index $cardIndex in player $playerId hand', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Found card $cardId at index $cardIndex in player $playerId hand', isOn: LOGGING_SWITCH);
       
       // Check if card is in player's collection_rank_cards (cannot be played)
       final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
       for (var collectionCard in collectionRankCards) {
         if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-          _logger.info('Practice: Card $cardId is a collection rank card and cannot be played', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Card $cardId is a collection rank card and cannot be played', isOn: LOGGING_SWITCH);
           
           // Show error message to user
           _stateCallback.onActionError(
@@ -1113,7 +1113,7 @@ class PracticeGameRound {
           
           // CRITICAL: Restore player status to playing_card so they can retry
           _stateCallback.onPlayerStatusChanged('playing_card', playerId: playerId, updateMainState: true);
-          _logger.info('Practice: Restored player $playerId status to playing_card after failed collection rank play', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Restored player $playerId status to playing_card after failed collection rank play', isOn: LOGGING_SWITCH);
           
           return false;
         }
@@ -1125,46 +1125,46 @@ class PracticeGameRound {
       // Check if we should create a blank slot or remove the card entirely
       bool shouldCreateBlankSlot;
       try {
-        _logger.info('Practice: About to call _shouldCreateBlankSlotAtIndex for index $cardIndex, hand.length=${hand.length}', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: About to call _shouldCreateBlankSlotAtIndex for index $cardIndex, hand.length=${hand.length}', isOn: LOGGING_SWITCH);
         shouldCreateBlankSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndex);
-        _logger.info('Practice: _shouldCreateBlankSlotAtIndex returned: $shouldCreateBlankSlot', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: _shouldCreateBlankSlotAtIndex returned: $shouldCreateBlankSlot', isOn: LOGGING_SWITCH);
       } catch (e) {
-        _logger.error('Practice: Error in _shouldCreateBlankSlotAtIndex: $e', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Error in _shouldCreateBlankSlotAtIndex: $e', isOn: LOGGING_SWITCH);
         rethrow;
       }
       
       if (shouldCreateBlankSlot) {
         // Replace the card with null (blank slot) to maintain index positions
         try {
-          _logger.info('Practice: About to set hand[$cardIndex] = null', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: About to set hand[$cardIndex] = null', isOn: LOGGING_SWITCH);
           hand[cardIndex] = null;
-          _logger.info('Practice: Created blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Created blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
         } catch (e) {
-          _logger.error('Practice: Error creating blank slot: $e', isOn: LOGGING_SWITCH);
+          _logger.error('Recall: Error creating blank slot: $e', isOn: LOGGING_SWITCH);
           rethrow;
         }
       } else {
         // Remove the card entirely and shift remaining cards
         try {
-          _logger.info('Practice: About to removeAt($cardIndex)', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: About to removeAt($cardIndex)', isOn: LOGGING_SWITCH);
           hand.removeAt(cardIndex);
-          _logger.info('Practice: Removed card entirely from index $cardIndex, shifted remaining cards', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Removed card entirely from index $cardIndex, shifted remaining cards', isOn: LOGGING_SWITCH);
         } catch (e) {
-          _logger.error('Practice: Error removing card: $e', isOn: LOGGING_SWITCH);
+          _logger.error('Recall: Error removing card: $e', isOn: LOGGING_SWITCH);
           rethrow;
         }
       }
       
       // Convert card to full data before adding to discard pile
       // The player's hand contains ID-only cards, but discard pile needs full card data
-      _logger.info('Practice: About to get full card data for $cardId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: About to get full card data for $cardId', isOn: LOGGING_SWITCH);
       final cardToPlayFullData = _stateCallback.getCardById(gameState, cardId);
-      _logger.info('Practice: Got full card data for $cardId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Got full card data for $cardId', isOn: LOGGING_SWITCH);
       if (cardToPlayFullData == null) {
-        _logger.error('Practice: Failed to get full data for card $cardId', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Failed to get full data for card $cardId', isOn: LOGGING_SWITCH);
         return false;
       }
-      _logger.info('Practice: Converted card $cardId to full data for discard pile', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Converted card $cardId to full data for discard pile', isOn: LOGGING_SWITCH);
       
       // Update player's hand back to game state (hand list was modified with nulls)
       player['hand'] = hand;
@@ -1173,26 +1173,26 @@ class PracticeGameRound {
       _addToDiscardPile(cardToPlayFullData);
       
       // Log player state after playing card
-      _logger.info('Practice: === AFTER PLAY CARD for $playerId ===', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: === AFTER PLAY CARD for $playerId ===', isOn: LOGGING_SWITCH);
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Practice: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
       final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
-      _logger.info('Practice: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
       final collectionRank = player['collection_rank']?.toString() ?? 'none';
-      _logger.info('Practice: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
       final collectionRankCardsList = player['collection_rank_cards'] as List<dynamic>? ?? [];
       final collectionCardIds = collectionRankCardsList.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Practice: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
       
       // Log pile contents after successful play
       final drawPileCount = (gameState['drawPile'] as List?)?.length ?? 0;
       final discardPileCount = (gameState['discardPile'] as List?)?.length ?? 0;
 
-      _logger.info('Practice: === PILE CONTENTS AFTER PLAY ===', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: Draw Pile Count: $drawPileCount', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: Played Card: ${cardToPlay['cardId']}', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: ================================', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: === PILE CONTENTS AFTER PLAY ===', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Draw Pile Count: $drawPileCount', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Played Card: ${cardToPlay['cardId']}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: ================================', isOn: LOGGING_SWITCH);
 
       // Note: State update is already handled by addToDiscardPile method
       
@@ -1217,7 +1217,7 @@ class PracticeGameRound {
       if (drawnCard != null && drawnCard['cardId'] != cardId) {
         // The drawn card should fill the blank slot left by the played card
         // The blank slot is at cardIndex (where the played card was)
-        _logger.info('Practice: Repositioning drawn card ${drawnCard['cardId']} to index $cardIndex', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Repositioning drawn card ${drawnCard['cardId']} to index $cardIndex', isOn: LOGGING_SWITCH);
         
         // First, find and remove the drawn card from its original position
         int? originalIndex;
@@ -1234,10 +1234,10 @@ class PracticeGameRound {
           
           if (shouldKeepOriginalSlot) {
             hand[originalIndex] = null;  // Create blank slot
-            _logger.info('Practice: Created blank slot at original position $originalIndex', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: Created blank slot at original position $originalIndex', isOn: LOGGING_SWITCH);
           } else {
             hand.removeAt(originalIndex);  // Remove entirely
-            _logger.info('Practice: Removed card entirely from original position $originalIndex', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: Removed card entirely from original position $originalIndex', isOn: LOGGING_SWITCH);
             // Adjust target index if we removed a card before it
             if (originalIndex < cardIndex) {
               cardIndex -= 1;
@@ -1247,7 +1247,7 @@ class PracticeGameRound {
         
         // Place the drawn card in the blank slot left by the played card
         // IMPORTANT: Convert drawn card to ID-only data when placing in hand (same as backend)
-        // Format matches practice game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
+        // Format matches recall game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
         final drawnCardIdOnly = {
           'cardId': drawnCard['cardId'],
           'suit': '?',      // Face-down: hide suit
@@ -1262,20 +1262,20 @@ class PracticeGameRound {
           // Place it in the blank slot left by the played card
           if (cardIndex < hand.length) {
             hand[cardIndex] = drawnCardIdOnly;
-            _logger.info('Practice: Placed drawn card in blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: Placed drawn card in blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
           } else {
             hand.insert(cardIndex, drawnCardIdOnly);
-            _logger.info('Practice: Inserted drawn card at index $cardIndex', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: Inserted drawn card at index $cardIndex', isOn: LOGGING_SWITCH);
           }
         } else {
           // The slot shouldn't exist, so append the drawn card to the end
           hand.add(drawnCardIdOnly);
-          _logger.info('Practice: Appended drawn card to end of hand (slot $cardIndex should not exist)', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Appended drawn card to end of hand (slot $cardIndex should not exist)', isOn: LOGGING_SWITCH);
         }
         
         // Clear the drawn card property since it's no longer "drawn"
         player['drawnCard'] = null;
-        _logger.info('Practice: Cleared drawn card property after repositioning', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Cleared drawn card property after repositioning', isOn: LOGGING_SWITCH);
         
         // Update player's hand back to game state (hand list was modified)
         player['hand'] = hand;
@@ -1287,7 +1287,7 @@ class PracticeGameRound {
       } else if (drawnCard != null && drawnCard['cardId'] == cardId) {
         // Clear the drawn card property since it's now in the discard pile
         player['drawnCard'] = null;
-        _logger.info('Practice: Cleared drawn card property (played card was the drawn card)', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Cleared drawn card property (played card was the drawn card)', isOn: LOGGING_SWITCH);
         
         // NOTE: Do NOT update status here - all players already have 'same_rank_window' status
         // set by _handleSameRankWindow() (called earlier). Updating to 'waiting' would overwrite
@@ -1300,7 +1300,7 @@ class PracticeGameRound {
       return true;
       
     } catch (e) {
-      _logger.error('Practice: Error handling play card: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error handling play card: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -1314,12 +1314,12 @@ class PracticeGameRound {
   /// Replicates backend's _handle_same_rank_play method in game_round.py lines 1000-1089
   Future<bool> handleSameRankPlay(String playerId, String cardId) async {
     try {
-      _logger.info('Practice: Handling same rank play for player $playerId, card $cardId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Handling same rank play for player $playerId, card $cardId', isOn: LOGGING_SWITCH);
       
       // Get current game state
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.error('Practice: Failed to get game state for same rank play', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Failed to get game state for same rank play', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -1332,7 +1332,7 @@ class PracticeGameRound {
       );
       
       if (player.isEmpty) {
-        _logger.error('Practice: Player $playerId not found for same rank play', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Player $playerId not found for same rank play', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -1353,16 +1353,16 @@ class PracticeGameRound {
       }
       
       if (playedCard == null) {
-        _logger.info('Practice: Card $cardId not found in player $playerId hand for same rank play (likely already played by another player)', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Card $cardId not found in player $playerId hand for same rank play (likely already played by another player)', isOn: LOGGING_SWITCH);
         return false;
       }
       
-      _logger.info('Practice: Found card $cardId for same rank play in player $playerId hand at index $cardIndex', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Found card $cardId for same rank play in player $playerId hand at index $cardIndex', isOn: LOGGING_SWITCH);
       
       // Get full card data
       final playedCardFullData = _stateCallback.getCardById(gameState, cardId);
       if (playedCardFullData == null) {
-        _logger.error('Practice: Failed to get full card data for $cardId', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Failed to get full card data for $cardId', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -1373,7 +1373,7 @@ class PracticeGameRound {
       final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
       for (var collectionCard in collectionRankCards) {
         if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-          _logger.info('Practice: Card $cardId is a collection rank card and cannot be played for same rank', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Card $cardId is a collection rank card and cannot be played for same rank', isOn: LOGGING_SWITCH);
           
           // Show error message to user via actionError state
           _stateCallback.onActionError(
@@ -1382,7 +1382,7 @@ class PracticeGameRound {
           );
           
           // No status change needed - status will change automatically when same rank window expires
-          _logger.info('Practice: Collection rank card rejected - status will auto-expire with same rank window', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Collection rank card rejected - status will auto-expire with same rank window', isOn: LOGGING_SWITCH);
           
           return false;
         }
@@ -1390,23 +1390,23 @@ class PracticeGameRound {
       
       // Validate that this is actually a same rank play
       if (!_validateSameRankPlay(gameState, cardRank)) {
-        _logger.info('Practice: Same rank validation failed for card $cardId with rank $cardRank (expected behavior - player forgot/wrong card)', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Same rank validation failed for card $cardId with rank $cardRank (expected behavior - player forgot/wrong card)', isOn: LOGGING_SWITCH);
         
         // Apply penalty: draw a card from the draw pile and add to player's hand
-        _logger.info('Practice: Applying penalty for wrong same rank play - drawing card from draw pile', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Applying penalty for wrong same rank play - drawing card from draw pile', isOn: LOGGING_SWITCH);
         
         final drawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
         if (drawPile.isEmpty) {
-          _logger.error('Practice: Cannot apply penalty - draw pile is empty', isOn: LOGGING_SWITCH);
+          _logger.error('Recall: Cannot apply penalty - draw pile is empty', isOn: LOGGING_SWITCH);
           return false;
         }
         
         // Draw a card from the draw pile (remove last card)
         final penaltyCard = drawPile.removeLast();
-        _logger.info('Practice: Drew penalty card ${penaltyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Drew penalty card ${penaltyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
         
         // Add penalty card to player's hand as ID-only (same format as regular hand cards)
-        // Format matches practice game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
+        // Format matches recall game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
         final penaltyCardIdOnly = {
           'cardId': penaltyCard['cardId'],
           'suit': '?',      // Face-down: hide suit
@@ -1415,7 +1415,7 @@ class PracticeGameRound {
         };
         
         hand.add(penaltyCardIdOnly);
-        _logger.info('Practice: Added penalty card ${penaltyCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Added penalty card ${penaltyCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
         
         // CRITICAL: Persist changes to game state
         player['hand'] = hand;  // Update player's hand with the penalty card
@@ -1431,13 +1431,13 @@ class PracticeGameRound {
           'games': currentGames,
         });
         
-        _logger.info('Practice: Penalty applied successfully - player $playerId now has ${hand.length} cards', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Penalty applied successfully - player $playerId now has ${hand.length} cards', isOn: LOGGING_SWITCH);
         
         // Return true since using penalty was handled successfully (expected gameplay, not an error)
         return true;
       }
       
-      _logger.info('Practice: Same rank validation passed for card $cardId with rank $cardRank', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Same rank validation passed for card $cardId with rank $cardRank', isOn: LOGGING_SWITCH);
       
       // SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
       // Check if we should create a blank slot or remove the card entirely
@@ -1446,11 +1446,11 @@ class PracticeGameRound {
       if (shouldCreateBlankSlot) {
         // Replace the card with null (blank slot) to maintain index positions
         hand[cardIndex] = null;
-        _logger.info('Practice: Created blank slot at index $cardIndex for same rank play', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Created blank slot at index $cardIndex for same rank play', isOn: LOGGING_SWITCH);
       } else {
         // Remove the card entirely and shift remaining cards
         hand.removeAt(cardIndex);
-        _logger.info('Practice: Removed same rank card entirely from index $cardIndex', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Removed same rank card entirely from index $cardIndex', isOn: LOGGING_SWITCH);
       }
       
       // Update player's hand back to game state (hand list was modified with nulls)
@@ -1459,19 +1459,19 @@ class PracticeGameRound {
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(playedCardFullData);
       
-      _logger.info('Practice: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile', isOn: LOGGING_SWITCH);
       
       // Log player state after same rank play
-      _logger.info('Practice: === AFTER SAME RANK PLAY for $playerId ===', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: === AFTER SAME RANK PLAY for $playerId ===', isOn: LOGGING_SWITCH);
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Practice: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
       final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
-      _logger.info('Practice: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
       final collectionRank = player['collection_rank']?.toString() ?? 'none';
-      _logger.info('Practice: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
       final collectionRankCardsList = player['collection_rank_cards'] as List<dynamic>? ?? [];
       final collectionCardIds = collectionRankCardsList.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Practice: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
       
       // Check for special cards (Jack/Queen) and store data if applicable
       _checkSpecialCard(playerId, {
@@ -1482,7 +1482,7 @@ class PracticeGameRound {
       
       // TODO: Store the play in same_rank_data for tracking (future implementation)
       // For now, we just log the successful play
-      _logger.info('Practice: Same rank play data would be stored here (future implementation)', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Same rank play data would be stored here (future implementation)', isOn: LOGGING_SWITCH);
       
       // Update all players' known_cards after successful same rank play
       updateKnownCards('same_rank_play', playerId, [cardId]);
@@ -1490,7 +1490,7 @@ class PracticeGameRound {
       return true;
       
     } catch (e) {
-      _logger.error('Practice: Error handling same rank play: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error handling same rank play: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -1504,12 +1504,12 @@ class PracticeGameRound {
     required String secondPlayerId,
   }) async {
     try {
-      _logger.info('Practice: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
 
       // Get current game state
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.error('Practice: Failed to get game state for Jack swap', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Failed to get game state for Jack swap', isOn: LOGGING_SWITCH);
         return false;
       }
 
@@ -1527,7 +1527,7 @@ class PracticeGameRound {
       );
 
       if (firstPlayer.isEmpty || secondPlayer.isEmpty) {
-        _logger.error('Practice: Invalid Jack swap - one or both players not found', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Invalid Jack swap - one or both players not found', isOn: LOGGING_SWITCH);
         return false;
       }
 
@@ -1563,19 +1563,19 @@ class PracticeGameRound {
 
       // Validate cards found
       if (firstCard == null || secondCard == null || firstCardIndex == null || secondCardIndex == null) {
-        _logger.error('Practice: Invalid Jack swap - one or both cards not found in players\' hands', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Invalid Jack swap - one or both cards not found in players\' hands', isOn: LOGGING_SWITCH);
         return false;
       }
 
-      _logger.info('Practice: Found cards - First card at index $firstCardIndex in player $firstPlayerId hand, Second card at index $secondCardIndex in player $secondPlayerId hand', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Found cards - First card at index $firstCardIndex in player $firstPlayerId hand, Second card at index $secondCardIndex in player $secondPlayerId hand', isOn: LOGGING_SWITCH);
 
       // Perform the swap
       firstPlayerHand[firstCardIndex] = secondCard;
       secondPlayerHand[secondCardIndex] = firstCard;
 
-      _logger.info('Practice: Successfully swapped cards: $firstCardId <-> $secondCardId', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: Player $firstPlayerId now has card $secondCardId at index $firstCardIndex', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: Player $secondPlayerId now has card $firstCardId at index $secondCardIndex', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Successfully swapped cards: $firstCardId <-> $secondCardId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player $firstPlayerId now has card $secondCardId at index $firstCardIndex', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player $secondPlayerId now has card $firstCardId at index $secondCardIndex', isOn: LOGGING_SWITCH);
 
       // Update game state to trigger UI updates
       final currentGames = _stateCallback.currentGamesMap;
@@ -1583,7 +1583,7 @@ class PracticeGameRound {
         'games': currentGames,
       });
 
-      _logger.info('Practice: Jack swap completed - state updated', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Jack swap completed - state updated', isOn: LOGGING_SWITCH);
 
       // Update all players' known_cards after successful Jack swap
       updateKnownCards('jack_swap', firstPlayerId, [firstCardId, secondCardId], swapData: {
@@ -1593,7 +1593,7 @@ class PracticeGameRound {
 
       // Action completed successfully - cancel timer and move to next special card
       _specialCardTimer?.cancel();
-      _logger.info('Practice: Cancelled special card timer after Jack swap completion', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Cancelled special card timer after Jack swap completion', isOn: LOGGING_SWITCH);
 
       // Set the current player's status to waiting
       // The player who completed the swap is the one in the first entry of _specialCardPlayers
@@ -1604,21 +1604,27 @@ class PracticeGameRound {
         if (currentPlayerId != null && currentPlayerId.isNotEmpty) {
           // Set player status to waiting
           _stateCallback.onPlayerStatusChanged('waiting', playerId: currentPlayerId, updateMainState: true);
-          _logger.info('Practice: Player $currentPlayerId status set to waiting after Jack swap completion', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Player $currentPlayerId status set to waiting after Jack swap completion', isOn: LOGGING_SWITCH);
           
           // Remove the processed card from the list
           _specialCardPlayers.removeAt(0);
-          _logger.info('Practice: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
         }
       }
 
-      // Process next special card or end window
-      _processNextSpecialCard();
+      // Add 1-second delay for visual indication before processing next special card
+      // This matches the behavior in _onSpecialCardTimerExpired and prevents the game
+      // from appearing halted by immediately processing the next special card
+      _logger.info('Recall: Waiting 1 second before processing next special card...', isOn: LOGGING_SWITCH);
+      Timer(const Duration(seconds: 1), () {
+        // Process next special card or end window
+        _processNextSpecialCard();
+      });
 
       return true;
 
     } catch (e) {
-      _logger.error('Practice: Error in handleJackSwap: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in handleJackSwap: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -1631,12 +1637,12 @@ class PracticeGameRound {
     required String targetPlayerId,
   }) async {
     try {
-      _logger.info('Practice: Handling Queen peek - player $peekingPlayerId peeking at card $targetCardId from player $targetPlayerId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Handling Queen peek - player $peekingPlayerId peeking at card $targetCardId from player $targetPlayerId', isOn: LOGGING_SWITCH);
 
       // Get current game state
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.error('Practice: Failed to get game state for Queen peek', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Failed to get game state for Queen peek', isOn: LOGGING_SWITCH);
         return false;
       }
 
@@ -1649,7 +1655,7 @@ class PracticeGameRound {
       );
 
       if (targetPlayer.isEmpty) {
-        _logger.error('Practice: Target player $targetPlayerId not found for Queen peek', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Target player $targetPlayerId not found for Queen peek', isOn: LOGGING_SWITCH);
         return false;
       }
 
@@ -1660,7 +1666,7 @@ class PracticeGameRound {
       );
 
       if (peekingPlayer.isEmpty) {
-        _logger.error('Practice: Peeking player $peekingPlayerId not found for Queen peek', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Peeking player $peekingPlayerId not found for Queen peek', isOn: LOGGING_SWITCH);
         return false;
       }
 
@@ -1676,35 +1682,35 @@ class PracticeGameRound {
       }
 
       if (targetCard == null) {
-        _logger.error('Practice: Card $targetCardId not found in target player $targetPlayerId hand', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Card $targetCardId not found in target player $targetPlayerId hand', isOn: LOGGING_SWITCH);
         return false;
       }
 
-      _logger.info('Practice: Found target card: ${targetCard['rank']} of ${targetCard['suit']}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Found target card: ${targetCard['rank']} of ${targetCard['suit']}', isOn: LOGGING_SWITCH);
 
       // Get full card data (convert from ID-only if needed)
       final fullCardData = _stateCallback.getCardById(gameState, targetCardId);
       if (fullCardData == null) {
-        _logger.error('Practice: Failed to get full card data for $targetCardId', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Failed to get full card data for $targetCardId', isOn: LOGGING_SWITCH);
         return false;
       }
 
-      _logger.info('Practice: Full card data: ${fullCardData['rank']} of ${fullCardData['suit']} (${fullCardData['points']} points)', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Full card data: ${fullCardData['rank']} of ${fullCardData['suit']} (${fullCardData['points']} points)', isOn: LOGGING_SWITCH);
 
       // Clear any existing cards_to_peek from previous peeks (backend line 1304)
       final existingCardsToPeek = peekingPlayer['cardsToPeek'] as List<dynamic>? ?? [];
       existingCardsToPeek.clear();
-      _logger.info('Practice: Cleared existing cards_to_peek for player $peekingPlayerId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Cleared existing cards_to_peek for player $peekingPlayerId', isOn: LOGGING_SWITCH);
 
       // Add the target card to the peeking player's cards_to_peek list (backend line 1307)
       peekingPlayer['cardsToPeek'] = [fullCardData];
-      _logger.info('Practice: Added card ${fullCardData['cardId']} to player $peekingPlayerId cards_to_peek list', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Added card ${fullCardData['cardId']} to player $peekingPlayerId cards_to_peek list', isOn: LOGGING_SWITCH);
 
       // Set player status to PEEKING (backend line 1311)
       peekingPlayer['status'] = 'peeking';
-      _logger.info('Practice: Set player $peekingPlayerId status to peeking', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Set player $peekingPlayerId status to peeking', isOn: LOGGING_SWITCH);
 
-      // Update main state for the human player (check isHuman field instead of 'practice_user')
+      // Update main state for the human player (check isHuman field instead of 'recall_user')
       final isHuman = peekingPlayer['isHuman'] as bool? ?? false;
       if (isHuman) {
         final currentGames = _stateCallback.currentGamesMap;
@@ -1713,22 +1719,22 @@ class PracticeGameRound {
           'myCardsToPeek': [fullCardData],
           'games': currentGames,
         });
-        _logger.info('Practice: Updated main state for human player - myCardsToPeek updated', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Updated main state for human player - myCardsToPeek updated', isOn: LOGGING_SWITCH);
       } else {
         // For computer players, just update the games map
         final currentGames = _stateCallback.currentGamesMap;
         _stateCallback.onGameStateChanged({
           'games': currentGames,
         });
-        _logger.info('Practice: Updated games state for computer player', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Updated games state for computer player', isOn: LOGGING_SWITCH);
       }
 
-      _logger.info('Practice: Queen peek completed successfully', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Queen peek completed successfully', isOn: LOGGING_SWITCH);
 
       return true;
 
     } catch (e) {
-      _logger.error('Practice: Error in handleQueenPeek: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in handleQueenPeek: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -1741,33 +1747,33 @@ class PracticeGameRound {
       final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
       
       if (discardPile.isEmpty) {
-        _logger.info('Practice: Same rank validation failed: No cards in discard pile', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Same rank validation failed: No cards in discard pile', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Get the last card from the discard pile
       final lastCard = discardPile.last as Map<String, dynamic>?;
       if (lastCard == null) {
-        _logger.info('Practice: Same rank validation failed: Last card is null', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Same rank validation failed: Last card is null', isOn: LOGGING_SWITCH);
         return false;
       }
       
       final lastCardRank = lastCard['rank']?.toString() ?? '';
       
-      _logger.info('Practice: Same rank validation: played_card_rank=\'$cardRank\', last_card_rank=\'$lastCardRank\'', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Same rank validation: played_card_rank=\'$cardRank\', last_card_rank=\'$lastCardRank\'', isOn: LOGGING_SWITCH);
       
       // During same rank window, cards must match the rank of the last played card
       // No special cases - the window is triggered by a played card, so there's always a rank to match
       if (cardRank.toLowerCase() == lastCardRank.toLowerCase()) {
-        _logger.info('Practice: Same rank validation: Ranks match, allowing play', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Same rank validation: Ranks match, allowing play', isOn: LOGGING_SWITCH);
         return true;
       } else {
-        _logger.info('Practice: Same rank validation: Ranks don\'t match (played: $cardRank, required: $lastCardRank), denying play', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Same rank validation: Ranks don\'t match (played: $cardRank, required: $lastCardRank), denying play', isOn: LOGGING_SWITCH);
         return false;
       }
       
     } catch (e) {
-      _logger.error('Practice: Same rank validation error: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Same rank validation error: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -1792,10 +1798,10 @@ class PracticeGameRound {
           'description': 'Can switch any two cards between players'
         };
         
-        _logger.info('Practice: DEBUG: special_card_data length before adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG: special_card_data length before adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
         _specialCardData.add(specialCardInfo);
-        _logger.info('Practice: DEBUG: special_card_data length after adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
-        _logger.info('Practice: Added Jack special card for player $playerId: $cardRank of $cardSuit (chronological order)', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG: special_card_data length after adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Added Jack special card for player $playerId: $cardRank of $cardSuit (chronological order)', isOn: LOGGING_SWITCH);
         
       } else if (cardRank == 'queen') {
         // Store special card data chronologically (not grouped by player)
@@ -1809,18 +1815,18 @@ class PracticeGameRound {
           'description': 'Can look at one card from any player\'s hand'
         };
         
-        _logger.info('Practice: DEBUG: special_card_data length before adding Queen: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG: special_card_data length before adding Queen: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
         _specialCardData.add(specialCardInfo);
-        _logger.info('Practice: DEBUG: special_card_data length after adding Queen: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
-        _logger.info('Practice: Added Queen special card for player $playerId: $cardRank of $cardSuit (chronological order)', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG: special_card_data length after adding Queen: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Added Queen special card for player $playerId: $cardRank of $cardSuit (chronological order)', isOn: LOGGING_SWITCH);
         
       } else {
         // Not a special card, no action needed
-        _logger.info('Practice: Card $cardRank is not a special card', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Card $cardRank is not a special card', isOn: LOGGING_SWITCH);
       }
       
     } catch (e) {
-      _logger.error('Practice: Error in _checkSpecialCard: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _checkSpecialCard: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1828,7 +1834,7 @@ class PracticeGameRound {
   /// Replicates backend's _handle_same_rank_window method in game_round.py lines 566-585
   void _handleSameRankWindow() {
     try {
-      _logger.info('Practice: Starting same rank window - setting all players to same_rank_window status', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Starting same rank window - setting all players to same_rank_window status', isOn: LOGGING_SWITCH);
       
       // Use the unified updatePlayerStatus method with playerId = null to update ALL players
       // This will:
@@ -1844,19 +1850,19 @@ class PracticeGameRound {
         triggerInstructions: false, // Don't trigger instructions for same rank window
       );
       
-      _logger.info('Practice: Successfully set all players to same_rank_window status', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Successfully set all players to same_rank_window status', isOn: LOGGING_SWITCH);
       // This ensures collection from discard pile is properly blocked during same rank window
       _stateCallback.onGameStateChanged({
         'gamePhase': 'same_rank_window',
       });
-      _logger.info('Practice: Set gamePhase to same_rank_window', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Set gamePhase to same_rank_window', isOn: LOGGING_SWITCH);
       
       // Start 5-second timer to automatically end same rank window
       // Matches backend behavior (game_round.py line 579)
       _startSameRankTimer();
       
     } catch (e) {
-      _logger.error('Practice: Error in _handleSameRankWindow: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _handleSameRankWindow: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1864,7 +1870,7 @@ class PracticeGameRound {
   /// Replicates backend's _start_same_rank_timer method in game_round.py lines 587-597
   void _startSameRankTimer() {
     try {
-      _logger.info('Practice: Starting 5-second same rank window timer', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Starting 5-second same rank window timer', isOn: LOGGING_SWITCH);
       
       // Cancel existing timer if any
       _sameRankTimer?.cancel();
@@ -1875,7 +1881,7 @@ class PracticeGameRound {
       });
       
     } catch (e) {
-      _logger.error('Practice: Error starting same rank timer: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error starting same rank timer: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1883,11 +1889,11 @@ class PracticeGameRound {
   /// Replicates backend's _end_same_rank_window method in game_round.py lines 599-643
   Future<void> _endSameRankWindow() async {
     try {
-      _logger.info('Practice: Ending same rank window - resetting all players to waiting status', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Ending same rank window - resetting all players to waiting status', isOn: LOGGING_SWITCH);
       
       // TODO: Log same_rank_data if any players played matching cards (future implementation)
       // For now, we just log that window is ending
-      _logger.info('Practice: No same rank plays recorded (simplified practice mode)', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: No same rank plays recorded (simplified recall mode)', isOn: LOGGING_SWITCH);
       
       // Update all players' status to WAITING
       _stateCallback.onPlayerStatusChanged(
@@ -1897,15 +1903,15 @@ class PracticeGameRound {
         triggerInstructions: false,
       );
       
-      _logger.info('Practice: Successfully reset all players to waiting status', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Successfully reset all players to waiting status', isOn: LOGGING_SWITCH);
       
       // CRITICAL: Reset gamePhase back to player_turn to match backend behavior
       // Backend transitions to ENDING_TURN phase (game_round.py line 634)
-      // For practice game, we use player_turn as the main gameplay phase
+      // For recall game, we use player_turn as the main gameplay phase
       _stateCallback.onGameStateChanged({
         'gamePhase': 'player_turn',
       });
-      _logger.info('Practice: Reset gamePhase to player_turn', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Reset gamePhase to player_turn', isOn: LOGGING_SWITCH);
       
       // TODO: Check if any player has no cards left (automatic win condition)
       // Future implementation - for now, we skip this check
@@ -1920,7 +1926,7 @@ class PracticeGameRound {
       _handleSpecialCardsWindow();
       
     } catch (e) {
-      _logger.error('Practice: Error ending same rank window: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error ending same rank window: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1928,11 +1934,11 @@ class PracticeGameRound {
   /// Returns a Future that completes when ALL computer same rank plays are done
   Future<void> _checkComputerPlayerSameRankPlays() async {
     try {
-      _logger.info('Practice: Processing computer player same rank plays', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Processing computer player same rank plays', isOn: LOGGING_SWITCH);
       
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.info('Practice: Failed to get game state', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Failed to get game state', isOn: LOGGING_SWITCH);
         return;
       }
       
@@ -1946,11 +1952,11 @@ class PracticeGameRound {
       ).toList();
       
       if (computerPlayers.isEmpty) {
-        _logger.info('Practice: No computer players to process', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: No computer players to process', isOn: LOGGING_SWITCH);
         return;
       }
       
-      _logger.info('Practice: Found ${computerPlayers.length} computer players', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Found ${computerPlayers.length} computer players', isOn: LOGGING_SWITCH);
       
       // Debug: Log computer player details
       for (final player in computerPlayers) {
@@ -1958,7 +1964,7 @@ class PracticeGameRound {
         final playerName = player['name']?.toString() ?? 'Unknown';
         final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
         final hand = player['hand'] as List<dynamic>? ?? [];
-        _logger.info('Practice: Computer player $playerName ($playerId) - hand: ${hand.length} cards, known_cards: ${knownCards.keys.length} players tracked', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Computer player $playerName ($playerId) - hand: ${hand.length} cards, known_cards: ${knownCards.keys.length} players tracked', isOn: LOGGING_SWITCH);
       }
       
       // Shuffle for random order
@@ -1980,10 +1986,10 @@ class PracticeGameRound {
       // AWAIT all computer plays to complete
       await Future.wait(playFutures);
       
-      _logger.info('Practice: All computer same rank plays completed', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: All computer same rank plays completed', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      _logger.error('Practice: Error in _checkComputerPlayerSameRankPlays: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _checkComputerPlayerSameRankPlays: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1998,20 +2004,20 @@ class PracticeGameRound {
       final availableCards = _getAvailableSameRankCards(playerId, gameState);
       
       if (availableCards.isEmpty) {
-        _logger.info('Practice: Computer player $playerId has no same rank cards', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Computer player $playerId has no same rank cards', isOn: LOGGING_SWITCH);
         return;
       }
       
-      _logger.info('Practice: Computer player $playerId has ${availableCards.length} available same rank cards', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Computer player $playerId has ${availableCards.length} available same rank cards', isOn: LOGGING_SWITCH);
       
       // Get YAML decision
       if (_computerPlayerFactory == null) {
-        _logger.warning('Practice: Computer factory not initialized; skipping same rank decision for $playerId', isOn: LOGGING_SWITCH);
+        _logger.warning('Recall: Computer factory not initialized; skipping same rank decision for $playerId', isOn: LOGGING_SWITCH);
         return;
       }
       final Map<String, dynamic> decision = _computerPlayerFactory!
           .getSameRankPlayDecision(difficulty, gameState, availableCards);
-      _logger.info('Practice: Computer same rank decision: $decision', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Computer same rank decision: $decision', isOn: LOGGING_SWITCH);
       
       // Execute decision with delay
       if (decision['play'] == true) {
@@ -2027,7 +2033,7 @@ class PracticeGameRound {
             orElse: () => '',
           );
           if (!_isValidCardId(cardId)) {
-            _logger.info('Practice: No valid cardId for same rank after fallback; skipping play for $playerId', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: No valid cardId for same rank after fallback; skipping play for $playerId', isOn: LOGGING_SWITCH);
             return;
           }
         }
@@ -2035,12 +2041,12 @@ class PracticeGameRound {
           // cardId is guaranteed non-null after _isValidCardId check
           await handleSameRankPlay(playerId, cardId);
         } else {
-          _logger.info('Practice: Computer player $playerId same rank play skipped - invalid card ID', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Computer player $playerId same rank play skipped - invalid card ID', isOn: LOGGING_SWITCH);
         }
       }
       
     } catch (e) {
-      _logger.error('Practice: Error in _handleComputerSameRankPlay: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _handleComputerSameRankPlay: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -2049,22 +2055,22 @@ class PracticeGameRound {
     final availableCards = <String>[];
     
     try {
-      _logger.info('Practice: DEBUG - Getting available same rank cards for player $playerId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Getting available same rank cards for player $playerId', isOn: LOGGING_SWITCH);
       
       // Get discard pile to determine target rank
       final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
       if (discardPile.isEmpty) {
-        _logger.info('Practice: DEBUG - Discard pile is empty, no same rank cards possible', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - Discard pile is empty, no same rank cards possible', isOn: LOGGING_SWITCH);
         return availableCards;
       }
       
       final lastCard = discardPile.last as Map<String, dynamic>?;
       final targetRank = lastCard?['rank']?.toString() ?? '';
       
-      _logger.info('Practice: DEBUG - Target rank for same rank play: $targetRank', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Target rank for same rank play: $targetRank', isOn: LOGGING_SWITCH);
       
       if (targetRank.isEmpty) {
-        _logger.info('Practice: DEBUG - Target rank is empty, no same rank cards possible', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - Target rank is empty, no same rank cards possible', isOn: LOGGING_SWITCH);
         return availableCards;
       }
       
@@ -2083,9 +2089,9 @@ class PracticeGameRound {
       final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
       final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
       
-      _logger.info('Practice: DEBUG - Player $playerId has ${hand.length} cards in hand', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: DEBUG - Player $playerId known_cards structure: ${knownCards.keys.toList()}', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: DEBUG - Player $playerId collection_rank_cards: ${collectionRankCards.length} cards', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Player $playerId has ${hand.length} cards in hand', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Player $playerId known_cards structure: ${knownCards.keys.toList()}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Player $playerId collection_rank_cards: ${collectionRankCards.length} cards', isOn: LOGGING_SWITCH);
       
       // Get collection card IDs
       final collectionCardIds = collectionRankCards
@@ -2093,7 +2099,7 @@ class PracticeGameRound {
         .where((id) => id.isNotEmpty)
         .toSet();
       
-      _logger.info('Practice: DEBUG - Collection card IDs: ${collectionCardIds.toList()}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Collection card IDs: ${collectionCardIds.toList()}', isOn: LOGGING_SWITCH);
       
       // Get player's own known card IDs (card-ID-based structure)
       final knownCardIds = <String>{};
@@ -2110,15 +2116,15 @@ class PracticeGameRound {
         }
       }
       
-      _logger.info('Practice: DEBUG - Known card IDs: ${knownCardIds.toList()}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Known card IDs: ${knownCardIds.toList()}', isOn: LOGGING_SWITCH);
       
       // Find matching rank cards in hand
-      _logger.info('Practice: DEBUG - Checking ${hand.length} cards in hand for matching rank $targetRank', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Checking ${hand.length} cards in hand for matching rank $targetRank', isOn: LOGGING_SWITCH);
       
       for (int i = 0; i < hand.length; i++) {
         final card = hand[i];
         if (card == null || card is! Map<String, dynamic>) {
-          _logger.info('Practice: DEBUG - Card at index $i is null or not a map, skipping', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: DEBUG - Card at index $i is null or not a map, skipping', isOn: LOGGING_SWITCH);
           continue;
         }
         
@@ -2127,37 +2133,37 @@ class PracticeGameRound {
         // CRITICAL: Get full card data to check rank (hand contains ID-only cards with rank=?)
         final fullCardData = _stateCallback.getCardById(gameState, cardId);
         if (fullCardData == null) {
-          _logger.info('Practice: DEBUG - Failed to get full card data for $cardId, skipping', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: DEBUG - Failed to get full card data for $cardId, skipping', isOn: LOGGING_SWITCH);
           continue;
         }
         
         final cardRank = fullCardData['rank']?.toString() ?? '';
         
-        _logger.info('Practice: DEBUG - Card at index $i: id=$cardId, rank=$cardRank (from full data)', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - Card at index $i: id=$cardId, rank=$cardRank (from full data)', isOn: LOGGING_SWITCH);
         
         if (cardRank != targetRank) {
-          _logger.info('Practice: DEBUG - Card rank $cardRank != target rank $targetRank, skipping', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: DEBUG - Card rank $cardRank != target rank $targetRank, skipping', isOn: LOGGING_SWITCH);
           continue;
         }
         
         if (!knownCardIds.contains(cardId)) {
-          _logger.info('Practice: DEBUG - Card $cardId not in known_cards, skipping', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: DEBUG - Card $cardId not in known_cards, skipping', isOn: LOGGING_SWITCH);
           continue;
         }
         
         if (collectionCardIds.contains(cardId)) {
-          _logger.info('Practice: DEBUG - Card $cardId is a collection card, skipping', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: DEBUG - Card $cardId is a collection card, skipping', isOn: LOGGING_SWITCH);
           continue;
         }
         
-        _logger.info('Practice: DEBUG - Card $cardId is available for same rank play!', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - Card $cardId is available for same rank play!', isOn: LOGGING_SWITCH);
         availableCards.add(cardId);
       }
       
-      _logger.info('Practice: DEBUG - Found ${availableCards.length} available same rank cards: ${availableCards.toList()}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Found ${availableCards.length} available same rank cards: ${availableCards.toList()}', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      _logger.error('Practice: Error in _getAvailableSameRankCards: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _getAvailableSameRankCards: $e', isOn: LOGGING_SWITCH);
     }
     
     return availableCards;
@@ -2169,14 +2175,14 @@ class PracticeGameRound {
     try {
       // Check if we have any special cards played
       if (_specialCardData.isEmpty) {
-        _logger.info('Practice: No special cards played in this round - moving to next player', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: No special cards played in this round - moving to next player', isOn: LOGGING_SWITCH);
         // No special cards, go directly to next player
         _moveToNextPlayer();
         return;
       }
       
-      _logger.info('Practice: === SPECIAL CARDS WINDOW ===', isOn: LOGGING_SWITCH);
-      _logger.info('Practice: DEBUG: special_card_data length: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: === SPECIAL CARDS WINDOW ===', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG: special_card_data length: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
       
       // CRITICAL: Set gamePhase to special_play_window to match Python backend behavior
       // This ensures same_rank_window phase is fully ended before special_play_window begins
@@ -2184,28 +2190,28 @@ class PracticeGameRound {
       _stateCallback.onGameStateChanged({
         'gamePhase': 'special_play_window',
       });
-      _logger.info('Practice: Game phase changed to special_play_window (special cards found)', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Game phase changed to special_play_window (special cards found)', isOn: LOGGING_SWITCH);
       
       // Count total special cards (stored chronologically)
       final totalSpecialCards = _specialCardData.length;
-      _logger.info('Practice: Found $totalSpecialCards special cards played in chronological order', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Found $totalSpecialCards special cards played in chronological order', isOn: LOGGING_SWITCH);
       
       // Log details of all special cards in chronological order
       for (int i = 0; i < _specialCardData.length; i++) {
         final card = _specialCardData[i];
-        _logger.info('Practice:   ${i+1}. Player ${card['player_id']}: ${card['rank']} of ${card['suit']} (${card['special_power']})', isOn: LOGGING_SWITCH);
+        _logger.info('Recall:   ${i+1}. Player ${card['player_id']}: ${card['rank']} of ${card['suit']} (${card['special_power']})', isOn: LOGGING_SWITCH);
       }
       
       // Create a working copy for processing (we'll remove cards as we process them)
       _specialCardPlayers = List<Map<String, dynamic>>.from(_specialCardData);
       
-      _logger.info('Practice: Starting special card processing with ${_specialCardPlayers.length} cards', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Starting special card processing with ${_specialCardPlayers.length} cards', isOn: LOGGING_SWITCH);
       
       // Start processing the first player's special card
       _processNextSpecialCard();
       
     } catch (e) {
-      _logger.error('Practice: Error in _handleSpecialCardsWindow: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _handleSpecialCardsWindow: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -2215,7 +2221,7 @@ class PracticeGameRound {
     try {
       // Check if we've processed all special cards (list is empty)
       if (_specialCardPlayers.isEmpty) {
-        _logger.info('Practice: All special cards processed - moving to next player', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: All special cards processed - moving to next player', isOn: LOGGING_SWITCH);
         _endSpecialCardsWindow();
         return;
       }
@@ -2228,20 +2234,20 @@ class PracticeGameRound {
       final specialPower = specialData['special_power']?.toString() ?? 'unknown';
       final description = specialData['description']?.toString() ?? 'No description';
       
-      _logger.info('Practice: Processing special card for player $playerId: $cardRank of $cardSuit', isOn: LOGGING_SWITCH);
-      _logger.info('Practice:   Special Power: $specialPower', isOn: LOGGING_SWITCH);
-      _logger.info('Practice:   Description: $description', isOn: LOGGING_SWITCH);
-      _logger.info('Practice:   Remaining cards to process: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Processing special card for player $playerId: $cardRank of $cardSuit', isOn: LOGGING_SWITCH);
+      _logger.info('Recall:   Special Power: $specialPower', isOn: LOGGING_SWITCH);
+      _logger.info('Recall:   Description: $description', isOn: LOGGING_SWITCH);
+      _logger.info('Recall:   Remaining cards to process: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
       
       // Set player status based on special power
       if (specialPower == 'jack_swap') {
         _stateCallback.onPlayerStatusChanged('jack_swap', playerId: playerId, updateMainState: true);
-        _logger.info('Practice: Player $playerId status set to jack_swap - 10 second timer started', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Player $playerId status set to jack_swap - 10 second timer started', isOn: LOGGING_SWITCH);
       } else if (specialPower == 'queen_peek') {
         _stateCallback.onPlayerStatusChanged('queen_peek', playerId: playerId, updateMainState: true);
-        _logger.info('Practice: Player $playerId status set to queen_peek - 10 second timer started', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Player $playerId status set to queen_peek - 10 second timer started', isOn: LOGGING_SWITCH);
       } else {
-        _logger.warning('Practice: Unknown special power: $specialPower for player $playerId', isOn: LOGGING_SWITCH);
+        _logger.warning('Recall: Unknown special power: $specialPower for player $playerId', isOn: LOGGING_SWITCH);
         // Remove this card and move to next
         _specialCardPlayers.removeAt(0);
         _processNextSpecialCard();
@@ -2253,10 +2259,10 @@ class PracticeGameRound {
       _specialCardTimer = Timer(const Duration(seconds: 10), () {
         _onSpecialCardTimerExpired();
       });
-      _logger.info('Practice: 10-second timer started for player $playerId\'s $specialPower', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: 10-second timer started for player $playerId\'s $specialPower', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      _logger.error('Practice: Error in _processNextSpecialCard: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _processNextSpecialCard: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -2281,35 +2287,35 @@ class PracticeGameRound {
           if (player.isNotEmpty) {
             // Clear the player's cardsToPeek list (revert to ID-only cards)
             player['cardsToPeek'] = [];
-            _logger.info('Practice: Cleared cardsToPeek for player $playerId - cards reverted to ID-only', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: Cleared cardsToPeek for player $playerId - cards reverted to ID-only', isOn: LOGGING_SWITCH);
             
             // Update main state for human player
-            if (playerId == 'practice_user') {
+            if (playerId == 'recall_user') {
               _stateCallback.onGameStateChanged({
                 'myCardsToPeek': [],
               });
-              _logger.info('Practice: Updated main state myCardsToPeek to empty list', isOn: LOGGING_SWITCH);
+              _logger.info('Recall: Updated main state myCardsToPeek to empty list', isOn: LOGGING_SWITCH);
             }
           }
         }
         
         _stateCallback.onPlayerStatusChanged('waiting', playerId: playerId, updateMainState: true);
-        _logger.info('Practice: Player $playerId special card timer expired - status reset to waiting', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Player $playerId special card timer expired - status reset to waiting', isOn: LOGGING_SWITCH);
         
         // Remove the processed card from the list
         _specialCardPlayers.removeAt(0);
-        _logger.info('Practice: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
       }
       
       // Add 1-second delay for visual indication before processing next special card
-      _logger.info('Practice: Waiting 1 second before processing next special card...', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Waiting 1 second before processing next special card...', isOn: LOGGING_SWITCH);
       Timer(const Duration(seconds: 1), () {
         // Process next special card or end window
         _processNextSpecialCard();
       });
       
     } catch (e) {
-      _logger.error('Practice: Error in _onSpecialCardTimerExpired: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _onSpecialCardTimerExpired: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -2324,34 +2330,34 @@ class PracticeGameRound {
       _specialCardData.clear();
       _specialCardPlayers.clear();
       
-      _logger.info('Practice: Special cards window ended - cleared all special card data', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Special cards window ended - cleared all special card data', isOn: LOGGING_SWITCH);
       
       // CRITICAL: Reset gamePhase back to player_turn before moving to next player
       // This ensures clean phase transitions and matches backend behavior
       _stateCallback.onGameStateChanged({
         'gamePhase': 'player_turn',
       });
-      _logger.info('Practice: Game phase reset to player_turn after special cards window', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Game phase reset to player_turn after special cards window', isOn: LOGGING_SWITCH);
       
       // Now move to the next player
-      _logger.info('Practice: Moving to next player after special cards', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Moving to next player after special cards', isOn: LOGGING_SWITCH);
       _moveToNextPlayer();
       
     } catch (e) {
-      _logger.error('Practice: Error in _endSpecialCardsWindow: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error in _endSpecialCardsWindow: $e', isOn: LOGGING_SWITCH);
     }
   }
 
   /// Move to the next player (simplified version for practice)
   Future<void> _moveToNextPlayer() async {
     try {
-      _logger.info('Practice: Moving to next player', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Moving to next player', isOn: LOGGING_SWITCH);
       
       // Get current game state
       final gameState = _getCurrentGameState();
       
       if (gameState == null) {
-        _logger.error('Practice: Game state is null for move to next player', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Game state is null for move to next player', isOn: LOGGING_SWITCH);
         return;
       }
       
@@ -2359,14 +2365,14 @@ class PracticeGameRound {
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       
       if (currentPlayer == null || players.isEmpty) {
-        _logger.error('Practice: No current player or players list for move to next player', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: No current player or players list for move to next player', isOn: LOGGING_SWITCH);
         return;
       }
       
       // Set current player status to waiting before moving to next player
       final currentPlayerId = currentPlayer['id']?.toString() ?? '';
       _stateCallback.onPlayerStatusChanged('waiting', playerId: currentPlayerId, updateMainState: true);
-      _logger.info('Practice: Set current player $currentPlayerId status to waiting', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Set current player $currentPlayerId status to waiting', isOn: LOGGING_SWITCH);
       
       // Find current player index
       int currentIndex = -1;
@@ -2378,7 +2384,7 @@ class PracticeGameRound {
       }
       
       if (currentIndex == -1) {
-        _logger.error('Practice: Current player $currentPlayerId not found in players list', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Current player $currentPlayerId not found in players list', isOn: LOGGING_SWITCH);
         return;
       }
       
@@ -2389,36 +2395,36 @@ class PracticeGameRound {
       
       // Update current player in game state
       gameState['currentPlayer'] = nextPlayer;
-      _logger.info('Practice: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
       
       // Log player state at start of turn
-      _logger.info('Practice: === TURN START for $nextPlayerId ===', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: === TURN START for $nextPlayerId ===', isOn: LOGGING_SWITCH);
       final hand = nextPlayer['hand'] as List<dynamic>? ?? [];
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Practice: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
       final knownCards = nextPlayer['known_cards'] as Map<String, dynamic>? ?? {};
-      _logger.info('Practice: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
       final collectionRank = nextPlayer['collection_rank']?.toString() ?? 'none';
-      _logger.info('Practice: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
       final collectionRankCards = nextPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
       final collectionCardIds = collectionRankCards.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Practice: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
       
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
       _stateCallback.onPlayerStatusChanged('drawing_card', playerId: nextPlayerId, updateMainState: true, triggerInstructions: true);
-      _logger.info('Practice: Set next player ${nextPlayer['name']} to drawing_card status', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Set next player ${nextPlayer['name']} to drawing_card status', isOn: LOGGING_SWITCH);
       
       // Check if this is a computer player and trigger computer turn logic
       final isHuman = nextPlayer['isHuman'] as bool? ?? false;
       if (!isHuman) {
-        _logger.info('Practice: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
         _initComputerTurn(gameState);
       } else {
-        _logger.info('Practice: Started turn for human player ${nextPlayer['name']} - status: drawing_card (no timer)', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Started turn for human player ${nextPlayer['name']} - status: drawing_card (no timer)', isOn: LOGGING_SWITCH);
       }
       
     } catch (e) {
-      _logger.error('Practice: Error moving to next player: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Error moving to next player: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -2476,10 +2482,10 @@ class PracticeGameRound {
       // Update state
       _stateCallback.onGameStateChanged({'games': currentGames});
       
-      _logger.info('Practice: Updated known_cards for all players after $eventType', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Updated known_cards for all players after $eventType', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      _logger.error('Practice: Failed to update known_cards: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Failed to update known_cards: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -2524,7 +2530,7 @@ class PracticeGameRound {
           knownCards[actingPlayerId] = actingPlayerCards;
         }
         
-        _logger.info('Practice: Removed just-drawn card $playedCardId from $actingPlayerId known_cards (100% certainty)', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Removed just-drawn card $playedCardId from $actingPlayerId known_cards (100% certainty)', isOn: LOGGING_SWITCH);
       }
     }
     
@@ -2660,6 +2666,6 @@ class PracticeGameRound {
   void dispose() {
     _sameRankTimer?.cancel();
     _specialCardTimer?.cancel();
-    _logger.info('Practice: PracticeGameRound disposed for game $_gameId', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: RecallGameRound disposed for game $_gameId', isOn: LOGGING_SWITCH);
   }
 }

@@ -13,7 +13,7 @@ class PracticeScreen extends BaseScreen {
   const PracticeScreen({Key? key}) : super(key: key);
 
   @override
-  String computeTitle(BuildContext context) => 'Practice Room';
+  String computeTitle(BuildContext context) => 'Recall Room';
 
   @override
   _PracticeScreenState createState() => _PracticeScreenState();
@@ -21,7 +21,7 @@ class PracticeScreen extends BaseScreen {
 
 class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   final WebSocketManager _websocketManager = WebSocketManager.instance;
-  late final PracticeGameCoordinator _practiceCoordinator;
+  late final PracticeGameCoordinator _recallCoordinator;
   
   // Form controllers and values
   final _formKey = GlobalKey<FormState>();
@@ -39,8 +39,8 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   void initState() {
     super.initState();
     
-    // Initialize practice coordinator (singleton - will return same instance if already created)
-    _practiceCoordinator = PracticeGameCoordinator();
+    // Initialize recall coordinator (singleton - will return same instance if already created)
+    _recallCoordinator = PracticeGameCoordinator();
     
     _initializeWebSocket().then((_) {
       _setupEventCallbacks();
@@ -77,9 +77,9 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   
   @override
   void dispose() {
-    // Don't dispose practice coordinator when navigating to game play
-    // The practice game should continue in the game play screen
-    // The coordinator will be disposed when the practice game actually ends
+    // Don't dispose recall coordinator when navigating to game play
+    // The recall game should continue in the game play screen
+    // The coordinator will be disposed when the recall game actually ends
     // or when the app is closed (it's now a singleton)
     
     // Clean up event callbacks - now handled by WSEventManager
@@ -99,9 +99,9 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
 
     try {
       // Show loading message
-      _showSnackBar('Starting practice game...', isError: false);
+      _showSnackBar('Starting recall game...', isError: false);
       
-      // Create practice session data
+      // Create recall session data
       final sessionId = 'practice_${DateTime.now().millisecondsSinceEpoch}';
       final practiceData = {
         'sessionId': sessionId,
@@ -113,46 +113,46 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
         'timestamp': DateTime.now().toIso8601String(),
       };
       
-      // Use practice coordinator to handle start match
-      final success = await _practiceCoordinator.handlePracticeEvent(
+      // Use recall coordinator to handle start match
+      final success = await _recallCoordinator.handlePracticeEvent(
         sessionId, 
         'start_match', 
         practiceData
       );
       
       if (success) {
-        _showSnackBar('Practice game started successfully!', isError: false);
+        _showSnackBar('Recall game started successfully!', isError: false);
 
         // Navigate to game play screen
         _navigateToGamePlay();
       } else {
-        _showSnackBar('Failed to start practice game', isError: true);
+        _showSnackBar('Failed to start recall game', isError: true);
       }
       
     } catch (e) {
-      if (mounted) _showSnackBar('Failed to start practice game: $e', isError: true);
+      if (mounted) _showSnackBar('Failed to start recall game: $e', isError: true);
     }
   }
 
-  /// Navigate to game play screen for practice game
+  /// Navigate to game play screen for recall game
   void _navigateToGamePlay() {
     try {
-      Logger().info('Practice: Starting navigation to game play screen', isOn: LOGGING_SWITCH);
+      Logger().info('Recall: Starting navigation to game play screen', isOn: LOGGING_SWITCH);
       
-      // Check if practice game is active
-      if (_practiceCoordinator.isPracticeGameActive) {
-        Logger().info('Practice: Practice game is active, proceeding with navigation', isOn: LOGGING_SWITCH);
-        Logger().info('Practice: Current practice game ID: ${_practiceCoordinator.currentPracticeGameId}', isOn: LOGGING_SWITCH);
+      // Check if recall game is active
+      if (_recallCoordinator.isPracticeGameActive) {
+        Logger().info('Recall: Recall game is active, proceeding with navigation', isOn: LOGGING_SWITCH);
+        Logger().info('Recall: Current recall game ID: ${_recallCoordinator.currentPracticeGameId}', isOn: LOGGING_SWITCH);
       } else {
-        Logger().warning('Practice: No active practice game found', isOn: LOGGING_SWITCH);
+        Logger().warning('Recall: No active recall game found', isOn: LOGGING_SWITCH);
       }
       
       // Use NavigationManager to navigate to game play screen
       NavigationManager().navigateTo('/recall/game-play');
       
-      Logger().info('Practice: Navigation command sent to NavigationManager', isOn: LOGGING_SWITCH);
+      Logger().info('Recall: Navigation command sent to NavigationManager', isOn: LOGGING_SWITCH);
     } catch (e) {
-      Logger().error('Practice: Failed to navigate to game play: $e', isOn: LOGGING_SWITCH);
+      Logger().error('Recall: Failed to navigate to game play: $e', isOn: LOGGING_SWITCH);
       if (mounted) {
         _showSnackBar('Failed to navigate to game: $e', isError: true);
       }
@@ -201,7 +201,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
           children: [
             // Header
             Text(
-              'Practice Game Settings',
+              'Recall Game Settings',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).primaryColor,
@@ -209,7 +209,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Configure your practice game settings and start playing against AI opponents.',
+              'Configure your recall game settings and start playing against AI opponents.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).textTheme.bodySmall?.color,
               ),
@@ -415,7 +415,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Start Practice Game',
+                      'Start Recall Game',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
@@ -427,7 +427,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
             ),
             const SizedBox(height: 24),
             
-            // Practice Events Debug Card
+            // Recall Events Debug Card
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -446,7 +446,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Available Practice Events',
+                          'Available Recall Events',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -455,14 +455,14 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Registered Events: ${_practiceCoordinator.getEventCount()}',
+                      'Registered Events: ${_recallCoordinator.getEventCount()}',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 4,
-                      children: _practiceCoordinator.getRegisteredEvents().map((event) {
+                      children: _recallCoordinator.getRegisteredEvents().map((event) {
                         return Chip(
                           label: Text(
                             event,
@@ -512,7 +512,7 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
                     _buildInfoRow('Total Players', '${_numberOfOpponents + 1}'),
                     _buildInfoRow('Difficulty', _difficultyLevel.toUpperCase()),
                     _buildInfoRow('Turn Timer', _formatTimer(_turnTimer)),
-                    _buildInfoRow('Game Type', 'Practice (AI Opponents)'),
+                    _buildInfoRow('Game Type', 'Recall (AI Opponents)'),
                   ],
                 ),
               ),

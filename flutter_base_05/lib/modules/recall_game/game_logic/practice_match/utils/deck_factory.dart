@@ -3,7 +3,7 @@ import '../models/card.dart';
 import '../models/card_deck.dart';
 import 'yaml_config_parser.dart';
 
-/// Random Deck Factory for Practice Recall Game
+/// Random Deck Factory for Recall Game
 /// 
 /// Builds a per-game shuffled deck with completely random card_ids.
 /// Each game gets unique, unpredictable card IDs to ensure no patterns

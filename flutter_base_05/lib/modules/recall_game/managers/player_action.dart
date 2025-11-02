@@ -71,14 +71,14 @@ class PlayerAction {
       // This prevents the frontend from overriding backend status updates
       _logger.info('Skipping optimistic status update - backend will control player status', isOn: LOGGING_SWITCH);
       
-      // Check if this is a practice game
+      // Check if this is a recall game
       final isPracticeGame = _checkIfPracticeGame();
-      _logger.info('🎯 Practice game check: isPracticeGame=$isPracticeGame, currentGameId=${payload['game_id']}', isOn: LOGGING_SWITCH);
+      _logger.info('🎯 Recall game check: isPracticeGame=$isPracticeGame, currentGameId=${payload['game_id']}', isOn: LOGGING_SWITCH);
       
       if (isPracticeGame) {
-        _logger.info('Practice game detected - triggering practice event handler', isOn: LOGGING_SWITCH);
+        _logger.info('Recall game detected - triggering recall event handler', isOn: LOGGING_SWITCH);
         
-        // Trigger practice event through state manager so PracticeRoom can handle it
+        // Trigger recall event through state manager so PracticeRoom can handle it
         _triggerPracticeEvent();
         
         return;
@@ -97,7 +97,7 @@ class PlayerAction {
     }
   }
 
-  /// Check if the current game is a practice game
+  /// Check if the current game is a recall game
   bool _checkIfPracticeGame() {
     try {
       // Use the centralized game state accessor
@@ -111,28 +111,28 @@ class PlayerAction {
     }
   }
 
-  /// Trigger practice event by calling the PracticeGameCoordinator directly
+  /// Trigger recall event by calling the PracticeGameCoordinator directly
   void _triggerPracticeEvent() {
     try {
-      // Get the practice game coordinator (singleton)
-      final practiceCoordinator = PracticeGameCoordinator();
+      // Get the recall game coordinator (singleton)
+      final recallCoordinator = PracticeGameCoordinator();
       
       // Extract session ID (game_id) from payload
       final sessionId = payload['game_id'] as String? ?? '';
       
       if (sessionId.isEmpty) {
-        _logger.warning('Cannot trigger practice event - no game_id in payload', isOn: LOGGING_SWITCH);
+        _logger.warning('Cannot trigger recall event - no game_id in payload', isOn: LOGGING_SWITCH);
         return;
       }
       
-      // Call the practice coordinator to handle the event
-      _logger.info('Calling practice coordinator for event: $eventName (session: $sessionId)', isOn: LOGGING_SWITCH);
-      practiceCoordinator.handlePracticeEvent(sessionId, eventName, payload);
+      // Call the recall coordinator to handle the event
+      _logger.info('Calling recall coordinator for event: $eventName (session: $sessionId)', isOn: LOGGING_SWITCH);
+      recallCoordinator.handlePracticeEvent(sessionId, eventName, payload);
       
-      _logger.info('Practice event handled by coordinator: $eventName', isOn: LOGGING_SWITCH);
+      _logger.info('Recall event handled by coordinator: $eventName', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      _logger.error('Error triggering practice event: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error triggering recall event: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -305,21 +305,21 @@ class PlayerAction {
 
       logger.info('Jack swap payload created: $swapPayload', isOn: LOGGING_SWITCH);
 
-      // Check if this is a practice game
+      // Check if this is a recall game
       final gameAccessor = RecallGameStateAccessor.instance;
       final isPracticeGame = gameAccessor.isCurrentGamePractice();
-      logger.info('🎯 Jack swap - Practice game check: isPracticeGame=$isPracticeGame, gameId=$gameId', isOn: LOGGING_SWITCH);
+      logger.info('🎯 Jack swap - Recall game check: isPracticeGame=$isPracticeGame, gameId=$gameId', isOn: LOGGING_SWITCH);
 
       if (isPracticeGame) {
-        // Handle practice game Jack swap
-        logger.info('Practice game detected - calling practice coordinator for jack_swap', isOn: LOGGING_SWITCH);
-        final practiceCoordinator = PracticeGameCoordinator();
-        await practiceCoordinator.handlePracticeEvent(
+        // Handle recall game Jack swap
+        logger.info('Recall game detected - calling recall coordinator for jack_swap', isOn: LOGGING_SWITCH);
+        final recallCoordinator = PracticeGameCoordinator();
+        await recallCoordinator.handlePracticeEvent(
           gameId,
           'jack_swap',
           swapPayload,
         );
-        logger.info('Practice jack_swap handled successfully', isOn: LOGGING_SWITCH);
+        logger.info('Recall jack_swap handled successfully', isOn: LOGGING_SWITCH);
       } else {
         // Send the swap request to backend for regular games
         logger.info('Sending jack_swap event to backend', isOn: LOGGING_SWITCH);

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../utils/modal_template_widget.dart';
 
-/// Rules Modal Widget for Practice Room
+/// Rules Modal Widget for Recall Room
 /// 
 /// This widget displays the game rules and overview as a modal overlay.
-/// It's shown when the "View Rules" button is pressed in the practice room.
+/// It's shown when the "View Rules" button is pressed in the recall room.
 class RulesModalWidget extends StatelessWidget {
   const RulesModalWidget({Key? key}) : super(key: key);
 
@@ -149,7 +149,7 @@ Finish with no cards OR have the fewest points when someone calls "Recall".
           
           _buildSection(
             context,
-            '🎯 Practice Mode',
+            '🎯 Recall Mode',
             '''• Play against AI opponents
 • Learn the game at your own pace
 • No time pressure (if timer is off)

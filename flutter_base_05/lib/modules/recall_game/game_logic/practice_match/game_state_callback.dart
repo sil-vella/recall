@@ -2,7 +2,7 @@
 ///
 /// This interface abstracts the communication layer between GameRound and
 /// the state management system. This allows GameRound to work identically
-/// in both Flutter practice (StateManager) and Dart backend (WebSocket broadcasts).
+/// in both Flutter recall (StateManager) and Dart backend (WebSocket broadcasts).
 
 abstract class GameStateCallback {
   /// Update player status for a specific player or all players

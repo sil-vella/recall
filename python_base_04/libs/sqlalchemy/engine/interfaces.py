@@ -3112,7 +3112,7 @@ class ExecutionContext:
            :meth:`.ExecutionContext.get_out_parameter_values`, which is invoked
            automatically by the :class:`.DefaultExecutionContext` when there
            are :class:`.BindParameter` objects with the ``.isoutparam`` flag
-           set.  This replaces the practice of setting out parameters within
+           set.  This replaces the recall of setting out parameters within
            the now-removed ``get_result_proxy()`` method.
 
         """

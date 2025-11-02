@@ -1,6 +1,6 @@
-/// Practice Game Instructions
+/// Recall Game Instructions
 ///
-/// This file contains all the instruction messages for the practice game mode.
+/// This file contains all the instruction messages for the recall game mode.
 /// It provides a centralized location for all instructional content that helps
 /// players learn the Recall game mechanics.
 

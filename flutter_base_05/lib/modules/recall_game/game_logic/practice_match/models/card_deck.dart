@@ -1,6 +1,6 @@
 import 'card.dart';
 
-/// CardDeck model for Practice Recall Game
+/// CardDeck model for Recall Game
 /// 
 /// Represents a deck of cards with standard 52-card deck + 2 jokers
 /// or testing deck with modified composition for easier testing.

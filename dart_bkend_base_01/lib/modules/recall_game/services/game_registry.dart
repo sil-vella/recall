@@ -1,4 +1,4 @@
-import '../practice_game_round.dart';
+import '../recall_game_round.dart';
 import '../game_state_callback.dart';
 import 'game_state_store.dart';
 import '../../../server/websocket_server.dart';
@@ -6,20 +6,20 @@ import '../../../utils/server_logger.dart';
 
 const bool LOGGING_SWITCH = true;
 
-/// Holds active PracticeGameRound instances per room and wires their callbacks
+/// Holds active RecallGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
 class GameRegistry {
   static final GameRegistry instance = GameRegistry._internal();
-  final Map<String, PracticeGameRound> _roomIdToRound = {};
+  final Map<String, RecallGameRound> _roomIdToRound = {};
   final Logger _logger = Logger();
 
   GameRegistry._internal();
 
-  PracticeGameRound getOrCreate(String roomId, WebSocketServer server) {
+  RecallGameRound getOrCreate(String roomId, WebSocketServer server) {
     return _roomIdToRound.putIfAbsent(roomId, () {
       final callback = _ServerGameStateCallbackImpl(roomId, server);
-      final round = PracticeGameRound(callback, roomId);
-      _logger.info('GameRegistry: Created PracticeGameRound for $roomId', isOn: LOGGING_SWITCH);
+      final round = RecallGameRound(callback, roomId);
+      _logger.info('GameRegistry: Created RecallGameRound for $roomId', isOn: LOGGING_SWITCH);
       return round;
     });
   }
@@ -51,7 +51,7 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
       }
     }
     if (updateMainState) {
-      // mirror Flutter practice behavior
+      // mirror Flutter recall behavior
       state['playerStatus'] = status;
     }
     _store.setGameState(roomId, state);
@@ -90,7 +90,7 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
       final phase = updates['gamePhase']?.toString();
       if (phase != null) {
         // Normalize phase names to match frontend expectations
-        // Map Dart practice mode phase names to multiplayer backend phase names
+        // Map Dart recall mode phase names to multiplayer backend phase names
         String normalizedPhase = phase;
         if (phase == 'special_play_window') {
           normalizedPhase = 'special_play_window';
@@ -157,7 +157,7 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   @override
   Map<String, dynamic> get currentGamesMap {
     // Return state in Flutter format: {gameId: {'gameData': {'game_state': ...}}}
-    // This matches the format expected by handlePlayCard in practice_game_round.dart
+    // This matches the format expected by handlePlayCard in recall_game_round.dart
     final state = _store.getState(roomId);
     final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
     

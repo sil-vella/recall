@@ -36,8 +36,8 @@ class GameInfoWidget extends StatelessWidget {
         final isRoomOwner = gameInfo['isRoomOwner'] ?? false;
         final isInGame = gameInfo['isInGame'] ?? false;
         
-        // Check if this is a practice game
-        final isPracticeGame = currentGameId.startsWith('practice_game_');
+        // Check if this is a recall game
+        final isPracticeGame = currentGameId.startsWith('recall_game_');
         
         // 🔍 DEBUG: Log the values that determine start button visibility
         Logger().info('🔍 GameInfoWidget DEBUG:', isOn: LOGGING_SWITCH);
@@ -202,7 +202,7 @@ class GameInfoWidget extends StatelessWidget {
             
             const SizedBox(height: 16),
             
-            // Start Match Button (for room owner during waiting phase OR for practice games in waiting phase)
+            // Start Match Button (for room owner during waiting phase OR for recall games in waiting phase)
             if ((isRoomOwner && gamePhase == 'waiting') || (isPracticeGame && gamePhase == 'setup'))
               _buildStartMatchButton(),
           ],
@@ -242,25 +242,25 @@ class GameInfoWidget extends StatelessWidget {
     try {
       Logger().info('🎮 GameInfoWidget: Start button pressed - initiating start match flow', isOn: LOGGING_SWITCH);
       
-      // Get current game state to check if it's a practice game
+      // Get current game state to check if it's a recall game
       final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
       final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
       
       Logger().info('🎮 GameInfoWidget: Current game ID: $currentGameId', isOn: LOGGING_SWITCH);
       
-      // Check if this is a practice game
-      final isPracticeGame = currentGameId.startsWith('practice_game_');
-      Logger().info('🎮 GameInfoWidget: Practice game check - isPracticeGame: $isPracticeGame', isOn: LOGGING_SWITCH);
+      // Check if this is a recall game
+      final isPracticeGame = currentGameId.startsWith('recall_game_');
+      Logger().info('🎮 GameInfoWidget: Recall game check - isPracticeGame: $isPracticeGame', isOn: LOGGING_SWITCH);
       
       if (isPracticeGame) {
-        Logger().info('🎮 GameInfoWidget: Practice game detected - routing directly to PracticeGameCoordinator', isOn: LOGGING_SWITCH);
+        Logger().info('🎮 GameInfoWidget: Recall game detected - routing directly to PracticeGameCoordinator', isOn: LOGGING_SWITCH);
         
-        // Route directly to practice game coordinator
-        final practiceCoordinator = PracticeGameCoordinator();
+        // Route directly to recall game coordinator
+        final recallCoordinator = PracticeGameCoordinator();
         Logger().info('🎮 GameInfoWidget: Calling PracticeGameCoordinator.matchStart()', isOn: LOGGING_SWITCH);
         
-        final result = await practiceCoordinator.matchStart();
+        final result = await recallCoordinator.matchStart();
         Logger().info('🎮 GameInfoWidget: PracticeGameCoordinator.matchStart() completed with result: $result', isOn: LOGGING_SWITCH);
         
       } else {

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math';
-import '../../recall_game/practice_game_round.dart';
+import '../../recall_game/recall_game_round.dart';
 import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
 import '../../../server/room_manager.dart';
@@ -11,7 +11,7 @@ import '../models/card.dart';
 
 const bool LOGGING_SWITCH = true;
 
-/// Coordinates WS game events to the PracticeGameRound logic per room.
+/// Coordinates WS game events to the RecallGameRound logic per room.
 class GameEventCoordinator {
   final RoomManager roomManager;
   final WebSocketServer server;
@@ -120,8 +120,8 @@ class GameEventCoordinator {
   }
 
   /// Initialize match: create base state, players (human/computers), deck, then initialize round
-  Future<void> _handleStartMatch(String roomId, PracticeGameRound round, Map<String, dynamic> data) async {
-    // Prepare initial state compatible with PracticeGameRound
+  Future<void> _handleStartMatch(String roomId, RecallGameRound round, Map<String, dynamic> data) async {
+    // Prepare initial state compatible with RecallGameRound
     final stateRoot = _store.getState(roomId);
     final current = Map<String, dynamic>.from(stateRoot['game_state'] as Map<String, dynamic>? ?? {});
 
@@ -180,7 +180,7 @@ class GameEventCoordinator {
     };
 
     // Helper to create ID-only card (for hands - shows card back)
-    // Matches practice game format: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
+    // Matches recall game format: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
     Map<String, dynamic> _cardToIdOnly(Card c) => {
       'cardId': c.cardId,
       'suit': '?',      // Face-down: hide suit
@@ -201,7 +201,7 @@ class GameEventCoordinator {
     }
 
     // Set up discard pile with first card (full data - face-up)
-    // Matches practice game: discard pile starts with first card from remaining deck
+    // Matches recall game: discard pile starts with first card from remaining deck
     final discardPile = <Map<String, dynamic>>[];
     if (drawStack.isNotEmpty) {
       final firstCard = drawStack.removeAt(0);
@@ -209,7 +209,7 @@ class GameEventCoordinator {
       _logger.info('GameEventCoordinator: Moved first card ${firstCard.cardId} to discard pile', isOn: LOGGING_SWITCH);
     }
 
-    // Remaining draw pile as ID-only card maps (matches practice game format)
+    // Remaining draw pile as ID-only card maps (matches recall game format)
     final drawPileIds = drawStack.map((c) => _cardToIdOnly(c)).toList();
 
     // Build updated game_state - set to initial_peek phase
@@ -417,7 +417,7 @@ class GameEventCoordinator {
   }
 
   /// Handle the completed_initial_peek event from frontend
-  Future<void> _handleCompletedInitialPeek(String roomId, PracticeGameRound round, String sessionId, Map<String, dynamic> data) async {
+  Future<void> _handleCompletedInitialPeek(String roomId, RecallGameRound round, String sessionId, Map<String, dynamic> data) async {
     try {
       _logger.info('GameEventCoordinator: Handling completed initial peek with data: $data', isOn: LOGGING_SWITCH);
 
@@ -553,7 +553,7 @@ class GameEventCoordinator {
   }
 
   /// Complete initial peek phase: clear cardsToPeek, set all status='waiting', phase='player_turn', then initialize round
-  void _completeInitialPeek(String roomId, PracticeGameRound round) {
+  void _completeInitialPeek(String roomId, RecallGameRound round) {
     try {
       final gameState = _store.getGameState(roomId);
       final players = gameState['players'] as List<dynamic>? ?? [];

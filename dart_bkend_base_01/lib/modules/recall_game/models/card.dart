@@ -1,4 +1,4 @@
-/// Card model for Practice Recall Game
+/// Card model for Recall Game
 /// 
 /// Represents a single playing card with all necessary properties
 /// for the Recall game mechanics.

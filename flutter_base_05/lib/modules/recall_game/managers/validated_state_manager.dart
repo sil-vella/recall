@@ -1000,13 +1000,13 @@ class RecallGameStateAccessor {
     }
   }
   
-  /// Check if a specific game is a practice game
+  /// Check if a specific game is a recall game
   bool isPracticeGame(String gameId) {
     final gameType = getGameType(gameId);
     return gameType == 'practice';
   }
   
-  /// Check if the current active game is a practice game
+  /// Check if the current active game is a recall game
   bool isCurrentGamePractice() {
     final currentGameId = getCurrentGameId();
     if (currentGameId.isEmpty) return false;

@@ -1,10 +1,10 @@
-# Practice Game Start Match Logic
+# Recall Game Start Match Logic
 
-This document outlines the backend start match logic adapted for practice games, excluding validation & setup steps that are not needed in practice mode.
+This document outlines the backend start match logic adapted for recall games, excluding validation & setup steps that are not needed in recall mode.
 
 ## 🎮 Overview
 
-The practice game start match process replicates the backend `on_start_match` logic but without WebSocket validation and session management.
+The recall game start match process replicates the backend `on_start_match` logic but without WebSocket validation and session management.
 
 ## 🔄 Step-by-Step Process
 
@@ -106,12 +106,12 @@ The practice game start match process replicates the backend `on_start_match` lo
 ~~// Timer implementation can be added later if needed~~
 ~~```~~
 ~~- **Player Status**: All players already set to `initial_peek` during card dealing~~
-~~- **Game Ready**: Practice game is fully initialized and ready to play~~
+~~- **Game Ready**: Recall game is fully initialized and ready to play~~
 ~~- **Note**: Timer implementation can be added later if needed~~
 
 ## ✅ **ALL STEPS COMPLETED!**
 
-**🎉 The practice game start match logic is now fully implemented!**
+**🎉 The recall game start match logic is now fully implemented!**
 
 - ✅ **Step 1**: Validation & Setup - **COMPLETED**
 - ✅ **Step 2**: Player Management - **COMPLETED**
@@ -122,7 +122,7 @@ The practice game start match process replicates the backend `on_start_match` lo
 - ✅ **Step 7**: Player Status Updates - **COMPLETED**
 - ✅ **Step 8**: Initial Peek Phase - **COMPLETED**
 
-**🚀 The practice game creation now handles all start match logic automatically!**
+**🚀 The recall game creation now handles all start match logic automatically!**
 
 ## 🎯 Key State Changes
 
@@ -161,7 +161,7 @@ The practice game start match process replicates the backend `on_start_match` lo
 
 ## 📝 Implementation Notes
 
-### Practice Game Specific Adaptations:
+### Recall Game Specific Adaptations:
 - **No WebSocket Validation**: Skip session validation and error handling
 - **Direct State Updates**: Use `updatePracticeGameState()` instead of WebSocket events
 - **Local Timer Management**: Handle initial peek timer locally
@@ -170,7 +170,7 @@ The practice game start match process replicates the backend `on_start_match` lo
 ### Key Differences from Backend:
 - **No Session Management**: Direct state updates instead of WebSocket events
 - **No Coordinator Integration**: Simplified error handling
-- **Local Timer Handling**: Practice game manages its own timers
+- **Local Timer Handling**: Recall game manages its own timers
 - **Direct Player Creation**: No need for session-based player creation
 
-This comprehensive initialization ensures the practice game is properly set up with all necessary components before actual gameplay begins!
+This comprehensive initialization ensures the recall game is properly set up with all necessary components before actual gameplay begins!

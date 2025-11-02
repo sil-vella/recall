@@ -295,12 +295,12 @@ class CurrentRoomWidget extends StatelessWidget {
   /// Navigate to game play screen with game data
   void _enterGameRoom(BuildContext context, Map<String, dynamic> gameData) async {
     try {
-      // Clean up practice game state before joining real game
+      // Clean up recall game state before joining real game
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
       final currentUserId = loginState['userId']?.toString() ?? '';
       
-      if (currentUserId == 'practice_user') {
-        Logger().info('CurrentGames: Practice user detected - cleaning up before entering real game', isOn: LOGGING_SWITCH);
+      if (currentUserId == 'recall_user') {
+        Logger().info('CurrentGames: Recall user detected - cleaning up before entering real game', isOn: LOGGING_SWITCH);
         await PracticeGameCoordinator().cleanupPracticeState();
       }
       

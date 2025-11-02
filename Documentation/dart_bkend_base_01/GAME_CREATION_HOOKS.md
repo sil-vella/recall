@@ -102,7 +102,7 @@ The Dart backend uses the `HooksManager` system to respond to room lifecycle eve
 
 | Aspect | Python Backend | Dart Backend |
 |--------|----------------|--------------|
-| Game Logic Location | `GameState` class | `PracticeGameRound` class |
+| Game Logic Location | `GameState` class | `RecallGameRound` class |
 | State Storage | `GameStateManager.active_games` | `GameStateStore` singleton |
 | Hook Registration | `GameStateManager._register_hook_callbacks()` | `RecallGameModule._registerHooks()` |
 | Session Mapping | `GameState.player_sessions` | `WebSocketServer._sessionToUser` |

@@ -79,11 +79,11 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   
   @override
   void deactivate() {
-    // Check if we're navigating away from a practice game
-    if (_previousGameId != null && _previousGameId!.startsWith('practice_game_')) {
-      Logger().info('GamePlay: Navigating away from practice game $_previousGameId - cleaning up', isOn: LOGGING_SWITCH);
+    // Check if we're navigating away from a recall game
+    if (_previousGameId != null && _previousGameId!.startsWith('recall_game_')) {
+      Logger().info('GamePlay: Navigating away from recall game $_previousGameId - cleaning up', isOn: LOGGING_SWITCH);
       
-      // Clean up practice game state
+      // Clean up recall game state
       PracticeGameCoordinator().cleanupPracticeState();
     }
     
@@ -93,8 +93,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   @override
   void dispose() {
     // Additional cleanup on dispose (failsafe)
-    if (_previousGameId != null && _previousGameId!.startsWith('practice_game_')) {
-      Logger().info('GamePlay: Disposing practice game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
+    if (_previousGameId != null && _previousGameId!.startsWith('recall_game_')) {
+      Logger().info('GamePlay: Disposing recall game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
       
       PracticeGameCoordinator().cleanupPracticeState();
     }

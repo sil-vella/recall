@@ -2168,6 +2168,14 @@ class PracticeGameRound {
       _logger.info('Practice: === SPECIAL CARDS WINDOW ===', isOn: LOGGING_SWITCH);
       _logger.info('Practice: DEBUG: special_card_data length: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
       
+      // CRITICAL: Set gamePhase to special_play_window to match Python backend behavior
+      // This ensures same_rank_window phase is fully ended before special_play_window begins
+      // Matches backend's phase transition at game_round.py line 1709
+      _stateCallback.onGameStateChanged({
+        'gamePhase': 'special_play_window',
+      });
+      _logger.info('Practice: Game phase changed to special_play_window (special cards found)', isOn: LOGGING_SWITCH);
+      
       // Count total special cards (stored chronologically)
       final totalSpecialCards = _specialCardData.length;
       _logger.info('Practice: Found $totalSpecialCards special cards played in chronological order', isOn: LOGGING_SWITCH);
@@ -2307,6 +2315,13 @@ class PracticeGameRound {
       _specialCardPlayers.clear();
       
       _logger.info('Practice: Special cards window ended - cleared all special card data', isOn: LOGGING_SWITCH);
+      
+      // CRITICAL: Reset gamePhase back to player_turn before moving to next player
+      // This ensures clean phase transitions and matches backend behavior
+      _stateCallback.onGameStateChanged({
+        'gamePhase': 'player_turn',
+      });
+      _logger.info('Practice: Game phase reset to player_turn after special cards window', isOn: LOGGING_SWITCH);
       
       // Now move to the next player
       _logger.info('Practice: Moving to next player after special cards', isOn: LOGGING_SWITCH);

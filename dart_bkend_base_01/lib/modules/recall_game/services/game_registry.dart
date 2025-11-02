@@ -84,6 +84,29 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
     // Read the full game_state after merge for snapshot
     final state = _store.getState(roomId);
     final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
+    // CRITICAL: If gamePhase is in updates, copy it to game_state['phase'] for client broadcast
+    // Frontend expects gamePhase in game_state['phase'], not at root level
+    if (updates.containsKey('gamePhase')) {
+      final phase = updates['gamePhase']?.toString();
+      if (phase != null) {
+        // Normalize phase names to match frontend expectations
+        // Map Dart practice mode phase names to multiplayer backend phase names
+        String normalizedPhase = phase;
+        if (phase == 'special_play_window') {
+          normalizedPhase = 'special_play_window';
+        } else if (phase == 'same_rank_window') {
+          normalizedPhase = 'same_rank_window';
+        } else if (phase == 'player_turn') {
+          normalizedPhase = 'playing';
+        } else if (phase == 'ending_round') {
+          normalizedPhase = 'ending_round';
+        } else if (phase == 'ending_turn') {
+          normalizedPhase = 'ending_turn';
+        }
+        gameState['phase'] = normalizedPhase;
+        _logger.info('GameStateCallback: Copied gamePhase ($phase) to game_state[phase] ($normalizedPhase) for broadcast', isOn: LOGGING_SWITCH);
+      }
+    }
     // Ensure phase key and playerCount
     gameState['phase'] = gameState['phase'] ?? 'playing';
     gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;

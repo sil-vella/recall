@@ -1781,6 +1781,38 @@ class PracticeGameCoordinator implements GameStateCallback {
         final success = await _gameRound!.handlePlayCard(cardId);
         if (success) {
           Logger().info('Practice: Successfully handled play_card for card $cardId', isOn: LOGGING_SWITCH);
+          
+          // CRITICAL: Trigger comprehensive state update after successful play card for human player
+          // This ensures all widget slices (myHand, centerBoard, opponentsPanel) recompute
+          // Get fresh state after handlePlayCard modifications
+          final currentGames = _getCurrentGamesMap();
+          final updatedGameData = currentGames[currentGameId];
+          final updatedGameDataInner = updatedGameData?['gameData'] as Map<String, dynamic>?;
+          final updatedGameState = updatedGameDataInner?['game_state'] as Map<String, dynamic>?;
+          
+          if (updatedGameState != null) {
+            // CRITICAL: Sync widget-specific states from game state FIRST (matches frontend pattern)
+            // This ensures myHandCards, myDrawnCard, playerStatus, etc. are synced from game state
+            _syncWidgetStatesFromGameState(currentGameId, updatedGameState);
+            
+            // Then update main state with games, discardPile, currentPlayer, etc.
+            final discardPile = updatedGameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+            final currentPlayerFromState = updatedGameState['currentPlayer'] as Map<String, dynamic>?;
+            final currentPlayerStatusFromState = currentPlayerFromState?['status']?.toString() ?? '';
+            
+            // Get fresh games map after widget sync (it may have been updated)
+            final currentGamesAfterSync = _getCurrentGamesMap();
+            
+            updatePracticeGameState({
+              'games': currentGamesAfterSync, // Updated games map with widget data synced
+              'discardPile': discardPile, // Updated discard pile for centerBoard slice
+              'currentPlayer': currentPlayerFromState, // Current player for opponentsPanel slice
+              'currentPlayerStatus': currentPlayerStatusFromState, // Current player status for opponentsPanel slice
+            });
+            
+            Logger().info('Practice: Triggered comprehensive state update after play_card - widget slices should recompute', isOn: LOGGING_SWITCH);
+          }
+          
           return true;
         } else {
           Logger().error('Practice: Failed to handle play_card in PracticeGameRound', isOn: LOGGING_SWITCH);
@@ -1853,6 +1885,36 @@ class PracticeGameCoordinator implements GameStateCallback {
         final success = await _gameRound!.handleSameRankPlay('practice_user', cardId);
         if (success) {
           Logger().info('Practice: Successfully handled same_rank_play for card $cardId', isOn: LOGGING_SWITCH);
+          
+          // CRITICAL: Trigger comprehensive state update after successful same rank play for human player
+          // This ensures all widget slices (myHand, centerBoard, opponentsPanel) recompute
+          // Get fresh state after handleSameRankPlay modifications
+          final currentGames = _getCurrentGamesMap();
+          final updatedGameData = currentGames[currentGameId];
+          final updatedGameDataInner = updatedGameData?['gameData'] as Map<String, dynamic>?;
+          final updatedGameState = updatedGameDataInner?['game_state'] as Map<String, dynamic>?;
+          
+          if (updatedGameState != null) {
+            // CRITICAL: Sync widget-specific states from game state FIRST (matches frontend pattern)
+            // This ensures myHandCards, myDrawnCard, playerStatus, etc. are synced from game state
+            _syncWidgetStatesFromGameState(currentGameId, updatedGameState);
+            
+            // Then update main state with games, discardPile, currentPlayer, etc.
+            final discardPile = updatedGameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+            final currentPlayerFromState = updatedGameState['currentPlayer'] as Map<String, dynamic>?;
+            
+            // Get fresh games map after widget sync (it may have been updated)
+            final currentGamesAfterSync = _getCurrentGamesMap();
+            
+            updatePracticeGameState({
+              'games': currentGamesAfterSync, // Updated games map with widget data synced
+              'discardPile': discardPile, // Updated discard pile for centerBoard slice
+              'currentPlayer': currentPlayerFromState, // Current player for opponentsPanel slice
+            });
+            
+            Logger().info('Practice: Triggered comprehensive state update after same_rank_play - widget slices should recompute', isOn: LOGGING_SWITCH);
+          }
+          
           return true;
         } else {
           Logger().error('Practice: Failed to handle same_rank_play in PracticeGameRound', isOn: LOGGING_SWITCH);
@@ -2029,6 +2091,80 @@ class PracticeGameCoordinator implements GameStateCallback {
     }
   }
 
+  /// Sync widget-specific state from game state (equivalent to frontend's _syncWidgetStatesFromGameState)
+  /// This extracts current user's player data and updates widget-specific state (myHandCards, myDrawnCard, etc.)
+  void _syncWidgetStatesFromGameState(String gameId, Map<String, dynamic> gameState) {
+    try {
+      Logger().info('Practice: Syncing widget states from game state for game $gameId', isOn: LOGGING_SWITCH);
+      
+      // In practice mode, the current user is always 'practice_user'
+      const currentUserId = 'practice_user';
+      
+      // Find player in gameState['players'] matching current user ID
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      Map<String, dynamic>? myPlayer;
+      
+      try {
+        myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
+          (player) => player['id']?.toString() == currentUserId,
+        );
+      } catch (e) {
+        Logger().warning('Practice: Current user not found in players list for widget state sync', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Extract widget-specific data from player
+      final hand = myPlayer['hand'] as List<dynamic>? ?? [];
+      final cardsToPeek = myPlayer['cardsToPeek'] as List<dynamic>? ?? [];
+      final drawnCard = myPlayer['drawnCard'] as Map<String, dynamic>?;
+      
+      // Extract score (can be 'points' or 'score' field)
+      final score = myPlayer['score'] as int? ?? myPlayer['points'] as int? ?? 0;
+      
+      // Extract status
+      final status = myPlayer['status']?.toString() ?? 'unknown';
+      
+      // Determine if it's current player's turn
+      // Check both gameState['currentPlayer'] and player['isCurrentPlayer']
+      final currentPlayerRaw = gameState['currentPlayer'];
+      bool isCurrentPlayer = false;
+      if (currentPlayerRaw is Map<String, dynamic>) {
+        isCurrentPlayer = currentPlayerRaw['id']?.toString() == currentUserId;
+      } else if (currentPlayerRaw is String) {
+        isCurrentPlayer = currentPlayerRaw == currentUserId;
+      } else {
+        isCurrentPlayer = myPlayer['isCurrentPlayer'] == true;
+      }
+      
+      // Get current games map to update
+      final currentGames = _getCurrentGamesMap();
+      
+      // Update games map with widget-specific data
+      if (currentGames.containsKey(gameId)) {
+        final gameData = currentGames[gameId] as Map<String, dynamic>? ?? {};
+        gameData['myHandCards'] = hand;
+        gameData['myDrawnCard'] = drawnCard;
+        gameData['selectedCardIndex'] = -1; // Reset selection after play
+        gameData['isMyTurn'] = isCurrentPlayer;
+        currentGames[gameId] = gameData;
+      }
+      
+      // Update main game state with player information
+      updatePracticeGameState({
+        'games': currentGames, // Updated games map with widget data
+        'playerStatus': status,
+        'myScore': score,
+        'isMyTurn': isCurrentPlayer,
+        'myDrawnCard': drawnCard,
+        'myCardsToPeek': cardsToPeek,
+      });
+      
+      Logger().info('Practice: Widget states synced - hand: ${hand.length} cards, status: $status, isMyTurn: $isCurrentPlayer', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      Logger().error('Practice: Error syncing widget states from game state: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
   /// Add card to discard pile with full data (reusable method)
   /// This ensures the card is added with complete card information for display
   bool addToDiscardPile(Map<String, dynamic> card) {
@@ -2131,6 +2267,7 @@ class PracticeGameCoordinator implements GameStateCallback {
   void onDiscardPileChanged() {
     // The discard pile update is already handled in addToDiscardPile
     // This method is called after direct discard pile modifications in GameRound
+    // CRITICAL: Also update currentPlayer and currentPlayerStatus to ensure all widget slices recompute
     final currentGames = _getCurrentGamesMap();
     final currentGameId = _currentPracticeGameId;
     
@@ -2146,11 +2283,17 @@ class PracticeGameCoordinator implements GameStateCallback {
     }
 
     final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+    final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+    final currentPlayerStatus = currentPlayer?['status']?.toString() ?? '';
     
     updatePracticeGameState({
       'games': currentGames,
       'discardPile': discardPile,
+      'currentPlayer': currentPlayer, // For opponentsPanel slice
+      'currentPlayerStatus': currentPlayerStatus, // For opponentsPanel slice
     });
+    
+    Logger().info('Practice: onDiscardPileChanged triggered comprehensive state update - widget slices should recompute', isOn: LOGGING_SWITCH);
   }
 
   @override

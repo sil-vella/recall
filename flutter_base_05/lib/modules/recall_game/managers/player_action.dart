@@ -1,7 +1,7 @@
 import 'package:recall/tools/logging/logger.dart';
 
 import 'validated_event_emitter.dart';
-import 'validated_state_manager.dart';
+import 'recall_game_state_updater.dart';
 import '../game_logic/practice_match/practice_game.dart';
 
 /// Player action types for the Recall game

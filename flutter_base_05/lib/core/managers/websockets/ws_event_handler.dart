@@ -156,9 +156,9 @@ class WSEventHandler {
       );
       
       // Also reflect ownership in Recall game main state so UI (GameInfoWidget) can gate Start button
+      // Note: isInGame is only stored within games map structure, not as top-level field
       RecallGameHelpers.updateUIState({
         'isRoomOwner': isRoomOwner,
-        'isInGame': true,
       });
       
       // Ensure games map entry reflects ownership immediately

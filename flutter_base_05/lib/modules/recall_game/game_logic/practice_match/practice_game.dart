@@ -12,7 +12,7 @@ import '../../../../core/managers/services_manager.dart';
 import '../models/player.dart';
 import 'practice_game_round.dart';
 import 'practice_instructions.dart';
-import '../../managers/validated_state_manager.dart';
+import '../../managers/recall_game_state_updater.dart';
 import 'utils/deck_factory.dart';
 import 'models/card.dart';
 import 'utils/predefined_hands_loader.dart';

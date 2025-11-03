@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
-import '../utils/field_specifications.dart';
+import '../utils/state_queue_validator.dart';
 
 /// Validated state updater for recall game state management
 /// Ensures all state updates follow consistent structure and validation rules
@@ -13,406 +13,31 @@ class RecallGameStateUpdater {
     return _instance!;
   }
   
-  RecallGameStateUpdater._internal();
+  RecallGameStateUpdater._internal() {
+    // Initialize state queue validator with logger callback
+    final validator = StateQueueValidator.instance;
+    validator.setLogCallback((String message, {bool isError = false}) {
+      if (isError) {
+        _logger.error(message, isOn: LOGGING_SWITCH);
+      } else {
+        _logger.debug(message, isOn: LOGGING_SWITCH);
+      }
+    });
+    
+    // Set update handler to apply validated updates
+    validator.setUpdateHandler((Map<String, dynamic> validatedUpdates) {
+      _applyValidatedUpdates(validatedUpdates);
+    });
+  }
   
   final Logger _logger = Logger();
   static const bool LOGGING_SWITCH = true;
   // Dependencies
   final StateManager _stateManager = StateManager();
+  final StateQueueValidator _validator = StateQueueValidator.instance;
   
-  /// Define the complete state schema with validation rules
-  static const Map<String, RecallStateFieldSpec> _stateSchema = {
-    // User Context
-    'userId': RecallStateFieldSpec(
-      type: String,
-      required: true,
-      description: 'Current user ID from authentication',
-    ),
-    'username': RecallStateFieldSpec(
-      type: String,
-      required: true,
-      description: 'Current username from authentication',
-    ),
-    'playerId': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'Player ID in current game session',
-    ),
-    'isRoomOwner': RecallStateFieldSpec(
-      type: bool,
-      defaultValue: false,
-      description: 'Whether current user is the room owner',
-    ),
-    'isMyTurn': RecallStateFieldSpec(
-      type: bool,
-      defaultValue: false,
-      description: 'Whether it is currently the user\'s turn',
-    ),
-    'turnTimeout': RecallStateFieldSpec(
-      type: int,
-      defaultValue: 30,
-      description: 'Turn timeout duration in seconds',
-    ),
-    'turnStartTime': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'ISO timestamp when the current turn started',
-    ),
-    'playerStatus': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      allowedValues: [
-        'waiting', 'ready', 'playing', 'same_rank_window', 'playing_card', 
-        'drawing_card', 'queen_peek', 'jack_swap', 'peeking', 'initial_peek', 
-        'finished', 'disconnected', 'winner'
-      ],
-      description: 'Current player status (waiting, ready, playing, drawing_card, etc.)',
-    ),
-    'canCallRecall': RecallStateFieldSpec(
-      type: bool,
-      defaultValue: false,
-      description: 'Whether user can call recall in current game state',
-    ),
-    'canPlayCard': RecallStateFieldSpec(
-      type: bool,
-      defaultValue: false,
-      description: 'Whether user can play a card in current game state',
-    ),
-    
-    // Room Context
-    'currentRoomId': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'ID of currently joined room',
-    ),
-    'permission': RecallStateFieldSpec(
-      type: String,
-      allowedValues: ['public', 'private'],
-      defaultValue: 'public',
-      description: 'Room visibility setting',
-    ),
-    'currentSize': RecallStateFieldSpec(
-      type: int,
-      min: 0,
-      max: 12,
-      defaultValue: 0,
-      description: 'Current number of players in room',
-    ),
-    'maxSize': RecallStateFieldSpec(
-      type: int,
-      min: 2,
-      max: 12,
-      defaultValue: 4,
-      description: 'Maximum allowed players in room',
-    ),
-    'minSize': RecallStateFieldSpec(
-      type: int,
-      min: 2,
-      max: 8,
-      defaultValue: 2,
-      description: 'Minimum required players to start game',
-    ),
-    'isInRoom': RecallStateFieldSpec(
-      type: bool,
-      defaultValue: false,
-      description: 'Whether user is currently in a room',
-    ),
-    
-    // Game Context
-    'currentGameId': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'ID of currently active game',
-    ),
-    'games': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {},
-      description: 'Map of games by ID with their complete state data',
-    ),
-    
-    // Room Lists
-    'myCreatedRooms': RecallStateFieldSpec(
-      type: List,
-      defaultValue: [],
-      description: 'List of rooms created by the current user',
-    ),
-    'currentRoom': RecallStateFieldSpec(
-      type: Map,
-      required: false,
-      description: 'Current room information',
-    ),
-    
-    // Game Tracking (Map<String, Map<String, dynamic>>)
-    'activeGames': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {},
-      description: 'Map of active games by ID with their status and metadata',
-    ),
-    'availableGames': RecallStateFieldSpec(
-      type: List,
-      defaultValue: [],
-      description: 'List of available games that can be joined',
-    ),
-    
-    // 🎯 NEW: Joined Games Tracking (Raw Data)
-    'joinedGames': RecallStateFieldSpec(
-      type: List,
-      defaultValue: [],
-      description: 'List of games the user is currently in',
-    ),
-    'joinedGamesSlice': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'games': [],
-        'totalGames': 0,
-        'timestamp': '',
-        'isLoadingGames': false,
-      },
-      description: 'Joined games widget state slice',
-    ),
-    'totalJoinedGames': RecallStateFieldSpec(
-      type: int,
-      defaultValue: 0,
-      description: 'Total number of games the user is currently in',
-    ),
-    'joinedGamesTimestamp': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'Timestamp of last joined games update',
-    ),
-    
-    // Widget Slices
-    'actionBar': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'showStartButton': false,
-        'canPlayCard': false,
-        'canCallRecall': false,
-        'isGameStarted': false,
-      },
-      description: 'Action bar widget state slice',
-    ),
-    'statusBar': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'currentPhase': 'waiting',
-        'turnInfo': '',
-        'playerCount': 0,
-        'gameStatus': 'inactive',
-        'turnNumber': 0,
-        'roundNumber': 1,
-      },
-      description: 'Status bar widget state slice',
-    ),
-    'myHand': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'cards': [],
-        'selectedIndex': -1,
-        'selectedCard': null,
-      },
-      description: 'My hand widget state slice',
-    ),
-    'centerBoard': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'drawPileCount': 0,
-        'topDiscard': null,
-        'canDrawFromDeck': false,
-        'canTakeFromDiscard': false,
-      },
-      description: 'Center board widget state slice',
-    ),
-    'opponentsPanel': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'opponents': [],
-        'currentTurnIndex': -1,
-      },
-      description: 'Opponents panel widget state slice',
-    ),
-    'gameInfo': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'currentGameId': '',
-        'currentSize': 0,
-        'maxSize': 4,
-        'gamePhase': 'waiting',
-        'gameStatus': 'inactive',
-        'isRoomOwner': false,
-        'isInGame': false,
-      },
-      description: 'Game info widget state slice',
-    ),
-    'gameState': RecallStateFieldSpec(
-      type: Map,
-      required: false,
-      description: 'Full game state object',
-    ),
-    'drawPileCount': RecallStateFieldSpec(
-      type: int,
-      defaultValue: 0,
-      description: 'Number of cards in draw pile',
-    ),
-    'discardPile': RecallStateFieldSpec(
-      type: List,
-      defaultValue: [],
-      description: 'Cards in discard pile',
-    ),
-    'opponentPlayers': RecallStateFieldSpec(
-      type: List,
-      defaultValue: [],
-      description: 'List of opponent players',
-    ),
-    'currentPlayerIndex': RecallStateFieldSpec(
-      type: int,
-      defaultValue: -1,
-      description: 'Index of current player',
-    ),
-    'currentGameData': RecallStateFieldSpec(
-      type: Map,
-      required: false,
-      description: 'Current game data object',
-    ),
-    'myScore': RecallStateFieldSpec(
-      type: int,
-      defaultValue: 0,
-      description: 'Current player\'s total score',
-    ),
-    'myDrawnCard': RecallStateFieldSpec(
-      type: Map,
-      required: false,
-      description: 'Most recently drawn card for current player',
-    ),
-    'myCardsToPeek': RecallStateFieldSpec(
-      type: List,
-      defaultValue: [],
-      description: 'Cards the current player has peeked at (with full data)',
-    ),
-    'cards_to_peek': RecallStateFieldSpec(
-      type: List,
-      defaultValue: [],
-      description: 'List of cards available for peeking (Queen peek, initial peek, etc.)',
-    ),
-    
-    // Message State
-    'messages': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'session': [],
-        'rooms': {},
-      },
-      description: 'Message boards for session and rooms',
-    ),
-    'actionError': RecallStateFieldSpec(
-      type: Map,
-      required: false,
-      description: 'Current action error to display to user',
-    ),
-    
-    // UI State
-    'selectedCard': RecallStateFieldSpec(
-      type: Map,
-      required: false,
-      description: 'Currently selected card in hand',
-    ),
-    'selectedCardIndex': RecallStateFieldSpec(
-      type: int,
-      required: false,
-      description: 'Index of currently selected card in hand',
-    ),
-    
-    // Connection State
-    'isConnected': RecallStateFieldSpec(
-      type: bool,
-      defaultValue: false,
-      description: 'Whether WebSocket is connected',
-    ),
-    'isLoading': RecallStateFieldSpec(
-      type: bool,
-      defaultValue: false,
-      description: 'Whether a loading operation is in progress',
-    ),
-    'lastError': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'Last error message, if any',
-    ),
-    'lastUpdated': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'Timestamp of last state update',
-    ),
-    
-    // Game State Fields
-    'isGameActive': RecallStateFieldSpec(
-      type: bool,
-      defaultValue: false,
-      description: 'Whether a game is currently active',
-    ),
-    'playerCount': RecallStateFieldSpec(
-      type: int,
-      defaultValue: 0,
-      description: 'Number of players in current game',
-    ),
-    'roundNumber': RecallStateFieldSpec(
-      type: int,
-      defaultValue: 1,
-      description: 'Current round number in the game',
-    ),
-    'currentPlayer': RecallStateFieldSpec(
-      type: Map,
-      required: false,
-      nullable: true,
-      description: 'Current player object with id, name, etc.',
-    ),
-    'currentPlayerStatus': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'Status of current player',
-    ),
-    'roundStatus': RecallStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'Status of current round',
-    ),
-    
-    // Game Phase Field - Add this missing field
-    'gamePhase': RecallStateFieldSpec(
-      type: String,
-      defaultValue: 'waiting',
-      description: 'Current game phase (waiting, playing, finished, etc.)',
-      allowedValues: [
-        // Direct backend phase values (from GamePhase enum)
-        'waiting_for_players',
-        'dealing_cards',
-        'initial_peek',
-        'player_turn',
-        'same_rank_window',
-        'special_play_window',
-        'queen_peek_window',
-        'turn_pending_events',
-        'ending_round',
-        'ending_turn',
-        'recall_called',
-        'game_ended',
-        // Legacy mapped values (for backward compatibility)
-        'waiting',
-        'setup', 
-        'playing',
-        'out_of_turn',
-        'recall',
-        'finished'
-      ],
-    ),
-    
-    // Game Status Field - Add this missing field
-    'gameStatus': RecallStateFieldSpec(
-      type: String,
-      defaultValue: 'inactive',
-      description: 'Current game status (inactive, active, finished, etc.)',
-    ),
-  };
+  // Note: State schema validation has been moved to StateQueueValidator
+  // See state_queue_validator.dart for the complete schema
   
   /// Widget slice dependencies - only rebuild when these fields change
   static const Map<String, Set<String>> _widgetDependencies = {
@@ -426,11 +51,23 @@ class RecallGameStateUpdater {
   };
   
   /// Update state with validation
+  /// Uses StateQueueValidator for validation, then applies widget slice computation
   void updateState(Map<String, dynamic> updates) {
     try {
-      // 🎯 Validate each field before updating
-      final validatedUpdates = _validateAndParseStateUpdates(updates);
+      // Use StateQueueValidator to validate and queue the update
+      // The validator will call our update handler with validated updates
+      _validator.enqueueUpdate(updates);
       
+    } catch (e) {
+      _logger.error('RecallGameStateUpdater: State update failed: $e', isOn: LOGGING_SWITCH);
+      rethrow;
+    }
+  }
+  
+  /// Apply validated updates with widget slice computation
+  /// This is called by StateQueueValidator after validation
+  void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
+    try {
       // Get current state
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       
@@ -491,84 +128,9 @@ class RecallGameStateUpdater {
       _stateManager.updateModuleState('recall_game', updatedStateWithSlices);
       
     } catch (e) {
-      _logger.error('RecallGameStateUpdater: State update failed: $e', isOn: LOGGING_SWITCH);
+      _logger.error('RecallGameStateUpdater: Failed to apply validated updates: $e', isOn: LOGGING_SWITCH);
       rethrow;
     }
-  }
-  
-  /// Validate and parse state updates
-  Map<String, dynamic> _validateAndParseStateUpdates(Map<String, dynamic> updates) {
-    final validatedUpdates = <String, dynamic>{};
-    
-    for (final entry in updates.entries) {
-      final key = entry.key;
-      final value = entry.value;
-      
-      // 🚨 Check if field exists in schema
-      final fieldSpec = _stateSchema[key];
-      if (fieldSpec == null) {
-        final error = 'Unknown state field: "$key". Allowed fields: ${_stateSchema.keys.join(', ')}';
-        _logger.error('RecallGameStateUpdater: Schema validation failed - $error', isOn: LOGGING_SWITCH);
-        throw RecallStateException(error, fieldName: key);
-      }
-      
-      // 🚨 Validate field value
-      try {
-        final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
-        validatedUpdates[key] = validatedValue;
-      } catch (e) {
-        _logger.error('RecallGameStateUpdater: Field validation failed for "$key": $e', isOn: LOGGING_SWITCH);
-        rethrow;
-      }
-    }
-    
-    return validatedUpdates;
-  }
-  
-  /// Validate individual state field value
-  dynamic _validateStateFieldValue(String key, dynamic value, RecallStateFieldSpec spec) {
-    // Handle null values
-    if (value == null) {
-      if (spec.required) {
-        final error = 'Field "$key" is required and cannot be null';
-        _logger.error('RecallGameStateUpdater: $error', isOn: LOGGING_SWITCH);
-        throw RecallStateException(error, fieldName: key);
-      }
-      // If field is nullable, allow null values
-      if (spec.nullable == true) {
-        return null;
-      }
-      return spec.defaultValue;
-    }
-    
-    // Type validation
-    if (!ValidationUtils.isValidType(value, spec.type)) {
-      final error = 'Field "$key" must be of type ${spec.type}, got ${value.runtimeType}';
-      _logger.error('RecallGameStateUpdater: $error', isOn: LOGGING_SWITCH);
-      throw RecallStateException(error, fieldName: key);
-    }
-    
-    // Allowed values validation
-    if (spec.allowedValues != null && !ValidationUtils.isAllowedValue(value, spec.allowedValues!)) {
-      final error = 'Field "$key" value "$value" is not allowed. Allowed values: ${spec.allowedValues!.join(', ')}';
-      _logger.error('RecallGameStateUpdater: $error', isOn: LOGGING_SWITCH);
-      throw RecallStateException(error, fieldName: key);
-    }
-    
-    // Range validation for numbers
-    if (value is int) {
-      if (!ValidationUtils.isValidRange(value, min: spec.min, max: spec.max)) {
-        final rangeDesc = [
-          if (spec.min != null) 'min: ${spec.min}',
-          if (spec.max != null) 'max: ${spec.max}',
-        ].join(', ');
-        final error = 'Field "$key" value $value is out of range ($rangeDesc)';
-        _logger.error('RecallGameStateUpdater: $error', isOn: LOGGING_SWITCH);
-        throw RecallStateException(error, fieldName: key);
-      }
-    }
-    
-    return value;
   }
   
   /// Update widget slices based on dependency tracking

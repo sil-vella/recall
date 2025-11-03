@@ -1,5 +1,6 @@
 import '../recall_game_round.dart';
 import '../game_state_callback.dart';
+import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 import '../../../server/websocket_server.dart';
 import '../../../utils/server_logger.dart';
@@ -36,10 +37,24 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   final String roomId;
   final WebSocketServer server;
   final _store = GameStateStore.instance;
-  // ignore: unused_field
   final Logger _logger = Logger();
+  final StateQueueValidator _validator = StateQueueValidator.instance;
 
-  _ServerGameStateCallbackImpl(this.roomId, this.server);
+  _ServerGameStateCallbackImpl(this.roomId, this.server) {
+    // Initialize state queue validator with logger callback
+    _validator.setLogCallback((String message, {bool isError = false}) {
+      if (isError) {
+        _logger.error(message, isOn: LOGGING_SWITCH);
+      } else {
+        _logger.info(message, isOn: LOGGING_SWITCH);
+      }
+    });
+    
+    // Set update handler to apply validated updates to GameStateStore
+    _validator.setUpdateHandler((Map<String, dynamic> validatedUpdates) {
+      _applyValidatedUpdates(validatedUpdates);
+    });
+  }
 
   @override
   void onPlayerStatusChanged(String status, {String? playerId, bool updateMainState = true, bool triggerInstructions = false}) {
@@ -79,15 +94,23 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
 
   @override
   void onGameStateChanged(Map<String, dynamic> updates) {
+    // Use StateQueueValidator to validate and queue the update
+    // The validator will call our update handler with validated updates
+    _validator.enqueueUpdate(updates);
+  }
+  
+  /// Apply validated updates to GameStateStore and broadcast
+  /// This is called by StateQueueValidator after validation
+  void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
     // Merge into state root
-    _store.mergeRoot(roomId, updates);
+    _store.mergeRoot(roomId, validatedUpdates);
     // Read the full game_state after merge for snapshot
     final state = _store.getState(roomId);
     final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
     // CRITICAL: If gamePhase is in updates, copy it to game_state['phase'] for client broadcast
     // Frontend expects gamePhase in game_state['phase'], not at root level
-    if (updates.containsKey('gamePhase')) {
-      final phase = updates['gamePhase']?.toString();
+    if (validatedUpdates.containsKey('gamePhase')) {
+      final phase = validatedUpdates['gamePhase']?.toString();
       if (phase != null) {
         // Normalize phase names to match frontend expectations
         // Map Dart recall mode phase names to multiplayer backend phase names

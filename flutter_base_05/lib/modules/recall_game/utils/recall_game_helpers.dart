@@ -1,7 +1,7 @@
 import '../../../core/managers/module_manager.dart';
 import '../../../modules/connections_api_module/connections_api_module.dart';
 import '../managers/validated_event_emitter.dart';
-import '../managers/validated_state_manager.dart';
+import '../managers/recall_game_state_updater.dart';
 
 /// Convenient helper methods for recall game operations
 /// Provides type-safe, validated methods for common game actions

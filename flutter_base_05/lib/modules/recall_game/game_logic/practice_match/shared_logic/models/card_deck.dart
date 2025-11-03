@@ -1,3 +1,4 @@
+import '../../shared_imports.dart';
 import 'card.dart';
 
 /// CardDeck model for Recall Game
@@ -145,3 +146,4 @@ class CardDeck {
   @override
   String toString() => 'CardDeck(${cards.length} cards)';
 }
+

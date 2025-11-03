@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:math';
-import '../../recall_game/recall_game_round.dart';
+import '../../recall_game/shared_logic/recall_game_round.dart';
 import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
 import '../../../server/room_manager.dart';
 import '../../../server/websocket_server.dart';
 import '../../../utils/server_logger.dart';
-import '../utils/deck_factory.dart';
-import '../models/card.dart';
+import '../shared_logic/utils/deck_factory.dart';
+import '../shared_logic/models/card.dart';
 
 const bool LOGGING_SWITCH = true;
 

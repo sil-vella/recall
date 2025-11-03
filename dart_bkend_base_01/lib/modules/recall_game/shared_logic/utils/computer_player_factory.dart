@@ -1,7 +1,7 @@
-import 'dart:math';
-import 'package:recall/tools/logging/logger.dart';
+import '../../shared_imports.dart';
 
-import 'computer_player_config_parser.dart';
+// Platform-specific import - must be imported from outside shared_logic
+import '../../utils/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
 const bool LOGGING_SWITCH = true;

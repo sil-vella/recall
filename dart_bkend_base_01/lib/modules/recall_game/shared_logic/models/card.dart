@@ -1,3 +1,5 @@
+import '../../shared_imports.dart';
+
 /// Card model for Recall Game
 /// 
 /// Represents a single playing card with all necessary properties

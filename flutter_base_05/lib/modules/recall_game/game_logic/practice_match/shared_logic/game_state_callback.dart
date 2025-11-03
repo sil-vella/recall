@@ -1,3 +1,5 @@
+import '../shared_imports.dart';
+
 /// Game State Callback Interface
 ///
 /// This interface abstracts the communication layer between GameRound and
@@ -46,3 +48,4 @@ abstract class GameStateCallback {
   /// Returns the current games map from state
   Map<String, dynamic> get currentGamesMap;
 }
+

@@ -1,3 +1,5 @@
+import '../shared_imports.dart';
+
 /// Game State Callback Interface
 ///
 /// This interface abstracts the communication layer between GameRound and

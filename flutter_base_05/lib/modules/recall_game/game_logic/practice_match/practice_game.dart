@@ -10,13 +10,13 @@ import '../../../../core/managers/state_manager.dart';
 import '../../../../core/services/shared_preferences.dart';
 import '../../../../core/managers/services_manager.dart';
 import '../models/player.dart';
-import 'practice_game_round.dart';
+import 'shared_logic/recall_game_round.dart';
 import 'practice_instructions.dart';
 import '../../managers/recall_game_state_updater.dart';
-import 'utils/deck_factory.dart';
-import 'models/card.dart';
+import 'shared_logic/utils/deck_factory.dart';
+import 'shared_logic/models/card.dart';
 import 'utils/predefined_hands_loader.dart';
-import 'game_state_callback.dart';
+import 'shared_logic/game_state_callback.dart';
 
 const bool LOGGING_SWITCH = true;
 

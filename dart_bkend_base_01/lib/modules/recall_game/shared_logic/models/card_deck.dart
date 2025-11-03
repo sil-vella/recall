@@ -1,3 +1,4 @@
+import '../../shared_imports.dart';
 import 'card.dart';
 
 /// CardDeck model for Recall Game

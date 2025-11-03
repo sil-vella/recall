@@ -9,11 +9,11 @@ from typing import Optional, Dict, Any, List
 from tools.logger.custom_logging import custom_log
 from core.modules.base_module import BaseModule
 from core.managers.jwt_manager import JWTManager, TokenType
-from .game_logic.game_state import GameStateManager
-from .game_logic.game_event_coordinator import GameEventCoordinator
+# Game logic moved to Dart backend - imports removed
+# from .game_logic.game_state import GameStateManager
+# from .game_logic.game_event_coordinator import GameEventCoordinator
 from flask import request, jsonify
 import time
-# RecallGameplayManager consolidated into GameStateManager
 
 
 class RecallGameMain(BaseModule):
@@ -39,21 +39,13 @@ class RecallGameMain(BaseModule):
             if not self.websocket_manager:
                 return False
             
-            # Initialize core components
-            self.game_state_manager = GameStateManager()
-            
-            # Initialize game state manager with WebSocket support
-            self.game_state_manager.initialize(self.app_manager, None)
-            
-            # Initialize game event coordinator
-            self.game_event_coordinator = GameEventCoordinator(self.game_state_manager, self.websocket_manager)
-            
-            # Attach coordinator and game state manager to app_manager so other modules can access them
-            setattr(self.app_manager, 'game_event_coordinator', self.game_event_coordinator)
-            setattr(self.app_manager, 'game_state_manager', self.game_state_manager)
-            
-            # Register WebSocket event listeners for game events
-            self.game_event_coordinator.register_game_event_listeners()
+            # Game logic moved to Dart backend - no longer initializing GameStateManager or GameEventCoordinator
+            # self.game_state_manager = GameStateManager()
+            # self.game_state_manager.initialize(self.app_manager, None)
+            # self.game_event_coordinator = GameEventCoordinator(self.game_state_manager, self.websocket_manager)
+            # setattr(self.app_manager, 'game_event_coordinator', self.game_event_coordinator)
+            # setattr(self.app_manager, 'game_state_manager', self.game_state_manager)
+            # self.game_event_coordinator.register_game_event_listeners()
             
             # Register routes now that Flask app is available
             self.register_routes()
@@ -122,13 +114,14 @@ class RecallGameMain(BaseModule):
                     "error": "Token validation failed"
                 }), 401
             
-            # Get available games from game state manager
-            available_games = self.game_state_manager.get_available_games()
+            # Game logic moved to Dart backend - return empty list
+            # Games are now managed by the Dart backend WebSocket server
+            available_games = []
             
-            # Return success response with available games
+            # Return success response with empty games list (Dart backend handles game management)
             response_data = {
                 "success": True,
-                "message": f"Found {len(available_games)} available games",
+                "message": "Game management moved to Dart backend - no games available via Python API",
                 "games": available_games,
                 "count": len(available_games),
                 "timestamp": time.time()
@@ -185,32 +178,23 @@ class RecallGameMain(BaseModule):
             
             room_id = data['room_id']
             
-            # Get game info from game state manager (games use room_id as game_id)
-            game = self.game_state_manager.get_game(room_id)
-            
-            if not game:
+            # Game logic moved to Dart backend - return error indicating Dart backend should be used
+            # Get room info from WebSocket manager to check if room exists
+            room_info = self.websocket_manager.get_room_info(room_id)
+            if not room_info:
                 return jsonify({
                     "success": False,
-                    "message": f"Game '{room_id}' not found",
-                    "error": "Game does not exist"
+                    "message": f"Room '{room_id}' not found",
+                    "error": "Room does not exist"
                 }), 404
             
-            # Convert game to Flutter-compatible format using GameStateManager's method
-            game_info = self.game_state_manager._to_flutter_game_data(game)
-            
-            # Get room info from WebSocket manager to include permission and password requirement
-            room_info = self.websocket_manager.get_room_info(room_id)
-            if room_info:
-                # Add room permission info to game info
-                game_info['room_permission'] = room_info.get('permission', 'public')
-                game_info['requires_password'] = room_info.get('permission') == 'private'
-                # Don't include actual password for security
-            
-            # Return success response with game info
+            # Return response indicating game info is managed by Dart backend
             response_data = {
                 "success": True,
-                "message": f"Game '{room_id}' found",
-                "game": game_info,
+                "message": "Game info is managed by Dart backend - use WebSocket connection",
+                "room_id": room_id,
+                "room_permission": room_info.get('permission', 'public'),
+                "requires_password": room_info.get('permission') == 'private',
                 "timestamp": time.time()
             }
             return jsonify(response_data), 200
@@ -223,9 +207,9 @@ class RecallGameMain(BaseModule):
             }), 500
     
     
-    def get_game_event_coordinator(self) -> Optional[GameEventCoordinator]:
-        """Get the game event coordinator"""
-        return self.game_event_coordinator if self._initialized else None
+    def get_game_event_coordinator(self) -> Optional[None]:
+        """Get the game event coordinator (deprecated - game logic moved to Dart backend)"""
+        return None
     
     def is_initialized(self) -> bool:
         """Check if the Recall game backend is initialized"""
@@ -242,20 +226,14 @@ class RecallGameMain(BaseModule):
         
         try:
             websocket_health = 'healthy' if self.websocket_manager else 'unhealthy'
-            state_manager_health = 'healthy' if self.game_state_manager else 'unhealthy'
-            event_coordinator_health = 'healthy' if self.game_event_coordinator else 'unhealthy'
+            # Game logic moved to Dart backend - no longer checking game_state_manager or event_coordinator
             
             return {
-                'status': 'healthy' if all([
-                    websocket_health == 'healthy',
-                    state_manager_health == 'healthy',
-                    event_coordinator_health == 'healthy'
-                ]) else 'degraded',
+                'status': 'healthy' if websocket_health == 'healthy' else 'degraded',
                 'component': 'recall_game',
                 'details': {
                     'websocket_manager': websocket_health,
-                    'game_state_manager': state_manager_health,
-                    'game_event_coordinator': event_coordinator_health
+                    'game_logic': 'moved_to_dart_backend'
                 }
             }
             

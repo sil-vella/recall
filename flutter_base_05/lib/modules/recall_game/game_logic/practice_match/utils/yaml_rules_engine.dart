@@ -6,56 +6,57 @@ const bool LOGGING_SWITCH = true;
 /// YAML Rules Engine - Generic interpreter for YAML-defined decision rules
 class YamlRulesEngine {
   final Random _random = Random();
+  final Logger _logger = Logger();
   
   /// Execute YAML rules and return selected card ID
   String executeRules(List<dynamic> rules, Map<String, dynamic> gameData, bool shouldPlayOptimal) {
-    Logger().info('Recall: DEBUG - YamlRulesEngine.executeRules called with ${rules.length} rules, shouldPlayOptimal: $shouldPlayOptimal', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG - YamlRulesEngine.executeRules called with ${rules.length} rules, shouldPlayOptimal: $shouldPlayOptimal', isOn: LOGGING_SWITCH);
     
     // Sort rules by priority
     final sortedRules = List<Map<String, dynamic>>.from(rules)
       ..sort((a, b) => (a['priority'] ?? 999).compareTo(b['priority'] ?? 999));
     
-    Logger().info('Recall: DEBUG - Sorted rules by priority: ${sortedRules.map((r) => '${r['name']} (${r['priority']})').join(', ')}', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG - Sorted rules by priority: ${sortedRules.map((r) => '${r['name']} (${r['priority']})').join(', ')}', isOn: LOGGING_SWITCH);
     
     // If not playing optimally, skip to last rule (random fallback)
     if (!shouldPlayOptimal && sortedRules.isNotEmpty) {
       final lastRule = sortedRules.last;
-      Logger().info('Recall: DEBUG - Not playing optimally, using last rule: ${lastRule['name']}', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Not playing optimally, using last rule: ${lastRule['name']}', isOn: LOGGING_SWITCH);
       return _executeAction(lastRule['action'], gameData);
     }
     
     // Evaluate rules in priority order
     for (final rule in sortedRules) {
       final ruleName = rule['name'] ?? 'unnamed';
-      Logger().info('Recall: DEBUG - Evaluating rule: $ruleName', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Evaluating rule: $ruleName', isOn: LOGGING_SWITCH);
       
       final condition = rule['condition'] as Map<String, dynamic>?;
       if (condition != null) {
         final conditionResult = _evaluateCondition(condition, gameData);
-        Logger().info('Recall: DEBUG - Rule $ruleName condition result: $conditionResult', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - Rule $ruleName condition result: $conditionResult', isOn: LOGGING_SWITCH);
         
         if (conditionResult) {
           final action = rule['action'] as Map<String, dynamic>?;
           if (action != null) {
-            Logger().info('Recall: DEBUG - Rule $ruleName condition passed, executing action', isOn: LOGGING_SWITCH);
+            _logger.info('Recall: DEBUG - Rule $ruleName condition passed, executing action', isOn: LOGGING_SWITCH);
             return _executeAction(action, gameData);
           }
         }
       }
     }
     
-    Logger().info('Recall: DEBUG - No rules matched, using fallback logic', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG - No rules matched, using fallback logic', isOn: LOGGING_SWITCH);
     
     // Ultimate fallback: random from playable cards
     final playableCards = gameData['playable_cards'] as List<dynamic>? ?? [];
     if (playableCards.isNotEmpty) {
-      Logger().info('Recall: DEBUG - Using playable cards fallback: ${playableCards.length} cards', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Using playable cards fallback: ${playableCards.length} cards', isOn: LOGGING_SWITCH);
       return playableCards[_random.nextInt(playableCards.length)].toString();
     }
     
     // Last resort: random from available cards
     final availableCards = gameData['available_cards'] as List<dynamic>? ?? [];
-    Logger().info('Recall: DEBUG - Using available cards fallback: ${availableCards.length} cards', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG - Using available cards fallback: ${availableCards.length} cards', isOn: LOGGING_SWITCH);
     return availableCards[_random.nextInt(availableCards.length)].toString();
   }
   
@@ -136,11 +137,11 @@ class YamlRulesEngine {
     final source = action['source']?.toString() ?? 'playable_cards';
     final filters = action['filters'] as List<dynamic>? ?? [];
     
-    Logger().info('Recall: DEBUG - _executeAction called with type: $type, source: $source, filters: ${filters.length}', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG - _executeAction called with type: $type, source: $source, filters: ${filters.length}', isOn: LOGGING_SWITCH);
     
     // Get source data
     List<dynamic> sourceData = gameData[source] as List<dynamic>? ?? [];
-    Logger().info('Recall: DEBUG - Initial source data from $source: ${sourceData.length} items', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG - Initial source data from $source: ${sourceData.length} items', isOn: LOGGING_SWITCH);
     
     // CRITICAL: Always filter out null cards and collection cards from any source
     // Get collection card IDs from gameData
@@ -165,21 +166,21 @@ class YamlRulesEngine {
         })
         .toList();
     
-    Logger().info('Recall: DEBUG - Source data after null/collection filtering: ${sourceData.length} items', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG - Source data after null/collection filtering: ${sourceData.length} items', isOn: LOGGING_SWITCH);
     
     // Apply filters
     for (final filter in filters) {
       if (filter is Map<String, dynamic>) {
-        Logger().info('Recall: DEBUG - Applying filter: ${filter['type']}', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - Applying filter: ${filter['type']}', isOn: LOGGING_SWITCH);
         sourceData = _applyFilter(sourceData, filter, gameData);
-        Logger().info('Recall: DEBUG - After filter, source data: ${sourceData.length} items', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - After filter, source data: ${sourceData.length} items', isOn: LOGGING_SWITCH);
       }
     }
     
     if (sourceData.isEmpty) {
       // Fallback to playable cards
       sourceData = gameData['playable_cards'] as List<dynamic>? ?? [];
-      Logger().info('Recall: DEBUG - Source data empty, using playable cards fallback: ${sourceData.length} items', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Source data empty, using playable cards fallback: ${sourceData.length} items', isOn: LOGGING_SWITCH);
       
       // Filter fallback data too
       sourceData = sourceData
@@ -195,7 +196,7 @@ class YamlRulesEngine {
     if (sourceData.isEmpty) {
       // Last resort: available cards
       sourceData = gameData['available_cards'] as List<dynamic>? ?? [];
-      Logger().info('Recall: DEBUG - Still empty, using available cards fallback: ${sourceData.length} items', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Still empty, using available cards fallback: ${sourceData.length} items', isOn: LOGGING_SWITCH);
       
       // Filter fallback data too (but this shouldn't be used if playable_cards exists)
       sourceData = sourceData
@@ -209,7 +210,7 @@ class YamlRulesEngine {
     }
     
     if (sourceData.isEmpty) {
-      Logger().warning('Recall: DEBUG - All fallbacks failed, no cards available!', isOn: LOGGING_SWITCH);
+      _logger.warning('Recall: DEBUG - All fallbacks failed, no cards available!', isOn: LOGGING_SWITCH);
       return ''; // Return empty string to indicate no card available
     }
     
@@ -218,32 +219,32 @@ class YamlRulesEngine {
     switch (type) {
       case 'select_random':
         result = sourceData[_random.nextInt(sourceData.length)].toString();
-        Logger().info('Recall: DEBUG - select_random result: $result', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - select_random result: $result', isOn: LOGGING_SWITCH);
         break;
       
       case 'select_highest_points':
         result = _selectHighestPoints(sourceData, gameData);
-        Logger().info('Recall: DEBUG - select_highest_points result: $result', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - select_highest_points result: $result', isOn: LOGGING_SWITCH);
         break;
       
       case 'select_lowest_points':
         result = _selectLowestPoints(sourceData, gameData);
-        Logger().info('Recall: DEBUG - select_lowest_points result: $result', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - select_lowest_points result: $result', isOn: LOGGING_SWITCH);
         break;
       
       case 'select_first':
         result = sourceData.first.toString();
-        Logger().info('Recall: DEBUG - select_first result: $result', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - select_first result: $result', isOn: LOGGING_SWITCH);
         break;
       
       case 'select_last':
         result = sourceData.last.toString();
-        Logger().info('Recall: DEBUG - select_last result: $result', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - select_last result: $result', isOn: LOGGING_SWITCH);
         break;
       
       default:
         result = sourceData[_random.nextInt(sourceData.length)].toString();
-        Logger().info('Recall: DEBUG - default action result: $result', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: DEBUG - default action result: $result', isOn: LOGGING_SWITCH);
         break;
     }
     

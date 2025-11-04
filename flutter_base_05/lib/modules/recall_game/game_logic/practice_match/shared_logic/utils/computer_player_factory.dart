@@ -216,6 +216,23 @@ class ComputerPlayerFactory {
     };
   }
 
+  /// Get computer player decision for collect from discard event
+  /// Note: Rank matching is done in Dart before this method is called
+  /// This method only handles AI decision (collect or not)
+  Map<String, dynamic> getCollectFromDiscardDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
+    final decisionDelay = config.getDecisionDelay(difficulty);
+    
+    // For now, return empty decision (YAML not implemented yet)
+    // Future: Will use YAML rules to determine if computer should collect
+    return {
+      'action': 'collect_from_discard',
+      'collect': false, // YAML not implemented yet - will be true/false based on YAML rules
+      'delay_seconds': decisionDelay,
+      'difficulty': difficulty,
+      'reasoning': 'Collect from discard decision (YAML not implemented yet)',
+    };
+  }
+
   /// Select a card based on strategy and evaluation weights
   String _selectCard(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState) {
     _logger.info('Recall: DEBUG - _selectCard called with ${availableCards.length} available cards', isOn: LOGGING_SWITCH);

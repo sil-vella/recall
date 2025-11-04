@@ -1399,6 +1399,9 @@ class PracticeGameCoordinator implements GameStateCallback {
     collectionRankCards.add(selectedCardForCollection); // Already has full card data
     computerPlayer['collection_rank_cards'] = collectionRankCards;
     
+    // Update player's collection_rank to match the selected card's rank
+    computerPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
+    
     Logger().info('Recall: AI ${computerPlayer['name']} peeked at cards at positions $indices', isOn: LOGGING_SWITCH);
     Logger().info('Recall: AI ${computerPlayer['name']} selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
     

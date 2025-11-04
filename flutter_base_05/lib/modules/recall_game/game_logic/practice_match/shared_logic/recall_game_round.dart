@@ -400,6 +400,9 @@ class RecallGameRound {
         case 'queen_peek':
           decision = _computerPlayerFactory!.getQueenPeekDecision(difficulty, gameState, playerId);
           break;
+        case 'collect_from_discard':
+          decision = _computerPlayerFactory!.getCollectFromDiscardDecision(difficulty, gameState, playerId);
+          break;
         default:
           _logger.warning('Recall: Unknown event for computer action: $eventName', isOn: LOGGING_SWITCH);
           _moveToNextPlayer();
@@ -527,6 +530,23 @@ class RecallGameRound {
           } else {
             _logger.info('Recall: Computer decided not to use Queen peek', isOn: LOGGING_SWITCH);
             _moveToNextPlayer();
+          }
+          break;
+          
+        case 'collect_from_discard':
+          final shouldCollect = decision['collect'] as bool? ?? false;
+          if (shouldCollect) {
+            final success = await handleCollectFromDiscard(playerId);
+            if (!success) {
+              _logger.error('Recall: Computer player $playerId failed to collect from discard', isOn: LOGGING_SWITCH);
+              // Note: No status change needed - player continues in current state
+            } else {
+              _logger.info('Recall: Computer player $playerId successfully collected from discard', isOn: LOGGING_SWITCH);
+              // Note: No status change needed - player continues in current state
+            }
+          } else {
+            _logger.info('Recall: Computer decided not to collect from discard', isOn: LOGGING_SWITCH);
+            // Note: No status change needed - player continues in current state
           }
           break;
           
@@ -1919,6 +1939,10 @@ class RecallGameRound {
       // before we start the special cards window
       await _checkComputerPlayerSameRankPlays();
       
+      // Check if computer players can collect from discard pile
+      // Rank matching is done in Dart, then YAML handles AI decision
+      await _checkComputerPlayerCollectionFromDiscard();
+      
       // Check for special cards and handle them (backend game_round.py line 640)
       // All same rank special cards are now in the list
       _handleSpecialCardsWindow();
@@ -1988,6 +2012,81 @@ class RecallGameRound {
       
     } catch (e) {
       _logger.error('Recall: Error in _checkComputerPlayerSameRankPlays: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Check if computer players can collect from discard pile
+  /// Rank matching is done in Dart, then YAML handles AI decision (collect or not)
+  Future<void> _checkComputerPlayerCollectionFromDiscard() async {
+    try {
+      _logger.info('Recall: Checking computer players for collection from discard pile', isOn: LOGGING_SWITCH);
+      
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        _logger.info('Recall: Failed to get game state for collection check', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Get discard pile - check if not empty
+      final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      if (discardPile.isEmpty) {
+        _logger.info('Recall: Discard pile is empty, no collection possible', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Get top discard card rank
+      final topDiscardCard = discardPile.last;
+      final topDiscardRank = topDiscardCard['rank']?.toString() ?? '';
+      
+      if (topDiscardRank.isEmpty) {
+        _logger.info('Recall: Top discard card has no rank, skipping collection check', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      _logger.info('Recall: Top discard card rank: $topDiscardRank', isOn: LOGGING_SWITCH);
+      
+      // Get all players
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Loop through all players where isHuman == false (computer players)
+      final computerPlayers = players.where((p) => 
+        p['isHuman'] == false &&
+        p['isActive'] == true
+      ).toList();
+      
+      if (computerPlayers.isEmpty) {
+        _logger.info('Recall: No computer players to check for collection', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      _logger.info('Recall: Found ${computerPlayers.length} computer players to check', isOn: LOGGING_SWITCH);
+      
+      // Process each computer player
+      for (final computerPlayer in computerPlayers) {
+        final playerId = computerPlayer['id']?.toString() ?? '';
+        final playerName = computerPlayer['name']?.toString() ?? 'Unknown';
+        final playerCollectionRank = computerPlayer['collection_rank']?.toString() ?? '';
+        
+        _logger.info('Recall: Checking computer player $playerName ($playerId) - collection rank: $playerCollectionRank', isOn: LOGGING_SWITCH);
+        
+        // Compare with top discard card rank (case-insensitive) - DART LOGIC
+        if (playerCollectionRank.toLowerCase() == topDiscardRank.toLowerCase()) {
+          _logger.info('Recall: Collection rank matches top discard card rank for player $playerName', isOn: LOGGING_SWITCH);
+          
+          // Get player's difficulty
+          final difficulty = computerPlayer['difficulty']?.toString() ?? 'medium';
+          
+          // Call YAML decision system - YAML will handle AI decision (collect or not)
+          _handleComputerActionWithYAML(gameState, playerId, difficulty, 'collect_from_discard');
+        } else {
+          _logger.info('Recall: Collection rank $playerCollectionRank does not match top discard card rank $topDiscardRank for player $playerName', isOn: LOGGING_SWITCH);
+        }
+      }
+      
+      _logger.info('Recall: Finished checking computer players for collection from discard pile', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      _logger.error('Recall: Error in _checkComputerPlayerCollectionFromDiscard: $e', isOn: LOGGING_SWITCH);
     }
   }
 

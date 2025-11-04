@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math';
-import '../../recall_game/shared_logic/recall_game_round.dart';
+import '../shared_logic/recall_game_round.dart';
 import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
 import '../../../server/room_manager.dart';

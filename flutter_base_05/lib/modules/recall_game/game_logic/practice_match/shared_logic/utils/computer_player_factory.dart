@@ -644,4 +644,3 @@ class ComputerPlayerFactory {
   /// Validate configuration
   Map<String, dynamic> validateConfig() => config.validateConfig();
 }
-

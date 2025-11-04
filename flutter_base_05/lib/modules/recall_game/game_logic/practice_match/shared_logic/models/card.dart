@@ -130,4 +130,3 @@ class Card {
   @override
   int get hashCode => cardId.hashCode;
 }
-

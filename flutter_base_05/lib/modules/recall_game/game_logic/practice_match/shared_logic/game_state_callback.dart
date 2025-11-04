@@ -48,4 +48,3 @@ abstract class GameStateCallback {
   /// Returns the current games map from state
   Map<String, dynamic> get currentGamesMap;
 }
-

@@ -507,11 +507,11 @@ class RecallGameRound {
             );
             if (!success) {
               _logger.error('Recall: Computer player $playerId failed Jack swap', isOn: LOGGING_SWITCH);
-              _moveToNextPlayer();
+              // Note: Don't call _moveToNextPlayer() here - special card window timer will handle it
             }
           } else {
             _logger.info('Recall: Computer decided not to use Jack swap', isOn: LOGGING_SWITCH);
-            _moveToNextPlayer();
+            // Note: Don't call _moveToNextPlayer() here - special card window timer will handle it
           }
           break;
           
@@ -525,11 +525,11 @@ class RecallGameRound {
             );
             if (!success) {
               _logger.error('Recall: Computer player $playerId failed Queen peek', isOn: LOGGING_SWITCH);
-              _moveToNextPlayer();
+              // Note: Don't call _moveToNextPlayer() here - special card window timer will handle it
             }
           } else {
             _logger.info('Recall: Computer decided not to use Queen peek', isOn: LOGGING_SWITCH);
-            _moveToNextPlayer();
+            // Note: Don't call _moveToNextPlayer() here - special card window timer will handle it
           }
           break;
           
@@ -665,10 +665,8 @@ class RecallGameRound {
           });
           break;
         case 'jack_swap':
-          // TODO: Use YAML to determine Jack swap targets
           Timer(const Duration(seconds: 1), () async {
-            // TODO: Get swap targets from YAML configuration
-            // For now, use placeholder targets
+            // Fallback: Use placeholder targets (YAML-based flow should be used instead)
             final success = await handleJackSwap(
               firstCardId: 'placeholder_first_card',
               firstPlayerId: playerId,
@@ -682,10 +680,8 @@ class RecallGameRound {
           });
           break;
         case 'queen_peek':
-          // TODO: Use YAML to determine Queen peek target
           Timer(const Duration(seconds: 1), () async {
-            // TODO: Get peek target from YAML configuration
-            // For now, use placeholder targets
+            // Fallback: Use placeholder targets (YAML-based flow should be used instead)
             final success = await handleQueenPeek(
               peekingPlayerId: playerId,
               targetCardId: 'placeholder_target_card',
@@ -2349,6 +2345,36 @@ class RecallGameRound {
         _specialCardPlayers.removeAt(0);
         _processNextSpecialCard();
         return;
+      }
+      
+      // Check if player is a computer player and trigger decision logic
+      final gameState = _getCurrentGameState();
+      if (gameState != null) {
+        final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+        final player = players.firstWhere(
+          (p) => p['id'] == playerId,
+          orElse: () => <String, dynamic>{},
+        );
+        
+        // Check if player is computer (isHuman == false)
+        final isHuman = player['isHuman'] as bool? ?? true;
+        if (!isHuman && specialPower == 'jack_swap') {
+          // Get player's difficulty
+          final difficulty = player['difficulty']?.toString() ?? 'medium';
+          
+          _logger.info('Recall: Computer player $playerId detected for jack_swap - triggering decision logic', isOn: LOGGING_SWITCH);
+          
+          // Trigger computer decision logic
+          _handleComputerActionWithYAML(gameState, playerId, difficulty, 'jack_swap');
+        } else if (!isHuman && specialPower == 'queen_peek') {
+          // Get player's difficulty
+          final difficulty = player['difficulty']?.toString() ?? 'medium';
+          
+          _logger.info('Recall: Computer player $playerId detected for queen_peek - triggering decision logic', isOn: LOGGING_SWITCH);
+          
+          // Trigger computer decision logic
+          _handleComputerActionWithYAML(gameState, playerId, difficulty, 'queen_peek');
+        }
       }
       
       // Start 10-second timer for this player's special card play

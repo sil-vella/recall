@@ -149,70 +149,38 @@ class ComputerPlayerFactory {
   }
 
   /// Get computer player decision for Jack swap event
+  /// Note: YAML decision logic not implemented yet
+  /// This method only handles AI decision (use or not)
   Map<String, dynamic> getJackSwapDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
     final decisionDelay = config.getDecisionDelay(difficulty);
-    final jackSwapConfig = config.getSpecialCardConfig(difficulty, 'jack_swap');
-    final useProbability = (jackSwapConfig['use_probability'] ?? 0.8).toDouble();
-    final targetStrategy = jackSwapConfig['target_strategy'] ?? 'random';
     
-    final shouldUse = _random.nextDouble() < useProbability;
-    
-    if (!shouldUse) {
-      return {
-        'action': 'jack_swap',
-        'use': false,
-        'delay_seconds': decisionDelay,
-        'difficulty': difficulty,
-        'reasoning': 'Decided not to use Jack swap (${((1 - useProbability) * 100).toStringAsFixed(1)}% probability)',
-      };
-    }
-    
-    // Select targets based on strategy
-    final targets = _selectJackSwapTargets(gameState, playerId, targetStrategy);
-    
+    // For now, return simple decision (YAML not implemented yet)
+    // Future: Will use YAML rules engine to determine if computer should use Jack swap
+    // YAML will receive: difficulty, gameState, playerId, eventName='jack_swap'
     return {
       'action': 'jack_swap',
-      'use': true,
-      'first_card_id': targets['first_card_id'],
-      'first_player_id': targets['first_player_id'],
-      'second_card_id': targets['second_card_id'],
-      'second_player_id': targets['second_player_id'],
+      'use': false, // YAML not implemented yet - will be true/false based on YAML rules
       'delay_seconds': decisionDelay,
       'difficulty': difficulty,
-      'reasoning': 'Using Jack swap with $targetStrategy strategy (${(useProbability * 100).toStringAsFixed(1)}% probability)',
+      'reasoning': 'Jack swap decision (YAML not implemented yet)',
     };
   }
 
   /// Get computer player decision for Queen peek event
+  /// Note: YAML decision logic not implemented yet
+  /// This method only handles AI decision (use or not)
   Map<String, dynamic> getQueenPeekDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
     final decisionDelay = config.getDecisionDelay(difficulty);
-    final queenPeekConfig = config.getSpecialCardConfig(difficulty, 'queen_peek');
-    final useProbability = (queenPeekConfig['use_probability'] ?? 0.8).toDouble();
-    final targetStrategy = queenPeekConfig['target_strategy'] ?? 'random';
     
-    final shouldUse = _random.nextDouble() < useProbability;
-    
-    if (!shouldUse) {
-      return {
-        'action': 'queen_peek',
-        'use': false,
-        'delay_seconds': decisionDelay,
-        'difficulty': difficulty,
-        'reasoning': 'Decided not to use Queen peek (${((1 - useProbability) * 100).toStringAsFixed(1)}% probability)',
-      };
-    }
-    
-    // Select target based on strategy
-    final target = _selectQueenPeekTarget(gameState, playerId, targetStrategy);
-    
+    // For now, return simple decision (YAML not implemented yet)
+    // Future: Will use YAML rules engine to determine if computer should use Queen peek
+    // YAML will receive: difficulty, gameState, playerId, eventName='queen_peek'
     return {
       'action': 'queen_peek',
-      'use': true,
-      'target_card_id': target['card_id'],
-      'target_player_id': target['player_id'],
+      'use': false, // YAML not implemented yet - will be true/false based on YAML rules
       'delay_seconds': decisionDelay,
       'difficulty': difficulty,
-      'reasoning': 'Using Queen peek with $targetStrategy strategy (${(useProbability * 100).toStringAsFixed(1)}% probability)',
+      'reasoning': 'Queen peek decision (YAML not implemented yet)',
     };
   }
 

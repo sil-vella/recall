@@ -845,15 +845,11 @@ class ComputerPlayerFactory {
     
     _logger.info('Recall: DEBUG - Sorted rules by priority: ${sortedRules.map((r) => '${r['name']} (${r['priority']})').join(', ')}', isOn: LOGGING_SWITCH);
     
-    // If not playing optimally, skip to last rule (random fallback)
-    if (!shouldPlayOptimal && sortedRules.isNotEmpty) {
-      final lastRule = sortedRules.last;
-      _logger.info('Recall: DEBUG - Not playing optimally, using last rule: ${lastRule['name']}', isOn: LOGGING_SWITCH);
-      return _executeSpecialPlayAction(lastRule['action'], gameData, eventName, lastRule['name']?.toString() ?? 'unnamed');
-    }
-    
     // Get difficulty for probability-based execution
     final difficulty = gameData['difficulty']?.toString() ?? 'medium';
+    
+    // Note: We always evaluate rules in priority order, using execution probability to determine which rule executes
+    // shouldPlayOptimal only affects the probability thresholds, not whether we evaluate rules
     
     // Evaluate rules in priority order
     for (final rule in sortedRules) {
@@ -882,7 +878,15 @@ class ComputerPlayerFactory {
           final action = rule['action'] as Map<String, dynamic>?;
           if (action != null) {
             _logger.info('Recall: DEBUG - Rule $ruleName condition passed, executing action', isOn: LOGGING_SWITCH);
-            return _executeSpecialPlayAction(action, gameData, eventName, ruleName);
+            final result = _executeSpecialPlayAction(action, gameData, eventName, ruleName);
+            
+            // Check if result is valid (has valid targets)
+            if (_isValidSpecialPlayResult(result, eventName)) {
+              return result;
+            } else {
+              _logger.info('Recall: DEBUG - Rule $ruleName returned invalid result (no valid targets), trying next rule', isOn: LOGGING_SWITCH);
+              continue; // Try next rule
+            }
           }
         }
       } else {
@@ -903,7 +907,15 @@ class ComputerPlayerFactory {
         final action = rule['action'] as Map<String, dynamic>?;
         if (action != null) {
           _logger.info('Recall: DEBUG - Rule $ruleName has no condition, executing action', isOn: LOGGING_SWITCH);
-          return _executeSpecialPlayAction(action, gameData, eventName, ruleName);
+          final result = _executeSpecialPlayAction(action, gameData, eventName, ruleName);
+          
+          // Check if result is valid (has valid targets)
+          if (_isValidSpecialPlayResult(result, eventName)) {
+            return result;
+          } else {
+            _logger.info('Recall: DEBUG - Rule $ruleName returned invalid result (no valid targets), trying next rule', isOn: LOGGING_SWITCH);
+            continue; // Try next rule
+          }
         }
       }
     }
@@ -1005,6 +1017,38 @@ class ComputerPlayerFactory {
     return current;
   }
   
+  /// Check if a special play result has valid targets
+  bool _isValidSpecialPlayResult(Map<String, dynamic> result, String eventName) {
+    if (result['use'] != true) {
+      return true; // use: false is always valid
+    }
+    
+    if (eventName == 'jack_swap') {
+      final firstCardId = result['first_card_id'] as String?;
+      final secondCardId = result['second_card_id'] as String?;
+      final secondPlayerId = result['second_player_id'] as String?;
+      
+      // Valid if we have both card IDs and second player ID
+      return firstCardId != null && 
+             firstCardId.isNotEmpty && 
+             secondCardId != null && 
+             secondCardId.isNotEmpty &&
+             secondPlayerId != null &&
+             secondPlayerId.isNotEmpty;
+    } else if (eventName == 'queen_peek') {
+      final targetCardId = result['target_card_id'] as String?;
+      final targetPlayerId = result['target_player_id'] as String?;
+      
+      // Valid if we have both target card ID and target player ID
+      return targetCardId != null && 
+             targetCardId.isNotEmpty && 
+             targetPlayerId != null &&
+             targetPlayerId.isNotEmpty;
+    }
+    
+    return true; // Default to valid for other events
+  }
+  
   /// Execute a special play action and return decision
   Map<String, dynamic> _executeSpecialPlayAction(
     Map<String, dynamic> action,
@@ -1038,10 +1082,20 @@ class ComputerPlayerFactory {
             'reasoning': ruleName,
           };
         } else if (eventName == 'queen_peek') {
+          // Get target strategy from action
+          final targetStrategy = action['target_strategy']?.toString() ?? 'random';
+          
+          _logger.info('Recall: DEBUG - Executing queen_peek with target strategy: $targetStrategy', isOn: LOGGING_SWITCH);
+          
+          // Select targets based on strategy
+          final targets = _selectQueenPeekTargets(gameData, targetStrategy);
+          
+          _logger.info('Recall: DEBUG - Target selection result: $targets', isOn: LOGGING_SWITCH);
+          
           return {
             'use': true,
-            'target_card_id': null,  // Will be selected later
-            'target_player_id': null,  // Will be selected later
+            'target_card_id': targets['target_card_id'] as String?,
+            'target_player_id': targets['target_player_id'] as String?,
             'reasoning': ruleName,
           };
         }
@@ -1317,6 +1371,171 @@ class ComputerPlayerFactory {
       'first_player_id': actingPlayerId,
       'second_card_id': secondCard,
       'second_player_id': firstOtherPlayerId,
+    };
+  }
+  
+  /// Select Queen peek targets based on strategy
+  Map<String, dynamic> _selectQueenPeekTargets(
+    Map<String, dynamic> gameData,
+    String targetStrategy,
+  ) {
+    final actingPlayerId = gameData['acting_player_id']?.toString() ?? '';
+    final actingPlayer = gameData['acting_player'] as Map<String, dynamic>? ?? {};
+    final allPlayers = gameData['all_players'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    _logger.info('Recall: DEBUG - _selectQueenPeekTargets called with strategy: $targetStrategy', isOn: LOGGING_SWITCH);
+    
+    switch (targetStrategy) {
+      case 'own_unknown_cards':
+        // Rule 1: Peek at own cards that are not yet in known cards (excluding collection)
+        return _selectOwnUnknownCard(actingPlayerId, actingPlayer, gameState);
+      
+      case 'random_other_player':
+        // Rule 2: Random peek at any player's card (excluding their collection cards)
+        return _selectRandomOtherPlayerCard(actingPlayerId, allPlayers, gameState);
+      
+      default:
+        // Fallback: random selection
+        return _selectRandomOtherPlayerCard(actingPlayerId, allPlayers, gameState);
+    }
+  }
+  
+  /// Rule 1: Peek at own cards that are not yet in known cards (excluding collection cards)
+  Map<String, dynamic> _selectOwnUnknownCard(
+    String actingPlayerId,
+    Map<String, dynamic> actingPlayer,
+    Map<String, dynamic> gameState,
+  ) {
+    _logger.info('Recall: DEBUG - Selecting own unknown card (excluding collection)', isOn: LOGGING_SWITCH);
+    
+    // Get acting player's collection card IDs (to exclude)
+    final actingPlayerCollectionCards = actingPlayer['collection_cards'] as List<dynamic>? ?? [];
+    final collectionCardIds = actingPlayerCollectionCards
+        .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    
+    _logger.info('Recall: DEBUG - Acting player has ${collectionCardIds.length} collection cards to exclude', isOn: LOGGING_SWITCH);
+    
+    // Get acting player's hand (excluding collection cards)
+    final actingPlayerHand = actingPlayer['hand'] as List<dynamic>? ?? [];
+    final playableHand = actingPlayerHand
+        .where((cardId) => !collectionCardIds.contains(cardId.toString()))
+        .toList();
+    
+    _logger.info('Recall: DEBUG - Acting player hand: ${actingPlayerHand.length} total, ${playableHand.length} playable (excluding collection)', isOn: LOGGING_SWITCH);
+    
+    if (playableHand.isEmpty) {
+      _logger.warning('Recall: DEBUG - No playable cards in hand (all are collection cards), returning invalid result', isOn: LOGGING_SWITCH);
+      return {
+        'target_card_id': null,
+        'target_player_id': null,
+      };
+    }
+    
+    // Get acting player's known card IDs
+    final actingPlayerKnownCards = actingPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+    final knownCardIds = actingPlayerKnownCards.keys
+        .map((id) => id.toString())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    
+    _logger.info('Recall: DEBUG - Acting player has ${knownCardIds.length} known cards', isOn: LOGGING_SWITCH);
+    
+    // Find cards in hand that are NOT in known cards
+    final unknownCards = playableHand
+        .where((cardId) => !knownCardIds.contains(cardId.toString()))
+        .toList();
+    
+    _logger.info('Recall: DEBUG - Found ${unknownCards.length} unknown cards in hand (out of ${playableHand.length} playable)', isOn: LOGGING_SWITCH);
+    
+    if (unknownCards.isEmpty) {
+      _logger.warning('Recall: DEBUG - All playable cards are already known, returning invalid result', isOn: LOGGING_SWITCH);
+      return {
+        'target_card_id': null,
+        'target_player_id': null,
+      };
+    }
+    
+    // Select a random unknown card
+    final selectedCardId = unknownCards[_random.nextInt(unknownCards.length)].toString();
+    
+    _logger.info('Recall: DEBUG - Selected own unknown card: $selectedCardId', isOn: LOGGING_SWITCH);
+    
+    return {
+      'target_card_id': selectedCardId,
+      'target_player_id': actingPlayerId,
+    };
+  }
+  
+  /// Rule 2: Random peek at any player's card (excluding their collection cards)
+  Map<String, dynamic> _selectRandomOtherPlayerCard(
+    String actingPlayerId,
+    Map<String, dynamic> allPlayers,
+    Map<String, dynamic> gameState,
+  ) {
+    _logger.info('Recall: DEBUG - Selecting random other player card (excluding collection)', isOn: LOGGING_SWITCH);
+    
+    // Get all players (including acting player, but we'll prefer others)
+    final allPlayerEntries = allPlayers.entries.toList();
+    
+    if (allPlayerEntries.isEmpty) {
+      _logger.warning('Recall: DEBUG - No players found, returning invalid result', isOn: LOGGING_SWITCH);
+      return {
+        'target_card_id': null,
+        'target_player_id': null,
+      };
+    }
+    
+    // Shuffle players and try to find one with playable cards
+    final shuffledPlayers = List.from(allPlayerEntries)..shuffle(_random);
+    
+    for (final playerEntry in shuffledPlayers) {
+      final playerId = playerEntry.key;
+      final playerData = playerEntry.value as Map<String, dynamic>? ?? {};
+      
+      // Get player's hand
+      final playerHand = playerData['hand'] as List<dynamic>? ?? [];
+      
+      if (playerHand.isEmpty) {
+        _logger.info('Recall: DEBUG - Player $playerId has no cards, skipping', isOn: LOGGING_SWITCH);
+        continue;
+      }
+      
+      // Get player's collection card IDs (to exclude)
+      final playerCollectionCards = playerData['collection_cards'] as List<dynamic>? ?? [];
+      final collectionCardIds = playerCollectionCards
+          .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      
+      // Get playable cards (excluding collection)
+      final playableCards = playerHand
+          .where((cardId) => !collectionCardIds.contains(cardId.toString()))
+          .toList();
+      
+      if (playableCards.isEmpty) {
+        _logger.info('Recall: DEBUG - Player $playerId has no playable cards (all are collection), skipping', isOn: LOGGING_SWITCH);
+        continue;
+      }
+      
+      // Select a random playable card from this player
+      final selectedCardId = playableCards[_random.nextInt(playableCards.length)].toString();
+      
+      _logger.info('Recall: DEBUG - Selected random card: $selectedCardId from player $playerId', isOn: LOGGING_SWITCH);
+      
+      return {
+        'target_card_id': selectedCardId,
+        'target_player_id': playerId,
+      };
+    }
+    
+    // If we get here, no player had playable cards
+    _logger.warning('Recall: DEBUG - No players with playable cards found, returning invalid result', isOn: LOGGING_SWITCH);
+    return {
+      'target_card_id': null,
+      'target_player_id': null,
     };
   }
 

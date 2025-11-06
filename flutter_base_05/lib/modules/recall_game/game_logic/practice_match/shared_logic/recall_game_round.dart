@@ -1745,6 +1745,12 @@ class RecallGameRound {
 
       _logger.info('Recall: Queen peek completed successfully', isOn: LOGGING_SWITCH);
 
+      // Update all players' known_cards after successful Queen peek
+      // This adds the peeked card to the peeking player's known_cards
+      updateKnownCards('queen_peek', peekingPlayerId, [targetCardId], swapData: {
+        'targetPlayerId': targetPlayerId,
+      });
+
       return true;
 
     } catch (e) {
@@ -2597,6 +2603,8 @@ class RecallGameRound {
           _processPlayCardUpdate(knownCards, affectedCardIds, rememberProb, actingPlayerId, actingPlayer);
         } else if (eventType == 'jack_swap' && swapData != null) {
           _processJackSwapUpdate(knownCards, affectedCardIds, swapData, rememberProb);
+        } else if (eventType == 'queen_peek' && swapData != null) {
+          _processQueenPeekUpdate(knownCards, affectedCardIds, swapData, actingPlayerId);
         }
         
         player['known_cards'] = knownCards;
@@ -2784,6 +2792,56 @@ class RecallGameRound {
     }
   }
 
+  /// Process known_cards update for queen_peek event
+  void _processQueenPeekUpdate(
+    Map<String, dynamic> knownCards,
+    List<String> affectedCardIds,
+    Map<String, String> swapData,
+    String actingPlayerId,
+  ) {
+    if (affectedCardIds.isEmpty) return;
+    
+    final peekedCardId = affectedCardIds[0];
+    final targetPlayerId = swapData['targetPlayerId'];
+    
+    if (targetPlayerId == null) return;
+    
+    // Get the game state to retrieve full card data
+    final currentGames = _stateCallback.currentGamesMap;
+    final gameId = _gameId;
+    if (!currentGames.containsKey(gameId)) return;
+    
+    final gameData = currentGames[gameId];
+    final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
+    if (gameState == null) return;
+    
+    // Get full card data for the peeked card
+    final fullCardData = _stateCallback.getCardById(gameState, peekedCardId);
+    if (fullCardData == null) {
+      _logger.warning('Recall: Failed to get full card data for peeked card $peekedCardId', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
+    // Add the peeked card to the peeking player's known_cards
+    // actingPlayerId is the peeking player
+    if (!knownCards.containsKey(actingPlayerId)) {
+      knownCards[actingPlayerId] = <String, dynamic>{};
+    }
+    
+    final peekingPlayerCardsRaw = knownCards[actingPlayerId];
+    Map<String, dynamic> peekingPlayerCards;
+    if (peekingPlayerCardsRaw is Map) {
+      peekingPlayerCards = Map<String, dynamic>.from(peekingPlayerCardsRaw.map((k, v) => MapEntry(k.toString(), v)));
+    } else {
+      peekingPlayerCards = <String, dynamic>{};
+    }
+    
+    // Add the peeked card to known_cards (peeking player now knows this card)
+    peekingPlayerCards[peekedCardId] = fullCardData;
+    knownCards[actingPlayerId] = peekingPlayerCards;
+    
+    _logger.info('Recall: Added peeked card $peekedCardId to player $actingPlayerId known_cards (from player $targetPlayerId)', isOn: LOGGING_SWITCH);
+  }
 
   /// Dispose of resources
   void dispose() {

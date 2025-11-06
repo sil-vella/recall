@@ -27,6 +27,12 @@ class RecallGameRound {
   // Matches backend's self.special_card_players list (game_round.py line 686)
   List<Map<String, dynamic>> _specialCardPlayers = [];
   
+  // Winners list - stores winner information when game ends
+  List<Map<String, dynamic>> _winnersList = [];
+  
+  // Recall caller - stores the player ID who called Recall
+  String? _recallCaller;
+  
   RecallGameRound(this._stateCallback, this._gameId);
   
   /// Initialize the round with the current game state
@@ -1050,6 +1056,33 @@ class RecallGameRound {
         'discardPile': updatedDiscardPile,  // CRITICAL: Update main state discardPile field
       });
       
+      // Check if player now has four of a kind (all 4 collection cards for their rank)
+      // This is a winning condition
+      if (collectionRankCards.length == 4) {
+        final playerName = player['name']?.toString() ?? 'Unknown';
+        _logger.info('Recall: Player $playerName ($playerId) has collected all 4 cards of rank ${player['collection_rank']} - FOUR OF A KIND WIN!', isOn: LOGGING_SWITCH);
+        
+        // Set all players to waiting status
+        _stateCallback.onPlayerStatusChanged(
+          'waiting',
+          playerId: null, // null = update ALL players
+          updateMainState: true,
+          triggerInstructions: false,
+        );
+        
+        // Add player to winners list
+        _winnersList.add({
+          'playerId': playerId,
+          'playerName': playerName,
+          'winType': 'four_of_a_kind',
+        });
+        
+        _logger.info('Recall: Added player $playerName ($playerId) to winners list with winType: four_of_a_kind', isOn: LOGGING_SWITCH);
+        
+        // Trigger game ending check
+        _checkGameEnding();
+      }
+      
       return true;
       
     } catch (e) {
@@ -1229,6 +1262,21 @@ class RecallGameRound {
       // CRITICAL: Update known_cards BEFORE clearing drawnCard property
       // This ensures the just-drawn card detection logic can work properly
       updateKnownCards('play_card', playerId, [cardId]);
+      
+      // Check if player's hand is completely empty (including collection cards)
+      // If empty, add player to winners list
+      final finalHand = player['hand'] as List<dynamic>? ?? [];
+      final isEmpty = finalHand.isEmpty || finalHand.every((card) => card == null);
+      
+      if (isEmpty) {
+        final playerName = player['name']?.toString() ?? 'Unknown';
+        _winnersList.add({
+          'playerId': playerId,
+          'playerName': playerName,
+          'winType': 'empty_hand',
+        });
+        _logger.info('Recall: Player $playerName ($playerId) has no cards left - added to winners list', isOn: LOGGING_SWITCH);
+      }
       
       // Handle drawn card repositioning with smart blank slot system
       // This must happen AFTER updateKnownCards so the detection logic can check drawnCard
@@ -1504,6 +1552,21 @@ class RecallGameRound {
       
       // Update all players' known_cards after successful same rank play
       updateKnownCards('same_rank_play', playerId, [cardId]);
+      
+      // Check if player's hand is completely empty (including collection cards)
+      // If empty, add player to winners list
+      final finalHand = player['hand'] as List<dynamic>? ?? [];
+      final isEmpty = finalHand.isEmpty || finalHand.every((card) => card == null);
+      
+      if (isEmpty) {
+        final playerName = player['name']?.toString() ?? 'Unknown';
+        _winnersList.add({
+          'playerId': playerId,
+          'playerName': playerName,
+          'winType': 'empty_hand',
+        });
+        _logger.info('Recall: Player $playerName ($playerId) has no cards left - added to winners list', isOn: LOGGING_SWITCH);
+      }
       
       return true;
       
@@ -1989,13 +2052,13 @@ class RecallGameRound {
       });
       _logger.info('Recall: Reset gamePhase to player_turn', isOn: LOGGING_SWITCH);
       
-      // TODO: Check if any player has no cards left (automatic win condition)
-      // Future implementation - for now, we skip this check
-      
       // CRITICAL: AWAIT computer same rank plays to complete BEFORE processing special cards
       // This ensures all queens played during same rank window are added to _specialCardData
       // before we start the special cards window
       await _checkComputerPlayerSameRankPlays();
+      
+      // Check if game should end (empty hand win condition or Recall called)
+      _checkGameEnding();
       
       // Check if computer players can collect from discard pile
       // Rank matching is done in Dart, then YAML handles AI decision
@@ -2145,6 +2208,39 @@ class RecallGameRound {
       
     } catch (e) {
       _logger.error('Recall: Error in _checkComputerPlayerCollectionFromDiscard: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Check if the game should end (unified game ending check)
+  /// This method checks for:
+  /// 1. Empty hand win condition (player has no cards left)
+  /// 2. Recall called (player called Recall to end the game)
+  /// 3. Final round completion (after Recall is called)
+  void _checkGameEnding() {
+    try {
+      _logger.info('Recall: Checking if game should end', isOn: LOGGING_SWITCH);
+      
+      // Check if winners list contains any players - if so, game is over
+      if (_winnersList.isNotEmpty) {
+        _logger.info('Recall: Game is over - ${_winnersList.length} winner(s) found', isOn: LOGGING_SWITCH);
+        
+        // Update game phase to game_over
+        _stateCallback.onGameStateChanged({
+          'gamePhase': 'game_over',
+        });
+        
+        _logger.info('Recall: Set gamePhase to game_over', isOn: LOGGING_SWITCH);
+        
+        // TODO: Future implementation
+        // - Calculate points for all players if Recall was called
+        // - Determine winner based on points and card count
+        // - Display winner information
+      } else {
+        _logger.info('Recall: No winners yet - game continues', isOn: LOGGING_SWITCH);
+      }
+      
+    } catch (e) {
+      _logger.error('Recall: Error in _checkGameEnding: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -2517,6 +2613,10 @@ class RecallGameRound {
       
       _logger.info('Recall: Special cards window ended - cleared all special card data', isOn: LOGGING_SWITCH);
       
+      // Check if any players have empty collection_rank_cards list after special plays
+      // If empty, clear their collection_rank property (they can no longer collect cards)
+      _checkAndClearEmptyCollectionRanks();
+      
       // CRITICAL: Reset gamePhase back to player_turn before moving to next player
       // This ensures clean phase transitions and matches backend behavior
       _stateCallback.onGameStateChanged({
@@ -2530,6 +2630,45 @@ class RecallGameRound {
       
     } catch (e) {
       _logger.error('Recall: Error in _endSpecialCardsWindow: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Check if any players have empty collection_rank_cards list and clear collection_rank if so
+  /// This should be called after special plays are completed (e.g., after Jack swap)
+  void _checkAndClearEmptyCollectionRanks() {
+    try {
+      _logger.info('Recall: Checking all players for empty collection_rank_cards', isOn: LOGGING_SWITCH);
+      
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        _logger.error('Recall: Failed to get game state for collection rank check', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Check all players (human and PC)
+      for (final player in players) {
+        final playerId = player['id']?.toString() ?? '';
+        final playerName = player['name']?.toString() ?? 'Unknown';
+        final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+        
+        // Check if collection_rank_cards list is empty
+        if (collectionRankCards.isEmpty) {
+          final currentCollectionRank = player['collection_rank']?.toString() ?? '';
+          
+          // Only clear if collection_rank is set (not already empty/null)
+          if (currentCollectionRank.isNotEmpty && currentCollectionRank != 'null') {
+            player['collection_rank'] = null;
+            _logger.info('Recall: Cleared collection_rank for player $playerName ($playerId) - collection_rank_cards is empty', isOn: LOGGING_SWITCH);
+          }
+        }
+      }
+      
+      _logger.info('Recall: Finished checking all players for empty collection_rank_cards', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      _logger.error('Recall: Error in _checkAndClearEmptyCollectionRanks: $e', isOn: LOGGING_SWITCH);
     }
   }
 

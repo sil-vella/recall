@@ -1555,26 +1555,30 @@ class PracticeGameCoordinator implements GameStateCallback {
       // 6. Update the player's cards_to_peek with full card data
       humanPlayer['cardsToPeek'] = cardsToPeek;
       
-      // 6.5. Store peeked cards in known_cards with card-ID-based structure
+      // 6.5. Auto-select collection rank card for human player (same logic as AI)
+      // IMPORTANT: Must select collection card BEFORE storing in known_cards
+      // so we can exclude it from known_cards (just like computer players)
+      final selectedCardForCollection = _selectCardForCollection(cardsToPeek[0], cardsToPeek[1], Random());
+      
+      // Determine which card is NOT the collection card
+      final nonCollectionCard = selectedCardForCollection['cardId'] == cardsToPeek[0]['cardId'] 
+          ? cardsToPeek[1] 
+          : cardsToPeek[0];
+      
+      // Store only the non-collection card in known_cards with card-ID-based structure
+      // (same logic as computer players - collection cards should NOT be in known_cards)
       final humanKnownCards = humanPlayer['known_cards'] as Map<String, dynamic>? ?? {};
       final playerId = humanPlayer['id'] as String;
-      humanKnownCards[playerId] = {};
-      
-      // Add each peeked card with its card ID as the key
-      for (final card in cardsToPeek) {
-        if (card['cardId'] != null) {
-          final cardId = card['cardId'] as String;
-          humanKnownCards[playerId][cardId] = card;
-        }
-      }
+      final nonCollectionCardId = nonCollectionCard['cardId'] as String;
+      humanKnownCards[playerId] = {
+        nonCollectionCardId: nonCollectionCard,
+      };
       humanPlayer['known_cards'] = humanKnownCards;
       
       Logger().info('Recall: Human player peeked at $cardsUpdated cards: $cardIds', isOn: LOGGING_SWITCH);
-      Logger().info('Recall: Human player stored ${cardsToPeek.length} cards in known_cards', isOn: LOGGING_SWITCH);
+      Logger().info('Recall: Human player stored 1 card (non-collection) in known_cards', isOn: LOGGING_SWITCH);
       
-      // 6.7. Auto-select collection rank card for human player (same logic as AI)
-      final selectedCardForCollection = _selectCardForCollection(cardsToPeek[0], cardsToPeek[1], Random());
-      
+      // 6.7. Add collection card to collection_rank_cards (NOT to known_cards)
       // Get full card data using getCardById
       final fullCardData = getCardById(gameState, selectedCardForCollection['cardId'] as String);
       if (fullCardData != null) {

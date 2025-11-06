@@ -262,16 +262,68 @@ class ComputerPlayerFactory {
   /// Note: Rank matching is done in Dart before this method is called
   /// This method only handles AI decision (collect or not)
   Map<String, dynamic> getCollectFromDiscardDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
+    _logger.info('Recall: DEBUG - getCollectFromDiscardDecision called with difficulty: $difficulty, playerId: $playerId', isOn: LOGGING_SWITCH);
+    
     final decisionDelay = config.getDecisionDelay(difficulty);
     
-    // For now, return empty decision (YAML not implemented yet)
-    // Future: Will use YAML rules to determine if computer should collect
+    // Prepare game data for YAML rules engine (includes discard pile top card)
+    final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
+    
+    // Add discard pile top card to game data
+    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+    if (discardPile.isNotEmpty) {
+      final topCard = discardPile.last as Map<String, dynamic>?;
+      if (topCard != null) {
+        gameData['discard_pile'] = {
+          'top_card': Map<String, dynamic>.from(topCard),
+        };
+        _logger.info('Recall: DEBUG - Added discard pile top card: ${topCard['rank']} of ${topCard['suit']}', isOn: LOGGING_SWITCH);
+      }
+    }
+    
+    // Get event config from YAML
+    final collectConfig = config.getEventConfig('collect_from_discard');
+    final strategyRules = collectConfig['strategy_rules'] as List<dynamic>? ?? [];
+    
+    _logger.info('Recall: DEBUG - YAML strategy rules count: ${strategyRules.length}', isOn: LOGGING_SWITCH);
+    if (strategyRules.isNotEmpty) {
+      _logger.info('Recall: DEBUG - YAML rules: ${strategyRules.map((r) => r['name']).join(', ')}', isOn: LOGGING_SWITCH);
+    }
+    
+    // Determine shouldPlayOptimal based on difficulty (same pattern as other decisions)
+    final cardSelection = config.getCardSelectionStrategy(difficulty);
+    final shouldPlayOptimal = cardSelection['should_play_optimal'] as bool? ?? 
+      (difficulty == 'hard' || difficulty == 'expert');
+    
+    _logger.info('Recall: DEBUG - shouldPlayOptimal: $shouldPlayOptimal', isOn: LOGGING_SWITCH);
+    
+    // If no strategy rules defined, fallback to simple decision
+    if (strategyRules.isEmpty) {
+      _logger.info('Recall: DEBUG - No YAML rules defined, using fallback logic', isOn: LOGGING_SWITCH);
+      return {
+        'action': 'collect_from_discard',
+        'collect': false,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'reasoning': 'No YAML rules defined',
+      };
+    }
+    
+    // Evaluate rules using YAML rules engine
+    final decision = _evaluateSpecialPlayRules(strategyRules, gameData, shouldPlayOptimal, 'collect_from_discard');
+    
+    _logger.info('Recall: DEBUG - YAML rules engine returned decision: $decision', isOn: LOGGING_SWITCH);
+    
+    // Convert 'use' to 'collect' for consistency with existing code
+    final shouldCollect = decision['use'] as bool? ?? false;
+    
+    // Merge decision with delay and difficulty
     return {
       'action': 'collect_from_discard',
-      'collect': false, // YAML not implemented yet - will be true/false based on YAML rules
+      'collect': shouldCollect,
       'delay_seconds': decisionDelay,
       'difficulty': difficulty,
-      'reasoning': 'Collect from discard decision (YAML not implemented yet)',
+      'reasoning': decision['reasoning']?.toString() ?? 'Collect from discard decision',
     };
   }
 
@@ -766,6 +818,9 @@ class ComputerPlayerFactory {
       };
     }
     
+    // Get acting player's collection rank
+    final actingPlayerCollectionRank = actingPlayer['collection_rank']?.toString() ?? '';
+    
     final result = {
       'difficulty': difficulty,
       'acting_player_id': actingPlayerId,
@@ -773,6 +828,7 @@ class ComputerPlayerFactory {
         'hand': actingPlayerHand,
         'known_cards': actingPlayerKnownCards,
         'collection_cards': actingPlayerCollectionCards,
+        'collection_rank': actingPlayerCollectionRank,
       },
       'all_players': allPlayersData,
       'game_state': gameState,
@@ -819,6 +875,61 @@ class ComputerPlayerFactory {
         }
       }
     }
+    return null;
+  }
+
+  /// Get full card data by its ID from gameState
+  Map<String, dynamic>? _getCardById(Map<String, dynamic> gameState, String cardId) {
+    // First, try to find in originalDeck
+    final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
+    for (final card in originalDeck) {
+      if (card is Map<String, dynamic>) {
+        final cardIdInDeck = card['cardId']?.toString() ?? card['id']?.toString() ?? '';
+        if (cardIdInDeck == cardId) {
+          return Map<String, dynamic>.from(card);
+        }
+      }
+    }
+    
+    // If not found in originalDeck, try players' hands
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    for (final player in players) {
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      for (final card in hand) {
+        if (card is Map<String, dynamic>) {
+          final cardIdInHand = card['cardId']?.toString() ?? card['id']?.toString() ?? '';
+          if (cardIdInHand == cardId) {
+            // If hand card has full data, return it
+            if (card['rank'] != null && card['rank'] != '?') {
+              return Map<String, dynamic>.from(card);
+            }
+          }
+        }
+      }
+    }
+    
+    // Try discard pile
+    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+    for (final card in discardPile) {
+      if (card is Map<String, dynamic>) {
+        final cardIdInDiscard = card['cardId']?.toString() ?? card['id']?.toString() ?? '';
+        if (cardIdInDiscard == cardId) {
+          return Map<String, dynamic>.from(card);
+        }
+      }
+    }
+    
+    // Try draw pile
+    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+    for (final card in drawPile) {
+      if (card is Map<String, dynamic>) {
+        final cardIdInDraw = card['cardId']?.toString() ?? card['id']?.toString() ?? '';
+        if (cardIdInDraw == cardId) {
+          return Map<String, dynamic>.from(card);
+        }
+      }
+    }
+    
     return null;
   }
 
@@ -996,6 +1107,14 @@ class ComputerPlayerFactory {
         if (fieldValue is String && value is String) return fieldValue.contains(value);
         return false;
       
+      case 'length_equals':
+        if (fieldValue is List && value is num) return fieldValue.length == value.toInt();
+        if (fieldValue is Map && value is num) return fieldValue.length == value.toInt();
+        return false;
+      
+      case 'exists':
+        return fieldValue != null;
+      
       default:
         return false;
     }
@@ -1044,6 +1163,10 @@ class ComputerPlayerFactory {
              targetCardId.isNotEmpty && 
              targetPlayerId != null &&
              targetPlayerId.isNotEmpty;
+    } else if (eventName == 'collect_from_discard') {
+      // For collect_from_discard, use: true means we should collect
+      // The action execution already validates rank matching
+      return true; // Always valid if use: true (rank matching is done in action execution)
     }
     
     return true; // Default to valid for other events
@@ -1101,6 +1224,120 @@ class ComputerPlayerFactory {
         }
         return {
           'use': true,
+          'reasoning': ruleName,
+        };
+      
+      case 'collect_from_discard':
+        // For collect_from_discard, we need to check if conditions are met
+        // Rule 1: Check if player has 3 collection cards and this is the only remaining card with same rank
+        // Rule 2: Check if same rank as collection rank (simpler check)
+        
+        final actingPlayer = gameData['acting_player'] as Map<String, dynamic>? ?? {};
+        final actingPlayerCollectionCards = actingPlayer['collection_cards'] as List<dynamic>? ?? [];
+        final discardPile = gameData['discard_pile'] as Map<String, dynamic>?;
+        final topCard = discardPile?['top_card'] as Map<String, dynamic>?;
+        final actingPlayerCollectionRank = actingPlayer['collection_rank']?.toString() ?? '';
+        
+        if (topCard == null) {
+          _logger.warning('Recall: DEBUG - No discard pile top card found, skipping collection', isOn: LOGGING_SWITCH);
+          return {
+            'use': false,
+            'reasoning': ruleName,
+          };
+        }
+        
+        final topCardRank = topCard['rank']?.toString() ?? '';
+        
+        // Check if rank matches collection rank
+        if (topCardRank.toLowerCase() != actingPlayerCollectionRank.toLowerCase()) {
+          _logger.info('Recall: DEBUG - Top card rank $topCardRank does not match collection rank $actingPlayerCollectionRank', isOn: LOGGING_SWITCH);
+          return {
+            'use': false,
+            'reasoning': ruleName,
+          };
+        }
+        
+        // Rule 1: If player has 3 collection cards, check if this is the only remaining card with same rank
+        if (ruleName == 'collect_if_completes_set' && actingPlayerCollectionCards.length == 3) {
+          // Check if this is the only remaining card with same rank in the game
+          final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+          final allPlayers = gameData['all_players'] as Map<String, dynamic>? ?? {};
+          
+          // Count cards with same rank in all players' hands
+          int sameRankCount = 0;
+          for (final playerEntry in allPlayers.entries) {
+            final playerHand = playerEntry.value['hand'] as List<dynamic>? ?? [];
+            for (final cardId in playerHand) {
+              // Get card data from game state
+              final cardData = _getCardById(gameState, cardId.toString());
+              if (cardData != null) {
+                final cardRank = cardData['rank']?.toString() ?? '';
+                if (cardRank.toLowerCase() == topCardRank.toLowerCase()) {
+                  sameRankCount++;
+                }
+              }
+            }
+          }
+          
+          // Check discard pile (excluding top card)
+          final discardPileRaw = gameState['discardPile'] as List<dynamic>? ?? [];
+          for (int i = 0; i < discardPileRaw.length - 1; i++) {
+            final card = discardPileRaw[i] as Map<String, dynamic>?;
+            if (card != null) {
+              final cardRank = card['rank']?.toString() ?? '';
+              if (cardRank.toLowerCase() == topCardRank.toLowerCase()) {
+                sameRankCount++;
+              }
+            }
+          }
+          
+          // Check draw pile
+          final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+          for (final card in drawPile) {
+            if (card is Map<String, dynamic>) {
+              final cardRank = card['rank']?.toString() ?? '';
+              if (cardRank.toLowerCase() == topCardRank.toLowerCase()) {
+                sameRankCount++;
+              }
+            }
+          }
+          
+          _logger.info('Recall: DEBUG - Found $sameRankCount cards with rank $topCardRank in game (excluding top discard card)', isOn: LOGGING_SWITCH);
+          
+          // If this is the only remaining card (sameRankCount == 0), collect it
+          if (sameRankCount == 0) {
+            _logger.info('Recall: DEBUG - This is the only remaining card with rank $topCardRank, collecting it', isOn: LOGGING_SWITCH);
+            return {
+              'use': true,
+              'reasoning': ruleName,
+            };
+          } else {
+            _logger.info('Recall: DEBUG - There are other cards with rank $topCardRank, not collecting (Rule 1)', isOn: LOGGING_SWITCH);
+            return {
+              'use': false,
+              'reasoning': ruleName,
+            };
+          }
+        }
+        
+        // Rule 2: If same rank as collection rank, collect it
+        if (ruleName == 'collect_if_same_rank') {
+          _logger.info('Recall: DEBUG - Top card rank matches collection rank, collecting it', isOn: LOGGING_SWITCH);
+          return {
+            'use': true,
+            'reasoning': ruleName,
+          };
+        }
+        
+        // Default: collect if rank matches
+        return {
+          'use': true,
+          'reasoning': ruleName,
+        };
+      
+      case 'skip_collect':
+        return {
+          'use': false,
           'reasoning': ruleName,
         };
       

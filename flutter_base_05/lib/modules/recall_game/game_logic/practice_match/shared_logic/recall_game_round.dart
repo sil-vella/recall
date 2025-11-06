@@ -722,6 +722,10 @@ class RecallGameRound {
       final randomPlayer = players[randomIndex];
       
       _logger.info('Recall: Randomly selected starting player: ${randomPlayer['name']} (${randomPlayer['id']}, isHuman: ${randomPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+      
+      // Check if computer players can collect from discard pile (first turn)
+      _checkComputerPlayerCollectionFromDiscard();
+      
       return randomPlayer;
     }
     
@@ -1583,9 +1587,61 @@ class RecallGameRound {
 
       _logger.info('Recall: Found cards - First card at index $firstCardIndex in player $firstPlayerId hand, Second card at index $secondCardIndex in player $secondPlayerId hand', isOn: LOGGING_SWITCH);
 
-      // Perform the swap
-      firstPlayerHand[firstCardIndex] = secondCard;
-      secondPlayerHand[secondCardIndex] = firstCard;
+      // Get full card data for both cards to ensure we have the correct cardId
+      final firstCardFullData = _stateCallback.getCardById(gameState, firstCardId);
+      final secondCardFullData = _stateCallback.getCardById(gameState, secondCardId);
+      
+      if (firstCardFullData == null || secondCardFullData == null) {
+        _logger.error('Recall: Failed to get full card data for swap - firstCard: ${firstCardFullData != null}, secondCard: ${secondCardFullData != null}', isOn: LOGGING_SWITCH);
+        return false;
+      }
+
+      // Convert swapped cards to ID-only format (player hands always store ID-only cards)
+      // Format matches recall game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
+      final firstCardIdOnly = {
+        'cardId': firstCardFullData['cardId'],
+        'suit': '?',      // Face-down: hide suit
+        'rank': '?',      // Face-down: hide rank
+        'points': 0,      // Face-down: hide points
+      };
+      
+      final secondCardIdOnly = {
+        'cardId': secondCardFullData['cardId'],
+        'suit': '?',      // Face-down: hide suit
+        'rank': '?',      // Face-down: hide rank
+        'points': 0,      // Face-down: hide points
+      };
+
+      // Perform the swap with ID-only format
+      firstPlayerHand[firstCardIndex] = secondCardIdOnly;
+      secondPlayerHand[secondCardIndex] = firstCardIdOnly;
+
+      // Remove swapped cards from their original owner's collection_rank_cards
+      // Check if firstCardId is in firstPlayer's collection_rank_cards
+      final firstPlayerCollectionCards = firstPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+      firstPlayerCollectionCards.removeWhere((card) {
+        if (card is Map<String, dynamic>) {
+          final cardId = card['cardId']?.toString() ?? '';
+          if (cardId == firstCardId) {
+            _logger.info('Recall: Removed card $firstCardId from player $firstPlayerId collection_rank_cards (swapped out)', isOn: LOGGING_SWITCH);
+            return true;
+          }
+        }
+        return false;
+      });
+
+      // Check if secondCardId is in secondPlayer's collection_rank_cards
+      final secondPlayerCollectionCards = secondPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+      secondPlayerCollectionCards.removeWhere((card) {
+        if (card is Map<String, dynamic>) {
+          final cardId = card['cardId']?.toString() ?? '';
+          if (cardId == secondCardId) {
+            _logger.info('Recall: Removed card $secondCardId from player $secondPlayerId collection_rank_cards (swapped out)', isOn: LOGGING_SWITCH);
+            return true;
+          }
+        }
+        return false;
+      });
 
       _logger.info('Recall: Successfully swapped cards: $firstCardId <-> $secondCardId', isOn: LOGGING_SWITCH);
       _logger.info('Recall: Player $firstPlayerId now has card $secondCardId at index $firstCardIndex', isOn: LOGGING_SWITCH);

@@ -366,6 +366,65 @@ events:
         action:
           type: "skip_special_play"
 
+  collect_from_discard:
+    # Decision logic for collecting from discard pile
+    optimal_collect_probability:
+      easy: 0.6      # 60% chance to collect optimally
+      medium: 0.8    # 80% chance to collect optimally
+      hard: 0.95     # 95% chance to collect optimally
+      expert: 1.0    # 100% chance to collect optimally (always optimal)
+    
+    # YAML-driven strategy rules (ordered from expert down to easy)
+    strategy_rules:
+      # Rule 1 (Expert/Hard): Collect if player has 3 collection cards already and this is the only remaining card with same rank
+      - name: "collect_if_completes_set"
+        priority: 1
+        description: "Collect if player has 3 collection cards and this is the only remaining card with same rank"
+        condition:
+          type: "and"
+          conditions:
+            # Check if acting player has 3 collection cards
+            - field: "acting_player.collection_cards"
+              operator: "length_equals"
+              value: 3
+            # Check if discard pile top card exists
+            - field: "discard_pile.top_card"
+              operator: "exists"
+        action:
+          type: "collect_from_discard"
+        execution_probability:
+          expert: 1.0    # 100% chance to execute if condition met
+          hard: 0.95     # 95% chance to execute if condition met
+          medium: 0.7    # 70% chance to execute if condition met
+          easy: 0.5      # 50% chance to execute if condition met
+      
+      # Rule 2 (Medium/Easy): Collect if same rank as collection rank
+      - name: "collect_if_same_rank"
+        priority: 2
+        description: "Collect if discard pile top card has same rank as collection rank"
+        condition:
+          type: "and"
+          conditions:
+            # Check if discard pile top card exists
+            - field: "discard_pile.top_card"
+              operator: "exists"
+        action:
+          type: "collect_from_discard"
+        execution_probability:
+          expert: 0.0    # 0% chance (expert uses rule 1)
+          hard: 0.05     # 5% chance (hard prefers rule 1)
+          medium: 0.3    # 30% chance (medium uses this as fallback)
+          easy: 0.5      # 50% chance (easy uses this more often)
+      
+      # Rule 3: Skip collection (fallback)
+      - name: "skip_collect"
+        priority: 3
+        description: "Skip collecting from discard pile"
+        condition:
+          type: "always"
+        action:
+          type: "skip_collect"
+
 # Computer player statistics (for validation)
 computer_stats:
   total_difficulties: 4

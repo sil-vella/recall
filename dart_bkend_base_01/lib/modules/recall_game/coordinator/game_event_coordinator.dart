@@ -489,22 +489,26 @@ class GameEventCoordinator {
       // Update player's cardsToPeek with full card data
       humanPlayer['cardsToPeek'] = cardsToPeek;
 
-      // Store peeked cards in known_cards with card-ID-based structure
+      // Auto-select collection rank card for human player (same logic as AI)
+      // IMPORTANT: Must select collection card BEFORE storing in known_cards
+      // so we can exclude it from known_cards (just like computer players)
+      final selectedCardForCollection = _selectCardForCollection(cardsToPeek[0], cardsToPeek[1], Random());
+      
+      // Determine which card is NOT the collection card
+      final nonCollectionCard = selectedCardForCollection['cardId'] == cardsToPeek[0]['cardId'] 
+          ? cardsToPeek[1] 
+          : cardsToPeek[0];
+
+      // Store only the non-collection card in known_cards with card-ID-based structure
+      // (same logic as computer players - collection cards should NOT be in known_cards)
       final humanKnownCards = humanPlayer['known_cards'] as Map<String, dynamic>? ?? {};
       final playerId = humanPlayer['id'] as String;
       if (humanKnownCards[playerId] == null) {
         humanKnownCards[playerId] = <String, dynamic>{};
       }
-      for (final card in cardsToPeek) {
-        if (card['cardId'] != null) {
-          final cardId = card['cardId'] as String;
-          (humanKnownCards[playerId] as Map<String, dynamic>)[cardId] = card;
-        }
-      }
+      final nonCollectionCardId = nonCollectionCard['cardId'] as String;
+      (humanKnownCards[playerId] as Map<String, dynamic>)[nonCollectionCardId] = nonCollectionCard;
       humanPlayer['known_cards'] = humanKnownCards;
-
-      // Auto-select collection rank card for human player (same logic as AI)
-      final selectedCardForCollection = _selectCardForCollection(cardsToPeek[0], cardsToPeek[1], Random());
 
       final fullCardData = _getCardById(gameState, selectedCardForCollection['cardId'] as String);
       if (fullCardData != null) {

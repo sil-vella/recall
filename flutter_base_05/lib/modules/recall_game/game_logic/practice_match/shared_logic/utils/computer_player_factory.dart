@@ -149,38 +149,112 @@ class ComputerPlayerFactory {
   }
 
   /// Get computer player decision for Jack swap event
-  /// Note: YAML decision logic not implemented yet
-  /// This method only handles AI decision (use or not)
   Map<String, dynamic> getJackSwapDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
+    _logger.info('Recall: DEBUG - getJackSwapDecision called with difficulty: $difficulty, playerId: $playerId', isOn: LOGGING_SWITCH);
+    
     final decisionDelay = config.getDecisionDelay(difficulty);
     
-    // For now, return simple decision (YAML not implemented yet)
-    // Future: Will use YAML rules engine to determine if computer should use Jack swap
-    // YAML will receive: difficulty, gameState, playerId, eventName='jack_swap'
+    // Prepare game data for YAML rules engine
+    final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
+    
+    // Get event config from YAML
+    final jackSwapConfig = config.getEventConfig('jack_swap');
+    final strategyRules = jackSwapConfig['strategy_rules'] as List<dynamic>? ?? [];
+    
+    _logger.info('Recall: DEBUG - YAML strategy rules count: ${strategyRules.length}', isOn: LOGGING_SWITCH);
+    if (strategyRules.isNotEmpty) {
+      _logger.info('Recall: DEBUG - YAML rules: ${strategyRules.map((r) => r['name']).join(', ')}', isOn: LOGGING_SWITCH);
+    }
+    
+    // Determine shouldPlayOptimal based on difficulty (same pattern as getPlayCardDecision)
+    final cardSelection = config.getCardSelectionStrategy(difficulty);
+    final shouldPlayOptimal = cardSelection['should_play_optimal'] as bool? ?? 
+      (difficulty == 'hard' || difficulty == 'expert');
+    
+    _logger.info('Recall: DEBUG - shouldPlayOptimal: $shouldPlayOptimal', isOn: LOGGING_SWITCH);
+    
+    // If no strategy rules defined, fallback to simple decision
+    if (strategyRules.isEmpty) {
+      _logger.info('Recall: DEBUG - No YAML rules defined, using fallback logic', isOn: LOGGING_SWITCH);
+      return {
+        'action': 'jack_swap',
+        'use': false,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'reasoning': 'No YAML rules defined',
+      };
+    }
+    
+    // Evaluate rules using YAML rules engine
+    final decision = _evaluateSpecialPlayRules(strategyRules, gameData, shouldPlayOptimal, 'jack_swap');
+    
+    _logger.info('Recall: DEBUG - YAML rules engine returned decision: $decision', isOn: LOGGING_SWITCH);
+    
+    // Merge decision with delay and difficulty
     return {
       'action': 'jack_swap',
-      'use': false, // YAML not implemented yet - will be true/false based on YAML rules
+      'use': decision['use'] as bool? ?? false,
+      'first_card_id': decision['first_card_id'] as String?,
+      'first_player_id': decision['first_player_id'] as String? ?? playerId,
+      'second_card_id': decision['second_card_id'] as String?,
+      'second_player_id': decision['second_player_id'] as String?,
       'delay_seconds': decisionDelay,
       'difficulty': difficulty,
-      'reasoning': 'Jack swap decision (YAML not implemented yet)',
+      'reasoning': decision['reasoning']?.toString() ?? 'Jack swap decision',
     };
   }
 
   /// Get computer player decision for Queen peek event
-  /// Note: YAML decision logic not implemented yet
-  /// This method only handles AI decision (use or not)
   Map<String, dynamic> getQueenPeekDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
+    _logger.info('Recall: DEBUG - getQueenPeekDecision called with difficulty: $difficulty, playerId: $playerId', isOn: LOGGING_SWITCH);
+    
     final decisionDelay = config.getDecisionDelay(difficulty);
     
-    // For now, return simple decision (YAML not implemented yet)
-    // Future: Will use YAML rules engine to determine if computer should use Queen peek
-    // YAML will receive: difficulty, gameState, playerId, eventName='queen_peek'
+    // Prepare game data for YAML rules engine
+    final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
+    
+    // Get event config from YAML
+    final queenPeekConfig = config.getEventConfig('queen_peek');
+    final strategyRules = queenPeekConfig['strategy_rules'] as List<dynamic>? ?? [];
+    
+    _logger.info('Recall: DEBUG - YAML strategy rules count: ${strategyRules.length}', isOn: LOGGING_SWITCH);
+    if (strategyRules.isNotEmpty) {
+      _logger.info('Recall: DEBUG - YAML rules: ${strategyRules.map((r) => r['name']).join(', ')}', isOn: LOGGING_SWITCH);
+    }
+    
+    // Determine shouldPlayOptimal based on difficulty (same pattern as getPlayCardDecision)
+    final cardSelection = config.getCardSelectionStrategy(difficulty);
+    final shouldPlayOptimal = cardSelection['should_play_optimal'] as bool? ?? 
+      (difficulty == 'hard' || difficulty == 'expert');
+    
+    _logger.info('Recall: DEBUG - shouldPlayOptimal: $shouldPlayOptimal', isOn: LOGGING_SWITCH);
+    
+    // If no strategy rules defined, fallback to simple decision
+    if (strategyRules.isEmpty) {
+      _logger.info('Recall: DEBUG - No YAML rules defined, using fallback logic', isOn: LOGGING_SWITCH);
+      return {
+        'action': 'queen_peek',
+        'use': false,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'reasoning': 'No YAML rules defined',
+      };
+    }
+    
+    // Evaluate rules using YAML rules engine
+    final decision = _evaluateSpecialPlayRules(strategyRules, gameData, shouldPlayOptimal, 'queen_peek');
+    
+    _logger.info('Recall: DEBUG - YAML rules engine returned decision: $decision', isOn: LOGGING_SWITCH);
+    
+    // Merge decision with delay and difficulty
     return {
       'action': 'queen_peek',
-      'use': false, // YAML not implemented yet - will be true/false based on YAML rules
+      'use': decision['use'] as bool? ?? false,
+      'target_card_id': decision['target_card_id'] as String?,
+      'target_player_id': decision['target_player_id'] as String?,
       'delay_seconds': decisionDelay,
       'difficulty': difficulty,
-      'reasoning': 'Queen peek decision (YAML not implemented yet)',
+      'reasoning': decision['reasoning']?.toString() ?? 'Queen peek decision',
     };
   }
 
@@ -566,6 +640,153 @@ class ComputerPlayerFactory {
     };
   }
   
+  /// Prepare game data for special play YAML rules engine
+  Map<String, dynamic> _prepareSpecialPlayGameData(
+    Map<String, dynamic> gameState,
+    String actingPlayerId,
+    String difficulty,
+  ) {
+    _logger.info('Recall: DEBUG - _prepareSpecialPlayGameData called for player $actingPlayerId, difficulty: $difficulty', isOn: LOGGING_SWITCH);
+    
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    
+    // Find acting player
+    final actingPlayer = players.firstWhere(
+      (p) => p is Map && (p['id']?.toString() ?? '') == actingPlayerId,
+      orElse: () => <String, dynamic>{},
+    ) as Map<String, dynamic>?;
+    
+    if (actingPlayer == null || actingPlayer.isEmpty) {
+      _logger.warning('Recall: DEBUG - Acting player $actingPlayerId not found', isOn: LOGGING_SWITCH);
+      return {
+        'difficulty': difficulty,
+        'acting_player_id': actingPlayerId,
+        'acting_player': {'hand': [], 'known_cards': {}, 'collection_cards': []},
+        'all_players': {},
+        'game_state': gameState,
+      };
+    }
+    
+    // Extract acting player's hand (ID-only)
+    final actingPlayerHand = <String>[];
+    final actingPlayerHandRaw = actingPlayer['hand'] as List<dynamic>? ?? [];
+    for (final card in actingPlayerHandRaw) {
+      if (card is Map<String, dynamic>) {
+        final cardId = card['cardId']?.toString() ?? card['id']?.toString() ?? '';
+        if (cardId.isNotEmpty && cardId != 'null') {
+          actingPlayerHand.add(cardId);
+        }
+      } else if (card != null && card.toString() != 'null' && card.toString().isNotEmpty) {
+        actingPlayerHand.add(card.toString());
+      }
+    }
+    
+    // Extract acting player's known cards (full data)
+    final actingPlayerKnownCards = <String, Map<String, dynamic>>{};
+    final knownCards = actingPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+    
+    _logger.info('Recall: DEBUG - Acting player known_cards structure: ${knownCards.keys.toList()}', isOn: LOGGING_SWITCH);
+    
+    final actingPlayerKnownCardsRaw = knownCards[actingPlayerId] as Map<String, dynamic>?;
+    
+    if (actingPlayerKnownCardsRaw != null) {
+      _logger.info('Recall: DEBUG - Found known_cards entry for acting player $actingPlayerId with ${actingPlayerKnownCardsRaw.length} cards', isOn: LOGGING_SWITCH);
+      for (final entry in actingPlayerKnownCardsRaw.entries) {
+        final cardId = entry.key.toString();
+        if (cardId.isNotEmpty && cardId != 'null') {
+          if (entry.value is Map<String, dynamic>) {
+            actingPlayerKnownCards[cardId] = Map<String, dynamic>.from(entry.value as Map);
+            _logger.info('Recall: DEBUG - Added known card: $cardId', isOn: LOGGING_SWITCH);
+          } else {
+            _logger.warning('Recall: DEBUG - Known card entry value is not a Map: ${entry.value.runtimeType}', isOn: LOGGING_SWITCH);
+          }
+        }
+      }
+    } else {
+      _logger.warning('Recall: DEBUG - No known_cards entry found for acting player $actingPlayerId in known_cards structure', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: DEBUG - Known_cards structure keys: ${knownCards.keys.toList()}', isOn: LOGGING_SWITCH);
+    }
+    
+    // Extract acting player's collection cards (full data)
+    final actingPlayerCollectionCards = <Map<String, dynamic>>[];
+    final collectionRankCards = actingPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+    for (final card in collectionRankCards) {
+      if (card is Map<String, dynamic>) {
+        actingPlayerCollectionCards.add(Map<String, dynamic>.from(card));
+      }
+    }
+    
+    // Extract all players' data
+    final allPlayersData = <String, Map<String, dynamic>>{};
+    for (final player in players) {
+      if (player is! Map<String, dynamic>) continue;
+      
+      final playerId = player['id']?.toString() ?? '';
+      if (playerId.isEmpty) continue;
+      
+      // Extract hand (ID-only)
+      final hand = <String>[];
+      final handRaw = player['hand'] as List<dynamic>? ?? [];
+      for (final card in handRaw) {
+        if (card is Map<String, dynamic>) {
+          final cardId = card['cardId']?.toString() ?? card['id']?.toString() ?? '';
+          if (cardId.isNotEmpty && cardId != 'null') {
+            hand.add(cardId);
+          }
+        } else if (card != null && card.toString() != 'null' && card.toString().isNotEmpty) {
+          hand.add(card.toString());
+        }
+      }
+      
+      // Extract known card IDs (ID-only)
+      final knownCardIds = <String>[];
+      final playerKnownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
+      final playerOwnKnownCards = playerKnownCards[playerId] as Map<String, dynamic>?;
+      if (playerOwnKnownCards != null) {
+        for (final cardId in playerOwnKnownCards.keys) {
+          if (cardId.toString().isNotEmpty && cardId.toString() != 'null') {
+            knownCardIds.add(cardId.toString());
+          }
+        }
+      }
+      
+      // Extract collection cards (full data)
+      final collectionCards = <Map<String, dynamic>>[];
+      final playerCollectionCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      for (final card in playerCollectionCards) {
+        if (card is Map<String, dynamic>) {
+          collectionCards.add(Map<String, dynamic>.from(card));
+        }
+      }
+      
+      allPlayersData[playerId] = {
+        'hand': hand,
+        'known_card_ids': knownCardIds,
+        'collection_cards': collectionCards,
+      };
+    }
+    
+    final result = {
+      'difficulty': difficulty,
+      'acting_player_id': actingPlayerId,
+      'acting_player': {
+        'hand': actingPlayerHand,
+        'known_cards': actingPlayerKnownCards,
+        'collection_cards': actingPlayerCollectionCards,
+      },
+      'all_players': allPlayersData,
+      'game_state': gameState,
+    };
+    
+    _logger.info('Recall: DEBUG - Prepared special play game data:', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG -   Acting player hand: ${actingPlayerHand.length} cards', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG -   Acting player known cards: ${actingPlayerKnownCards.length} cards', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG -   Acting player collection cards: ${actingPlayerCollectionCards.length} cards', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG -   All players data: ${allPlayersData.length} players', isOn: LOGGING_SWITCH);
+    
+    return result;
+  }
+
   /// Get list of known card IDs from player's known_cards
   List<String> _getKnownCardsList(Map<String, dynamic> playerData) {
     final knownCardIds = <String>[];
@@ -601,27 +822,504 @@ class ComputerPlayerFactory {
     return null;
   }
 
-  /// Select Jack swap targets based on strategy
-  Map<String, dynamic> _selectJackSwapTargets(Map<String, dynamic> gameState, String playerId, String targetStrategy) {
-    // TODO: Implement target selection logic based on strategy
-    // For now, return placeholder values
+  /// Evaluate YAML strategy rules for special play decisions
+  Map<String, dynamic> _evaluateSpecialPlayRules(
+    List<dynamic> strategyRules,
+    Map<String, dynamic> gameData,
+    bool shouldPlayOptimal,
+    String eventName,
+  ) {
+    _logger.info('Recall: DEBUG - _evaluateSpecialPlayRules called with ${strategyRules.length} rules, shouldPlayOptimal: $shouldPlayOptimal, eventName: $eventName', isOn: LOGGING_SWITCH);
+    
+    if (strategyRules.isEmpty) {
+      _logger.info('Recall: DEBUG - No strategy rules defined, returning use: false', isOn: LOGGING_SWITCH);
+      return {
+        'use': false,
+        'reasoning': 'No strategy rules defined',
+      };
+    }
+    
+    // Sort rules by priority (ascending, lower priority = evaluated first)
+    final sortedRules = List<Map<String, dynamic>>.from(strategyRules)
+      ..sort((a, b) => (a['priority'] ?? 999).compareTo(b['priority'] ?? 999));
+    
+    _logger.info('Recall: DEBUG - Sorted rules by priority: ${sortedRules.map((r) => '${r['name']} (${r['priority']})').join(', ')}', isOn: LOGGING_SWITCH);
+    
+    // If not playing optimally, skip to last rule (random fallback)
+    if (!shouldPlayOptimal && sortedRules.isNotEmpty) {
+      final lastRule = sortedRules.last;
+      _logger.info('Recall: DEBUG - Not playing optimally, using last rule: ${lastRule['name']}', isOn: LOGGING_SWITCH);
+      return _executeSpecialPlayAction(lastRule['action'], gameData, eventName, lastRule['name']?.toString() ?? 'unnamed');
+    }
+    
+    // Get difficulty for probability-based execution
+    final difficulty = gameData['difficulty']?.toString() ?? 'medium';
+    
+    // Evaluate rules in priority order
+    for (final rule in sortedRules) {
+      final ruleName = rule['name']?.toString() ?? 'unnamed';
+      _logger.info('Recall: DEBUG - Evaluating rule: $ruleName', isOn: LOGGING_SWITCH);
+      
+      final condition = rule['condition'] as Map<String, dynamic>?;
+      if (condition != null) {
+        final conditionResult = _evaluateSpecialPlayCondition(condition, gameData);
+        _logger.info('Recall: DEBUG - Rule $ruleName condition result: $conditionResult', isOn: LOGGING_SWITCH);
+        
+        if (conditionResult) {
+          // Check execution probability based on difficulty
+          final executionProb = rule['execution_probability'] as Map<String, dynamic>?;
+          if (executionProb != null) {
+            final prob = (executionProb[difficulty] as num?)?.toDouble() ?? 1.0;
+            final shouldExecute = _random.nextDouble() < prob;
+            _logger.info('Recall: DEBUG - Rule $ruleName execution probability for $difficulty: $prob, shouldExecute: $shouldExecute', isOn: LOGGING_SWITCH);
+            
+            if (!shouldExecute) {
+              _logger.info('Recall: DEBUG - Rule $ruleName skipped due to execution probability', isOn: LOGGING_SWITCH);
+              continue; // Skip this rule and try next one
+            }
+          }
+          
+          final action = rule['action'] as Map<String, dynamic>?;
+          if (action != null) {
+            _logger.info('Recall: DEBUG - Rule $ruleName condition passed, executing action', isOn: LOGGING_SWITCH);
+            return _executeSpecialPlayAction(action, gameData, eventName, ruleName);
+          }
+        }
+      } else {
+        // No condition means always true
+        // Check execution probability based on difficulty
+        final executionProb = rule['execution_probability'] as Map<String, dynamic>?;
+        if (executionProb != null) {
+          final prob = (executionProb[difficulty] as num?)?.toDouble() ?? 1.0;
+          final shouldExecute = _random.nextDouble() < prob;
+          _logger.info('Recall: DEBUG - Rule $ruleName execution probability for $difficulty: $prob, shouldExecute: $shouldExecute', isOn: LOGGING_SWITCH);
+          
+          if (!shouldExecute) {
+            _logger.info('Recall: DEBUG - Rule $ruleName skipped due to execution probability', isOn: LOGGING_SWITCH);
+            continue; // Skip this rule and try next one
+          }
+        }
+        
+        final action = rule['action'] as Map<String, dynamic>?;
+        if (action != null) {
+          _logger.info('Recall: DEBUG - Rule $ruleName has no condition, executing action', isOn: LOGGING_SWITCH);
+          return _executeSpecialPlayAction(action, gameData, eventName, ruleName);
+        }
+      }
+    }
+    
+    _logger.info('Recall: DEBUG - No rules matched, returning use: false', isOn: LOGGING_SWITCH);
+    
+    // Ultimate fallback: return use: false
     return {
-      'first_card_id': 'placeholder_first_card',
-      'first_player_id': playerId,
-      'second_card_id': 'placeholder_second_card',
-      'second_player_id': 'placeholder_target_player',
+      'use': false,
+      'reasoning': 'No rules matched',
+    };
+  }
+  
+  /// Evaluate a condition for special play rules
+  bool _evaluateSpecialPlayCondition(Map<String, dynamic> condition, Map<String, dynamic> gameData) {
+    final type = condition['type']?.toString() ?? 'always';
+    
+    switch (type) {
+      case 'always':
+        return true;
+      
+      case 'and':
+        final conditions = condition['conditions'] as List<dynamic>? ?? [];
+        return conditions.every((c) => _evaluateSpecialPlayCondition(c as Map<String, dynamic>, gameData));
+      
+      case 'or':
+        final conditions = condition['conditions'] as List<dynamic>? ?? [];
+        return conditions.any((c) => _evaluateSpecialPlayCondition(c as Map<String, dynamic>, gameData));
+      
+      case 'not':
+        final subCondition = condition['condition'] as Map<String, dynamic>?;
+        return subCondition != null ? !_evaluateSpecialPlayCondition(subCondition, gameData) : false;
+      
+      default:
+        // Field-based condition
+        return _evaluateSpecialPlayFieldCondition(condition, gameData);
+    }
+  }
+  
+  /// Evaluate a field-based condition for special play rules
+  bool _evaluateSpecialPlayFieldCondition(Map<String, dynamic> condition, Map<String, dynamic> gameData) {
+    final field = condition['field']?.toString();
+    final operator = condition['operator']?.toString() ?? 'equals';
+    final value = condition['value'];
+    
+    if (field == null) return false;
+    
+    // Handle nested field access (e.g., "all_players.playerId.hand")
+    dynamic fieldValue = _getNestedFieldValue(gameData, field);
+    
+    switch (operator) {
+      case 'not_empty':
+        if (fieldValue is List) return fieldValue.isNotEmpty;
+        if (fieldValue is Map) return fieldValue.isNotEmpty;
+        return fieldValue != null;
+      
+      case 'empty':
+        if (fieldValue is List) return fieldValue.isEmpty;
+        if (fieldValue is Map) return fieldValue.isEmpty;
+        return fieldValue == null;
+      
+      case 'equals':
+        return fieldValue == value;
+      
+      case 'not_equals':
+        return fieldValue != value;
+      
+      case 'greater_than':
+        if (fieldValue is num && value is num) return fieldValue > value;
+        return false;
+      
+      case 'less_than':
+        if (fieldValue is num && value is num) return fieldValue < value;
+        return false;
+      
+      case 'contains':
+        if (fieldValue is List) return fieldValue.contains(value);
+        if (fieldValue is String && value is String) return fieldValue.contains(value);
+        return false;
+      
+      default:
+        return false;
+    }
+  }
+  
+  /// Get nested field value from game data (e.g., "all_players.playerId.hand")
+  dynamic _getNestedFieldValue(Map<String, dynamic> gameData, String fieldPath) {
+    final parts = fieldPath.split('.');
+    dynamic current = gameData;
+    
+    for (final part in parts) {
+      if (current is Map<String, dynamic>) {
+        current = current[part];
+      } else {
+        return null;
+      }
+    }
+    
+    return current;
+  }
+  
+  /// Execute a special play action and return decision
+  Map<String, dynamic> _executeSpecialPlayAction(
+    Map<String, dynamic> action,
+    Map<String, dynamic> gameData,
+    String eventName,
+    String ruleName,
+  ) {
+    final actionType = action['type']?.toString() ?? 'skip_special_play';
+    
+    _logger.info('Recall: DEBUG - _executeSpecialPlayAction called with actionType: $actionType, eventName: $eventName, ruleName: $ruleName', isOn: LOGGING_SWITCH);
+    
+    switch (actionType) {
+      case 'use_special_play':
+        if (eventName == 'jack_swap') {
+          // Get target strategy from action
+          final targetStrategy = action['target_strategy']?.toString() ?? 'random';
+          
+          _logger.info('Recall: DEBUG - Executing jack_swap with target strategy: $targetStrategy', isOn: LOGGING_SWITCH);
+          
+          // Select targets based on strategy
+          final targets = _selectJackSwapTargets(gameData, targetStrategy);
+          
+          _logger.info('Recall: DEBUG - Target selection result: $targets', isOn: LOGGING_SWITCH);
+          
+          return {
+            'use': true,
+            'first_card_id': targets['first_card_id'] as String?,
+            'second_card_id': targets['second_card_id'] as String?,
+            'first_player_id': targets['first_player_id'] as String? ?? gameData['acting_player_id']?.toString(),
+            'second_player_id': targets['second_player_id'] as String?,
+            'reasoning': ruleName,
+          };
+        } else if (eventName == 'queen_peek') {
+          return {
+            'use': true,
+            'target_card_id': null,  // Will be selected later
+            'target_player_id': null,  // Will be selected later
+            'reasoning': ruleName,
+          };
+        }
+        return {
+          'use': true,
+          'reasoning': ruleName,
+        };
+      
+      case 'skip_special_play':
+        return {
+          'use': false,
+          'reasoning': ruleName,
+        };
+      
+      default:
+        return {
+          'use': false,
+          'reasoning': 'Unknown action type: $actionType',
+        };
+    }
+  }
+  
+  /// Select Jack swap targets based on strategy
+  Map<String, dynamic> _selectJackSwapTargets(
+    Map<String, dynamic> gameData,
+    String targetStrategy,
+  ) {
+    final actingPlayerId = gameData['acting_player_id']?.toString() ?? '';
+    final actingPlayer = gameData['acting_player'] as Map<String, dynamic>? ?? {};
+    final allPlayers = gameData['all_players'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    _logger.info('Recall: DEBUG - _selectJackSwapTargets called with strategy: $targetStrategy', isOn: LOGGING_SWITCH);
+    
+    switch (targetStrategy) {
+      case 'lowest_opponent_higher_own':
+        // Rule 1: Find lowest opponent card and higher own card
+        return _selectLowestOpponentHigherOwn(actingPlayerId, actingPlayer, allPlayers, gameState);
+      
+      case 'random_two_players':
+        // Rule 2: Random 2 cards (excluding collection cards) from any 2 other players
+        return _selectRandomTwoPlayers(actingPlayerId, actingPlayer, allPlayers, gameState);
+      
+      default:
+        // Fallback: random selection
+        return _selectRandomTwoPlayers(actingPlayerId, actingPlayer, allPlayers, gameState);
+    }
+  }
+  
+  /// Rule 1: Select lowest opponent card and higher own card
+  Map<String, dynamic> _selectLowestOpponentHigherOwn(
+    String actingPlayerId,
+    Map<String, dynamic> actingPlayer,
+    Map<String, dynamic> allPlayers,
+    Map<String, dynamic> gameState,
+  ) {
+    _logger.info('Recall: DEBUG - Selecting lowest opponent card and higher own card', isOn: LOGGING_SWITCH);
+    
+    // Get acting player's known cards (full data)
+    final actingPlayerKnownCards = actingPlayer['known_cards'] as Map<String, dynamic>? ?? {};
+    
+    // Find highest point card in acting player's known cards
+    Map<String, dynamic>? highestOwnCard;
+    int highestOwnPoints = -1;
+    
+    _logger.info('Recall: DEBUG - Searching for highest point card in acting player\'s known cards (${actingPlayerKnownCards.length} cards)', isOn: LOGGING_SWITCH);
+    
+    for (final entry in actingPlayerKnownCards.entries) {
+      final card = entry.value as Map<String, dynamic>?;
+      if (card != null) {
+        final points = card['points'] as int? ?? 0;
+        if (points > highestOwnPoints) {
+          highestOwnPoints = points;
+          highestOwnCard = card;
+        }
+      }
+    }
+    
+    if (highestOwnCard == null) {
+      _logger.warning('Recall: DEBUG - No known cards for acting player, using fallback', isOn: LOGGING_SWITCH);
+      return _selectRandomTwoPlayers(actingPlayerId, actingPlayer, allPlayers, gameState);
+    }
+    
+    _logger.info('Recall: DEBUG - Found highest own card: ${highestOwnCard['cardId']} (${highestOwnPoints} points)', isOn: LOGGING_SWITCH);
+    
+    // Find lowest point card from other players' known cards
+    Map<String, dynamic>? lowestOpponentCard;
+    String? lowestOpponentPlayerId;
+    int lowestOpponentPoints = 999;
+    
+    _logger.info('Recall: DEBUG - Searching for lowest point card from other players\' known cards (${allPlayers.length - 1} other players)', isOn: LOGGING_SWITCH);
+    
+    for (final entry in allPlayers.entries) {
+      final playerId = entry.key;
+      if (playerId == actingPlayerId) continue; // Skip acting player
+      
+      // Get full card data from game state for this player's known cards
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      final playerData = players.firstWhere(
+        (p) => p is Map && (p['id']?.toString() ?? '') == playerId,
+        orElse: () => <String, dynamic>{},
+      ) as Map<String, dynamic>?;
+      
+      if (playerData != null) {
+        final playerKnownCards = playerData['known_cards'] as Map<String, dynamic>? ?? {};
+        final playerOwnKnownCards = playerKnownCards[playerId] as Map<String, dynamic>?;
+        
+        if (playerOwnKnownCards != null) {
+          for (final cardEntry in playerOwnKnownCards.entries) {
+            final card = cardEntry.value as Map<String, dynamic>?;
+            if (card != null) {
+              final points = card['points'] as int? ?? 0;
+              if (points < lowestOpponentPoints) {
+                lowestOpponentPoints = points;
+                lowestOpponentCard = card;
+                lowestOpponentPlayerId = playerId;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Check if we found a beneficial swap (opponent card has lower points than own highest card)
+    if (lowestOpponentCard != null && lowestOpponentPlayerId != null) {
+      _logger.info('Recall: DEBUG - Found lowest opponent card: ${lowestOpponentCard['cardId']} (${lowestOpponentPoints} points) from player $lowestOpponentPlayerId', isOn: LOGGING_SWITCH);
+      
+      if (lowestOpponentPoints < highestOwnPoints) {
+        _logger.info('Recall: DEBUG - Beneficial swap found: own card (${highestOwnCard['cardId']}, ${highestOwnPoints} pts) <-> opponent card (${lowestOpponentCard['cardId']}, ${lowestOpponentPoints} pts) from player $lowestOpponentPlayerId', isOn: LOGGING_SWITCH);
+        
+        return {
+          'first_card_id': highestOwnCard['cardId']?.toString(),
+          'first_player_id': actingPlayerId,
+          'second_card_id': lowestOpponentCard['cardId']?.toString(),
+          'second_player_id': lowestOpponentPlayerId,
+        };
+      } else {
+        _logger.info('Recall: DEBUG - Opponent card (${lowestOpponentPoints} pts) is not lower than own card (${highestOwnPoints} pts), not beneficial', isOn: LOGGING_SWITCH);
+      }
+    } else {
+      _logger.info('Recall: DEBUG - No opponent cards found in known cards', isOn: LOGGING_SWITCH);
+    }
+    
+    _logger.info('Recall: DEBUG - No beneficial swap found, using fallback', isOn: LOGGING_SWITCH);
+    return _selectRandomTwoPlayers(actingPlayerId, actingPlayer, allPlayers, gameState);
+  }
+  
+  /// Rule 2: Random 2 cards (excluding collection cards) from any 2 other players
+  Map<String, dynamic> _selectRandomTwoPlayers(
+    String actingPlayerId,
+    Map<String, dynamic> actingPlayer,
+    Map<String, dynamic> allPlayers,
+    Map<String, dynamic> gameState,
+  ) {
+    _logger.info('Recall: DEBUG - Selecting random 2 cards from 2 other players', isOn: LOGGING_SWITCH);
+    
+    // Get acting player's collection card IDs (to exclude)
+    final actingPlayerCollectionCards = actingPlayer['collection_cards'] as List<dynamic>? ?? [];
+    final collectionCardIds = actingPlayerCollectionCards
+        .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    
+    _logger.info('Recall: DEBUG - Acting player has ${collectionCardIds.length} collection cards to exclude', isOn: LOGGING_SWITCH);
+    
+    // Get acting player's hand (excluding collection cards)
+    final actingPlayerHand = actingPlayer['hand'] as List<dynamic>? ?? [];
+    final playableOwnCards = actingPlayerHand
+        .where((cardId) => !collectionCardIds.contains(cardId.toString()))
+        .toList();
+    
+    _logger.info('Recall: DEBUG - Acting player hand: ${actingPlayerHand.length} total, ${playableOwnCards.length} playable (excluding collection)', isOn: LOGGING_SWITCH);
+    
+    if (playableOwnCards.isEmpty) {
+      _logger.warning('Recall: DEBUG - No playable cards for acting player, using fallback', isOn: LOGGING_SWITCH);
+      return {
+        'first_card_id': null,
+        'first_player_id': actingPlayerId,
+        'second_card_id': null,
+        'second_player_id': null,
+      };
+    }
+    
+    // Get other players (excluding acting player)
+    final otherPlayers = allPlayers.entries
+        .where((entry) => entry.key != actingPlayerId)
+        .toList();
+    
+    if (otherPlayers.length < 2) {
+      _logger.warning('Recall: DEBUG - Not enough other players (need 2, have ${otherPlayers.length}), using single player', isOn: LOGGING_SWITCH);
+      // Fallback: use same player twice if only one other player
+      if (otherPlayers.isEmpty) {
+        return {
+          'first_card_id': null,
+          'first_player_id': actingPlayerId,
+          'second_card_id': null,
+          'second_player_id': null,
+        };
+      }
+      
+      final otherPlayer = otherPlayers[0];
+      final otherPlayerId = otherPlayer.key;
+      final otherPlayerData = otherPlayer.value as Map<String, dynamic>? ?? {};
+      final otherPlayerHand = otherPlayerData['hand'] as List<dynamic>? ?? [];
+      final otherPlayerCollectionCards = otherPlayerData['collection_cards'] as List<dynamic>? ?? [];
+      final otherCollectionCardIds = otherPlayerCollectionCards
+          .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      
+      final playableOtherCards = otherPlayerHand
+          .where((cardId) => !otherCollectionCardIds.contains(cardId.toString()))
+          .toList();
+      
+      if (playableOtherCards.isEmpty || playableOwnCards.isEmpty) {
+        return {
+          'first_card_id': null,
+          'first_player_id': actingPlayerId,
+          'second_card_id': null,
+          'second_player_id': null,
+        };
+      }
+      
+      // Select random cards from same player
+      final firstCard = playableOwnCards[_random.nextInt(playableOwnCards.length)].toString();
+      final secondCard = playableOtherCards[_random.nextInt(playableOtherCards.length)].toString();
+      
+      return {
+        'first_card_id': firstCard,
+        'first_player_id': actingPlayerId,
+        'second_card_id': secondCard,
+        'second_player_id': otherPlayerId,
+      };
+    }
+    
+    // Select 1 other player randomly (we'll swap one card from acting player with one card from this player)
+    final shuffledPlayers = List.from(otherPlayers)..shuffle(_random);
+    final firstOtherPlayer = shuffledPlayers[0];
+    
+    final firstOtherPlayerId = firstOtherPlayer.key;
+    final firstOtherPlayerData = firstOtherPlayer.value as Map<String, dynamic>? ?? {};
+    final firstOtherPlayerHand = firstOtherPlayerData['hand'] as List<dynamic>? ?? [];
+    final firstOtherPlayerCollectionCards = firstOtherPlayerData['collection_cards'] as List<dynamic>? ?? [];
+    final firstOtherCollectionCardIds = firstOtherPlayerCollectionCards
+        .map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? '').toString() : '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    
+    final playableFirstOtherCards = firstOtherPlayerHand
+        .where((cardId) => !firstOtherCollectionCardIds.contains(cardId.toString()))
+        .toList();
+    
+    if (playableOwnCards.isEmpty || playableFirstOtherCards.isEmpty) {
+      _logger.warning('Recall: DEBUG - Not enough playable cards, using fallback', isOn: LOGGING_SWITCH);
+      return {
+        'first_card_id': null,
+        'first_player_id': actingPlayerId,
+        'second_card_id': null,
+        'second_player_id': null,
+      };
+    }
+    
+    // Select random cards
+    final firstCard = playableOwnCards[_random.nextInt(playableOwnCards.length)].toString();
+    final secondCard = playableFirstOtherCards[_random.nextInt(playableFirstOtherCards.length)].toString();
+    
+    _logger.info('Recall: DEBUG - Selected random swap:', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG -   First card: $firstCard from acting player $actingPlayerId', isOn: LOGGING_SWITCH);
+    _logger.info('Recall: DEBUG -   Second card: $secondCard from other player $firstOtherPlayerId', isOn: LOGGING_SWITCH);
+    
+    return {
+      'first_card_id': firstCard,
+      'first_player_id': actingPlayerId,
+      'second_card_id': secondCard,
+      'second_player_id': firstOtherPlayerId,
     };
   }
 
-  /// Select Queen peek target based on strategy
-  Map<String, dynamic> _selectQueenPeekTarget(Map<String, dynamic> gameState, String playerId, String targetStrategy) {
-    // TODO: Implement target selection logic based on strategy
-    // For now, return placeholder values
-    return {
-      'card_id': 'placeholder_target_card',
-      'player_id': 'placeholder_target_player',
-    };
-  }
 
   /// Get configuration summary
   Map<String, dynamic> getSummary() => config.getSummary();

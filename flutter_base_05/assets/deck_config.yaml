@@ -1,11 +1,16 @@
 # Deck Configuration for Recall Game
 # This file defines the composition and properties of playing cards
 # Used by both Dart and Python deck factories
+#
+# ⚠️ SINGLE SOURCE OF TRUTH (SSOT) ⚠️
+# This file is the ONLY source for deck configuration in Flutter frontend
+# Location: assets/deck_config.yaml
+# Referenced in: practice_game.dart line 430
 
 # Global deck settings
 deck_settings:
   include_jokers: true
-  testing_mode: true  # Set to false for standard deck, true for testing deck
+  testing_mode: false  # Set to false for standard deck, true for testing deck
 
 # Standard deck configuration (52 cards + 2 jokers = 54 total)
 standard_deck:

@@ -1257,67 +1257,13 @@ class ComputerPlayerFactory {
           };
         }
         
-        // Rule 1: If player has 3 collection cards, check if this is the only remaining card with same rank
+        // Rule 1: If player has 3 collection cards and rank matches, collect it (will complete 4 of a kind)
         if (ruleName == 'collect_if_completes_set' && actingPlayerCollectionCards.length == 3) {
-          // Check if this is the only remaining card with same rank in the game
-          final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-          final allPlayers = gameData['all_players'] as Map<String, dynamic>? ?? {};
-          
-          // Count cards with same rank in all players' hands
-          int sameRankCount = 0;
-          for (final playerEntry in allPlayers.entries) {
-            final playerHand = playerEntry.value['hand'] as List<dynamic>? ?? [];
-            for (final cardId in playerHand) {
-              // Get card data from game state
-              final cardData = _getCardById(gameState, cardId.toString());
-              if (cardData != null) {
-                final cardRank = cardData['rank']?.toString() ?? '';
-                if (cardRank.toLowerCase() == topCardRank.toLowerCase()) {
-                  sameRankCount++;
-                }
-              }
-            }
-          }
-          
-          // Check discard pile (excluding top card)
-          final discardPileRaw = gameState['discardPile'] as List<dynamic>? ?? [];
-          for (int i = 0; i < discardPileRaw.length - 1; i++) {
-            final card = discardPileRaw[i] as Map<String, dynamic>?;
-            if (card != null) {
-              final cardRank = card['rank']?.toString() ?? '';
-              if (cardRank.toLowerCase() == topCardRank.toLowerCase()) {
-                sameRankCount++;
-              }
-            }
-          }
-          
-          // Check draw pile
-          final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
-          for (final card in drawPile) {
-            if (card is Map<String, dynamic>) {
-              final cardRank = card['rank']?.toString() ?? '';
-              if (cardRank.toLowerCase() == topCardRank.toLowerCase()) {
-                sameRankCount++;
-              }
-            }
-          }
-          
-          _logger.info('Recall: DEBUG - Found $sameRankCount cards with rank $topCardRank in game (excluding top discard card)', isOn: LOGGING_SWITCH);
-          
-          // If this is the only remaining card (sameRankCount == 0), collect it
-          if (sameRankCount == 0) {
-            _logger.info('Recall: DEBUG - This is the only remaining card with rank $topCardRank, collecting it', isOn: LOGGING_SWITCH);
-            return {
-              'use': true,
-              'reasoning': ruleName,
-            };
-          } else {
-            _logger.info('Recall: DEBUG - There are other cards with rank $topCardRank, not collecting (Rule 1)', isOn: LOGGING_SWITCH);
-            return {
-              'use': false,
-              'reasoning': ruleName,
-            };
-          }
+          _logger.info('Recall: DEBUG - Player has 3 collection cards, collecting 4th card to complete set', isOn: LOGGING_SWITCH);
+          return {
+            'use': true,
+            'reasoning': ruleName,
+          };
         }
         
         // Rule 2: If same rank as collection rank, collect it

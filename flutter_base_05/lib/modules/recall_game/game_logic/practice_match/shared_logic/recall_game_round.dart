@@ -195,6 +195,12 @@ class RecallGameRound {
     try {
       _logger.info('Recall: Starting next turn...', isOn: LOGGING_SWITCH);
       
+      // Check if game has ended (winners exist) - prevent progression if game is over
+      if (_winnersList.isNotEmpty) {
+        _logger.info('Recall: Game has ended - ${_winnersList.length} winner(s) found. Preventing turn start.', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       final gameState = _getCurrentGameState();
       if (gameState == null) {
         _logger.error('Recall: Failed to get game state for _startNextTurn', isOn: LOGGING_SWITCH);
@@ -542,6 +548,8 @@ class RecallGameRound {
         case 'collect_from_discard':
           final shouldCollect = decision['collect'] as bool? ?? false;
           if (shouldCollect) {
+            // DEBUG: Log the playerId being passed to handleCollectFromDiscard
+            _logger.info('Recall: DEBUG - Executing collect_from_discard for playerId: $playerId, decision: $decision', isOn: LOGGING_SWITCH);
             final success = await handleCollectFromDiscard(playerId);
             if (!success) {
               _logger.error('Recall: Computer player $playerId failed to collect from discard', isOn: LOGGING_SWITCH);
@@ -982,6 +990,17 @@ class RecallGameRound {
       
       // Get player
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      
+      // DEBUG: Log all players' IDs and collection card counts before finding the player
+      _logger.info('Recall: DEBUG - Looking for playerId: $playerId in players list', isOn: LOGGING_SWITCH);
+      for (final p in players) {
+        final pId = p['id']?.toString() ?? 'unknown';
+        final pName = p['name']?.toString() ?? 'unknown';
+        final pCollectionCards = p['collection_rank_cards'] as List<dynamic>? ?? [];
+        final pCollectionRank = p['collection_rank']?.toString() ?? 'none';
+        _logger.info('Recall: DEBUG - Player in state: $pName ($pId), collection_rank: $pCollectionRank, collection_cards: ${pCollectionCards.length}', isOn: LOGGING_SWITCH);
+      }
+      
       final player = players.firstWhere(
         (p) => p['id'] == playerId,
         orElse: () => <String, dynamic>{},
@@ -991,6 +1010,11 @@ class RecallGameRound {
         _logger.error('Recall: Player $playerId not found', isOn: LOGGING_SWITCH);
         return false;
       }
+      
+      // DEBUG: Verify we got the correct player
+      final foundPlayerId = player['id']?.toString() ?? 'unknown';
+      final foundPlayerName = player['name']?.toString() ?? 'unknown';
+      _logger.info('Recall: DEBUG - Found player: $foundPlayerName ($foundPlayerId) - matches requested playerId: ${foundPlayerId == playerId}', isOn: LOGGING_SWITCH);
       
       // Get top card from discard pile
       final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
@@ -1011,6 +1035,10 @@ class RecallGameRound {
       // Get player's collection rank
       final playerCollectionRank = player['collection_rank']?.toString() ?? '';
       
+      // DEBUG: Log validation details
+      final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      _logger.info('Recall: DEBUG - Collect validation - Top discard rank: $topDiscardRank, Player collection rank: $playerCollectionRank, Collection cards count: ${collectionRankCards.length}', isOn: LOGGING_SWITCH);
+      
       // Check if ranks match
       if (topDiscardRank.toLowerCase() != playerCollectionRank.toLowerCase()) {
         _logger.info('Recall: Card rank $topDiscardRank doesn\'t match collection rank $playerCollectionRank', isOn: LOGGING_SWITCH);
@@ -1023,9 +1051,40 @@ class RecallGameRound {
         return false;
       }
       
+      // DEBUG: Log successful validation
+      _logger.info('Recall: DEBUG - Collect validation passed - ranks match: $topDiscardRank == $playerCollectionRank', isOn: LOGGING_SWITCH);
+      
+      // Get the card ID of the top discard card before removing it
+      final topDiscardCardId = topDiscardCard['cardId']?.toString() ?? '';
+      
+      // Check if this card is already in the player's collection_rank_cards (shouldn't happen, but safety check)
+      final existingCardIds = collectionRankCards.map((c) {
+        if (c is Map<String, dynamic>) {
+          return c['cardId']?.toString() ?? '';
+        }
+        return '';
+      }).where((id) => id.isNotEmpty).toList();
+      
+      if (existingCardIds.contains(topDiscardCardId)) {
+        _logger.error('Recall: ERROR - Card $topDiscardCardId is already in player $playerId collection_rank_cards! Preventing duplicate collection.', isOn: LOGGING_SWITCH);
+        _stateCallback.onActionError(
+          'Card is already in your collection',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
+        return false;
+      }
+      
       // SUCCESS - Remove card from discard pile
       final collectedCard = discardPile.removeLast();
-      _logger.info('Recall: Collected card ${collectedCard['cardId']} from discard pile', isOn: LOGGING_SWITCH);
+      final collectedCardId = collectedCard['cardId']?.toString() ?? '';
+      
+      // Verify the card we removed matches what we expected
+      if (collectedCardId != topDiscardCardId) {
+        _logger.error('Recall: ERROR - Card ID mismatch! Expected $topDiscardCardId but removed $collectedCardId from discard pile', isOn: LOGGING_SWITCH);
+        // This shouldn't happen, but if it does, we should still continue
+      }
+      
+      _logger.info('Recall: Collected card $collectedCardId from discard pile', isOn: LOGGING_SWITCH);
       
       // Add to player's hand as ID-only (same format as regular hand cards)
       final hand = player['hand'] as List<dynamic>? ?? [];
@@ -1037,7 +1096,7 @@ class RecallGameRound {
       });
       
       // Add to player's collection_rank_cards (full data)
-      final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      // Reuse collectionRankCards variable declared earlier for debug logging
       collectionRankCards.add(collectedCard); // Full card data
       
       // Update player's collection_rank to match the collected card's rank
@@ -2057,12 +2116,25 @@ class RecallGameRound {
       // before we start the special cards window
       await _checkComputerPlayerSameRankPlays();
       
-      // Check if game should end (empty hand win condition or Recall called)
-      _checkGameEnding();
+      // Check if game has ended (winners exist) - prevent progression if game is over
+      // Winners might be added during same rank plays (empty hand win condition)
+      if (_winnersList.isNotEmpty) {
+        _logger.info('Recall: Game has ended - ${_winnersList.length} winner(s) found after same rank plays. Preventing further game progression.', isOn: LOGGING_SWITCH);
+        _checkGameEnding();
+        return;
+      }
       
       // Check if computer players can collect from discard pile
       // Rank matching is done in Dart, then YAML handles AI decision
       await _checkComputerPlayerCollectionFromDiscard();
+      
+      // Check if game has ended (winners exist) - prevent progression if game is over
+      // Winners might be added during collection check (four of a kind win condition)
+      if (_winnersList.isNotEmpty) {
+        _logger.info('Recall: Game has ended - ${_winnersList.length} winner(s) found after collection check. Preventing further game progression.', isOn: LOGGING_SWITCH);
+        _checkGameEnding();
+        return;
+      }
       
       // Check for special cards and handle them (backend game_round.py line 640)
       // All same rank special cards are now in the list
@@ -2138,6 +2210,7 @@ class RecallGameRound {
 
   /// Check if computer players can collect from discard pile
   /// Rank matching is done in Dart, then YAML handles AI decision (collect or not)
+  /// After each collection, re-checks the top card and continues until no one can collect or decides not to collect
   Future<void> _checkComputerPlayerCollectionFromDiscard() async {
     try {
       _logger.info('Recall: Checking computer players for collection from discard pile', isOn: LOGGING_SWITCH);
@@ -2148,28 +2221,10 @@ class RecallGameRound {
         return;
       }
       
-      // Get discard pile - check if not empty
-      final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
-      if (discardPile.isEmpty) {
-        _logger.info('Recall: Discard pile is empty, no collection possible', isOn: LOGGING_SWITCH);
-        return;
-      }
-      
-      // Get top discard card rank
-      final topDiscardCard = discardPile.last;
-      final topDiscardRank = topDiscardCard['rank']?.toString() ?? '';
-      
-      if (topDiscardRank.isEmpty) {
-        _logger.info('Recall: Top discard card has no rank, skipping collection check', isOn: LOGGING_SWITCH);
-        return;
-      }
-      
-      _logger.info('Recall: Top discard card rank: $topDiscardRank', isOn: LOGGING_SWITCH);
-      
       // Get all players
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       
-      // Loop through all players where isHuman == false (computer players)
+      // Get computer players (isHuman == false and isActive == true)
       final computerPlayers = players.where((p) => 
         p['isHuman'] == false &&
         p['isActive'] == true
@@ -2182,26 +2237,132 @@ class RecallGameRound {
       
       _logger.info('Recall: Found ${computerPlayers.length} computer players to check', isOn: LOGGING_SWITCH);
       
-      // Process each computer player
-      for (final computerPlayer in computerPlayers) {
-        final playerId = computerPlayer['id']?.toString() ?? '';
-        final playerName = computerPlayer['name']?.toString() ?? 'Unknown';
-        final playerCollectionRank = computerPlayer['collection_rank']?.toString() ?? '';
+      // Shuffle computer players list to randomize the order
+      computerPlayers.shuffle(Random());
+      _logger.info('Recall: Shuffled computer players list for random collection order', isOn: LOGGING_SWITCH);
+      
+      // Keep checking until no one can collect or decides not to collect
+      // This handles cases where multiple cards of the same rank are in the discard pile (from same rank plays)
+      bool continueChecking = true;
+      int maxIterations = 100; // Safety limit to prevent infinite loops
+      int iteration = 0;
+      
+      while (continueChecking && iteration < maxIterations) {
+        iteration++;
+        _logger.info('Recall: Collection check iteration $iteration', isOn: LOGGING_SWITCH);
         
-        _logger.info('Recall: Checking computer player $playerName ($playerId) - collection rank: $playerCollectionRank', isOn: LOGGING_SWITCH);
-        
-        // Compare with top discard card rank (case-insensitive) - DART LOGIC
-        if (playerCollectionRank.toLowerCase() == topDiscardRank.toLowerCase()) {
-          _logger.info('Recall: Collection rank matches top discard card rank for player $playerName', isOn: LOGGING_SWITCH);
-          
-          // Get player's difficulty
-          final difficulty = computerPlayer['difficulty']?.toString() ?? 'medium';
-          
-          // Call YAML decision system - YAML will handle AI decision (collect or not)
-          _handleComputerActionWithYAML(gameState, playerId, difficulty, 'collect_from_discard');
-        } else {
-          _logger.info('Recall: Collection rank $playerCollectionRank does not match top discard card rank $topDiscardRank for player $playerName', isOn: LOGGING_SWITCH);
+        // Refresh game state in each iteration to get updated discard pile after collections
+        final currentGameState = _getCurrentGameState();
+        if (currentGameState == null) {
+          _logger.info('Recall: Failed to get game state for collection check iteration', isOn: LOGGING_SWITCH);
+          continueChecking = false;
+          break;
         }
+        
+        // Update gameState reference to use fresh state
+        final gameState = currentGameState;
+        
+        // Refresh players list to get updated player data (collection_rank_cards may have changed)
+        final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+        
+        // Refresh computer players list from updated players (maintain shuffled order by ID)
+        final computerPlayerIds = computerPlayers.map((p) => p['id']?.toString() ?? '').toList();
+        final refreshedComputerPlayers = <Map<String, dynamic>>[];
+        for (final playerId in computerPlayerIds) {
+          final player = players.firstWhere(
+            (p) => p['id']?.toString() == playerId,
+            orElse: () => <String, dynamic>{},
+          );
+          if (player.isNotEmpty && player['isHuman'] == false && player['isActive'] == true) {
+            refreshedComputerPlayers.add(player);
+          }
+        }
+        
+        // Get discard pile - check if not empty
+        final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+        if (discardPile.isEmpty) {
+          _logger.info('Recall: Discard pile is empty, stopping collection checks', isOn: LOGGING_SWITCH);
+          continueChecking = false;
+          break;
+        }
+        
+        // Get top discard card rank
+        final topDiscardCard = discardPile.last;
+        final topDiscardRank = topDiscardCard['rank']?.toString() ?? '';
+        
+        if (topDiscardRank.isEmpty) {
+          _logger.info('Recall: Top discard card has no rank, stopping collection checks', isOn: LOGGING_SWITCH);
+          continueChecking = false;
+          break;
+        }
+        
+        _logger.info('Recall: Top discard card rank: $topDiscardRank', isOn: LOGGING_SWITCH);
+        
+        // Find the first computer player (in shuffled order) whose collection rank matches the top discard card rank
+        Map<String, dynamic>? matchingPlayer;
+        for (final computerPlayer in refreshedComputerPlayers) {
+          final playerCollectionRank = computerPlayer['collection_rank']?.toString() ?? '';
+          
+          // Compare with top discard card rank (case-insensitive) - DART LOGIC
+          if (playerCollectionRank.toLowerCase() == topDiscardRank.toLowerCase()) {
+            matchingPlayer = computerPlayer;
+            break; // Found a matching player, stop searching
+          }
+        }
+        
+        // If no matching player found, stop checking
+        if (matchingPlayer == null) {
+          _logger.info('Recall: No computer player has a collection rank matching $topDiscardRank, stopping collection checks', isOn: LOGGING_SWITCH);
+          continueChecking = false;
+          break;
+        }
+        
+        final playerId = matchingPlayer['id']?.toString() ?? '';
+        final playerName = matchingPlayer['name']?.toString() ?? 'Unknown';
+        final playerCollectionRank = matchingPlayer['collection_rank']?.toString() ?? '';
+        final difficulty = matchingPlayer['difficulty']?.toString() ?? 'medium';
+        
+        _logger.info('Recall: Found matching player $playerName ($playerId) - collection rank: $playerCollectionRank', isOn: LOGGING_SWITCH);
+        
+        // Get YAML decision (synchronous - decision is made immediately)
+        if (_computerPlayerFactory == null) {
+          _logger.error('Recall: Computer player factory not initialized', isOn: LOGGING_SWITCH);
+          continueChecking = false;
+          break;
+        }
+        
+        final decision = _computerPlayerFactory!.getCollectFromDiscardDecision(difficulty, gameState, playerId);
+        _logger.info('Recall: YAML decision for $playerName: $decision', isOn: LOGGING_SWITCH);
+        
+        // Check if player decided to collect
+        final shouldCollect = decision['collect'] as bool? ?? false;
+        
+        if (!shouldCollect) {
+          _logger.info('Recall: Player $playerName decided not to collect, stopping collection checks', isOn: LOGGING_SWITCH);
+          continueChecking = false;
+          break;
+        }
+        
+        // Player decided to collect - execute collection immediately (no delay for collection checks)
+        _logger.info('Recall: Player $playerName decided to collect, executing collection', isOn: LOGGING_SWITCH);
+        final success = await handleCollectFromDiscard(playerId);
+        
+        if (!success) {
+          _logger.warning('Recall: Player $playerName failed to collect, stopping collection checks', isOn: LOGGING_SWITCH);
+          continueChecking = false;
+          break;
+        }
+        
+        _logger.info('Recall: Player $playerName successfully collected, checking for more collection opportunities', isOn: LOGGING_SWITCH);
+        
+        // After successful collection, refresh game state and continue checking
+        // The loop will check the new top card on the next iteration
+        // Small delay to allow state to update
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      
+      if (iteration >= maxIterations) {
+        _logger.warning('Recall: Reached max iterations ($maxIterations) in collection check loop, stopping', isOn: LOGGING_SWITCH);
       }
       
       _logger.info('Recall: Finished checking computer players for collection from discard pile', isOn: LOGGING_SWITCH);
@@ -2224,12 +2385,12 @@ class RecallGameRound {
       if (_winnersList.isNotEmpty) {
         _logger.info('Recall: Game is over - ${_winnersList.length} winner(s) found', isOn: LOGGING_SWITCH);
         
-        // Update game phase to game_over
+        // Update game phase to game_ended (must match validator allowed values)
         _stateCallback.onGameStateChanged({
-          'gamePhase': 'game_over',
+          'gamePhase': 'game_ended',
         });
         
-        _logger.info('Recall: Set gamePhase to game_over', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Set gamePhase to game_ended', isOn: LOGGING_SWITCH);
         
         // TODO: Future implementation
         // - Calculate points for all players if Recall was called
@@ -2617,6 +2778,12 @@ class RecallGameRound {
       // If empty, clear their collection_rank property (they can no longer collect cards)
       _checkAndClearEmptyCollectionRanks();
       
+      // Check if game has ended (winners exist) - prevent progression if game is over
+      if (_winnersList.isNotEmpty) {
+        _logger.info('Recall: Game has ended - ${_winnersList.length} winner(s) found. Preventing game phase reset and player progression.', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       // CRITICAL: Reset gamePhase back to player_turn before moving to next player
       // This ensures clean phase transitions and matches backend behavior
       _stateCallback.onGameStateChanged({
@@ -2676,6 +2843,12 @@ class RecallGameRound {
   Future<void> _moveToNextPlayer() async {
     try {
       _logger.info('Recall: Moving to next player', isOn: LOGGING_SWITCH);
+      
+      // Check if game has ended (winners exist) - prevent progression if game is over
+      if (_winnersList.isNotEmpty) {
+        _logger.info('Recall: Game has ended - ${_winnersList.length} winner(s) found. Preventing game progression.', isOn: LOGGING_SWITCH);
+        return;
+      }
       
       // Get current game state
       final gameState = _getCurrentGameState();

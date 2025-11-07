@@ -425,7 +425,8 @@ class PracticeGameCoordinator implements GameStateCallback {
     try {
       Logger().info('Recall: Creating deck for game $gameId', isOn: LOGGING_SWITCH);
       
-      // Use YAML-based deck factory from assets
+      // SSOT: Use YAML-based deck factory from assets/deck_config.yaml
+      // This is the single source of truth for deck configuration (testing_mode setting)
       final configPath = 'assets/deck_config.yaml';
       Logger().info('Recall: Loading YAML config from assets: $configPath', isOn: LOGGING_SWITCH);
       

@@ -1,6 +1,6 @@
 # Predefined Hands Configuration for Testing
 # Enable/disable predefined hands dealing
-enabled: true
+enabled: false
 
 # Predefined hands for each player
 # Players are indexed: 0 = first player (human in practice), 1+ = computer players

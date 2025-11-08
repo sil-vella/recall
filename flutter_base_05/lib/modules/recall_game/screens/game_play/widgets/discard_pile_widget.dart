@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/player_action.dart';
 import '../../../models/card_model.dart';
+import '../../../models/card_display_config.dart';
+import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
-import '../../../../../../utils/consts/theme_consts.dart';
 
 /// Widget to display the discard pile information
 /// 
@@ -88,7 +89,8 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Title
             Row(
@@ -107,27 +109,30 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
             ),
             const SizedBox(height: 12),
             
-            // Discard pile visual representation (clickable)
-            GestureDetector(
-              onTap: _handlePileClick,
-              child: hasCards 
-                  ? CardWidget(
-                      card: CardModel.fromMap(topDiscard),
-                      size: CardSize.medium,
-                      isSelectable: false,
-                      showPoints: false,
-                      showSpecialPower: false,
-                    )
-                  : CardWidget(
-                      card: CardModel(
-                        cardId: 'discard_pile_empty',
-                        rank: '?',
-                        suit: '?',
-                        points: 0,
-                      ),
-                      size: CardSize.medium,
-                      showBack: true, // Show back when empty
-                    ),
+            // Discard pile visual representation (clickable) - CardWidget handles its own sizing
+            Builder(
+              builder: (context) {
+                final cardDimensions = CardDimensions.getUnifiedDimensions();
+                return hasCards 
+                    ? CardWidget(
+                        card: CardModel.fromMap(topDiscard),
+                        dimensions: cardDimensions, // Pass dimensions directly
+                        config: CardDisplayConfig.forDiscardPile(),
+                        onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
+                      )
+                    : CardWidget(
+                        card: CardModel(
+                          cardId: 'discard_pile_empty',
+                          rank: '?',
+                          suit: '?',
+                          points: 0,
+                        ),
+                        dimensions: cardDimensions, // Pass dimensions directly
+                        config: CardDisplayConfig.forDiscardPile(),
+                        showBack: true, // Show back when empty
+                        onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
+                      );
+              },
             ),
             const SizedBox(height: 8),
             

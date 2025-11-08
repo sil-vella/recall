@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../models/card_model.dart';
+import '../../../models/card_display_config.dart';
+import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
-import '../../../../../../utils/consts/theme_consts.dart';
 import '../../../../../tools/logging/logger.dart';
 
 // Logging switch
@@ -253,10 +254,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
             .where((id) => id != null)
             .toSet();
         
-        // Pre-build collection rank widgets map
+        // Pre-build collection rank widgets map - ALL CARDS USE SAME BUILD PROCESS
         Map<String, Widget> collectionRankWidgets = {};
         
-        // First pass: build all collection rank widgets with proper parameters
+        // First pass: build all collection rank widgets with same build process as normal cards
         for (int i = 0; i < cards.length; i++) {
           final card = cards[i];
           if (card == null) continue;
@@ -293,18 +294,24 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           
           if (collectionRankCardData != null) {
             // Determine which data to use (same priority as normal cards)
+            // collectionRankCardData is guaranteed non-null here, so no need for ?? cardMap fallback
             final cardDataToUse = isDrawnCard && drawnCard != null
                 ? drawnCard 
-                : (peekedCardData ?? collectionRankCardData ?? cardMap);
+                : (peekedCardData ?? collectionRankCardData);
             
-            // Build the collection rank card widget with proper parameters
+            // Build the collection rank card widget with SAME BUILD PROCESS as normal cards
             final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap);
             collectionRankWidgets[cardId] = cardWidget;
           }
         }
         
-        return Container(
-          height: 140,
+        // ListView needs height constraint when inside Column - use exact card height
+        // This constrains the ListView container to match card height exactly
+        final cardHeight = CardDimensions.getUnifiedHeight();
+        final stackOffset = CardDimensions.getUnifiedStackOffset();
+        
+        return SizedBox(
+          height: cardHeight,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: cards.length,
@@ -370,10 +377,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 
                 if (isFirstCollectionCard) {
                   // This is the first collection card, render the entire stack
-                  const double cardHeight = 120.0;
-                  const double stackOffset = cardHeight * 0.15; // 18px
-                  const double cardWidth = 80.0;
-                  
                   // Get all collection rank widgets in order
                   List<Widget> orderedCollectionWidgets = [];
                   for (var collectionCard in myCollectionRankCards) {
@@ -385,22 +388,23 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                     }
                   }
                   
+                  // Stack needs size constraint to render - constrain container, NOT individual cards
+                  final cardDimensions = CardDimensions.getUnifiedDimensions();
+                  final cardWidth = cardDimensions.width;
+                  final cardHeight = cardDimensions.height;
+                  final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
+                  
                   final stackWidget = SizedBox(
                     width: cardWidth,
-                    height: cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset,
+                    height: stackHeight,
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: orderedCollectionWidgets.asMap().entries.map((entry) {
-                        // Reverse index: first card (0) at bottom, last card at top
-                        final reverseIndex = orderedCollectionWidgets.length - 1 - entry.key;
+                        // Stack cards perfectly on top of each other with offset
                         return Positioned(
                           left: 0,
-                          bottom: reverseIndex * stackOffset, // Position from bottom
-                          child: SizedBox(
-                            width: cardWidth,
-                            height: cardHeight, // Ensure full height
-                            child: entry.value,
-                          ),
+                          top: entry.key * stackOffset, // First card at top (0), subsequent cards offset downward
+                          child: entry.value, // CardWidget already has exact dimensions
                         );
                       }).toList(),
                     ),
@@ -417,24 +421,15 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               }
               
               // Normal card rendering (non-collection rank)
+              // CardWidget already uses exact dimensions from CardDimensions SSOT
               final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, index, cardMap);
-              
-              // Wrap in SizedBox to ensure consistent dimensions like collection cards
-              const double cardHeight = 120.0;
-              const double cardWidth = 80.0;
-              
-              final sizedCardWidget = SizedBox(
-                width: cardWidth,
-                height: cardHeight,
-                child: cardWidget,
-              );
               
               return Padding(
                 padding: EdgeInsets.only(
                   right: 8,
                   left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
                 ),
-                child: sizedCardWidget,
+                child: cardWidget,
               );
             },
           ),
@@ -720,37 +715,42 @@ class _MyHandWidgetState extends State<MyHandWidget> {
 
   /// Build a blank card slot for same-rank play empty spaces
   Widget _buildBlankCardSlot() {
-    return Container(
-      width: 80, // Same width as regular cards
-      height: 120, // Same height as regular cards
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.grey.shade300,
-          width: 2,
-          style: BorderStyle.solid,
+    // Use unified card dimensions to match regular cards
+    final cardDimensions = CardDimensions.getUnifiedDimensions();
+    
+    return SizedBox(
+      width: cardDimensions.width,
+      height: cardDimensions.height,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: Colors.grey.shade300,
+            width: 2,
+            style: BorderStyle.solid,
+          ),
         ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.space_bar,
-              size: 24,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Empty',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade500,
-                fontWeight: FontWeight.w500,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.space_bar,
+                size: 24,
+                color: Colors.grey.shade400,
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                'Empty',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -762,31 +762,38 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     final cardModel = CardModel.fromMap(card);
     final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
     
+    // Size determined at widget level using CardDimensions
+    final cardDimensions = CardDimensions.getUnifiedDimensions();
+    
     Widget cardWidget = CardWidget(
       card: updatedCardModel,
-      size: CardSize.large,
-      isSelectable: true,
+      dimensions: cardDimensions, // Pass dimensions directly
+      config: CardDisplayConfig.forMyHand(),
       isSelected: isSelected,
       onTap: () => _handleCardSelection(context, index, cardMap),
     );
     
     // Note: Collection rank cards no longer get a border - they're visually distinct through stacking + full data
     
-    // Wrap with drawn card glow if needed
+    // Wrap with drawn card glow if needed - explicit size constraints to prevent size changes
     if (isDrawnCard) {
-      cardWidget = Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
-              blurRadius: 12,
-              spreadRadius: 2,
-              offset: const Offset(0, 0),
-            ),
-          ],
+      cardWidget = SizedBox(
+        width: cardDimensions.width,
+        height: cardDimensions.height,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
+                blurRadius: 12,
+                spreadRadius: 2,
+                offset: const Offset(0, 0),
+              ),
+            ],
+          ),
+          child: cardWidget,
         ),
-        child: cardWidget,
       );
     }
     

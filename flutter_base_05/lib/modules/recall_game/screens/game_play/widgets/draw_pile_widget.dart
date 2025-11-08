@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/player_action.dart';
-import '../../../widgets/card_widget.dart';
 import '../../../models/card_model.dart';
-import '../../../../../../utils/consts/theme_consts.dart';
+import '../../../models/card_display_config.dart';
+import '../../../utils/card_dimensions.dart';
+import '../../../widgets/card_widget.dart';
 
 /// Widget to display the draw pile information
 /// 
@@ -71,7 +72,8 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Title
             Row(
@@ -90,19 +92,23 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
             ),
             const SizedBox(height: 12),
             
-            // Draw pile visual representation (clickable)
-            GestureDetector(
-              onTap: _handlePileClick,
-              child: CardWidget(
-                card: CardModel(
-                  cardId: 'draw_pile_${drawPileCount > 0 ? 'full' : 'empty'}',
-                  rank: '?',
-                  suit: '?',
-                  points: 0,
-                ),
-                size: CardSize.medium,
-                showBack: true, // Always show back for draw pile
-              ),
+            // Draw pile visual representation (clickable) - CardWidget handles its own sizing
+            Builder(
+              builder: (context) {
+                final cardDimensions = CardDimensions.getUnifiedDimensions();
+                return CardWidget(
+                  card: CardModel(
+                    cardId: 'draw_pile_${drawPileCount > 0 ? 'full' : 'empty'}',
+                    rank: '?',
+                    suit: '?',
+                    points: 0,
+                  ),
+                  dimensions: cardDimensions, // Pass dimensions directly
+                  config: CardDisplayConfig.forDrawPile(),
+                  showBack: true, // Always show back for draw pile
+                  onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
+                );
+              },
             ),
             const SizedBox(height: 8),
             

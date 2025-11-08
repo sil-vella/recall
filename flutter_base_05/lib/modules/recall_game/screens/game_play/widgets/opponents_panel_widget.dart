@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../models/card_model.dart';
+import '../../../models/card_display_config.dart';
+import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
-import '../../../../../../utils/consts/theme_consts.dart';
 
 /// Widget to display other players (opponents)
 /// 
@@ -298,10 +299,10 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         .where((id) => id != null)
         .toSet();
     
-    // Pre-build collection rank widgets map
+    // Pre-build collection rank widgets map - ALL CARDS USE SAME BUILD PROCESS
     Map<String, Widget> collectionRankWidgets = {};
     
-    // First pass: build all collection rank widgets with proper parameters
+    // First pass: build all collection rank widgets with same build process as normal cards
     for (int i = 0; i < cards.length; i++) {
       final card = cards[i];
       if (card == null) continue;
@@ -313,16 +314,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       // Get the same parameters as normal card building
       final drawnCardId = drawnCard?['cardId']?.toString();
       final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
-      
-      // Check if this card is known (peeked by AI or human during initial peek)
-      bool isKnownCard = false;
-      if (isInitialPeekPhase && knownCards != null) {
-        final playerKnownCards = knownCards[playerId] as Map<String, dynamic>?;
-        if (playerKnownCards != null) {
-          isKnownCard = playerKnownCards['card1'] == cardId || 
-                       playerKnownCards['card2'] == cardId;
-        }
-      }
       
       // Check if this card is in cardsToPeek (peeked cards have full data)
       Map<String, dynamic>? peekedCardData;
@@ -348,18 +339,24 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       
       if (collectionRankCardData != null) {
         // Determine which data to use (same priority as normal cards)
+        // collectionRankCardData is guaranteed non-null here, so no need for ?? cardMap fallback
         final cardDataToUse = isDrawnCard && drawnCard != null
             ? drawnCard 
-            : (peekedCardData ?? collectionRankCardData ?? cardMap);
+            : (peekedCardData ?? collectionRankCardData);
         
-        // Build the collection rank card widget with proper parameters
-        final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, isKnownCard, false);
+        // Build the collection rank card widget with SAME BUILD PROCESS as normal cards
+        final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, false);
         collectionRankWidgets[cardId] = cardWidget;
       }
     }
     
-    return Container(
-      height: 100,
+    // ListView needs height constraint when inside Column - use exact card height
+    // This constrains the ListView container to match card height exactly
+    final cardHeight = CardDimensions.getUnifiedHeight();
+    final stackOffset = CardDimensions.getUnifiedStackOffset();
+    
+    return SizedBox(
+      height: cardHeight,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: cards.length,
@@ -369,7 +366,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           // Handle null cards (blank slots from same-rank plays)
           if (card == null) {
             return Padding(
-              padding: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.only(right: 8),
               child: _buildBlankCardSlot(),
             );
           }
@@ -378,16 +375,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           final cardId = cardMap['cardId']?.toString();
           final drawnCardId = drawnCard?['cardId']?.toString();
           final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
-          
-          // Check if this card is known (peeked by AI or human during initial peek)
-          bool isKnownCard = false;
-          if (isInitialPeekPhase && knownCards != null && cardId != null) {
-            final playerKnownCards = knownCards[playerId] as Map<String, dynamic>?;
-            if (playerKnownCards != null) {
-              isKnownCard = playerKnownCards['card1'] == cardId || 
-                           playerKnownCards['card2'] == cardId;
-            }
-          }
           
           // Check if this card is in cardsToPeek (peeked cards have full data)
           // This is for when the current user is peeking at opponent cards (e.g., Queen peek)
@@ -437,10 +424,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             
             if (isFirstCollectionCard) {
               // This is the first collection card, render the entire stack
-              const double cardHeight = 70.0;
-              const double stackOffset = cardHeight * 0.15; // 10.5px
-              const double cardWidth = 50.0;
-              
               // Get all collection rank widgets in order
               List<Widget> orderedCollectionWidgets = [];
               for (var collectionCard in playerCollectionRankCards) {
@@ -452,29 +435,30 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                 }
               }
               
+              // Stack needs size constraint to render - constrain container, NOT individual cards
+              final cardDimensions = CardDimensions.getUnifiedDimensions();
+              final cardWidth = cardDimensions.width;
+              final cardHeight = cardDimensions.height;
+              final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
+              
               final stackWidget = SizedBox(
                 width: cardWidth,
-                height: cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset,
+                height: stackHeight,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: orderedCollectionWidgets.asMap().entries.map((entry) {
-                    // Reverse index: first card (0) at bottom, last card at top
-                    final reverseIndex = orderedCollectionWidgets.length - 1 - entry.key;
+                    // Stack cards perfectly on top of each other with offset
                     return Positioned(
                       left: 0,
-                      bottom: reverseIndex * stackOffset, // Position from bottom
-                      child: SizedBox(
-                        width: cardWidth,
-                        height: cardHeight, // Ensure full height
-                        child: entry.value,
-                      ),
+                      top: entry.key * stackOffset, // First card at top (0), subsequent cards offset downward
+                      child: entry.value, // CardWidget already has exact dimensions
                     );
                   }).toList(),
                 ),
               );
               
               return Padding(
-                padding: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.only(right: 8),
                 child: stackWidget,
               );
             } else {
@@ -484,24 +468,15 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           }
           
           // Normal card rendering (non-collection rank)
-          final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, isKnownCard, false);
-          
-          // Wrap in SizedBox to ensure consistent dimensions like collection cards
-          const double cardHeight = 70.0;
-          const double cardWidth = 50.0;
-          
-          final sizedCardWidget = SizedBox(
-            width: cardWidth,
-            height: cardHeight,
-            child: cardWidget,
-          );
+          // CardWidget already uses exact dimensions from CardDimensions SSOT
+          final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, false);
           
           return Padding(
             padding: EdgeInsets.only(
-              right: 6,
+              right: 8,
               left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
             ),
-            child: sizedCardWidget,
+            child: cardWidget,
           );
         },
       ),
@@ -509,7 +484,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build individual card widget for opponents using the new CardWidget system
-  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isKnownCard, bool isCollectionRankCard) {
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isCollectionRankCard) {
     // Convert to CardModel
     final cardModel = CardModel.fromMap(card);
     
@@ -520,80 +495,44 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     // Update the card model with selection state
     final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
     
-    // Flashing border decoration for known cards during initial peek
+    // Size determined at widget level using CardDimensions
+    final cardDimensions = CardDimensions.getUnifiedDimensions();
+    
+    // Build card widget
     Widget cardWidget = CardWidget(
       card: updatedCardModel,
-      size: CardSize.small,
-      isSelectable: true,
+      dimensions: cardDimensions, // Pass dimensions directly
+      config: CardDisplayConfig.forOpponent(),
       isSelected: isSelected,
       onTap: () => _handleCardClick(card, playerId),
     );
     
-    // Wrap with flashing border if this is a known card
-    if (isKnownCard) {
-      cardWidget = _buildFlashingBorder(cardWidget);
-    }
-    
     // Note: Collection rank cards no longer get a border - they're visually distinct through stacking + full data
     
-    // Wrap with drawn card glow if needed
+    // Wrap with drawn card glow if needed - explicit size constraints to prevent size changes
     if (isDrawnCard) {
-      cardWidget = Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
-              blurRadius: 12,
-              spreadRadius: 2,
-              offset: const Offset(0, 0),
-            ),
-          ],
+      cardWidget = SizedBox(
+        width: cardDimensions.width,
+        height: cardDimensions.height,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
+                blurRadius: 12,
+                spreadRadius: 2,
+                offset: const Offset(0, 0),
+              ),
+            ],
+          ),
+          child: cardWidget,
         ),
-        child: cardWidget,
       );
     }
     
     return cardWidget;
   }
-
-  /// Build flashing border animation for known cards during initial peek
-  Widget _buildFlashingBorder(Widget child) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeInOut,
-      builder: (context, value, _) {
-        // Oscillate between 0.3 and 1.0 opacity
-        final opacity = 0.3 + (value * 0.7);
-        
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: Colors.cyan.withOpacity(opacity),
-              width: 3,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.cyan.withOpacity(opacity * 0.5),
-                blurRadius: 8,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: child,
-        );
-      },
-      onEnd: () {
-        // Restart animation (infinite loop)
-        if (mounted) {
-          setState(() {});
-        }
-      },
-    );
-  }
-
 
   /// Build empty hand state
   Widget _buildEmptyHand() {
@@ -752,39 +691,44 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
 
-  /// Build a blank card slot for same-rank play empty spaces (smaller version for opponents)
+  /// Build a blank card slot for same-rank play empty spaces
   Widget _buildBlankCardSlot() {
-    return Container(
-      width: 60, // Smaller width for opponents
-      height: 90, // Smaller height for opponents
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: Colors.grey.shade300,
-          width: 1,
-          style: BorderStyle.solid,
+    // Use unified card dimensions to match regular cards
+    final cardDimensions = CardDimensions.getUnifiedDimensions();
+    
+    return SizedBox(
+      width: cardDimensions.width,
+      height: cardDimensions.height,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: Colors.grey.shade300,
+            width: 1,
+            style: BorderStyle.solid,
+          ),
         ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.space_bar,
-              size: 16,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Empty',
-              style: TextStyle(
-                fontSize: 8,
-                color: Colors.grey.shade500,
-                fontWeight: FontWeight.w500,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.space_bar,
+                size: 16,
+                color: Colors.grey.shade400,
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                'Empty',
+                style: TextStyle(
+                  fontSize: 8,
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

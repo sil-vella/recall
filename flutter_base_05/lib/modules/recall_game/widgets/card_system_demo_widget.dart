@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
+import '../models/card_display_config.dart';
+import '../utils/card_dimensions.dart';
 import 'card_widget.dart';
 import '../../../../utils/consts/theme_consts.dart';
 
@@ -70,10 +72,26 @@ class CardSystemDemoWidget extends StatelessWidget {
       spacing: 16,
       runSpacing: 16,
       children: [
-        _buildCardWithLabel('Small', CardWidget(card: demoCard, size: CardSize.small)),
-        _buildCardWithLabel('Medium', CardWidget(card: demoCard, size: CardSize.medium)),
-        _buildCardWithLabel('Large', CardWidget(card: demoCard, size: CardSize.large)),
-        _buildCardWithLabel('Extra Large', CardWidget(card: demoCard, size: CardSize.extraLarge)),
+        _buildCardWithLabel('Small', CardWidget(
+          card: demoCard,
+          dimensions: CardDimensions.getDimensions(CardSize.small),
+          config: CardDisplayConfig.forMyHand(),
+        )),
+        _buildCardWithLabel('Medium', CardWidget(
+          card: demoCard,
+          dimensions: CardDimensions.getDimensions(CardSize.medium),
+          config: CardDisplayConfig.forMyHand(),
+        )),
+        _buildCardWithLabel('Large', CardWidget(
+          card: demoCard,
+          dimensions: CardDimensions.getDimensions(CardSize.large),
+          config: CardDisplayConfig.forMyHand(),
+        )),
+        _buildCardWithLabel('Extra Large', CardWidget(
+          card: demoCard,
+          dimensions: CardDimensions.getDimensions(CardSize.extraLarge),
+          config: CardDisplayConfig.forMyHand(),
+        )),
       ],
     );
   }
@@ -85,28 +103,38 @@ class CardSystemDemoWidget extends StatelessWidget {
       children: [
         _buildCardWithLabel('Default Back', CardWidget(
           card: CardModel(cardId: 'demo_back', rank: '?', suit: '?', points: 0),
+          dimensions: CardDimensions.getUnifiedDimensions(),
+          config: CardDisplayConfig.forDrawPile(),
           showBack: true,
         )),
         _buildCardWithLabel('Custom Symbol', CardWidget(
           card: CardModel(cardId: 'demo_back_spade', rank: '?', suit: '?', points: 0),
+          dimensions: CardDimensions.getUnifiedDimensions(),
+          config: CardDisplayConfig.forDrawPile(),
           showBack: true,
         )),
         _buildCardWithLabel('Blue Theme', CardWidget(
           card: CardModel(cardId: 'demo_back_blue', rank: '?', suit: '?', points: 0),
+          dimensions: CardDimensions.getUnifiedDimensions(),
+          config: CardDisplayConfig.forDrawPile(),
           showBack: true,
         )),
         _buildCardWithLabel('Green Theme', CardWidget(
           card: CardModel(cardId: 'demo_back_green', rank: '?', suit: '?', points: 0),
+          dimensions: CardDimensions.getUnifiedDimensions(),
+          config: CardDisplayConfig.forDrawPile(),
           showBack: true,
         )),
         _buildCardWithLabel('Small Size', CardWidget(
           card: CardModel(cardId: 'demo_back_small', rank: '?', suit: '?', points: 0),
-          size: CardSize.small,
+          dimensions: CardDimensions.getDimensions(CardSize.small),
+          config: CardDisplayConfig.forDrawPile(),
           showBack: true,
         )),
         _buildCardWithLabel('Large Size', CardWidget(
           card: CardModel(cardId: 'demo_back_large', rank: '?', suit: '?', points: 0),
-          size: CardSize.large,
+          dimensions: CardDimensions.getDimensions(CardSize.large),
+          config: CardDisplayConfig.forDrawPile(),
           showBack: true,
         )),
       ],
@@ -120,29 +148,34 @@ class CardSystemDemoWidget extends StatelessWidget {
       suit: 'hearts',
       points: 10,
     );
+    final dimensions = CardDimensions.getUnifiedDimensions();
 
     return Wrap(
       spacing: 16,
       runSpacing: 16,
       children: [
-        _buildCardWithLabel('Normal', CardWidget(card: card, size: CardSize.medium)),
+        _buildCardWithLabel('Normal', CardWidget(
+          card: card,
+          dimensions: dimensions,
+          config: CardDisplayConfig.forMyHand(),
+        )),
         _buildCardWithLabel('Selectable', CardWidget(
           card: card,
-          size: CardSize.medium,
-          isSelectable: true,
+          dimensions: dimensions,
+          config: CardDisplayConfig.forMyHand(),
           isSelected: false,
         )),
         _buildCardWithLabel('Selected', CardWidget(
           card: card,
-          size: CardSize.medium,
-          isSelectable: true,
+          dimensions: dimensions,
+          config: CardDisplayConfig.forMyHand(),
           isSelected: true,
         )),
         _buildCardWithLabel('Interactive Back', CardWidget(
           card: CardModel(cardId: 'demo_back_interactive', rank: '?', suit: '?', points: 0),
-          size: CardSize.medium,
+          dimensions: dimensions,
+          config: CardDisplayConfig.forMyHand(),
           showBack: true,
-          isSelectable: true,
           isSelected: true,
         )),
       ],
@@ -174,6 +207,7 @@ class CardSystemDemoWidget extends StatelessWidget {
       ),
     ];
 
+    final dimensions = CardDimensions.getUnifiedDimensions();
     return Wrap(
       spacing: 16,
       runSpacing: 16,
@@ -181,9 +215,11 @@ class CardSystemDemoWidget extends StatelessWidget {
         '${card.displayText}\n(${card.specialPower})',
         CardWidget(
           card: card,
-          size: CardSize.medium,
-          showSpecialPower: true,
-          showPoints: true,
+          dimensions: dimensions,
+          config: CardDisplayConfig(
+            showSpecialPower: true,
+            showPoints: true,
+          ),
         ),
       )).toList(),
     );
@@ -196,24 +232,32 @@ class CardSystemDemoWidget extends StatelessWidget {
       suit: 'spades',
       points: 10,
     );
+    final dimensions = CardDimensions.getUnifiedDimensions();
 
     return Wrap(
       spacing: 16,
       runSpacing: 16,
       children: [
-        _buildCardWithLabel('Face Up', CardWidget(card: card, size: CardSize.medium)),
+        _buildCardWithLabel('Face Up', CardWidget(
+          card: card,
+          dimensions: dimensions,
+          config: CardDisplayConfig.forMyHand(),
+        )),
         _buildCardWithLabel('Face Down', CardWidget(
           card: card.copyWith(isFaceDown: true),
-          size: CardSize.medium,
+          dimensions: dimensions,
+          config: CardDisplayConfig.forMyHand(),
         )),
         _buildCardWithLabel('Show Back', CardWidget(
           card: card,
-          size: CardSize.medium,
+          dimensions: dimensions,
+          config: CardDisplayConfig.forMyHand(),
           showBack: true,
         )),
         _buildCardWithLabel('Card Back Widget', CardWidget(
           card: CardModel(cardId: 'demo_back_widget', rank: '?', suit: '?', points: 0),
-          size: CardSize.medium,
+          dimensions: dimensions,
+          config: CardDisplayConfig.forMyHand(),
           showBack: true,
         )),
       ],

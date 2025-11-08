@@ -1,0 +1,106 @@
+import 'package:flutter/material.dart';
+import '../../../../utils/consts/theme_consts.dart';
+
+/// Card Dimensions - Single Source of Truth (SSOT)
+/// 
+/// This class provides all card dimensions maintaining the standard poker card
+/// aspect ratio (5:7, matching 2.5" x 3.5" physical cards).
+/// 
+/// All card dimensions must use this class to ensure consistency.
+class CardDimensions {
+  /// UNIFIED CARD SIZE - All cards use this size for consistency
+  /// This ensures all cards (hand, opponent, discard, draw, collection) have the same dimensions
+  static const CardSize UNIFIED_CARD_SIZE = CardSize.medium;
+  
+  /// Standard poker card aspect ratio (width:height)
+  /// Matches physical poker cards: 2.5 inches x 3.5 inches
+  static const double CARD_ASPECT_RATIO = 5.0 / 7.0;
+  
+  /// Base widths for each card size
+  static const Map<CardSize, double> _baseWidths = {
+    CardSize.small: 50.0,
+    CardSize.medium: 70.0,
+    CardSize.large: 80.0,
+    CardSize.extraLarge: 100.0,
+  };
+  
+  /// Stack offset percentage (15% of card height)
+  static const double STACK_OFFSET_PERCENTAGE = 0.15;
+  
+  /// Container height padding (additional height for container beyond card height)
+  static const double CONTAINER_HEIGHT_PADDING = 20.0;
+  
+  /// Get card dimensions for a given size
+  /// 
+  /// Returns a Size object with width and height maintaining poker card aspect ratio
+  static Size getDimensions(CardSize size) {
+    final width = _baseWidths[size] ?? 70.0;
+    final height = width / CARD_ASPECT_RATIO;
+    return Size(width, height);
+  }
+  
+  /// Get card width for a given size
+  static double getWidth(CardSize size) {
+    return _baseWidths[size] ?? 70.0;
+  }
+  
+  /// Get card height for a given size (calculated from width using aspect ratio)
+  static double getHeight(CardSize size) {
+    final width = getWidth(size);
+    return width / CARD_ASPECT_RATIO;
+  }
+  
+  /// Get stack offset for collection cards (15% of card height)
+  /// 
+  /// Used when stacking collection rank cards on top of each other
+  static double getStackOffset(CardSize size) {
+    final height = getHeight(size);
+    return height * STACK_OFFSET_PERCENTAGE;
+  }
+  
+  /// Get container height for a given card size
+  /// 
+  /// Container height includes padding for proper display in ListView/GridView
+  static double getContainerHeight(CardSize size) {
+    final height = getHeight(size);
+    return height + CONTAINER_HEIGHT_PADDING;
+  }
+  
+  /// Get dimensions as a Map for easy access
+  static Map<String, double> getDimensionsMap(CardSize size) {
+    return {
+      'width': getWidth(size),
+      'height': getHeight(size),
+      'stackOffset': getStackOffset(size),
+      'containerHeight': getContainerHeight(size),
+    };
+  }
+  
+  /// Get unified card dimensions (convenience method for placement widgets)
+  /// 
+  /// Returns dimensions for UNIFIED_CARD_SIZE
+  static Size getUnifiedDimensions() {
+    return getDimensions(UNIFIED_CARD_SIZE);
+  }
+  
+  /// Get unified card width (convenience method for placement widgets)
+  static double getUnifiedWidth() {
+    return getWidth(UNIFIED_CARD_SIZE);
+  }
+  
+  /// Get unified card height (convenience method for placement widgets)
+  static double getUnifiedHeight() {
+    return getHeight(UNIFIED_CARD_SIZE);
+  }
+  
+  /// Get unified stack offset (convenience method for placement widgets)
+  static double getUnifiedStackOffset() {
+    return getStackOffset(UNIFIED_CARD_SIZE);
+  }
+  
+  /// Get unified container height (convenience method for placement widgets)
+  static double getUnifiedContainerHeight() {
+    return getContainerHeight(UNIFIED_CARD_SIZE);
+  }
+}
+

@@ -170,12 +170,14 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                       ),
                       const SizedBox(height: 16),
                       
-                      // Game board content in a row
+                      // Game board content in a row - no constraints
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        mainAxisAlignment: MainAxisAlignment.start,
                         children: [
                           // Draw Pile Widget
                           const DrawPileWidget(),
+                          
+                          const SizedBox(width: 16),
                           
                           // Discard Pile Widget
                           const DiscardPileWidget(),

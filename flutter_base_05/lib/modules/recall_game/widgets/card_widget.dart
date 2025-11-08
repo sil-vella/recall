@@ -1,46 +1,39 @@
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
+import '../models/card_display_config.dart';
 import '../../../../utils/consts/theme_consts.dart';
 
 /// A reusable card widget for the Recall game
 /// 
-/// This widget can be configured for different contexts:
-/// - Player hand cards (larger, selectable)
-/// - Opponent cards (smaller, view-only)
-/// - Discard pile cards (medium, view-only)
-/// - Draw pile cards (back-facing)
+/// Size is determined at the placement widget level and passed as dimensions.
+/// Config only controls appearance (displayMode, showPoints, etc.)
 class CardWidget extends StatelessWidget {
   final CardModel card;
-  final CardSize size;
+  final Size dimensions; // Required - size determined at placement widget level
+  final CardDisplayConfig config;
   final bool showBack;
-  final bool isSelectable;
   final bool isSelected;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
-  final bool showPoints;
-  final bool showSpecialPower;
 
-  const CardWidget({
+  CardWidget({
     Key? key,
     required this.card,
-    this.size = CardSize.medium,
+    required this.dimensions, // Required - placement widget must provide size
+    CardDisplayConfig? config,
     this.showBack = false,
-    this.isSelectable = false,
     this.isSelected = false,
     this.onTap,
     this.onLongPress,
-    this.showPoints = false,
-    this.showSpecialPower = false,
-  }) : super(key: key);
+  }) : config = config ?? CardDisplayConfig.forDiscardPile(),
+        super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final cardDimensions = _getCardDimensions();
-    
     // Show back if explicitly requested, face down, or if card only has ID (no full data)
     Widget cardContent = showBack || card.isFaceDown || !card.hasFullData
-        ? _buildCardBack(cardDimensions)
-        : _buildCardFront(cardDimensions);
+        ? _buildCardBack(dimensions)
+        : _buildCardFront(dimensions);
 
     // Wrap in gesture detector if interactive
     if (onTap != null || onLongPress != null) {
@@ -52,11 +45,18 @@ class CardWidget extends StatelessWidget {
     }
 
     // Add selection indicator if selectable and selected
-    if (isSelectable && isSelected) {
-      cardContent = _buildSelectionWrapper(cardContent, cardDimensions);
+    if (config.isSelectable && isSelected) {
+      cardContent = _buildSelectionWrapper(cardContent, dimensions);
     }
 
-    return cardContent;
+    // Ensure exact dimensions are maintained even when wrapped in external GestureDetectors
+    // cardContent is already wrapped in SizedBox with exact dimensions from _buildCardFront/_buildCardBack
+    // But wrap again to ensure dimensions are maintained when CardWidget is wrapped externally
+    return SizedBox(
+      width: dimensions.width,
+      height: dimensions.height,
+      child: cardContent,
+    );
   }
 
   /// Build the front face of the card
@@ -67,10 +67,6 @@ class CardWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isSelected ? AppColors.accentColor2 : Colors.grey.shade400,
-          width: isSelected ? 3 : 2,
-        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -82,37 +78,40 @@ class CardWidget extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(dimensions.width * 0.05),
         child: Column(
+          mainAxisSize: MainAxisSize.max,
           children: [
-            // Top-left rank and suit
+            // Top-left rank and suit (always shown)
             Align(
               alignment: Alignment.topLeft,
               child: _buildCornerText(dimensions),
             ),
             
-            // Center suit symbol
+            // Center suit symbol (always shown)
             Expanded(
               child: Center(
                 child: _buildCenterSuit(dimensions),
               ),
             ),
             
-            // Bottom-right rank and suit (rotated)
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Transform.rotate(
-                angle: 3.14159, // 180 degrees
-                child: _buildCornerText(dimensions),
+            // Bottom-right rank and suit (rotated) - only shown in fullCorners mode
+            if (config.displayMode == CardDisplayMode.fullCorners) ...[
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Transform.rotate(
+                  angle: 3.14159, // 180 degrees
+                  child: _buildCornerText(dimensions),
+                ),
               ),
-            ),
+            ],
             
             // Special power indicator
-            if (showSpecialPower && card.hasSpecialPower) ...[
+            if (config.showSpecialPower && card.hasSpecialPower) ...[
               const SizedBox(height: 4),
               _buildSpecialPowerIndicator(dimensions),
             ],
             
             // Points indicator
-            if (showPoints) ...[
+            if (config.showPoints) ...[
               const SizedBox(height: 2),
               _buildPointsIndicator(dimensions),
             ],
@@ -209,6 +208,7 @@ class CardWidget extends StatelessWidget {
   }
 
   /// Build the card back
+  /// Structure must EXACTLY match front face: Container -> Padding -> Column -> same children structure
   Widget _buildCardBack(Size dimensions) {
     return Container(
       width: dimensions.width,
@@ -216,10 +216,6 @@ class CardWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.primaryColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isSelected ? AppColors.accentColor2 : AppColors.accentColor,
-          width: isSelected ? 3 : 2,
-        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -228,28 +224,80 @@ class CardWidget extends StatelessWidget {
           ),
         ],
       ),
-      child: Center(
-        child: Text(
-          '?',
-          style: TextStyle(
-            fontSize: dimensions.width * 0.4,
-            fontWeight: FontWeight.bold,
-            color: AppColors.white,
-          ),
+      child: Padding(
+        padding: EdgeInsets.all(dimensions.width * 0.05),
+        child: Stack(
+          children: [
+            // Structure matching front face - placeholders for layout consistency
+            Column(
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                // Top-left placeholder to match front face structure
+                Align(
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(
+                    width: dimensions.width * 0.12,
+                    height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
+                  ),
+                ),
+                
+                // Expanded spacer to match front face structure
+                Expanded(child: Container()),
+                
+                // Bottom-right placeholder to match front face structure (when fullCorners mode)
+                if (config.displayMode == CardDisplayMode.fullCorners) ...[
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: SizedBox(
+                      width: dimensions.width * 0.12,
+                      height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
+                    ),
+                  ),
+                ],
+                
+                // Special power indicator placeholder to match front face structure
+                if (config.showSpecialPower && card.hasSpecialPower) ...[
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: dimensions.width * 0.2,
+                    height: dimensions.width * 0.2, // Match icon size
+                  ),
+                ],
+                
+                // Points indicator placeholder to match front face structure
+                if (config.showPoints) ...[
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    width: dimensions.width * 0.3,
+                    height: dimensions.width * 0.1 + 4, // Match points indicator height (fontSize + padding)
+                  ),
+                ],
+              ],
+            ),
+            
+            // Center the "?" symbol absolutely centered in the entire card
+            Center(
+              child: Text(
+                '?',
+                style: TextStyle(
+                  fontSize: dimensions.width * 0.4,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.white,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   /// Build selection wrapper with highlight
+  /// Ensures exact dimensions are maintained
   Widget _buildSelectionWrapper(Widget child, Size dimensions) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.accentColor2,
-          width: 3,
-        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.accentColor2.withValues(alpha: 0.3),
@@ -262,19 +310,6 @@ class CardWidget extends StatelessWidget {
     );
   }
 
-  /// Get card dimensions based on size
-  Size _getCardDimensions() {
-    switch (size) {
-      case CardSize.small:
-        return const Size(50, 70);
-      case CardSize.medium:
-        return const Size(70, 100);
-      case CardSize.large:
-        return const Size(80, 120);
-      case CardSize.extraLarge:
-        return const Size(100, 140);
-    }
-  }
 }
 
 

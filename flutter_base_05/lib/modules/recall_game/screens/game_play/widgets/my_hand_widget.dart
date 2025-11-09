@@ -132,7 +132,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     required String playerStatus,
   }) {
     return Card(
-      margin: const EdgeInsets.all(8),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -722,34 +721,34 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       width: cardDimensions.width,
       height: cardDimensions.height,
       child: Container(
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Colors.grey.shade300,
-            width: 2,
-            style: BorderStyle.solid,
-          ),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.grey.shade300,
+          width: 2,
+          style: BorderStyle.solid,
         ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.space_bar,
-                size: 24,
-                color: Colors.grey.shade400,
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.space_bar,
+              size: 24,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Empty',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Empty',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey.shade500,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+            ),
+          ],
           ),
         ),
       ),

@@ -85,7 +85,6 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
     final bool hasCards = topDiscard != null;
     
     return Card(
-      margin: const EdgeInsets.all(8),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

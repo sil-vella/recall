@@ -6,12 +6,13 @@ import '../../../../tools/logging/logger.dart';
 import '../../game_logic/practice_match/practice_game.dart';
 import 'widgets/game_info_widget.dart';
 import 'widgets/opponents_panel_widget.dart';
-import 'widgets/draw_pile_widget.dart';
-import 'widgets/discard_pile_widget.dart';
+import 'widgets/game_board_widget.dart';
 import 'widgets/my_hand_widget.dart';
 import 'widgets/instructions_widget.dart';
 import 'widgets/messages_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
+import '../../../../modules/recall_game/managers/feature_registry_manager.dart';
+import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
 
 const bool LOGGING_SWITCH = true;
 
@@ -33,10 +34,29 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   void initState() {
     super.initState();
     
+    // Register game phase chip feature in app bar
+    _registerGamePhaseChipFeature();
+    
     _initializeWebSocket().then((_) {
       _setupEventCallbacks();
       _initializeGameState();
     });
+  }
+  
+  /// Register game phase chip feature in app bar
+  void _registerGamePhaseChipFeature() {
+    final gamePhaseFeature = FeatureDescriptor(
+      featureId: 'game_phase_chip',
+      slotId: 'app_bar_actions',
+      builder: (context) => const StateAwareGamePhaseChipFeature(),
+      priority: 5, // Lowest priority - appears first (leftmost, before connection)
+    );
+    
+    FeatureRegistryManager.instance.register(
+      scopeKey: featureScopeKey, // Screen-specific scope
+      feature: gamePhaseFeature,
+      context: context,
+    );
   }
   
   @override
@@ -92,6 +112,12 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   
   @override
   void dispose() {
+    // Unregister game phase chip feature
+    FeatureRegistryManager.instance.unregister(
+      scopeKey: featureScopeKey,
+      featureId: 'game_phase_chip',
+    );
+    
     // Additional cleanup on dispose (failsafe)
     if (_previousGameId != null && _previousGameId!.startsWith('recall_game_')) {
       Logger().info('GamePlay: Disposing recall game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
@@ -134,59 +160,18 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       children: [
         // Main game content
         SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               
               // Game Information Widget
               const GameInfoWidget(),
-              const SizedBox(height: 20),
               
               // Opponents Panel Section
               const OpponentsPanelWidget(),
-              const SizedBox(height: 20),
               
               // Game Board Section
-              Card(
-                margin: const EdgeInsets.only(bottom: 20),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.casino, color: Colors.green),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Game Board',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Game board content in a row - no constraints
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          // Draw Pile Widget
-                          const DrawPileWidget(),
-                          
-                          const SizedBox(width: 16),
-                          
-                          // Discard Pile Widget
-                          const DiscardPileWidget(),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              const GameBoardWidget(),
               
               // My Hand Section
               const MyHandWidget(),

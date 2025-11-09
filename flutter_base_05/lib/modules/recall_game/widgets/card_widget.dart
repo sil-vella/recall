@@ -230,48 +230,48 @@ class CardWidget extends StatelessWidget {
           children: [
             // Structure matching front face - placeholders for layout consistency
             Column(
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                // Top-left placeholder to match front face structure
-                Align(
-                  alignment: Alignment.topLeft,
-                  child: SizedBox(
-                    width: dimensions.width * 0.12,
-                    height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
-                  ),
-                ),
-                
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            // Top-left placeholder to match front face structure
+            Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: dimensions.width * 0.12,
+                height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
+              ),
+            ),
+            
                 // Expanded spacer to match front face structure
                 Expanded(child: Container()),
-                
-                // Bottom-right placeholder to match front face structure (when fullCorners mode)
-                if (config.displayMode == CardDisplayMode.fullCorners) ...[
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: SizedBox(
-                      width: dimensions.width * 0.12,
-                      height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
-                    ),
-                  ),
-                ],
-                
-                // Special power indicator placeholder to match front face structure
-                if (config.showSpecialPower && card.hasSpecialPower) ...[
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    width: dimensions.width * 0.2,
-                    height: dimensions.width * 0.2, // Match icon size
-                  ),
-                ],
-                
-                // Points indicator placeholder to match front face structure
-                if (config.showPoints) ...[
-                  const SizedBox(height: 2),
-                  SizedBox(
-                    width: dimensions.width * 0.3,
-                    height: dimensions.width * 0.1 + 4, // Match points indicator height (fontSize + padding)
-                  ),
-                ],
+            
+            // Bottom-right placeholder to match front face structure (when fullCorners mode)
+            if (config.displayMode == CardDisplayMode.fullCorners) ...[
+              Align(
+                alignment: Alignment.bottomRight,
+                child: SizedBox(
+                  width: dimensions.width * 0.12,
+                  height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
+                ),
+              ),
+            ],
+            
+            // Special power indicator placeholder to match front face structure
+            if (config.showSpecialPower && card.hasSpecialPower) ...[
+              const SizedBox(height: 4),
+              SizedBox(
+                width: dimensions.width * 0.2,
+                height: dimensions.width * 0.2, // Match icon size
+              ),
+            ],
+            
+            // Points indicator placeholder to match front face structure
+            if (config.showPoints) ...[
+              const SizedBox(height: 2),
+              SizedBox(
+                width: dimensions.width * 0.3,
+                height: dimensions.width * 0.1 + 4, // Match points indicator height (fontSize + padding)
+              ),
+            ],
               ],
             ),
             

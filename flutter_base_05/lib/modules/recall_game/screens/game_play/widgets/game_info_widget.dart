@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
-import 'game_phase_chip_widget.dart';
 import '../../../managers/game_coordinator.dart';
 import '../../../game_logic/practice_match/practice_game.dart';
 import '../../../../../tools/logging/logger.dart';
@@ -59,6 +58,13 @@ class GameInfoWidget extends StatelessWidget {
           return _buildEmptyState();
         }
         
+        // Hide entire widget when match has started
+        // Match has started when game phase is not 'waiting' or 'setup'
+        final matchHasStarted = gamePhase != 'waiting' && gamePhase != 'setup';
+        if (matchHasStarted) {
+          return const SizedBox.shrink();
+        }
+        
         return _buildGameInfoCard(
           currentGameId: currentGameId,
           roomName: roomName,
@@ -79,7 +85,6 @@ class GameInfoWidget extends StatelessWidget {
   /// Build empty state when no game is active
   Widget _buildEmptyState() {
     return Card(
-      margin: const EdgeInsets.all(16),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -135,7 +140,6 @@ class GameInfoWidget extends StatelessWidget {
     required bool isPracticeGame,
   }) {
     return Card(
-      margin: const EdgeInsets.all(16),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -153,10 +157,6 @@ class GameInfoWidget extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-                GamePhaseChip(
-                  gameId: currentGameId,
-                  size: GamePhaseChipSize.medium,
                 ),
               ],
             ),

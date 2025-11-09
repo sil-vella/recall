@@ -68,7 +68,6 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
   }) {
     
     return Card(
-      margin: const EdgeInsets.all(8),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

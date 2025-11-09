@@ -81,7 +81,7 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
                 Icon(Icons.style, color: Colors.blue),
                 const SizedBox(width: 8),
                 const Text(
-                  'Draw Pile',
+                  'Draw',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -109,18 +109,6 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
                 );
               },
             ),
-            const SizedBox(height: 8),
-            
-            // Card count text
-            Text(
-              drawPileCount > 0 ? '$drawPileCount cards' : 'Empty',
-              style: TextStyle(
-                fontSize: 14,
-                color: drawPileCount > 0 ? Colors.blue.shade700 : Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 12),
           ],
         ),
       ),

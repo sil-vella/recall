@@ -86,22 +86,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title
-          Row(
-            children: [
-              Icon(Icons.people, color: Colors.purple),
-              const SizedBox(width: 8),
-              const Text(
-                'Opponents',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          
           // Opponents display
           if (opponents.isEmpty)
             _buildEmptyOpponents()
@@ -237,17 +221,46 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Left side: Player name, turn indicator, status chip
+              // Left side: Cards display - horizontal layout, aligned to the left
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: hand.isNotEmpty
+                      ? _buildCardsRow(hand, cardsToPeek, playerCollectionRankCards, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase, player)
+                      : _buildEmptyHand(),
+                ),
+              ),
+              
+              // Right side: Player name, turn indicator, status chip
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     // Player name, turn indicator, and recall flag
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
+                        if (hasCalledRecall) ...[
+                          Icon(
+                            Icons.flag,
+                            size: 16,
+                            color: Colors.red,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        if (isCurrentTurn && !isCurrentPlayer) ...[
+                          Icon(
+                            Icons.play_arrow,
+                            size: 16,
+                            color: Colors.yellow.shade700,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
                         Expanded(
                           child: Text(
                             playerName,
+                            textAlign: TextAlign.right,
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -255,45 +268,21 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                             ),
                           ),
                         ),
-                        if (isCurrentTurn && !isCurrentPlayer) ...[
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.play_arrow,
-                            size: 16,
-                            color: Colors.yellow.shade700,
-                          ),
-                        ],
-                        if (hasCalledRecall) ...[
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.flag,
-                            size: 16,
-                            color: Colors.red,
-                          ),
-                        ],
                       ],
                     ),
                     
                     // Player status indicator (show for all players)
                     if (playerStatus != 'unknown') ...[
                       const SizedBox(height: 4),
-                      PlayerStatusChip(
-                        playerId: player['id']?.toString() ?? '',
-                        size: PlayerStatusChipSize.small,
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: PlayerStatusChip(
+                          playerId: player['id']?.toString() ?? '',
+                          size: PlayerStatusChipSize.small,
+                        ),
                       ),
                     ],
                   ],
-                ),
-              ),
-              
-              // Right side: Cards display - horizontal layout, aligned to the right
-              Expanded(
-                flex: 2,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: hand.isNotEmpty
-                      ? _buildCardsRow(hand, cardsToPeek, playerCollectionRankCards, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase, player)
-                      : _buildEmptyHand(),
                 ),
               ),
             ],
@@ -381,17 +370,14 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           height: cardHeight,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            reverse: true, // Start from right
             itemCount: cards.length,
             itemBuilder: (context, index) {
-          // Reverse the index to maintain correct card order
-          final reversedIndex = cards.length - 1 - index;
-          final card = cards[reversedIndex];
+          final card = cards[index];
           
           // Handle null cards (blank slots from same-rank plays)
           if (card == null) {
             return Padding(
-              padding: EdgeInsets.only(left: cardPadding), // 5% of container width
+              padding: EdgeInsets.only(right: cardPadding), // 2% of container width
               child: _buildBlankCardSlot(cardDimensions),
             );
           }
@@ -434,9 +420,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           // If this is a collection rank card, render the stack (only once, at the first collection card)
           if (isCollectionRankCard && collectionRankWidgets.containsKey(cardId)) {
-            // Check if this is the first collection card in the hand (using original index order)
+            // Check if this is the first collection card in the hand
             bool isFirstCollectionCard = true;
-            for (int i = 0; i < reversedIndex; i++) {
+            for (int i = 0; i < index; i++) {
               final prevCard = cards[i];
               if (prevCard != null && prevCard is Map<String, dynamic>) {
                 final prevCardId = prevCard['cardId']?.toString();
@@ -482,7 +468,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
               );
               
               return Padding(
-                padding: EdgeInsets.only(left: cardPadding), // 5% of container width
+                padding: EdgeInsets.only(right: cardPadding), // 2% of container width
                 child: stackWidget,
               );
             } else {
@@ -497,8 +483,8 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           return Padding(
             padding: EdgeInsets.only(
-              left: cardPadding, // 5% of container width
-              right: isDrawnCard ? cardPadding * 2 : 0, // Double padding for drawn card
+              right: cardPadding, // 2% of container width
+              left: isDrawnCard ? cardPadding * 2 : 0, // Double padding for drawn card
             ),
             child: cardWidget,
           );

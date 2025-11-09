@@ -95,10 +95,8 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.delete_outline, color: Colors.red),
-                const SizedBox(width: 8),
                 const Text(
-                  'Discard Pile',
+                  'Last Played',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -133,18 +131,6 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
                       );
               },
             ),
-            const SizedBox(height: 8),
-            
-            // Card info text
-            Text(
-              hasCards ? 'Top card' : 'Empty',
-              style: TextStyle(
-                fontSize: 14,
-                color: hasCards ? Colors.red.shade700 : Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 12),
           ],
         ),
       ),

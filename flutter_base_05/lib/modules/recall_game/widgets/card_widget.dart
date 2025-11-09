@@ -15,6 +15,7 @@ class CardWidget extends StatelessWidget {
   final bool isSelected;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final GlobalKey? cardKey; // Optional GlobalKey for position tracking
 
   CardWidget({
     Key? key,
@@ -25,8 +26,9 @@ class CardWidget extends StatelessWidget {
     this.isSelected = false,
     this.onTap,
     this.onLongPress,
+    this.cardKey,
   }) : config = config ?? CardDisplayConfig.forDiscardPile(),
-        super(key: key);
+        super(key: key ?? cardKey); // Use cardKey as widget key if provided
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +54,9 @@ class CardWidget extends StatelessWidget {
     // Ensure exact dimensions are maintained even when wrapped in external GestureDetectors
     // cardContent is already wrapped in SizedBox with exact dimensions from _buildCardFront/_buildCardBack
     // But wrap again to ensure dimensions are maintained when CardWidget is wrapped externally
+    // Use cardKey if provided for position tracking, otherwise use ValueKey for stable identity
     return SizedBox(
+      key: cardKey ?? ValueKey('card_${card.cardId}'),
       width: dimensions.width,
       height: dimensions.height,
       child: cardContent,

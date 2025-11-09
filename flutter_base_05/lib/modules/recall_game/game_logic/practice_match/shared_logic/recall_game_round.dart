@@ -173,6 +173,22 @@ class RecallGameRound {
     }
   }
 
+  /// Check if the game has ended
+  /// Returns true if game phase is "game_ended", false otherwise
+  bool _isGameEnded() {
+    try {
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        return false;
+      }
+      final gamePhase = gameState['gamePhase']?.toString() ?? 'unknown';
+      return gamePhase == 'game_ended';
+    } catch (e) {
+      _logger.error('Recall: Error checking if game ended: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
   /// Add card to discard pile directly (for use by GameRound)
   /// Updates the discard pile in game state and notifies callback
   void _addToDiscardPile(Map<String, dynamic> card) {
@@ -255,6 +271,12 @@ class RecallGameRound {
   /// Uses declarative YAML configuration for computer behavior
   void _initComputerTurn(Map<String, dynamic> gameState) async {
     try {
+      // Check if game has ended - stop computer turn if game is over
+      if (_isGameEnded()) {
+        _logger.info('Recall: Game has ended - stopping computer turn initialization', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       _logger.info('Recall: ===== INITIALIZING COMPUTER TURN =====', isOn: LOGGING_SWITCH);
       
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
@@ -357,6 +379,12 @@ class RecallGameRound {
   /// This method uses the computer player factory to make decisions based on YAML config
   void _handleComputerActionWithYAML(Map<String, dynamic> gameState, String playerId, String difficulty, String eventName) {
     try {
+      // Check if game has ended - stop computer action if game is over
+      if (_isGameEnded()) {
+        _logger.info('Recall: Game has ended - stopping computer action handling', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       _logger.info('Recall: DEBUG - _handleComputerActionWithYAML called with event: $eventName', isOn: LOGGING_SWITCH);
       _logger.info('Recall: Handling computer action with YAML - Player: $playerId, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
       
@@ -438,6 +466,12 @@ class RecallGameRound {
   /// Execute computer player decision based on YAML configuration
   Future<void> _executeComputerDecision(Map<String, dynamic> decision, String playerId, String eventName) async {
     try {
+      // Check if game has ended - stop computer decision execution if game is over
+      if (_isGameEnded()) {
+        _logger.info('Recall: Game has ended - stopping computer decision execution', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       _logger.info('Recall: Executing computer decision: $decision', isOn: LOGGING_SWITCH);
       
       switch (eventName) {
@@ -452,6 +486,12 @@ class RecallGameRound {
             _logger.error('Recall: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
             _moveToNextPlayer();
           } else {
+            // Check if game has ended before continuing from draw to play
+            if (_isGameEnded()) {
+              _logger.info('Recall: Game has ended - stopping computer progression from draw to play', isOn: LOGGING_SWITCH);
+              return;
+            }
+            
             // After successful draw, continue computer turn with play_card action
             _logger.info('Recall: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
             
@@ -578,6 +618,12 @@ class RecallGameRound {
   /// Handle computer action using declarative YAML configuration
   void _handleComputerAction(Map<String, dynamic> gameState, String playerId, String difficulty, String eventName) {
     try {
+      // Check if game has ended - stop computer action if game is over
+      if (_isGameEnded()) {
+        _logger.info('Recall: Game has ended - stopping computer action handling (fallback method)', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       _logger.info('Recall: Handling computer action - Player: $playerId, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
       
       // TODO: Load and parse declarative YAML configuration
@@ -599,6 +645,12 @@ class RecallGameRound {
               _logger.error('Recall: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
             } else {
+              // Check if game has ended before continuing from draw to play
+              if (_isGameEnded()) {
+                _logger.info('Recall: Game has ended - stopping computer progression from draw to play (fallback method)', isOn: LOGGING_SWITCH);
+                return;
+              }
+              
               // After successful draw, continue computer turn with play_card action
               _logger.info('Recall: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
               
@@ -2385,12 +2437,26 @@ class RecallGameRound {
       if (_winnersList.isNotEmpty) {
         _logger.info('Recall: Game is over - ${_winnersList.length} winner(s) found', isOn: LOGGING_SWITCH);
         
+        // Cancel all active timers to stop game flow
+        _sameRankTimer?.cancel();
+        _specialCardTimer?.cancel();
+        _logger.info('Recall: Cancelled all active timers (same rank timer, special card timer)', isOn: LOGGING_SWITCH);
+        
+        // Set all players to waiting status to stop all player actions
+        _stateCallback.onPlayerStatusChanged(
+          'waiting',
+          playerId: null, // null = update ALL players
+          updateMainState: true,
+          triggerInstructions: false,
+        );
+        _logger.info('Recall: Set all players to waiting status to stop game flow', isOn: LOGGING_SWITCH);
+        
         // Update game phase to game_ended (must match validator allowed values)
         _stateCallback.onGameStateChanged({
           'gamePhase': 'game_ended',
         });
         
-        _logger.info('Recall: Set gamePhase to game_ended', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Set gamePhase to game_ended - all timers stopped and players set to waiting', isOn: LOGGING_SWITCH);
         
         // TODO: Future implementation
         // - Calculate points for all players if Recall was called

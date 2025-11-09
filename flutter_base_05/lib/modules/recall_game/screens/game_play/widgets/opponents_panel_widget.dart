@@ -6,6 +6,10 @@ import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
+import '../../../managers/card_animation_manager.dart';
+import '../../../../../tools/logging/logger.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display other players (opponents)
 /// 
@@ -25,8 +29,14 @@ class OpponentsPanelWidget extends StatefulWidget {
 }
 
 class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
+  final Logger _logger = Logger();
+  
   // Internal state to store clicked card information
   String? _clickedCardId;
+  
+  // GlobalKeys for card position tracking
+  final Map<String, GlobalKey> _cardKeys = {};
+  final CardAnimationManager _animationManager = CardAnimationManager();
 
   @override
   Widget build(BuildContext context) {
@@ -360,9 +370,29 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                 ? drawnCard 
                 : (peekedCardData ?? collectionRankCardData);
             
+            // Get or create GlobalKey for this card
+            final cardKeyId = '${playerId}_${cardId}';
+            if (!_cardKeys.containsKey(cardKeyId)) {
+              _cardKeys[cardKeyId] = GlobalKey(debugLabel: 'opponent_card_$cardKeyId');
+            }
+            
             // Build the collection rank card widget with dynamic dimensions
-            final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions);
+            final cardWidget = _buildCardWidget(
+              cardDataToUse, 
+              isDrawnCard, 
+              playerId, 
+              false, 
+              cardDimensions,
+              _cardKeys[cardKeyId],
+              cardId,
+              i,
+            );
             collectionRankWidgets[cardId] = cardWidget;
+            
+            // Register card position after build
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _registerCardPosition(cardId, playerId, i);
+            });
           }
         }
         
@@ -479,7 +509,29 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           // Normal card rendering (non-collection rank)
           // CardWidget uses dynamic dimensions based on container width
-          final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions);
+          // Get or create GlobalKey for this card
+          final cardKeyId = '${playerId}_${cardId}';
+          if (cardId != null && !_cardKeys.containsKey(cardKeyId)) {
+            _cardKeys[cardKeyId] = GlobalKey(debugLabel: 'opponent_card_$cardKeyId');
+          }
+          
+          final cardWidget = _buildCardWidget(
+            cardDataToUse, 
+            isDrawnCard, 
+            playerId, 
+            false, 
+            cardDimensions,
+            cardId != null ? _cardKeys[cardKeyId] : null,
+            cardId,
+            index,
+          );
+          
+          // Register card position after build
+          if (cardId != null && _cardKeys.containsKey(cardKeyId)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _registerCardPosition(cardId, playerId, index);
+            });
+          }
           
           return Padding(
             padding: EdgeInsets.only(
@@ -496,12 +548,20 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   /// Build individual card widget for opponents using the new CardWidget system
-  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isCollectionRankCard, Size cardDimensions) {
+  Widget _buildCardWidget(
+    Map<String, dynamic> card, 
+    bool isDrawnCard, 
+    String playerId, 
+    bool isCollectionRankCard, 
+    Size cardDimensions,
+    GlobalKey? cardKey,
+    String? cardId,
+    int index,
+  ) {
     // Convert to CardModel
     final cardModel = CardModel.fromMap(card);
     
     // Check if this card is currently selected
-    final cardId = card['cardId']?.toString();
     final isSelected = cardId != null && _clickedCardId == cardId;
     
     // Update the card model with selection state
@@ -513,6 +573,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       dimensions: cardDimensions, // Pass dynamic dimensions
       config: CardDisplayConfig.forOpponent(),
       isSelected: isSelected,
+      cardKey: cardKey, // Pass GlobalKey for position tracking
       onTap: () => _handleCardClick(card, playerId),
     );
     
@@ -699,6 +760,31 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     }
   }
 
+
+  /// Register card position with animation manager
+  void _registerCardPosition(String cardId, String playerId, int index) {
+    final cardKeyId = '${playerId}_${cardId}';
+    final cardKey = _cardKeys[cardKeyId];
+    if (cardKey == null) {
+      _logger.info('🎬 OpponentsPanelWidget: No GlobalKey found for card $cardId (player $playerId)', isOn: LOGGING_SWITCH);
+      return;
+    }
+
+    final position = _animationManager.positionTracker.calculatePositionFromKey(
+      cardKey,
+      cardId,
+      'opponent_hand',
+      playerId: playerId,
+      index: index,
+    );
+
+    if (position != null) {
+      _logger.info('🎬 OpponentsPanelWidget: Registered position for card $cardId (player $playerId) at index $index', isOn: LOGGING_SWITCH);
+      _animationManager.registerCardPosition(position);
+    } else {
+      _logger.info('🎬 OpponentsPanelWidget: Failed to calculate position for card $cardId (player $playerId)', isOn: LOGGING_SWITCH);
+    }
+  }
 
   /// Build a blank card slot for same-rank play empty spaces
   /// Note: This method is called from within LayoutBuilder context, so dimensions should be passed

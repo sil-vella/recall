@@ -5,6 +5,10 @@ import '../../../models/card_model.dart';
 import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
+import '../../../managers/card_animation_manager.dart';
+import '../../../../../tools/logging/logger.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display the draw pile information
 /// 
@@ -23,8 +27,14 @@ class DrawPileWidget extends StatefulWidget {
 }
 
 class _DrawPileWidgetState extends State<DrawPileWidget> {
+  final Logger _logger = Logger();
+  
   // Internal state to store clicked pile type
   String? _clickedPileType;
+  
+  // GlobalKey for draw pile card position tracking
+  final GlobalKey _drawCardKey = GlobalKey(debugLabel: 'draw_pile_card');
+  final CardAnimationManager _animationManager = CardAnimationManager();
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +105,7 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
             Builder(
               builder: (context) {
                 final cardDimensions = CardDimensions.getUnifiedDimensions();
-                return CardWidget(
+                final cardWidget = CardWidget(
                   card: CardModel(
                     cardId: 'draw_pile_${drawPileCount > 0 ? 'full' : 'empty'}',
                     rank: '?',
@@ -104,9 +114,17 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
                   ),
                   dimensions: cardDimensions, // Pass dimensions directly
                   config: CardDisplayConfig.forDrawPile(),
+                  cardKey: _drawCardKey, // Pass GlobalKey for position tracking
                   showBack: true, // Always show back for draw pile
                   onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
                 );
+                
+                // Register draw pile position after build (for cards being drawn)
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _registerDrawPilePosition();
+                });
+                
+                return cardWidget;
               },
             ),
           ],
@@ -191,5 +209,21 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     }
   }
 
+  /// Register draw pile position with animation manager
+  void _registerDrawPilePosition() {
+    // Draw pile position is used as source for cards being drawn
+    // We register it with a special cardId to track the draw pile location
+    final position = _animationManager.positionTracker.calculatePositionFromKey(
+      _drawCardKey,
+      'draw_pile_location',
+      'draw_pile',
+    );
 
+    if (position != null) {
+      _logger.info('🎬 DrawPileWidget: Registered draw pile position', isOn: LOGGING_SWITCH);
+      _animationManager.registerCardPosition(position);
+    } else {
+      _logger.info('🎬 DrawPileWidget: Failed to calculate draw pile position', isOn: LOGGING_SWITCH);
+    }
+  }
 }

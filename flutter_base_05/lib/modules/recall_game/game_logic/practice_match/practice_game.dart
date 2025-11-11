@@ -303,12 +303,10 @@ class PracticeGameCoordinator implements GameStateCallback {
         Logger().info('Recall: Cleared cardsToPeek from all players in game state', isOn: LOGGING_SWITCH);
       }
       
-      // 2. Clear myCardsToPeek from main state
-      final stateManager = StateManager();
-      final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final updatedState = Map<String, dynamic>.from(currentState);
-      updatedState['myCardsToPeek'] = <Map<String, dynamic>>[];
-      stateManager.updateModuleState('recall_game', updatedState);
+      // 2. Clear myCardsToPeek from main state (via SSOT)
+      updatePracticeGameState({
+        'myCardsToPeek': <Map<String, dynamic>>[],
+      });
       
       Logger().info('Recall: Cleared myCardsToPeek from main state', isOn: LOGGING_SWITCH);
       
@@ -1053,8 +1051,9 @@ class PracticeGameCoordinator implements GameStateCallback {
       // Update main state if requested
       if (updateMainState) {
         // Get the current player from game state
-        final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
-        final isCurrentPlayerHuman = currentPlayer?['id'] == 'recall_user';
+        final currentPlayerFromState = gameState['currentPlayer'] as Map<String, dynamic>?;
+        final currentPlayerId = currentPlayerFromState?['id']?.toString();
+        final isCurrentPlayerHuman = currentPlayerId == 'recall_user';
         
         if (playerId == 'recall_user') {
           // Updating human player status - also update myDrawnCard if it exists
@@ -1075,16 +1074,30 @@ class PracticeGameCoordinator implements GameStateCallback {
             'myDrawnCard': drawnCard, // Update myDrawnCard so frontend can show the drawn card
           });
         } else if (playerId != null) {
-          // For non-human players, update the games map and currentPlayer/currentPlayerStatus
-          Logger().info('Recall: Updating games state for non-human player $playerId with status: $status', isOn: LOGGING_SWITCH);
+          // For non-human players, only update currentPlayer/currentPlayerStatus if this player IS the current player
+          // CRITICAL: Verify that playerId matches currentPlayer before updating currentPlayer/currentPlayerStatus
+          final isCurrentPlayer = currentPlayerId == playerId;
           
+          Logger().info('Recall: Updating games state for non-human player $playerId with status: $status (isCurrentPlayer: $isCurrentPlayer)', isOn: LOGGING_SWITCH);
+          
+          if (isCurrentPlayer) {
+            // Only update currentPlayer/currentPlayerStatus if this player IS the current player
           updatePracticeGameState({
             'games': currentGames,
-            'currentPlayer': currentPlayer,
-            'currentPlayerStatus': status,
+              'currentPlayer': currentPlayerFromState, // Use the player from gameState
+              'currentPlayerStatus': status, // Use the status being set
             'isMyTurn': isCurrentPlayerHuman, // Update isMyTurn based on current player
           });
-          Logger().info('Recall: Games state updated for non-human player - opponentsPanel should be recomputed', isOn: LOGGING_SWITCH);
+            Logger().info('Recall: Games state updated for current player - opponentsPanel should be recomputed', isOn: LOGGING_SWITCH);
+          } else {
+            // Non-current player update - don't update currentPlayer/currentPlayerStatus
+            // Only update games map so the player's status change is reflected
+            updatePracticeGameState({
+              'games': currentGames,
+              'isMyTurn': isCurrentPlayerHuman, // Update isMyTurn based on current player
+            });
+            Logger().info('Recall: Games state updated for non-current player - only games map updated', isOn: LOGGING_SWITCH);
+          }
         } else {
           // Update ALL players (playerId == null)
           // This is used for cases like same_rank_window where all players get the same status
@@ -1094,7 +1107,7 @@ class PracticeGameCoordinator implements GameStateCallback {
           updatePracticeGameState({
             'playerStatus': status, // Human player status for MyHandWidget
             'games': currentGames, // Updated games map with all players' statuses
-            'currentPlayer': currentPlayer, // For OpponentsPanel
+            'currentPlayer': currentPlayerFromState, // For OpponentsPanel
             'currentPlayerStatus': status, // Current player's status for OpponentsPanel
             'isMyTurn': isCurrentPlayerHuman, // Keep isMyTurn consistent
           });
@@ -1595,12 +1608,10 @@ class PracticeGameCoordinator implements GameStateCallback {
         Logger().error('Recall: Failed to get full card data for human collection rank card', isOn: LOGGING_SWITCH);
       }
       
-      // 7. Update the main state's myCardsToPeek field (same as backend does via event handler)
-      final stateManager = StateManager();
-      final currentState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final updatedState = Map<String, dynamic>.from(currentState);
-      updatedState['myCardsToPeek'] = cardsToPeek;
-      stateManager.updateModuleState('recall_game', updatedState);
+      // 7. Update the main state's myCardsToPeek field (via SSOT, same as backend does via event handler)
+      updatePracticeGameState({
+        'myCardsToPeek': cardsToPeek,
+      });
       
       Logger().info('Recall: Updated main state myCardsToPeek with ${cardsToPeek.length} cards', isOn: LOGGING_SWITCH);
       
@@ -2286,6 +2297,15 @@ class PracticeGameCoordinator implements GameStateCallback {
   }
 
   @override
+  void saveCardPositionsAsPrevious() {
+    // NOTE: Position saving is now handled automatically by RecallGameStateUpdater (SSOT)
+    // This method is kept for interface compatibility but is a no-op
+    // All state updates (practice mode and backend events) go through RecallGameStateUpdater
+    // which automatically saves positions before state updates
+    Logger().info('🎬 PracticeGame: saveCardPositionsAsPrevious called (handled by SSOT)', isOn: LOGGING_SWITCH);
+  }
+
+  @override
   void onGameStateChanged(Map<String, dynamic> updates) {
     updatePracticeGameState(updates);
   }
@@ -2326,17 +2346,13 @@ class PracticeGameCoordinator implements GameStateCallback {
   @override
   void onActionError(String message, {Map<String, dynamic>? data}) {
     try {
-      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
-      
-      _stateManager.updateModuleState('recall_game', {
-        'games': currentGames, // Preserve games map
+      // Use SSOT for state updates (via updatePracticeGameState)
+      updatePracticeGameState({
         'actionError': {
           'message': message,
           'data': data ?? {},
           'timestamp': DateTime.now().toIso8601String(),
         },
-        'lastUpdated': DateTime.now().toIso8601String(),
       });
     } catch (e) {
       Logger().error('Recall: Failed to set action error: $e', isOn: LOGGING_SWITCH);

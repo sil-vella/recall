@@ -47,4 +47,8 @@ abstract class GameStateCallback {
   /// Get current games map
   /// Returns the current games map from state
   Map<String, dynamic> get currentGamesMap;
+
+  /// Save current card positions as previous (call before state update)
+  /// This ensures the animation system can detect movements correctly
+  void saveCardPositionsAsPrevious();
 }

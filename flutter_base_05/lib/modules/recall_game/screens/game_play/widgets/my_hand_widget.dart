@@ -6,7 +6,6 @@ import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
-import '../../../managers/card_animation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 
 // Logging switch
@@ -30,18 +29,12 @@ class MyHandWidget extends StatefulWidget {
 }
 
 class _MyHandWidgetState extends State<MyHandWidget> {
-  final Logger _logger = Logger();
-  
   // Local state for initial peek card selections
   int _initialPeekSelectionCount = 0;
   List<String> _initialPeekSelectedCardIds = [];
   
   // Local flag to prevent rapid action execution (frontend-only, doesn't update backend state)
   bool _isProcessingAction = false;
-  
-  // GlobalKeys for card position tracking
-  final Map<String, GlobalKey> _cardKeys = {};
-  final CardAnimationManager _animationManager = CardAnimationManager();
 
   @override
   Widget build(BuildContext context) {
@@ -305,27 +298,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 ? drawnCard 
                 : (peekedCardData ?? collectionRankCardData);
             
-            // Get or create GlobalKey for this card
-            if (!_cardKeys.containsKey(cardId)) {
-              _cardKeys[cardId] = GlobalKey(debugLabel: 'my_hand_card_$cardId');
-            }
-            
             // Build the collection rank card widget with SAME BUILD PROCESS as normal cards
-            final cardWidget = _buildCardWidget(
-              cardDataToUse, 
-              isSelected, 
-              isDrawnCard, 
-              false, 
-              i, 
-              cardMap,
-              _cardKeys[cardId],
-            );
+            final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap);
             collectionRankWidgets[cardId] = cardWidget;
-            
-            // Register card position after build
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _registerCardPosition(cardId, 'my_hand', i);
-            });
           }
         }
         
@@ -446,27 +421,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               
               // Normal card rendering (non-collection rank)
               // CardWidget already uses exact dimensions from CardDimensions SSOT
-              // Get or create GlobalKey for this card
-              if (cardId != null && !_cardKeys.containsKey(cardId)) {
-                _cardKeys[cardId] = GlobalKey(debugLabel: 'my_hand_card_$cardId');
-              }
-              
-              final cardWidget = _buildCardWidget(
-                cardDataToUse, 
-                isSelected, 
-                isDrawnCard, 
-                false, 
-                index, 
-                cardMap,
-                cardId != null ? _cardKeys[cardId] : null,
-              );
-              
-              // Register card position after build
-              if (cardId != null && _cardKeys.containsKey(cardId)) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _registerCardPosition(cardId, 'my_hand', index);
-                });
-              }
+              final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, index, cardMap);
               
               return Padding(
                 padding: EdgeInsets.only(
@@ -490,30 +445,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   String _getCurrentUserId() {
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     return loginState['userId']?.toString() ?? '';
-  }
-
-  /// Register card position with animation manager
-  void _registerCardPosition(String cardId, String location, int index) {
-    final cardKey = _cardKeys[cardId];
-    if (cardKey == null) {
-      _logger.info('🎬 MyHandWidget: No GlobalKey found for card $cardId', isOn: LOGGING_SWITCH);
-      return;
-    }
-
-    final position = _animationManager.positionTracker.calculatePositionFromKey(
-      cardKey,
-      cardId,
-      location,
-      playerId: _getCurrentUserId(),
-      index: index,
-    );
-
-    if (position != null) {
-      _logger.info('🎬 MyHandWidget: Registered position for card $cardId at index $index', isOn: LOGGING_SWITCH);
-      _animationManager.registerCardPosition(position);
-    } else {
-      _logger.info('🎬 MyHandWidget: Failed to calculate position for card $cardId', isOn: LOGGING_SWITCH);
-    }
   }
 
   /// Handle card selection with status validation
@@ -825,15 +756,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   }
 
   /// Build card widget with optional drawn card glow and collection rank border
-  Widget _buildCardWidget(
-    Map<String, dynamic> card, 
-    bool isSelected, 
-    bool isDrawnCard, 
-    bool isCollectionRankCard, 
-    int index, 
-    Map<String, dynamic> cardMap,
-    GlobalKey? cardKey,
-  ) {
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap) {
     // Convert to CardModel
     final cardModel = CardModel.fromMap(card);
     final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
@@ -846,7 +769,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       dimensions: cardDimensions, // Pass dimensions directly
       config: CardDisplayConfig.forMyHand(),
       isSelected: isSelected,
-      cardKey: cardKey, // Pass GlobalKey for position tracking
       onTap: () => _handleCardSelection(context, index, cardMap),
     );
     

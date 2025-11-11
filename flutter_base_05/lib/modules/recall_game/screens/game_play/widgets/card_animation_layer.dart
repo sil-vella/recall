@@ -49,9 +49,15 @@ class _CardAnimationLayerState extends State<CardAnimationLayer>
     _logger.info('🎬 CardAnimationLayer: Loading card models', isOn: LOGGING_SWITCH);
     _cardModels.clear();
 
+    // Get current game ID and games map
+    final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+    final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+
     // Load cards from my hand
-    final myHand = recallGameState['myHand'] as Map<String, dynamic>? ?? {};
-    final myHandCards = myHand['cards'] as List<dynamic>? ?? [];
+    final myHandCards = currentGame['myHandCards'] as List<dynamic>? ?? [];
     for (final card in myHandCards) {
       if (card != null && card is Map<String, dynamic>) {
         final cardId = card['cardId']?.toString();
@@ -62,12 +68,13 @@ class _CardAnimationLayerState extends State<CardAnimationLayer>
     }
 
     // Load cards from opponents
-    final opponentsPanel =
-        recallGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-    final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
-    for (final opponent in opponents) {
-      if (opponent is Map<String, dynamic>) {
-        final hand = opponent['hand'] as List<dynamic>? ?? [];
+    final allPlayers = gameState['players'] as List<dynamic>? ?? [];
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    final currentUserId = loginState['userId']?.toString() ?? '';
+    
+    for (final player in allPlayers) {
+      if (player is Map<String, dynamic> && player['id']?.toString() != currentUserId) {
+        final hand = player['hand'] as List<dynamic>? ?? [];
         for (final card in hand) {
           if (card != null && card is Map<String, dynamic>) {
             final cardId = card['cardId']?.toString();
@@ -79,15 +86,56 @@ class _CardAnimationLayerState extends State<CardAnimationLayer>
       }
     }
 
-    // Load card from discard pile
-    final centerBoard =
-        recallGameState['centerBoard'] as Map<String, dynamic>? ?? {};
-    final topDiscard = centerBoard['topDiscard'] as Map<String, dynamic>?;
-    if (topDiscard != null) {
-      final cardId = topDiscard['cardId']?.toString();
-      if (cardId != null) {
-        _cardModels[cardId] = CardModel.fromMap(topDiscard);
+    // Load card from discard pile (last card)
+    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+    if (discardPile.isNotEmpty) {
+      final topDiscard = discardPile.last;
+      if (topDiscard != null && topDiscard is Map<String, dynamic>) {
+        final cardId = topDiscard['cardId']?.toString();
+        if (cardId != null) {
+          _cardModels[cardId] = CardModel.fromMap(topDiscard);
+        }
       }
+    }
+
+    // Load card from draw pile (top card - last card in draw pile)
+    // NOTE: drawPile contains ID-only cards (maps with {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0})
+    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+    final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
+    final drawPileCardIds = drawPile.map((c) {
+      if (c is Map<String, dynamic>) return c['cardId']?.toString() ?? 'unknown';
+      return c.toString();
+    }).toList();
+    _logger.info('🎬 CardAnimationLayer: _loadCardModels - DrawPile has ${drawPile.length} cards, IDs: $drawPileCardIds', isOn: LOGGING_SWITCH);
+    
+    if (drawPile.isNotEmpty) {
+      final topDrawCard = drawPile.last;
+      if (topDrawCard != null) {
+        // Extract cardId from the ID-only card map
+        String? topDrawCardId;
+        if (topDrawCard is Map<String, dynamic>) {
+          topDrawCardId = topDrawCard['cardId']?.toString();
+        } else if (topDrawCard is String) {
+          // Fallback: if it's a string, use it directly
+          topDrawCardId = topDrawCard;
+        }
+        
+        if (topDrawCardId != null) {
+          // Find full card data in original deck
+          for (var card in originalDeck) {
+            if (card is Map<String, dynamic> && card['cardId']?.toString() == topDrawCardId) {
+              final cardId = card['cardId']?.toString();
+              if (cardId != null) {
+                _cardModels[cardId] = CardModel.fromMap(card);
+                _logger.info('🎬 CardAnimationLayer: Loaded draw pile card model: $cardId', isOn: LOGGING_SWITCH);
+              }
+              break;
+            }
+          }
+        }
+      }
+    } else {
+      _logger.info('🎬 CardAnimationLayer: DrawPile is empty, no card to load', isOn: LOGGING_SWITCH);
     }
 
     // Load cards from cardsToPeek (peeked cards have full data)
@@ -104,81 +152,192 @@ class _CardAnimationLayerState extends State<CardAnimationLayer>
     _logger.info('🎬 CardAnimationLayer: Loaded ${_cardModels.length} card models', isOn: LOGGING_SWITCH);
   }
 
+  /// Validate and clean up positions based on current game state
+  /// Removes positions for cards that are no longer in hands (they were played)
+  /// Also ensures cards that should be in hands are properly tracked for animation detection
+  void _validateAndCleanupPositions() {
+    final recallGameState =
+        StateManager().getModuleState<Map<String, dynamic>>('recall_game') ??
+            {};
+
+    // Get current game ID and games map
+    final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+    final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+
+    // Collect all card IDs that are actually in hands, organized by location
+    final cardsInMyHand = <String>{};
+    final cardsInOpponentHands = <String>{};
+
+    // Get my hand cards
+    final myHandCards = currentGame['myHandCards'] as List<dynamic>? ?? [];
+    for (final card in myHandCards) {
+      if (card != null && card is Map<String, dynamic>) {
+        final cardId = card['cardId']?.toString();
+        if (cardId != null) {
+          cardsInMyHand.add(cardId);
+        }
+      }
+    }
+
+    // Get opponent hand cards
+    final allPlayers = gameState['players'] as List<dynamic>? ?? [];
+    for (final player in allPlayers) {
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      for (final card in hand) {
+        if (card != null && card is Map<String, dynamic>) {
+          final cardId = card['cardId']?.toString();
+          if (cardId != null) {
+            cardsInOpponentHands.add(cardId);
+          }
+        }
+      }
+    }
+
+    final allCardsInHands = cardsInMyHand.union(cardsInOpponentHands);
+
+    // Remove positions for cards that are no longer in hands
+    final currentPositions = _animationManager.positionTracker.getAllPositions();
+    for (final entry in currentPositions.entries) {
+      final cardId = entry.key;
+      final position = entry.value;
+
+      // If card is registered at a hand location but not actually in any hand, remove it
+      if ((position.location == 'my_hand' || position.location == 'opponent_hand') &&
+          !allCardsInHands.contains(cardId)) {
+        _logger.info('🎬 CardAnimationLayer: Removing position for card $cardId at ${position.location} (card no longer in hand)', isOn: LOGGING_SWITCH);
+        _animationManager.positionTracker.removeCardPosition(cardId);
+      }
+    }
+
+    // Check for cards that are in hands but not yet registered
+    // These are likely newly drawn cards that haven't been registered by widgets yet
+    // We'll let the detection logic handle them when they appear
+    final previousPositions = _animationManager.positionTracker.getAllPreviousPositions();
+    for (final cardId in allCardsInHands) {
+      if (!currentPositions.containsKey(cardId) && !previousPositions.containsKey(cardId)) {
+        // Card is in hand but not in previous or current positions
+        // This means it was just drawn and hasn't been registered yet
+        // The detection logic will handle it when it appears in current positions
+        _logger.info('🎬 CardAnimationLayer: Card $cardId is in hand but not yet registered (will be detected when widget registers it)', isOn: LOGGING_SWITCH);
+      }
+    }
+  }
+
   /// Detect card movements and start animations
+  /// 
+  /// This method:
+  /// - Only tracks hand positions (my_hand, opponent_hand) - these are registered by widgets
+  /// - Uses cached static positions for draw_pile and discard_pile (cached once at match start)
+  /// - Detects movements by comparing previous hand positions with current hand positions
+  /// - For cards that appeared in hands: uses cached draw_pile position as source
+  /// - For cards that disappeared from hands: uses cached discard_pile position as destination
   void _detectAndAnimate() {
-    _logger.info('🎬 CardAnimationLayer: Detecting movements (second frame)', isOn: LOGGING_SWITCH);
+    _logger.info('🎬 CardAnimationLayer: Detecting movements', isOn: LOGGING_SWITCH);
     
-    // Note: Previous positions were already saved in the first postFrameCallback
+    // NOTE: Previous positions were saved by RecallGameStateUpdater (SSOT) BEFORE the state update
+    // Only hand positions are saved (static positions remain cached)
+    // We only need to detect movements after widgets have registered their new positions
     final currentCount = _animationManager.positionTracker.positionCount;
-    _logger.info('🎬 CardAnimationLayer: Current positions: $currentCount', isOn: LOGGING_SWITCH);
+    _logger.info('🎬 CardAnimationLayer: Current positions: $currentCount (hand positions only, static positions are cached)', isOn: LOGGING_SWITCH);
+    
+    // Log previous positions for debugging
+    final previousPositions = _animationManager.positionTracker.getAllPreviousPositions();
+    _logger.info('🎬 CardAnimationLayer: Previous positions count: ${previousPositions.length} (hand positions only)', isOn: LOGGING_SWITCH);
+    for (final entry in previousPositions.entries) {
+      _logger.info('🎬 CardAnimationLayer:   Previous: ${entry.key} at ${entry.value.location}', isOn: LOGGING_SWITCH);
+    }
 
     // Load updated card models
     _loadCardModels();
 
+    // CRITICAL: Validate and clean up positions before detecting movements
+    // Remove positions for cards that are no longer in hands (they were played)
+    // This ensures they are correctly detected as "disappeared from hand" and animate to discard_pile
+    _validateAndCleanupPositions();
+
     // Detect movements and create animations
+    // detectMovements() will use cached static positions for draw_pile and discard_pile
     final animationsToStart =
         _animationManager.detectAndCreateAnimations(this, _cardModels);
     
     _logger.info('🎬 CardAnimationLayer: Detected ${animationsToStart.length} movements to animate', isOn: LOGGING_SWITCH);
 
-    // Start all animations
-    for (final animation in animationsToStart) {
-      _logger.info('🎬 CardAnimationLayer: Starting animation for card ${animation.cardId}', isOn: LOGGING_SWITCH);
-      _logger.info('🎬 CardAnimationLayer:   From: ${animation.startPosition}', isOn: LOGGING_SWITCH);
-      _logger.info('🎬 CardAnimationLayer:   To: ${animation.endPosition}', isOn: LOGGING_SWITCH);
-      
-      _animationManager.startAnimation(animation);
+        // Start all animations
+        for (final animation in animationsToStart) {
+          _logger.info('🎬 CardAnimationLayer: Starting animation for card ${animation.cardId}', isOn: LOGGING_SWITCH);
+          _logger.info('🎬 CardAnimationLayer:   From: ${animation.startPosition}', isOn: LOGGING_SWITCH);
+          _logger.info('🎬 CardAnimationLayer:   To: ${animation.endPosition}', isOn: LOGGING_SWITCH);
+          
+          _animationManager.startAnimation(animation);
 
-      // Set up completion listener
-      animation.controller.addStatusListener((status) {
-        if (status == AnimationStatus.completed ||
-            status == AnimationStatus.dismissed) {
-          _logger.info('🎬 CardAnimationLayer: Animation completed for card ${animation.cardId}', isOn: LOGGING_SWITCH);
-          _animationManager.completeAnimation(animation.cardId);
-          _updateAnimationState();
+          // Set up completion listener
+          _setupAnimationCompletionListener(animation);
         }
-      });
-    }
 
     if (animationsToStart.isNotEmpty) {
       _updateAnimationState();
     }
   }
 
-  /// Update animation state and trigger rebuild
-  void _updateAnimationState() {
-    final activeAnimations = _animationManager.getActiveAnimations();
-    final hasActive = activeAnimations.isNotEmpty;
+      /// Set up completion listener for an animation
+      void _setupAnimationCompletionListener(CardAnimation animation) {
+        animation.controller.addStatusListener((status) {
+          if (status == AnimationStatus.completed ||
+              status == AnimationStatus.dismissed) {
+            _logger.info('🎬 CardAnimationLayer: Animation completed for card ${animation.cardId}', isOn: LOGGING_SWITCH);
+            _animationManager.completeAnimation(animation.cardId);
+            _updateAnimationState();
+          }
+        });
+      }
 
-    if (hasActive != _hasActiveAnimations) {
-      setState(() {
-        _hasActiveAnimations = hasActive;
-      });
-    } else if (hasActive) {
-      // Force rebuild to update animation values
-      setState(() {});
-    }
-  }
+      /// Update animation state and trigger rebuild
+      void _updateAnimationState() {
+        final activeAnimations = _animationManager.getActiveAnimations();
+        final hasActive = activeAnimations.isNotEmpty;
+
+        if (hasActive != _hasActiveAnimations) {
+          setState(() {
+            _hasActiveAnimations = hasActive;
+          });
+        } else if (hasActive) {
+          // Force rebuild to update animation values
+          setState(() {});
+        }
+      }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        // Detect movements after state update
-        // Use double postFrameCallback to ensure all widget positions are registered first
+        // CRITICAL: Do NOT save positions here - the SSOT (RecallGameStateUpdater) 
+        // saves positions BEFORE state updates. We only need to detect movements
+        // after widgets have registered their new positions.
+        // Use multiple postFrameCallbacks to ensure all widget positions are registered first
+        // Widgets like MyHandWidget and OpponentsPanelWidget also use addPostFrameCallback 
+        // to register positions, so we need to wait multiple frames to ensure all 
+        // registrations complete, especially for opponent cards which may take longer
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          // First frame: save current positions as previous, then wait for next frame
           if (!_isDetecting) {
             _isDetecting = true;
-            _animationManager.saveCurrentAsPrevious();
-            final previousCount = _animationManager.positionTracker.positionCount;
-            _logger.info('🎬 CardAnimationLayer: Saved ${previousCount} previous positions (first frame)', isOn: LOGGING_SWITCH);
             
-            // Second frame: detect movements after all positions are registered
+            // Wait multiple frames to ensure ALL widgets have registered their positions
+            // Frame 1: State update propagates, widgets start rebuilding
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              _detectAndAnimate();
-              _isDetecting = false;
+              // Frame 2: Widgets finish building, position registrations scheduled
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                // Frame 3: Most position registrations complete
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  // Frame 4: All position registrations should be complete now
+                  // This extra frame helps ensure opponent cards are registered
+                  _detectAndAnimate();
+                  _isDetecting = false;
+                });
+              });
             });
           }
         });

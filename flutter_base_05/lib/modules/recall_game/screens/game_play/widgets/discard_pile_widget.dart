@@ -5,10 +5,6 @@ import '../../../models/card_model.dart';
 import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
-import '../../../managers/card_animation_manager.dart';
-import '../../../../../tools/logging/logger.dart';
-
-const bool LOGGING_SWITCH = true;
 
 /// Widget to display the discard pile information
 /// 
@@ -27,14 +23,8 @@ class DiscardPileWidget extends StatefulWidget {
 }
 
 class _DiscardPileWidgetState extends State<DiscardPileWidget> {
-  final Logger _logger = Logger();
-  
   // Internal state to store clicked pile type
   String? _clickedPileType;
-  
-  // GlobalKey for discard pile card position tracking
-  final GlobalKey _discardCardKey = GlobalKey(debugLabel: 'discard_pile_card');
-  final CardAnimationManager _animationManager = CardAnimationManager();
 
   @override
   Widget build(BuildContext context) {
@@ -120,12 +110,11 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
             Builder(
               builder: (context) {
                 final cardDimensions = CardDimensions.getUnifiedDimensions();
-                final cardWidget = hasCards 
+                return hasCards 
                     ? CardWidget(
                         card: CardModel.fromMap(topDiscard),
                         dimensions: cardDimensions, // Pass dimensions directly
                         config: CardDisplayConfig.forDiscardPile(),
-                        cardKey: _discardCardKey, // Pass GlobalKey for position tracking
                         onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
                       )
                     : CardWidget(
@@ -137,22 +126,9 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
                         ),
                         dimensions: cardDimensions, // Pass dimensions directly
                         config: CardDisplayConfig.forDiscardPile(),
-                        cardKey: _discardCardKey, // Pass GlobalKey for position tracking
                         showBack: true, // Show back when empty
                         onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
                       );
-                
-                // Register card position after build
-                if (hasCards && topDiscard != null) {
-                  final cardId = topDiscard['cardId']?.toString();
-                  if (cardId != null) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _registerCardPosition(cardId);
-                    });
-                  }
-                }
-                
-                return cardWidget;
               },
             ),
           ],
@@ -232,22 +208,6 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
           duration: const Duration(seconds: 3),
         ),
       );
-    }
-  }
-
-  /// Register discard pile card position with animation manager
-  void _registerCardPosition(String cardId) {
-    final position = _animationManager.positionTracker.calculatePositionFromKey(
-      _discardCardKey,
-      cardId,
-      'discard_pile',
-    );
-
-    if (position != null) {
-      _logger.info('🎬 DiscardPileWidget: Registered position for card $cardId', isOn: LOGGING_SWITCH);
-      _animationManager.registerCardPosition(position);
-    } else {
-      _logger.info('🎬 DiscardPileWidget: Failed to calculate position for card $cardId', isOn: LOGGING_SWITCH);
     }
   }
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../../core/managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../utils/state_queue_validator.dart';
+import '../managers/card_animation_manager.dart';
 
 /// Validated state updater for recall game state management
 /// Ensures all state updates follow consistent structure and validation rules
@@ -44,7 +45,7 @@ class RecallGameStateUpdater {
     'actionBar': {'currentGameId', 'games', 'isRoomOwner', 'isGameActive', 'isMyTurn'},
     'statusBar': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'playerStatus'},
     'myHand': {'currentGameId', 'games', 'isMyTurn', 'playerStatus'},
-    'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile'},
+    'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'},
     'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'currentPlayerStatus'},
     'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
     'joinedGamesSlice': {'joinedGames', 'totalJoinedGames', 'joinedGamesTimestamp'},
@@ -110,6 +111,16 @@ class RecallGameStateUpdater {
       if (!hasActualChanges) {
         return;
       }
+      
+      // CRITICAL: Save current card positions as previous BEFORE state update
+      // This ensures the animation system can detect movements correctly for BOTH
+      // practice mode and backend events. This is the SSOT for all state updates.
+      // Save synchronously to ensure it happens before state update propagates
+      // Widgets should have already registered their positions in previous frames
+      // NOTE: Only hand positions are saved (my_hand, opponent_hand)
+      // Static positions (draw_pile, discard_pile) remain cached and are not saved/restored
+      CardAnimationManager().saveCurrentAsPrevious();
+      _logger.info('🎬 RecallGameStateUpdater: Saved hand positions as previous before state update (static positions remain cached)', isOn: LOGGING_SWITCH);
       
       // Apply only the validated updates (no timestamp - causes unnecessary updates)
       final newState = {
@@ -279,6 +290,7 @@ class RecallGameStateUpdater {
       return {
         'drawPileCount': 0,
         'topDiscard': null,
+        'topDraw': null,
         'canDrawFromDeck': false,
         'canTakeFromDiscard': false,
       };
@@ -310,9 +322,33 @@ class RecallGameStateUpdater {
       print('🔍 DEBUG: _computeCenterBoardSlice - discardPile is empty');
     }
     
+    // Get top draw card (convert ID-only to full data)
+    Map<String, dynamic>? topDraw;
+    if (drawPile.isNotEmpty) {
+      final topDrawIdOnly = drawPile.last as Map<String, dynamic>?;
+      if (topDrawIdOnly != null) {
+        final topDrawCardId = topDrawIdOnly['cardId']?.toString();
+        if (topDrawCardId != null) {
+          // Convert ID-only card to full card data by looking up in originalDeck
+          final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
+          for (final card in originalDeck) {
+            if (card is Map<String, dynamic> && card['cardId']?.toString() == topDrawCardId) {
+              topDraw = card;
+              print('🔍 DEBUG: _computeCenterBoardSlice - Found topDraw card: ${topDraw['cardId']} (${topDraw['rank']} of ${topDraw['suit']})');
+              break;
+            }
+          }
+          if (topDraw == null) {
+            print('🔍 DEBUG: _computeCenterBoardSlice - Top draw card $topDrawCardId not found in originalDeck');
+          }
+        }
+      }
+    }
+    
     final result = {
       'drawPileCount': drawPileCount,
       'topDiscard': discardPile.isNotEmpty ? discardPile.last : null,
+      'topDraw': topDraw,
       'canDrawFromDeck': drawPileCount > 0,
       'canTakeFromDiscard': discardPile.isNotEmpty,
     };

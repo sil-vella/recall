@@ -240,6 +240,7 @@ class StateQueueValidator {
       defaultValue: {
         'drawPileCount': 0,
         'topDiscard': null,
+        'topDraw': null,
         'canDrawFromDeck': false,
         'canTakeFromDiscard': false,
       },
@@ -275,6 +276,11 @@ class StateQueueValidator {
       type: int,
       defaultValue: 0,
       description: 'Number of cards in draw pile',
+    ),
+    'drawPile': RecallStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      description: 'Cards in draw pile',
     ),
     'discardPile': RecallStateFieldSpec(
       type: List,

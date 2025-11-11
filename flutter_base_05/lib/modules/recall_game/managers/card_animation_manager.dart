@@ -95,13 +95,17 @@ class CardAnimationManager {
     final animationsToStart = <CardAnimation>[];
 
     // Create animations for detected movements (up to available slots)
-    for (int i = 0; i < movements.length && i < availableSlots; i++) {
-      final movement = movements[i];
+    for (final movement in movements) {
       final cardId = movement.new_.cardId;
       
       // Skip if already animating this card
       if (_activeAnimations.containsKey(cardId)) {
         continue;
+      }
+
+      // Check if we have available slots for new animations
+      if (animationsToStart.length >= availableSlots) {
+        break; // No more slots available
       }
 
       // Get card model

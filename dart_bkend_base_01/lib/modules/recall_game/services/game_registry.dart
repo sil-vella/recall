@@ -5,7 +5,7 @@ import 'game_state_store.dart';
 import '../../../server/websocket_server.dart';
 import '../../../utils/server_logger.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Holds active RecallGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.

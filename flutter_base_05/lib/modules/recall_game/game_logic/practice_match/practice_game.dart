@@ -70,7 +70,7 @@ class PracticeGameCoordinator implements GameStateCallback {
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       
-      _stateManager.updateModuleState('recall_game', {
+      updatePracticeGameState({
         'games': currentGames, // CRITICAL: Preserve the games map
         'instructions': {
           'isVisible': true,
@@ -94,7 +94,7 @@ class PracticeGameCoordinator implements GameStateCallback {
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       
-      _stateManager.updateModuleState('recall_game', {
+      updatePracticeGameState({
         'games': currentGames, // CRITICAL: Preserve the games map
         'instructions': {
           'isVisible': false,
@@ -123,7 +123,7 @@ class PracticeGameCoordinator implements GameStateCallback {
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       
-      _stateManager.updateModuleState('recall_game', {
+      updatePracticeGameState({
         'games': currentGames, // CRITICAL: Preserve the games map
         'messages': {
           'isVisible': true,
@@ -151,7 +151,7 @@ class PracticeGameCoordinator implements GameStateCallback {
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       
-      _stateManager.updateModuleState('recall_game', {
+      updatePracticeGameState({
         'games': currentGames, // CRITICAL: Preserve the games map
         'messages': {
           'isVisible': false,
@@ -373,12 +373,12 @@ class PracticeGameCoordinator implements GameStateCallback {
       final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
       if (currentGameId.startsWith('recall_game_')) {
         Logger().info('Recall: Clearing recall game as currentGameId', isOn: LOGGING_SWITCH);
-        _stateManager.updateModuleState('recall_game', {
+        updatePracticeGameState({
           'currentGameId': null,
           'games': games,
         });
       } else if (games.isNotEmpty) {
-        _stateManager.updateModuleState('recall_game', {'games': games});
+        updatePracticeGameState({'games': games});
       }
       
       // Dispose game round

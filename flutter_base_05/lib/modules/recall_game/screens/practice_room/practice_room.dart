@@ -7,7 +7,7 @@ import '../../../../tools/logging/logger.dart';
 import '../../game_logic/practice_match/practice_game.dart';
 import 'widgets/rules_modal_widget.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class PracticeScreen extends BaseScreen {
   const PracticeScreen({Key? key}) : super(key: key);

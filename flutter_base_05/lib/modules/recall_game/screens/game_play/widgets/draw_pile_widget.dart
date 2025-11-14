@@ -5,6 +5,10 @@ import '../../../models/card_model.dart';
 import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
+import '../../../../../tools/logging/logger.dart';
+import '../card_position_tracker.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display the draw pile information
 /// 
@@ -23,8 +27,13 @@ class DrawPileWidget extends StatefulWidget {
 }
 
 class _DrawPileWidgetState extends State<DrawPileWidget> {
+  final Logger _logger = Logger();
+  
   // Internal state to store clicked pile type
   String? _clickedPileType;
+  
+  // GlobalKey for draw pile card position tracking
+  final GlobalKey _drawCardKey = GlobalKey(debugLabel: 'draw_pile_card');
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +105,7 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
               builder: (context) {
                 final cardDimensions = CardDimensions.getUnifiedDimensions();
                 return CardWidget(
+                  key: _drawCardKey,
                   card: CardModel(
                     cardId: 'draw_pile_${drawPileCount > 0 ? 'full' : 'empty'}',
                     rank: '?',
@@ -107,6 +117,16 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
                   showBack: true, // Always show back for draw pile
                   onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
                 );
+              },
+            ),
+            
+            // Update position on rebuild (after card is rendered)
+            Builder(
+              builder: (context) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _updateDrawPilePosition();
+                });
+                return const SizedBox.shrink();
               },
             ),
           ],
@@ -125,6 +145,60 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     setState(() {
       _clickedPileType = null;
     });
+  }
+
+  /// Update draw pile position in animation manager
+  void _updateDrawPilePosition() {
+    _logger.info(
+      'DrawPileWidget._updateDrawPilePosition() called',
+      isOn: LOGGING_SWITCH,
+    );
+    
+    // Check if key is attached
+    final renderObject = _drawCardKey.currentContext?.findRenderObject();
+    if (renderObject == null) {
+      _logger.info(
+        'DrawPileWidget._updateDrawPilePosition() - renderObject is null (widget not yet rendered)',
+        isOn: LOGGING_SWITCH,
+      );
+      return;
+    }
+    
+    // Get position and size
+    final RenderBox? renderBox = renderObject as RenderBox?;
+    if (renderBox == null) {
+      _logger.info(
+        'DrawPileWidget._updateDrawPilePosition() - renderBox is null',
+        isOn: LOGGING_SWITCH,
+      );
+      return;
+    }
+    
+    // Get screen position and size
+    final position = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    
+    _logger.info(
+      'DrawPileWidget._updateDrawPilePosition() - Updating position: position=(${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size=(${size.width.toStringAsFixed(1)}, ${size.height.toStringAsFixed(1)})',
+      isOn: LOGGING_SWITCH,
+    );
+    
+    // Update position in tracker
+    final tracker = CardPositionTracker.instance();
+    tracker.updateCardPosition(
+      'draw_pile',
+      position,
+      size,
+      'draw_pile',
+    );
+    
+    _logger.info(
+      'DrawPileWidget._updateDrawPilePosition() - Position updated successfully',
+      isOn: LOGGING_SWITCH,
+    );
+    
+    // Log all positions
+    tracker.logAllPositions();
   }
 
   /// Handle pile click for card drawing

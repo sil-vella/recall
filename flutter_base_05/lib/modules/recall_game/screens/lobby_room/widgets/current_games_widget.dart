@@ -7,7 +7,7 @@ import '../../../managers/game_coordinator.dart';
 import '../../../utils/recall_game_helpers.dart';
 import '../../../game_logic/practice_match/practice_game.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Widget to display all joined rooms with join functionality
 /// 

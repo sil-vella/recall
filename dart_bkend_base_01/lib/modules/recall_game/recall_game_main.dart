@@ -6,7 +6,7 @@ import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 import '../../utils/server_logger.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Entry point for registering Recall game module components with the server.
 class RecallGameModule {

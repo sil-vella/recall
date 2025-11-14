@@ -7,7 +7,7 @@ import 'package:recall/tools/logging/logger.dart';
 import 'models/card.dart';
 import 'models/player.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 enum GamePhase {
   waitingForPlayers,

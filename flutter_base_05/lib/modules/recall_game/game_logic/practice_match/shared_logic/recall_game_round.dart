@@ -975,6 +975,15 @@ class RecallGameRound {
         }
       }
       
+      // Update games map through SSOT (maintains uniformity with other methods)
+      // This ensures animation detection can detect the new card in the hand
+      // CRITICAL: This must be called BEFORE onPlayerStatusChanged to ensure games map is updated first
+      final currentGames = _stateCallback.currentGamesMap;
+      _logger.info('Recall: Updating games map through SSOT after draw card for player $playerId', isOn: LOGGING_SWITCH);
+      _stateCallback.onGameStateChanged({
+        'games': currentGames, // This includes the updated player hand with new card
+      });
+      
       // Change player status from DRAWING_CARD to PLAYING_CARD
       _stateCallback.onPlayerStatusChanged('playing_card', playerId: playerId, updateMainState: true, triggerInstructions: true);
       

@@ -13,6 +13,7 @@ import 'widgets/messages_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../modules/recall_game/managers/feature_registry_manager.dart';
 import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
+import 'card_position_tracker.dart';
 
 const bool LOGGING_SWITCH = true;
 
@@ -33,6 +34,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Initialize card position tracker (singleton, initialized on first access)
+    CardPositionTracker.instance();
     
     // Register game phase chip feature in app bar
     _registerGamePhaseChipFeature();
@@ -118,6 +122,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       featureId: 'game_phase_chip',
     );
     
+    // Clear card position tracker
+    CardPositionTracker.instance().clearAllPositions();
+    
     // Additional cleanup on dispose (failsafe)
     if (_previousGameId != null && _previousGameId!.startsWith('recall_game_')) {
       Logger().info('GamePlay: Disposing recall game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
@@ -185,6 +192,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
         
         // Messages Modal Widget - handles its own state subscription
         const MessagesWidget(),
+        
+        // Card Animation Layer - overlay for card animations (topmost layer)
       ],
     );
   }

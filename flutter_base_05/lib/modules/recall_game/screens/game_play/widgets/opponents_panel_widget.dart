@@ -5,7 +5,11 @@ import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import 'player_status_chip_widget.dart';
+import '../../../../../tools/logging/logger.dart';
 import '../../../managers/player_action.dart';
+import '../card_position_tracker.dart';
+
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display other players (opponents)
 /// 
@@ -25,8 +29,13 @@ class OpponentsPanelWidget extends StatefulWidget {
 }
 
 class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
+  final Logger _logger = Logger();
+  
   // Internal state to store clicked card information
   String? _clickedCardId;
+  
+  // Map<playerId_cardId, GlobalKey>
+  final Map<String, GlobalKey> _cardKeys = {};
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +67,10 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
         
+        // Update card positions on rebuild (after cards are rendered)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _updateCardPositions(otherPlayers);
+        });
         
         return _buildOpponentsPanel(
           opponents: otherPlayers,
@@ -83,15 +96,15 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     required String playerStatus,
   }) {
     return Card(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Opponents display
-            if (opponents.isEmpty)
-              _buildEmptyOpponents()
-            else
-              _buildOpponentsGrid(opponents, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
-          ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Opponents display
+          if (opponents.isEmpty)
+            _buildEmptyOpponents()
+          else
+            _buildOpponentsGrid(opponents, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
+        ],
       ),
     );
   }
@@ -169,17 +182,17 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         return SizedBox(
           width: double.infinity, // Take 100% of available width
           child: _buildOpponentCard(
-            player, 
-            cardsToPeek, 
-            player['collection_rank_cards'] as List<dynamic>? ?? [],
-            isCurrentTurn, 
-            isGameActive, 
-            isCurrentPlayer, 
-            currentPlayerStatus,
-            knownCards,
-            isInitialPeekPhase
-          ),
-        );
+              player, 
+              cardsToPeek, 
+              player['collection_rank_cards'] as List<dynamic>? ?? [],
+              isCurrentTurn, 
+              isGameActive, 
+              isCurrentPlayer, 
+              currentPlayerStatus,
+              knownCards,
+              isInitialPeekPhase
+            ),
+          );
       }).toList(),
     );
       },
@@ -200,26 +213,26 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final containerPadding = constraints.maxWidth.isFinite 
             ? constraints.maxWidth * 0.02 
             : 16.0; // Fallback to fixed padding if width is unbounded
-    
-    return Container(
+        
+        return Container(
           padding: EdgeInsets.all(containerPadding),
-      decoration: BoxDecoration(
-        color: isCurrentPlayer ? Colors.blue.shade50 : (isCurrentTurn ? Colors.yellow.shade50 : Colors.white),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isCurrentPlayer ? Colors.blue.shade400 : (isCurrentTurn ? Colors.yellow.shade400 : Colors.grey.shade300),
-          width: (isCurrentPlayer || isCurrentTurn) ? 2 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isCurrentPlayer ? Colors.blue.withOpacity(0.1) : Colors.black.withOpacity(0.05),
-            blurRadius: isCurrentPlayer ? 4 : 2,
-            offset: const Offset(0, 1),
+          decoration: BoxDecoration(
+            color: isCurrentPlayer ? Colors.blue.shade50 : (isCurrentTurn ? Colors.yellow.shade50 : Colors.white),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isCurrentPlayer ? Colors.blue.shade400 : (isCurrentTurn ? Colors.yellow.shade400 : Colors.grey.shade300),
+              width: (isCurrentPlayer || isCurrentTurn) ? 2 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isCurrentPlayer ? Colors.blue.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+                blurRadius: isCurrentPlayer ? 4 : 2,
+                offset: const Offset(0, 1),
+              ),
+            ],
           ),
-        ],
-      ),
           child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Left side: Cards display - horizontal layout, aligned to the left
               Expanded(
@@ -257,36 +270,36 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                           ),
                           const SizedBox(width: 4),
                         ],
-              Expanded(
-                child: Text(
-                  playerName,
+                        Expanded(
+                          child: Text(
+                            playerName,
                             textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: isCurrentPlayer ? Colors.blue.shade800 : Colors.black87,
-                  ),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isCurrentPlayer ? Colors.blue.shade800 : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    // Player status indicator (show for all players)
+                    if (playerStatus != 'unknown') ...[
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: PlayerStatusChip(
+                          playerId: player['id']?.toString() ?? '',
+                          size: PlayerStatusChipSize.small,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
           ),
-          
-          // Player status indicator (show for all players)
-          if (playerStatus != 'unknown') ...[
-            const SizedBox(height: 4),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: PlayerStatusChip(
-                  playerId: player['id']?.toString() ?? '',
-                  size: PlayerStatusChipSize.small,
-                ),
-            ),
-          ],
-                  ],
-                ),
-              ),
-        ],
-      ),
         );
       },
     );
@@ -308,70 +321,72 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
         final cardPadding = containerWidth * 0.02; // 2% of container width for spacing between cards
         
-    // Build list of card IDs that are collection rank cards
-    final collectionRankCardIds = playerCollectionRankCards
-        .where((c) => c is Map<String, dynamic>)
-        .map((c) => (c as Map<String, dynamic>)['cardId']?.toString())
-        .where((id) => id != null)
-        .toSet();
-    
-    // Pre-build collection rank widgets map - ALL CARDS USE SAME BUILD PROCESS
-    Map<String, Widget> collectionRankWidgets = {};
-    
-    // First pass: build all collection rank widgets with same build process as normal cards
-    for (int i = 0; i < cards.length; i++) {
-      final card = cards[i];
-      if (card == null) continue;
-      
-      final cardMap = card as Map<String, dynamic>;
-      final cardId = cardMap['cardId']?.toString();
-      if (cardId == null) continue;
-      
-      // Get the same parameters as normal card building
-      final drawnCardId = drawnCard?['cardId']?.toString();
-      final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
-      
-      // Check if this card is in cardsToPeek (peeked cards have full data)
-      Map<String, dynamic>? peekedCardData;
-      if (cardsToPeek.isNotEmpty) {
-        for (var peekedCard in cardsToPeek) {
-          if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
-            peekedCardData = peekedCard;
-            break;
-          }
-        }
-      }
-      
-      // Check if this card is a collection rank card
-      Map<String, dynamic>? collectionRankCardData;
-      if (playerCollectionRankCards.isNotEmpty) {
-        for (var collectionCard in playerCollectionRankCards) {
-          if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-            collectionRankCardData = collectionCard;
-            break;
-          }
-        }
-      }
-      
-      if (collectionRankCardData != null) {
-        // Determine which data to use (same priority as normal cards)
-        // collectionRankCardData is guaranteed non-null here, so no need for ?? cardMap fallback
-        final cardDataToUse = isDrawnCard && drawnCard != null
-            ? drawnCard 
-            : (peekedCardData ?? collectionRankCardData);
+        // Build list of card IDs that are collection rank cards
+        final collectionRankCardIds = playerCollectionRankCards
+            .where((c) => c is Map<String, dynamic>)
+            .map((c) => (c as Map<String, dynamic>)['cardId']?.toString())
+            .where((id) => id != null)
+            .toSet();
         
+        // Pre-build collection rank widgets map - ALL CARDS USE SAME BUILD PROCESS
+        Map<String, Widget> collectionRankWidgets = {};
+        
+        // First pass: build all collection rank widgets with same build process as normal cards
+        for (int i = 0; i < cards.length; i++) {
+          final card = cards[i];
+          if (card == null) continue;
+          
+          final cardMap = card as Map<String, dynamic>;
+          final cardId = cardMap['cardId']?.toString();
+          if (cardId == null) continue;
+          
+          // Get the same parameters as normal card building
+          final drawnCardId = drawnCard?['cardId']?.toString();
+          final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
+          
+          // Check if this card is in cardsToPeek (peeked cards have full data)
+          Map<String, dynamic>? peekedCardData;
+          if (cardsToPeek.isNotEmpty) {
+            for (var peekedCard in cardsToPeek) {
+              if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
+                peekedCardData = peekedCard;
+                break;
+              }
+            }
+          }
+          
+          // Check if this card is a collection rank card
+          Map<String, dynamic>? collectionRankCardData;
+          if (playerCollectionRankCards.isNotEmpty) {
+            for (var collectionCard in playerCollectionRankCards) {
+              if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+                collectionRankCardData = collectionCard;
+                break;
+              }
+            }
+          }
+          
+          if (collectionRankCardData != null) {
+            // Determine which data to use (same priority as normal cards)
+            // collectionRankCardData is guaranteed non-null here, so no need for ?? cardMap fallback
+            final cardDataToUse = isDrawnCard && drawnCard != null
+                ? drawnCard 
+                : (peekedCardData ?? collectionRankCardData);
+            
             // Build the collection rank card widget with dynamic dimensions
-            final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions);
-        collectionRankWidgets[cardId] = cardWidget;
-      }
-    }
-    
-    return SizedBox(
+            final cardKeyName = '${playerId}_$cardId';
+            final cardKey = _cardKeys.putIfAbsent(cardKeyName, () => GlobalKey(debugLabel: 'opponent_card_$cardKeyName'));
+            final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey);
+            collectionRankWidgets[cardId] = cardWidget;
+          }
+        }
+        
+        return SizedBox(
           height: cardHeight,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: cards.length,
-        itemBuilder: (context, index) {
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: cards.length,
+            itemBuilder: (context, index) {
           final card = cards[index];
           
           // Handle null cards (blank slots from same-rank plays)
@@ -479,7 +494,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           // Normal card rendering (non-collection rank)
           // CardWidget uses dynamic dimensions based on container width
-          final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions);
+          final cardKeyName = '${playerId}_$cardId';
+          final cardKey = _cardKeys.putIfAbsent(cardKeyName, () => GlobalKey(debugLabel: 'opponent_card_$cardKeyName'));
+          final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey);
           
           return Padding(
             padding: EdgeInsets.only(
@@ -488,15 +505,118 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             ),
             child: cardWidget,
           );
-        },
-      ),
+            },
+          ),
         );
       },
     );
   }
 
+  /// Update card positions in animation manager
+  void _updateCardPositions(List<dynamic> opponents) {
+    _logger.info(
+      'OpponentsPanelWidget._updateCardPositions() called - opponents count: ${opponents.length}',
+      isOn: LOGGING_SWITCH,
+    );
+    
+    final tracker = CardPositionTracker.instance();
+    int cardsUpdated = 0;
+    int cardsSkipped = 0;
+    
+    for (final opponent in opponents) {
+      final playerId = opponent['id']?.toString() ?? '';
+      if (playerId.isEmpty) {
+        _logger.info(
+          'OpponentsPanelWidget._updateCardPositions() - Skipping opponent with empty playerId',
+          isOn: LOGGING_SWITCH,
+        );
+        continue;
+      }
+
+      final hand = opponent['hand'] as List<dynamic>? ?? [];
+      _logger.info(
+        'OpponentsPanelWidget._updateCardPositions() - Processing opponent: playerId=$playerId, hand size=${hand.length}',
+        isOn: LOGGING_SWITCH,
+      );
+      
+      for (final card in hand) {
+        if (card == null || card is! Map<String, dynamic>) {
+          cardsSkipped++;
+          _logger.info(
+            'OpponentsPanelWidget._updateCardPositions() - Skipping null or invalid card',
+            isOn: LOGGING_SWITCH,
+          );
+          continue;
+        }
+        
+        final cardId = card['cardId']?.toString();
+        if (cardId == null) {
+          cardsSkipped++;
+          _logger.info(
+            'OpponentsPanelWidget._updateCardPositions() - Skipping card with null cardId',
+            isOn: LOGGING_SWITCH,
+          );
+          continue;
+        }
+        
+        // Get or create GlobalKey for this card
+        final cardKeyName = '${playerId}_$cardId';
+        final cardKey = _cardKeys.putIfAbsent(cardKeyName, () => GlobalKey(debugLabel: 'opponent_card_$cardKeyName'));
+        
+        // Get RenderBox from GlobalKey
+        final renderObject = cardKey.currentContext?.findRenderObject();
+        if (renderObject == null) {
+          cardsSkipped++;
+          _logger.info(
+            'OpponentsPanelWidget._updateCardPositions() - Skipping card $cardId: renderObject is null (widget not yet rendered)',
+            isOn: LOGGING_SWITCH,
+          );
+          continue;
+        }
+        
+        final RenderBox? renderBox = renderObject as RenderBox?;
+        if (renderBox == null) {
+          cardsSkipped++;
+          _logger.info(
+            'OpponentsPanelWidget._updateCardPositions() - Skipping card $cardId: renderBox is null',
+            isOn: LOGGING_SWITCH,
+          );
+          continue;
+        }
+        
+        // Get screen position and size
+        final position = renderBox.localToGlobal(Offset.zero);
+        final size = renderBox.size;
+        
+        _logger.info(
+          'OpponentsPanelWidget._updateCardPositions() - Updating position for card: playerId=$playerId, cardId=$cardId, position=(${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size=(${size.width.toStringAsFixed(1)}, ${size.height.toStringAsFixed(1)})',
+          isOn: LOGGING_SWITCH,
+        );
+        
+        // Update position in tracker
+        tracker.updateCardPosition(
+          cardId,
+          position,
+          size,
+          'opponent_hand',
+          playerId: playerId,
+        );
+        cardsUpdated++;
+      }
+    }
+    
+    _logger.info(
+      'OpponentsPanelWidget._updateCardPositions() - Completed: cardsUpdated=$cardsUpdated, cardsSkipped=$cardsSkipped',
+      isOn: LOGGING_SWITCH,
+    );
+    
+    // Log all positions after updating all opponent cards
+    tracker.logAllPositions();
+  }
+
+
   /// Build individual card widget for opponents using the new CardWidget system
-  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isCollectionRankCard, Size cardDimensions) {
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isCollectionRankCard, Size cardDimensions, {GlobalKey? cardKey}) {
     // Convert to CardModel
     final cardModel = CardModel.fromMap(card);
     
@@ -509,6 +629,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     
     // Build card widget with dynamic dimensions (10% of container width)
     Widget cardWidget = CardWidget(
+      key: cardKey,
       card: updatedCardModel,
       dimensions: cardDimensions, // Pass dynamic dimensions
       config: CardDisplayConfig.forOpponent(),

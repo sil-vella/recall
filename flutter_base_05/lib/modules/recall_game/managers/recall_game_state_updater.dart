@@ -1,9 +1,9 @@
 import 'dart:convert';
+import 'dart:async';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
 import '../utils/state_queue_validator.dart';
-import '../managers/card_animation_manager.dart';
 
 /// Validated state updater for recall game state management
 /// Ensures all state updates follow consistent structure and validation rules
@@ -14,28 +14,42 @@ class RecallGameStateUpdater {
     return _instance!;
   }
   
-  RecallGameStateUpdater._internal() {
-    // Initialize state queue validator with logger callback
-    final validator = StateQueueValidator.instance;
-    validator.setLogCallback((String message, {bool isError = false}) {
-      if (isError) {
-        _logger.error(message, isOn: LOGGING_SWITCH);
-      } else {
-        _logger.debug(message, isOn: LOGGING_SWITCH);
-      }
-    });
-    
-    // Set update handler to apply validated updates
-    validator.setUpdateHandler((Map<String, dynamic> validatedUpdates) {
-      _applyValidatedUpdates(validatedUpdates);
-    });
-  }
-  
+  // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
   static const bool LOGGING_SWITCH = true;
+  
   // Dependencies
   final StateManager _stateManager = StateManager();
   final StateQueueValidator _validator = StateQueueValidator.instance;
+  
+  RecallGameStateUpdater._internal() {
+    print('🎬🎬🎬 RecallGameStateUpdater: CONSTRUCTOR CALLED - Instance created (singleton initialization)');
+    _logger.info('🎬 RecallGameStateUpdater: Instance created (singleton initialization)', isOn: LOGGING_SWITCH);
+    
+    // Set update handler to apply validated updates
+    final validator = StateQueueValidator.instance;
+    print('🎬🎬🎬 RecallGameStateUpdater: Got StateQueueValidator.instance, about to set handler');
+    _logger.info('🎬 RecallGameStateUpdater: Setting update handler on StateQueueValidator', isOn: LOGGING_SWITCH);
+    
+    validator.setUpdateHandler((Map<String, dynamic> validatedUpdates) {
+      print('🎬🎬🎬 RecallGameStateUpdater: HANDLER CALLBACK DEFINED - This closure was created');
+      // CRITICAL: First log to verify this callback is actually being called
+      print('🎬🎬🎬 RecallGameStateUpdater: HANDLER CALLBACK EXECUTING! Keys: ${validatedUpdates.keys.toList()}');
+      _logger.info('🎬 RecallGameStateUpdater: Handler callback invoked with keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
+      try {
+        print('🎬🎬🎬 RecallGameStateUpdater: About to call _applyValidatedUpdates');
+        _applyValidatedUpdates(validatedUpdates);
+        print('🎬🎬🎬 RecallGameStateUpdater: _applyValidatedUpdates returned');
+        _logger.info('🎬 RecallGameStateUpdater: Handler callback completed successfully', isOn: LOGGING_SWITCH);
+      } catch (e, stackTrace) {
+        print('🎬🎬🎬 RecallGameStateUpdater: EXCEPTION in handler: $e');
+        _logger.error('🎬 RecallGameStateUpdater: Exception in handler callback: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+        rethrow;
+      }
+    });
+    
+    _logger.info('🎬 RecallGameStateUpdater: Initialization complete - handler set and ready', isOn: LOGGING_SWITCH);
+  }
   
   // Note: State schema validation has been moved to StateQueueValidator
   // See state_queue_validator.dart for the complete schema
@@ -68,9 +82,14 @@ class RecallGameStateUpdater {
   /// Apply validated updates with widget slice computation
   /// This is called by StateQueueValidator after validation
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
+    // CRITICAL: Print to verify this method is actually being called
+    print('🎬🎬🎬 RecallGameStateUpdater: _applyValidatedUpdates CALLED! Keys: ${validatedUpdates.keys.toList()}');
+    _logger.info('🎬 RecallGameStateUpdater: _applyValidatedUpdates START with keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
     try {
       // Get current state
+      _logger.debug('🎬 RecallGameStateUpdater: Getting current state from StateManager', isOn: LOGGING_SWITCH);
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      _logger.debug('🎬 RecallGameStateUpdater: Current state keys: ${currentState.keys.toList()}', isOn: LOGGING_SWITCH);
       
       // Check if there are actual changes (excluding lastUpdated)
       // For complex objects (Maps, Lists), we need deep comparison
@@ -109,35 +128,38 @@ class RecallGameStateUpdater {
       
       // Only proceed if there are actual changes
       if (!hasActualChanges) {
+        _logger.info('🎬 RecallGameStateUpdater: No actual changes detected, skipping animation check', isOn: LOGGING_SWITCH);
         return;
       }
       
-      // CRITICAL: Save current card positions as previous BEFORE state update
-      // This ensures the animation system can detect movements correctly for BOTH
-      // practice mode and backend events. This is the SSOT for all state updates.
-      // Save synchronously to ensure it happens before state update propagates
-      // Widgets should have already registered their positions in previous frames
-      // NOTE: Only hand positions are saved (my_hand, opponent_hand)
-      // Static positions (draw_pile, discard_pile) remain cached and are not saved/restored
-      CardAnimationManager().saveCurrentAsPrevious();
-      _logger.info('🎬 RecallGameStateUpdater: Saved hand positions as previous before state update (static positions remain cached)', isOn: LOGGING_SWITCH);
+      _logger.info('🎬 RecallGameStateUpdater: Has actual changes, proceeding with state update and animation check', isOn: LOGGING_SWITCH);
+      
+      // NOTE: Position saving is no longer needed here
+      // Widgets now create animation triggers directly after state changes
+      // The animation system uses triggers from widgets, not position tracking
       
       // Apply only the validated updates (no timestamp - causes unnecessary updates)
+      _logger.debug('🎬 RecallGameStateUpdater: Merging current state with validated updates', isOn: LOGGING_SWITCH);
       final newState = {
         ...currentState,
         ...validatedUpdates,
       };
+      _logger.debug('🎬 RecallGameStateUpdater: New state keys: ${newState.keys.toList()}', isOn: LOGGING_SWITCH);
       
       // Rebuild dependent widget slices only if relevant fields changed
+      _logger.debug('🎬 RecallGameStateUpdater: Updating widget slices for changed keys: ${validatedUpdates.keys.toSet()}', isOn: LOGGING_SWITCH);
       final updatedStateWithSlices = _updateWidgetSlices(
         currentState,
         newState,
         validatedUpdates.keys.toSet(),
       );
+      _logger.debug('🎬 RecallGameStateUpdater: Widget slices updated, final state keys: ${updatedStateWithSlices.keys.toList()}', isOn: LOGGING_SWITCH);
       
       // Update StateManager
+      _logger.debug('🎬 RecallGameStateUpdater: Updating StateManager with merged state', isOn: LOGGING_SWITCH);
       _stateManager.updateModuleState('recall_game', updatedStateWithSlices);
-      
+      _logger.info('🎬 RecallGameStateUpdater: StateManager updated successfully', isOn: LOGGING_SWITCH);
+
     } catch (e) {
       _logger.error('RecallGameStateUpdater: Failed to apply validated updates: $e', isOn: LOGGING_SWITCH);
       rethrow;

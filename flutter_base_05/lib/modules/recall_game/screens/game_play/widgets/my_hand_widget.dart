@@ -7,6 +7,7 @@ import '../../../widgets/card_widget.dart';
 import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../card_position_tracker.dart';
 
 // Logging switch
 const bool LOGGING_SWITCH = true;
@@ -29,12 +30,17 @@ class MyHandWidget extends StatefulWidget {
 }
 
 class _MyHandWidgetState extends State<MyHandWidget> {
+  final Logger _logger = Logger();
+  
   // Local state for initial peek card selections
   int _initialPeekSelectionCount = 0;
   List<String> _initialPeekSelectedCardIds = [];
   
   // Local flag to prevent rapid action execution (frontend-only, doesn't update backend state)
   bool _isProcessingAction = false;
+  
+  // GlobalKeys for each card to get positions
+  final Map<String, GlobalKey> _cardKeys = {};
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +63,11 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
         final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+        
+        // Update card positions on rebuild (after cards are rendered)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _updateCardPositions(cards);
+        });
         
         // Check for action errors and display snackbar
         final actionError = recallGameState['actionError'] as Map<String, dynamic>?;
@@ -299,7 +310,8 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 : (peekedCardData ?? collectionRankCardData);
             
             // Build the collection rank card widget with SAME BUILD PROCESS as normal cards
-            final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap);
+            final cardKey = _cardKeys.putIfAbsent(cardId, () => GlobalKey(debugLabel: 'card_$cardId'));
+            final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey);
             collectionRankWidgets[cardId] = cardWidget;
           }
         }
@@ -421,7 +433,8 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               
               // Normal card rendering (non-collection rank)
               // CardWidget already uses exact dimensions from CardDimensions SSOT
-              final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, index, cardMap);
+              final cardKey = _cardKeys.putIfAbsent(cardId!, () => GlobalKey(debugLabel: 'card_$cardId'));
+              final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, index, cardMap, cardKey);
               
               return Padding(
                 padding: EdgeInsets.only(
@@ -446,6 +459,91 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     return loginState['userId']?.toString() ?? '';
   }
+
+  /// Detect state changes and create animation triggers
+  /// Update card positions in animation manager
+  void _updateCardPositions(List<dynamic> cards) {
+    _logger.info(
+      'MyHandWidget._updateCardPositions() called - cards count: ${cards.length}',
+      isOn: LOGGING_SWITCH,
+    );
+    
+    final tracker = CardPositionTracker.instance();
+    int cardsUpdated = 0;
+    int cardsSkipped = 0;
+    
+    for (final card in cards) {
+      if (card == null || card is! Map<String, dynamic>) {
+        cardsSkipped++;
+        _logger.info(
+          'MyHandWidget._updateCardPositions() - Skipping null or invalid card',
+          isOn: LOGGING_SWITCH,
+        );
+        continue;
+      }
+      
+      final cardId = card['cardId']?.toString();
+      if (cardId == null) {
+        cardsSkipped++;
+        _logger.info(
+          'MyHandWidget._updateCardPositions() - Skipping card with null cardId',
+          isOn: LOGGING_SWITCH,
+        );
+        continue;
+      }
+      
+      // Get or create GlobalKey for this card
+      final cardKey = _cardKeys.putIfAbsent(cardId, () => GlobalKey(debugLabel: 'card_$cardId'));
+      
+      // Get RenderBox from GlobalKey
+      final renderObject = cardKey.currentContext?.findRenderObject();
+      if (renderObject == null) {
+        cardsSkipped++;
+        _logger.info(
+          'MyHandWidget._updateCardPositions() - Skipping card $cardId: renderObject is null (widget not yet rendered)',
+          isOn: LOGGING_SWITCH,
+        );
+        continue;
+      }
+      
+      final RenderBox? renderBox = renderObject as RenderBox?;
+      if (renderBox == null) {
+        cardsSkipped++;
+        _logger.info(
+          'MyHandWidget._updateCardPositions() - Skipping card $cardId: renderBox is null',
+          isOn: LOGGING_SWITCH,
+        );
+        continue;
+      }
+      
+      // Get screen position and size
+      final position = renderBox.localToGlobal(Offset.zero);
+      final size = renderBox.size;
+      
+      _logger.info(
+        'MyHandWidget._updateCardPositions() - Updating position for card: cardId=$cardId, position=(${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size=(${size.width.toStringAsFixed(1)}, ${size.height.toStringAsFixed(1)})',
+        isOn: LOGGING_SWITCH,
+      );
+      
+      // Update position in tracker
+      tracker.updateCardPosition(
+        cardId,
+        position,
+        size,
+        'my_hand',
+      );
+      cardsUpdated++;
+    }
+    
+    _logger.info(
+      'MyHandWidget._updateCardPositions() - Completed: cardsUpdated=$cardsUpdated, cardsSkipped=$cardsSkipped',
+      isOn: LOGGING_SWITCH,
+    );
+    
+    // Log all positions after updating all my hand cards
+    tracker.logAllPositions();
+  }
+
 
   /// Handle card selection with status validation
   void _handleCardSelection(BuildContext context, int index, Map<String, dynamic> card) async {
@@ -756,7 +854,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   }
 
   /// Build card widget with optional drawn card glow and collection rank border
-  Widget _buildCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap) {
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey) {
     // Convert to CardModel
     final cardModel = CardModel.fromMap(card);
     final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
@@ -765,6 +863,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     final cardDimensions = CardDimensions.getUnifiedDimensions();
     
     Widget cardWidget = CardWidget(
+      key: cardKey,
       card: updatedCardModel,
       dimensions: cardDimensions, // Pass dimensions directly
       config: CardDisplayConfig.forMyHand(),

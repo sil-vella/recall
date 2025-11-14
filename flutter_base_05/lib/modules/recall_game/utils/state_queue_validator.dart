@@ -10,6 +10,7 @@
 
 import 'dart:async';
 import 'field_specifications.dart';
+import '../../../tools/logging/logger.dart';
 
 /// Callback type for applying validated state updates (platform-specific)
 typedef StateUpdateHandler = void Function(Map<String, dynamic> validatedUpdate);
@@ -36,9 +37,8 @@ class StateQueueValidator {
   /// Handler for applying validated updates (platform-specific)
   StateUpdateHandler? _updateHandler;
 
-  /// Logger callback (platform-specific, optional)
-  void Function(String message, {bool isError})? _logCallback;
-
+  /// Logger instance (must be declared before constructor)
+  final Logger _logger = Logger();
   static const bool LOGGING_SWITCH = true;
 
   /// Define the complete state schema with validation rules
@@ -444,20 +444,12 @@ class StateQueueValidator {
 
   /// Set the handler for applying validated updates (platform-specific)
   void setUpdateHandler(StateUpdateHandler handler) {
+    print('🎬🎬🎬 StateQueueValidator: setUpdateHandler CALLED - Setting new handler');
+    _logger.info('StateQueueValidator: setUpdateHandler called', isOn: LOGGING_SWITCH);
     _updateHandler = handler;
+    print('🎬🎬🎬 StateQueueValidator: Handler set successfully, _updateHandler is now: ${_updateHandler != null ? "NOT NULL" : "NULL"}');
   }
 
-  /// Set the logger callback (platform-specific, optional)
-  void setLogCallback(void Function(String message, {bool isError}) callback) {
-    _logCallback = callback;
-  }
-
-  /// Log a message (platform-specific)
-  void _log(String message, {bool isError = false}) {
-    if (_logCallback != null) {
-      _logCallback!(message, isError: isError);
-    }
-  }
 
   /// Enqueue a state update for validation and processing
   ///
@@ -465,7 +457,7 @@ class StateQueueValidator {
   /// If the queue is empty, processing starts immediately.
   void enqueueUpdate(Map<String, dynamic> update) {
     _updateQueue.add(update);
-    _log('StateQueueValidator: Enqueued update with keys: ${update.keys.join(', ')}', isError: false);
+    _logger.debug('StateQueueValidator: Enqueued update with keys: ${update.keys.join(', ')}', isOn: LOGGING_SWITCH);
     
     // Start processing if not already processing
     if (!_isProcessing) {
@@ -494,14 +486,23 @@ class StateQueueValidator {
 
           // Apply the validated update via handler
           if (_updateHandler != null) {
-            _updateHandler!(validatedUpdate);
-            _log('StateQueueValidator: Applied validated update with keys: ${validatedUpdate.keys.join(', ')}', isError: false);
+            _logger.debug('StateQueueValidator: About to call handler with keys: ${validatedUpdate.keys.join(', ')}', isOn: LOGGING_SWITCH);
+            _logger.info('StateQueueValidator: Handler is NOT NULL, calling it now', isOn: LOGGING_SWITCH);
+            try {
+              _logger.info('StateQueueValidator: Calling _updateHandler!() now', isOn: LOGGING_SWITCH);
+              _updateHandler!(validatedUpdate);
+              _logger.info('StateQueueValidator: _updateHandler!() call returned (no exception)', isOn: LOGGING_SWITCH);
+              _logger.debug('StateQueueValidator: Handler completed successfully, applied validated update with keys: ${validatedUpdate.keys.join(', ')}', isOn: LOGGING_SWITCH);
+            } catch (e, stackTrace) {
+              _logger.error('StateQueueValidator: Handler threw exception: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+              rethrow;
+            }
           } else {
-            _log('StateQueueValidator: No update handler set, skipping update', isError: true);
+            _logger.error('StateQueueValidator: No update handler set, skipping update', isOn: LOGGING_SWITCH);
           }
         } catch (e) {
           // Log error but continue processing queue
-          _log('StateQueueValidator: Validation failed for update: $e', isError: true);
+          _logger.error('StateQueueValidator: Validation failed for update: $e', isOn: LOGGING_SWITCH);
         }
       }
     } finally {
@@ -512,7 +513,7 @@ class StateQueueValidator {
   /// Clear all pending updates from the queue
   void clearQueue() {
     _updateQueue.clear();
-    _log('StateQueueValidator: Cleared update queue', isError: false);
+    _logger.debug('StateQueueValidator: Cleared update queue', isOn: LOGGING_SWITCH);
   }
 
   /// Validate a state update against the schema
@@ -530,7 +531,7 @@ class StateQueueValidator {
       final fieldSpec = _stateSchema[key];
       if (fieldSpec == null) {
         final error = 'Unknown state field: "$key". Allowed fields: ${_stateSchema.keys.join(', ')}';
-        _log('StateQueueValidator: Schema validation failed - $error', isError: true);
+        _logger.error('StateQueueValidator: Schema validation failed - $error', isOn: LOGGING_SWITCH);
         throw RecallStateException(error, fieldName: key);
       }
 
@@ -539,7 +540,7 @@ class StateQueueValidator {
         final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
         validatedUpdates[key] = validatedValue;
       } catch (e) {
-        _log('StateQueueValidator: Field validation failed for "$key": $e', isError: true);
+        _logger.error('StateQueueValidator: Field validation failed for "$key": $e', isOn: LOGGING_SWITCH);
         rethrow;
       }
     }
@@ -567,7 +568,7 @@ class StateQueueValidator {
     if (value == null) {
       if (spec.required) {
         final error = 'Field "$key" is required and cannot be null';
-        _log('StateQueueValidator: $error', isError: true);
+        _logger.error('StateQueueValidator: $error', isOn: LOGGING_SWITCH);
         throw RecallStateException(error, fieldName: key);
       }
       // If field is nullable, allow null values
@@ -580,14 +581,14 @@ class StateQueueValidator {
     // Type validation
     if (!ValidationUtils.isValidType(value, spec.type)) {
       final error = 'Field "$key" must be of type ${spec.type}, got ${value.runtimeType}';
-      _log('StateQueueValidator: $error', isError: true);
+      _logger.error('StateQueueValidator: $error', isOn: LOGGING_SWITCH);
       throw RecallStateException(error, fieldName: key);
     }
 
     // Allowed values validation
     if (spec.allowedValues != null && !ValidationUtils.isAllowedValue(value, spec.allowedValues!)) {
       final error = 'Field "$key" value "$value" is not allowed. Allowed values: ${spec.allowedValues!.join(', ')}';
-      _log('StateQueueValidator: $error', isError: true);
+      _logger.error('StateQueueValidator: $error', isOn: LOGGING_SWITCH);
       throw RecallStateException(error, fieldName: key);
     }
 
@@ -599,7 +600,7 @@ class StateQueueValidator {
           if (spec.max != null) 'max: ${spec.max}',
         ].join(', ');
         final error = 'Field "$key" value $value is out of range ($rangeDesc)';
-        _log('StateQueueValidator: $error', isError: true);
+        _logger.error('StateQueueValidator: $error', isOn: LOGGING_SWITCH);
         throw RecallStateException(error, fieldName: key);
       }
     }

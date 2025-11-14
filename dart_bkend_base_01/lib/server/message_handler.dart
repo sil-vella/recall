@@ -4,7 +4,7 @@ import '../utils/server_logger.dart';
 import '../modules/recall_game/coordinator/game_event_coordinator.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class MessageHandler {
   final RoomManager _roomManager;

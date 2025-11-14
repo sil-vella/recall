@@ -6,10 +6,12 @@ import 'package:recall/modules/recall_game/screens/lobby_room/lobby_screen.dart'
 import 'package:recall/modules/recall_game/screens/practice_room/practice_room.dart';
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
+import '../../tools/logging/logger.dart';
 
 // Import Recall game components
 import 'managers/recall_module_manager.dart';
 import 'managers/recall_event_manager.dart';
+import 'managers/recall_game_state_updater.dart';
 
 /// Recall Game Module
 /// Main module for the Recall card game functionality
@@ -50,6 +52,16 @@ class RecallGameMain extends ModuleBase {
   /// Initialize all Recall game components
   Future<void> _initializeRecallComponents() async {
     try {
+      // Step 0: Initialize singletons FIRST (before anything else)
+      // This ensures they're ready before static fields or widgets access them
+      Logger().info('🎬 RecallGameMain: Starting singleton initialization', isOn: true);
+      
+      // Access singletons to trigger their initialization
+      // ignore: unused_local_variable
+      final _ = RecallGameStateUpdater.instance; // Triggers constructor and handler setup
+      
+      Logger().info('🎬 RecallGameMain: Singletons initialized successfully', isOn: true);
+      
       // Step 1: Register state with StateManager
       _registerState();
       
@@ -72,7 +84,7 @@ class RecallGameMain extends ModuleBase {
       await _performFinalVerification();
       
     } catch (e) {
-      // Error handling without logging
+      Logger().error('🎬 RecallGameMain: Error during initialization: $e', isOn: true);
     }
   }
 

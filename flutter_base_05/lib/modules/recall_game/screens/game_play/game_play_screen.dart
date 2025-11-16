@@ -10,6 +10,7 @@ import 'widgets/game_board_widget.dart';
 import 'widgets/my_hand_widget.dart';
 import 'widgets/instructions_widget.dart';
 import 'widgets/messages_widget.dart';
+import 'widgets/card_animation_layer.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../modules/recall_game/managers/feature_registry_manager.dart';
 import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
@@ -194,6 +195,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
         const MessagesWidget(),
         
         // Card Animation Layer - overlay for card animations (topmost layer)
+        CardAnimationLayer(),
       ],
     );
   }

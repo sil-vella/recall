@@ -3,12 +3,45 @@ import '../../../../../tools/logging/logger.dart';
 
 const bool LOGGING_SWITCH = true;
 
+/// Animation types
+enum AnimationType {
+  draw,      // Card drawn from draw pile to hand
+  play,      // Card played from hand to discard pile
+  collect,   // Card collected from discard pile to hand
+  reposition, // Card repositioned within hand (same rank play)
+}
+
+/// Animation trigger data for card animations
+class CardAnimationTrigger {
+  final String cardId;
+  final String key;
+  final AnimationType animationType;
+  final Offset startPosition;
+  final Offset endPosition;
+  final Size startSize;
+  final Size endSize;
+  final String? playerId;
+  final DateTime timestamp;
+
+  CardAnimationTrigger({
+    required this.cardId,
+    required this.key,
+    required this.animationType,
+    required this.startPosition,
+    required this.endPosition,
+    required this.startSize,
+    required this.endSize,
+    this.playerId,
+  }) : timestamp = DateTime.now();
+}
+
 /// Position data for a tracked card
 class CardPositionData {
   final Offset position;
   final Size size;
   final String location;
   final String? playerId;
+  final String? playerStatus;
   final DateTime lastUpdated;
 
   CardPositionData({
@@ -16,11 +49,12 @@ class CardPositionData {
     required this.size,
     required this.location,
     this.playerId,
+    this.playerStatus,
   }) : lastUpdated = DateTime.now();
 
   @override
   String toString() {
-    return 'CardPositionData(position: ${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}, size: ${size.width.toStringAsFixed(1)}x${size.height.toStringAsFixed(1)}, location: $location, playerId: $playerId)';
+    return 'CardPositionData(position: ${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}, size: ${size.width.toStringAsFixed(1)}x${size.height.toStringAsFixed(1)}, location: $location, playerId: $playerId, playerStatus: $playerStatus)';
   }
 }
 
@@ -37,6 +71,9 @@ class CardPositionTracker {
   // For my hand cards, key format is: 'cardId'
   // For piles, key format is: 'draw_pile' or 'discard_pile' or 'discard_pile_empty'
   final Map<String, CardPositionData> _positions = {};
+
+  // ValueNotifier for animation triggers - animation layer can listen to this
+  final ValueNotifier<CardAnimationTrigger?> cardAnimationTrigger = ValueNotifier<CardAnimationTrigger?>(null);
 
   CardPositionTracker._internal();
 
@@ -56,33 +93,186 @@ class CardPositionTracker {
   /// [size] - The size of the card
   /// [location] - The location type: 'my_hand', 'opponent_hand', 'draw_pile', 'discard_pile'
   /// [playerId] - Optional player ID for opponent cards
+  /// [playerStatus] - Optional player status (e.g., 'drawing_card', 'playing_card', etc.)
   void updateCardPosition(
     String cardId,
     Offset position,
     Size size,
     String location, {
     String? playerId,
+    String? playerStatus,
   }) {
     _logger.info(
-      'CardPositionTracker.updateCardPosition() called - cardId: $cardId, location: $location${playerId != null ? ', playerId: $playerId' : ''}',
+      'CardPositionTracker.updateCardPosition() called - cardId: $cardId, location: $location${playerId != null ? ', playerId: $playerId' : ''}${playerStatus != null ? ', playerStatus: $playerStatus' : ''}',
       isOn: LOGGING_SWITCH,
     );
 
     // Create composite key for opponent cards
     final key = playerId != null ? '${playerId}_$cardId' : cardId;
 
-    final wasExisting = _positions.containsKey(key);
-    _positions[key] = CardPositionData(
+    // Get old position data if it exists
+    // For discard pile, also check if card was previously in a hand with playerId prefix
+    CardPositionData? oldPositionData = _positions[key];
+    String? oldKey = key;
+    if (oldPositionData == null && location == 'discard_pile' && playerId == null) {
+      // Card moving to discard pile - check if it was in any player's hand
+      // Search for existing position with this cardId but with a playerId prefix (opponent)
+      // or just the cardId (my hand)
+      for (final entry in _positions.entries) {
+        final isHandLocation = entry.value.location == 'my_hand' || entry.value.location == 'opponent_hand';
+        if (isHandLocation && (entry.key == cardId || entry.key.endsWith('_$cardId'))) {
+          oldPositionData = entry.value;
+          oldKey = entry.key; // Store the old key for proper cleanup
+          _logger.info(
+            'CardPositionTracker.updateCardPosition() - Found old position for discard pile card: oldKey=$oldKey, oldLocation=${entry.value.location}',
+            isOn: LOGGING_SWITCH,
+          );
+          break;
+        }
+      }
+    }
+    
+    // Create new position data
+    final newPositionData = CardPositionData(
       position: position,
       size: size,
       location: location,
       playerId: playerId,
+      playerStatus: playerStatus,
     );
 
+    // Position-based animation detection (no status dependencies)
+    final isNewCard = oldPositionData == null;
+    final isHandLocation = location == 'my_hand' || location == 'opponent_hand';
+    final isDiscardLocation = location == 'discard_pile';
+    final positionChanged = oldPositionData != null && oldPositionData.position != position;
+    final locationChanged = oldPositionData != null && oldPositionData.location != location;
+    final sizeChanged = oldPositionData != null && oldPositionData.size != size;
+    
+    // Detect animation type based on position changes
+    AnimationType? animationType;
+    Offset? startPosition;
+    Size? startSize;
+    
+    if (isNewCard && isHandLocation) {
+      // New card in hand without old position → draw from deck
+      final drawPilePosition = _positions['draw_pile'];
+      if (drawPilePosition != null) {
+        animationType = AnimationType.draw;
+        startPosition = drawPilePosition.position;
+        startSize = drawPilePosition.size;
+      } else {
+        _logger.info(
+          'CardPositionTracker.updateCardPosition() - New card in hand detected but draw pile position not found',
+          isOn: LOGGING_SWITCH,
+        );
+      }
+    } else if (oldPositionData != null) {
+      final oldLocation = oldPositionData.location;
+      final oldIsHand = oldLocation == 'my_hand' || oldLocation == 'opponent_hand';
+      
+      if (oldIsHand && isDiscardLocation) {
+        // Card moved from hand to discard pile → play card
+        animationType = AnimationType.play;
+        startPosition = oldPositionData.position;
+        startSize = oldPositionData.size;
+        // End position is the discard pile position (already tracked as top card)
+      } else if (oldLocation == 'discard_pile' && isHandLocation) {
+        // Card moved from discard pile to hand → collect from discard
+        animationType = AnimationType.collect;
+        startPosition = oldPositionData.position;
+        startSize = oldPositionData.size;
+      } else if (oldIsHand && isHandLocation && positionChanged) {
+        // Card repositioned within hand → same rank play
+        animationType = AnimationType.reposition;
+        startPosition = oldPositionData.position;
+        startSize = oldPositionData.size;
+      }
+    }
+    
+    // Trigger animation if detected
+    if (animationType != null && startPosition != null && startSize != null) {
+      _triggerCardAnimation(
+        cardId: cardId,
+        key: key,
+        animationType: animationType,
+        startPosition: startPosition,
+        endPosition: position,
+        startSize: startSize,
+        endSize: size,
+        playerId: playerId,
+      );
+    } else if (oldPositionData != null && (positionChanged || locationChanged || sizeChanged)) {
+      // Position changed but no animation type detected
+      _logger.info(
+        'CardPositionTracker.updateCardPosition() - Position changed but no animation triggered:\n'
+        '  oldLocation: ${oldPositionData.location}\n'
+        '  newLocation: $location\n'
+        '  positionChanged: $positionChanged\n'
+        '  locationChanged: $locationChanged',
+        isOn: LOGGING_SWITCH,
+      );
+    }
+
+    // Update the position
+    // If we found an old position with a different key (e.g., playerId prefix), remove it
+    if (oldKey != key && oldPositionData != null) {
+      _positions.remove(oldKey);
+      _logger.info(
+        'CardPositionTracker.updateCardPosition() - Removed old position entry with key: $oldKey',
+        isOn: LOGGING_SWITCH,
+      );
+    }
+    _positions[key] = newPositionData;
+
     _logger.info(
-      'Card Position ${wasExisting ? "Updated" : "Added"}:\n  key: $key\n  cardId: $cardId\n  position: (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)})\n  size: (${size.width.toStringAsFixed(1)}, ${size.height.toStringAsFixed(1)})\n  location: $location${playerId != null ? '\n  playerId: $playerId' : ''}\n  totalCardsTracked: ${_positions.length}',
+      'Card Position ${oldPositionData != null ? "Updated" : "Added"}:\n  key: $key\n  cardId: $cardId\n  position: (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)})\n  size: (${size.width.toStringAsFixed(1)}, ${size.height.toStringAsFixed(1)})\n  location: $location${playerId != null ? '\n  playerId: $playerId' : ''}${playerStatus != null ? '\n  playerStatus: $playerStatus' : ''}\n  totalCardsTracked: ${_positions.length}',
       isOn: LOGGING_SWITCH,
     );
+  }
+
+  /// Trigger card animation based on detected animation type
+  /// 
+  /// This method is called when a card position change is detected that requires animation.
+  /// It notifies the animation layer via ValueNotifier.
+  void _triggerCardAnimation({
+    required String cardId,
+    required String key,
+    required AnimationType animationType,
+    required Offset startPosition,
+    required Offset endPosition,
+    required Size startSize,
+    required Size endSize,
+    String? playerId,
+  }) {
+    final animationTypeName = animationType.toString().split('.').last;
+    _logger.info(
+      'CardPositionTracker._triggerCardAnimation() - $animationTypeName ANIMATION TRIGGERED:\n'
+      '  key: $key\n'
+      '  cardId: $cardId\n'
+      '  animationType: $animationTypeName\n'
+      '  startPosition: (${startPosition.dx.toStringAsFixed(1)}, ${startPosition.dy.toStringAsFixed(1)})\n'
+      '  endPosition: (${endPosition.dx.toStringAsFixed(1)}, ${endPosition.dy.toStringAsFixed(1)})\n'
+      '  startSize: ${startSize.width.toStringAsFixed(1)}x${startSize.height.toStringAsFixed(1)}\n'
+      '  endSize: ${endSize.width.toStringAsFixed(1)}x${endSize.height.toStringAsFixed(1)}\n'
+      '  distance: ${(startPosition - endPosition).distance.toStringAsFixed(1)}px',
+      isOn: LOGGING_SWITCH,
+    );
+
+    // Create animation trigger and notify listeners
+    final trigger = CardAnimationTrigger(
+      cardId: cardId,
+      key: key,
+      animationType: animationType,
+      startPosition: startPosition,
+      endPosition: endPosition,
+      startSize: startSize,
+      endSize: endSize,
+      playerId: playerId,
+    );
+
+    // Notify animation layer
+    cardAnimationTrigger.value = trigger;
   }
 
   /// Get the position data for a card
@@ -113,10 +303,16 @@ class CardPositionTracker {
   void clearAllPositions() {
     final count = _positions.length;
     _positions.clear();
+    cardAnimationTrigger.value = null; // Clear any pending animation triggers
     _logger.info(
       'CardPositionTracker.clearAllPositions() - Cleared $count position(s)',
       isOn: LOGGING_SWITCH,
     );
+  }
+
+  /// Dispose resources (call when tracker is no longer needed)
+  void dispose() {
+    cardAnimationTrigger.dispose();
   }
 
   /// Log all currently tracked positions

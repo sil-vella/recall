@@ -534,8 +534,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       }
 
       final hand = opponent['hand'] as List<dynamic>? ?? [];
+      final playerStatus = opponent['status']?.toString();
       _logger.info(
-        'OpponentsPanelWidget._updateCardPositions() - Processing opponent: playerId=$playerId, hand size=${hand.length}',
+        'OpponentsPanelWidget._updateCardPositions() - Processing opponent: playerId=$playerId, hand size=${hand.length}, status=$playerStatus',
         isOn: LOGGING_SWITCH,
       );
       
@@ -593,13 +594,14 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           isOn: LOGGING_SWITCH,
         );
         
-        // Update position in tracker
+        // Update position in tracker with player status
         tracker.updateCardPosition(
           cardId,
           position,
           size,
           'opponent_hand',
           playerId: playerId,
+          playerStatus: playerStatus,
         );
         cardsUpdated++;
       }

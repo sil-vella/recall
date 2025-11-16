@@ -66,7 +66,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         
         // Update card positions on rebuild (after cards are rendered)
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _updateCardPositions(cards);
+          _updateCardPositions(cards, playerStatus);
         });
         
         // Check for action errors and display snackbar
@@ -462,9 +462,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
 
   /// Detect state changes and create animation triggers
   /// Update card positions in animation manager
-  void _updateCardPositions(List<dynamic> cards) {
+  void _updateCardPositions(List<dynamic> cards, String playerStatus) {
     _logger.info(
-      'MyHandWidget._updateCardPositions() called - cards count: ${cards.length}',
+      'MyHandWidget._updateCardPositions() called - cards count: ${cards.length}, playerStatus: $playerStatus',
       isOn: LOGGING_SWITCH,
     );
     
@@ -525,12 +525,13 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         isOn: LOGGING_SWITCH,
       );
       
-      // Update position in tracker
+      // Update position in tracker with player status
       tracker.updateCardPosition(
         cardId,
         position,
         size,
         'my_hand',
+        playerStatus: playerStatus,
       );
       cardsUpdated++;
     }

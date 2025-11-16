@@ -468,6 +468,28 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       isOn: LOGGING_SWITCH,
     );
     
+    // Get turn_events from myHand slice to determine animation types
+    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final myHandSlice = recallGameState['myHand'] as Map<String, dynamic>? ?? {};
+    final turnEvents = myHandSlice['turn_events'] as List<dynamic>? ?? [];
+    
+    // Create a map of cardId -> actionType for quick lookup
+    final Map<String, String> cardIdToActionType = {};
+    for (final event in turnEvents) {
+      if (event is Map<String, dynamic>) {
+        final eventCardId = event['cardId']?.toString();
+        final actionType = event['actionType']?.toString();
+        if (eventCardId != null && actionType != null) {
+          cardIdToActionType[eventCardId] = actionType;
+        }
+      }
+    }
+    
+    _logger.info(
+      'MyHandWidget._updateCardPositions() - Found ${cardIdToActionType.length} turn events: $cardIdToActionType',
+      isOn: LOGGING_SWITCH,
+    );
+    
     final tracker = CardPositionTracker.instance();
     int cardsUpdated = 0;
     int cardsSkipped = 0;
@@ -520,18 +542,40 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       final position = renderBox.localToGlobal(Offset.zero);
       final size = renderBox.size;
       
+      // Get animation type from turn_events if available
+      final actionType = cardIdToActionType[cardId];
+      AnimationType? suggestedAnimationType;
+      if (actionType != null) {
+        // Map actionType string to AnimationType enum
+        switch (actionType) {
+          case 'draw':
+            suggestedAnimationType = AnimationType.draw;
+            break;
+          case 'play':
+            suggestedAnimationType = AnimationType.play;
+            break;
+          case 'collect':
+            suggestedAnimationType = AnimationType.collect;
+            break;
+          case 'reposition':
+            suggestedAnimationType = AnimationType.reposition;
+            break;
+        }
+      }
+      
       _logger.info(
-        'MyHandWidget._updateCardPositions() - Updating position for card: cardId=$cardId, position=(${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size=(${size.width.toStringAsFixed(1)}, ${size.height.toStringAsFixed(1)})',
+        'MyHandWidget._updateCardPositions() - Updating position for card: cardId=$cardId, position=(${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size=(${size.width.toStringAsFixed(1)}, ${size.height.toStringAsFixed(1)}), suggestedAnimationType=$suggestedAnimationType',
         isOn: LOGGING_SWITCH,
       );
       
-      // Update position in tracker with player status
+      // Update position in tracker with player status and suggested animation type
       tracker.updateCardPosition(
         cardId,
         position,
         size,
         'my_hand',
         playerStatus: playerStatus,
+        suggestedAnimationType: suggestedAnimationType,
       );
       cardsUpdated++;
     }

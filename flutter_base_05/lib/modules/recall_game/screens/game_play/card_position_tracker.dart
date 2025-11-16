@@ -94,6 +94,7 @@ class CardPositionTracker {
   /// [location] - The location type: 'my_hand', 'opponent_hand', 'draw_pile', 'discard_pile'
   /// [playerId] - Optional player ID for opponent cards
   /// [playerStatus] - Optional player status (e.g., 'drawing_card', 'playing_card', etc.)
+  /// [suggestedAnimationType] - Optional animation type hint from widgets (takes priority over position-based detection)
   void updateCardPosition(
     String cardId,
     Offset position,
@@ -101,6 +102,7 @@ class CardPositionTracker {
     String location, {
     String? playerId,
     String? playerStatus,
+    AnimationType? suggestedAnimationType,
   }) {
     _logger.info(
       'CardPositionTracker.updateCardPosition() called - cardId: $cardId, location: $location${playerId != null ? ', playerId: $playerId' : ''}${playerStatus != null ? ', playerStatus: $playerStatus' : ''}',
@@ -141,7 +143,13 @@ class CardPositionTracker {
       playerStatus: playerStatus,
     );
 
-    // Position-based animation detection (no status dependencies)
+    // PRIORITY 1: Use suggested animation type from widgets (if provided)
+    // This takes precedence over position-based detection
+    AnimationType? animationType;
+    Offset? startPosition;
+    Size? startSize;
+    
+    // Variables for position-based detection (used in fallback)
     final isNewCard = oldPositionData == null;
     final isHandLocation = location == 'my_hand' || location == 'opponent_hand';
     final isDiscardLocation = location == 'discard_pile';
@@ -149,44 +157,87 @@ class CardPositionTracker {
     final locationChanged = oldPositionData != null && oldPositionData.location != location;
     final sizeChanged = oldPositionData != null && oldPositionData.size != size;
     
-    // Detect animation type based on position changes
-    AnimationType? animationType;
-    Offset? startPosition;
-    Size? startSize;
-    
-    if (isNewCard && isHandLocation) {
-      // New card in hand without old position → draw from deck
-      final drawPilePosition = _positions['draw_pile'];
-      if (drawPilePosition != null) {
-        animationType = AnimationType.draw;
-        startPosition = drawPilePosition.position;
-        startSize = drawPilePosition.size;
-      } else {
-        _logger.info(
-          'CardPositionTracker.updateCardPosition() - New card in hand detected but draw pile position not found',
-          isOn: LOGGING_SWITCH,
-        );
-      }
-    } else if (oldPositionData != null) {
-      final oldLocation = oldPositionData.location;
-      final oldIsHand = oldLocation == 'my_hand' || oldLocation == 'opponent_hand';
+    if (suggestedAnimationType != null) {
+      _logger.info(
+        'CardPositionTracker.updateCardPosition() - Using suggested animation type: $suggestedAnimationType',
+        isOn: LOGGING_SWITCH,
+      );
       
-      if (oldIsHand && isDiscardLocation) {
-        // Card moved from hand to discard pile → play card
-        animationType = AnimationType.play;
+      animationType = suggestedAnimationType;
+      
+      // Determine start position based on animation type
+      if (suggestedAnimationType == AnimationType.collect) {
+        // For collect, start position is discard pile (card is being collected from discard)
+        final discardPilePosition = _positions[cardId]; // Discard pile tracks by cardId
+        if (discardPilePosition != null && discardPilePosition.location == 'discard_pile') {
+          startPosition = discardPilePosition.position;
+          startSize = discardPilePosition.size;
+        } else {
+          // Fallback: try to find discard pile position
+          final discardPilePos = _positions['discard_pile'];
+          if (discardPilePos != null) {
+            startPosition = discardPilePos.position;
+            startSize = discardPilePos.size;
+          } else {
+            _logger.info(
+              'CardPositionTracker.updateCardPosition() - Collect animation suggested but discard pile position not found',
+              isOn: LOGGING_SWITCH,
+            );
+          }
+        }
+      } else if (suggestedAnimationType == AnimationType.draw) {
+        // For draw, start position is draw pile
+        final drawPilePosition = _positions['draw_pile'];
+        if (drawPilePosition != null) {
+          startPosition = drawPilePosition.position;
+          startSize = drawPilePosition.size;
+        } else {
+          _logger.info(
+            'CardPositionTracker.updateCardPosition() - Draw animation suggested but draw pile position not found',
+            isOn: LOGGING_SWITCH,
+          );
+        }
+      } else if (oldPositionData != null) {
+        // For play and reposition, use old position as start
         startPosition = oldPositionData.position;
         startSize = oldPositionData.size;
-        // End position is the discard pile position (already tracked as top card)
-      } else if (oldLocation == 'discard_pile' && isHandLocation) {
-        // Card moved from discard pile to hand → collect from discard
-        animationType = AnimationType.collect;
-        startPosition = oldPositionData.position;
-        startSize = oldPositionData.size;
-      } else if (oldIsHand && isHandLocation && positionChanged) {
-        // Card repositioned within hand → same rank play
-        animationType = AnimationType.reposition;
-        startPosition = oldPositionData.position;
-        startSize = oldPositionData.size;
+      }
+    } else {
+      // PRIORITY 2: Position-based animation detection (fallback when no suggestion)
+      if (isNewCard && isHandLocation) {
+        // New card in hand without old position → draw from deck
+        final drawPilePosition = _positions['draw_pile'];
+        if (drawPilePosition != null) {
+          animationType = AnimationType.draw;
+          startPosition = drawPilePosition.position;
+          startSize = drawPilePosition.size;
+        } else {
+          _logger.info(
+            'CardPositionTracker.updateCardPosition() - New card in hand detected but draw pile position not found',
+            isOn: LOGGING_SWITCH,
+          );
+        }
+      } else if (oldPositionData != null) {
+        final oldLocation = oldPositionData.location;
+        final oldIsHand = oldLocation == 'my_hand' || oldLocation == 'opponent_hand';
+        
+        if (oldIsHand && isDiscardLocation) {
+          // Card moved from hand to discard pile → play card
+          animationType = AnimationType.play;
+          startPosition = oldPositionData.position;
+          startSize = oldPositionData.size;
+          // End position is the discard pile position (already tracked as top card)
+        } else if (oldLocation == 'discard_pile' && isHandLocation) {
+          // Card moved from discard pile to hand → collect from discard
+          animationType = AnimationType.collect;
+          startPosition = oldPositionData.position;
+          startSize = oldPositionData.size;
+        } else if (oldIsHand && isHandLocation && positionChanged) {
+          // Card repositioned within hand → same rank play
+          animationType = AnimationType.reposition;
+          startPosition = oldPositionData.position;
+          startSize = oldPositionData.size;
+        }
       }
     }
     

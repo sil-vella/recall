@@ -173,7 +173,7 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
       );
       return;
     }
-    
+
     // Get screen position and size
     final position = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;

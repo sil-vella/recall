@@ -149,6 +149,9 @@ class RecallGameMain extends ModuleBase {
           'myDrawnCard': null,
           'cards_to_peek': <Map<String, dynamic>>[],
           
+          // Turn events for animation type hints
+          'turn_events': <Map<String, dynamic>>[],
+          
           // Metadata
           'lastUpdated': DateTime.now().toIso8601String(),
         });

@@ -2312,8 +2312,8 @@ class PracticeGameCoordinator implements GameStateCallback {
 
   @override
   void onDiscardPileChanged() {
-    // The discard pile update is already handled in addToDiscardPile
-    // This method is called after direct discard pile modifications in GameRound
+    // NOTE: This method is no longer called by _addToDiscardPile (which now requires callers to batch updates)
+    // This method is kept for potential future use if direct discard pile modifications are needed
     // CRITICAL: Also update currentPlayer and currentPlayerStatus to ensure all widget slices recompute
     final currentGames = _getCurrentGamesMap();
     final currentGameId = _currentPracticeGameId;

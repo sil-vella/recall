@@ -21,6 +21,7 @@ class ActiveAnimation {
   final Animation<Offset> positionAnimation;
   final Animation<Size> sizeAnimation;
   final String? playerId;
+  final bool showBack; // Whether to show card back (for privacy)
 
   ActiveAnimation({
     required this.animationId,
@@ -34,6 +35,7 @@ class ActiveAnimation {
     required this.positionAnimation,
     required this.sizeAnimation,
     this.playerId,
+    required this.showBack,
   });
 }
 
@@ -110,16 +112,31 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
         isOn: LOGGING_SWITCH,
       );
 
-      // Get card data from game state
-      final cardData = _getCardDataFromState(trigger.cardId);
-      if (cardData != null) {
-        _startCardAnimation(trigger, cardData);
+      // Determine if we need full card data based on animation type
+      // Only play and collect animations show full card details
+      final needsFullCardData = trigger.animationType == AnimationType.play || 
+                                trigger.animationType == AnimationType.collect;
+      
+      CardModel cardModel;
+      if (needsFullCardData) {
+        // Get full card data from game state for play/collect animations
+        final cardData = _getCardDataFromState(trigger.cardId);
+        if (cardData != null) {
+          cardModel = CardModel.fromMap(cardData);
+        } else {
+          _logger.warning(
+            'CardAnimationLayer._onAnimationTriggered() - Could not find card data for cardId: ${trigger.cardId}, using back card model',
+            isOn: LOGGING_SWITCH,
+          );
+          // Fallback to back card if data not found
+          cardModel = _createBackCardModel(trigger.cardId);
+        }
       } else {
-        _logger.warning(
-          'CardAnimationLayer._onAnimationTriggered() - Could not find card data for cardId: ${trigger.cardId}',
-          isOn: LOGGING_SWITCH,
-        );
+        // For draw/reposition animations, create minimal card model (card back only)
+        cardModel = _createBackCardModel(trigger.cardId);
       }
+
+      _startCardAnimation(trigger, cardModel);
 
       // Clear the trigger after processing
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -131,6 +148,19 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
         isOn: LOGGING_SWITCH,
       );
     }
+  }
+
+  /// Create a minimal CardModel for card back display
+  /// 
+  /// This creates a CardModel with only cardId, which triggers card back display
+  /// because hasFullData will be false (rank='?', suit='?', points=0)
+  CardModel _createBackCardModel(String cardId) {
+    return CardModel(
+      cardId: cardId,
+      rank: '?',
+      suit: '?',
+      points: 0,
+    );
   }
 
   /// Get card data from game state
@@ -182,12 +212,14 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
   }
 
   /// Start a card animation
-  void _startCardAnimation(CardAnimationTrigger trigger, Map<String, dynamic> cardData) {
+  void _startCardAnimation(CardAnimationTrigger trigger, CardModel cardModel) {
     final animationTypeName = trigger.animationType.toString().split('.').last;
     final animationId = '${animationTypeName}_${trigger.cardId}_${_animationCounter++}';
     
-    // Create CardModel from card data
-    final cardModel = CardModel.fromMap(cardData);
+    // Determine if card back should be shown based on animation type
+    // Only play and collect animations show full card details
+    final showBack = trigger.animationType == AnimationType.draw || 
+                     trigger.animationType == AnimationType.reposition;
 
     // Create animation controller
     final controller = AnimationController(
@@ -226,6 +258,7 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
       positionAnimation: positionAnimation,
       sizeAnimation: sizeAnimation,
       playerId: trigger.playerId,
+      showBack: showBack,
     );
 
     setState(() {
@@ -235,6 +268,8 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
     _logger.info(
       'CardAnimationLayer._startCardAnimation() - Started $animationTypeName animation: $animationId\n'
       '  cardId: ${trigger.cardId}\n'
+      '  showBack: $showBack\n'
+      '  hasFullData: ${cardModel.hasFullData}\n'
       '  startPosition: (${trigger.startPosition.dx.toStringAsFixed(1)}, ${trigger.startPosition.dy.toStringAsFixed(1)})\n'
       '  endPosition: (${trigger.endPosition.dx.toStringAsFixed(1)}, ${trigger.endPosition.dy.toStringAsFixed(1)})\n'
       '  startSize: ${trigger.startSize.width.toStringAsFixed(1)}x${trigger.startSize.height.toStringAsFixed(1)}\n'
@@ -323,7 +358,7 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
             card: animation.card,
             dimensions: size,
             config: config,
-            showBack: false, // Show card face during animation
+            showBack: animation.showBack, // Use showBack from animation (based on animation type)
           ),
         );
       },

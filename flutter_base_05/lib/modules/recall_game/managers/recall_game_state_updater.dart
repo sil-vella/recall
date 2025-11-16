@@ -58,9 +58,9 @@ class RecallGameStateUpdater {
   static const Map<String, Set<String>> _widgetDependencies = {
     'actionBar': {'currentGameId', 'games', 'isRoomOwner', 'isGameActive', 'isMyTurn'},
     'statusBar': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'playerStatus'},
-    'myHand': {'currentGameId', 'games', 'isMyTurn', 'playerStatus'},
+    'myHand': {'currentGameId', 'games', 'isMyTurn', 'playerStatus', 'turn_events'},
     'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'},
-    'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'currentPlayerStatus'},
+    'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'currentPlayerStatus', 'turn_events'},
     'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
     'joinedGamesSlice': {'joinedGames', 'totalJoinedGames', 'joinedGamesTimestamp'},
   };
@@ -291,10 +291,14 @@ class RecallGameStateUpdater {
     final isMyTurn = currentGame['isMyTurn'] ?? false;
     final canPlayCard = currentGame['canPlayCard'] ?? false;
     
+    // Get turn_events from main state
+    final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
+    
     return {
       'cards': currentGame['myHandCards'] ?? [],
       'selectedIndex': currentGame['selectedCardIndex'] ?? -1,
       'canSelectCards': isMyTurn && canPlayCard,
+      'turn_events': turnEvents,
     };
   }
   
@@ -420,6 +424,9 @@ class RecallGameStateUpdater {
       );
     }
     
+    // Get turn_events from main state
+    final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
+    
     // Debug logging for opponents panel computation
     print('🔍 OPPONENTS PANEL DEBUG:');
     print('  currentGameId: $currentGameId');
@@ -432,6 +439,7 @@ class RecallGameStateUpdater {
     return {
       'opponents': opponents,
       'currentTurnIndex': currentTurnIndex,
+      'turn_events': turnEvents,
     };
   }
 

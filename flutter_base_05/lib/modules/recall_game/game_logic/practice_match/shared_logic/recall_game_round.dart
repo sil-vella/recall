@@ -6,6 +6,7 @@
 import '../shared_imports.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
+import '../../../../../core/managers/state_manager.dart';
 
 const bool LOGGING_SWITCH = true;
 
@@ -173,8 +174,32 @@ class RecallGameRound {
     }
   }
 
-  /// Add card to discard pile directly (for use by GameRound)
-  /// Updates the discard pile in game state and notifies callback
+  /// Get current turn_events list
+  /// Returns a copy of the current turn_events list
+  List<Map<String, dynamic>> _getCurrentTurnEvents() {
+    // Get current state to retrieve existing turn_events
+    final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final currentTurnEvents = currentState['turn_events'] as List<dynamic>? ?? [];
+    
+    // Return a copy of the current events
+    return List<Map<String, dynamic>>.from(
+      currentTurnEvents.map((e) => e as Map<String, dynamic>)
+    );
+  }
+
+  /// Create a turn event map
+  Map<String, dynamic> _createTurnEvent(String cardId, String actionType) {
+    return {
+      'cardId': cardId,
+      'actionType': actionType,
+    };
+  }
+
+  /// Add a card to the discard pile
+  /// 
+  /// NOTE: This method does NOT trigger a state update. The caller is responsible
+  /// for batching state updates that include both hand changes and discard pile changes
+  /// to ensure widgets rebuild atomically and card position tracking works correctly.
   void _addToDiscardPile(Map<String, dynamic> card) {
     final gameState = _getCurrentGameState();
     if (gameState == null) {
@@ -186,8 +211,8 @@ class RecallGameRound {
     discardPile.add(card);
     gameState['discardPile'] = discardPile;
     
-    // Notify callback that discard pile changed
-    _stateCallback.onDiscardPileChanged();
+    // NOTE: State update is NOT triggered here - caller must batch updates
+    // This ensures hand and discard pile changes are updated atomically
   }
   
   /// Start the next player's turn
@@ -975,14 +1000,34 @@ class RecallGameRound {
         }
       }
       
-      // Update games map through SSOT (maintains uniformity with other methods)
-      // This ensures animation detection can detect the new card in the hand
-      // CRITICAL: This must be called BEFORE onPlayerStatusChanged to ensure games map is updated first
+      // CRITICAL: Batch state update with both hand and discard pile changes (if drawing from discard)
+      // This ensures widgets rebuild atomically and card position tracking works correctly
       final currentGames = _stateCallback.currentGamesMap;
       _logger.info('Recall: Updating games map through SSOT after draw card for player $playerId', isOn: LOGGING_SWITCH);
+      
+      // Add turn event for draw action
+      final drawnCardId = drawnCard['cardId']?.toString() ?? '';
+      final turnEvents = _getCurrentTurnEvents()..add(_createTurnEvent(drawnCardId, 'draw'));
+      _logger.info(
+        'Recall: Added turn event - cardId: $drawnCardId, actionType: draw, total events: ${turnEvents.length}',
+        isOn: LOGGING_SWITCH,
+      );
+      
+      // If drawing from discard pile, include discard pile in state update
+      if (source == 'discard') {
+        final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       _stateCallback.onGameStateChanged({
         'games': currentGames, // This includes the updated player hand with new card
+          'discardPile': updatedDiscardPile, // Updated discard pile (card removed)
+          'turn_events': turnEvents, // Add turn event for animation
+        });
+      } else {
+        // Drawing from deck - only update games (discard pile unchanged)
+        _stateCallback.onGameStateChanged({
+          'games': currentGames, // This includes the updated player hand with new card
+          'turn_events': turnEvents, // Add turn event for animation
       });
+      }
       
       // Change player status from DRAWING_CARD to PLAYING_CARD
       _stateCallback.onPlayerStatusChanged('playing_card', playerId: playerId, updateMainState: true, triggerInstructions: true);
@@ -1149,15 +1194,25 @@ class RecallGameRound {
       
       _logger.info('Recall: Added card to hand and collection_rank_cards', isOn: LOGGING_SWITCH);
       
-      // Trigger state update (no status change, player continues in current state)
+      // CRITICAL: Batch state update with both hand and discard pile changes
+      // This ensures widgets rebuild atomically and card position tracking works correctly
+      // The card is removed from discard pile and added to hand in a single atomic update
       final currentGames = _stateCallback.currentGamesMap;
       
-      // Get updated discard pile from game state
+      // Get updated discard pile from game state (card has been removed)
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
+      // Add turn event for collect action
+      final turnEvents = _getCurrentTurnEvents()..add(_createTurnEvent(collectedCardId, 'collect'));
+      _logger.info(
+        'Recall: Added turn event - cardId: $collectedCardId, actionType: collect, total events: ${turnEvents.length}',
+        isOn: LOGGING_SWITCH,
+      );
+      
       _stateCallback.onGameStateChanged({
-        'games': currentGames,
-        'discardPile': updatedDiscardPile,  // CRITICAL: Update main state discardPile field
+        'games': currentGames, // Includes updated player hand (card added)
+        'discardPile': updatedDiscardPile,  // Updated discard pile (card removed)
+        'turn_events': turnEvents, // Add turn event for animation
       });
       
       // Check if player now has four of a kind (all 4 collection cards for their rank)
@@ -1327,6 +1382,33 @@ class RecallGameRound {
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(cardToPlayFullData);
       
+      // CRITICAL: Batch state update with both hand and discard pile changes
+      // This ensures widgets rebuild atomically and card position tracking works correctly
+      // Get fresh games map after hand and discard pile modifications
+      final updatedGames = _stateCallback.currentGamesMap;
+      final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Add turn events for play action and potential reposition
+      final turnEvents = _getCurrentTurnEvents()
+        ..add(_createTurnEvent(cardId, 'play'));
+      
+      // If drawn card is repositioned, also add reposition event
+      if (drawnCard != null && drawnCard['cardId'] != cardId) {
+        final drawnCardId = drawnCard['cardId']?.toString() ?? '';
+        turnEvents.add(_createTurnEvent(drawnCardId, 'reposition'));
+      }
+      
+      _logger.info(
+        'Recall: Added turn events - play: $cardId${drawnCard != null && drawnCard['cardId'] != cardId ? ', reposition: ${drawnCard['cardId']}' : ''}, total events: ${turnEvents.length}',
+        isOn: LOGGING_SWITCH,
+      );
+      
+      _stateCallback.onGameStateChanged({
+        'games': updatedGames, // Includes updated player hand
+        'discardPile': updatedDiscardPile, // Updated discard pile
+        'turn_events': turnEvents, // Add turn events for animations
+      });
+      
       // Log player state after playing card
       _logger.info('Recall: === AFTER PLAY CARD for $playerId ===', isOn: LOGGING_SWITCH);
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
@@ -1348,8 +1430,6 @@ class RecallGameRound {
       _logger.info('Recall: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
       _logger.info('Recall: Played Card: ${cardToPlay['cardId']}', isOn: LOGGING_SWITCH);
       _logger.info('Recall: ================================', isOn: LOGGING_SWITCH);
-
-      // Note: State update is already handled by addToDiscardPile method
       
       // Check if the played card has special powers (Jack/Queen)
       // Replicates backend flow: check special card FIRST (game_round.py line 989)
@@ -1629,6 +1709,24 @@ class RecallGameRound {
       // Add card to discard pile using reusable method (ensures full data and proper state updates)
       _addToDiscardPile(playedCardFullData);
       
+      // CRITICAL: Batch state update with both hand and discard pile changes
+      // This ensures widgets rebuild atomically and card position tracking works correctly
+      final currentGames = _stateCallback.currentGamesMap;
+      final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      
+      // Add turn event for same rank play (actionType is 'play' - same as regular play)
+      final turnEvents = _getCurrentTurnEvents()..add(_createTurnEvent(cardId, 'play'));
+      _logger.info(
+        'Recall: Added turn event - cardId: $cardId, actionType: play (same rank), total events: ${turnEvents.length}',
+        isOn: LOGGING_SWITCH,
+      );
+      
+      _stateCallback.onGameStateChanged({
+        'games': currentGames, // Includes updated player hand
+        'discardPile': updatedDiscardPile, // Updated discard pile
+        'turn_events': turnEvents, // Add turn event for animation
+      });
+      
       _logger.info('Recall: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile', isOn: LOGGING_SWITCH);
       
       // Log player state after same rank play
@@ -1816,8 +1914,19 @@ class RecallGameRound {
 
       // Update game state to trigger UI updates
       final currentGames = _stateCallback.currentGamesMap;
+      
+      // Add turn events for jack swap (both cards are repositioned)
+      final turnEvents = _getCurrentTurnEvents()
+        ..add(_createTurnEvent(firstCardId, 'reposition'))
+        ..add(_createTurnEvent(secondCardId, 'reposition'));
+      _logger.info(
+        'Recall: Added turn events - jack swap: $firstCardId <-> $secondCardId (both reposition), total events: ${turnEvents.length}',
+        isOn: LOGGING_SWITCH,
+      );
+      
       _stateCallback.onGameStateChanged({
         'games': currentGames,
+        'turn_events': turnEvents, // Add turn events for animations
       });
 
       _logger.info('Recall: Jack swap completed - state updated', isOn: LOGGING_SWITCH);
@@ -2972,6 +3081,13 @@ class RecallGameRound {
       // Update current player in game state
       gameState['currentPlayer'] = nextPlayer;
       _logger.info('Recall: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+      
+      // CRITICAL: Clear turn_events before starting next player's turn
+      // This ensures animations only trigger for the current turn's actions
+      _stateCallback.onGameStateChanged({
+        'turn_events': [], // Clear all turn events for new turn
+      });
+      _logger.info('Recall: Cleared turn_events for new turn', isOn: LOGGING_SWITCH);
       
       // Log player state at start of turn
       _logger.info('Recall: === TURN START for $nextPlayerId ===', isOn: LOGGING_SWITCH);

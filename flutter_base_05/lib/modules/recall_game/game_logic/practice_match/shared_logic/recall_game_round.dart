@@ -28,6 +28,9 @@ class RecallGameRound {
   // Matches backend's self.special_card_players list (game_round.py line 686)
   List<Map<String, dynamic>> _specialCardPlayers = [];
   
+  // Track computer same rank play futures for proper synchronization
+  List<Future<void>> _computerSameRankFutures = [];
+  
   // Winners list - stores winner information when game ends
   List<Map<String, dynamic>> _winnersList = [];
   
@@ -2209,12 +2212,100 @@ class RecallGameRound {
       });
       _logger.info('Recall: Set gamePhase to same_rank_window', isOn: LOGGING_SWITCH);
       
+      // Trigger computer player same rank plays DURING the window
+      _triggerComputerSameRankPlays();
+      
       // Start 5-second timer to automatically end same rank window
       // Matches backend behavior (game_round.py line 579)
       _startSameRankTimer();
       
     } catch (e) {
       _logger.error('Recall: Error in _handleSameRankWindow: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Trigger computer player same rank plays during the window
+  /// Expert/Hard play at 1 second, Medium/Easy at 3 seconds
+  void _triggerComputerSameRankPlays() {
+    try {
+      _logger.info('Recall: Triggering computer player same rank plays during window', isOn: LOGGING_SWITCH);
+      
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        _logger.info('Recall: Failed to get game state for computer same rank plays', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      
+      // Get computer players
+      final computerPlayers = players.where((p) => 
+        p is Map<String, dynamic> && 
+        p['isHuman'] == false &&
+        p['isActive'] == true
+      ).toList();
+      
+      if (computerPlayers.isEmpty) {
+        _logger.info('Recall: No computer players for same rank plays', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Separate by difficulty
+      final expertHard = <Map<String, dynamic>>[];
+      final mediumEasy = <Map<String, dynamic>>[];
+      
+      for (final player in computerPlayers) {
+        final difficulty = player['difficulty']?.toString().toLowerCase() ?? 'medium';
+        if (difficulty == 'expert' || difficulty == 'hard') {
+          expertHard.add(player);
+        } else {
+          mediumEasy.add(player);
+        }
+      }
+      
+      _logger.info('Recall: Expert/Hard players: ${expertHard.length}, Medium/Easy players: ${mediumEasy.length}', isOn: LOGGING_SWITCH);
+      
+      // Clear previous futures
+      _computerSameRankFutures.clear();
+      
+      // Schedule Expert/Hard players at 1 second
+      if (expertHard.isNotEmpty) {
+        // Shuffle for randomness within tier
+        expertHard.shuffle();
+        
+        for (final player in expertHard) {
+          final playerId = player['id']?.toString() ?? '';
+          final difficulty = player['difficulty']?.toString() ?? 'hard';
+          
+          final future = Future.delayed(const Duration(seconds: 1), () async {
+            await _handleComputerSameRankPlay(playerId, difficulty, gameState, skipDelay: true);
+          });
+          
+          _computerSameRankFutures.add(future);
+        }
+      }
+      
+      // Schedule Medium/Easy players at 3 seconds
+      if (mediumEasy.isNotEmpty) {
+        // Shuffle for randomness within tier
+        mediumEasy.shuffle();
+        
+        for (final player in mediumEasy) {
+          final playerId = player['id']?.toString() ?? '';
+          final difficulty = player['difficulty']?.toString() ?? 'medium';
+          
+          final future = Future.delayed(const Duration(seconds: 3), () async {
+            await _handleComputerSameRankPlay(playerId, difficulty, gameState, skipDelay: true);
+          });
+          
+          _computerSameRankFutures.add(future);
+        }
+      }
+      
+      _logger.info('Recall: Scheduled ${_computerSameRankFutures.length} computer same rank plays', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      _logger.error('Recall: Error triggering computer same rank plays: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -2265,10 +2356,14 @@ class RecallGameRound {
       });
       _logger.info('Recall: Reset gamePhase to player_turn', isOn: LOGGING_SWITCH);
       
-      // CRITICAL: AWAIT computer same rank plays to complete BEFORE processing special cards
-      // This ensures all queens played during same rank window are added to _specialCardData
-      // before we start the special cards window
-      await _checkComputerPlayerSameRankPlays();
+      // CRITICAL: AWAIT all computer same rank plays that were triggered during the window
+      // This ensures all plays complete and special cards are added to _specialCardData
+      if (_computerSameRankFutures.isNotEmpty) {
+        _logger.info('Recall: Waiting for ${_computerSameRankFutures.length} computer same rank plays to complete', isOn: LOGGING_SWITCH);
+        await Future.wait(_computerSameRankFutures);
+        _logger.info('Recall: All computer same rank plays completed', isOn: LOGGING_SWITCH);
+        _computerSameRankFutures.clear();
+      }
       
       // Check if game has ended (winners exist) - prevent progression if game is over
       // Winners might be added during same rank plays (empty hand win condition)
@@ -2299,8 +2394,9 @@ class RecallGameRound {
     }
   }
 
-  /// Check for same rank plays from computer players during the same rank window
-  /// Returns a Future that completes when ALL computer same rank plays are done
+  /// DEPRECATED: Computer players now play during the window via _triggerComputerSameRankPlays()
+  /// This method is kept for reference but should not be called
+  @Deprecated('Use _triggerComputerSameRankPlays instead')
   Future<void> _checkComputerPlayerSameRankPlays() async {
     try {
       _logger.info('Recall: Processing computer player same rank plays', isOn: LOGGING_SWITCH);
@@ -2595,13 +2691,22 @@ class RecallGameRound {
 
   /// Handle computer player same rank play decision
   /// Returns a Future that completes when this player's same rank play is done
-  Future<void> _handleComputerSameRankPlay(String playerId, String difficulty, Map<String, dynamic> gameState) async {
+  /// [skipDelay] - If true, skips the YAML decision delay (used when delay is already scheduled externally)
+  Future<void> _handleComputerSameRankPlay(String playerId, String difficulty, Map<String, dynamic> gameState, {bool skipDelay = false}) async {
     try {
       // Ensure AI factory is available in this path too
       await _ensureComputerFactory();
 
+      // CRITICAL: Refresh game state to ensure we have the latest state
+      // This is important because other computer players' plays may have changed the state
+      final currentGameState = _getCurrentGameState();
+      if (currentGameState == null) {
+        _logger.warning('Recall: Failed to get current game state for computer player $playerId same rank play', isOn: LOGGING_SWITCH);
+        return;
+      }
+
       // Get available same rank cards for this computer player
-      final availableCards = _getAvailableSameRankCards(playerId, gameState);
+      final availableCards = _getAvailableSameRankCards(playerId, currentGameState);
       
       if (availableCards.isEmpty) {
         _logger.info('Recall: Computer player $playerId has no same rank cards', isOn: LOGGING_SWITCH);
@@ -2616,14 +2721,16 @@ class RecallGameRound {
         return;
       }
       final Map<String, dynamic> decision = _computerPlayerFactory!
-          .getSameRankPlayDecision(difficulty, gameState, availableCards);
+          .getSameRankPlayDecision(difficulty, currentGameState, availableCards);
       _logger.info('Recall: Computer same rank decision: $decision', isOn: LOGGING_SWITCH);
       
-      // Execute decision with delay
+      // Execute decision with delay (unless skipDelay is true, which means delay was already scheduled externally)
       if (decision['play'] == true) {
-        final delay = decision['delay_seconds'] as double? ?? 1.0;
-        // Use delay directly from decision (already randomized in config)
-        await Future.delayed(Duration(milliseconds: (delay * 1000).toInt()));
+        if (!skipDelay) {
+          final delay = decision['delay_seconds'] as double? ?? 1.0;
+          // Use delay directly from decision (already randomized in config)
+          await Future.delayed(Duration(milliseconds: (delay * 1000).toInt()));
+        }
         
         String? cardId = decision['card_id'] as String?;
         // Fallback: pick first available valid card if decision card_id is invalid

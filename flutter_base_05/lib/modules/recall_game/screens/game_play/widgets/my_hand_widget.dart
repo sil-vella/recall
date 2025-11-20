@@ -103,13 +103,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         Logger().info('🃏 MyHandWidget - myHand keys: ${myHand.keys.toList()}', isOn: LOGGING_SWITCH);
         Logger().info('🃏 MyHandWidget - recallGameState keys: ${recallGameState.keys.toList()}', isOn: LOGGING_SWITCH);
         
-        // Check what's in the games map
-        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-        final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
-        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-        final myHandCards = currentGame['myHandCards'] as List<dynamic>? ?? [];
-        Logger().info('🃏 MyHandWidget - currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
-        Logger().info('🃏 MyHandWidget - myHandCards.length: ${myHandCards.length}', isOn: LOGGING_SWITCH);
+        // CRITICAL: Only read from myHand slice - do not read directly from games map
+        // The myHand slice is the source of truth for hand data
+        Logger().info('🃏 MyHandWidget - cards from slice: ${cards.length}', isOn: LOGGING_SWITCH);
         
         // Reset initial peek state when not in initial_peek status
         if (playerStatus != 'initial_peek' && _initialPeekSelectionCount > 0) {

@@ -147,24 +147,22 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        // Get current player information from state (following standard pattern)
+        // CRITICAL: Only read from opponentsPanel slice - derive currentPlayer from opponents list
+        // The opponentsPanel slice is the source of truth for opponent data
         final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-        final currentPlayerRaw = recallGameState['currentPlayer'];
         
-        // Handle different types of currentPlayer data (null, string "null", or actual Map)
+        // Derive currentPlayer from opponents list using currentTurnIndex
         Map<String, dynamic>? currentPlayerData;
-        if (currentPlayerRaw == null || currentPlayerRaw == 'null' || currentPlayerRaw == '') {
-          currentPlayerData = null;
-        } else if (currentPlayerRaw is Map<String, dynamic>) {
-          currentPlayerData = currentPlayerRaw;
-        } else {
-          currentPlayerData = null;
+        String currentPlayerId = '';
+        String currentPlayerStatus = 'unknown';
+        
+        if (currentTurnIndex >= 0 && currentTurnIndex < opponents.length) {
+          currentPlayerData = opponents[currentTurnIndex] as Map<String, dynamic>?;
+          currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
+          currentPlayerStatus = currentPlayerData?['status']?.toString() ?? 'unknown';
         }
         
-        final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
-        final currentPlayerStatus = recallGameState['currentPlayerStatus']?.toString() ?? 'unknown';
-        
-        // Determine if we're in initial peek phase - use gamePhase instead of playerStatus
+        // Determine if we're in initial peek phase - read gamePhase from state (not in slice)
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isInitialPeekPhase = gamePhase == 'initial_peek';
     

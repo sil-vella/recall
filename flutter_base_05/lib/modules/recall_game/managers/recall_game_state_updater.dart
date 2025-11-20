@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:async';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
@@ -55,12 +54,17 @@ class RecallGameStateUpdater {
   // See state_queue_validator.dart for the complete schema
   
   /// Widget slice dependencies - only rebuild when these fields change
+  /// 
+  /// NOTE: Games-dependent slices (opponentsPanel, myHand, centerBoard) are ALWAYS
+  /// recomputed when 'games' map changes, regardless of other dependencies.
+  /// This ensures these slices always reflect the latest state from the SSOT.
+  /// The dependencies listed here are for documentation and for non-games changes.
   static const Map<String, Set<String>> _widgetDependencies = {
     'actionBar': {'currentGameId', 'games', 'isRoomOwner', 'isGameActive', 'isMyTurn'},
     'statusBar': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'playerStatus'},
-    'myHand': {'currentGameId', 'games', 'isMyTurn', 'playerStatus', 'turn_events'},
-    'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'},
-    'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'currentPlayerStatus', 'turn_events'},
+    'myHand': {'currentGameId', 'games', 'isMyTurn', 'playerStatus', 'turn_events'}, // Always recomputed when games changes
+    'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'}, // Always recomputed when games changes
+    'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'currentPlayerStatus', 'turn_events'}, // Always recomputed when games changes
     'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
     'joinedGamesSlice': {'joinedGames', 'totalJoinedGames', 'joinedGamesTimestamp'},
   };
@@ -174,10 +178,24 @@ class RecallGameStateUpdater {
   ) {
     final updatedState = Map<String, dynamic>.from(newState);
     
-    // Only rebuild slices that depend on changed fields
+    // CRITICAL: Always recompute games-dependent slices when games map changes
+    // The games map is the SSOT, so these slices must always reflect the latest state
+    if (changedFields.contains('games')) {
+      _logger.info('🎬 RecallGameStateUpdater: Games map changed - recomputing games-dependent slices (opponentsPanel, myHand, centerBoard)', isOn: LOGGING_SWITCH);
+      updatedState['opponentsPanel'] = _computeOpponentsPanelSlice(newState);
+      updatedState['myHand'] = _computeMyHandSlice(newState);
+      updatedState['centerBoard'] = _computeCenterBoardSlice(newState);
+    }
+    
+    // Handle other widget slices based on dependency tracking
     for (final entry in _widgetDependencies.entries) {
       final sliceName = entry.key;
       final dependencies = entry.value;
+      
+      // Skip games-dependent slices (already handled above)
+      if (sliceName == 'opponentsPanel' || sliceName == 'myHand' || sliceName == 'centerBoard') {
+        continue;
+      }
       
       if (changedFields.any(dependencies.contains)) {
         switch (sliceName) {
@@ -186,15 +204,6 @@ class RecallGameStateUpdater {
             break;
           case 'statusBar':
             updatedState['statusBar'] = _computeStatusBarSlice(newState);
-            break;
-          case 'myHand':
-            updatedState['myHand'] = _computeMyHandSlice(newState);
-            break;
-          case 'centerBoard':
-            updatedState['centerBoard'] = _computeCenterBoardSlice(newState);
-            break;
-          case 'opponentsPanel':
-            updatedState['opponentsPanel'] = _computeOpponentsPanelSlice(newState);
             break;
           case 'gameInfo':
             updatedState['gameInfo'] = _computeGameInfoSlice(newState);
@@ -294,11 +303,32 @@ class RecallGameStateUpdater {
     // Get turn_events from main state
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
     
+    // Get cards from current game
+    final cards = currentGame['myHandCards'] as List<dynamic>? ?? [];
+    
+    // CRITICAL: Create new object references to ensure widget rebuilds detect changes
+    // Defensive copying ensures object identity changes, triggering ListenableBuilder rebuilds
+    final cardsCopy = cards.map((card) {
+      if (card is Map<String, dynamic>) {
+        // Deep copy card map to ensure new object reference
+        return Map<String, dynamic>.from(card);
+      }
+      return card;
+    }).toList();
+    
+    final turnEventsCopy = turnEvents.map((event) {
+      if (event is Map<String, dynamic>) {
+        // Deep copy event map to ensure new object reference
+        return Map<String, dynamic>.from(event);
+      }
+      return event;
+    }).toList();
+    
     return {
-      'cards': currentGame['myHandCards'] ?? [],
+      'cards': cardsCopy,
       'selectedIndex': currentGame['selectedCardIndex'] ?? -1,
       'canSelectCards': isMyTurn && canPlayCard,
-      'turn_events': turnEvents,
+      'turn_events': turnEventsCopy,
     };
   }
   
@@ -371,10 +401,29 @@ class RecallGameStateUpdater {
       }
     }
     
+    // CRITICAL: Create new object references to ensure widget rebuilds detect changes
+    // Defensive copying ensures object identity changes, triggering ListenableBuilder rebuilds
+    Map<String, dynamic>? topDiscardCopy;
+    if (discardPile.isNotEmpty) {
+      final topDiscard = discardPile.last;
+      if (topDiscard is Map<String, dynamic>) {
+        // Deep copy card map to ensure new object reference
+        topDiscardCopy = Map<String, dynamic>.from(topDiscard);
+      } else {
+        topDiscardCopy = topDiscard;
+      }
+    }
+    
+    Map<String, dynamic>? topDrawCopy;
+    if (topDraw != null) {
+      // Deep copy card map to ensure new object reference
+      topDrawCopy = Map<String, dynamic>.from(topDraw);
+    }
+    
     final result = {
       'drawPileCount': drawPileCount,
-      'topDiscard': discardPile.isNotEmpty ? discardPile.last : null,
-      'topDraw': topDraw,
+      'topDiscard': topDiscardCopy,
+      'topDraw': topDrawCopy,
       'canDrawFromDeck': drawPileCount > 0,
       'canTakeFromDiscard': discardPile.isNotEmpty,
     };
@@ -427,19 +476,37 @@ class RecallGameStateUpdater {
     // Get turn_events from main state
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
     
+    // CRITICAL: Create new object references to ensure widget rebuilds detect changes
+    // Defensive copying ensures object identity changes, triggering ListenableBuilder rebuilds
+    final opponentsCopy = opponents.map((player) {
+      if (player is Map<String, dynamic>) {
+        // Deep copy player map to ensure new object reference
+        return Map<String, dynamic>.from(player);
+      }
+      return player;
+    }).toList();
+    
+    final turnEventsCopy = turnEvents.map((event) {
+      if (event is Map<String, dynamic>) {
+        // Deep copy event map to ensure new object reference
+        return Map<String, dynamic>.from(event);
+      }
+      return event;
+    }).toList();
+    
     // Debug logging for opponents panel computation
     print('🔍 OPPONENTS PANEL DEBUG:');
     print('  currentGameId: $currentGameId');
     print('  currentUserId: $currentUserId');
     print('  allPlayers: ${allPlayers.map((p) => '${p['name']} (${p['id']}, status: ${p['status']})').join(', ')}');
-    print('  opponents: ${opponents.map((p) => '${p['name']} (${p['id']}, status: ${p['status']})').join(', ')}');
+    print('  opponents: ${opponentsCopy.map((p) => '${p['name']} (${p['id']}, status: ${p['status']})').join(', ')}');
     print('  currentPlayer: ${currentPlayer?['name']} (${currentPlayer?['id']})');
     print('  currentTurnIndex: $currentTurnIndex');
     
     return {
-      'opponents': opponents,
+      'opponents': opponentsCopy,
       'currentTurnIndex': currentTurnIndex,
-      'turn_events': turnEvents,
+      'turn_events': turnEventsCopy,
     };
   }
 

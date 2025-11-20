@@ -1092,9 +1092,11 @@ class PracticeGameCoordinator implements GameStateCallback {
           } else {
             // Non-current player update - don't update currentPlayer/currentPlayerStatus
             // Only update games map so the player's status change is reflected
+            // CRITICAL: Add lastUpdated to ensure opponentsPanel widget slice recomputes
             updatePracticeGameState({
               'games': currentGames,
               'isMyTurn': isCurrentPlayerHuman, // Update isMyTurn based on current player
+              'lastUpdated': DateTime.now().toIso8601String(), // Force widget recomputation
             });
             Logger().info('Recall: Games state updated for non-current player - only games map updated', isOn: LOGGING_SWITCH);
           }

@@ -397,14 +397,13 @@ class PracticeGameCoordinator implements GameStateCallback {
 
   /// Wrapper method to update state using the validated state manager
   /// This ensures all state updates go through proper validation
-  /// CRITICAL: Also flattens games map structure if present (same logic as onGameStateChanged)
+  /// Update practice game state (flattens nested structure if present)
   void updatePracticeGameState(Map<String, dynamic> updates) {
     try {
       Logger().info('Recall: Updating state with validated state manager', isOn: LOGGING_SWITCH);
       Logger().info('Recall: State updates keys: ${updates.keys.toList()}', isOn: LOGGING_SWITCH);
       
-      // CRITICAL: Flatten games map structure if present (same as onGameStateChanged)
-      // This ensures consistency whether updates come from handlers or direct calls
+      // Flatten games map structure if present (handles both nested and flattened)
       Map<String, dynamic> finalUpdates;
       if (updates.containsKey('games')) {
         final games = updates['games'] as Map<String, dynamic>? ?? {};
@@ -414,27 +413,38 @@ class PracticeGameCoordinator implements GameStateCallback {
           final gameId = entry.key;
           final gameData = entry.value as Map<String, dynamic>? ?? {};
           
-          // Extract game_state from nested structure
-          final gameDataInner = gameData['gameData'] as Map<String, dynamic>?;
-          final gameState = gameDataInner?['game_state'] as Map<String, dynamic>? ?? {};
+          // Check if structure is already flattened (has players, drawPile, etc. at top level)
+          final isAlreadyFlattened = gameData.containsKey('players') || 
+                                     gameData.containsKey('drawPile') || 
+                                     gameData.containsKey('discardPile');
           
-          // Flatten: merge game_state fields directly into games[gameId]
-          final flattenedGame = <String, dynamic>{
-            ...gameState, // All game_state fields (players, drawPile, discardPile, etc.)
-            // Preserve UI-specific fields that are already at top level
-            if (gameData.containsKey('myHandCards')) 'myHandCards': gameData['myHandCards'],
-            if (gameData.containsKey('selectedCardIndex')) 'selectedCardIndex': gameData['selectedCardIndex'],
-            if (gameData.containsKey('isMyTurn')) 'isMyTurn': gameData['isMyTurn'],
-            if (gameData.containsKey('canPlayCard')) 'canPlayCard': gameData['canPlayCard'],
-            if (gameData.containsKey('gameStatus')) 'gameStatus': gameData['gameStatus'],
-            if (gameData.containsKey('isRoomOwner')) 'isRoomOwner': gameData['isRoomOwner'],
-            if (gameData.containsKey('isInGame')) 'isInGame': gameData['isInGame'],
-            if (gameData.containsKey('joinedAt')) 'joinedAt': gameData['joinedAt'],
-            if (gameData.containsKey('myDrawnCard')) 'myDrawnCard': gameData['myDrawnCard'],
-            // Preserve owner_id and game_id if present in gameData
-            if (gameDataInner != null && gameDataInner.containsKey('owner_id')) 'owner_id': gameDataInner['owner_id'],
-            if (gameDataInner != null && gameDataInner.containsKey('game_id')) 'game_id': gameDataInner['game_id'],
-          };
+          Map<String, dynamic> flattenedGame;
+          if (isAlreadyFlattened) {
+            // Already flattened, just preserve all fields
+            flattenedGame = Map<String, dynamic>.from(gameData);
+          } else {
+            // Nested structure, extract game_state and flatten
+            final gameDataInner = gameData['gameData'] as Map<String, dynamic>?;
+            final gameState = gameDataInner?['game_state'] as Map<String, dynamic>? ?? {};
+            
+            // Flatten: merge game_state fields directly into games[gameId]
+            flattenedGame = <String, dynamic>{
+              ...gameState, // All game_state fields (players, drawPile, discardPile, etc.)
+              // Preserve UI-specific fields that are already at top level
+              if (gameData.containsKey('myHandCards')) 'myHandCards': gameData['myHandCards'],
+              if (gameData.containsKey('selectedCardIndex')) 'selectedCardIndex': gameData['selectedCardIndex'],
+              if (gameData.containsKey('isMyTurn')) 'isMyTurn': gameData['isMyTurn'],
+              if (gameData.containsKey('canPlayCard')) 'canPlayCard': gameData['canPlayCard'],
+              if (gameData.containsKey('gameStatus')) 'gameStatus': gameData['gameStatus'],
+              if (gameData.containsKey('isRoomOwner')) 'isRoomOwner': gameData['isRoomOwner'],
+              if (gameData.containsKey('isInGame')) 'isInGame': gameData['isInGame'],
+              if (gameData.containsKey('joinedAt')) 'joinedAt': gameData['joinedAt'],
+              if (gameData.containsKey('myDrawnCard')) 'myDrawnCard': gameData['myDrawnCard'],
+              // Preserve owner_id and game_id if present in gameData
+              if (gameDataInner != null && gameDataInner.containsKey('owner_id')) 'owner_id': gameDataInner['owner_id'],
+              if (gameDataInner != null && gameDataInner.containsKey('game_id')) 'game_id': gameDataInner['game_id'],
+            };
+          }
           
           flattenedGames[gameId] = flattenedGame;
         }
@@ -911,14 +921,14 @@ class PracticeGameCoordinator implements GameStateCallback {
         },
       };
       
-      // Add the game to the games map
-      final currentGames = _getCurrentGamesMap();
+      // Add the game to the games map (flattened structure)
+      final currentGames = currentGamesMap;
       currentGames[gameId] = {
-        'gameData': {
-          'game_id': gameId,
-          'game_state': gameState,
-          'owner_id': 'recall_user', // Recall mode user
-        },
+        // All game_state fields directly at top level (flattened)
+        ...gameState,
+        // UI-specific fields at top level
+        'game_id': gameId,
+        'owner_id': 'recall_user', // Recall mode user
         'gameStatus': 'dealing_cards', // Updated to reflect cards have been dealt
         'isRoomOwner': true, // Recall user is always owner
         'isInGame': true,
@@ -1089,7 +1099,45 @@ class PracticeGameCoordinator implements GameStateCallback {
   }
 
   /// Public getter for current games map (used by RecallGameRound)
-  Map<String, dynamic> get currentGamesMap => _getCurrentGamesMap();
+  /// Always returns flattened structure, even if state is nested
+  Map<String, dynamic> get currentGamesMap {
+    final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final games = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+    
+    // Flatten if nested structure is found
+    final flattenedGames = <String, dynamic>{};
+    for (final entry in games.entries) {
+      final gameId = entry.key;
+      final gameData = entry.value as Map<String, dynamic>? ?? {};
+      
+      // Check if structure is nested
+      if (gameData.containsKey('gameData')) {
+        // Nested structure, flatten it
+        final gameDataInner = gameData['gameData'] as Map<String, dynamic>?;
+        final gameState = gameDataInner?['game_state'] as Map<String, dynamic>? ?? {};
+        
+        flattenedGames[gameId] = <String, dynamic>{
+          ...gameState,
+          if (gameData.containsKey('myHandCards')) 'myHandCards': gameData['myHandCards'],
+          if (gameData.containsKey('selectedCardIndex')) 'selectedCardIndex': gameData['selectedCardIndex'],
+          if (gameData.containsKey('isMyTurn')) 'isMyTurn': gameData['isMyTurn'],
+          if (gameData.containsKey('canPlayCard')) 'canPlayCard': gameData['canPlayCard'],
+          if (gameData.containsKey('gameStatus')) 'gameStatus': gameData['gameStatus'],
+          if (gameData.containsKey('isRoomOwner')) 'isRoomOwner': gameData['isRoomOwner'],
+          if (gameData.containsKey('isInGame')) 'isInGame': gameData['isInGame'],
+          if (gameData.containsKey('joinedAt')) 'joinedAt': gameData['joinedAt'],
+          if (gameData.containsKey('myDrawnCard')) 'myDrawnCard': gameData['myDrawnCard'],
+          if (gameDataInner != null && gameDataInner.containsKey('owner_id')) 'owner_id': gameDataInner['owner_id'],
+          if (gameDataInner != null && gameDataInner.containsKey('game_id')) 'game_id': gameDataInner['game_id'],
+        };
+      } else {
+        // Already flattened, return as-is
+        flattenedGames[gameId] = gameData;
+      }
+    }
+    
+    return flattenedGames;
+  }
 
   /// Update player status for a specific player or all players
   /// 
@@ -1101,7 +1149,7 @@ class PracticeGameCoordinator implements GameStateCallback {
   /// Returns true if successful, false otherwise
   bool updatePlayerStatus(String status, {String? playerId, bool updateMainState = true, bool triggerInstructions = false}) {
     try {
-      final currentGames = _getCurrentGamesMap();
+      final currentGames = currentGamesMap;
       final currentGameId = _currentPracticeGameId;
       
       if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
@@ -1109,10 +1157,8 @@ class PracticeGameCoordinator implements GameStateCallback {
         return false;
       }
       
-      // Navigate to game state
-      final gameData = currentGames[currentGameId];
-      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
-      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      // Access flattened structure directly
+      final gameState = currentGames[currentGameId] as Map<String, dynamic>?;
       
       if (gameState == null) {
         Logger().error('Recall: Game state is null for updatePlayerStatus', isOn: LOGGING_SWITCH);
@@ -2410,51 +2456,9 @@ class PracticeGameCoordinator implements GameStateCallback {
 
   @override
   void onGameStateChanged(Map<String, dynamic> updates) {
-    // CRITICAL: Flatten games map structure if present
-    // Transform from: games[gameId] = { gameData: { game_state: {...} }, myHandCards: [...] }
-    // To: games[gameId] = { ...game_state, myHandCards: [...], ... }
-    if (updates.containsKey('games')) {
-      final games = updates['games'] as Map<String, dynamic>? ?? {};
-      final flattenedGames = <String, dynamic>{};
-      
-      for (final entry in games.entries) {
-        final gameId = entry.key;
-        final gameData = entry.value as Map<String, dynamic>? ?? {};
-        
-        // Extract game_state from nested structure
-        final gameDataInner = gameData['gameData'] as Map<String, dynamic>?;
-        final gameState = gameDataInner?['game_state'] as Map<String, dynamic>? ?? {};
-        
-        // Flatten: merge game_state fields directly into games[gameId]
-        final flattenedGame = <String, dynamic>{
-          ...gameState, // All game_state fields (players, drawPile, discardPile, etc.)
-          // Preserve UI-specific fields that are already at top level
-          if (gameData.containsKey('myHandCards')) 'myHandCards': gameData['myHandCards'],
-          if (gameData.containsKey('selectedCardIndex')) 'selectedCardIndex': gameData['selectedCardIndex'],
-          if (gameData.containsKey('isMyTurn')) 'isMyTurn': gameData['isMyTurn'],
-          if (gameData.containsKey('canPlayCard')) 'canPlayCard': gameData['canPlayCard'],
-          if (gameData.containsKey('gameStatus')) 'gameStatus': gameData['gameStatus'],
-          if (gameData.containsKey('isRoomOwner')) 'isRoomOwner': gameData['isRoomOwner'],
-          if (gameData.containsKey('isInGame')) 'isInGame': gameData['isInGame'],
-          if (gameData.containsKey('joinedAt')) 'joinedAt': gameData['joinedAt'],
-          if (gameData.containsKey('myDrawnCard')) 'myDrawnCard': gameData['myDrawnCard'],
-          // Preserve owner_id and game_id if present in gameData
-          if (gameDataInner != null && gameDataInner.containsKey('owner_id')) 'owner_id': gameDataInner['owner_id'],
-          if (gameDataInner != null && gameDataInner.containsKey('game_id')) 'game_id': gameDataInner['game_id'],
-        };
-        
-        flattenedGames[gameId] = flattenedGame;
-      }
-      
-      // Replace games in updates with flattened version
-      final flattenedUpdates = Map<String, dynamic>.from(updates);
-      flattenedUpdates['games'] = flattenedGames;
-      
-      updatePracticeGameState(flattenedUpdates);
-    } else {
-      // No games map to flatten, pass through as-is
-      updatePracticeGameState(updates);
-    }
+    // Handlers now pass flattened structure directly
+    // Just pass through to updatePracticeGameState
+    updatePracticeGameState(updates);
   }
 
   @override
@@ -2508,18 +2512,16 @@ class PracticeGameCoordinator implements GameStateCallback {
 
   @override
   Map<String, dynamic> getCurrentGameState() {
-    final currentGames = _getCurrentGamesMap();
+    final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final games = currentState['games'] as Map<String, dynamic>? ?? {};
     final currentGameId = _currentPracticeGameId;
     
-    if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
+    if (currentGameId == null || currentGameId.isEmpty || !games.containsKey(currentGameId)) {
       return {};
     }
 
-    // _getCurrentGamesMap returns nested structure for handlers
-    final gameData = currentGames[currentGameId]['gameData'] as Map<String, dynamic>?;
-    final gameState = gameData?['game_state'] as Map<String, dynamic>?;
-    
-    return gameState ?? {};
+    // Return flattened structure directly
+    return games[currentGameId] as Map<String, dynamic>? ?? {};
   }
 
   // getCardById and currentGamesMap are already implemented above
@@ -2529,8 +2531,8 @@ class PracticeGameCoordinator implements GameStateCallback {
     try {
       Logger().info('Recall: Direct matchStart() called from widget', isOn: LOGGING_SWITCH);
       
-      // Get current games map
-      final currentGames = _getCurrentGamesMap();
+      // Get current games map (flattened structure)
+      final currentGames = currentGamesMap;
       final currentGameId = _currentPracticeGameId;
       
       if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
@@ -2550,7 +2552,7 @@ class PracticeGameCoordinator implements GameStateCallback {
       updatePracticeGameState({
         'playerStatus': 'initial_peek',
         'gamePhase': 'initial_peek', // Use the new initial_peek phase
-        'games': _getCurrentGamesMap(), // Update the games map with modified players
+        'games': currentGamesMap, // Update the games map with modified players (flattened)
       });
       
       // CRITICAL: Process AI initial peeks BEFORE instructions/timer

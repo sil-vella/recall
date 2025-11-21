@@ -262,18 +262,11 @@ class RecallGameRound {
       
       // CRITICAL: Persist currentPlayer change to state through SSOT
       // Get fresh games map and update it with the currentPlayer change
-      // Since gameState is a reference to the nested structure, we need to update the games map
       final currentGames = _stateCallback.currentGamesMap;
-      final gameData = currentGames[_gameId] as Map<String, dynamic>?;
-      if (gameData != null) {
-        final gameDataInner = gameData['gameData'] as Map<String, dynamic>?;
-        if (gameDataInner != null) {
-          final gameStateInMap = gameDataInner['game_state'] as Map<String, dynamic>?;
-          if (gameStateInMap != null) {
-            // Update currentPlayer in the games map structure
-            gameStateInMap['currentPlayer'] = nextPlayer;
-          }
-        }
+      final gameStateInMap = currentGames[_gameId] as Map<String, dynamic>?;
+      if (gameStateInMap != null) {
+        // Update currentPlayer in the flattened games map structure
+        gameStateInMap['currentPlayer'] = nextPlayer;
       }
       _stateCallback.onGameStateChanged({
         'games': currentGames, // This includes the updated currentPlayer
@@ -1277,11 +1270,9 @@ class RecallGameRound {
     try {
       _logger.info('Recall: Handling play card: $cardId', isOn: LOGGING_SWITCH);
       
-      // Get current game state
+      // Get current game state (flattened structure)
       final currentGames = _stateCallback.currentGamesMap;
-      final gameData = currentGames[_gameId];
-      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
-      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      final gameState = currentGames[_gameId] as Map<String, dynamic>?;
       
       if (gameState == null) {
         _logger.error('Recall: Game state is null for play card', isOn: LOGGING_SWITCH);
@@ -3272,8 +3263,7 @@ class RecallGameRound {
       final gameId = _gameId;
       if (!currentGames.containsKey(gameId)) return;
       
-      final gameData = currentGames[gameId];
-      final gameState = gameData?['gameData']?['game_state'] as Map<String, dynamic>?;
+      final gameState = currentGames[gameId] as Map<String, dynamic>?;
       if (gameState == null) return;
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];

@@ -53,21 +53,8 @@ class RecallGameStateUpdater {
   // Note: State schema validation has been moved to StateQueueValidator
   // See state_queue_validator.dart for the complete schema
   
-  /// Widget slice dependencies - only rebuild when these fields change
-  /// 
-  /// NOTE: Games-dependent slices (opponentsPanel, myHand, centerBoard) are ALWAYS
-  /// recomputed when 'games' map changes, regardless of other dependencies.
-  /// This ensures these slices always reflect the latest state from the SSOT.
-  /// The dependencies listed here are for documentation and for non-games changes.
-  static const Map<String, Set<String>> _widgetDependencies = {
-    'actionBar': {'currentGameId', 'games', 'isRoomOwner', 'isGameActive', 'isMyTurn'},
-    'statusBar': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'playerStatus'},
-    'myHand': {'currentGameId', 'games', 'isMyTurn', 'playerStatus', 'turn_events'}, // Always recomputed when games changes
-    'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'}, // Always recomputed when games changes
-    'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'currentPlayerStatus', 'turn_events'}, // Always recomputed when games changes
-    'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
-    'joinedGamesSlice': {'joinedGames', 'totalJoinedGames', 'joinedGamesTimestamp'},
-  };
+  // NOTE: Widget slice computation has been removed.
+  // Widgets now read directly from main state keys.
   
   /// Update state with validation
   /// Uses StateQueueValidator for validation, then applies widget slice computation
@@ -83,17 +70,14 @@ class RecallGameStateUpdater {
     }
   }
   
-  /// Apply validated updates with widget slice computation
+  /// Apply validated updates - simplified to just merge and update state
   /// This is called by StateQueueValidator after validation
+  /// Widgets now read directly from main state, no slice computation needed
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
-    // CRITICAL: Print to verify this method is actually being called
-    print('🎬🎬🎬 RecallGameStateUpdater: _applyValidatedUpdates CALLED! Keys: ${validatedUpdates.keys.toList()}');
     _logger.info('🎬 RecallGameStateUpdater: _applyValidatedUpdates START with keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
     try {
       // Get current state
-      _logger.debug('🎬 RecallGameStateUpdater: Getting current state from StateManager', isOn: LOGGING_SWITCH);
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      _logger.debug('🎬 RecallGameStateUpdater: Current state keys: ${currentState.keys.toList()}', isOn: LOGGING_SWITCH);
       
       // Check if there are actual changes (excluding lastUpdated)
       // For complex objects (Maps, Lists), we need deep comparison
@@ -132,36 +116,20 @@ class RecallGameStateUpdater {
       
       // Only proceed if there are actual changes
       if (!hasActualChanges) {
-        _logger.info('🎬 RecallGameStateUpdater: No actual changes detected, skipping animation check', isOn: LOGGING_SWITCH);
+        _logger.info('🎬 RecallGameStateUpdater: No actual changes detected, skipping update', isOn: LOGGING_SWITCH);
         return;
       }
       
-      _logger.info('🎬 RecallGameStateUpdater: Has actual changes, proceeding with state update and animation check', isOn: LOGGING_SWITCH);
+      _logger.info('🎬 RecallGameStateUpdater: Has actual changes, proceeding with state update', isOn: LOGGING_SWITCH);
       
-      // NOTE: Position saving is no longer needed here
-      // Widgets now create animation triggers directly after state changes
-      // The animation system uses triggers from widgets, not position tracking
-      
-      // Apply only the validated updates (no timestamp - causes unnecessary updates)
-      _logger.debug('🎬 RecallGameStateUpdater: Merging current state with validated updates', isOn: LOGGING_SWITCH);
+      // Merge and update state directly - no slice computation needed
       final newState = {
         ...currentState,
         ...validatedUpdates,
       };
-      _logger.debug('🎬 RecallGameStateUpdater: New state keys: ${newState.keys.toList()}', isOn: LOGGING_SWITCH);
       
-      // Rebuild dependent widget slices only if relevant fields changed
-      _logger.debug('🎬 RecallGameStateUpdater: Updating widget slices for changed keys: ${validatedUpdates.keys.toSet()}', isOn: LOGGING_SWITCH);
-      final updatedStateWithSlices = _updateWidgetSlices(
-        currentState,
-        newState,
-        validatedUpdates.keys.toSet(),
-      );
-      _logger.debug('🎬 RecallGameStateUpdater: Widget slices updated, final state keys: ${updatedStateWithSlices.keys.toList()}', isOn: LOGGING_SWITCH);
-      
-      // Update StateManager
-      _logger.debug('🎬 RecallGameStateUpdater: Updating StateManager with merged state', isOn: LOGGING_SWITCH);
-      _stateManager.updateModuleState('recall_game', updatedStateWithSlices);
+      // Update StateManager directly
+      _stateManager.updateModuleState('recall_game', newState);
       _logger.info('🎬 RecallGameStateUpdater: StateManager updated successfully', isOn: LOGGING_SWITCH);
 
     } catch (e) {
@@ -169,404 +137,8 @@ class RecallGameStateUpdater {
       rethrow;
     }
   }
-  
-  /// Update widget slices based on dependency tracking
-  Map<String, dynamic> _updateWidgetSlices(
-    Map<String, dynamic> oldState,
-    Map<String, dynamic> newState,
-    Set<String> changedFields,
-  ) {
-    final updatedState = Map<String, dynamic>.from(newState);
-    
-    // CRITICAL: Always recompute games-dependent slices when games map changes
-    // The games map is the SSOT, so these slices must always reflect the latest state
-    if (changedFields.contains('games')) {
-      _logger.info('🎬 RecallGameStateUpdater: Games map changed - recomputing games-dependent slices (opponentsPanel, myHand, centerBoard)', isOn: LOGGING_SWITCH);
-      updatedState['opponentsPanel'] = _computeOpponentsPanelSlice(newState);
-      updatedState['myHand'] = _computeMyHandSlice(newState);
-      updatedState['centerBoard'] = _computeCenterBoardSlice(newState);
-    }
-    
-    // Handle other widget slices based on dependency tracking
-    for (final entry in _widgetDependencies.entries) {
-      final sliceName = entry.key;
-      final dependencies = entry.value;
-      
-      // Skip games-dependent slices (already handled above)
-      if (sliceName == 'opponentsPanel' || sliceName == 'myHand' || sliceName == 'centerBoard') {
-        continue;
-      }
-      
-      if (changedFields.any(dependencies.contains)) {
-        switch (sliceName) {
-          case 'actionBar':
-            updatedState['actionBar'] = _computeActionBarSlice(newState);
-            break;
-          case 'statusBar':
-            updatedState['statusBar'] = _computeStatusBarSlice(newState);
-            break;
-          case 'gameInfo':
-            updatedState['gameInfo'] = _computeGameInfoSlice(newState);
-            break;
-          case 'joinedGamesSlice':
-            updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
-            break;
-        }
-      }
-    }
-    
-    // Extract currentPlayer from current game data and put it in main state
-    final currentGameId = updatedState['currentGameId']?.toString() ?? '';
-    final games = updatedState['games'] as Map<String, dynamic>? ?? {};
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    
-    // Look for currentPlayer in the nested gameData.game_state structure
-    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-    final currentPlayer = gameState['currentPlayer'];
-    
-    if (currentPlayer != null) {
-      updatedState['currentPlayer'] = currentPlayer;
-    } else {
-      updatedState['currentPlayer'] = null;
-    }
-    
-    return updatedState;
-  }
-  
-  /// Compute action bar widget slice
-  Map<String, dynamic> _computeActionBarSlice(Map<String, dynamic> state) {
-    final isRoomOwner = state['isRoomOwner'] ?? false;
-    final isGameActive = state['isGameActive'] ?? false;
-    final isMyTurn = state['isMyTurn'] ?? false;
-    final canCallRecall = state['canCallRecall'] ?? false;
-    final canPlayCard = state['canPlayCard'] ?? false;
-    final gamePhase = state['gamePhase'] ?? 'waiting';
-    
-    // Show start button if room owner and game is still in waiting phase
-    final showStartButton = isRoomOwner && gamePhase == 'waiting';
-    
-    // Debug logging for action bar computation
-    
-    return {
-      'showStartButton': showStartButton,
-      'canPlayCard': canPlayCard && isMyTurn,
-      'canCallRecall': canCallRecall && isMyTurn,
-      'isGameStarted': isGameActive,
-    };
-  }
-  
-  /// Compute status bar widget slice
-  Map<String, dynamic> _computeStatusBarSlice(Map<String, dynamic> state) {
-    final gamePhase = state['gamePhase'] ?? 'waiting';
-    final gameStatus = state['gameStatus'] ?? 'inactive';
-    final playerCount = state['playerCount'] ?? 0;
-    final turnNumber = state['turnNumber'] ?? 0;
-    final roundNumber = state['roundNumber'] ?? 0;
-    final isConnected = state['isConnected'] ?? false;
-    
-    String turnInfo = '';
-    if (gamePhase == 'playing') {
-      turnInfo = 'Turn $turnNumber, Round $roundNumber';
-    } else if (gamePhase == 'waiting') {
-      turnInfo = 'Waiting for players ($playerCount)';
-    }
-    
-    return {
-      'currentPhase': gamePhase,
-      'turnInfo': turnInfo,
-      'playerCount': playerCount,
-      'gameStatus': gameStatus,
-      'connectionStatus': isConnected ? 'connected' : 'disconnected',
-    };
-  }
-  
-  /// Compute my hand widget slice
-  Map<String, dynamic> _computeMyHandSlice(Map<String, dynamic> state) {
-    final currentGameId = state['currentGameId']?.toString() ?? '';
-    final games = state['games'] as Map<String, dynamic>? ?? {};
-    
-    // If no current game or game not found in games map
-    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
-      return {
-        'cards': [],
-        'selectedIndex': -1,
-        'canSelectCards': false,
-      };
-    }
-    
-    // Get current game data from games map
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final isMyTurn = currentGame['isMyTurn'] ?? false;
-    final canPlayCard = currentGame['canPlayCard'] ?? false;
-    
-    // Get turn_events from main state
-    final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
-    
-    // Get cards from current game
-    final cards = currentGame['myHandCards'] as List<dynamic>? ?? [];
-    
-    // CRITICAL: Create new object references to ensure widget rebuilds detect changes
-    // Defensive copying ensures object identity changes, triggering ListenableBuilder rebuilds
-    final cardsCopy = cards.map((card) {
-      if (card is Map<String, dynamic>) {
-        // Deep copy card map to ensure new object reference
-        return Map<String, dynamic>.from(card);
-      }
-      return card;
-    }).toList();
-    
-    final turnEventsCopy = turnEvents.map((event) {
-      if (event is Map<String, dynamic>) {
-        // Deep copy event map to ensure new object reference
-        return Map<String, dynamic>.from(event);
-      }
-      return event;
-    }).toList();
-    
-    return {
-      'cards': cardsCopy,
-      'selectedIndex': currentGame['selectedCardIndex'] ?? -1,
-      'canSelectCards': isMyTurn && canPlayCard,
-      'turn_events': turnEventsCopy,
-    };
-  }
-  
-  /// Compute center board widget slice
-  Map<String, dynamic> _computeCenterBoardSlice(Map<String, dynamic> state) {
-    print('🔍 DEBUG: _computeCenterBoardSlice CALLED');
-    final currentGameId = state['currentGameId']?.toString() ?? '';
-    print('🔍 DEBUG: _computeCenterBoardSlice - currentGameId: $currentGameId');
-    final games = state['games'] as Map<String, dynamic>? ?? {};
-    print('🔍 DEBUG: _computeCenterBoardSlice - games keys: ${games.keys.toList()}');
-    
-    // If no current game or game not found in games map
-    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
-      print('🔍 DEBUG: _computeCenterBoardSlice - No current game found, returning empty slice');
-      return {
-        'drawPileCount': 0,
-        'topDiscard': null,
-        'topDraw': null,
-        'canDrawFromDeck': false,
-        'canTakeFromDiscard': false,
-      };
-    }
-    
-    // Get current game data from games map
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-    
-    print('🔍 DEBUG: _computeCenterBoardSlice - gameState keys: ${gameState.keys.toList()}');
-    
-    // Get pile information from game state
-    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
-    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
-    final drawPileCount = drawPile.length;
-    
-    print('🔍 DEBUG: _computeCenterBoardSlice - drawPile length: $drawPileCount');
-    print('🔍 DEBUG: _computeCenterBoardSlice - discardPile length: ${discardPile.length}');
-    
-    // Debug: Log discard pile contents when computing centerBoard slice
-    if (discardPile.isNotEmpty) {
-      print('🔍 DEBUG: _computeCenterBoardSlice - discardPile has ${discardPile.length} cards');
-      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard will be: ${discardPile.last}');
-      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard cardId: ${discardPile.last['cardId']}');
-      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard rank: ${discardPile.last['rank']}');
-      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard suit: ${discardPile.last['suit']}');
-    } else {
-      print('🔍 DEBUG: _computeCenterBoardSlice - discardPile is empty');
-    }
-    
-    // Get top draw card (convert ID-only to full data)
-    Map<String, dynamic>? topDraw;
-    if (drawPile.isNotEmpty) {
-      final topDrawIdOnly = drawPile.last as Map<String, dynamic>?;
-      if (topDrawIdOnly != null) {
-        final topDrawCardId = topDrawIdOnly['cardId']?.toString();
-        if (topDrawCardId != null) {
-          // Convert ID-only card to full card data by looking up in originalDeck
-          final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
-          for (final card in originalDeck) {
-            if (card is Map<String, dynamic> && card['cardId']?.toString() == topDrawCardId) {
-              topDraw = card;
-              print('🔍 DEBUG: _computeCenterBoardSlice - Found topDraw card: ${topDraw['cardId']} (${topDraw['rank']} of ${topDraw['suit']})');
-              break;
-            }
-          }
-          if (topDraw == null) {
-            print('🔍 DEBUG: _computeCenterBoardSlice - Top draw card $topDrawCardId not found in originalDeck');
-          }
-        }
-      }
-    }
-    
-    // CRITICAL: Create new object references to ensure widget rebuilds detect changes
-    // Defensive copying ensures object identity changes, triggering ListenableBuilder rebuilds
-    Map<String, dynamic>? topDiscardCopy;
-    if (discardPile.isNotEmpty) {
-      final topDiscard = discardPile.last;
-      if (topDiscard is Map<String, dynamic>) {
-        // Deep copy card map to ensure new object reference
-        topDiscardCopy = Map<String, dynamic>.from(topDiscard);
-      } else {
-        topDiscardCopy = topDiscard;
-      }
-    }
-    
-    Map<String, dynamic>? topDrawCopy;
-    if (topDraw != null) {
-      // Deep copy card map to ensure new object reference
-      topDrawCopy = Map<String, dynamic>.from(topDraw);
-    }
-    
-    final result = {
-      'drawPileCount': drawPileCount,
-      'topDiscard': topDiscardCopy,
-      'topDraw': topDrawCopy,
-      'canDrawFromDeck': drawPileCount > 0,
-      'canTakeFromDiscard': discardPile.isNotEmpty,
-    };
-    
-    print('🔍 DEBUG: _computeCenterBoardSlice - Returning result with topDiscard: ${result['topDiscard'] != null ? 'NOT NULL' : 'NULL'}');
-    
-    return result;
-  }
-  
-  /// Compute opponents panel widget slice
-  Map<String, dynamic> _computeOpponentsPanelSlice(Map<String, dynamic> state) {
-    final currentGameId = state['currentGameId']?.toString() ?? '';
-    final games = state['games'] as Map<String, dynamic>? ?? {};
-    
-    // If no current game or game not found in games map
-    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
-      return {
-        'opponents': [],
-        'currentTurnIndex': -1,
-      };
-    }
-    
-    // Get current game data from games map
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-    
-    // Get all players from game state (includes full player data with status)
-    final allPlayers = gameState['players'] as List<dynamic>? ?? [];
-    
-    // Get current user ID to filter out self from opponents
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserId = loginState['userId']?.toString() ?? '';
-    
-    // Filter out current player from opponents list
-    final opponents = allPlayers.where((player) => 
-      player['id']?.toString() != currentUserId
-    ).toList();
-    
-    // Find current player index in the opponents list
-    final currentPlayer = gameState['currentPlayer'];
-    int currentTurnIndex = -1;
-    if (currentPlayer != null) {
-      final currentPlayerId = currentPlayer['id']?.toString() ?? '';
-      currentTurnIndex = opponents.indexWhere((player) => 
-        player['id']?.toString() == currentPlayerId
-      );
-    }
-    
-    // Get turn_events from main state
-    final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
-    
-    // CRITICAL: Create new object references to ensure widget rebuilds detect changes
-    // Defensive copying ensures object identity changes, triggering ListenableBuilder rebuilds
-    final opponentsCopy = opponents.map((player) {
-      if (player is Map<String, dynamic>) {
-        // Deep copy player map to ensure new object reference
-        return Map<String, dynamic>.from(player);
-      }
-      return player;
-    }).toList();
-    
-    final turnEventsCopy = turnEvents.map((event) {
-      if (event is Map<String, dynamic>) {
-        // Deep copy event map to ensure new object reference
-        return Map<String, dynamic>.from(event);
-      }
-      return event;
-    }).toList();
-    
-    // Debug logging for opponents panel computation
-    print('🔍 OPPONENTS PANEL DEBUG:');
-    print('  currentGameId: $currentGameId');
-    print('  currentUserId: $currentUserId');
-    print('  allPlayers: ${allPlayers.map((p) => '${p['name']} (${p['id']}, status: ${p['status']})').join(', ')}');
-    print('  opponents: ${opponentsCopy.map((p) => '${p['name']} (${p['id']}, status: ${p['status']})').join(', ')}');
-    print('  currentPlayer: ${currentPlayer?['name']} (${currentPlayer?['id']})');
-    print('  currentTurnIndex: $currentTurnIndex');
-    
-    return {
-      'opponents': opponentsCopy,
-      'currentTurnIndex': currentTurnIndex,
-      'turn_events': turnEventsCopy,
-    };
-  }
-
-  /// Compute game info widget slice
-  Map<String, dynamic> _computeGameInfoSlice(Map<String, dynamic> state) {
-    final currentGameId = state['currentGameId']?.toString() ?? '';
-    final games = state['games'] as Map<String, dynamic>? ?? {};
-    
-    // If no current game or game not found in games map
-    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
-      return {
-        'currentGameId': '',
-        'currentSize': 0,
-        'maxSize': 4,
-        'gamePhase': 'waiting',
-        'gameStatus': 'inactive',
-        'isRoomOwner': false,
-        'isInGame': false,
-      };
-    }
-    
-    // Get current game data from games map
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-    
-    // Use derived values for other fields (these are set during navigation)
-    final gamePhase = state['gamePhase']?.toString() ?? 'waiting';
-    final gameStatus = currentGame['gameStatus']?.toString() ?? 'inactive';
-    final isRoomOwner = currentGame['isRoomOwner'] ?? false;
-    final isInGame = currentGame['isInGame'] ?? false;
-    
-    // Read player count and max players from the actual game data (single source of truth)
-    final currentSize = gameState['playerCount'] ?? 0;
-    final maxSize = gameState['maxPlayers'] ?? 4;
-    
-    return {
-      'currentGameId': currentGameId,
-      'currentSize': currentSize,
-      'maxSize': maxSize,
-      'gamePhase': gamePhase,
-      'gameStatus': gameStatus,
-      'isRoomOwner': isRoomOwner,
-      'isInGame': isInGame,
-    };
-  }
-
-  /// Compute joined games widget slice
-  Map<String, dynamic> _computeJoinedGamesSlice(Map<String, dynamic> state) {
-    final joinedGames = state['joinedGames'] as List<dynamic>? ?? [];
-    final totalJoinedGames = state['totalJoinedGames'] ?? 0;
-    final joinedGamesTimestamp = state['joinedGamesTimestamp']?.toString() ?? '';
-    
-    return {
-      'games': joinedGames,
-      'totalGames': totalJoinedGames,
-      'timestamp': joinedGamesTimestamp,
-      'isLoadingGames': false,
-    };
-  }
+  // NOTE: All widget slice computation methods have been removed.
+  // Widgets now read directly from main state keys (games[currentGameId], etc.)
   
 }
 
@@ -613,33 +185,19 @@ class RecallGameStateAccessor {
   }
   
   /// Get the game data for a specific game ID
-  /// This contains the backend game data structure
+  /// NOTE: With flattened structure, this returns the same as getGameStateForId
+  /// Kept for backward compatibility
   Map<String, dynamic>? getGameDataForId(String gameId) {
-    try {
-      final game = getGameStateForId(gameId);
-      if (game == null) return null;
-      
-      final gameData = game['gameData'] as Map<String, dynamic>? ?? {};
-      return gameData;
-      
-    } catch (e) {
-      return null;
-    }
+    // With flattened structure, game data is the same as game state
+    return getGameStateForId(gameId);
   }
   
   /// Get the game state data for a specific game ID
-  /// This contains the core game state (gameType, phase, status, etc.)
+  /// NOTE: With flattened structure, this returns the same as getGameStateForId
+  /// Kept for backward compatibility
   Map<String, dynamic>? getGameStateDataForId(String gameId) {
-    try {
-      final gameData = getGameDataForId(gameId);
-      if (gameData == null) return null;
-      
-      final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-      return gameState;
-      
-    } catch (e) {
-      return null;
-    }
+    // With flattened structure, game state data is the same as game state
+    return getGameStateForId(gameId);
   }
   
   /// Get the current active game ID
@@ -684,9 +242,10 @@ class RecallGameStateAccessor {
   /// Get the game type for a specific game ID
   String getGameType(String gameId) {
     try {
-      final gameState = getGameStateDataForId(gameId);
+      final gameState = getGameStateForId(gameId);
       if (gameState == null) return 'normal';
       
+      // With flattened structure, gameType is directly in games[gameId]
       final gameType = gameState['gameType']?.toString() ?? 'normal';
       return gameType;
       

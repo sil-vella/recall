@@ -2,6 +2,7 @@ import 'package:recall/tools/logging/logger.dart';
 
 import '../../../core/managers/state_manager.dart';
 import '../utils/recall_game_helpers.dart';
+import 'recall_game_state_updater.dart';
 
 /// Dedicated event handlers for Recall game events
 /// Contains all the business logic for processing specific event types
@@ -422,128 +423,89 @@ class RecallEventHandlerCallbacks {
   }
 
   /// Handle game_state_updated event
+  /// CRITICAL: Uses unified state update path through RecallGameStateUpdater
+  /// Flattens game state structure and batches all updates in a single call
   static void handleGameStateUpdated(Map<String, dynamic> data) {
     final gameId = data['game_id']?.toString() ?? '';
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
-    final ownerId = data['owner_id']?.toString(); // Extract owner_id from main payload
+    final ownerId = data['owner_id']?.toString();
     
-    // 🔍 DEBUG: Log the extracted values
-    Logger().info('🔍 handleGameStateUpdated DEBUG:', isOn: LOGGING_SWITCH);
-    Logger().info('  gameId: $gameId', isOn: LOGGING_SWITCH);
-    Logger().info('  ownerId: $ownerId', isOn: LOGGING_SWITCH);
-    Logger().info('  data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+    Logger().info('🔍 handleGameStateUpdated: gameId=$gameId, ownerId=$ownerId', isOn: LOGGING_SWITCH);
+    
     final roundNumber = data['round_number'] as int? ?? 1;
     final currentPlayer = data['current_player'];
     final currentPlayerStatus = data['current_player_status']?.toString() ?? 'unknown';
     final roundStatus = data['round_status']?.toString() ?? 'active';
-    // final timestamp = data['timestamp']?.toString() ?? '';
     
-    // Extract pile information from game state
-    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
-    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
-    final drawPileCount = drawPile.length;
-    final discardPileCount = discardPile.length;
-    
-    // Extract players list (used for game map update, widget sync handled separately)
-    final players = gameState['players'] as List<dynamic>? ?? [];
-    
-    // Check if game exists in games map, if not add it
-    final currentGames = _getCurrentGamesMap();
-    if (!currentGames.containsKey(gameId)) {
-      // Add the game to the games map with the complete game state.
-      // IMPORTANT: Do not overwrite ownership with null. Only include owner_id if present.
-      final base = {
-        'game_id': gameId,
-        'game_state': gameState,
-      };
-      if (ownerId != null) {
-        base['owner_id'] = ownerId;
-      }
-      _addGameToMap(gameId, base);
-    } else {
-      // Update existing game's game_state
-      Logger().info('🔍 Updating existing game: $gameId', isOn: LOGGING_SWITCH);
-      _updateGameData(gameId, {
-        'game_state': gameState,
-      });
-      
-      // Update owner_id and recalculate isRoomOwner at the top level
-      if (ownerId != null) {
-        final currentUserId = _getCurrentUserId();
-        Logger().info('🔍 Updating owner_id: $ownerId, currentUserId: $currentUserId', isOn: LOGGING_SWITCH);
-        Logger().info('🔍 Setting isRoomOwner: ${ownerId == currentUserId}', isOn: LOGGING_SWITCH);
-        _updateGameInMap(gameId, {
-          'owner_id': ownerId,
-          'isRoomOwner': ownerId == currentUserId,
-        });
-      } else {
-        Logger().info('🔍 ownerId is null, preserving previous ownership', isOn: LOGGING_SWITCH);
-        // Preserve main state's isRoomOwner when ownerId is missing
-        final currentMain = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-        final prevIsOwner = currentMain['isRoomOwner'] as bool? ?? false;
-        _updateMainGameState({'isRoomOwner': prevIsOwner});
-      }
-    }
-    
-    // Update the main game state with the new information using helper method
     // Normalize backend phase to UI phase
     final rawPhase = gameState['phase']?.toString();
-    final uiPhase = rawPhase == 'waiting_for_players'
-        ? 'waiting'
-        : (rawPhase ?? 'playing');
-
-    _updateMainGameState({
-      'currentGameId': gameId,  // Ensure currentGameId is set
+    final uiPhase = rawPhase == 'waiting_for_players' ? 'waiting' : (rawPhase ?? 'playing');
+    
+    // Get current games map to merge with new game state
+    final currentGames = _getCurrentGamesMap();
+    
+    // Flatten game state structure: games[gameId] = { ...game_state, ... }
+    // Extract UI-specific fields if they exist in current game
+    final currentGame = currentGames[gameId] as Map<String, dynamic>?;
+    final existingMyHandCards = currentGame?['myHandCards'];
+    final existingSelectedCardIndex = currentGame?['selectedCardIndex'];
+    final existingIsMyTurn = currentGame?['isMyTurn'];
+    final existingCanPlayCard = currentGame?['canPlayCard'];
+    final existingMyDrawnCard = currentGame?['myDrawnCard'];
+    
+    // Calculate isRoomOwner
+    final currentUserId = _getCurrentUserId();
+    final isRoomOwner = ownerId != null && ownerId == currentUserId;
+    
+    // Create flattened game entry
+    final flattenedGame = <String, dynamic>{
+      ...gameState, // All game_state fields (players, drawPile, discardPile, etc.)
+      'game_id': gameId,
+      if (ownerId != null) 'owner_id': ownerId,
+      'gameStatus': gameState['status']?.toString() ?? 'active',
+      'isRoomOwner': isRoomOwner,
+      'isInGame': true,
+      if (existingMyHandCards != null) 'myHandCards': existingMyHandCards,
+      if (existingSelectedCardIndex != null) 'selectedCardIndex': existingSelectedCardIndex,
+      if (existingIsMyTurn != null) 'isMyTurn': existingIsMyTurn,
+      if (existingCanPlayCard != null) 'canPlayCard': existingCanPlayCard,
+      if (existingMyDrawnCard != null) 'myDrawnCard': existingMyDrawnCard,
+    };
+    
+    // Update games map with flattened structure
+    final updatedGames = Map<String, dynamic>.from(currentGames);
+    updatedGames[gameId] = flattenedGame;
+    
+    // Handle joinedGames list update if needed
+    final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final currentJoinedGames = List<Map<String, dynamic>>.from(currentState['joinedGames'] as List<dynamic>? ?? []);
+    final existingIndex = currentJoinedGames.indexWhere((game) => game['game_id'] == gameId);
+    
+    if (existingIndex >= 0) {
+      // Update existing game in joinedGames (use flattened structure)
+      currentJoinedGames[existingIndex] = flattenedGame;
+    } else if (!currentGames.containsKey(gameId)) {
+      // Add new game to joinedGames
+      currentJoinedGames.add(flattenedGame);
+    }
+    
+    // CRITICAL: Use unified state update path - single batched update through RecallGameStateUpdater
+    RecallGameStateUpdater.instance.updateState({
+      'games': updatedGames,
+      'currentGameId': gameId,
       'gamePhase': uiPhase,
       'isGameActive': true,
       'roundNumber': roundNumber,
       'currentPlayer': currentPlayer,
       'currentPlayerStatus': currentPlayerStatus,
       'roundStatus': roundStatus,
-    });
-    
-    // Also update joinedGames list for lobby widgets (if this is a new game)
-    final currentGamesForJoined = _getCurrentGamesMap();
-    if (currentGamesForJoined.containsKey(gameId)) {
-      final gameInMap = currentGamesForJoined[gameId] as Map<String, dynamic>? ?? {};
-      final gameData = gameInMap['gameData'] as Map<String, dynamic>? ?? {};
-      
-      // Get current joinedGames list
-      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final currentJoinedGames = List<Map<String, dynamic>>.from(currentState['joinedGames'] as List<dynamic>? ?? []);
-      
-      // Check if this game is already in joinedGames
-      final existingIndex = currentJoinedGames.indexWhere((game) => game['game_id'] == gameId);
-      
-      if (existingIndex >= 0) {
-        // Update existing game
-        currentJoinedGames[existingIndex] = gameData;
-      } else {
-        // Add new game to joinedGames
-        currentJoinedGames.add(gameData);
-      }
-      
-      // Update joinedGames state
-      _updateMainGameState({
+      if (existingIndex >= 0 || !currentGames.containsKey(gameId))
         'joinedGames': currentJoinedGames,
+      if (existingIndex >= 0 || !currentGames.containsKey(gameId))
         'totalJoinedGames': currentJoinedGames.length,
+      if (existingIndex >= 0 || !currentGames.containsKey(gameId))
         'joinedGamesTimestamp': DateTime.now().toIso8601String(),
-      });
-    }
-    
-    // Update the games map with additional information using helper method
-    final updateData = {
-      'drawPileCount': drawPileCount,
-      'discardPileCount': discardPileCount,
-      'discardPile': discardPile,
-      'players': players,  // Include all players data
-    };
-    
-    _updateGameInMap(gameId, updateData);
-    
-    // 🎯 CRITICAL: Sync widget states from game state (myHandCards, myDrawnCard, etc.)
-    // This ensures computed slices stay in sync with game_state
-    _syncWidgetStatesFromGameState(gameId, gameState);
+    });
     
     // Add session message about game state update
     _addSessionMessage(

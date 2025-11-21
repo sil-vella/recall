@@ -44,22 +44,50 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       builder: (context, child) {
         final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         
-        // Get opponentsPanel state slice
-        final opponentsPanel = recallGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-        final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
-        final currentTurnIndex = opponentsPanel['currentTurnIndex'] ?? -1;
+        // Read directly from main state - flattened structure
+        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+        final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
         
-        // Get cardsToPeek state slice (current user's peeked cards, could be from opponents)
-        final cardsToPeek = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
+        // DEBUG: Log state structure
+        _logger.info('🔍 OpponentsPanelWidget DEBUG:', isOn: LOGGING_SWITCH);
+        _logger.info('  currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
+        _logger.info('  games keys: ${games.keys.toList()}', isOn: LOGGING_SWITCH);
+        _logger.info('  currentGame keys: ${currentGame.keys.toList()}', isOn: LOGGING_SWITCH);
+        
+        // Get players directly from flattened games[gameId]
+        final allPlayers = currentGame['players'] as List<dynamic>? ?? [];
+        _logger.info('  allPlayers count: ${allPlayers.length}', isOn: LOGGING_SWITCH);
+        if (allPlayers.isNotEmpty) {
+          _logger.info('  allPlayers: ${allPlayers.map((p) => '${p['name']} (${p['id']})').join(', ')}', isOn: LOGGING_SWITCH);
+        }
         
         // Get current user ID to filter out self from opponents
         final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
         final currentUserId = loginState['userId']?.toString() ?? '';
+        _logger.info('  currentUserId: $currentUserId', isOn: LOGGING_SWITCH);
         
         // Filter out current player from opponents list
-        final otherPlayers = opponents.where((player) => 
+        final otherPlayers = allPlayers.where((player) => 
           player['id']?.toString() != currentUserId
         ).toList();
+        _logger.info('  otherPlayers count: ${otherPlayers.length}', isOn: LOGGING_SWITCH);
+        if (otherPlayers.isNotEmpty) {
+          _logger.info('  otherPlayers: ${otherPlayers.map((p) => '${p['name']} (${p['id']})').join(', ')}', isOn: LOGGING_SWITCH);
+        }
+        
+        // Calculate currentTurnIndex from currentPlayer
+        final currentPlayer = currentGame['currentPlayer'] as Map<String, dynamic>?;
+        int currentTurnIndex = -1;
+        if (currentPlayer != null) {
+          final currentPlayerId = currentPlayer['id']?.toString() ?? '';
+          currentTurnIndex = otherPlayers.indexWhere((player) => 
+            player['id']?.toString() == currentPlayerId
+          );
+        }
+        
+        // Get cardsToPeek state slice (current user's peeked cards, could be from opponents)
+        final cardsToPeek = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
         
         // Get additional game state for context
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
@@ -147,20 +175,16 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        // CRITICAL: Only read from opponentsPanel slice - derive currentPlayer from opponents list
-        // The opponentsPanel slice is the source of truth for opponent data
+        // Read directly from main state - flattened structure
         final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+        final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
         
-        // Derive currentPlayer from opponents list using currentTurnIndex
-        Map<String, dynamic>? currentPlayerData;
-        String currentPlayerId = '';
-        String currentPlayerStatus = 'unknown';
-        
-        if (currentTurnIndex >= 0 && currentTurnIndex < opponents.length) {
-          currentPlayerData = opponents[currentTurnIndex] as Map<String, dynamic>?;
-          currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
-          currentPlayerStatus = currentPlayerData?['status']?.toString() ?? 'unknown';
-        }
+        // Get currentPlayer directly from flattened games[gameId]
+        final currentPlayerData = currentGame['currentPlayer'] as Map<String, dynamic>?;
+        final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
+        final currentPlayerStatus = currentPlayerData?['status']?.toString() ?? 'unknown';
         
         // Determine if we're in initial peek phase - read gamePhase from state (not in slice)
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
@@ -517,10 +541,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       isOn: LOGGING_SWITCH,
     );
     
-    // Get turn_events from opponentsPanel slice to determine animation types
+    // Get turn_events directly from main state
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final opponentsPanelSlice = recallGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-    final turnEvents = opponentsPanelSlice['turn_events'] as List<dynamic>? ?? [];
+    final turnEvents = recallGameState['turn_events'] as List<dynamic>? ?? [];
     
     // Create a map of cardId -> actionType for quick lookup
     final Map<String, String> cardIdToActionType = {};

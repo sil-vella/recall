@@ -42,10 +42,15 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
       builder: (context, child) {
         final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         
-        // Get centerBoard state slice
-        final centerBoard = recallGameState['centerBoard'] as Map<String, dynamic>? ?? {};
-        final drawPileCount = centerBoard['drawPileCount'] ?? 0;
-        final canDrawFromDeck = centerBoard['canDrawFromDeck'] ?? false;
+        // Read directly from main state - flattened structure
+        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+        final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+        
+        // Get drawPile directly from flattened games[gameId]
+        final drawPile = currentGame['drawPile'] as List<dynamic>? ?? [];
+        final drawPileCount = drawPile.length;
+        final canDrawFromDeck = drawPileCount > 0;
         
         // Get additional game state for context
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';

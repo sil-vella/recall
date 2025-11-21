@@ -182,16 +182,7 @@ class StateQueueValidator {
       defaultValue: [],
       description: 'List of games the user is currently in',
     ),
-    'joinedGamesSlice': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'games': [],
-        'totalGames': 0,
-        'timestamp': '',
-        'isLoadingGames': false,
-      },
-      description: 'Joined games widget state slice',
-    ),
+    // NOTE: joinedGamesSlice removed - widgets read directly from joinedGames
     'totalJoinedGames': RecallStateFieldSpec(
       type: int,
       defaultValue: 0,
@@ -203,70 +194,8 @@ class StateQueueValidator {
       description: 'Timestamp of last joined games update',
     ),
     
-    // Widget Slices
-    'actionBar': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'showStartButton': false,
-        'canPlayCard': false,
-        'canCallRecall': false,
-        'isGameStarted': false,
-      },
-      description: 'Action bar widget state slice',
-    ),
-    'statusBar': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'currentPhase': 'waiting',
-        'turnInfo': '',
-        'playerCount': 0,
-        'gameStatus': 'inactive',
-        'turnNumber': 0,
-        'roundNumber': 1,
-      },
-      description: 'Status bar widget state slice',
-    ),
-    'myHand': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'cards': [],
-        'selectedIndex': -1,
-        'selectedCard': null,
-      },
-      description: 'My hand widget state slice',
-    ),
-    'centerBoard': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'drawPileCount': 0,
-        'topDiscard': null,
-        'topDraw': null,
-        'canDrawFromDeck': false,
-        'canTakeFromDiscard': false,
-      },
-      description: 'Center board widget state slice',
-    ),
-    'opponentsPanel': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'opponents': [],
-        'currentTurnIndex': -1,
-      },
-      description: 'Opponents panel widget state slice',
-    ),
-    'gameInfo': RecallStateFieldSpec(
-      type: Map,
-      defaultValue: {
-        'currentGameId': '',
-        'currentSize': 0,
-        'maxSize': 4,
-        'gamePhase': 'waiting',
-        'gameStatus': 'inactive',
-        'isRoomOwner': false,
-        'isInGame': false,
-      },
-      description: 'Game info widget state slice',
-    ),
+    // NOTE: Widget slice fields (actionBar, statusBar, myHand, centerBoard, opponentsPanel, gameInfo) removed.
+    // Widgets now read directly from main state keys.
     'gameState': RecallStateFieldSpec(
       type: Map,
       required: false,

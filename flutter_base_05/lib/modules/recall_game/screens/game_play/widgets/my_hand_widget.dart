@@ -49,11 +49,27 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       builder: (context, child) {
         final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         
-        // Get myHand state slice
-        final myHand = recallGameState['myHand'] as Map<String, dynamic>? ?? {};
-        final cards = myHand['cards'] as List<dynamic>? ?? [];
-        final selectedIndex = myHand['selectedIndex'] ?? -1;
-        final selectedCard = myHand['selectedCard'] as Map<String, dynamic>?;
+        // Read directly from main state - flattened structure
+        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+        final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+        
+        // DEBUG: Log state structure
+        _logger.info('🃏 MyHandWidget DEBUG:', isOn: LOGGING_SWITCH);
+        _logger.info('  currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
+        _logger.info('  games keys: ${games.keys.toList()}', isOn: LOGGING_SWITCH);
+        _logger.info('  currentGame keys: ${currentGame.keys.toList()}', isOn: LOGGING_SWITCH);
+        
+        // Get myHandCards directly from flattened games[gameId]
+        final cards = currentGame['myHandCards'] as List<dynamic>? ?? [];
+        _logger.info('  myHandCards count: ${cards.length}', isOn: LOGGING_SWITCH);
+        if (cards.isNotEmpty) {
+          _logger.info('  myHandCards: ${cards.map((c) => c is Map ? c['cardId'] : c.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+        }
+        final selectedIndex = currentGame['selectedCardIndex'] ?? -1;
+        final selectedCard = selectedIndex >= 0 && selectedIndex < cards.length 
+            ? (cards[selectedIndex] as Map<String, dynamic>?)
+            : null;
         
         // Get cardsToPeek state slice
         final cardsToPeek = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
@@ -100,12 +116,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         if (cardsToPeek.isNotEmpty) {
           Logger().info('🃏 MyHandWidget - cardsToPeek IDs: ${cardsToPeek.map((c) => c['cardId']).toList()}', isOn: LOGGING_SWITCH);
         }
-        Logger().info('🃏 MyHandWidget - myHand keys: ${myHand.keys.toList()}', isOn: LOGGING_SWITCH);
         Logger().info('🃏 MyHandWidget - recallGameState keys: ${recallGameState.keys.toList()}', isOn: LOGGING_SWITCH);
         
-        // CRITICAL: Only read from myHand slice - do not read directly from games map
-        // The myHand slice is the source of truth for hand data
-        Logger().info('🃏 MyHandWidget - cards from slice: ${cards.length}', isOn: LOGGING_SWITCH);
+        // Reading directly from flattened games[gameId]['myHandCards']
+        Logger().info('🃏 MyHandWidget - cards from games map: ${cards.length}', isOn: LOGGING_SWITCH);
         
         // Reset initial peek state when not in initial_peek status
         if (playerStatus != 'initial_peek' && _initialPeekSelectionCount > 0) {
@@ -232,13 +246,11 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final drawnCard = recallGameState['myDrawnCard'] as Map<String, dynamic>?;
         final drawnCardId = drawnCard?['cardId']?.toString();
         
-        // Get current player's collection rank cards from games map
+        // Get current player's collection rank cards from flattened games map
         final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
         final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
         final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-        final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-        final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-        final players = gameState['players'] as List<dynamic>? ?? [];
+        final players = currentGame['players'] as List<dynamic>? ?? [];
         
         // Get login state for current user ID
         final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -464,10 +476,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       isOn: LOGGING_SWITCH,
     );
     
-    // Get turn_events from myHand slice to determine animation types
+    // Get turn_events directly from main state
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final myHandSlice = recallGameState['myHand'] as Map<String, dynamic>? ?? {};
-    final turnEvents = myHandSlice['turn_events'] as List<dynamic>? ?? [];
+    final turnEvents = recallGameState['turn_events'] as List<dynamic>? ?? [];
     
     // Create a map of cardId -> actionType for quick lookup
     final Map<String, String> cardIdToActionType = {};
@@ -597,7 +608,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     // Get current player status from state
     final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final currentPlayerStatus = currentState['playerStatus']?.toString() ?? 'unknown';
-    final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
       
     // Check if current player can interact with hand cards (playing_card, jack_swap, queen_peek, same_rank_window, or initial_peek status)
     if (currentPlayerStatus == 'playing_card' || 
@@ -607,20 +617,23 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         currentPlayerStatus == 'initial_peek') {
       
       // Update the selected card in the state
-
-      final updatedMyHand = {
-        ...currentMyHand,
-        'selectedIndex': index,
-        'selectedCard': card,
+      final currentGameId = currentState['currentGameId']?.toString() ?? '';
+      final games = currentState['games'] as Map<String, dynamic>? ?? {};
+      final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+      
+      // Update selectedCardIndex in games[gameId]
+      final updatedGames = Map<String, dynamic>.from(games);
+      updatedGames[currentGameId] = {
+        ...currentGame,
+        'selectedCardIndex': index,
       };
       
       StateManager().updateModuleState('recall_game', {
         ...currentState,
-        'myHand': updatedMyHand,
+        'games': updatedGames,
       });
       
-      // Get current game ID from state
-      final currentGameId = currentState['currentGameId']?.toString() ?? '';
+      // Verify current game ID exists
       if (currentGameId.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

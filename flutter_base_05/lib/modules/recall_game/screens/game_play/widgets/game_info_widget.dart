@@ -24,16 +24,19 @@ class GameInfoWidget extends StatelessWidget {
       builder: (context, child) {
         final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         
-        // Get gameInfo state slice
-        final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
-        final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
+        // Read directly from main state - flattened structure
+        final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+        final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+        
+        // Read game info directly from flattened games[gameId] structure
         final roomName = 'Game $currentGameId';
-        final currentSize = gameInfo['currentSize'] ?? 0;
-        final maxSize = gameInfo['maxSize'] ?? 4;
-        final gamePhase = gameInfo['gamePhase']?.toString() ?? 'waiting';
-        final gameStatus = gameInfo['gameStatus']?.toString() ?? 'inactive';
-        final isRoomOwner = gameInfo['isRoomOwner'] ?? false;
-        final isInGame = gameInfo['isInGame'] ?? false;
+        final currentSize = currentGame['playerCount'] ?? 0;
+        final maxSize = currentGame['maxPlayers'] ?? 4;
+        final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
+        final gameStatus = currentGame['gameStatus']?.toString() ?? 'inactive';
+        final isRoomOwner = currentGame['isRoomOwner'] ?? false;
+        final isInGame = currentGame['isInGame'] ?? false;
         
         // Check if this is a recall game
         final isPracticeGame = currentGameId.startsWith('recall_game_');
@@ -47,7 +50,6 @@ class GameInfoWidget extends StatelessWidget {
         
         Logger().info('  Start button condition: isRoomOwner($isRoomOwner) && gamePhase($gamePhase) == "waiting" OR isPracticeGame($isPracticeGame)', isOn: LOGGING_SWITCH);
         Logger().info('  Should show start button: ${(isRoomOwner && gamePhase == 'waiting') || isPracticeGame}', isOn: LOGGING_SWITCH);
-        Logger().info('  Full gameInfo: $gameInfo', isOn: LOGGING_SWITCH);
         
         // Get additional game state for context
         final isGameActive = recallGameState['isGameActive'] ?? false;
@@ -244,8 +246,7 @@ class GameInfoWidget extends StatelessWidget {
       
       // Get current game state to check if it's a recall game
       final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
-      final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
+      final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
       
       Logger().info('🎮 GameInfoWidget: Current game ID: $currentGameId', isOn: LOGGING_SWITCH);
       

@@ -56,14 +56,16 @@ class PlayerStatusChip extends StatelessWidget {
       // This is the current player - get status from main game state
       return recallGameState['playerStatus']?.toString() ?? 'unknown';
     } else {
-      // This is an opponent - get status from opponents panel
-      final opponentsPanel = recallGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-      final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
+      // This is an opponent - get status from flattened games[gameId]['players']
+      final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+      final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+      final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+      final players = currentGame['players'] as List<dynamic>? ?? [];
       
       // Find the specific opponent
-      for (final opponent in opponents) {
-        if (opponent['id']?.toString() == playerId) {
-          return opponent['status']?.toString() ?? 'unknown';
+      for (final player in players) {
+        if (player is Map<String, dynamic> && player['id']?.toString() == playerId) {
+          return player['status']?.toString() ?? 'unknown';
         }
       }
       

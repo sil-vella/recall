@@ -21,7 +21,7 @@ class ModuleState {
 }
 
 class StateManager with ChangeNotifier {
-  static final Logger _log = Logger(); // ✅ Use a static logger for static methods
+  static final Logger _logger = Logger(); // ✅ Use a static logger for static methods
   static StateManager? _instance;
 
   final Map<String, ModuleState> _moduleStates = {}; // Stores structured module states

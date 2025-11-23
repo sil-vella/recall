@@ -7,7 +7,7 @@ import '../../../tools/logging/logger.dart';
 const bool LOGGING_SWITCH = false;
 
 class NativeWebSocketAdapter {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   
   WebSocketChannel? _channel;
   String? _sessionId;
@@ -52,14 +52,14 @@ class NativeWebSocketAdapter {
         onTimeout: () => false,
       );
     } catch (e) {
-      _log.error('WebSocket connection error: $e');
+      _logger.error('WebSocket connection error: $e');
       return false;
     }
   }
   
   void emit(String event, dynamic data) {
     if (_channel == null || !_isConnected) {
-      _log.warning('Cannot emit event: not connected');
+      _logger.warning('Cannot emit event: not connected');
       return;
     }
     
@@ -70,7 +70,7 @@ class NativeWebSocketAdapter {
       });
       _channel!.sink.add(message);
     } catch (e) {
-      _log.error('Error emitting event $event: $e');
+      _logger.error('Error emitting event $event: $e');
     }
   }
   
@@ -96,7 +96,7 @@ class NativeWebSocketAdapter {
       _isConnected = false;
       _sessionId = null;
     } catch (e) {
-      _log.error('Error disconnecting: $e');
+      _logger.error('Error disconnecting: $e');
     }
   }
   
@@ -109,20 +109,20 @@ class NativeWebSocketAdapter {
       final data = jsonDecode(message as String);
       final event = data['event'] as String?;
       
-      _log.debug('📨 WebSocket message received: event=$event, data=${data.keys.toList()}', isOn: LOGGING_SWITCH);
+      _logger.debug('📨 WebSocket message received: event=$event, data=${data.keys.toList()}', isOn: LOGGING_SWITCH);
       
       if (event == null) {
-        _log.warning('⚠️ WebSocket message has no event field', isOn: LOGGING_SWITCH);
+        _logger.warning('⚠️ WebSocket message has no event field', isOn: LOGGING_SWITCH);
         return;
       }
       
       // Special logging for 'connected' event
       if (event == 'connected') {
-        _log.info('🔌 Connected event received! Session ID: ${data['session_id']}', isOn: LOGGING_SWITCH);
+        _logger.info('🔌 Connected event received! Session ID: ${data['session_id']}', isOn: LOGGING_SWITCH);
       }
       
       if (_onceListeners.containsKey(event)) {
-        _log.debug('🎯 Triggering once listener for event: $event', isOn: LOGGING_SWITCH);
+        _logger.debug('🎯 Triggering once listener for event: $event', isOn: LOGGING_SWITCH);
         _onceListeners[event]!(data);
         _onceListeners.remove(event);
         return;
@@ -130,15 +130,15 @@ class NativeWebSocketAdapter {
       
       final listeners = _eventListeners[event];
       if (listeners != null) {
-        _log.debug('🎧 Triggering ${listeners.length} listeners for event: $event', isOn: LOGGING_SWITCH);
+        _logger.debug('🎧 Triggering ${listeners.length} listeners for event: $event', isOn: LOGGING_SWITCH);
         for (final listener in listeners) {
           listener(data);
         }
       } else {
-        _log.debug('❓ No listeners registered for event: $event', isOn: LOGGING_SWITCH);
+        _logger.debug('❓ No listeners registered for event: $event', isOn: LOGGING_SWITCH);
       }
     } catch (e) {
-      _log.error('Error processing message: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error processing message: $e', isOn: LOGGING_SWITCH);
     }
   }
   
@@ -155,7 +155,7 @@ class NativeWebSocketAdapter {
   }
   
   void _onError(dynamic error) {
-    _log.error('WebSocket error: $error');
+    _logger.error('WebSocket error: $error');
     
     final listeners = _eventListeners['connect_error'];
     if (listeners != null) {

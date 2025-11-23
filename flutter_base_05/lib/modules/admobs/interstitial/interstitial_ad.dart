@@ -8,7 +8,7 @@ import '../../../../core/services/shared_preferences.dart';
 import '../../../../tools/logging/logger.dart';
 
 class InterstitialAdModule extends ModuleBase {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   final String adUnitId;
   InterstitialAd? _interstitialAd;
   bool _isAdReady = false;
@@ -19,13 +19,13 @@ class InterstitialAdModule extends ModuleBase {
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
-    _log.info('✅ InterstitialAdModule initialized with context.');
+    _logger.info('✅ InterstitialAdModule initialized with context.');
     loadAd(); // Load ad on initialization
   }
 
   /// ✅ Loads the interstitial ad
   Future<void> loadAd() async {
-    _log.info('📢 Loading Interstitial Ad for ID: $adUnitId');
+    _logger.info('📢 Loading Interstitial Ad for ID: $adUnitId');
     InterstitialAd.load(
       adUnitId: adUnitId,
       request: const AdRequest(),
@@ -33,11 +33,11 @@ class InterstitialAdModule extends ModuleBase {
         onAdLoaded: (ad) {
           _interstitialAd = ad;
           _isAdReady = true;
-          _log.info('✅ Interstitial Ad Loaded for ID: $adUnitId.');
+          _logger.info('✅ Interstitial Ad Loaded for ID: $adUnitId.');
         },
         onAdFailedToLoad: (error) {
           _isAdReady = false;
-          _log.error('❌ Failed to load Interstitial Ad for ID: $adUnitId. Error: ${error.message}');
+          _logger.error('❌ Failed to load Interstitial Ad for ID: $adUnitId. Error: ${error.message}');
         },
       ),
     );
@@ -50,12 +50,12 @@ class InterstitialAdModule extends ModuleBase {
     final sharedPref = servicesManager.getService<SharedPrefManager>('shared_pref');
 
     if (sharedPref == null) {
-      _log.error('❌ SharedPreferences service not available.');
+      _logger.error('❌ SharedPreferences service not available.');
       return;
     }
 
     if (_isAdReady && _interstitialAd != null) {
-      _log.info('🎬 Showing Interstitial Ad for ID: $adUnitId');
+      _logger.info('🎬 Showing Interstitial Ad for ID: $adUnitId');
       _interstitialAd!.show();
       _interstitialAd = null;
       _isAdReady = false;
@@ -67,7 +67,7 @@ class InterstitialAdModule extends ModuleBase {
       // ✅ Preload next ad
       loadAd();
     } else {
-      _log.error('❌ Interstitial Ad not ready for ID: $adUnitId.');
+      _logger.error('❌ Interstitial Ad not ready for ID: $adUnitId.');
     }
   }
 
@@ -76,7 +76,7 @@ class InterstitialAdModule extends ModuleBase {
   void dispose() {
     _interstitialAd?.dispose();
     _interstitialAd = null;
-    _log.info('🗑 Interstitial Ad Module disposed for ID: $adUnitId.');
+    _logger.info('🗑 Interstitial Ad Module disposed for ID: $adUnitId.');
     super.dispose();
   }
 }

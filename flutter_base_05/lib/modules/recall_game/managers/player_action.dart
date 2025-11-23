@@ -256,7 +256,6 @@ class PlayerAction {
         _firstSelectedCardId = cardId;
         _firstSelectedPlayerId = playerId;
         logger.info('Jack swap: First card selected - Card: $cardId, Player: $playerId', isOn: LOGGING_SWITCH);
-        print('Jack swap: First card selected - Card: $cardId, Player: $playerId');
         return; // Wait for second card
       }
       
@@ -265,7 +264,6 @@ class PlayerAction {
         _secondSelectedCardId = cardId;
         _secondSelectedPlayerId = playerId;
         logger.info('Jack swap: Second card selected - Card: $cardId, Player: $playerId', isOn: LOGGING_SWITCH);
-        print('Jack swap: Second card selected - Card: $cardId, Player: $playerId');
         
         // Both cards selected, execute the swap
         logger.info('Both cards selected, executing Jack swap', isOn: LOGGING_SWITCH);
@@ -277,7 +275,6 @@ class PlayerAction {
     } catch (e) {
       final logger = Logger();
       logger.error('Error in selectCardForJackSwap: $e', isOn: LOGGING_SWITCH);
-      print('Error in selectCardForJackSwap: $e');
       rethrow;
     }
   }
@@ -341,7 +338,6 @@ class PlayerAction {
     } catch (e) {
       final logger = Logger();
       logger.error('Error executing Jack swap: $e', isOn: LOGGING_SWITCH);
-      print('Error executing Jack swap: $e');
       rethrow;
     }
   }

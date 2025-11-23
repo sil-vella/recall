@@ -7,6 +7,7 @@ import '../utils/recall_game_helpers.dart';
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
   static const bool LOGGING_SWITCH = false;
+  static final Logger _logger = Logger();
 
   // ========================================
   // HELPER METHODS TO REDUCE DUPLICATION
@@ -114,7 +115,7 @@ class RecallEventHandlerCallbacks {
       final currentUserId = loginState['userId']?.toString() ?? '';
       
       if (currentUserId.isEmpty) {
-        Logger().debug('_syncWidgetStatesFromGameState: No current user ID found', isOn: LOGGING_SWITCH);
+        _logger.debug('_syncWidgetStatesFromGameState: No current user ID found', isOn: LOGGING_SWITCH);
         return;
       }
       
@@ -127,7 +128,7 @@ class RecallEventHandlerCallbacks {
           (player) => player['id']?.toString() == currentUserId,
         );
       } catch (e) {
-        Logger().debug('_syncWidgetStatesFromGameState: Current user not found in players list', isOn: LOGGING_SWITCH);
+        _logger.debug('_syncWidgetStatesFromGameState: Current user not found in players list', isOn: LOGGING_SWITCH);
         return;
       }
       
@@ -173,9 +174,9 @@ class RecallEventHandlerCallbacks {
       // Apply widget updates to games map
       _updateGameInMap(gameId, widgetUpdates);
       
-      Logger().debug('_syncWidgetStatesFromGameState: Synced widget states for game $gameId', isOn: LOGGING_SWITCH);
+      _logger.debug('_syncWidgetStatesFromGameState: Synced widget states for game $gameId', isOn: LOGGING_SWITCH);
     } catch (e) {
-      Logger().error('_syncWidgetStatesFromGameState: Error syncing widget states: $e', isOn: LOGGING_SWITCH);
+      _logger.error('_syncWidgetStatesFromGameState: Error syncing widget states: $e', isOn: LOGGING_SWITCH);
     }
   }
   
@@ -428,10 +429,10 @@ class RecallEventHandlerCallbacks {
     final ownerId = data['owner_id']?.toString(); // Extract owner_id from main payload
     
     // 🔍 DEBUG: Log the extracted values
-    Logger().info('🔍 handleGameStateUpdated DEBUG:', isOn: LOGGING_SWITCH);
-    Logger().info('  gameId: $gameId', isOn: LOGGING_SWITCH);
-    Logger().info('  ownerId: $ownerId', isOn: LOGGING_SWITCH);
-    Logger().info('  data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+    _logger.info('🔍 handleGameStateUpdated DEBUG:', isOn: LOGGING_SWITCH);
+    _logger.info('  gameId: $gameId', isOn: LOGGING_SWITCH);
+    _logger.info('  ownerId: $ownerId', isOn: LOGGING_SWITCH);
+    _logger.info('  data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
     final roundNumber = data['round_number'] as int? ?? 1;
     final currentPlayer = data['current_player'];
     final currentPlayerStatus = data['current_player_status']?.toString() ?? 'unknown';
@@ -462,7 +463,7 @@ class RecallEventHandlerCallbacks {
       _addGameToMap(gameId, base);
     } else {
       // Update existing game's game_state
-      Logger().info('🔍 Updating existing game: $gameId', isOn: LOGGING_SWITCH);
+      _logger.info('🔍 Updating existing game: $gameId', isOn: LOGGING_SWITCH);
       _updateGameData(gameId, {
         'game_state': gameState,
       });
@@ -470,14 +471,14 @@ class RecallEventHandlerCallbacks {
       // Update owner_id and recalculate isRoomOwner at the top level
       if (ownerId != null) {
         final currentUserId = _getCurrentUserId();
-        Logger().info('🔍 Updating owner_id: $ownerId, currentUserId: $currentUserId', isOn: LOGGING_SWITCH);
-        Logger().info('🔍 Setting isRoomOwner: ${ownerId == currentUserId}', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 Updating owner_id: $ownerId, currentUserId: $currentUserId', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 Setting isRoomOwner: ${ownerId == currentUserId}', isOn: LOGGING_SWITCH);
         _updateGameInMap(gameId, {
           'owner_id': ownerId,
           'isRoomOwner': ownerId == currentUserId,
         });
       } else {
-        Logger().info('🔍 ownerId is null, preserving previous ownership', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 ownerId is null, preserving previous ownership', isOn: LOGGING_SWITCH);
         // Preserve main state's isRoomOwner when ownerId is missing
         final currentMain = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         final prevIsOwner = currentMain['isRoomOwner'] as bool? ?? false;
@@ -562,7 +563,7 @@ class RecallEventHandlerCallbacks {
 
   /// Handle game_state_partial_update event
   static void handleGameStatePartialUpdate(Map<String, dynamic> data) {
-    Logger().info("handleGameStatePartialUpdate: $data", isOn: LOGGING_SWITCH);
+    _logger.info("handleGameStatePartialUpdate: $data", isOn: LOGGING_SWITCH);
     final gameId = data['game_id']?.toString() ?? '';
     final changedProperties = data['changed_properties'] as List<dynamic>? ?? [];
     final partialGameState = data['partial_game_state'] as Map<String, dynamic>? ?? {};
@@ -636,7 +637,7 @@ class RecallEventHandlerCallbacks {
       }
     }
 
-    Logger().info("updates: $updates", isOn: LOGGING_SWITCH);
+    _logger.info("updates: $updates", isOn: LOGGING_SWITCH);
     // Apply UI updates if any
     if (updates.isNotEmpty) {
       _updateGameInMap(gameId, updates);
@@ -833,6 +834,6 @@ class RecallEventHandlerCallbacks {
       },
     });
     
-    Logger().info('Recall Error: $message', isOn: LOGGING_SWITCH);
+    _logger.info('Recall Error: $message', isOn: LOGGING_SWITCH);
   }
 }

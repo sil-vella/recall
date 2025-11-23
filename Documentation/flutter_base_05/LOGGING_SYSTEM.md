@@ -274,7 +274,7 @@ void _sendToServer({required int level, required String message, Object? error, 
 
 ```dart
 class MyModule extends ModuleBase {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
@@ -297,7 +297,7 @@ class MyModule extends ModuleBase {
 
 ```dart
 class StateAwareWidget extends StatelessWidget {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   
   @override
   Widget build(BuildContext context) {
@@ -323,7 +323,7 @@ class StateAwareWidget extends StatelessWidget {
 
 ```dart
 class CriticalSystem {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   
   void handleCriticalEvent() {
     // This will log even if Config.loggerOn is false
@@ -339,7 +339,7 @@ class CriticalSystem {
 
 ```dart
 class ApiService {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   
   Future<Map<String, dynamic>> fetchData() async {
     try {
@@ -429,7 +429,7 @@ class _MyAppState extends State<MyApp> {
 
 ```dart
 class StateManager with ChangeNotifier {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   
   void registerModuleState(String moduleKey, Map<String, dynamic> initialState) {
     _moduleStates[moduleKey] = ModuleState(state: initialState);
@@ -453,7 +453,7 @@ class StateManager with ChangeNotifier {
 
 ```dart
 class SharedPrefManager extends ServicesBase {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   
   @override
   Future<void> initialize() async {

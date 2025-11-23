@@ -157,7 +157,7 @@ import '../../managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
 
 class StateAwareCustomFeature extends StatelessWidget {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   
   const StateAwareCustomFeature({Key? key}) : super(key: key);
 
@@ -177,7 +177,7 @@ class StateAwareCustomFeature extends StatelessWidget {
           ),
           onPressed: () {
             // Handle tap
-            _log.info('Custom feature tapped');
+            _logger.info('Custom feature tapped');
           },
           tooltip: isEnabled ? 'Enabled' : 'Disabled',
         );
@@ -194,7 +194,7 @@ Add the feature to the global registration:
 ```dart
 // In lib/core/widgets/state_aware_features/state_aware_feature_registry.dart
 static void registerGlobalAppBarFeatures(BuildContext context) {
-  _log.info('🌐 Registering state-aware global app bar features');
+  _logger.info('🌐 Registering state-aware global app bar features');
   
   // Register your custom feature
   final customFeature = FeatureDescriptor(
@@ -210,7 +210,7 @@ static void registerGlobalAppBarFeatures(BuildContext context) {
     context: context,
   );
   
-  _log.info('✅ Custom feature registered for global scope');
+  _logger.info('✅ Custom feature registered for global scope');
 }
 ```
 
@@ -358,7 +358,7 @@ The `FeatureSlot` widget listens to changes in both scopes:
 _sub = _registry.changes.listen((scope) {
   // Rebuild if the change is in our scope OR in the global scope
   if ((scope == widget.scopeKey || scope == 'global_app_bar') && mounted) {
-    _log.info('🎮 FeatureSlot rebuilding due to registry change for scope: $scope');
+    _logger.info('🎮 FeatureSlot rebuilding due to registry change for scope: $scope');
     setState(() {});
   }
 });

@@ -12,6 +12,7 @@ import '../../../utils/modal_template_widget.dart';
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class InstructionsWidget extends StatelessWidget {
   static const bool LOGGING_SWITCH = false;
+  static final Logger _logger = Logger();
   
   const InstructionsWidget({Key? key}) : super(key: key);
 
@@ -28,7 +29,7 @@ class InstructionsWidget extends StatelessWidget {
         final title = instructionsData['title']?.toString() ?? 'Game Instructions';
         final content = instructionsData['content']?.toString() ?? '';
         
-        Logger().info('InstructionsWidget: isVisible=$isVisible, title=$title', isOn: LOGGING_SWITCH);
+        _logger.info('InstructionsWidget: isVisible=$isVisible, title=$title', isOn: LOGGING_SWITCH);
         
         // Don't render if not visible
         if (!isVisible || content.isEmpty) {
@@ -58,7 +59,7 @@ class InstructionsWidget extends StatelessWidget {
   
   void _closeInstructions(BuildContext context) {
     try {
-      Logger().info('InstructionsWidget: Closing instructions modal', isOn: LOGGING_SWITCH);
+      _logger.info('InstructionsWidget: Closing instructions modal', isOn: LOGGING_SWITCH);
       
       // Close the dialog first
       Navigator.of(context).pop();
@@ -74,7 +75,7 @@ class InstructionsWidget extends StatelessWidget {
       });
       
     } catch (e) {
-      Logger().error('InstructionsWidget: Failed to close instructions: $e', isOn: LOGGING_SWITCH);
+      _logger.error('InstructionsWidget: Failed to close instructions: $e', isOn: LOGGING_SWITCH);
     }
   }
 }

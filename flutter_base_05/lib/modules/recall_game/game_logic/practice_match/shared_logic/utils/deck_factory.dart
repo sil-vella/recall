@@ -283,11 +283,10 @@ class DeckUtils {
   }
 
   /// Print deck statistics for debugging
+  /// Note: This method is kept for API compatibility but does not output anything
+  /// when LOGGING_SWITCH is false. Use Logger with LOGGING_SWITCH for actual logging.
   static void printDeckStats(List<Card> cards) {
-    final stats = getDeckStats(cards);
-    print('Deck Statistics:');
-    stats.forEach((key, value) {
-      print('  $key: $value');
-    });
+    // Method kept for API compatibility - no output when logging is disabled
+    // Use Logger with LOGGING_SWITCH for actual logging if needed
   }
 }

@@ -10,7 +10,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../card_position_tracker.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Widget to display the player's hand
 /// 
@@ -94,22 +94,22 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         }
         
         // Debug logging
-        Logger().info('🃏 MyHandWidget - playerStatus: $playerStatus', isOn: LOGGING_SWITCH);
-        Logger().info('🃏 MyHandWidget - cards.length: ${cards.length}', isOn: LOGGING_SWITCH);
-        Logger().info('🃏 MyHandWidget - cardsToPeek.length: ${cardsToPeek.length}', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 MyHandWidget - playerStatus: $playerStatus', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 MyHandWidget - cards.length: ${cards.length}', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 MyHandWidget - cardsToPeek.length: ${cardsToPeek.length}', isOn: LOGGING_SWITCH);
         if (cardsToPeek.isNotEmpty) {
-          Logger().info('🃏 MyHandWidget - cardsToPeek IDs: ${cardsToPeek.map((c) => c['cardId']).toList()}', isOn: LOGGING_SWITCH);
+          _logger.info('🃏 MyHandWidget - cardsToPeek IDs: ${cardsToPeek.map((c) => c['cardId']).toList()}', isOn: LOGGING_SWITCH);
         }
-        Logger().info('🃏 MyHandWidget - myHand keys: ${myHand.keys.toList()}', isOn: LOGGING_SWITCH);
-        Logger().info('🃏 MyHandWidget - recallGameState keys: ${recallGameState.keys.toList()}', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 MyHandWidget - myHand keys: ${myHand.keys.toList()}', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 MyHandWidget - recallGameState keys: ${recallGameState.keys.toList()}', isOn: LOGGING_SWITCH);
         
         // Check what's in the games map
         final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
         final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
         final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
         final myHandCards = currentGame['myHandCards'] as List<dynamic>? ?? [];
-        Logger().info('🃏 MyHandWidget - currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
-        Logger().info('🃏 MyHandWidget - myHandCards.length: ${myHandCards.length}', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 MyHandWidget - currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 MyHandWidget - myHandCards.length: ${myHandCards.length}', isOn: LOGGING_SWITCH);
         
         // Reset initial peek state when not in initial_peek status
         if (playerStatus != 'initial_peek' && _initialPeekSelectionCount > 0) {
@@ -594,7 +594,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   void _handleCardSelection(BuildContext context, int index, Map<String, dynamic> card) async {
     // Check local processing flag first (prevents rapid clicking without touching backend state)
     if (_isProcessingAction) {
-      Logger().info('🚫 MyHandWidget - Action already in progress, ignoring card selection', isOn: LOGGING_SWITCH);
+      _logger.info('🚫 MyHandWidget - Action already in progress, ignoring card selection', isOn: LOGGING_SWITCH);
       return;
     }
     
@@ -801,7 +801,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           setState(() {
             _isProcessingAction = true;
           });
-          Logger().info('🔒 MyHandWidget - Set _isProcessingAction = true', isOn: LOGGING_SWITCH);
+          _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true', isOn: LOGGING_SWITCH);
           
           // Use regular play card action for other states
           final playAction = PlayerAction.playerPlayCard(
@@ -817,7 +817,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               setState(() {
                 _isProcessingAction = false;
               });
-              Logger().info('🔓 MyHandWidget - Reset _isProcessingAction = false', isOn: LOGGING_SWITCH);
+              _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false', isOn: LOGGING_SWITCH);
             }
           });
           
@@ -831,7 +831,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           setState(() {
             _isProcessingAction = false;
           });
-          Logger().info('🔓 MyHandWidget - Reset _isProcessingAction = false (error case)', isOn: LOGGING_SWITCH);
+          _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (error case)', isOn: LOGGING_SWITCH);
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

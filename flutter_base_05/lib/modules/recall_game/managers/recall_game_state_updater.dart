@@ -16,33 +16,25 @@ class RecallGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   
   // Dependencies
   final StateManager _stateManager = StateManager();
   final StateQueueValidator _validator = StateQueueValidator.instance;
   
   RecallGameStateUpdater._internal() {
-    print('🎬🎬🎬 RecallGameStateUpdater: CONSTRUCTOR CALLED - Instance created (singleton initialization)');
     _logger.info('🎬 RecallGameStateUpdater: Instance created (singleton initialization)', isOn: LOGGING_SWITCH);
     
     // Set update handler to apply validated updates
     final validator = StateQueueValidator.instance;
-    print('🎬🎬🎬 RecallGameStateUpdater: Got StateQueueValidator.instance, about to set handler');
     _logger.info('🎬 RecallGameStateUpdater: Setting update handler on StateQueueValidator', isOn: LOGGING_SWITCH);
     
     validator.setUpdateHandler((Map<String, dynamic> validatedUpdates) {
-      print('🎬🎬🎬 RecallGameStateUpdater: HANDLER CALLBACK DEFINED - This closure was created');
-      // CRITICAL: First log to verify this callback is actually being called
-      print('🎬🎬🎬 RecallGameStateUpdater: HANDLER CALLBACK EXECUTING! Keys: ${validatedUpdates.keys.toList()}');
       _logger.info('🎬 RecallGameStateUpdater: Handler callback invoked with keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
       try {
-        print('🎬🎬🎬 RecallGameStateUpdater: About to call _applyValidatedUpdates');
         _applyValidatedUpdates(validatedUpdates);
-        print('🎬🎬🎬 RecallGameStateUpdater: _applyValidatedUpdates returned');
         _logger.info('🎬 RecallGameStateUpdater: Handler callback completed successfully', isOn: LOGGING_SWITCH);
       } catch (e, stackTrace) {
-        print('🎬🎬🎬 RecallGameStateUpdater: EXCEPTION in handler: $e');
         _logger.error('🎬 RecallGameStateUpdater: Exception in handler callback: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
         rethrow;
       }
@@ -82,8 +74,6 @@ class RecallGameStateUpdater {
   /// Apply validated updates with widget slice computation
   /// This is called by StateQueueValidator after validation
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
-    // CRITICAL: Print to verify this method is actually being called
-    print('🎬🎬🎬 RecallGameStateUpdater: _applyValidatedUpdates CALLED! Keys: ${validatedUpdates.keys.toList()}');
     _logger.info('🎬 RecallGameStateUpdater: _applyValidatedUpdates START with keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
     try {
       // Get current state
@@ -304,15 +294,11 @@ class RecallGameStateUpdater {
   
   /// Compute center board widget slice
   Map<String, dynamic> _computeCenterBoardSlice(Map<String, dynamic> state) {
-    print('🔍 DEBUG: _computeCenterBoardSlice CALLED');
     final currentGameId = state['currentGameId']?.toString() ?? '';
-    print('🔍 DEBUG: _computeCenterBoardSlice - currentGameId: $currentGameId');
     final games = state['games'] as Map<String, dynamic>? ?? {};
-    print('🔍 DEBUG: _computeCenterBoardSlice - games keys: ${games.keys.toList()}');
     
     // If no current game or game not found in games map
     if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
-      print('🔍 DEBUG: _computeCenterBoardSlice - No current game found, returning empty slice');
       return {
         'drawPileCount': 0,
         'topDiscard': null,
@@ -327,26 +313,10 @@ class RecallGameStateUpdater {
     final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     
-    print('🔍 DEBUG: _computeCenterBoardSlice - gameState keys: ${gameState.keys.toList()}');
-    
     // Get pile information from game state
     final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
     final drawPileCount = drawPile.length;
-    
-    print('🔍 DEBUG: _computeCenterBoardSlice - drawPile length: $drawPileCount');
-    print('🔍 DEBUG: _computeCenterBoardSlice - discardPile length: ${discardPile.length}');
-    
-    // Debug: Log discard pile contents when computing centerBoard slice
-    if (discardPile.isNotEmpty) {
-      print('🔍 DEBUG: _computeCenterBoardSlice - discardPile has ${discardPile.length} cards');
-      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard will be: ${discardPile.last}');
-      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard cardId: ${discardPile.last['cardId']}');
-      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard rank: ${discardPile.last['rank']}');
-      print('🔍 DEBUG: _computeCenterBoardSlice - topDiscard suit: ${discardPile.last['suit']}');
-    } else {
-      print('🔍 DEBUG: _computeCenterBoardSlice - discardPile is empty');
-    }
     
     // Get top draw card (convert ID-only to full data)
     Map<String, dynamic>? topDraw;
@@ -360,12 +330,8 @@ class RecallGameStateUpdater {
           for (final card in originalDeck) {
             if (card is Map<String, dynamic> && card['cardId']?.toString() == topDrawCardId) {
               topDraw = card;
-              print('🔍 DEBUG: _computeCenterBoardSlice - Found topDraw card: ${topDraw['cardId']} (${topDraw['rank']} of ${topDraw['suit']})');
               break;
             }
-          }
-          if (topDraw == null) {
-            print('🔍 DEBUG: _computeCenterBoardSlice - Top draw card $topDrawCardId not found in originalDeck');
           }
         }
       }
@@ -378,8 +344,6 @@ class RecallGameStateUpdater {
       'canDrawFromDeck': drawPileCount > 0,
       'canTakeFromDiscard': discardPile.isNotEmpty,
     };
-    
-    print('🔍 DEBUG: _computeCenterBoardSlice - Returning result with topDiscard: ${result['topDiscard'] != null ? 'NOT NULL' : 'NULL'}');
     
     return result;
   }
@@ -426,15 +390,6 @@ class RecallGameStateUpdater {
     
     // Get turn_events from main state
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
-    
-    // Debug logging for opponents panel computation
-    print('🔍 OPPONENTS PANEL DEBUG:');
-    print('  currentGameId: $currentGameId');
-    print('  currentUserId: $currentUserId');
-    print('  allPlayers: ${allPlayers.map((p) => '${p['name']} (${p['id']}, status: ${p['status']})').join(', ')}');
-    print('  opponents: ${opponents.map((p) => '${p['name']} (${p['id']}, status: ${p['status']})').join(', ')}');
-    print('  currentPlayer: ${currentPlayer?['name']} (${currentPlayer?['id']})');
-    print('  currentTurnIndex: $currentTurnIndex');
     
     return {
       'opponents': opponents,
@@ -517,7 +472,7 @@ class RecallGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found
@@ -540,7 +495,7 @@ class RecallGameStateAccessor {
       return gameState;
       
     } catch (e) {
-      _logger.error('RecallGameStateAccessor: Error getting game state for ID "$gameId": $e', isOn: true);
+      _logger.error('RecallGameStateAccessor: Error getting game state for ID "$gameId": $e', isOn: LOGGING_SWITCH);
       return null;
     }
   }

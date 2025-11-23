@@ -13,17 +13,29 @@ class Logger {
     return _instance;
   }
 
-  /// General log method that respects `Config.loggerOn`
-  void log(String message, {String name = 'AppLogger', Object? error, StackTrace? stackTrace, int level = 0, bool isOn = false}) {
-    // Early return if logging is disabled and not forced
-    if (!Config.loggerOn && !isOn) {
+  /// General log method that respects `Config.loggerOn` and `isOn` parameter
+  /// When `isOn` is explicitly provided, it takes precedence over `Config.loggerOn`
+  void log(String message, {String name = 'AppLogger', Object? error, StackTrace? stackTrace, int level = 0, bool? isOn}) {
+    // If isOn is explicitly false, don't log (takes precedence over Config.loggerOn)
+    if (isOn == false) {
       return;
     }
     
-    if (Config.loggerOn || isOn) {
+    // If isOn is explicitly true, always log
+    if (isOn == true) {
       developer.log(message, name: name, error: error, stackTrace: stackTrace, level: level);
-      
-      // Also print to console for debugging (always in debug builds)
+      final timestamp = DateTime.now().toIso8601String();
+      final levelStr = _getLevelString(level);
+      print('[$timestamp] [$levelStr] [$name] $message');
+      if (error != null) {
+        print('[$timestamp] [ERROR] [$name] Error: $error');
+      }
+      return;
+    }
+    
+    // If isOn is not provided (null), use Config.loggerOn
+    if (Config.loggerOn) {
+      developer.log(message, name: name, error: error, stackTrace: stackTrace, level: level);
       final timestamp = DateTime.now().toIso8601String();
       final levelStr = _getLevelString(level);
       print('[$timestamp] [$levelStr] [$name] $message');
@@ -34,31 +46,27 @@ class Logger {
   }
 
   /// Log an informational message
-  void info(String message, {bool isOn = false}) {
-    if (!Config.loggerOn && !isOn) return;
+  void info(String message, {bool? isOn}) {
     log(message, level: 800, isOn: isOn);
   }
 
   /// Log a warning message
-  void warning(String message, {bool isOn = false}) {
-    if (!Config.loggerOn && !isOn) return;
+  void warning(String message, {bool? isOn}) {
     log(message, level: 900, isOn: isOn);
   }
 
   /// Log a debug message
-  void debug(String message, {bool isOn = false}) {
-    if (!Config.loggerOn && !isOn) return;
+  void debug(String message, {bool? isOn}) {
     log(message, level: 500, isOn: isOn);
   }
 
   /// Log an error message
-  void error(String message, {Object? error, StackTrace? stackTrace, bool isOn = false}) {
-    if (!Config.loggerOn && !isOn) return;
+  void error(String message, {Object? error, StackTrace? stackTrace, bool? isOn}) {
     log(message, level: 1000, error: error, stackTrace: stackTrace, isOn: isOn);
   }
 
-  /// Force log (logs regardless of `Config.loggerOn`)
-  void forceLog(String message, {String name = 'AppLogger', Object? error, StackTrace? stackTrace, int level = 0, bool isOn = false}) {
+  /// Force log (logs regardless of `Config.loggerOn` and `isOn`)
+  void forceLog(String message, {String name = 'AppLogger', Object? error, StackTrace? stackTrace, int level = 0}) {
     developer.log(message, name: name, error: error, stackTrace: stackTrace, level: level);
     
     // Also print to console for debugging

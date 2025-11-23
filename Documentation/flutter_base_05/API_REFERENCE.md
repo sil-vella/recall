@@ -1017,7 +1017,7 @@ Map<String, dynamic> healthCheck() {
 
 ```dart
 class UserModule extends ModuleBase {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   late ConnectionsApiModule _apiModule;
   
   UserModule() : super("user_module", dependencies: ["connections_api_module"]);
@@ -1037,7 +1037,7 @@ class UserModule extends ModuleBase {
       "error": null,
     });
     
-    _log.info('✅ UserModule initialized');
+    _logger.info('✅ UserModule initialized');
   }
   
   Future<void> loadUserProfile() async {
@@ -1067,7 +1067,7 @@ class UserModule extends ModuleBase {
   
   @override
   void dispose() {
-    _log.info('🗑 UserModule disposed');
+    _logger.info('🗑 UserModule disposed');
     super.dispose();
   }
   

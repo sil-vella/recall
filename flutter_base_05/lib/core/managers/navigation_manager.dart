@@ -44,7 +44,7 @@ class RegisteredRoute {
 }
 
 class NavigationManager extends ChangeNotifier {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   static final NavigationManager _instance = NavigationManager._internal();
   static final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   

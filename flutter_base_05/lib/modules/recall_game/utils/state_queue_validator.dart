@@ -39,7 +39,7 @@ class StateQueueValidator {
 
   /// Logger instance (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
 
   /// Define the complete state schema with validation rules
   /// Must remain identical across Flutter and Dart backend implementations
@@ -444,10 +444,8 @@ class StateQueueValidator {
 
   /// Set the handler for applying validated updates (platform-specific)
   void setUpdateHandler(StateUpdateHandler handler) {
-    print('🎬🎬🎬 StateQueueValidator: setUpdateHandler CALLED - Setting new handler');
     _logger.info('StateQueueValidator: setUpdateHandler called', isOn: LOGGING_SWITCH);
     _updateHandler = handler;
-    print('🎬🎬🎬 StateQueueValidator: Handler set successfully, _updateHandler is now: ${_updateHandler != null ? "NOT NULL" : "NULL"}');
   }
 
 

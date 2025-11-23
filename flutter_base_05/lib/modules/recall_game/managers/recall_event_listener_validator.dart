@@ -24,6 +24,8 @@ class RecallGameEventListenerValidator {
     return _instance!;
   }
   
+  final Logger _logger = Logger();
+  
   RecallGameEventListenerValidator._internal();
   
 
@@ -194,11 +196,11 @@ class RecallGameEventListenerValidator {
   void _handleDirectEvent(String eventType, Map<String, dynamic> data) {
     try {
         // Log incoming event
-        Logger().info("📥 Received event: $eventType with data: $data", isOn: LOGGING_SWITCH);
+        _logger.info("📥 Received event: $eventType with data: $data", isOn: LOGGING_SWITCH);
         
         // Validate event type
       if (!_eventConfigs.containsKey(eventType)) {
-          Logger().warning("❌ Unknown event type: $eventType", isOn: LOGGING_SWITCH);
+          _logger.warning("❌ Unknown event type: $eventType", isOn: LOGGING_SWITCH);
           return;
         }
 
@@ -216,9 +218,9 @@ class RecallGameEventListenerValidator {
         };
 
       // Route directly to RecallEventManager based on event type
-      Logger().info("🔄 Routing event: $eventType to manager", isOn: LOGGING_SWITCH);
+      _logger.info("🔄 Routing event: $eventType to manager", isOn: LOGGING_SWITCH);
       _routeEventToManager(eventType, eventPayload);
-      Logger().info("✅ Successfully processed event: $eventType", isOn: LOGGING_SWITCH);
+      _logger.info("✅ Successfully processed event: $eventType", isOn: LOGGING_SWITCH);
 
       } catch (e) {
     }
@@ -229,7 +231,7 @@ class RecallGameEventListenerValidator {
     final eventConfig = _eventConfigs[eventType];
     final handlerMethod = eventConfig?.handlerMethod;
     
-    Logger().info("🎯 Calling handler method: $handlerMethod for event: $eventType", isOn: LOGGING_SWITCH);
+    _logger.info("🎯 Calling handler method: $handlerMethod for event: $eventType", isOn: LOGGING_SWITCH);
     
     if (handlerMethod == null) {
       return;

@@ -20,6 +20,7 @@ class PracticeScreen extends BaseScreen {
 }
 
 class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
+  final Logger _logger = Logger();
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   late final PracticeGameCoordinator _recallCoordinator;
   
@@ -137,22 +138,22 @@ class _PracticeScreenState extends BaseScreenState<PracticeScreen> {
   /// Navigate to game play screen for recall game
   void _navigateToGamePlay() {
     try {
-      Logger().info('Recall: Starting navigation to game play screen', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Starting navigation to game play screen', isOn: LOGGING_SWITCH);
       
       // Check if recall game is active
       if (_recallCoordinator.isPracticeGameActive) {
-        Logger().info('Recall: Recall game is active, proceeding with navigation', isOn: LOGGING_SWITCH);
-        Logger().info('Recall: Current recall game ID: ${_recallCoordinator.currentPracticeGameId}', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Recall game is active, proceeding with navigation', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Current recall game ID: ${_recallCoordinator.currentPracticeGameId}', isOn: LOGGING_SWITCH);
       } else {
-        Logger().warning('Recall: No active recall game found', isOn: LOGGING_SWITCH);
+        _logger.warning('Recall: No active recall game found', isOn: LOGGING_SWITCH);
       }
       
       // Use NavigationManager to navigate to game play screen
       NavigationManager().navigateTo('/recall/game-play');
       
-      Logger().info('Recall: Navigation command sent to NavigationManager', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Navigation command sent to NavigationManager', isOn: LOGGING_SWITCH);
     } catch (e) {
-      Logger().error('Recall: Failed to navigate to game play: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Recall: Failed to navigate to game play: $e', isOn: LOGGING_SWITCH);
       if (mounted) {
         _showSnackBar('Failed to navigate to game: $e', isError: true);
       }

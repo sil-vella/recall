@@ -19,7 +19,7 @@ class AuthTestScreen extends BaseScreen {
 }
 
 class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   
   // Module manager
   final ModuleManager _moduleManager = ModuleManager();
@@ -34,13 +34,13 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
   }
   
   void _initializeModules() {
-    _log.info('🔧 Initializing Auth Test Screen modules');
+    _logger.info('🔧 Initializing Auth Test Screen modules');
     // Initialize any required modules here
   }
   
   Future<void> _testJWT() async {
     try {
-      _log.info('🧪 Testing JWT endpoint');
+      _logger.info('🧪 Testing JWT endpoint');
       
       // Get the ConnectionsApiModule instance from ModuleManager
       final connectionsApiModule = _moduleManager.getModule('connections_api') as ConnectionsApiModule;
@@ -50,7 +50,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         {},
       );
       
-      _log.info('✅ JWT test response: $response');
+      _logger.info('✅ JWT test response: $response');
       
       // Show success message
       if (mounted) {
@@ -62,7 +62,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         );
       }
     } catch (e) {
-      _log.error('❌ JWT test failed: $e');
+      _logger.error('❌ JWT test failed: $e');
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -79,14 +79,14 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
     try {
       // Get current TTL before setting
       final currentTtl = await _authManager.getAccessTokenTtl();
-      _log.info('🔍 Current access token TTL before setting: ${currentTtl}s');
+      _logger.info('🔍 Current access token TTL before setting: ${currentTtl}s');
       
       await _authManager.setTtlTo10Seconds();
-      _log.info('✅ Set access token TTL to 10 seconds');
+      _logger.info('✅ Set access token TTL to 10 seconds');
       
       // Get TTL after setting to verify
       final newTtl = await _authManager.getAccessTokenTtl();
-      _log.info('🔍 New access token TTL after setting: ${newTtl}s');
+      _logger.info('🔍 New access token TTL after setting: ${newTtl}s');
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -97,7 +97,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         );
       }
     } catch (e) {
-      _log.error('❌ Failed to set access token TTL: $e');
+      _logger.error('❌ Failed to set access token TTL: $e');
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -119,7 +119,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         'refresh': refreshTtl,
       };
     } catch (e) {
-      _log.error('❌ Error getting TTL values: $e');
+      _logger.error('❌ Error getting TTL values: $e');
       return {
         'access': 0,
         'refresh': 0,
@@ -131,14 +131,14 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
     try {
       // Get current refresh TTL before setting
       final currentRefreshTtl = await _authManager.getRefreshTokenTtl();
-      _log.info('🔍 Current refresh token TTL before setting: ${currentRefreshTtl}s');
+      _logger.info('🔍 Current refresh token TTL before setting: ${currentRefreshTtl}s');
       
       await _authManager.setRefreshTtlTo10Seconds();
-      _log.info('✅ Set refresh token TTL to 10 seconds');
+      _logger.info('✅ Set refresh token TTL to 10 seconds');
       
       // Get refresh TTL after setting to verify
       final newRefreshTtl = await _authManager.getRefreshTokenTtl();
-      _log.info('🔍 New refresh token TTL after setting: ${newRefreshTtl}s');
+      _logger.info('🔍 New refresh token TTL after setting: ${newRefreshTtl}s');
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -149,7 +149,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         );
       }
     } catch (e) {
-      _log.error('❌ Failed to set refresh token TTL: $e');
+      _logger.error('❌ Failed to set refresh token TTL: $e');
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -18,7 +18,7 @@ import '../tools/logging/logger.dart';
 /// 3. Implement required methods
 /// 4. Add your module-specific functionality
 class RecallGameMain extends ModuleBase {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   late ModuleManager _localModuleManager;
   late ServicesManager _servicesManager;
   SharedPrefManager? _sharedPref;
@@ -33,7 +33,7 @@ class RecallGameMain extends ModuleBase {
     super.initialize(context, moduleManager);
     _localModuleManager = moduleManager;
     _initDependencies(context);
-    _log.info('✅ RecallGameMain initialized with context.');
+    _logger.info('✅ RecallGameMain initialized with context.');
     _registerState();
 
   }
@@ -52,7 +52,7 @@ class RecallGameMain extends ModuleBase {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final stateManager = StateManager();
       if (!stateManager.isModuleStateRegistered('recall_game')) {
-        _log.info('📊 Creating new recall_game state registration...');
+        _logger.info('📊 Creating new recall_game state registration...');
         stateManager.registerModuleState('recall_game', {
           // Connection state
           'isLoading': false,
@@ -100,9 +100,9 @@ class RecallGameMain extends ModuleBase {
           // Metadata
           'lastUpdated': DateTime.now().toIso8601String(),
         });
-        _log.info('✅ Recall game state registered with widget slices');
+        _logger.info('✅ Recall game state registered with widget slices');
       } else {
-        _log.info('📊 Recall game state already registered');
+        _logger.info('📊 Recall game state already registered');
       }
     });
   }
@@ -112,10 +112,10 @@ class RecallGameMain extends ModuleBase {
     // Screens no longer require a notifier – nothing to guard here
     
     final navigationManager = NavigationManager();
-    _log.info('🗺️ NavigationManager obtained for screen registration');
+    _logger.info('🗺️ NavigationManager obtained for screen registration');
 
     // Register Recall Game Lobby Screen (Room Management)
-    _log.info('🗺️ Registering LobbyScreen route: /recall/lobby');
+    _logger.info('🗺️ Registering LobbyScreen route: /recall/lobby');
     navigationManager.registerRoute(
       path: '/recall/lobby',
       screen: (context) => const LobbyScreen(),
@@ -123,10 +123,10 @@ class RecallGameMain extends ModuleBase {
       drawerIcon: Icons.games,
       drawerPosition: 6, // After existing screens
     );
-    _log.info('✅ LobbyScreen route registered');
+    _logger.info('✅ LobbyScreen route registered');
 
     // Register Game Play Screen - ALWAYS with notifier
-    _log.info('🗺️ Registering GamePlayScreen route: /recall/game-play');
+    _logger.info('🗺️ Registering GamePlayScreen route: /recall/game-play');
     navigationManager.registerRoute(
       path: '/recall/game-play',
       screen: (BuildContext context) => const GamePlayScreen(),
@@ -134,7 +134,7 @@ class RecallGameMain extends ModuleBase {
       drawerIcon: null,
       drawerPosition: 999,
     );
-    _log.info('✅ GamePlayScreen route registered');
+    _logger.info('✅ GamePlayScreen route registered');
 
     // navigationManager.registerRoute(
     //   path: '/recall/game-results',
@@ -144,23 +144,23 @@ class RecallGameMain extends ModuleBase {
     //   drawerPosition: 999,
     // );
 
-    _log.info('✅ Recall game screens registered with NavigationManager');
+    _logger.info('✅ Recall game screens registered with NavigationManager');
   }
 
   /// ✅ Cleanup resources when module is disposed
   @override
   void dispose() {
-    _log.info('🗑 RecallGameMain disposed.');
+    _logger.info('🗑 RecallGameMain disposed.');
     super.dispose();
   }
 
   /// ✅ Example method - add your module-specific methods below
   Future<Map<String, dynamic>> exampleMethod(BuildContext context) async {
     try {
-      _log.info('🔧 RecallGameMain example method called');
+      _logger.info('🔧 RecallGameMain example method called');
       return {"success": "Example method executed successfully"};
     } catch (e) {
-      _log.error('❌ Error in example method: $e');
+      _logger.error('❌ Error in example method: $e');
       return {"error": "Example method failed: $e"};
     }
   }

@@ -13,7 +13,8 @@ import '../../../../../tools/logging/logger.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class GameInfoWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = true; // Enable logging for debugging start button
+  static const bool LOGGING_SWITCH = false; // Enable logging for debugging start button
+  static final Logger _logger = Logger();
   
   const GameInfoWidget({Key? key}) : super(key: key);
 
@@ -39,15 +40,15 @@ class GameInfoWidget extends StatelessWidget {
         final isPracticeGame = currentGameId.startsWith('recall_game_');
         
         // 🔍 DEBUG: Log the values that determine start button visibility
-        Logger().info('🔍 GameInfoWidget DEBUG:', isOn: LOGGING_SWITCH);
-        Logger().info('  currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
-        Logger().info('  gamePhase: $gamePhase', isOn: LOGGING_SWITCH);
-        Logger().info('  isRoomOwner: $isRoomOwner', isOn: LOGGING_SWITCH);
-        Logger().info('  isInGame: $isInGame', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 GameInfoWidget DEBUG:', isOn: LOGGING_SWITCH);
+        _logger.info('  currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
+        _logger.info('  gamePhase: $gamePhase', isOn: LOGGING_SWITCH);
+        _logger.info('  isRoomOwner: $isRoomOwner', isOn: LOGGING_SWITCH);
+        _logger.info('  isInGame: $isInGame', isOn: LOGGING_SWITCH);
         
-        Logger().info('  Start button condition: isRoomOwner($isRoomOwner) && gamePhase($gamePhase) == "waiting" OR isPracticeGame($isPracticeGame)', isOn: LOGGING_SWITCH);
-        Logger().info('  Should show start button: ${(isRoomOwner && gamePhase == 'waiting') || isPracticeGame}', isOn: LOGGING_SWITCH);
-        Logger().info('  Full gameInfo: $gameInfo', isOn: LOGGING_SWITCH);
+        _logger.info('  Start button condition: isRoomOwner($isRoomOwner) && gamePhase($gamePhase) == "waiting" OR isPracticeGame($isPracticeGame)', isOn: LOGGING_SWITCH);
+        _logger.info('  Should show start button: ${(isRoomOwner && gamePhase == 'waiting') || isPracticeGame}', isOn: LOGGING_SWITCH);
+        _logger.info('  Full gameInfo: $gameInfo', isOn: LOGGING_SWITCH);
         
         // Get additional game state for context
         final isGameActive = recallGameState['isGameActive'] ?? false;
@@ -240,42 +241,42 @@ class GameInfoWidget extends StatelessWidget {
   /// Handle start match button press
   void _handleStartMatch() async {
     try {
-      Logger().info('🎮 GameInfoWidget: Start button pressed - initiating start match flow', isOn: LOGGING_SWITCH);
+      _logger.info('🎮 GameInfoWidget: Start button pressed - initiating start match flow', isOn: LOGGING_SWITCH);
       
       // Get current game state to check if it's a recall game
       final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
       final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
       
-      Logger().info('🎮 GameInfoWidget: Current game ID: $currentGameId', isOn: LOGGING_SWITCH);
+      _logger.info('🎮 GameInfoWidget: Current game ID: $currentGameId', isOn: LOGGING_SWITCH);
       
       // Check if this is a recall game
       final isPracticeGame = currentGameId.startsWith('recall_game_');
-      Logger().info('🎮 GameInfoWidget: Recall game check - isPracticeGame: $isPracticeGame', isOn: LOGGING_SWITCH);
+      _logger.info('🎮 GameInfoWidget: Recall game check - isPracticeGame: $isPracticeGame', isOn: LOGGING_SWITCH);
       
       if (isPracticeGame) {
-        Logger().info('🎮 GameInfoWidget: Recall game detected - routing directly to PracticeGameCoordinator', isOn: LOGGING_SWITCH);
+        _logger.info('🎮 GameInfoWidget: Recall game detected - routing directly to PracticeGameCoordinator', isOn: LOGGING_SWITCH);
         
         // Route directly to recall game coordinator
         final recallCoordinator = PracticeGameCoordinator();
-        Logger().info('🎮 GameInfoWidget: Calling PracticeGameCoordinator.matchStart()', isOn: LOGGING_SWITCH);
+        _logger.info('🎮 GameInfoWidget: Calling PracticeGameCoordinator.matchStart()', isOn: LOGGING_SWITCH);
         
         final result = await recallCoordinator.matchStart();
-        Logger().info('🎮 GameInfoWidget: PracticeGameCoordinator.matchStart() completed with result: $result', isOn: LOGGING_SWITCH);
+        _logger.info('🎮 GameInfoWidget: PracticeGameCoordinator.matchStart() completed with result: $result', isOn: LOGGING_SWITCH);
         
       } else {
-        Logger().info('🎮 GameInfoWidget: Regular game detected - routing to GameCoordinator', isOn: LOGGING_SWITCH);
+        _logger.info('🎮 GameInfoWidget: Regular game detected - routing to GameCoordinator', isOn: LOGGING_SWITCH);
         
         // Call GameCoordinator to start the match for regular games
         final gameCoordinator = GameCoordinator();
-        Logger().info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()', isOn: LOGGING_SWITCH);
+        _logger.info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()', isOn: LOGGING_SWITCH);
         
         final result = await gameCoordinator.startMatch();
-        Logger().info('🎮 GameInfoWidget: GameCoordinator.startMatch() completed with result: $result', isOn: LOGGING_SWITCH);
+        _logger.info('🎮 GameInfoWidget: GameCoordinator.startMatch() completed with result: $result', isOn: LOGGING_SWITCH);
       }
       
     } catch (e) {
-      Logger().error('🎮 GameInfoWidget: Error in _handleStartMatch: $e', isOn: LOGGING_SWITCH);
+      _logger.error('🎮 GameInfoWidget: Error in _handleStartMatch: $e', isOn: LOGGING_SWITCH);
     }
   }
   

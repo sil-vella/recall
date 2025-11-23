@@ -18,7 +18,7 @@ import '../../modules/admobs/interstitial/interstitial_ad.dart';
 import '../../modules/admobs/rewarded/rewarded_ad.dart';
 
 class ModuleRegistry {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   static final ModuleRegistry _instance = ModuleRegistry._internal();
   factory ModuleRegistry() => _instance;
   ModuleRegistry._internal();

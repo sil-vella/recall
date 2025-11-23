@@ -11,6 +11,7 @@ import '../../../../../tools/logging/logger.dart';
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class MessagesWidget extends StatelessWidget {
   static const bool LOGGING_SWITCH = false;
+  static final Logger _logger = Logger();
   
   const MessagesWidget({Key? key}) : super(key: key);
 
@@ -31,7 +32,7 @@ class MessagesWidget extends StatelessWidget {
         final autoClose = messagesData['autoClose'] ?? false;
         final autoCloseDelay = messagesData['autoCloseDelay'] ?? 3000; // milliseconds
         
-        Logger().info('MessagesWidget: isVisible=$isVisible, title=$title, type=$messageType', isOn: LOGGING_SWITCH);
+        _logger.info('MessagesWidget: isVisible=$isVisible, title=$title, type=$messageType', isOn: LOGGING_SWITCH);
         
         // Don't render if not visible
         if (!isVisible || content.isEmpty) {
@@ -188,7 +189,7 @@ class MessagesWidget extends StatelessWidget {
   
   void _closeMessage(BuildContext context) {
     try {
-      Logger().info('MessagesWidget: Closing message modal', isOn: LOGGING_SWITCH);
+      _logger.info('MessagesWidget: Closing message modal', isOn: LOGGING_SWITCH);
       
       // Update state to hide messages
       StateManager().updateModuleState('recall_game', {
@@ -205,7 +206,7 @@ class MessagesWidget extends StatelessWidget {
       });
       
     } catch (e) {
-      Logger().error('MessagesWidget: Failed to close message: $e', isOn: LOGGING_SWITCH);
+      _logger.error('MessagesWidget: Failed to close message: $e', isOn: LOGGING_SWITCH);
     }
   }
 }

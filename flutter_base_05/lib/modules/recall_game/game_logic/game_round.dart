@@ -15,6 +15,7 @@ const bool LOGGING_SWITCH = false;
 class GameRound {
   /// Manages a single round of gameplay in the Recall game
   
+  final Logger _logger = Logger();
   final GameState gameState;
   int roundNumber = 1;
   DateTime? roundStartTime;
@@ -42,7 +43,7 @@ class GameRound {
   dynamic websocketManager;
 
   GameRound(this.gameState) {
-    Logger().info('DEBUG: GameRound instance created - special_card_data initialized', isOn: LOGGING_SWITCH);
+    _logger.info('DEBUG: GameRound instance created - special_card_data initialized', isOn: LOGGING_SWITCH);
     websocketManager = gameState.appManager?.websocketManager;
   }
 
@@ -57,14 +58,14 @@ class GameRound {
       // Only clear special card data if we're not in the middle of processing special cards
       // This prevents clearing data during special card processing
       if (specialCardData.isNotEmpty && gameState.phase != GamePhase.specialPlayWindow) {
-        Logger().info('DEBUG: Clearing ${specialCardData.length} special cards in start_turn (phase: ${gameState.phase.name})', isOn: LOGGING_SWITCH);
+        _logger.info('DEBUG: Clearing ${specialCardData.length} special cards in start_turn (phase: ${gameState.phase.name})', isOn: LOGGING_SWITCH);
         specialCardData.clear();
-        Logger().info('Special card data cleared in start_turn (new turn)', isOn: LOGGING_SWITCH);
+        _logger.info('Special card data cleared in start_turn (new turn)', isOn: LOGGING_SWITCH);
       } else if (specialCardData.isNotEmpty && gameState.phase == GamePhase.specialPlayWindow) {
-        Logger().info('DEBUG: NOT clearing ${specialCardData.length} special cards in start_turn (processing special cards)', isOn: LOGGING_SWITCH);
-        Logger().info('Special card data NOT cleared in start_turn (processing special cards)', isOn: LOGGING_SWITCH);
+        _logger.info('DEBUG: NOT clearing ${specialCardData.length} special cards in start_turn (processing special cards)', isOn: LOGGING_SWITCH);
+        _logger.info('Special card data NOT cleared in start_turn (processing special cards)', isOn: LOGGING_SWITCH);
       } else {
-        Logger().info('DEBUG: No special card data to clear in start_turn', isOn: LOGGING_SWITCH);
+        _logger.info('DEBUG: No special card data to clear in start_turn', isOn: LOGGING_SWITCH);
       }
       
       // Initialize round state
@@ -80,7 +81,7 @@ class GameRound {
         final player = gameState.players[gameState.currentPlayerId];
         if (player != null) {
           player.updateStatus(PlayerStatus.drawingCard);
-          Logger().info('Player ${gameState.currentPlayerId} status set to DRAWING_CARD', isOn: LOGGING_SWITCH);
+          _logger.info('Player ${gameState.currentPlayerId} status set to DRAWING_CARD', isOn: LOGGING_SWITCH);
         }
       }
       
@@ -127,7 +128,7 @@ class GameRound {
   bool continueTurn() {
     /// Complete the current round after a player action
     try {
-      Logger().info('Continuing turn in phase: ${gameState.phase.name}', isOn: LOGGING_SWITCH);
+      _logger.info('Continuing turn in phase: ${gameState.phase.name}', isOn: LOGGING_SWITCH);
       if (gameState.appManager != null) {
         final coordinator = gameState.appManager.gameEventCoordinator;
         if (coordinator != null) {
@@ -135,7 +136,7 @@ class GameRound {
         }
       }
 
-      Logger().info('Continued turn in phase: ${gameState.phase.name}', isOn: LOGGING_SWITCH);
+      _logger.info('Continued turn in phase: ${gameState.phase.name}', isOn: LOGGING_SWITCH);
 
       if (gameState.phase == GamePhase.turnPendingEvents) {
         _checkPendingEventsBeforeEndingRound();
@@ -156,7 +157,7 @@ class GameRound {
     /// Check if we have pending events to process (like queen peek pause so the user can see the card)
     try {
       if (pendingEvents.isEmpty) {
-        Logger().info('No pending events to process', isOn: LOGGING_SWITCH);
+        _logger.info('No pending events to process', isOn: LOGGING_SWITCH);
         gameState.phase = GamePhase.endingRound;
         return;
       }
@@ -170,7 +171,7 @@ class GameRound {
       pendingEvents.clear();
       
     } catch (e) {
-      Logger().error('Error checking pending events: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error checking pending events: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -190,10 +191,10 @@ class GameRound {
           _handleJackSwapPause(eventData);
           break;
         default:
-          Logger().info('Unknown pending event type: $eventType', isOn: LOGGING_SWITCH);
+          _logger.info('Unknown pending event type: $eventType', isOn: LOGGING_SWITCH);
       }
     } catch (e) {
-      Logger().error('Error processing pending event: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error processing pending event: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -203,13 +204,13 @@ class GameRound {
       final playerId = data['player_id'];
       final cardId = data['card_id'];
       
-      Logger().info('Queen peek pause for player $playerId, card $cardId', isOn: LOGGING_SWITCH);
+      _logger.info('Queen peek pause for player $playerId, card $cardId', isOn: LOGGING_SWITCH);
       
       // In a real implementation, this would show the card to the player
       // and wait for them to acknowledge before continuing
       
     } catch (e) {
-      Logger().error('Error handling queen peek pause: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error handling queen peek pause: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -220,13 +221,13 @@ class GameRound {
       final card1Id = data['card1_id'];
       final card2Id = data['card2_id'];
       
-      Logger().info('Jack swap pause for player $playerId, cards $card1Id and $card2Id', isOn: LOGGING_SWITCH);
+      _logger.info('Jack swap pause for player $playerId, cards $card1Id and $card2Id', isOn: LOGGING_SWITCH);
       
       // In a real implementation, this would show the swapped cards
       // and wait for players to acknowledge before continuing
       
     } catch (e) {
-      Logger().error('Error handling jack swap pause: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error handling jack swap pause: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -235,7 +236,7 @@ class GameRound {
     try {
       final playerIds = gameState.players.keys.toList();
       if (playerIds.isEmpty) {
-        Logger().error('No players in game', isOn: LOGGING_SWITCH);
+        _logger.error('No players in game', isOn: LOGGING_SWITCH);
         return;
       }
       
@@ -255,10 +256,10 @@ class GameRound {
       // Update game phase
       gameState.phase = GamePhase.playerTurn;
       
-      Logger().info('Moved to next player: $nextPlayerId', isOn: LOGGING_SWITCH);
+      _logger.info('Moved to next player: $nextPlayerId', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      Logger().error('Error moving to next player: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error moving to next player: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -306,7 +307,7 @@ class GameRound {
       wsManager.sendToSession(sessionId, 'turn_started', turnPayload);
       
     } catch (e) {
-      Logger().error('Error sending turn started event: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error sending turn started event: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -354,10 +355,10 @@ class GameRound {
       
       actionsPerformed.add(actionData);
       
-      Logger().info('Action logged: $action', isOn: LOGGING_SWITCH);
+      _logger.info('Action logged: $action', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      Logger().error('Error logging action: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error logging action: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -408,21 +409,21 @@ class GameRound {
   bool _handleQueenPeek(String userId, Map<String, dynamic> actionData) {
     /// Handle Queen peek action - peek at any one card from any player
     try {
-      Logger().info('Handling Queen peek for player $userId with data: $actionData', isOn: LOGGING_SWITCH);
+      _logger.info('Handling Queen peek for player $userId with data: $actionData', isOn: LOGGING_SWITCH);
       
       // Extract data from action
       final cardId = actionData['card_id'];
       final ownerId = actionData['ownerId']; // Note: using ownerId as per frontend changes
       
       if (cardId == null || ownerId == null) {
-        Logger().error('Missing required data for queen peek: card_id=$cardId, ownerId=$ownerId', isOn: LOGGING_SWITCH);
+        _logger.error('Missing required data for queen peek: card_id=$cardId, ownerId=$ownerId', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Find the target player and card
       final targetPlayer = _getPlayer(ownerId);
       if (targetPlayer == null) {
-        Logger().error('Target player $ownerId not found for queen peek', isOn: LOGGING_SWITCH);
+        _logger.error('Target player $ownerId not found for queen peek', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -436,14 +437,14 @@ class GameRound {
       }
       
       if (targetCard == null) {
-        Logger().error('Card $cardId not found in target player $ownerId hand', isOn: LOGGING_SWITCH);
+        _logger.error('Card $cardId not found in target player $ownerId hand', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Get the current player (the one doing the peek)
       final currentPlayer = _getPlayer(userId);
       if (currentPlayer == null) {
-        Logger().error('Current player $userId not found for queen peek', isOn: LOGGING_SWITCH);
+        _logger.error('Current player $userId not found for queen peek', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -452,16 +453,16 @@ class GameRound {
       
       // Add the card to the current player's cards_to_peek list
       currentPlayer.addCardToPeek(targetCard);
-      Logger().info('Added card $cardId to player $userId cards_to_peek list', isOn: LOGGING_SWITCH);
+      _logger.info('Added card $cardId to player $userId cards_to_peek list', isOn: LOGGING_SWITCH);
       
       // Set player status to PEEKING
       currentPlayer.updateStatus(PlayerStatus.peeking);
-      Logger().info('Set player $userId status to PEEKING', isOn: LOGGING_SWITCH);
+      _logger.info('Set player $userId status to PEEKING', isOn: LOGGING_SWITCH);
       
       return true;
       
     } catch (e) {
-      Logger().error('Error in _handleQueenPeek: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error in _handleQueenPeek: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -469,7 +470,7 @@ class GameRound {
   bool _handleJackSwap(String userId, Map<String, dynamic> actionData) {
     /// Handle Jack swap action - swap two cards between players
     try {
-      Logger().info('Handling Jack swap for player $userId with data: $actionData', isOn: LOGGING_SWITCH);
+      _logger.info('Handling Jack swap for player $userId with data: $actionData', isOn: LOGGING_SWITCH);
       
       // Extract card information from action data
       final firstCardId = actionData['first_card_id'];
@@ -479,13 +480,13 @@ class GameRound {
       
       // Validate required data
       if (firstCardId == null || firstPlayerId == null || secondCardId == null || secondPlayerId == null) {
-        Logger().error('Invalid Jack swap data - missing required fields', isOn: LOGGING_SWITCH);
+        _logger.error('Invalid Jack swap data - missing required fields', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Validate both players exist
       if (!gameState.players.containsKey(firstPlayerId) || !gameState.players.containsKey(secondPlayerId)) {
-        Logger().error('Invalid Jack swap - one or both players not found', isOn: LOGGING_SWITCH);
+        _logger.error('Invalid Jack swap - one or both players not found', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -521,7 +522,7 @@ class GameRound {
       
       // Validate cards found
       if (firstCard == null || secondCard == null || firstCardIndex == null || secondCardIndex == null) {
-        Logger().error('Invalid Jack swap - one or both cards not found in players\' hands', isOn: LOGGING_SWITCH);
+        _logger.error('Invalid Jack swap - one or both cards not found in players\' hands', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -533,14 +534,14 @@ class GameRound {
       firstCard.ownerId = firstPlayerId;
       secondCard.ownerId = secondPlayerId;
       
-      Logger().info('Successfully swapped cards: ${firstCard.cardId} <-> ${secondCard.cardId}', isOn: LOGGING_SWITCH);
-      Logger().info('Player $firstPlayerId now has: ${firstPlayer.hand.map((card) => card?.cardId ?? 'None').toList()}', isOn: LOGGING_SWITCH);
-      Logger().info('Player $secondPlayerId now has: ${secondPlayer.hand.map((card) => card?.cardId ?? 'None').toList()}', isOn: LOGGING_SWITCH);
+      _logger.info('Successfully swapped cards: ${firstCard.cardId} <-> ${secondCard.cardId}', isOn: LOGGING_SWITCH);
+      _logger.info('Player $firstPlayerId now has: ${firstPlayer.hand.map((card) => card?.cardId ?? 'None').toList()}', isOn: LOGGING_SWITCH);
+      _logger.info('Player $secondPlayerId now has: ${secondPlayer.hand.map((card) => card?.cardId ?? 'None').toList()}', isOn: LOGGING_SWITCH);
       
       return true;
       
     } catch (e) {
-      Logger().error('Error in _handleJackSwap: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error in _handleJackSwap: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -605,10 +606,10 @@ class GameRound {
         "duration": roundEndTime!.difference(roundStartTime!).inSeconds,
       });
       
-      Logger().info('Round $roundNumber ended', isOn: LOGGING_SWITCH);
+      _logger.info('Round $roundNumber ended', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      Logger().error('Error ending round: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error ending round: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -622,10 +623,10 @@ class GameRound {
       currentTurnStartTime = null;
       actionsPerformed.clear();
       
-      Logger().info('Starting round $roundNumber', isOn: LOGGING_SWITCH);
+      _logger.info('Starting round $roundNumber', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      Logger().error('Error starting next round: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error starting next round: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -656,17 +657,17 @@ class GameRound {
     try {
       final action = data['action'] ?? data['action_type'];
       if (action == null) {
-        Logger().info('on_player_action: No action found in data: $data', isOn: LOGGING_SWITCH);
+        _logger.info('on_player_action: No action found in data: $data', isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Get player ID from session data or request data
       final userId = _extractUserId(sessionId, data);
-      Logger().info('on_player_action: action=$action, user_id=$userId', isOn: LOGGING_SWITCH);
+      _logger.info('on_player_action: action=$action, user_id=$userId', isOn: LOGGING_SWITCH);
       
       // Validate player exists before proceeding with any action
       if (!gameState.players.containsKey(userId)) {
-        Logger().info('on_player_action: Player $userId not found in game state players: ${gameState.players.keys.toList()}', isOn: LOGGING_SWITCH);
+        _logger.info('on_player_action: Player $userId not found in game state players: ${gameState.players.keys.toList()}', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -723,15 +724,15 @@ class GameRound {
   bool _routeAction(String action, String userId, Map<String, dynamic> actionData) {
     /// Route action to appropriate handler and return result
     try {
-      Logger().info("Routing action: $action user_id: $userId action_data: $actionData", isOn: LOGGING_SWITCH);
+      _logger.info("Routing action: $action user_id: $userId action_data: $actionData", isOn: LOGGING_SWITCH);
       if (action == 'draw_from_deck') {
         // Log pile contents before drawing
-        Logger().info("=== PILE CONTENTS BEFORE DRAW ===", isOn: LOGGING_SWITCH);
-        Logger().info("Draw Pile Count: ${gameState.drawPile.length}", isOn: LOGGING_SWITCH);
-        Logger().info("Draw Pile Top 3: ${gameState.drawPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
-        Logger().info("Discard Pile Count: ${gameState.discardPile.length}", isOn: LOGGING_SWITCH);
-        Logger().info("Discard Pile Top 3: ${gameState.discardPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
-        Logger().info("=================================", isOn: LOGGING_SWITCH);
+        _logger.info("=== PILE CONTENTS BEFORE DRAW ===", isOn: LOGGING_SWITCH);
+        _logger.info("Draw Pile Count: ${gameState.drawPile.length}", isOn: LOGGING_SWITCH);
+        _logger.info("Draw Pile Top 3: ${gameState.drawPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
+        _logger.info("Discard Pile Count: ${gameState.discardPile.length}", isOn: LOGGING_SWITCH);
+        _logger.info("Discard Pile Top 3: ${gameState.discardPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
+        _logger.info("=================================", isOn: LOGGING_SWITCH);
         return _handleDrawFromPile(userId, actionData);
       } else if (action == 'play_card') {
         final playResult = _handlePlayCard(userId, actionData);
@@ -761,7 +762,7 @@ class GameRound {
   bool _handleDrawFromPile(String playerId, Map<String, dynamic> actionData) {
     /// Handle drawing a card from the deck or discard pile
     try {
-      Logger().info("_handle_draw_from_pile called for player $playerId with action_data $actionData", isOn: LOGGING_SWITCH);
+      _logger.info("_handle_draw_from_pile called for player $playerId with action_data $actionData", isOn: LOGGING_SWITCH);
       // Get the source pile (deck or discard)
       final source = actionData['source'];
       if (source == null) {
@@ -786,20 +787,20 @@ class GameRound {
         // Draw from draw pile using custom method
         drawnCard = gameState.drawFromDrawPile();
         if (drawnCard == null) {
-          Logger().error("Failed to draw from draw pile for player $playerId", isOn: LOGGING_SWITCH);
+          _logger.error("Failed to draw from draw pile for player $playerId", isOn: LOGGING_SWITCH);
           return false;
         }
         
         // Check if draw pile is now empty (special game logic)
         if (gameState.isDrawPileEmpty()) {
-          Logger().info("Draw pile is now empty", isOn: LOGGING_SWITCH);
+          _logger.info("Draw pile is now empty", isOn: LOGGING_SWITCH);
         }
         
       } else if (source == 'discard') {
         // Take from discard pile using custom method
         drawnCard = gameState.drawFromDiscardPile();
         if (drawnCard == null) {
-          Logger().error("Failed to draw from discard pile for player $playerId", isOn: LOGGING_SWITCH);
+          _logger.error("Failed to draw from discard pile for player $playerId", isOn: LOGGING_SWITCH);
           return false;
         }
       }
@@ -811,22 +812,22 @@ class GameRound {
         // Set the drawn card property
         player.setDrawnCard(drawnCard);
       } else {
-        Logger().error("Failed to draw card for player $playerId", isOn: LOGGING_SWITCH);
+        _logger.error("Failed to draw card for player $playerId", isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Change player status from DRAWING_CARD to PLAYING_CARD after successful draw
       player.updateStatus(PlayerStatus.playingCard);
-      Logger().info("Player $playerId status changed from DRAWING_CARD to PLAYING_CARD", isOn: LOGGING_SWITCH);
+      _logger.info("Player $playerId status changed from DRAWING_CARD to PLAYING_CARD", isOn: LOGGING_SWITCH);
       
       // Log pile contents after successful draw using helper methods
-      Logger().info("=== PILE CONTENTS AFTER DRAW ===", isOn: LOGGING_SWITCH);
-      Logger().info("Draw Pile Count: ${gameState.getDrawPileCount()}", isOn: LOGGING_SWITCH);
-      Logger().info("Draw Pile Top 3: ${gameState.drawPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
-      Logger().info("Discard Pile Count: ${gameState.getDiscardPileCount()}", isOn: LOGGING_SWITCH);
-      Logger().info("Discard Pile Top 3: ${gameState.discardPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
-      Logger().info("Drawn Card: ${drawnCard.cardId}", isOn: LOGGING_SWITCH);
-      Logger().info("=================================", isOn: LOGGING_SWITCH);
+      _logger.info("=== PILE CONTENTS AFTER DRAW ===", isOn: LOGGING_SWITCH);
+      _logger.info("Draw Pile Count: ${gameState.getDrawPileCount()}", isOn: LOGGING_SWITCH);
+      _logger.info("Draw Pile Top 3: ${gameState.drawPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
+      _logger.info("Discard Pile Count: ${gameState.getDiscardPileCount()}", isOn: LOGGING_SWITCH);
+      _logger.info("Discard Pile Top 3: ${gameState.discardPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
+      _logger.info("Drawn Card: ${drawnCard.cardId}", isOn: LOGGING_SWITCH);
+      _logger.info("=================================", isOn: LOGGING_SWITCH);
       
       return true;
       
@@ -861,11 +862,11 @@ class GameRound {
       }
       
       if (cardToPlay == null) {
-        Logger().error("Card $cardId not found in player $playerId hand", isOn: LOGGING_SWITCH);
+        _logger.error("Card $cardId not found in player $playerId hand", isOn: LOGGING_SWITCH);
         return false;
       }
       
-      Logger().info("Found card $cardId at index $cardIndex in player $playerId hand", isOn: LOGGING_SWITCH);
+      _logger.info("Found card $cardId at index $cardIndex in player $playerId hand", isOn: LOGGING_SWITCH);
       
       // Handle drawn card repositioning BEFORE removing the played card
       final drawnCard = player.getDrawnCard();
@@ -876,22 +877,22 @@ class GameRound {
       }
       
       // Use the proper method to remove card with change detection
-      Logger().info("About to call remove_card_from_hand for card $cardId", isOn: LOGGING_SWITCH);
+      _logger.info("About to call remove_card_from_hand for card $cardId", isOn: LOGGING_SWITCH);
       try {
         final removedCard = player.removeCardFromHand(cardId);
         if (removedCard == null) {
-          Logger().error("Failed to remove card $cardId from player $playerId hand", isOn: LOGGING_SWITCH);
+          _logger.error("Failed to remove card $cardId from player $playerId hand", isOn: LOGGING_SWITCH);
           return false;
         }
-        Logger().info("Successfully removed card $cardId from player $playerId hand", isOn: LOGGING_SWITCH);
+        _logger.info("Successfully removed card $cardId from player $playerId hand", isOn: LOGGING_SWITCH);
       } catch (e) {
-        Logger().error("Exception in remove_card_from_hand: $e", isOn: LOGGING_SWITCH);
+        _logger.error("Exception in remove_card_from_hand: $e", isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Add card to discard pile using custom method with auto change detection
       if (!gameState.addToDiscardPile(cardToPlay)) {
-        Logger().error("Failed to add card $cardId to discard pile", isOn: LOGGING_SWITCH);
+        _logger.error("Failed to add card $cardId to discard pile", isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -899,7 +900,7 @@ class GameRound {
       if (drawnCard != null && drawnCard.cardId != cardId) {
         // The drawn card should fill the blank slot left by the played card
         // The blank slot is at card_index (where the played card was)
-        Logger().info("Repositioning drawn card ${drawnCard.cardId} to index $cardIndex", isOn: LOGGING_SWITCH);
+        _logger.info("Repositioning drawn card ${drawnCard.cardId} to index $cardIndex", isOn: LOGGING_SWITCH);
         
         // First, find and remove the drawn card from its original position
         int? originalIndex;
@@ -917,10 +918,10 @@ class GameRound {
           
           if (shouldKeepOriginalSlot) {
             player.hand[originalIndex] = null; // Create blank slot
-            Logger().info("Created blank slot at original position $originalIndex", isOn: LOGGING_SWITCH);
+            _logger.info("Created blank slot at original position $originalIndex", isOn: LOGGING_SWITCH);
           } else {
             player.hand.removeAt(originalIndex); // Remove entirely
-            Logger().info("Removed card entirely from original position $originalIndex", isOn: LOGGING_SWITCH);
+            _logger.info("Removed card entirely from original position $originalIndex", isOn: LOGGING_SWITCH);
             // Adjust target index if we removed a card before it
             if (originalIndex < cardIndex) {
               cardIndex -= 1;
@@ -934,18 +935,18 @@ class GameRound {
         if (shouldPlaceInSlot) {
           // Place it in the blank slot left by the played card
           player.hand[cardIndex] = drawnCard;
-          Logger().info("Placed drawn card in blank slot at index $cardIndex", isOn: LOGGING_SWITCH);
+          _logger.info("Placed drawn card in blank slot at index $cardIndex", isOn: LOGGING_SWITCH);
         } else {
           // The slot shouldn't exist, so append the drawn card to the end
           player.hand.add(drawnCard);
-          Logger().info("Appended drawn card to end of hand (slot $cardIndex shouldn't exist)", isOn: LOGGING_SWITCH);
+          _logger.info("Appended drawn card to end of hand (slot $cardIndex shouldn't exist)", isOn: LOGGING_SWITCH);
         }
         
         // IMPORTANT: After repositioning, the drawn card becomes a regular hand card
         // Clear the drawn card property since it's no longer "drawn"
         player.clearDrawnCard();
         
-        Logger().info("After repositioning: hand slots = ${player.hand.map((card) => card?.cardId ?? 'None').toList()}", isOn: LOGGING_SWITCH);
+        _logger.info("After repositioning: hand slots = ${player.hand.map((card) => card?.cardId ?? 'None').toList()}", isOn: LOGGING_SWITCH);
         
       } else if (drawnCard != null && drawnCard.cardId == cardId) {
         // Clear the drawn card property since it's now in the discard pile
@@ -953,13 +954,13 @@ class GameRound {
       }
       
       // Log pile contents after successful play
-      Logger().info("=== PILE CONTENTS AFTER PLAY ===", isOn: LOGGING_SWITCH);
-      Logger().info("Draw Pile Count: ${gameState.drawPile.length}", isOn: LOGGING_SWITCH);
-      Logger().info("Draw Pile Top 3: ${gameState.drawPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
-      Logger().info("Discard Pile Count: ${gameState.discardPile.length}", isOn: LOGGING_SWITCH);
-      Logger().info("Discard Pile Top 3: ${gameState.discardPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
-      Logger().info("Played Card: ${cardToPlay.cardId}", isOn: LOGGING_SWITCH);
-      Logger().info("=================================", isOn: LOGGING_SWITCH);
+      _logger.info("=== PILE CONTENTS AFTER PLAY ===", isOn: LOGGING_SWITCH);
+      _logger.info("Draw Pile Count: ${gameState.drawPile.length}", isOn: LOGGING_SWITCH);
+      _logger.info("Draw Pile Top 3: ${gameState.drawPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
+      _logger.info("Discard Pile Count: ${gameState.discardPile.length}", isOn: LOGGING_SWITCH);
+      _logger.info("Discard Pile Top 3: ${gameState.discardPile.take(3).map((card) => card.cardId).toList()}", isOn: LOGGING_SWITCH);
+      _logger.info("Played Card: ${cardToPlay.cardId}", isOn: LOGGING_SWITCH);
+      _logger.info("=================================", isOn: LOGGING_SWITCH);
       
       // Check if the played card has special powers (Jack/Queen)
       _checkSpecialCard(playerId, {
@@ -1003,10 +1004,10 @@ class GameRound {
           'timestamp': DateTime.now().millisecondsSinceEpoch / 1000,
           'description': 'Can switch any two cards between players'
         };
-        Logger().info("DEBUG: special_card_data length before adding Jack: ${specialCardData.length}", isOn: LOGGING_SWITCH);
+        _logger.info("DEBUG: special_card_data length before adding Jack: ${specialCardData.length}", isOn: LOGGING_SWITCH);
         specialCardData.add(specialCardInfo);
-        Logger().info("DEBUG: special_card_data length after adding Jack: ${specialCardData.length}", isOn: LOGGING_SWITCH);
-        Logger().info("Added Jack special card for player $playerId: $cardRank of $cardSuit (chronological order)", isOn: LOGGING_SWITCH);
+        _logger.info("DEBUG: special_card_data length after adding Jack: ${specialCardData.length}", isOn: LOGGING_SWITCH);
+        _logger.info("Added Jack special card for player $playerId: $cardRank of $cardSuit (chronological order)", isOn: LOGGING_SWITCH);
         
       } else if (cardRank == 'queen') {
         // Store special card data chronologically (not grouped by player)
@@ -1019,28 +1020,28 @@ class GameRound {
           'timestamp': DateTime.now().millisecondsSinceEpoch / 1000,
           'description': 'Can look at one card from any player\'s hand'
         };
-        Logger().info("DEBUG: special_card_data length before adding Queen: ${specialCardData.length}", isOn: LOGGING_SWITCH);
+        _logger.info("DEBUG: special_card_data length before adding Queen: ${specialCardData.length}", isOn: LOGGING_SWITCH);
         specialCardData.add(specialCardInfo);
-        Logger().info("DEBUG: special_card_data length after adding Queen: ${specialCardData.length}", isOn: LOGGING_SWITCH);
-        Logger().info("Added Queen special card for player $playerId: $cardRank of $cardSuit (chronological order)", isOn: LOGGING_SWITCH);
+        _logger.info("DEBUG: special_card_data length after adding Queen: ${specialCardData.length}", isOn: LOGGING_SWITCH);
+        _logger.info("Added Queen special card for player $playerId: $cardRank of $cardSuit (chronological order)", isOn: LOGGING_SWITCH);
       }
       
     } catch (e) {
-      Logger().error("Error in _check_special_card: $e", isOn: LOGGING_SWITCH);
+      _logger.error("Error in _check_special_card: $e", isOn: LOGGING_SWITCH);
     }
   }
 
   bool _handleSameRankWindow(Map<String, dynamic> actionData) {
     /// Handle same rank window action - sets all players to same_rank_window status
     try {
-      Logger().info("Starting same rank window - setting all players to SAME_RANK_WINDOW status", isOn: LOGGING_SWITCH);
+      _logger.info("Starting same rank window - setting all players to SAME_RANK_WINDOW status", isOn: LOGGING_SWITCH);
       
       // Set game state phase to SAME_RANK_WINDOW
       gameState.phase = GamePhase.sameRankWindow;
       
       // Update all players' status to SAME_RANK_WINDOW efficiently (single game state update)
       final updatedCount = gameState.updateAllPlayersStatus(PlayerStatus.sameRankWindow, filterActive: true);
-      Logger().info("Updated $updatedCount players' status to SAME_RANK_WINDOW", isOn: LOGGING_SWITCH);
+      _logger.info("Updated $updatedCount players' status to SAME_RANK_WINDOW", isOn: LOGGING_SWITCH);
       
       // Set 5-second timer to automatically end same rank window
       _startSameRankTimer();
@@ -1048,7 +1049,7 @@ class GameRound {
       return true;
       
     } catch (e) {
-      Logger().error("Error in _handle_same_rank_window: $e", isOn: LOGGING_SWITCH);
+      _logger.error("Error in _handle_same_rank_window: $e", isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -1067,23 +1068,23 @@ class GameRound {
   void _endSameRankWindow() {
     /// End the same rank window and transition to ENDING_ROUND phase
     try {
-      Logger().info("Ending same rank window - resetting all players to WAITING status", isOn: LOGGING_SWITCH);
+      _logger.info("Ending same rank window - resetting all players to WAITING status", isOn: LOGGING_SWITCH);
       
       // Log the same_rank_data before clearing it
       if (sameRankData.isNotEmpty) {
-        Logger().info("Same rank plays recorded: ${sameRankData.length} players", isOn: LOGGING_SWITCH);
+        _logger.info("Same rank plays recorded: ${sameRankData.length} players", isOn: LOGGING_SWITCH);
         for (final entry in sameRankData.entries) {
           final playerId = entry.key;
           final playData = entry.value;
-          Logger().info("Player $playerId played: ${playData['rank']} of ${playData['suit']}", isOn: LOGGING_SWITCH);
+          _logger.info("Player $playerId played: ${playData['rank']} of ${playData['suit']}", isOn: LOGGING_SWITCH);
         }
       } else {
-        Logger().info("No same rank plays recorded", isOn: LOGGING_SWITCH);
+        _logger.info("No same rank plays recorded", isOn: LOGGING_SWITCH);
       }
       
       // Update all players' status to WAITING efficiently (single game state update)
       final updatedCount = gameState.updateAllPlayersStatus(PlayerStatus.waiting, filterActive: true);
-      Logger().info("Updated $updatedCount players' status to WAITING", isOn: LOGGING_SWITCH);
+      _logger.info("Updated $updatedCount players' status to WAITING", isOn: LOGGING_SWITCH);
       
       // Check if any player has no cards left (automatic win condition)
       for (final entry in gameState.players.entries) {
@@ -1098,7 +1099,7 @@ class GameRound {
         final cardCount = actualCards.length;
         
         if (cardCount == 0) {
-          Logger().info("Player $playerId (${player.name}) has no cards left - triggering end of match", isOn: LOGGING_SWITCH);
+          _logger.info("Player $playerId (${player.name}) has no cards left - triggering end of match", isOn: LOGGING_SWITCH);
           _handleEndOfMatch();
           return; // Exit early since game is ending
         }
@@ -1128,10 +1129,10 @@ class GameRound {
     try {
       // Check if we have any special cards played
       if (specialCardData.isEmpty) {
-        Logger().info("No special cards played in this round - transitioning directly to ENDING_ROUND", isOn: LOGGING_SWITCH);
+        _logger.info("No special cards played in this round - transitioning directly to ENDING_ROUND", isOn: LOGGING_SWITCH);
         // No special cards, go directly to ENDING_ROUND
         gameState.phase = GamePhase.endingRound;
-        Logger().info("Game phase changed to ENDING_ROUND (no special cards)", isOn: LOGGING_SWITCH);
+        _logger.info("Game phase changed to ENDING_ROUND (no special cards)", isOn: LOGGING_SWITCH);
         // Continue with normal turn flow since there are no special cards to process
         continueTurn();
         return;
@@ -1139,32 +1140,32 @@ class GameRound {
       
       // We have special cards, transition to SPECIAL_PLAY_WINDOW
       gameState.phase = GamePhase.specialPlayWindow;
-      Logger().info("Game phase changed to SPECIAL_PLAY_WINDOW (special cards found)", isOn: LOGGING_SWITCH);
+      _logger.info("Game phase changed to SPECIAL_PLAY_WINDOW (special cards found)", isOn: LOGGING_SWITCH);
       
-      Logger().info("=== SPECIAL CARDS WINDOW ===", isOn: LOGGING_SWITCH);
-      Logger().info("DEBUG: special_card_data length: ${specialCardData.length}", isOn: LOGGING_SWITCH);
-      Logger().info("DEBUG: Current game phase: ${gameState.phase.name}", isOn: LOGGING_SWITCH);
+      _logger.info("=== SPECIAL CARDS WINDOW ===", isOn: LOGGING_SWITCH);
+      _logger.info("DEBUG: special_card_data length: ${specialCardData.length}", isOn: LOGGING_SWITCH);
+      _logger.info("DEBUG: Current game phase: ${gameState.phase.name}", isOn: LOGGING_SWITCH);
       
       // Count total special cards (now stored chronologically)
       final totalSpecialCards = specialCardData.length;
-      Logger().info("Found $totalSpecialCards special cards played in chronological order", isOn: LOGGING_SWITCH);
+      _logger.info("Found $totalSpecialCards special cards played in chronological order", isOn: LOGGING_SWITCH);
       
       // Log details of all special cards in chronological order
       for (int i = 0; i < specialCardData.length; i++) {
         final card = specialCardData[i];
-        Logger().info("  ${i+1}. Player ${card['player_id']}: ${card['rank']} of ${card['suit']} (${card['special_power']})", isOn: LOGGING_SWITCH);
+        _logger.info("  ${i+1}. Player ${card['player_id']}: ${card['rank']} of ${card['suit']} (${card['special_power']})", isOn: LOGGING_SWITCH);
       }
       
       // Create a working copy for processing (we'll remove cards as we process them)
       specialCardPlayers = List.from(specialCardData);
       
-      Logger().info("Starting special card processing with ${specialCardPlayers.length} cards", isOn: LOGGING_SWITCH);
+      _logger.info("Starting special card processing with ${specialCardPlayers.length} cards", isOn: LOGGING_SWITCH);
                
       // Start processing the first player's special card
       _processNextSpecialCard();
       
     } catch (e) {
-      Logger().error("Error in _handle_special_cards_window: $e", isOn: LOGGING_SWITCH);
+      _logger.error("Error in _handle_special_cards_window: $e", isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1173,7 +1174,7 @@ class GameRound {
     try {
       // Check if we've processed all special cards (list is empty)
       if (specialCardPlayers.isEmpty) {
-        Logger().info("All special cards processed - transitioning to ENDING_ROUND", isOn: LOGGING_SWITCH);
+        _logger.info("All special cards processed - transitioning to ENDING_ROUND", isOn: LOGGING_SWITCH);
         _endSpecialCardsWindow();
         return;
       }
@@ -1187,32 +1188,32 @@ class GameRound {
       final specialPower = specialData['special_power'] ?? 'unknown';
       final description = specialData['description'] ?? 'No description';
       
-      Logger().info("Processing special card for player $playerId: $cardRank of $cardSuit", isOn: LOGGING_SWITCH);
-      Logger().info("  Special Power: $specialPower", isOn: LOGGING_SWITCH);
-      Logger().info("  Description: $description", isOn: LOGGING_SWITCH);
-      Logger().info("  Remaining cards to process: ${specialCardPlayers.length}", isOn: LOGGING_SWITCH);
+      _logger.info("Processing special card for player $playerId: $cardRank of $cardSuit", isOn: LOGGING_SWITCH);
+      _logger.info("  Special Power: $specialPower", isOn: LOGGING_SWITCH);
+      _logger.info("  Description: $description", isOn: LOGGING_SWITCH);
+      _logger.info("  Remaining cards to process: ${specialCardPlayers.length}", isOn: LOGGING_SWITCH);
       
       // Set player status based on special power
       if (specialPower == 'jack_swap') {
         // Use the efficient batch update method to set player status
         gameState.updatePlayersStatusByIds([playerId], PlayerStatus.jackSwap);
-        Logger().info("Player $playerId status set to JACK_SWAP - 10 second timer started", isOn: LOGGING_SWITCH);
+        _logger.info("Player $playerId status set to JACK_SWAP - 10 second timer started", isOn: LOGGING_SWITCH);
       } else if (specialPower == 'queen_peek') {
         // Use the efficient batch update method to set player status
         gameState.updatePlayersStatusByIds([playerId], PlayerStatus.queenPeek);
-        Logger().info("Player $playerId status set to PEEKING - 10 second timer started", isOn: LOGGING_SWITCH);
+        _logger.info("Player $playerId status set to PEEKING - 10 second timer started", isOn: LOGGING_SWITCH);
       } else {
-        Logger().info("Unknown special power: $specialPower for player $playerId", isOn: LOGGING_SWITCH);
+        _logger.info("Unknown special power: $specialPower for player $playerId", isOn: LOGGING_SWITCH);
         // Remove this card and move to next
         specialCardPlayers.removeAt(0);
       }
       
       // Start 10-second timer for this player's special card play
       specialCardTimer = Timer(Duration(seconds: 10), _onSpecialCardTimerExpired);
-      Logger().info("10-second timer started for player $playerId's $specialPower", isOn: LOGGING_SWITCH);
+      _logger.info("10-second timer started for player $playerId's $specialPower", isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      Logger().error("Error in _process_next_special_card: $e", isOn: LOGGING_SWITCH);
+      _logger.error("Error in _process_next_special_card: $e", isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1224,18 +1225,18 @@ class GameRound {
         final specialData = specialCardPlayers[0];
         final playerId = specialData['player_id'] ?? 'unknown';
         gameState.updatePlayersStatusByIds([playerId], PlayerStatus.waiting);
-        Logger().info("Player $playerId special card timer expired - status reset to WAITING", isOn: LOGGING_SWITCH);
+        _logger.info("Player $playerId special card timer expired - status reset to WAITING", isOn: LOGGING_SWITCH);
         
         // Remove the processed card from the list
         specialCardPlayers.removeAt(0);
-        Logger().info("Removed processed card from list. Remaining cards: ${specialCardPlayers.length}", isOn: LOGGING_SWITCH);
+        _logger.info("Removed processed card from list. Remaining cards: ${specialCardPlayers.length}", isOn: LOGGING_SWITCH);
       }
       
       // Process next special card or end window
       _processNextSpecialCard();
       
     } catch (e) {
-      Logger().error("Error in _on_special_card_timer_expired: $e", isOn: LOGGING_SWITCH);
+      _logger.error("Error in _on_special_card_timer_expired: $e", isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1248,7 +1249,7 @@ class GameRound {
       // Clear special card data
       if (specialCardData.isNotEmpty) {
         specialCardData.clear();
-        Logger().info("Special card data cleared", isOn: LOGGING_SWITCH);
+        _logger.info("Special card data cleared", isOn: LOGGING_SWITCH);
       }
       
       // Reset special card processing variables
@@ -1262,7 +1263,7 @@ class GameRound {
       continueTurn();
       
     } catch (e) {
-      Logger().error("Error in _end_special_cards_window: $e", isOn: LOGGING_SWITCH);
+      _logger.error("Error in _end_special_cards_window: $e", isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1272,10 +1273,10 @@ class GameRound {
       if (specialCardTimer != null) {
         specialCardTimer!.cancel();
         specialCardTimer = null;
-        Logger().info("Special card timer cancelled", isOn: LOGGING_SWITCH);
+        _logger.info("Special card timer cancelled", isOn: LOGGING_SWITCH);
       }
     } catch (e) {
-      Logger().error("Error cancelling special card timer: $e", isOn: LOGGING_SWITCH);
+      _logger.error("Error cancelling special card timer: $e", isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1301,11 +1302,11 @@ class GameRound {
       }
       
       if (playedCard == null) {
-        Logger().error("Card $cardId not found in player $userId hand for same rank play", isOn: LOGGING_SWITCH);
+        _logger.error("Card $cardId not found in player $userId hand for same rank play", isOn: LOGGING_SWITCH);
         return false;
       }
       
-      Logger().info("Found card $cardId for same rank play in player $userId hand", isOn: LOGGING_SWITCH);
+      _logger.info("Found card $cardId for same rank play in player $userId hand", isOn: LOGGING_SWITCH);
       
       final cardRank = playedCard.rank;
       final cardSuit = playedCard.suit;
@@ -1323,26 +1324,26 @@ class GameRound {
       
       // SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
       // Use the proper method to remove card with change detection
-      Logger().info("About to call remove_card_from_hand for same rank play card $cardId", isOn: LOGGING_SWITCH);
+      _logger.info("About to call remove_card_from_hand for same rank play card $cardId", isOn: LOGGING_SWITCH);
       try {
         final removedCard = player.removeCardFromHand(cardId);
         if (removedCard == null) {
-          Logger().error("Failed to remove card $cardId from player $userId hand", isOn: LOGGING_SWITCH);
+          _logger.error("Failed to remove card $cardId from player $userId hand", isOn: LOGGING_SWITCH);
           return false;
         }
-        Logger().info("Successfully removed same rank play card $cardId from player $userId hand", isOn: LOGGING_SWITCH);
+        _logger.info("Successfully removed same rank play card $cardId from player $userId hand", isOn: LOGGING_SWITCH);
       } catch (e) {
-        Logger().error("Exception in remove_card_from_hand for same rank play: $e", isOn: LOGGING_SWITCH);
+        _logger.error("Exception in remove_card_from_hand for same rank play: $e", isOn: LOGGING_SWITCH);
         return false;
       }
       
       // Add card to discard pile using custom method with auto change detection
       if (!gameState.addToDiscardPile(playedCard)) {
-        Logger().error("Failed to add card $cardId to discard pile", isOn: LOGGING_SWITCH);
+        _logger.error("Failed to add card $cardId to discard pile", isOn: LOGGING_SWITCH);
         return false;
       }
       
-      Logger().info("✅ Same rank play successful: $userId played $cardRank of $cardSuit - card moved to discard pile", isOn: LOGGING_SWITCH);
+      _logger.info("✅ Same rank play successful: $userId played $cardRank of $cardSuit - card moved to discard pile", isOn: LOGGING_SWITCH);
       
       // Check for special cards (Jack/Queen) and store data if applicable
       // Pass the correct card data structure to _check_special_card
@@ -1378,7 +1379,7 @@ class GameRound {
     try {
       // Check if there are any cards in the discard pile
       if (gameState.discardPile.isEmpty) {
-        Logger().info("Same rank validation failed: No cards in discard pile", isOn: LOGGING_SWITCH);
+        _logger.info("Same rank validation failed: No cards in discard pile", isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -1386,25 +1387,25 @@ class GameRound {
       final lastCard = gameState.discardPile.last;
       final lastCardRank = lastCard.rank;
       
-      Logger().info("Same rank validation: played_card_rank='$cardRank', last_card_rank='$lastCardRank'", isOn: LOGGING_SWITCH);
+      _logger.info("Same rank validation: played_card_rank='$cardRank', last_card_rank='$lastCardRank'", isOn: LOGGING_SWITCH);
       
       // Handle special case: first card of the game (no previous card to match)
       if (gameState.discardPile.length == 1) {
-        Logger().info("Same rank validation: First card of game, allowing play", isOn: LOGGING_SWITCH);
+        _logger.info("Same rank validation: First card of game, allowing play", isOn: LOGGING_SWITCH);
         return true;
       }
       
       // Check if ranks match (case-insensitive for safety)
       if (cardRank.toLowerCase() == lastCardRank.toLowerCase()) {
-        Logger().info("Same rank validation: Ranks match, allowing play", isOn: LOGGING_SWITCH);
+        _logger.info("Same rank validation: Ranks match, allowing play", isOn: LOGGING_SWITCH);
         return true;
       } else {
-        Logger().info("Same rank validation: Ranks don't match, denying play", isOn: LOGGING_SWITCH);
+        _logger.info("Same rank validation: Ranks don't match, denying play", isOn: LOGGING_SWITCH);
         return false;
       }
         
     } catch (e) {
-      Logger().error("Same rank validation error: $e", isOn: LOGGING_SWITCH);
+      _logger.error("Same rank validation error: $e", isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -1426,7 +1427,7 @@ class GameRound {
       // Draw penalty card from draw pile using custom method with auto change detection
       final penaltyCard = gameState.drawFromDrawPile();
       if (penaltyCard == null) {
-        Logger().error("Failed to draw penalty card from draw pile for player $playerId", isOn: LOGGING_SWITCH);
+        _logger.error("Failed to draw penalty card from draw pile for player $playerId", isOn: LOGGING_SWITCH);
         return null;
       }
       
@@ -1435,7 +1436,7 @@ class GameRound {
       
       // Update player status to indicate they received a penalty
       player.updateStatus(PlayerStatus.waiting); // Reset to waiting after penalty
-      Logger().info("Player $playerId status reset to WAITING after penalty", isOn: LOGGING_SWITCH);
+      _logger.info("Player $playerId status reset to WAITING after penalty", isOn: LOGGING_SWITCH);
       
       return penaltyCard;
       
@@ -1480,11 +1481,11 @@ class GameRound {
       
       // Set game phase to GAME_ENDED
       gameState.phase = GamePhase.gameEnded;
-      Logger().info("Game phase set to GAME_ENDED", isOn: LOGGING_SWITCH);
+      _logger.info("Game phase set to GAME_ENDED", isOn: LOGGING_SWITCH);
       
       // Set winner status and log results
       if (winnerData['is_tie'] == true) {
-        Logger().info("Game ended in a tie: ${winnerData['winners']}", isOn: LOGGING_SWITCH);
+        _logger.info("Game ended in a tie: ${winnerData['winners']}", isOn: LOGGING_SWITCH);
         // For ties, set all tied players to FINISHED status
         final winners = winnerData['winners'] as List<String>? ?? [];
         for (final winnerName in winners) {
@@ -1492,7 +1493,7 @@ class GameRound {
             final player = entry.value;
             if (player.name == winnerName) {
               player.updateStatus(PlayerStatus.finished);
-              Logger().info("Player ${player.name} set to FINISHED status (tie)", isOn: LOGGING_SWITCH);
+              _logger.info("Player ${player.name} set to FINISHED status (tie)", isOn: LOGGING_SWITCH);
             }
           }
         }
@@ -1501,12 +1502,12 @@ class GameRound {
         final winnerName = winnerData['winner_name'];
         final winReason = winnerData['win_reason'] ?? 'unknown';
         
-        Logger().info("Game ended - Winner: $winnerName (ID: $winnerId) - Reason: $winReason", isOn: LOGGING_SWITCH);
+        _logger.info("Game ended - Winner: $winnerName (ID: $winnerId) - Reason: $winReason", isOn: LOGGING_SWITCH);
         
         // Set winner status
         if (winnerId != null && gameState.players.containsKey(winnerId)) {
           gameState.players[winnerId]!.updateStatus(PlayerStatus.winner);
-          Logger().info("Player $winnerName set to WINNER status", isOn: LOGGING_SWITCH);
+          _logger.info("Player $winnerName set to WINNER status", isOn: LOGGING_SWITCH);
         }
         
         // Set all other players to FINISHED status
@@ -1514,7 +1515,7 @@ class GameRound {
           final player = entry.value;
           if (entry.key != winnerId) {
             player.updateStatus(PlayerStatus.finished);
-            Logger().info("Player ${player.name} set to FINISHED status", isOn: LOGGING_SWITCH);
+            _logger.info("Player ${player.name} set to FINISHED status", isOn: LOGGING_SWITCH);
           }
         }
       }
@@ -1522,7 +1523,7 @@ class GameRound {
       // TODO: Send results to all players
       
     } catch (e) {
-      Logger().error("Error in _handle_end_of_match: $e", isOn: LOGGING_SWITCH);
+      _logger.error("Error in _handle_end_of_match: $e", isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1609,10 +1610,10 @@ class GameRound {
       sameRankTimer?.cancel();
       specialCardTimer?.cancel();
       
-      Logger().info('GameRound disposed', isOn: LOGGING_SWITCH);
+      _logger.info('GameRound disposed', isOn: LOGGING_SWITCH);
       
     } catch (e) {
-      Logger().error('Error disposing GameRound: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error disposing GameRound: $e', isOn: LOGGING_SWITCH);
     }
   }
 }

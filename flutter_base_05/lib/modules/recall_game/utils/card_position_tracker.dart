@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Represents a card's position and size on screen
 class CardPosition {

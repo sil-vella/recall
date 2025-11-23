@@ -27,6 +27,7 @@ enum GamePhase {
 class GameState {
   /// Represents the current state of a Recall game
   
+  final Logger _logger = Logger();
   final String gameId;
   final int maxPlayers;
   final int minPlayers;
@@ -156,10 +157,10 @@ class GameState {
       _trackChange('discardPile');
       _sendChangesIfNeeded();
       
-      Logger().info('Card ${card.cardId} (${card.rank} of ${card.suit}) added to discard pile', isOn: LOGGING_SWITCH);
+      _logger.info('Card ${card.cardId} (${card.rank} of ${card.suit}) added to discard pile', isOn: LOGGING_SWITCH);
       return true;
     } catch (e) {
-      Logger().error('Failed to add card to discard pile: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to add card to discard pile: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -174,15 +175,15 @@ class GameState {
           _trackChange('discardPile');
           _sendChangesIfNeeded();
           
-          Logger().info('Card $cardId (${removedCard.rank} of ${removedCard.suit}) removed from discard pile', isOn: LOGGING_SWITCH);
+          _logger.info('Card $cardId (${removedCard.rank} of ${removedCard.suit}) removed from discard pile', isOn: LOGGING_SWITCH);
           return removedCard;
         }
       }
       
-      Logger().warning('Card $cardId not found in discard pile', isOn: LOGGING_SWITCH);
+      _logger.warning('Card $cardId not found in discard pile', isOn: LOGGING_SWITCH);
       return null;
     } catch (e) {
-      Logger().error('Failed to remove card from discard pile: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to remove card from discard pile: $e', isOn: LOGGING_SWITCH);
       return null;
     }
   }
@@ -203,10 +204,10 @@ class GameState {
       _trackChange('discardPile');
       _sendChangesIfNeeded();
       
-      Logger().info('Discard pile cleared, ${clearedCards.length} cards removed', isOn: LOGGING_SWITCH);
+      _logger.info('Discard pile cleared, ${clearedCards.length} cards removed', isOn: LOGGING_SWITCH);
       return clearedCards;
     } catch (e) {
-      Logger().error('Failed to clear discard pile: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to clear discard pile: $e', isOn: LOGGING_SWITCH);
       return [];
     }
   }
@@ -216,7 +217,7 @@ class GameState {
   Card? drawFromDrawPile() {
     try {
       if (drawPile.isEmpty) {
-        Logger().warning('Cannot draw from empty draw pile', isOn: LOGGING_SWITCH);
+        _logger.warning('Cannot draw from empty draw pile', isOn: LOGGING_SWITCH);
         return null;
       }
       
@@ -226,10 +227,10 @@ class GameState {
       _trackChange('drawPile');
       _sendChangesIfNeeded();
       
-      Logger().info('Card ${drawnCard.cardId} (${drawnCard.rank} of ${drawnCard.suit}) drawn from draw pile', isOn: LOGGING_SWITCH);
+      _logger.info('Card ${drawnCard.cardId} (${drawnCard.rank} of ${drawnCard.suit}) drawn from draw pile', isOn: LOGGING_SWITCH);
       return drawnCard;
     } catch (e) {
-      Logger().error('Failed to draw from draw pile: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to draw from draw pile: $e', isOn: LOGGING_SWITCH);
       return null;
     }
   }
@@ -237,7 +238,7 @@ class GameState {
   Card? drawFromDiscardPile() {
     try {
       if (discardPile.isEmpty) {
-        Logger().warning('Cannot draw from empty discard pile', isOn: LOGGING_SWITCH);
+        _logger.warning('Cannot draw from empty discard pile', isOn: LOGGING_SWITCH);
         return null;
       }
       
@@ -247,10 +248,10 @@ class GameState {
       _trackChange('discardPile');
       _sendChangesIfNeeded();
       
-      Logger().info('Card ${drawnCard.cardId} (${drawnCard.rank} of ${drawnCard.suit}) drawn from discard pile', isOn: LOGGING_SWITCH);
+      _logger.info('Card ${drawnCard.cardId} (${drawnCard.rank} of ${drawnCard.suit}) drawn from discard pile', isOn: LOGGING_SWITCH);
       return drawnCard;
     } catch (e) {
-      Logger().error('Failed to draw from discard pile: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to draw from discard pile: $e', isOn: LOGGING_SWITCH);
       return null;
     }
   }
@@ -263,10 +264,10 @@ class GameState {
       _trackChange('drawPile');
       _sendChangesIfNeeded();
       
-      Logger().info('Card ${card.cardId} (${card.rank} of ${card.suit}) added to draw pile', isOn: LOGGING_SWITCH);
+      _logger.info('Card ${card.cardId} (${card.rank} of ${card.suit}) added to draw pile', isOn: LOGGING_SWITCH);
       return true;
     } catch (e) {
-      Logger().error('Failed to add card to draw pile: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to add card to draw pile: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -306,10 +307,10 @@ class GameState {
       _trackChange('players');
       _sendChangesIfNeeded();
       
-      Logger().info('Updated $updatedCount players\' status to ${status.name}', isOn: LOGGING_SWITCH);
+      _logger.info('Updated $updatedCount players\' status to ${status.name}', isOn: LOGGING_SWITCH);
       return updatedCount;
     } catch (e) {
-      Logger().error('Failed to update all players status: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to update all players status: $e', isOn: LOGGING_SWITCH);
       return 0;
     }
   }
@@ -323,7 +324,7 @@ class GameState {
           players[playerId]!.updateStatus(status);
           updatedCount++;
         } else {
-          Logger().warning('Player $playerId not found in game', isOn: LOGGING_SWITCH);
+          _logger.warning('Player $playerId not found in game', isOn: LOGGING_SWITCH);
         }
       }
       
@@ -331,10 +332,10 @@ class GameState {
       _trackChange('players');
       _sendChangesIfNeeded();
       
-      Logger().info('Updated $updatedCount players\' status to ${status.name}', isOn: LOGGING_SWITCH);
+      _logger.info('Updated $updatedCount players\' status to ${status.name}', isOn: LOGGING_SWITCH);
       return updatedCount;
     } catch (e) {
-      Logger().error('Failed to update players status by IDs: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to update players status by IDs: $e', isOn: LOGGING_SWITCH);
       return 0;
     }
   }
@@ -353,21 +354,21 @@ class GameState {
     try {
       if (_previousPhase != null) {
         // Log phase transition
-        Logger().info('Phase transition: ${_previousPhase!.name} -> ${phase.name}', isOn: LOGGING_SWITCH);
+        _logger.info('Phase transition: ${_previousPhase!.name} -> ${phase.name}', isOn: LOGGING_SWITCH);
         
         // Special handling for specific phase transitions
         if (_previousPhase == GamePhase.specialPlayWindow && phase == GamePhase.endingRound) {
-          Logger().info('🎯 PHASE TRANSITION DETECTED: SPECIAL_PLAY_WINDOW → ENDING_ROUND', isOn: LOGGING_SWITCH);
-          Logger().info('🎯 Game ID: $gameId', isOn: LOGGING_SWITCH);
-          Logger().info('🎯 Previous phase: ${_previousPhase!.name}', isOn: LOGGING_SWITCH);
-          Logger().info('🎯 Current phase: ${phase.name}', isOn: LOGGING_SWITCH);
-          Logger().info('🎯 Current player: $currentPlayerId', isOn: LOGGING_SWITCH);
-          Logger().info('🎯 Player count: ${players.length}', isOn: LOGGING_SWITCH);
-          Logger().info('🎯 Timestamp: ${DateTime.now().toIso8601String()}', isOn: LOGGING_SWITCH);
+          _logger.info('🎯 PHASE TRANSITION DETECTED: SPECIAL_PLAY_WINDOW → ENDING_ROUND', isOn: LOGGING_SWITCH);
+          _logger.info('🎯 Game ID: $gameId', isOn: LOGGING_SWITCH);
+          _logger.info('🎯 Previous phase: ${_previousPhase!.name}', isOn: LOGGING_SWITCH);
+          _logger.info('🎯 Current phase: ${phase.name}', isOn: LOGGING_SWITCH);
+          _logger.info('🎯 Current player: $currentPlayerId', isOn: LOGGING_SWITCH);
+          _logger.info('🎯 Player count: ${players.length}', isOn: LOGGING_SWITCH);
+          _logger.info('🎯 Timestamp: ${DateTime.now().toIso8601String()}', isOn: LOGGING_SWITCH);
         }
       }
     } catch (e) {
-      Logger().error('❌ Error in _detectPhaseTransitions: $e', isOn: LOGGING_SWITCH);
+      _logger.error('❌ Error in _detectPhaseTransitions: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -376,7 +377,7 @@ class GameState {
   void _trackChange(String propertyName) {
     if (_changeTrackingEnabled) {
       _pendingChanges.add(propertyName);
-      Logger().info('📝 Tracking change for property: $propertyName', isOn: LOGGING_SWITCH);
+      _logger.info('📝 Tracking change for property: $propertyName', isOn: LOGGING_SWITCH);
       
       // Detect specific phase transitions
       if (propertyName == 'phase') {
@@ -387,38 +388,38 @@ class GameState {
 
   void _sendChangesIfNeeded() {
     if (!_changeTrackingEnabled || _pendingChanges.isEmpty) {
-      Logger().info('❌ Change tracking disabled or no pending changes', isOn: LOGGING_SWITCH);
+      _logger.info('❌ Change tracking disabled or no pending changes', isOn: LOGGING_SWITCH);
       return;
     }
 
     try {
-      Logger().info('🔄 _sendChangesIfNeeded called with ${_pendingChanges.length} pending changes', isOn: LOGGING_SWITCH);
+      _logger.info('🔄 _sendChangesIfNeeded called with ${_pendingChanges.length} pending changes', isOn: LOGGING_SWITCH);
       
       if (appManager != null) {
         // Get coordinator and send partial update
         final coordinator = appManager.gameEventCoordinator;
         if (coordinator != null) {
         final changesList = _pendingChanges.toList();
-          Logger().info('=== SENDING PARTIAL UPDATE ===', isOn: LOGGING_SWITCH);
-          Logger().info('Game ID: $gameId', isOn: LOGGING_SWITCH);
-          Logger().info('Changed properties: $changesList', isOn: LOGGING_SWITCH);
-          Logger().info('==============================', isOn: LOGGING_SWITCH);
+          _logger.info('=== SENDING PARTIAL UPDATE ===', isOn: LOGGING_SWITCH);
+          _logger.info('Game ID: $gameId', isOn: LOGGING_SWITCH);
+          _logger.info('Changed properties: $changesList', isOn: LOGGING_SWITCH);
+          _logger.info('==============================', isOn: LOGGING_SWITCH);
           
           // Send partial update via coordinator
           coordinator.sendGameStatePartialUpdate(gameId, changesList);
-          Logger().info('✅ Partial update sent successfully for properties: $changesList', isOn: LOGGING_SWITCH);
+          _logger.info('✅ Partial update sent successfully for properties: $changesList', isOn: LOGGING_SWITCH);
         } else {
-          Logger().info('❌ No coordinator found - cannot send partial update', isOn: LOGGING_SWITCH);
+          _logger.info('❌ No coordinator found - cannot send partial update', isOn: LOGGING_SWITCH);
         }
       } else {
-        Logger().info('❌ No app_manager found - cannot send partial update', isOn: LOGGING_SWITCH);
+        _logger.info('❌ No app_manager found - cannot send partial update', isOn: LOGGING_SWITCH);
       }
       
       // Clear pending changes
       _pendingChanges.clear();
-      Logger().info('✅ Cleared pending changes', isOn: LOGGING_SWITCH);
+      _logger.info('✅ Cleared pending changes', isOn: LOGGING_SWITCH);
     } catch (e) {
-      Logger().error('❌ Error in _sendChangesIfNeeded: $e', isOn: LOGGING_SWITCH);
+      _logger.error('❌ Error in _sendChangesIfNeeded: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -527,9 +528,9 @@ class GameState {
       // Check if same_rank_data property exists and clear it
       // Note: In Dart, we need to implement this differently since we don't have
       // dynamic property addition like Python's hasattr
-      Logger().info("Same rank data cleared via custom method", isOn: LOGGING_SWITCH);
+      _logger.info("Same rank data cleared via custom method", isOn: LOGGING_SWITCH);
     } catch (e) {
-      Logger().error('Error clearing same rank data: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error clearing same rank data: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -662,7 +663,7 @@ class GameState {
     /// Get the game round handler
     /// Create a persistent GameRound instance if it doesn't exist
     if (_gameRoundInstance == null) {
-      Logger().info('Creating new GameRound instance for game $gameId', isOn: LOGGING_SWITCH);
+      _logger.info('Creating new GameRound instance for game $gameId', isOn: LOGGING_SWITCH);
       // Import GameRound dynamically to avoid circular dependency
       // This will need to be implemented when GameRound class is available
       // _gameRoundInstance = GameRound(this);
@@ -684,6 +685,7 @@ class GameState {
 class GameStateManager {
   /// Manages multiple game states with integrated WebSocket communication
   
+  final Logger _logger = Logger();
   Map<String, GameState> activeGames = {}; // game_id -> GameState
   dynamic appManager;
   dynamic websocketManager;
@@ -707,10 +709,10 @@ class GameStateManager {
       _registerHookCallbacks();
       
       _initialized = true;
-      Logger().info('GameStateManager initialized successfully', isOn: LOGGING_SWITCH);
+      _logger.info('GameStateManager initialized successfully', isOn: LOGGING_SWITCH);
       return true;
     } catch (e) {
-      Logger().error('Failed to initialize GameStateManager: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to initialize GameStateManager: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -901,7 +903,7 @@ class GameStateManager {
       appManager?.registerHookCallback('leave_room', _onLeaveRoom);
       
     } catch (e) {
-      Logger().error('Failed to register hook callbacks: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to register hook callbacks: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -924,7 +926,7 @@ class GameStateManager {
         }
       }
     } catch (e) {
-      Logger().error('Failed to handle room created: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to handle room created: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -957,7 +959,7 @@ class GameStateManager {
       }
       
     } catch (e) {
-      Logger().error('Failed to handle room joined: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to handle room joined: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -970,7 +972,7 @@ class GameStateManager {
         removeGame(roomId);
       }
     } catch (e) {
-      Logger().error('Failed to handle room closed: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to handle room closed: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1009,7 +1011,7 @@ class GameStateManager {
       }
       
     } catch (e) {
-      Logger().error('Failed to handle leave room: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Failed to handle leave room: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1052,9 +1054,9 @@ class GameStateManager {
       if (game.drawPile.isNotEmpty) {
         final firstCard = game.drawPile.removeAt(0);
         game.discardPile.add(firstCard);
-        Logger().info('Setup piles: ${game.drawPile.length} cards in draw pile, ${game.discardPile.length} cards in discard pile', isOn: LOGGING_SWITCH);
+        _logger.info('Setup piles: ${game.drawPile.length} cards in draw pile, ${game.discardPile.length} cards in discard pile', isOn: LOGGING_SWITCH);
       } else {
-        Logger().warning('Warning: No cards in draw pile after dealing', isOn: LOGGING_SWITCH);
+        _logger.warning('Warning: No cards in draw pile after dealing', isOn: LOGGING_SWITCH);
       }
       
       // Trigger change detection for both piles
@@ -1063,7 +1065,7 @@ class GameStateManager {
       game._sendChangesIfNeeded();
       
     } catch (e) {
-      Logger().error('Error in _setupPiles: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Error in _setupPiles: $e', isOn: LOGGING_SWITCH);
     }
   }
 }

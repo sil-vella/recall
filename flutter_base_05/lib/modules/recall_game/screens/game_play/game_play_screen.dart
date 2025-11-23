@@ -16,7 +16,7 @@ import '../../../../modules/recall_game/managers/feature_registry_manager.dart';
 import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
 import 'card_position_tracker.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);
@@ -29,6 +29,7 @@ class GamePlayScreen extends BaseScreen {
 }
 
 class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
+  final Logger _logger = Logger();
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   String? _previousGameId; // Track game ID to detect navigation away
 
@@ -72,7 +73,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     _previousGameId = recallGameState['currentGameId']?.toString();
     
-    Logger().info('GamePlay: Screen loaded with game ID: $_previousGameId', isOn: LOGGING_SWITCH);
+    _logger.info('GamePlay: Screen loaded with game ID: $_previousGameId', isOn: LOGGING_SWITCH);
   }
 
   Future<void> _initializeWebSocket() async {
@@ -106,7 +107,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   void deactivate() {
     // Check if we're navigating away from a recall game
     if (_previousGameId != null && _previousGameId!.startsWith('recall_game_')) {
-      Logger().info('GamePlay: Navigating away from recall game $_previousGameId - cleaning up', isOn: LOGGING_SWITCH);
+      _logger.info('GamePlay: Navigating away from recall game $_previousGameId - cleaning up', isOn: LOGGING_SWITCH);
       
       // Clean up recall game state
       PracticeGameCoordinator().cleanupPracticeState();
@@ -128,7 +129,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     
     // Additional cleanup on dispose (failsafe)
     if (_previousGameId != null && _previousGameId!.startsWith('recall_game_')) {
-      Logger().info('GamePlay: Disposing recall game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
+      _logger.info('GamePlay: Disposing recall game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
       
       PracticeGameCoordinator().cleanupPracticeState();
     }

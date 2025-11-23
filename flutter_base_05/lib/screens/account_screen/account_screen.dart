@@ -17,7 +17,8 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static final Logger _log = Logger();
+  static const bool LOGGING_SWITCH = false;
+  static final Logger _logger = Logger();
   
   // Form controllers
   final TextEditingController _usernameController = TextEditingController();
@@ -44,14 +45,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   @override
   void initState() {
     super.initState();
-    _log.info('🔍 AccountScreen initState called');
+    _logger.info('🔍 AccountScreen initState called', isOn: LOGGING_SWITCH);
     _initializeModules();
   }
   
   void _initializeModules() {
     _loginModule = _moduleManager.getModuleByType<LoginModule>();
     if (_loginModule == null) {
-      _log.error('❌ Login module not available');
+      _logger.error('❌ Login module not available', isOn: LOGGING_SWITCH);
     }
   }
   
@@ -178,7 +179,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     final stateManager = StateManager();
     stateManager.updateMainAppState("main_state", newState);
     
-    _log.info('📱 App state updated to: $newState');
+    _logger.info('📱 App state updated to: $newState', isOn: LOGGING_SWITCH);
     
     // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
@@ -341,7 +342,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   
   @override
   Widget buildContent(BuildContext context) {
-    _log.info('🔍 AccountScreen buildContent called');
+    _logger.info('🔍 AccountScreen buildContent called', isOn: LOGGING_SWITCH);
     // Use AnimatedBuilder to listen to StateManager changes
     return AnimatedBuilder(
       animation: StateManager(),
@@ -353,7 +354,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         final username = loginState?["username"] ?? "";
         final email = loginState?["email"] ?? "";
         
-        _log.info('🔍 AccountScreen - isLoggedIn: $isLoggedIn, username: $username');
+        _logger.info('🔍 AccountScreen - isLoggedIn: $isLoggedIn, username: $username', isOn: LOGGING_SWITCH);
         
         // If user is logged in, show user profile
         if (isLoggedIn) {

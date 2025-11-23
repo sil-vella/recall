@@ -8,7 +8,7 @@ import '../../../widgets/card_widget.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../card_position_tracker.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Widget to display the draw pile information
 /// 

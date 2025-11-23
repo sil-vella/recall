@@ -7,7 +7,8 @@ import '../../core/services/shared_preferences.dart';
 import '../../tools/logging/logger.dart';
 
 class AnimationsModule extends ModuleBase {
-  static final Logger _log = Logger();
+  static const bool LOGGING_SWITCH = false;
+  static final Logger _logger = Logger();
   final List<AnimationController> _controllers = [];
   final Map<String, ConfettiController> _confettiControllers = {};
 
@@ -17,13 +18,13 @@ class AnimationsModule extends ModuleBase {
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
     super.initialize(context, moduleManager);
-    _log.info('✅ AnimationsModule initialized with context.');
+    _logger.info('✅ AnimationsModule initialized with context.', isOn: LOGGING_SWITCH);
   }
 
   /// ✅ Cleanup logic for AnimationsModule
   @override
   void dispose() {
-    _log.info('Cleaning up AnimationsModule resources.');
+    _logger.info('Cleaning up AnimationsModule resources.', isOn: LOGGING_SWITCH);
 
     for (final controller in _controllers) {
       if (controller.isAnimating) {
@@ -38,14 +39,14 @@ class AnimationsModule extends ModuleBase {
     }
     _confettiControllers.clear();
 
-    _log.info('AnimationsModule fully disposed.');
+    _logger.info('AnimationsModule fully disposed.', isOn: LOGGING_SWITCH);
     super.dispose();
   }
 
   /// ✅ Registers an AnimationController for later cleanup
   void registerController(AnimationController controller) {
     _controllers.add(controller);
-    _log.info('Registered AnimationController: $controller');
+    _logger.info('Registered AnimationController: $controller', isOn: LOGGING_SWITCH);
   }
 
   /// ✅ Method to trigger confetti animation
@@ -55,14 +56,14 @@ class AnimationsModule extends ModuleBase {
     }
 
     _confettiControllers[key]!.play();
-    _log.info('🎉 Confetti started: $key');
+    _logger.info('🎉 Confetti started: $key', isOn: LOGGING_SWITCH);
   }
 
   /// ✅ Stop confetti animation
   void stopConfetti({required String key}) {
     if (_confettiControllers.containsKey(key)) {
       _confettiControllers[key]!.stop();
-      _log.info('⏹️ Confetti stopped: $key');
+      _logger.info('⏹️ Confetti stopped: $key', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -83,25 +84,25 @@ class AnimationsModule extends ModuleBase {
     if (_confettiControllers.containsKey(key)) {
       _confettiControllers[key]!.dispose();
       _confettiControllers.remove(key);
-      _log.info('🗑️ Removed confetti controller: $key');
+      _logger.info('🗑️ Removed confetti controller: $key', isOn: LOGGING_SWITCH);
     }
   }
 
   /// ✅ Play success animation
   void playSuccessAnimation() {
     playConfetti(key: 'success');
-    _log.info('✅ Success animation played');
+    _logger.info('✅ Success animation played', isOn: LOGGING_SWITCH);
   }
 
   /// ✅ Play celebration animation
   void playCelebrationAnimation() {
     playConfetti(key: 'celebration');
-    _log.info('🎉 Celebration animation played');
+    _logger.info('🎉 Celebration animation played', isOn: LOGGING_SWITCH);
   }
 
   /// ✅ Play level up animation
   void playLevelUpAnimation() {
     playConfetti(key: 'level_up');
-    _log.info('📈 Level up animation played');
+    _logger.info('📈 Level up animation played', isOn: LOGGING_SWITCH);
   }
 }

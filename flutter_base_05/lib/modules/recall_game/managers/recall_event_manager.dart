@@ -9,6 +9,7 @@ import 'recall_event_handler_callbacks.dart';
 
 
 class RecallEventManager {
+  static const bool LOGGING_SWITCH = false;
   static final RecallEventManager _instance = RecallEventManager._internal();
   factory RecallEventManager() => _instance;
   RecallEventManager._internal();
@@ -91,7 +92,7 @@ class RecallEventManager {
 
   /// Handle game_state_partial_update event
   void handleGameStatePartialUpdate(Map<String, dynamic> data) {
-    _logger.info("handleGameStatePartialUpdate: $data");
+    _logger.info("handleGameStatePartialUpdate: $data", isOn: LOGGING_SWITCH);
     RecallEventHandlerCallbacks.handleGameStatePartialUpdate(data);
   }
 

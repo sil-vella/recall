@@ -11,7 +11,7 @@ import 'auth_manager.dart';
 /// Provider Manager - Centralized provider registration system
 /// Allows modules to register their own providers dynamically
 class ProviderManager {
-  static final Logger _log = Logger();
+  static final Logger _logger = Logger();
   static final ProviderManager _instance = ProviderManager._internal();
   
   factory ProviderManager() => _instance;

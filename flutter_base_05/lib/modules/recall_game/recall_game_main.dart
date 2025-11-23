@@ -16,6 +16,9 @@ import 'managers/recall_game_state_updater.dart';
 /// Recall Game Module
 /// Main module for the Recall card game functionality
 class RecallGameMain extends ModuleBase {
+  static const bool LOGGING_SWITCH = false;
+  final Logger _logger = Logger();
+  
   final navigationManager = NavigationManager();
   
   // Recall game components
@@ -54,13 +57,13 @@ class RecallGameMain extends ModuleBase {
     try {
       // Step 0: Initialize singletons FIRST (before anything else)
       // This ensures they're ready before static fields or widgets access them
-      Logger().info('🎬 RecallGameMain: Starting singleton initialization', isOn: true);
+      _logger.info('🎬 RecallGameMain: Starting singleton initialization', isOn: LOGGING_SWITCH);
       
       // Access singletons to trigger their initialization
       // ignore: unused_local_variable
       final _ = RecallGameStateUpdater.instance; // Triggers constructor and handler setup
       
-      Logger().info('🎬 RecallGameMain: Singletons initialized successfully', isOn: true);
+      _logger.info('🎬 RecallGameMain: Singletons initialized successfully', isOn: LOGGING_SWITCH);
       
       // Step 1: Register state with StateManager
       _registerState();
@@ -84,7 +87,7 @@ class RecallGameMain extends ModuleBase {
       await _performFinalVerification();
       
     } catch (e) {
-      Logger().error('🎬 RecallGameMain: Error during initialization: $e', isOn: true);
+      _logger.error('🎬 RecallGameMain: Error during initialization: $e', isOn: LOGGING_SWITCH);
     }
   }
 

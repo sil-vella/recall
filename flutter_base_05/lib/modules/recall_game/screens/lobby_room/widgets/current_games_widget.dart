@@ -18,6 +18,7 @@ const bool LOGGING_SWITCH = false;
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class CurrentRoomWidget extends StatelessWidget {
+  static final Logger _logger = Logger();
   final Function(String)? onJoinRoom;
   
   const CurrentRoomWidget({
@@ -300,7 +301,7 @@ class CurrentRoomWidget extends StatelessWidget {
       final currentUserId = loginState['userId']?.toString() ?? '';
       
       if (currentUserId == 'recall_user') {
-        Logger().info('CurrentGames: Recall user detected - cleaning up before entering real game', isOn: LOGGING_SWITCH);
+        _logger.info('CurrentGames: Recall user detected - cleaning up before entering real game', isOn: LOGGING_SWITCH);
         await PracticeGameCoordinator().cleanupPracticeState();
       }
       

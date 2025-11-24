@@ -213,7 +213,7 @@ class StateManager with ChangeNotifier {
       
         // Use deprecated merge for backward compatibility
         final newMergedState = existingState.merge(newStateMap);
-        _moduleStates[moduleKey] = newMergedState;
+      _moduleStates[moduleKey] = newMergedState;
       } else {
         _logger.error('📦 StateManager: updateModuleState("$moduleKey") - Invalid state type: ${newState.runtimeType}', isOn: LOGGING_SWITCH);
         return;

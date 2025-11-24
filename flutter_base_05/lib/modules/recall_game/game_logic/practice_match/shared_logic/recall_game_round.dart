@@ -889,7 +889,8 @@ class RecallGameRound {
   /// Handle drawing a card from the specified pile (replicates backend _handle_draw_from_pile)
   /// [playerId] - Optional player ID. If provided, uses this player directly instead of reading from currentPlayer.
   ///              This prevents stale state issues when currentPlayer in games map hasn't been updated yet.
-  Future<bool> handleDrawCard(String source, {String? playerId}) async {
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
+  Future<bool> handleDrawCard(String source, {String? playerId, Map<String, dynamic>? gamesMap}) async {
     try {
       _logger.info('Recall: Handling draw card from $source pile', isOn: LOGGING_SWITCH);
       
@@ -899,12 +900,20 @@ class RecallGameRound {
         return false;
       }
       
-      // Get current game state
-      final gameState = _getCurrentGameState();
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
         _logger.error('Recall: Game state is null for draw card', isOn: LOGGING_SWITCH);
         return false;
+      }
+      
+      if (gamesMap != null) {
+        _logger.info('Recall: handleDrawCard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
       }
       
       // Use provided playerId if available, otherwise read from currentPlayer
@@ -1060,7 +1069,7 @@ class RecallGameRound {
       
       // CRITICAL: Batch state update with both hand and discard pile changes (if drawing from discard)
       // This ensures widgets rebuild atomically and card position tracking works correctly
-      final currentGames = _stateCallback.currentGamesMap;
+      // Use the games map we're working with (currentGames already has modifications)
       _logger.info('Recall: Updating games map through SSOT after draw card for player $actualPlayerId', isOn: LOGGING_SWITCH);
       
       // Add turn event for draw action
@@ -1111,15 +1120,25 @@ class RecallGameRound {
   }
 
   /// Handle collecting card from discard pile if it matches player's collection rank
-  Future<bool> handleCollectFromDiscard(String playerId) async {
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
+  Future<bool> handleCollectFromDiscard(String playerId, {Map<String, dynamic>? gamesMap}) async {
     try {
       _logger.info('Recall: Handling collect from discard for player $playerId', isOn: LOGGING_SWITCH);
       
-      // Get current game state
-      final gameState = _getCurrentGameState();
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
       if (gameState == null) {
         _logger.error('Recall: Failed to get game state', isOn: LOGGING_SWITCH);
         return false;
+      }
+      
+      if (gamesMap != null) {
+        _logger.info('Recall: handleCollectFromDiscard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
       }
       
       // Check if game is in restricted phases
@@ -1255,7 +1274,7 @@ class RecallGameRound {
       // CRITICAL: Batch state update with both hand and discard pile changes
       // This ensures widgets rebuild atomically and card position tracking works correctly
       // The card is removed from discard pile and added to hand in a single atomic update
-      final currentGames = _stateCallback.currentGamesMap;
+      // Use the games map we're working with (currentGames already has modifications)
       
       // Get updated discard pile from game state (card has been removed)
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
@@ -1309,15 +1328,21 @@ class RecallGameRound {
   }
 
   /// Handle playing a card from the player's hand (replicates backend _handle_play_card)
-  Future<bool> handlePlayCard(String cardId, {String? playerId}) async {
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
+  Future<bool> handlePlayCard(String cardId, {String? playerId, Map<String, dynamic>? gamesMap}) async {
     try {
       _logger.info('Recall: Handling play card: $cardId', isOn: LOGGING_SWITCH);
       
-      // Get current game state
-      final currentGames = _stateCallback.currentGamesMap;
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
       final gameData = currentGames[_gameId];
       final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gamesMap != null) {
+        _logger.info('Recall: handlePlayCard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+      }
       
       if (gameState == null) {
         _logger.error('Recall: Game state is null for play card', isOn: LOGGING_SWITCH);
@@ -1328,10 +1353,10 @@ class RecallGameRound {
       String? actualPlayerId = playerId;
       if (actualPlayerId == null || actualPlayerId.isEmpty) {
         // Fallback to reading from currentPlayer (for backward compatibility with human player calls)
-        final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
-        if (currentPlayer == null) {
+      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      if (currentPlayer == null) {
           _logger.error('Recall: No current player found for play card and no playerId provided', isOn: LOGGING_SWITCH);
-          return false;
+        return false;
         }
         actualPlayerId = currentPlayer['id']?.toString() ?? '';
       }
@@ -1451,8 +1476,8 @@ class RecallGameRound {
       
       // CRITICAL: Batch state update with both hand and discard pile changes
       // This ensures widgets rebuild atomically and card position tracking works correctly
-      // Get fresh games map after hand and discard pile modifications
-      final currentGamesForPlay = _stateCallback.currentGamesMap;
+      // Use the games map we're working with (currentGames already has modifications)
+      final currentGamesForPlay = currentGames;
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
       // Add turn events for play action and potential reposition
@@ -1629,15 +1654,25 @@ class RecallGameRound {
 
   /// Handle same rank play action - validates rank match and moves card to discard pile
   /// Replicates backend's _handle_same_rank_play method in game_round.py lines 1000-1089
-  Future<bool> handleSameRankPlay(String playerId, String cardId) async {
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
+  Future<bool> handleSameRankPlay(String playerId, String cardId, {Map<String, dynamic>? gamesMap}) async {
     try {
       _logger.info('Recall: Handling same rank play for player $playerId, card $cardId', isOn: LOGGING_SWITCH);
       
-      // Get current game state
-      final gameState = _getCurrentGameState();
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
       if (gameState == null) {
         _logger.error('Recall: Failed to get game state for same rank play', isOn: LOGGING_SWITCH);
         return false;
+      }
+      
+      if (gamesMap != null) {
+        _logger.info('Recall: handleSameRankPlay using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
       }
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
@@ -1739,11 +1774,11 @@ class RecallGameRound {
         gameState['drawPile'] = drawPile;  // Update draw pile after removing penalty card
         
         // Update player state to reflect the new hand and draw pile
-        _stateCallback.onPlayerStatusChanged('waiting', playerId: playerId, updateMainState: true);
+        // CRITICAL: Pass currentGames to avoid reading stale state
+        _stateCallback.onPlayerStatusChanged('waiting', playerId: playerId, updateMainState: true, gamesMap: currentGames);
         
         // Broadcast the updated game state (hand and drawPile changes)
-        // Get current games map (should already include our gameState modifications)
-        final currentGames = _stateCallback.currentGamesMap;
+        // Use the games map we're working with (currentGames already has modifications)
         _stateCallback.onGameStateChanged({
           'games': currentGames,
         });
@@ -1778,7 +1813,8 @@ class RecallGameRound {
       
       // CRITICAL: Batch state update with both hand and discard pile changes
       // This ensures widgets rebuild atomically and card position tracking works correctly
-      final currentGamesForSameRank = _stateCallback.currentGamesMap;
+      // Use the games map we're working with (currentGames already has modifications)
+      final currentGamesForSameRank = currentGames;
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
       // Add turn event for same rank play (actionType is 'play' - same as regular play)
@@ -1847,20 +1883,31 @@ class RecallGameRound {
 
   /// Handle Jack swap action - swap two cards between players
   /// Replicates backend's _handle_jack_swap method in game_round.py lines 1199-1265
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleJackSwap({
     required String firstCardId,
     required String firstPlayerId,
     required String secondCardId,
     required String secondPlayerId,
+    Map<String, dynamic>? gamesMap,
   }) async {
     try {
       _logger.info('Recall: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
 
-      // Get current game state
-      final gameState = _getCurrentGameState();
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
       if (gameState == null) {
         _logger.error('Recall: Failed to get game state for Jack swap', isOn: LOGGING_SWITCH);
         return false;
+      }
+      
+      if (gamesMap != null) {
+        _logger.info('Recall: handleJackSwap using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
       }
 
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
@@ -1980,7 +2027,7 @@ class RecallGameRound {
       _logger.info('Recall: Player $secondPlayerId now has card $firstCardId at index $secondCardIndex', isOn: LOGGING_SWITCH);
 
       // Update game state to trigger UI updates
-      final currentGames = _stateCallback.currentGamesMap;
+      // Use the games map we're working with (currentGames already has modifications)
       
       // Add turn events for jack swap (both cards are repositioned)
       final turnEvents = _getCurrentTurnEvents()
@@ -2044,19 +2091,30 @@ class RecallGameRound {
 
   /// Handle Queen peek action - peek at any one card from any player
   /// Replicates backend's _handle_queen_peek method in game_round.py lines 1267-1318
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleQueenPeek({
     required String peekingPlayerId,
     required String targetCardId,
     required String targetPlayerId,
+    Map<String, dynamic>? gamesMap,
   }) async {
     try {
       _logger.info('Recall: Handling Queen peek - player $peekingPlayerId peeking at card $targetCardId from player $targetPlayerId', isOn: LOGGING_SWITCH);
 
-      // Get current game state
-      final gameState = _getCurrentGameState();
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
       if (gameState == null) {
         _logger.error('Recall: Failed to get game state for Queen peek', isOn: LOGGING_SWITCH);
         return false;
+      }
+      
+      if (gamesMap != null) {
+        _logger.info('Recall: handleQueenPeek using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
       }
 
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
@@ -2335,7 +2393,9 @@ class RecallGameRound {
       // CRITICAL: AWAIT computer same rank plays to complete BEFORE processing special cards
       // This ensures all queens played during same rank window are added to _specialCardData
       // before we start the special cards window
-      await _checkComputerPlayerSameRankPlays();
+      // Get current games map to pass to avoid stale state
+      final currentGamesForSameRank = _stateCallback.currentGamesMap;
+      await _checkComputerPlayerSameRankPlays(gamesMap: currentGamesForSameRank);
       
       // Check if game has ended (winners exist) - prevent progression if game is over
       // Winners might be added during same rank plays (empty hand win condition)
@@ -2347,7 +2407,9 @@ class RecallGameRound {
       
       // Check if computer players can collect from discard pile
       // Rank matching is done in Dart, then YAML handles AI decision
-      await _checkComputerPlayerCollectionFromDiscard();
+      // Get current games map to pass to avoid stale state (may have been updated by same rank plays)
+      final currentGamesForCollection = _stateCallback.currentGamesMap;
+      await _checkComputerPlayerCollectionFromDiscard(gamesMap: currentGamesForCollection);
       
       // Check if game has ended (winners exist) - prevent progression if game is over
       // Winners might be added during collection check (four of a kind win condition)
@@ -2368,14 +2430,25 @@ class RecallGameRound {
 
   /// Check for same rank plays from computer players during the same rank window
   /// Returns a Future that completes when ALL computer same rank plays are done
-  Future<void> _checkComputerPlayerSameRankPlays() async {
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
+  Future<void> _checkComputerPlayerSameRankPlays({Map<String, dynamic>? gamesMap}) async {
     try {
       _logger.info('Recall: Processing computer player same rank plays', isOn: LOGGING_SWITCH);
       
-      final gameState = _getCurrentGameState();
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
       if (gameState == null) {
         _logger.info('Recall: Failed to get game state', isOn: LOGGING_SWITCH);
         return;
+      }
+      
+      if (gamesMap != null) {
+        _logger.info('Recall: _checkComputerPlayerSameRankPlays using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
       }
       
       final players = gameState['players'] as List<dynamic>? ?? [];
@@ -2416,7 +2489,8 @@ class RecallGameRound {
         final difficulty = computerPlayer['difficulty']?.toString() ?? 'medium';
         
         // Add future to list (don't await yet)
-        playFutures.add(_handleComputerSameRankPlay(playerId, difficulty, gameState));
+        // Pass currentGames to _handleComputerSameRankPlay to avoid stale state
+        playFutures.add(_handleComputerSameRankPlay(playerId, difficulty, currentGames));
       }
       
       // AWAIT all computer plays to complete
@@ -2432,18 +2506,32 @@ class RecallGameRound {
   /// Check if computer players can collect from discard pile
   /// Rank matching is done in Dart, then YAML handles AI decision (collect or not)
   /// After each collection, re-checks the top card and continues until no one can collect or decides not to collect
-  Future<void> _checkComputerPlayerCollectionFromDiscard() async {
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
+  ///            This function refreshes gamesMap in each loop iteration to get the latest state after collections.
+  Future<void> _checkComputerPlayerCollectionFromDiscard({Map<String, dynamic>? gamesMap}) async {
     try {
       _logger.info('Recall: Checking computer players for collection from discard pile', isOn: LOGGING_SWITCH);
       
-      final gameState = _getCurrentGameState();
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      Map<String, dynamic> currentGames = gamesMap ?? _stateCallback.currentGamesMap;
+      
+      if (gamesMap != null) {
+        _logger.info('Recall: _checkComputerPlayerCollectionFromDiscard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+      }
+      
+      // Extract gameState from gamesMap
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      var gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
       if (gameState == null) {
         _logger.info('Recall: Failed to get game state for collection check', isOn: LOGGING_SWITCH);
         return;
       }
       
       // Get all players
-      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      var players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       
       // Get computer players (isHuman == false and isActive == true)
       final computerPlayers = players.where((p) => 
@@ -2472,19 +2560,21 @@ class RecallGameRound {
         iteration++;
         _logger.info('Recall: Collection check iteration $iteration', isOn: LOGGING_SWITCH);
         
-        // Refresh game state in each iteration to get updated discard pile after collections
-        final currentGameState = _getCurrentGameState();
-        if (currentGameState == null) {
+        // CRITICAL: Refresh games map in each iteration to get updated state after collections
+        // This prevents stale state reads when handleCollectFromDiscard updates the games map
+        currentGames = _stateCallback.currentGamesMap;
+        final refreshedGameData = currentGames[_gameId];
+        final refreshedGameDataInner = refreshedGameData?['gameData'] as Map<String, dynamic>?;
+        gameState = refreshedGameDataInner?['game_state'] as Map<String, dynamic>?;
+        
+        if (gameState == null) {
           _logger.info('Recall: Failed to get game state for collection check iteration', isOn: LOGGING_SWITCH);
           continueChecking = false;
           break;
         }
         
-        // Update gameState reference to use fresh state
-        final gameState = currentGameState;
-        
         // Refresh players list to get updated player data (collection_rank_cards may have changed)
-        final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+        players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
         
         // Refresh computer players list from updated players (maintain shuffled order by ID)
         final computerPlayerIds = computerPlayers.map((p) => p['id']?.toString() ?? '').toList();
@@ -2566,7 +2656,8 @@ class RecallGameRound {
         
         // Player decided to collect - execute collection immediately (no delay for collection checks)
         _logger.info('Recall: Player $playerName decided to collect, executing collection', isOn: LOGGING_SWITCH);
-        final success = await handleCollectFromDiscard(playerId);
+        // Pass currentGames to handleCollectFromDiscard to avoid stale state
+        final success = await handleCollectFromDiscard(playerId, gamesMap: currentGames);
         
         if (!success) {
           _logger.warning('Recall: Player $playerName failed to collect, stopping collection checks', isOn: LOGGING_SWITCH);
@@ -2662,10 +2753,21 @@ class RecallGameRound {
 
   /// Handle computer player same rank play decision
   /// Returns a Future that completes when this player's same rank play is done
-  Future<void> _handleComputerSameRankPlay(String playerId, String difficulty, Map<String, dynamic> gameState) async {
+  /// [gamesMap] Games map to use. Extracts gameState from it to avoid stale state reads.
+  Future<void> _handleComputerSameRankPlay(String playerId, String difficulty, Map<String, dynamic> gamesMap) async {
     try {
       // Ensure AI factory is available in this path too
       await _ensureComputerFactory();
+
+      // Extract gameState from gamesMap
+      final gameData = gamesMap[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        _logger.error('Recall: Failed to get game state for computer same rank play', isOn: LOGGING_SWITCH);
+        return;
+      }
 
       // Get available same rank cards for this computer player
       final availableCards = _getAvailableSameRankCards(playerId, gameState);

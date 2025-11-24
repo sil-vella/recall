@@ -1690,7 +1690,8 @@ class PracticeGameCoordinator implements GameStateCallback {
   }
 
   /// Handle the draw_card event from recall room
-  Future<bool> _handleDrawCard(String sessionId, Map<String, dynamic> data) async {
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
+  Future<bool> _handleDrawCard(String sessionId, Map<String, dynamic> data, {Map<String, dynamic>? gamesMap}) async {
     try {
       _logger.info('Recall: Handling draw_card event with data: $data', isOn: LOGGING_SWITCH);
       
@@ -1709,8 +1710,13 @@ class PracticeGameCoordinator implements GameStateCallback {
         return false;
       }
       
-      // Get current games map
-      final currentGames = _getCurrentGamesMap();
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      final currentGames = gamesMap ?? _getCurrentGamesMap();
+      
+      if (gamesMap != null) {
+        _logger.info('Recall: _handleDrawCard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+      }
       if (!currentGames.containsKey(gameId)) {
         _logger.error('Recall: Game $gameId not found for draw_card event', isOn: LOGGING_SWITCH);
         return false;
@@ -1736,8 +1742,9 @@ class PracticeGameCoordinator implements GameStateCallback {
         const humanPlayerId = 'recall_user';
         
         // Route to RecallGameRound's collection handler
+        // currentGames already retrieved above
         if (_gameRound != null) {
-          final success = await _gameRound!.handleCollectFromDiscard(humanPlayerId);
+          final success = await _gameRound!.handleCollectFromDiscard(humanPlayerId, gamesMap: currentGames);
           if (success) {
             _logger.info('Recall: Successfully handled collection draw from discard pile', isOn: LOGGING_SWITCH);
             return true;
@@ -1753,13 +1760,11 @@ class PracticeGameCoordinator implements GameStateCallback {
       
       // For NORMAL DRAWS from deck pile:
       // - Requires player's turn and drawing_card status
-      // CRITICAL: Check main state's currentPlayer field first (most up-to-date), then fall back to games map
-      final recallGameState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final mainStateCurrentPlayer = recallGameState['currentPlayer'] as Map<String, dynamic>?;
+      // Use currentPlayer from games map (from provided gamesMap or current state)
       final gameStateCurrentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       
-      // Use main state's currentPlayer if available, otherwise use games map
-      final currentPlayer = mainStateCurrentPlayer ?? gameStateCurrentPlayer;
+      // Use currentPlayer from games map
+      final currentPlayer = gameStateCurrentPlayer;
       if (currentPlayer == null) {
         _logger.error('Recall: No current player found for draw_card event', isOn: LOGGING_SWITCH);
         return false;
@@ -1787,8 +1792,9 @@ class PracticeGameCoordinator implements GameStateCallback {
       _logger.info('Recall: Validating draw_card for player $playerId from $source pile', isOn: LOGGING_SWITCH);
       
       // Route to RecallGameRound for actual draw logic
+      // Pass currentGames to handleDrawCard to avoid stale state
       if (_gameRound != null) {
-        final success = await _gameRound!.handleDrawCard(source);
+        final success = await _gameRound!.handleDrawCard(source, gamesMap: currentGames);
         if (success) {
           _logger.info('Recall: Successfully handled draw_card from $source pile', isOn: LOGGING_SWITCH);
           return true;
@@ -1808,7 +1814,8 @@ class PracticeGameCoordinator implements GameStateCallback {
   }
 
   /// Handle the play_card event from recall room
-  Future<bool> _handlePlayCard(String sessionId, Map<String, dynamic> data) async {
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
+  Future<bool> _handlePlayCard(String sessionId, Map<String, dynamic> data, {Map<String, dynamic>? gamesMap}) async {
     try {
       _logger.info('Recall: Handling play_card event with data: $data', isOn: LOGGING_SWITCH);
       
@@ -1819,8 +1826,15 @@ class PracticeGameCoordinator implements GameStateCallback {
         return false;
       }
       
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      final currentGames = gamesMap ?? _getCurrentGamesMap();
+      
+      if (gamesMap != null) {
+        _logger.info('Recall: _handlePlayCard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+      }
+      
       // Validate current player and status
-      final currentGames = _getCurrentGamesMap();
       final currentGameId = _currentPracticeGameId;
       
       if (currentGameId == null || currentGameId.isEmpty || !currentGames.containsKey(currentGameId)) {
@@ -1837,15 +1851,11 @@ class PracticeGameCoordinator implements GameStateCallback {
         return false;
       }
       
-      // CRITICAL: Check main state's currentPlayer first (updated in _startNextTurn)
-      // Fall back to games map if main state doesn't have it
-      // This prevents stale state issues when currentPlayer is updated in _startNextTurn
-      final recallGameState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final mainStateCurrentPlayer = recallGameState['currentPlayer'] as Map<String, dynamic>?;
+      // Use currentPlayer from games map (from provided gamesMap or current state)
       final gameStateCurrentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       
-      // Use main state's currentPlayer if available, otherwise use games map
-      final currentPlayer = mainStateCurrentPlayer ?? gameStateCurrentPlayer;
+      // Use currentPlayer from games map
+      final currentPlayer = gameStateCurrentPlayer;
       if (currentPlayer == null) {
         _logger.error('Recall: No current player found for play_card event', isOn: LOGGING_SWITCH);
         return false;
@@ -1873,8 +1883,9 @@ class PracticeGameCoordinator implements GameStateCallback {
       _logger.info('Recall: Validating play_card for player $playerId with card $cardId', isOn: LOGGING_SWITCH);
       
       // Route to RecallGameRound for actual play card logic
+      // Pass currentGames to handlePlayCard to avoid stale state
       if (_gameRound != null) {
-        final success = await _gameRound!.handlePlayCard(cardId);
+        final success = await _gameRound!.handlePlayCard(cardId, gamesMap: currentGames);
         if (success) {
           _logger.info('Recall: Successfully handled play_card for card $cardId', isOn: LOGGING_SWITCH);
           
@@ -1977,16 +1988,17 @@ class PracticeGameCoordinator implements GameStateCallback {
       _logger.info('Recall: Validating same_rank_play for player recall_user with card $cardId', isOn: LOGGING_SWITCH);
       
       // Route to RecallGameRound for actual same rank play logic
+      // currentGames already retrieved above
       if (_gameRound != null) {
-        final success = await _gameRound!.handleSameRankPlay('recall_user', cardId);
+        final success = await _gameRound!.handleSameRankPlay('recall_user', cardId, gamesMap: currentGames);
         if (success) {
           _logger.info('Recall: Successfully handled same_rank_play for card $cardId', isOn: LOGGING_SWITCH);
           
           // CRITICAL: Trigger comprehensive state update after successful same rank play for human player
           // This ensures all widget slices (myHand, centerBoard, opponentsPanel) recompute
           // Get fresh state after handleSameRankPlay modifications
-          final currentGames = _getCurrentGamesMap();
-          final updatedGameData = currentGames[currentGameId];
+          final updatedGames = _getCurrentGamesMap();
+          final updatedGameData = updatedGames[currentGameId];
           final updatedGameDataInner = updatedGameData?['gameData'] as Map<String, dynamic>?;
           final updatedGameState = updatedGameDataInner?['game_state'] as Map<String, dynamic>?;
           
@@ -2066,6 +2078,9 @@ class PracticeGameCoordinator implements GameStateCallback {
 
       _logger.info('Recall: Validating jack_swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
 
+      // Get current games map to pass to handleJackSwap (avoids stale state)
+      // currentGames already retrieved above
+
       // Route to RecallGameRound for actual jack swap logic
       if (_gameRound != null) {
         final success = await _gameRound!.handleJackSwap(
@@ -2073,6 +2088,7 @@ class PracticeGameCoordinator implements GameStateCallback {
           firstPlayerId: firstPlayerId,
           secondCardId: secondCardId,
           secondPlayerId: secondPlayerId,
+          gamesMap: currentGames,
         );
         if (success) {
           _logger.info('Recall: Successfully handled jack_swap', isOn: LOGGING_SWITCH);
@@ -2152,10 +2168,14 @@ class PracticeGameCoordinator implements GameStateCallback {
           _logger.warning('Recall: No player with queen_peek status found, defaulting to recall_user', isOn: LOGGING_SWITCH);
         }
         
+        // Get current games map to pass to handleQueenPeek (avoids stale state)
+        // currentGames already retrieved above
+        
         final success = await _gameRound!.handleQueenPeek(
           peekingPlayerId: peekingPlayerId,
           targetCardId: cardId,
           targetPlayerId: ownerId,
+          gamesMap: currentGames,
         );
         if (success) {
           _logger.info('Recall: Successfully handled queen_peek', isOn: LOGGING_SWITCH);

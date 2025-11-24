@@ -23,6 +23,43 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
   static const bool LOGGING_SWITCH = true; // Enable logging for debugging start button
   static final Logger _logger = Logger();
   bool _isStartingMatch = false;
+  
+  String? _getPhaseFromGamesMap(Map<String, dynamic> games, String gameId) {
+    if (gameId.isEmpty || !games.containsKey(gameId)) {
+      return null;
+    }
+    
+    final gameEntry = games[gameId] as Map<String, dynamic>? ?? {};
+    final gameData = gameEntry['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final rawPhase = gameState['phase']?.toString();
+    
+    return _normalizePhase(rawPhase);
+  }
+  
+  String? _normalizePhase(String? rawPhase) {
+    if (rawPhase == null || rawPhase.isEmpty) {
+      return null;
+    }
+    
+    switch (rawPhase) {
+      case 'waiting_for_players':
+        return 'waiting';
+      case 'dealing_cards':
+        return 'setup';
+      case 'player_turn':
+      case 'same_rank_window':
+      case 'special_play_window':
+      case 'queen_peek_window':
+      case 'turn_pending_events':
+      case 'ending_round':
+      case 'ending_turn':
+      case 'recall_called':
+        return 'playing';
+      default:
+        return rawPhase;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,11 +69,15 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         // Get gameInfo state slice
         final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
+        final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
         final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
         final roomName = 'Game $currentGameId';
         final currentSize = gameInfo['currentSize'] ?? 0;
         final maxSize = gameInfo['maxSize'] ?? 4;
-        final gamePhase = gameInfo['gamePhase']?.toString() ?? 'waiting';
+        
+        // Derive phase from SSOT (games map) with fallback to gameInfo slice
+        final ssotPhase = _getPhaseFromGamesMap(games, currentGameId);
+        final gamePhase = ssotPhase ?? gameInfo['gamePhase']?.toString() ?? 'waiting';
         
         // Reset loading state if match has started
         if (_isStartingMatch && gamePhase != 'waiting' && gamePhase != 'setup') {

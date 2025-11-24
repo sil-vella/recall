@@ -76,24 +76,74 @@ class _GamePhaseChipState extends State<GamePhaseChip> {
     }
   }
 
-  /// Get game phase from the global state
+  /// Get game phase from the global state (SSOT first, fallback to legacy field)
   String _getGamePhaseFromState() {
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    
-    // Check if this is the current game
+    final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
     final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
     final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
     
+    // 1. Prefer the SSOT games map for any game (practice + multiplayer)
+    final ssotPhase = _getPhaseFromGamesMap(games, widget.gameId);
+    if (ssotPhase != null) {
+      return ssotPhase;
+    }
+    
+    // 2. Fallback to SSOT using current gameId (in case widget.gameId == 'current')
     if (widget.gameId == currentGameId) {
-      // This is the current game - get phase from main game state (single source of truth)
-      return recallGameState['gamePhase']?.toString() ?? 'waiting';
-    } else {
-      // This is another game - get phase from game data (single source of truth)
-      final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
-      final gameData = games[widget.gameId] as Map<String, dynamic>? ?? {};
-      final gameState = gameData['gameData']?['game_state'] as Map<String, dynamic>? ?? {};
+      final currentGamePhase = _getPhaseFromGamesMap(games, currentGameId);
+      if (currentGamePhase != null) {
+        return currentGamePhase;
+      }
       
-      return gameState['phase']?.toString() ?? 'waiting';
+      // 3. Legacy fallback: main state gamePhase (kept for backward compatibility)
+      final legacyPhase = recallGameState['gamePhase']?.toString();
+      return _normalizePhase(legacyPhase);
+    }
+    
+    return 'waiting';
+  }
+  
+  /// Extract phase for a given game from the SSOT games map
+  String? _getPhaseFromGamesMap(Map<String, dynamic> games, String gameId) {
+    if (gameId.isEmpty || !games.containsKey(gameId)) {
+      return null;
+    }
+    
+    final gameEntry = games[gameId] as Map<String, dynamic>? ?? {};
+    final gameData = gameEntry['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final rawPhase = gameState['phase']?.toString();
+    
+    if (rawPhase == null) {
+      return null;
+    }
+    
+    return _normalizePhase(rawPhase);
+  }
+  
+  /// Normalize backend phases to UI values, falling back to defaults when needed
+  String _normalizePhase(String? rawPhase, {String fallback = 'waiting'}) {
+    if (rawPhase == null || rawPhase.isEmpty) {
+      return fallback;
+    }
+    
+    switch (rawPhase) {
+      case 'waiting_for_players':
+        return 'waiting';
+      case 'dealing_cards':
+        return 'setup';
+      case 'player_turn':
+      case 'same_rank_window':
+      case 'special_play_window':
+      case 'queen_peek_window':
+      case 'turn_pending_events':
+      case 'ending_round':
+      case 'ending_turn':
+      case 'recall_called':
+        return 'playing';
+      default:
+        return rawPhase;
     }
   }
 

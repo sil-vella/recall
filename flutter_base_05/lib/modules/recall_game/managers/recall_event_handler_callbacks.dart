@@ -349,6 +349,23 @@ class RecallEventHandlerCallbacks {
     final turnEvents = gameState['turn_events'] as List<dynamic>?;
     _syncWidgetStatesFromGameState(gameId, gameState, turnEvents: turnEvents);
     
+    // Get fresh games map after widget sync (it may have been updated)
+    final currentGamesAfterSync = _getCurrentGamesMap();
+    
+    // Normalize backend phase to UI phase (same logic as handleGameStateUpdated)
+    final rawPhase = gameState['phase']?.toString();
+    final uiPhase = rawPhase == 'waiting_for_players'
+        ? 'waiting'
+        : (rawPhase ?? 'playing');
+    
+    // Update main state with gamePhase to ensure status chip and game info widget update correctly
+    _updateMainGameState({
+      'currentGameId': gameId,  // Ensure currentGameId is set
+      'games': currentGamesAfterSync, // Updated games map with widget data synced
+      'gamePhase': uiPhase,  // ✅ Update gamePhase so status chip and game info widget reflect correct phase
+      'isGameActive': true,
+    });
+    
     // Add session message about game started
     _addSessionMessage(
       level: 'success',

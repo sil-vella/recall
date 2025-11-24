@@ -104,9 +104,13 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
     // Merge into state root
     _store.mergeRoot(roomId, validatedUpdates);
-    // Read the full game_state after merge for snapshot
+    // Read the full state after merge
     final state = _store.getState(roomId);
     final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
+    
+    // Extract turn_events from root state (they're stored at root level, not in game_state)
+    final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
+    
     // CRITICAL: If gamePhase is in updates, copy it to game_state['phase'] for client broadcast
     // Frontend expects gamePhase in game_state['phase'], not at root level
     if (validatedUpdates.containsKey('gamePhase')) {
@@ -139,6 +143,7 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
       'event': 'game_state_updated',
       'game_id': roomId,
       'game_state': gameState,
+      'turn_events': turnEvents, // Include turn_events for animations
       if (ownerId != null) 'owner_id': ownerId,
       'timestamp': DateTime.now().toIso8601String(),
     });

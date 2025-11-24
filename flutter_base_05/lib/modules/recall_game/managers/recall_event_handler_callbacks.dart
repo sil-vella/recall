@@ -108,7 +108,8 @@ class RecallEventHandlerCallbacks {
   /// Sync widget-specific states from game state
   /// Extracts current user's player data and updates widget state slices
   /// This ensures computed slices (like myHand.cards) stay in sync with game_state
-  static void _syncWidgetStatesFromGameState(String gameId, Map<String, dynamic> gameState) {
+  /// [turnEvents] Optional turn_events list to include in games map update for widget slices
+  static void _syncWidgetStatesFromGameState(String gameId, Map<String, dynamic> gameState, {List<dynamic>? turnEvents}) {
     try {
       // Extract current user ID from login state
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -156,11 +157,17 @@ class RecallEventHandlerCallbacks {
       }
       
       // Update games map with widget-specific data
+      // Include turn_events if provided (needed for widget slice animations)
       final widgetUpdates = <String, dynamic>{
         'myHandCards': hand,
         'myDrawnCard': drawnCard,
         'isMyTurn': isCurrentPlayer,
       };
+      
+      // Include turn_events in games map update so widget slices can access them
+      if (turnEvents != null) {
+        widgetUpdates['turn_events'] = turnEvents;
+      }
       
       // Update main game state with player information
       _updateMainGameState({
@@ -174,7 +181,7 @@ class RecallEventHandlerCallbacks {
       // Apply widget updates to games map
       _updateGameInMap(gameId, widgetUpdates);
       
-      _logger.debug('_syncWidgetStatesFromGameState: Synced widget states for game $gameId', isOn: LOGGING_SWITCH);
+      _logger.debug('_syncWidgetStatesFromGameState: Synced widget states for game $gameId${turnEvents != null ? ' with ${turnEvents.length} turn_events' : ''}', isOn: LOGGING_SWITCH);
     } catch (e) {
       _logger.error('_syncWidgetStatesFromGameState: Error syncing widget states: $e', isOn: LOGGING_SWITCH);
     }
@@ -338,7 +345,9 @@ class RecallEventHandlerCallbacks {
     });
     
     // 🎯 CRITICAL: Sync widget states from game state to ensure all widget slices are up to date
-    _syncWidgetStatesFromGameState(gameId, gameState);
+    // Extract turn_events from game state if available (for animations)
+    final turnEvents = gameState['turn_events'] as List<dynamic>?;
+    _syncWidgetStatesFromGameState(gameId, gameState, turnEvents: turnEvents);
     
     // Add session message about game started
     _addSessionMessage(
@@ -427,12 +436,14 @@ class RecallEventHandlerCallbacks {
     final gameId = data['game_id']?.toString() ?? '';
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final ownerId = data['owner_id']?.toString(); // Extract owner_id from main payload
+    final turnEvents = data['turn_events'] as List<dynamic>? ?? []; // Extract turn_events for animations
     
     // 🔍 DEBUG: Log the extracted values
     _logger.info('🔍 handleGameStateUpdated DEBUG:', isOn: LOGGING_SWITCH);
     _logger.info('  gameId: $gameId', isOn: LOGGING_SWITCH);
     _logger.info('  ownerId: $ownerId', isOn: LOGGING_SWITCH);
     _logger.info('  data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+    _logger.info('  turn_events count: ${turnEvents.length}', isOn: LOGGING_SWITCH);
     final roundNumber = data['round_number'] as int? ?? 1;
     final currentPlayer = data['current_player'];
     final currentPlayerStatus = data['current_player_status']?.toString() ?? 'unknown';
@@ -486,21 +497,46 @@ class RecallEventHandlerCallbacks {
       }
     }
     
-    // Update the main game state with the new information using helper method
+    // Update the games map with additional information first (needed for widget sync)
+    final updateData = {
+      'drawPileCount': drawPileCount,
+      'discardPileCount': discardPileCount,
+      'discardPile': discardPile,
+      'players': players,  // Include all players data
+      'turn_events': turnEvents, // Include turn_events for widget slices
+    };
+    
+    _updateGameInMap(gameId, updateData);
+    
+    // 🎯 CRITICAL: Sync widget states from game state FIRST (matches practice mode pattern)
+    // This ensures myHandCards, myDrawnCard, playerStatus, etc. are synced from game state
+    // Must happen before main state update so widget slices recompute with turn_events
+    _syncWidgetStatesFromGameState(gameId, gameState, turnEvents: turnEvents);
+    
+    // Get fresh games map after widget sync (it may have been updated)
+    final currentGamesAfterSync = _getCurrentGamesMap();
+    
+    // Extract currentPlayer from game state for main state update
+    final currentPlayerFromState = gameState['currentPlayer'] as Map<String, dynamic>?;
+    
     // Normalize backend phase to UI phase
     final rawPhase = gameState['phase']?.toString();
     final uiPhase = rawPhase == 'waiting_for_players'
         ? 'waiting'
         : (rawPhase ?? 'playing');
 
+    // Then update main state with games map, discardPile, currentPlayer, turn_events (matches practice mode pattern)
     _updateMainGameState({
       'currentGameId': gameId,  // Ensure currentGameId is set
+      'games': currentGamesAfterSync, // Updated games map with widget data synced
       'gamePhase': uiPhase,
       'isGameActive': true,
       'roundNumber': roundNumber,
-      'currentPlayer': currentPlayer,
+      'currentPlayer': currentPlayerFromState ?? currentPlayer, // Use currentPlayer from game state if available
       'currentPlayerStatus': currentPlayerStatus,
       'roundStatus': roundStatus,
+      'discardPile': discardPile, // Updated discard pile for centerBoard slice
+      'turn_events': turnEvents, // Include turn_events for animations (critical for widget slice recomputation)
     });
     
     // Also update joinedGames list for lobby widgets (if this is a new game)
@@ -531,20 +567,6 @@ class RecallEventHandlerCallbacks {
         'joinedGamesTimestamp': DateTime.now().toIso8601String(),
       });
     }
-    
-    // Update the games map with additional information using helper method
-    final updateData = {
-      'drawPileCount': drawPileCount,
-      'discardPileCount': discardPileCount,
-      'discardPile': discardPile,
-      'players': players,  // Include all players data
-    };
-    
-    _updateGameInMap(gameId, updateData);
-    
-    // 🎯 CRITICAL: Sync widget states from game state (myHandCards, myDrawnCard, etc.)
-    // This ensures computed slices stay in sync with game_state
-    _syncWidgetStatesFromGameState(gameId, gameState);
     
     // Add session message about game state update
     _addSessionMessage(
@@ -646,7 +668,11 @@ class RecallEventHandlerCallbacks {
     // 🎯 CRITICAL: Sync widget states if players or currentPlayer changed
     // This ensures computed slices (myHand.cards, etc.) stay in sync
     if (shouldSyncWidgetStates) {
-      _syncWidgetStatesFromGameState(gameId, updatedGameState);
+      // Try to get turn_events from current games map if available
+      final currentGamesForTurnEvents = _getCurrentGamesMap();
+      final currentGameForTurnEvents = currentGamesForTurnEvents[gameId] as Map<String, dynamic>? ?? {};
+      final turnEvents = currentGameForTurnEvents['turn_events'] as List<dynamic>?;
+      _syncWidgetStatesFromGameState(gameId, updatedGameState, turnEvents: turnEvents);
     }
     
     // Add session message about partial update

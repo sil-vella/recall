@@ -2472,6 +2472,23 @@ class PracticeGameCoordinator implements GameStateCallback {
     return gameState ?? {};
   }
 
+  @override
+  List<Map<String, dynamic>> getCurrentTurnEvents() {
+    final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final currentTurnEvents = currentState['turn_events'] as List<dynamic>? ?? [];
+    
+    // Return a copy of the current events
+    return List<Map<String, dynamic>>.from(
+      currentTurnEvents.map((e) => e as Map<String, dynamic>)
+    );
+  }
+
+  @override
+  Map<String, dynamic>? getMainStateCurrentPlayer() {
+    final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    return currentState['currentPlayer'] as Map<String, dynamic>?;
+  }
+
   // getCardById and currentGamesMap are already implemented above
 
   /// Handle start match directly from widget (bypasses PlayerAction)

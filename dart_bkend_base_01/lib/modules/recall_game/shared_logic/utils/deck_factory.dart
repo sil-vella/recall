@@ -10,8 +10,10 @@ import '../../utils/yaml_config_parser.dart';
 /// Each game gets unique, unpredictable card IDs to ensure no patterns
 /// can be exploited across different games.
 
-// Testing switch - set to true for testing deck with more special cards
-const bool testingSwitch = true;
+// FALLBACK ONLY: This switch is only used if YAML config loading fails
+// The SSOT for deck configuration is: assets/deck_config.yaml (testing_mode setting)
+// This constant should match the testing_mode value in the YAML file for consistency
+const bool testingSwitch = false;
 
 /// Creates a deck with completely random card IDs for a given game_id.
 /// 
@@ -281,11 +283,10 @@ class DeckUtils {
   }
 
   /// Print deck statistics for debugging
+  /// Note: This method is kept for API compatibility but does not output anything
+  /// when LOGGING_SWITCH is false. Use Logger with LOGGING_SWITCH for actual logging.
   static void printDeckStats(List<Card> cards) {
-    final stats = getDeckStats(cards);
-    print('Deck Statistics:');
-    stats.forEach((key, value) {
-      print('  $key: $value');
-    });
+    // Method kept for API compatibility - no output when logging is disabled
+    // Use Logger with LOGGING_SWITCH for actual logging if needed
   }
 }

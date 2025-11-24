@@ -53,4 +53,12 @@ abstract class GameStateCallback {
   /// Save current card positions as previous (call before state update)
   /// This ensures the animation system can detect movements correctly
   void saveCardPositionsAsPrevious();
+
+  /// Get current turn_events list from main state
+  /// Returns a copy of the current turn_events list
+  List<Map<String, dynamic>> getCurrentTurnEvents();
+
+  /// Get currentPlayer from main state
+  /// Returns the currentPlayer map or null if not available
+  Map<String, dynamic>? getMainStateCurrentPlayer();
 }

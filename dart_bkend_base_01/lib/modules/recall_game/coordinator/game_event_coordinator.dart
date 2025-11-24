@@ -21,6 +21,72 @@ class GameEventCoordinator {
 
   GameEventCoordinator(this.roomManager, this.server);
 
+  /// Get current games map in Flutter format: {roomId: {'gameData': {'game_state': ...}}}
+  /// This matches the format expected by shared logic methods
+  Map<String, dynamic> _getCurrentGamesMap(String roomId) {
+    try {
+      final state = _store.getState(roomId);
+      final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
+      
+      return {
+        roomId: {
+          'gameData': {
+            'game_id': roomId,
+            'game_state': gameState,
+            'owner_id': server.getRoomOwner(roomId),
+          },
+        },
+      };
+    } catch (e) {
+      _logger.error('GameEventCoordinator: Failed to get current games map: $e', isOn: LOGGING_SWITCH);
+      return {};
+    }
+  }
+
+  /// Get player ID from session ID and room ID
+  /// Returns the player ID associated with the session, or null if not found
+  String? _getPlayerIdFromSession(String sessionId, String roomId) {
+    try {
+      // Get user ID from session
+      final userId = server.getUserIdForSession(sessionId);
+      if (userId == null) {
+        _logger.warning('GameEventCoordinator: No user ID found for session: $sessionId', isOn: LOGGING_SWITCH);
+        return null;
+      }
+
+      // Get game state and find player matching user ID
+      final gameState = _store.getGameState(roomId);
+      final players = (gameState['players'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+
+      // Try to find player by user ID (players may have userId field)
+      for (final player in players) {
+        final playerUserId = player['userId'] as String? ?? player['user_id'] as String?;
+        if (playerUserId == userId) {
+          return player['id'] as String?;
+        }
+      }
+
+      // If no match by userId, try matching by owner (room owner is usually the first human player)
+      final ownerId = server.getRoomOwner(roomId);
+      if (ownerId == userId) {
+        // Find the first human player (likely the owner)
+        for (final player in players) {
+          if (player['isHuman'] == true) {
+            return player['id'] as String?;
+          }
+        }
+      }
+
+      _logger.warning('GameEventCoordinator: No player ID found for session: $sessionId, userId: $userId', isOn: LOGGING_SWITCH);
+      return null;
+    } catch (e) {
+      _logger.error('GameEventCoordinator: Failed to get player ID from session: $e', isOn: LOGGING_SWITCH);
+      return null;
+    }
+  }
+
   /// Handle a unified game event from a session
   Future<void> handle(String sessionId, String event, Map<String, dynamic> data) async {
     final roomId = roomManager.getRoomForSession(sessionId);
@@ -44,19 +110,32 @@ class GameEventCoordinator {
           await _handleCompletedInitialPeek(roomId, round, sessionId, data);
           break;
         case 'draw_card':
-          await round.handleDrawCard((data['source'] as String?) ?? 'deck');
+          final gamesMap = _getCurrentGamesMap(roomId);
+          final playerId = _getPlayerIdFromSession(sessionId, roomId);
+          await round.handleDrawCard(
+            (data['source'] as String?) ?? 'deck',
+            playerId: playerId,
+            gamesMap: gamesMap,
+          );
           break;
         case 'play_card':
           final cardId = (data['card_id'] as String?) ?? (data['cardId'] as String?);
           if (cardId != null && cardId.isNotEmpty) {
-            await round.handlePlayCard(cardId);
+            final gamesMap = _getCurrentGamesMap(roomId);
+            final playerId = _getPlayerIdFromSession(sessionId, roomId);
+            await round.handlePlayCard(
+              cardId,
+              playerId: playerId,
+              gamesMap: gamesMap,
+            );
           }
           break;
         case 'same_rank_play':
           final playerId = (data['player_id'] as String?) ?? (data['playerId'] as String?);
           final cardId = (data['card_id'] as String?) ?? (data['cardId'] as String?);
           if (playerId != null && cardId != null && cardId.isNotEmpty) {
-            await round.handleSameRankPlay(playerId, cardId);
+            final gamesMap = _getCurrentGamesMap(roomId);
+            await round.handleSameRankPlay(playerId, cardId, gamesMap: gamesMap);
           }
           break;
         case 'queen_peek':
@@ -71,10 +150,12 @@ class GameEventCoordinator {
                                    (data['playerId'] as String?);
             
             if (peekingPlayerId != null && peekingPlayerId.isNotEmpty) {
+              final gamesMap = _getCurrentGamesMap(roomId);
               await round.handleQueenPeek(
                 peekingPlayerId: peekingPlayerId,
                 targetCardId: cardId,
                 targetPlayerId: ownerId,
+                gamesMap: gamesMap,
               );
             }
           }
@@ -89,11 +170,13 @@ class GameEventCoordinator {
               firstPlayerId != null && firstPlayerId.isNotEmpty &&
               secondCardId != null && secondCardId.isNotEmpty &&
               secondPlayerId != null && secondPlayerId.isNotEmpty) {
+            final gamesMap = _getCurrentGamesMap(roomId);
             await round.handleJackSwap(
               firstCardId: firstCardId,
               firstPlayerId: firstPlayerId,
               secondCardId: secondCardId,
               secondPlayerId: secondPlayerId,
+              gamesMap: gamesMap,
             );
           }
           break;

@@ -57,7 +57,7 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   }
 
   @override
-  void onPlayerStatusChanged(String status, {String? playerId, bool updateMainState = true, bool triggerInstructions = false}) {
+  void onPlayerStatusChanged(String status, {String? playerId, bool updateMainState = true, bool triggerInstructions = false, Map<String, dynamic>? gamesMap}) {
     final state = _store.getGameState(roomId);
     final players = (state['players'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList();
     for (final p in players) {
@@ -193,6 +193,27 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
         },
       },
     };
+  }
+
+  void saveCardPositionsAsPrevious() {
+    // No-op for backend - card position tracking is handled on the frontend
+  }
+
+  @override
+  List<Map<String, dynamic>> getCurrentTurnEvents() {
+    final state = _store.getState(roomId);
+    final currentTurnEvents = state['turn_events'] as List<dynamic>? ?? [];
+    
+    // Return a copy of the current events
+    return List<Map<String, dynamic>>.from(
+      currentTurnEvents.map((e) => e as Map<String, dynamic>)
+    );
+  }
+
+  @override
+  Map<String, dynamic>? getMainStateCurrentPlayer() {
+    final state = _store.getState(roomId);
+    return state['currentPlayer'] as Map<String, dynamic>?;
   }
 }
 

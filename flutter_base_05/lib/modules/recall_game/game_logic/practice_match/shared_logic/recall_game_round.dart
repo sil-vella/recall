@@ -6,7 +6,6 @@
 import '../shared_imports.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
-import '../../../../../core/managers/state_manager.dart';
 
 const bool LOGGING_SWITCH = true;
 
@@ -177,14 +176,8 @@ class RecallGameRound {
   /// Get current turn_events list
   /// Returns a copy of the current turn_events list
   List<Map<String, dynamic>> _getCurrentTurnEvents() {
-    // Get current state to retrieve existing turn_events
-    final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentTurnEvents = currentState['turn_events'] as List<dynamic>? ?? [];
-    
-    // Return a copy of the current events
-    return List<Map<String, dynamic>>.from(
-      currentTurnEvents.map((e) => e as Map<String, dynamic>)
-    );
+    // Get current turn_events from callback (abstracts state access)
+    return _stateCallback.getCurrentTurnEvents();
   }
 
   /// Create a turn event map
@@ -236,8 +229,7 @@ class RecallGameRound {
       
       // CRITICAL: Check main state's currentPlayer first (most up-to-date), then fall back to games map
       // This prevents stale state issues when currentPlayer is updated in previous turn
-      final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final mainStateCurrentPlayer = recallGameState['currentPlayer'] as Map<String, dynamic>?;
+      final mainStateCurrentPlayer = _stateCallback.getMainStateCurrentPlayer();
       final gameStateCurrentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       
       // Use main state's currentPlayer if available, otherwise use games map
@@ -268,7 +260,7 @@ class RecallGameRound {
       
       // CRITICAL: Create reference to games map to update state
       // The modified gameState is already part of currentGames (in-place modification)
-      // StateManager's new hybrid change detection will handle this properly
+      // The state callback's change detection will handle this properly
       final currentGames = _stateCallback.currentGamesMap;
       
       // CRITICAL: Update currentPlayer in the games map

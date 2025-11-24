@@ -62,7 +62,8 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
-        final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+        // Get playerStatus from myHand slice (computed from SSOT)
+        final playerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
         
         // Update card positions on rebuild (after cards are rendered)
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -600,8 +601,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     
     // Get current player status from state
     final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentPlayerStatus = currentState['playerStatus']?.toString() ?? 'unknown';
     final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
+    // Get playerStatus from myHand slice (computed from SSOT)
+    final currentPlayerStatus = currentMyHand['playerStatus']?.toString() ?? 'unknown';
       
     // Check if current player can interact with hand cards (playing_card, jack_swap, queen_peek, same_rank_window, or initial_peek status)
     if (currentPlayerStatus == 'playing_card' || 

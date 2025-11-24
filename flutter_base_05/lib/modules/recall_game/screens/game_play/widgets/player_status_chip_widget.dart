@@ -44,25 +44,27 @@ class PlayerStatusChip extends StatelessWidget {
     );
   }
 
-  /// Get player status from the global state
+  /// Get player status from the global state (derived from SSOT)
   String _getPlayerStatusFromState() {
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     
-    // Check if this is the current player (my status)
+    // Check if this is the current user (the actual user playing the game)
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final currentUserId = loginState['userId']?.toString() ?? '';
     
     if (playerId == currentUserId) {
-      // This is the current player - get status from main game state
-      return recallGameState['playerStatus']?.toString() ?? 'unknown';
+      // This is the current user - get status from myHand slice (computed from SSOT)
+      final myHand = recallGameState['myHand'] as Map<String, dynamic>? ?? {};
+      return myHand['playerStatus']?.toString() ?? 'unknown';
     } else {
-      // This is an opponent - get status from opponents panel
+      // This is an opponent - get status from opponents panel (which comes from SSOT)
       final opponentsPanel = recallGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
       final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
       
       // Find the specific opponent
       for (final opponent in opponents) {
         if (opponent['id']?.toString() == playerId) {
+          // Opponent status comes directly from SSOT (games[gameId].gameData.game_state.players[])
           return opponent['status']?.toString() ?? 'unknown';
         }
       }

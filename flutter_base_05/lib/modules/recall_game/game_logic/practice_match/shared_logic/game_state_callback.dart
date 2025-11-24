@@ -13,10 +13,12 @@ abstract class GameStateCallback {
   /// [playerId] Optional player ID. If null, updates all players
   /// [updateMainState] Whether to also update the main game state playerStatus
   /// [triggerInstructions] Whether to trigger contextual instructions after status update
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   void onPlayerStatusChanged(String status, {
     String? playerId,
     bool updateMainState = true,
     bool triggerInstructions = false,
+    Map<String, dynamic>? gamesMap,
   });
 
   /// Update game state with provided updates

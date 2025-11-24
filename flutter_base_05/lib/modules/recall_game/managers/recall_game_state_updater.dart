@@ -1,9 +1,17 @@
 import 'dart:convert';
-import 'dart:async';
 
 import '../../../core/managers/state_manager.dart';
+import '../../../core/managers/state/immutable_state.dart';
 import '../../../tools/logging/logger.dart';
 import '../utils/state_queue_validator.dart';
+import '../models/state/recall_game_state.dart';
+import '../models/state/games_map.dart';
+// ignore: unused_import
+import '../models/state/my_hand_state.dart'; // For future migration
+// ignore: unused_import
+import '../models/state/center_board_state.dart'; // For future migration
+// ignore: unused_import
+import '../models/state/opponents_panel_state.dart'; // For future migration
 
 /// Validated state updater for recall game state management
 /// Ensures all state updates follow consistent structure and validation rules
@@ -47,18 +55,23 @@ class RecallGameStateUpdater {
   // See state_queue_validator.dart for the complete schema
   
   /// Widget slice dependencies - only rebuild when these fields change
+  /// Note: playerStatus and currentPlayerStatus are now computed from SSOT (games[gameId].gameData.game_state.players[])
+  /// Widgets depend on 'games' to trigger recomputation when player status changes
   static const Map<String, Set<String>> _widgetDependencies = {
     'actionBar': {'currentGameId', 'games', 'isRoomOwner', 'isGameActive', 'isMyTurn'},
-    'statusBar': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'playerStatus'},
-    'myHand': {'currentGameId', 'games', 'isMyTurn', 'playerStatus', 'turn_events'},
+    'statusBar': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
+    'myHand': {'currentGameId', 'games', 'isMyTurn', 'turn_events'},
     'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'},
-    'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'currentPlayerStatus', 'turn_events'},
+    'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'turn_events'},
     'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
     'joinedGamesSlice': {'joinedGames', 'totalJoinedGames', 'joinedGamesTimestamp'},
   };
   
   /// Update state with validation
   /// Uses StateQueueValidator for validation, then applies widget slice computation
+  /// 
+  /// MIGRATION NOTE: This method accepts Map<String, dynamic> for backward compatibility.
+  /// For immutable state updates, use updateStateImmutable() instead.
   void updateState(Map<String, dynamic> updates) {
     try {
       // Use StateQueueValidator to validate and queue the update
@@ -71,18 +84,50 @@ class RecallGameStateUpdater {
     }
   }
   
+  /// Update state using immutable RecallGameState object
+  /// This is the preferred method for new code
+  void updateStateImmutable(RecallGameState newState) {
+    try {
+      _logger.info('🎬 RecallGameStateUpdater: Immutable state update', isOn: LOGGING_SWITCH);
+      _stateManager.updateModuleState('recall_game', newState);
+    } catch (e) {
+      _logger.error('RecallGameStateUpdater: Immutable state update failed: $e', isOn: LOGGING_SWITCH);
+      rethrow;
+    }
+  }
+  
+  /// Helper: Convert legacy map-based games to GamesMap (for migration)
+  GamesMap _convertLegacyGamesToImmutable(Map<String, dynamic> gamesMap) {
+    try {
+      return GamesMap.fromJson(gamesMap);
+    } catch (e) {
+      _logger.error('RecallGameStateUpdater: Failed to convert legacy games to immutable: $e', isOn: LOGGING_SWITCH);
+      return const GamesMap.empty();
+    }
+  }
+  
+  /// Helper: Get immutable RecallGameState from current state (for gradual migration)
+  RecallGameState? _tryGetImmutableState() {
+    try {
+      return _stateManager.getModuleState<RecallGameState>('recall_game');
+    } catch (e) {
+      return null;
+    }
+  }
+  
   /// Apply validated updates with widget slice computation
   /// This is called by StateQueueValidator after validation
+  /// Supports both legacy map-based updates and immutable state updates
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
     _logger.info('🎬 RecallGameStateUpdater: _applyValidatedUpdates START with keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
     try {
-      // Get current state
+      // Get current state (legacy map-based for now)
       _logger.debug('🎬 RecallGameStateUpdater: Getting current state from StateManager', isOn: LOGGING_SWITCH);
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       _logger.debug('🎬 RecallGameStateUpdater: Current state keys: ${currentState.keys.toList()}', isOn: LOGGING_SWITCH);
       
       // Check if there are actual changes (excluding lastUpdated)
-      // For complex objects (Maps, Lists), we need deep comparison
+      // Use reference equality for immutable objects, structural equality for legacy data
       bool hasActualChanges = false;
       for (final key in validatedUpdates.keys) {
         if (key == 'lastUpdated') continue;
@@ -90,12 +135,26 @@ class RecallGameStateUpdater {
         final currentValue = currentState[key];
         final newValue = validatedUpdates[key];
         
+        // Fast path: reference equality (works for immutable objects)
+        if (identical(currentValue, newValue)) {
+          continue;
+        }
+        
+        // For immutable state objects, use equality operator
+        if (currentValue is ImmutableState && newValue is ImmutableState) {
+          if (currentValue == newValue) {
+            continue;
+          }
+          hasActualChanges = true;
+          break;
+        }
+        
         // For simple types, use direct comparison
         if (currentValue == newValue) {
           continue;
         }
         
-        // For complex types, use JSON comparison
+        // For complex types (legacy maps/lists), use JSON comparison
         if (currentValue is Map || currentValue is List || newValue is Map || newValue is List) {
           try {
             final currentJson = jsonEncode(currentValue);
@@ -118,17 +177,13 @@ class RecallGameStateUpdater {
       
       // Only proceed if there are actual changes
       if (!hasActualChanges) {
-        _logger.info('🎬 RecallGameStateUpdater: No actual changes detected, skipping animation check', isOn: LOGGING_SWITCH);
+        _logger.info('🎬 RecallGameStateUpdater: No actual changes detected, skipping update', isOn: LOGGING_SWITCH);
         return;
       }
       
-      _logger.info('🎬 RecallGameStateUpdater: Has actual changes, proceeding with state update and animation check', isOn: LOGGING_SWITCH);
+      _logger.info('🎬 RecallGameStateUpdater: Has actual changes, proceeding with state update', isOn: LOGGING_SWITCH);
       
-      // NOTE: Position saving is no longer needed here
-      // Widgets now create animation triggers directly after state changes
-      // The animation system uses triggers from widgets, not position tracking
-      
-      // Apply only the validated updates (no timestamp - causes unnecessary updates)
+      // Apply only the validated updates
       _logger.debug('🎬 RecallGameStateUpdater: Merging current state with validated updates', isOn: LOGGING_SWITCH);
       final newState = {
         ...currentState,
@@ -164,12 +219,16 @@ class RecallGameStateUpdater {
   ) {
     final updatedState = Map<String, dynamic>.from(newState);
     
+    _logger.debug('🎬 RecallGameStateUpdater: _updateWidgetSlices - Changed fields: $changedFields', isOn: LOGGING_SWITCH);
+    
     // Only rebuild slices that depend on changed fields
     for (final entry in _widgetDependencies.entries) {
       final sliceName = entry.key;
       final dependencies = entry.value;
       
       if (changedFields.any(dependencies.contains)) {
+        _logger.debug('🎬 RecallGameStateUpdater: Recomputing slice "$sliceName" due to changed fields: ${changedFields.where(dependencies.contains).toList()}', isOn: LOGGING_SWITCH);
+        
         switch (sliceName) {
           case 'actionBar':
             updatedState['actionBar'] = _computeActionBarSlice(newState);
@@ -187,7 +246,9 @@ class RecallGameStateUpdater {
             updatedState['opponentsPanel'] = _computeOpponentsPanelSlice(newState);
             break;
           case 'gameInfo':
-            updatedState['gameInfo'] = _computeGameInfoSlice(newState);
+            final gameInfoSlice = _computeGameInfoSlice(newState);
+            updatedState['gameInfo'] = gameInfoSlice;
+            _logger.info('🎬 RecallGameStateUpdater: gameInfo slice recomputed - gamePhase: ${gameInfoSlice['gamePhase']}, currentGameId: ${gameInfoSlice['currentGameId']}', isOn: LOGGING_SWITCH);
             break;
           case 'joinedGamesSlice':
             updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
@@ -213,6 +274,57 @@ class RecallGameStateUpdater {
     }
     
     return updatedState;
+  }
+  
+  /// Get current user status from SSOT (games[gameId].gameData.game_state.players[])
+  /// Returns the status of the current user (the actual user playing the game)
+  String _getCurrentUserStatus(Map<String, dynamic> state) {
+    final currentGameId = state['currentGameId']?.toString() ?? '';
+    final games = state['games'] as Map<String, dynamic>? ?? {};
+    
+    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
+      return 'unknown';
+    }
+    
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    
+    final loginState = _stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+    final currentUserId = loginState['userId']?.toString() ?? '';
+    
+    if (currentUserId.isEmpty) {
+      return 'unknown';
+    }
+    
+    for (final player in players) {
+      if (player is Map<String, dynamic> && player['id']?.toString() == currentUserId) {
+        return player['status']?.toString() ?? 'unknown';
+      }
+    }
+    return 'unknown';
+  }
+
+  /// Get current player status from SSOT (games[gameId].gameData.game_state.currentPlayer)
+  /// Returns the status of the current player (the player whose turn it is)
+  String _getCurrentPlayerStatus(Map<String, dynamic> state) {
+    final currentGameId = state['currentGameId']?.toString() ?? '';
+    final games = state['games'] as Map<String, dynamic>? ?? {};
+    
+    if (currentGameId.isEmpty || !games.containsKey(currentGameId)) {
+      return 'unknown';
+    }
+    
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+    
+    if (currentPlayer != null) {
+      return currentPlayer['status']?.toString() ?? 'unknown';
+    }
+    return 'unknown';
   }
   
   /// Compute action bar widget slice
@@ -246,6 +358,9 @@ class RecallGameStateUpdater {
     final roundNumber = state['roundNumber'] ?? 0;
     final isConnected = state['isConnected'] ?? false;
     
+    // Derive current user status from SSOT
+    final playerStatus = _getCurrentUserStatus(state);
+    
     String turnInfo = '';
     if (gamePhase == 'playing') {
       turnInfo = 'Turn $turnNumber, Round $roundNumber';
@@ -259,6 +374,7 @@ class RecallGameStateUpdater {
       'playerCount': playerCount,
       'gameStatus': gameStatus,
       'connectionStatus': isConnected ? 'connected' : 'disconnected',
+      'playerStatus': playerStatus, // Computed from SSOT
     };
   }
   
@@ -273,6 +389,7 @@ class RecallGameStateUpdater {
         'cards': [],
         'selectedIndex': -1,
         'canSelectCards': false,
+        'playerStatus': 'unknown', // Computed from SSOT
       };
     }
     
@@ -284,11 +401,15 @@ class RecallGameStateUpdater {
     // Get turn_events from main state
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
     
+    // Derive current user status from SSOT
+    final playerStatus = _getCurrentUserStatus(state);
+    
     return {
       'cards': currentGame['myHandCards'] ?? [],
       'selectedIndex': currentGame['selectedCardIndex'] ?? -1,
       'canSelectCards': isMyTurn && canPlayCard,
       'turn_events': turnEvents,
+      'playerStatus': playerStatus, // Computed from SSOT
     };
   }
   
@@ -305,6 +426,7 @@ class RecallGameStateUpdater {
         'topDraw': null,
         'canDrawFromDeck': false,
         'canTakeFromDiscard': false,
+        'playerStatus': 'unknown', // Computed from SSOT
       };
     }
     
@@ -337,12 +459,16 @@ class RecallGameStateUpdater {
       }
     }
     
+    // Derive current user status from SSOT
+    final playerStatus = _getCurrentUserStatus(state);
+    
     final result = {
       'drawPileCount': drawPileCount,
       'topDiscard': discardPile.isNotEmpty ? discardPile.last : null,
       'topDraw': topDraw,
       'canDrawFromDeck': drawPileCount > 0,
       'canTakeFromDiscard': discardPile.isNotEmpty,
+      'playerStatus': playerStatus, // Computed from SSOT
     };
     
     return result;
@@ -391,10 +517,14 @@ class RecallGameStateUpdater {
     // Get turn_events from main state
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
     
+    // Derive current player status from SSOT
+    final currentPlayerStatus = _getCurrentPlayerStatus(state);
+    
     return {
       'opponents': opponents,
       'currentTurnIndex': currentTurnIndex,
       'turn_events': turnEvents,
+      'currentPlayerStatus': currentPlayerStatus, // Computed from SSOT
     };
   }
 

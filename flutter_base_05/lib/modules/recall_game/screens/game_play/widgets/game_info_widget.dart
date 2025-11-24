@@ -12,26 +12,42 @@ import '../../../../../tools/logging/logger.dart';
 /// - Empty state when no game is active
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
-class GameInfoWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false; // Enable logging for debugging start button
-  static final Logger _logger = Logger();
-  
+class GameInfoWidget extends StatefulWidget {
   const GameInfoWidget({Key? key}) : super(key: key);
+
+  @override
+  State<GameInfoWidget> createState() => _GameInfoWidgetState();
+}
+
+class _GameInfoWidgetState extends State<GameInfoWidget> {
+  static const bool LOGGING_SWITCH = true; // Enable logging for debugging start button
+  static final Logger _logger = Logger();
+  bool _isStartingMatch = false;
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-        
         // Get gameInfo state slice
+        final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
         final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
         final roomName = 'Game $currentGameId';
         final currentSize = gameInfo['currentSize'] ?? 0;
         final maxSize = gameInfo['maxSize'] ?? 4;
         final gamePhase = gameInfo['gamePhase']?.toString() ?? 'waiting';
+        
+        // Reset loading state if match has started
+        if (_isStartingMatch && gamePhase != 'waiting' && gamePhase != 'setup') {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _isStartingMatch = false;
+              });
+            }
+          });
+        }
         final gameStatus = gameInfo['gameStatus']?.toString() ?? 'inactive';
         final isRoomOwner = gameInfo['isRoomOwner'] ?? false;
         final isInGame = gameInfo['isInGame'] ?? false;
@@ -53,7 +69,10 @@ class GameInfoWidget extends StatelessWidget {
         // Get additional game state for context
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
-        final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+        // Derive playerStatus from SSOT if needed (currently not used in GameInfoWidget)
+        // For now, we'll derive it from myHand slice if needed
+        final myHand = recallGameState['myHand'] as Map<String, dynamic>? ?? {};
+        final playerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
         
         if (!isInGame || currentGameId.isEmpty) {
           return _buildEmptyState();
@@ -205,7 +224,7 @@ class GameInfoWidget extends StatelessWidget {
             
             // Start Match Button (for room owner during waiting phase OR for recall games in waiting phase)
             if ((isRoomOwner && gamePhase == 'waiting') || (isPracticeGame && gamePhase == 'setup'))
-              _buildStartMatchButton(),
+              _buildStartMatchButton(isLoading: _isStartingMatch),
           ],
         ),
       ),
@@ -213,26 +232,36 @@ class GameInfoWidget extends StatelessWidget {
   }
   
   /// Build start match button
-  Widget _buildStartMatchButton() {
+  Widget _buildStartMatchButton({bool isLoading = false}) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: _handleStartMatch,
-        icon: const Icon(Icons.play_arrow, size: 18),
-        label: const Text(
-          'Start Match',
-          style: TextStyle(
+        onPressed: isLoading ? null : _handleStartMatch,
+        icon: isLoading 
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            )
+          : const Icon(Icons.play_arrow, size: 18),
+        label: Text(
+          isLoading ? 'Starting Match...' : 'Start Match',
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
+          backgroundColor: isLoading ? Colors.grey : Colors.green,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
+          disabledBackgroundColor: Colors.grey,
         ),
       ),
     );
@@ -241,14 +270,22 @@ class GameInfoWidget extends StatelessWidget {
   /// Handle start match button press
   void _handleStartMatch() async {
     try {
-      _logger.info('🎮 GameInfoWidget: Start button pressed - initiating start match flow', isOn: LOGGING_SWITCH);
+      // Set loading state
+      setState(() {
+        _isStartingMatch = true;
+      });
+      
+      _logger.info('🎮 GameInfoWidget: ===== START MATCH BUTTON PRESSED =====', isOn: LOGGING_SWITCH);
+      _logger.info('🎮 GameInfoWidget: Initiating start match flow', isOn: LOGGING_SWITCH);
       
       // Get current game state to check if it's a recall game
       final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
       final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
+      final currentGamePhase = gameInfo['gamePhase']?.toString() ?? 'unknown';
       
       _logger.info('🎮 GameInfoWidget: Current game ID: $currentGameId', isOn: LOGGING_SWITCH);
+      _logger.info('🎮 GameInfoWidget: Current game phase: $currentGamePhase', isOn: LOGGING_SWITCH);
       
       // Check if this is a recall game
       final isPracticeGame = currentGameId.startsWith('recall_game_');
@@ -264,6 +301,18 @@ class GameInfoWidget extends StatelessWidget {
         final result = await recallCoordinator.matchStart();
         _logger.info('🎮 GameInfoWidget: PracticeGameCoordinator.matchStart() completed with result: $result', isOn: LOGGING_SWITCH);
         
+        // Check state after match start
+        final stateAfterStart = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final gameInfoAfter = stateAfterStart['gameInfo'] as Map<String, dynamic>? ?? {};
+        final phaseAfter = gameInfoAfter['gamePhase']?.toString() ?? 'unknown';
+        _logger.info('🎮 GameInfoWidget: Game phase after matchStart: $phaseAfter', isOn: LOGGING_SWITCH);
+        
+        if (result) {
+          _logger.info('🎮 GameInfoWidget: ✅ Match start successful - phase should change to initial_peek', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.warning('🎮 GameInfoWidget: ⚠️ Match start returned false - check logs for errors', isOn: LOGGING_SWITCH);
+        }
+        
       } else {
         _logger.info('🎮 GameInfoWidget: Regular game detected - routing to GameCoordinator', isOn: LOGGING_SWITCH);
         
@@ -275,8 +324,27 @@ class GameInfoWidget extends StatelessWidget {
         _logger.info('🎮 GameInfoWidget: GameCoordinator.startMatch() completed with result: $result', isOn: LOGGING_SWITCH);
       }
       
-    } catch (e) {
-      _logger.error('🎮 GameInfoWidget: Error in _handleStartMatch: $e', isOn: LOGGING_SWITCH);
+      _logger.info('🎮 GameInfoWidget: ===== START MATCH FLOW COMPLETED =====', isOn: LOGGING_SWITCH);
+      
+      // Reset loading state after a delay to allow UI to update
+      // The widget will hide when gamePhase changes, but we reset here as a fallback
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            _isStartingMatch = false;
+          });
+        }
+      });
+      
+    } catch (e, stackTrace) {
+      _logger.error('🎮 GameInfoWidget: ❌ Error in _handleStartMatch: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      
+      // Reset loading state on error
+      if (mounted) {
+        setState(() {
+          _isStartingMatch = false;
+        });
+      }
     }
   }
   

@@ -51,7 +51,8 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
-        final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+        // Get playerStatus from centerBoard slice (computed from SSOT)
+        final playerStatus = centerBoard['playerStatus']?.toString() ?? 'unknown';
         
         
         return _buildDrawPileCard(
@@ -205,7 +206,9 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
   void _handlePileClick() async {
     // Get current player status from state
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+    // Get playerStatus from centerBoard slice (computed from SSOT)
+    final centerBoard = recallGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+    final currentPlayerStatus = centerBoard['playerStatus']?.toString() ?? 'unknown';
     
     // Check if current player can interact with draw pile (drawing_card status only)
     if (currentPlayerStatus == 'drawing_card') {

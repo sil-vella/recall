@@ -233,9 +233,18 @@ class RecallGameRound {
       }
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
-      final currentPlayerId = gameState['currentPlayer']?['id'] as String?;
       
-      _logger.info('Recall: Current player ID: $currentPlayerId', isOn: LOGGING_SWITCH);
+      // CRITICAL: Check main state's currentPlayer first (most up-to-date), then fall back to games map
+      // This prevents stale state issues when currentPlayer is updated in previous turn
+      final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final mainStateCurrentPlayer = recallGameState['currentPlayer'] as Map<String, dynamic>?;
+      final gameStateCurrentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      
+      // Use main state's currentPlayer if available, otherwise use games map
+      final currentPlayer = mainStateCurrentPlayer ?? gameStateCurrentPlayer;
+      final currentPlayerId = currentPlayer?['id']?.toString();
+      
+      _logger.info('Recall: Current player ID: $currentPlayerId (from ${mainStateCurrentPlayer != null ? 'main state' : 'games map'})', isOn: LOGGING_SWITCH);
       _logger.info('Recall: Available players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']})').join(', ')}', isOn: LOGGING_SWITCH);
       
       // Find next player
@@ -253,13 +262,44 @@ class RecallGameRound {
         _stateCallback.onPlayerStatusChanged('waiting', playerId: currentPlayerId, updateMainState: true);
       }
       
-      // Update current player
+      // Update current player in game state (in place for local use)
       gameState['currentPlayer'] = nextPlayer;
       _logger.info('Recall: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
       
+      // CRITICAL: Create reference to games map to update state
+      // The modified gameState is already part of currentGames (in-place modification)
+      // StateManager's new hybrid change detection will handle this properly
+      final currentGames = _stateCallback.currentGamesMap;
+      
+      // CRITICAL: Update currentPlayer in the games map
+      // Navigate to game state and update currentPlayer
+      final gameId = _gameId;
+      if (currentGames.containsKey(gameId)) {
+        final gameData = currentGames[gameId] as Map<String, dynamic>;
+        final gameDataInner = gameData['gameData'] as Map<String, dynamic>?;
+        if (gameDataInner != null) {
+          final gameStateData = gameDataInner['game_state'] as Map<String, dynamic>?;
+          if (gameStateData != null) {
+            // Update currentPlayer in the games map structure
+            gameStateData['currentPlayer'] = nextPlayer;
+            _logger.info('Recall: Updated currentPlayer in games map to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+          }
+        }
+      }
+      
+            // Clear turn_events for the new turn and update main state's currentPlayer field
+            // This ensures handleDrawCardEvent can read the correct currentPlayer even if games map is stale
+            _stateCallback.onGameStateChanged({
+              'games': currentGames, // Modified games map with new currentPlayer
+              'currentPlayer': nextPlayer, // Also update main state's currentPlayer field for immediate access
+              'turn_events': [], // Clear all turn events for new turn
+            });
+            _logger.info('Recall: Updated games map with new currentPlayer and cleared turn_events for new turn', isOn: LOGGING_SWITCH);
+      
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
       // This matches backend behavior where first player status is DRAWING_CARD
-      _stateCallback.onPlayerStatusChanged('drawing_card', playerId: nextPlayer['id'], updateMainState: true, triggerInstructions: true);
+      // CRITICAL: Pass currentGames to avoid reading stale state - the games map was just updated above
+      _stateCallback.onPlayerStatusChanged('drawing_card', playerId: nextPlayer['id'], updateMainState: true, triggerInstructions: true, gamesMap: currentGames);
       
       // Check if this is a computer player and trigger computer turn logic
       final isHuman = nextPlayer['isHuman'] as bool? ?? false;
@@ -490,7 +530,9 @@ class RecallGameRound {
           final drawSource = source == 'discard' ? 'discard' : 'deck';
           _logger.info('Recall: Computer drawing from ${source == 'discard' ? 'discard pile' : 'deck'}', isOn: LOGGING_SWITCH);
           
-          final success = await handleDrawCard(drawSource);
+          // CRITICAL: Pass playerId to handleDrawCard to prevent stale state issues
+          // This ensures the correct player draws, even if currentPlayer in games map is stale
+          final success = await handleDrawCard(drawSource, playerId: playerId);
           if (!success) {
             _logger.error('Recall: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
             _moveToNextPlayer();
@@ -520,7 +562,9 @@ class RecallGameRound {
         case 'play_card':
           final cardId = decision['card_id'] as String?;
           if (cardId != null) {
-            final success = await handlePlayCard(cardId);
+            // CRITICAL: Pass playerId to handlePlayCard to prevent stale state issues
+            // This ensures the correct player plays, even if currentPlayer in games map is stale
+            final success = await handlePlayCard(cardId, playerId: playerId);
             if (!success) {
               _logger.error('Recall: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
@@ -649,7 +693,8 @@ class RecallGameRound {
         case 'draw_card':
           // TODO: Use YAML to determine draw source (deck vs discard)
           Timer(const Duration(seconds: 1), () async {
-            final success = await handleDrawCard('deck');
+            // CRITICAL: Pass playerId to handleDrawCard to prevent stale state issues
+            final success = await handleDrawCard('deck', playerId: playerId);
             if (!success) {
               _logger.error('Recall: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
@@ -698,7 +743,8 @@ class RecallGameRound {
                       // Play the first available card as a simple fallback
                       final cardId = availableCards.first;
                       _logger.info('Recall: Fallback - Playing card $cardId', isOn: LOGGING_SWITCH);
-                      final success = await handlePlayCard(cardId);
+                      // CRITICAL: Pass playerId to handlePlayCard to prevent stale state issues
+                      final success = await handlePlayCard(cardId, playerId: playerId);
                       if (!success) {
                         _logger.error('Recall: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
                         _moveToNextPlayer();
@@ -720,7 +766,8 @@ class RecallGameRound {
           Timer(const Duration(seconds: 1), () async {
             // TODO: Get card ID from YAML configuration
             // For now, use a placeholder card ID
-            final success = await handlePlayCard('placeholder_card_id');
+            // CRITICAL: Pass playerId to handlePlayCard to prevent stale state issues
+            final success = await handlePlayCard('placeholder_card_id', playerId: playerId);
             if (!success) {
               _logger.error('Recall: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
               _moveToNextPlayer();
@@ -840,7 +887,9 @@ class RecallGameRound {
 
 
   /// Handle drawing a card from the specified pile (replicates backend _handle_draw_from_pile)
-  Future<bool> handleDrawCard(String source) async {
+  /// [playerId] - Optional player ID. If provided, uses this player directly instead of reading from currentPlayer.
+  ///              This prevents stale state issues when currentPlayer in games map hasn't been updated yet.
+  Future<bool> handleDrawCard(String source, {String? playerId}) async {
     try {
       _logger.info('Recall: Handling draw card from $source pile', isOn: LOGGING_SWITCH);
       
@@ -858,15 +907,24 @@ class RecallGameRound {
         return false;
       }
       
-      // Get current player
+      // Use provided playerId if available, otherwise read from currentPlayer
+      String? actualPlayerId = playerId;
+      if (actualPlayerId == null || actualPlayerId.isEmpty) {
+        // Fallback to reading from currentPlayer (for backward compatibility with human player calls)
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       if (currentPlayer == null) {
-        _logger.error('Recall: No current player found for draw card', isOn: LOGGING_SWITCH);
+          _logger.error('Recall: No current player found for draw card and no playerId provided', isOn: LOGGING_SWITCH);
+        return false;
+      }
+        actualPlayerId = currentPlayer['id']?.toString() ?? '';
+      }
+      
+      if (actualPlayerId.isEmpty) {
+        _logger.error('Recall: Invalid playerId for draw card', isOn: LOGGING_SWITCH);
         return false;
       }
       
-      final playerId = currentPlayer['id']?.toString() ?? '';
-      _logger.info('Recall: Drawing card for player $playerId from $source pile', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Drawing card for player $actualPlayerId from $source pile', isOn: LOGGING_SWITCH);
       
       // Draw card based on source
       Map<String, dynamic>? drawnCard;
@@ -913,10 +971,10 @@ class RecallGameRound {
       
       // Get the current player's hand
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
-      final playerIndex = players.indexWhere((p) => p['id'] == playerId);
+      final playerIndex = players.indexWhere((p) => p['id'] == actualPlayerId);
       
       if (playerIndex == -1) {
-        _logger.error('Recall: Player $playerId not found in players list', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Player $actualPlayerId not found in players list', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -940,7 +998,7 @@ class RecallGameRound {
       _logger.info('Recall: Added drawn card to end of hand (index ${hand.length - 1})', isOn: LOGGING_SWITCH);
       
       // Log player state after drawing card
-      _logger.info('Recall: === AFTER DRAW CARD for $playerId ===', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: === AFTER DRAW CARD for $actualPlayerId ===', isOn: LOGGING_SWITCH);
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
       _logger.info('Recall: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
       final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
@@ -972,7 +1030,7 @@ class RecallGameRound {
         } else {
           knownCards = {};
         }
-        final playerIdKey = playerId;
+        final playerIdKey = actualPlayerId;
         if (!knownCards.containsKey(playerIdKey)) {
           knownCards[playerIdKey] = {};
         }
@@ -984,10 +1042,10 @@ class RecallGameRound {
           'specialPower': drawnCard['specialPower'],
         };
         player['known_cards'] = knownCards;
-        _logger.info('Recall: Added drawn card ${drawnCard['cardId']} to computer player $playerId known_cards', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Added drawn card ${drawnCard['cardId']} to computer player $actualPlayerId known_cards', isOn: LOGGING_SWITCH);
       }
       
-      _logger.info('Recall: Added card ${drawnCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Added card ${drawnCard['cardId']} to player $actualPlayerId hand as ID-only', isOn: LOGGING_SWITCH);
       
       // Debug: Log all cards in hand after adding drawn card
       _logger.info('Recall: DEBUG - Player hand after draw:', isOn: LOGGING_SWITCH);
@@ -1003,7 +1061,7 @@ class RecallGameRound {
       // CRITICAL: Batch state update with both hand and discard pile changes (if drawing from discard)
       // This ensures widgets rebuild atomically and card position tracking works correctly
       final currentGames = _stateCallback.currentGamesMap;
-      _logger.info('Recall: Updating games map through SSOT after draw card for player $playerId', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Updating games map through SSOT after draw card for player $actualPlayerId', isOn: LOGGING_SWITCH);
       
       // Add turn event for draw action
       final drawnCardId = drawnCard['cardId']?.toString() ?? '';
@@ -1017,22 +1075,22 @@ class RecallGameRound {
       if (source == 'discard') {
         final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       _stateCallback.onGameStateChanged({
-        'games': currentGames, // This includes the updated player hand with new card
+          'games': currentGames, // Games map with modified gameState
           'discardPile': updatedDiscardPile, // Updated discard pile (card removed)
           'turn_events': turnEvents, // Add turn event for animation
         });
       } else {
         // Drawing from deck - only update games (discard pile unchanged)
         _stateCallback.onGameStateChanged({
-          'games': currentGames, // This includes the updated player hand with new card
+          'games': currentGames, // Games map with modified gameState
           'turn_events': turnEvents, // Add turn event for animation
       });
       }
       
       // Change player status from DRAWING_CARD to PLAYING_CARD
-      _stateCallback.onPlayerStatusChanged('playing_card', playerId: playerId, updateMainState: true, triggerInstructions: true);
+      _stateCallback.onPlayerStatusChanged('playing_card', playerId: actualPlayerId, updateMainState: true, triggerInstructions: true);
       
-      _logger.info('Recall: Player $playerId status changed from drawing_card to playing_card', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Player $actualPlayerId status changed from drawing_card to playing_card', isOn: LOGGING_SWITCH);
       
       // Log pile contents after successful draw
       final drawPileCount = (gameState['drawPile'] as List?)?.length ?? 0;
@@ -1251,7 +1309,7 @@ class RecallGameRound {
   }
 
   /// Handle playing a card from the player's hand (replicates backend _handle_play_card)
-  Future<bool> handlePlayCard(String cardId) async {
+  Future<bool> handlePlayCard(String cardId, {String? playerId}) async {
     try {
       _logger.info('Recall: Handling play card: $cardId', isOn: LOGGING_SWITCH);
       
@@ -1266,23 +1324,32 @@ class RecallGameRound {
         return false;
       }
       
-      final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
-      if (currentPlayer == null) {
-        _logger.error('Recall: No current player found for play card', isOn: LOGGING_SWITCH);
-        return false;
+      // Use provided playerId if available, otherwise read from currentPlayer
+      String? actualPlayerId = playerId;
+      if (actualPlayerId == null || actualPlayerId.isEmpty) {
+        // Fallback to reading from currentPlayer (for backward compatibility with human player calls)
+        final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+        if (currentPlayer == null) {
+          _logger.error('Recall: No current player found for play card and no playerId provided', isOn: LOGGING_SWITCH);
+          return false;
+        }
+        actualPlayerId = currentPlayer['id']?.toString() ?? '';
       }
       
-      final playerId = currentPlayer['id']?.toString() ?? '';
+      if (actualPlayerId.isEmpty) {
+        _logger.error('Recall: Invalid playerId for play card', isOn: LOGGING_SWITCH);
+        return false;
+      }
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       
       // Find the player in the players list
       final player = players.firstWhere(
-        (p) => p['id'] == playerId,
+        (p) => p['id'] == actualPlayerId,
         orElse: () => <String, dynamic>{},
       );
       
       if (player.isEmpty) {
-        _logger.error('Recall: Player $playerId not found in players list', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Player $actualPlayerId not found in players list', isOn: LOGGING_SWITCH);
         return false;
       }
       
@@ -1385,7 +1452,7 @@ class RecallGameRound {
       // CRITICAL: Batch state update with both hand and discard pile changes
       // This ensures widgets rebuild atomically and card position tracking works correctly
       // Get fresh games map after hand and discard pile modifications
-      final updatedGames = _stateCallback.currentGamesMap;
+      final currentGamesForPlay = _stateCallback.currentGamesMap;
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
       // Add turn events for play action and potential reposition
@@ -1404,7 +1471,7 @@ class RecallGameRound {
       );
       
       _stateCallback.onGameStateChanged({
-        'games': updatedGames, // Includes updated player hand
+        'games': currentGamesForPlay, // Games map with modifications
         'discardPile': updatedDiscardPile, // Updated discard pile
         'turn_events': turnEvents, // Add turn events for animations
       });
@@ -1433,7 +1500,7 @@ class RecallGameRound {
       
       // Check if the played card has special powers (Jack/Queen)
       // Replicates backend flow: check special card FIRST (game_round.py line 989)
-      _checkSpecialCard(playerId, {
+      _checkSpecialCard(actualPlayerId, {
         'cardId': cardId,
         'rank': cardToPlayFullData['rank'],
         'suit': cardToPlayFullData['suit']
@@ -1445,7 +1512,7 @@ class RecallGameRound {
 
       // CRITICAL: Update known_cards BEFORE clearing drawnCard property
       // This ensures the just-drawn card detection logic can work properly
-      updateKnownCards('play_card', playerId, [cardId]);
+      updateKnownCards('play_card', actualPlayerId, [cardId]);
       
       // Check if player's hand is completely empty (including collection cards)
       // If empty, add player to winners list
@@ -1711,7 +1778,7 @@ class RecallGameRound {
       
       // CRITICAL: Batch state update with both hand and discard pile changes
       // This ensures widgets rebuild atomically and card position tracking works correctly
-      final currentGames = _stateCallback.currentGamesMap;
+      final currentGamesForSameRank = _stateCallback.currentGamesMap;
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
       // Add turn event for same rank play (actionType is 'play' - same as regular play)
@@ -1722,7 +1789,7 @@ class RecallGameRound {
       );
       
       _stateCallback.onGameStateChanged({
-        'games': currentGames, // Includes updated player hand
+        'games': currentGamesForSameRank, // Games map with modifications
         'discardPile': updatedDiscardPile, // Updated discard pile
         'turn_events': turnEvents, // Add turn event for animation
       });
@@ -1925,7 +1992,7 @@ class RecallGameRound {
       );
       
       _stateCallback.onGameStateChanged({
-        'games': currentGames,
+        'games': currentGames, // Games map with modifications
         'turn_events': turnEvents, // Add turn events for animations
       });
 
@@ -2060,12 +2127,12 @@ class RecallGameRound {
       final isHuman = peekingPlayer['isHuman'] as bool? ?? false;
       if (isHuman) {
         final currentGames = _stateCallback.currentGamesMap;
+        // playerStatus is now computed from SSOT in state slices
         _stateCallback.onGameStateChanged({
-          'playerStatus': 'peeking',
           'myCardsToPeek': [fullCardData],
-          'games': currentGames,
+          'games': currentGames, // Status will be computed from SSOT
         });
-        _logger.info('Recall: Updated main state for human player - myCardsToPeek updated', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Updated main state for human player - myCardsToPeek updated, status computed from SSOT', isOn: LOGGING_SWITCH);
       } else {
         // For computer players, just update the games map
         final currentGames = _stateCallback.currentGamesMap;
@@ -3082,12 +3149,31 @@ class RecallGameRound {
       gameState['currentPlayer'] = nextPlayer;
       _logger.info('Recall: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
       
-      // CRITICAL: Clear turn_events before starting next player's turn
-      // This ensures animations only trigger for the current turn's actions
+      // CRITICAL: Update currentPlayer in the games map before calling onPlayerStatusChanged
+      // This ensures updatePlayerStatus reads the correct currentPlayer
+      final currentGames = _stateCallback.currentGamesMap;
+      final gameId = _gameId;
+      if (currentGames.containsKey(gameId)) {
+        final gameData = currentGames[gameId] as Map<String, dynamic>;
+        final gameDataInner = gameData['gameData'] as Map<String, dynamic>?;
+        if (gameDataInner != null) {
+          final gameStateData = gameDataInner['game_state'] as Map<String, dynamic>?;
+          if (gameStateData != null) {
+            gameStateData['currentPlayer'] = nextPlayer;
+            _logger.info('Recall: Updated currentPlayer in games map to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+          }
+        }
+      }
+      
+      // CRITICAL: Update state with new currentPlayer before calling onPlayerStatusChanged
+      // This ensures the state is updated even though onPlayerStatusChanged will also update it
+      // The gamesMap parameter to onPlayerStatusChanged ensures it uses the correct games map
       _stateCallback.onGameStateChanged({
+        'games': currentGames, // Modified games map with new currentPlayer
+        'currentPlayer': nextPlayer, // Also update main state's currentPlayer field for immediate access
         'turn_events': [], // Clear all turn events for new turn
       });
-      _logger.info('Recall: Cleared turn_events for new turn', isOn: LOGGING_SWITCH);
+      _logger.info('Recall: Updated games map with new currentPlayer and cleared turn_events for new turn', isOn: LOGGING_SWITCH);
       
       // Log player state at start of turn
       _logger.info('Recall: === TURN START for $nextPlayerId ===', isOn: LOGGING_SWITCH);
@@ -3103,7 +3189,8 @@ class RecallGameRound {
       _logger.info('Recall: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
       
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
-      _stateCallback.onPlayerStatusChanged('drawing_card', playerId: nextPlayerId, updateMainState: true, triggerInstructions: true);
+      // CRITICAL: Pass currentGames to avoid reading stale state - the games map was just updated above
+      _stateCallback.onPlayerStatusChanged('drawing_card', playerId: nextPlayerId, updateMainState: true, triggerInstructions: true, gamesMap: currentGames);
       _logger.info('Recall: Set next player ${nextPlayer['name']} to drawing_card status', isOn: LOGGING_SWITCH);
       
       // Check if this is a computer player and trigger computer turn logic
@@ -3173,7 +3260,7 @@ class RecallGameRound {
         player['known_cards'] = knownCards;
       }
       
-      // Update state
+      // Update state to trigger UI updates
       _stateCallback.onGameStateChanged({'games': currentGames});
       
       _logger.info('Recall: Updated known_cards for all players after $eventType', isOn: LOGGING_SWITCH);

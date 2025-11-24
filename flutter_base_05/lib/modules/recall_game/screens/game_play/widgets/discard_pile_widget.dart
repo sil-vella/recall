@@ -53,7 +53,8 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
         final isGameActive = recallGameState['isGameActive'] ?? false;
         final isMyTurn = recallGameState['isMyTurn'] ?? false;
-        final playerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
+        // Get playerStatus from centerBoard slice (computed from SSOT)
+        final playerStatus = centerBoard['playerStatus']?.toString() ?? 'unknown';
         
         
         return _buildDiscardPileCard(

@@ -162,7 +162,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         }
         
         final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
-        final currentPlayerStatus = recallGameState['currentPlayerStatus']?.toString() ?? 'unknown';
+        // Get currentPlayerStatus from opponentsPanel slice (computed from SSOT)
+        final opponentsPanelSlice = recallGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
+        final currentPlayerStatus = opponentsPanelSlice['currentPlayerStatus']?.toString() ?? 'unknown';
         
         // Determine if we're in initial peek phase - use gamePhase instead of playerStatus
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';
@@ -761,8 +763,12 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   void _handleCardClick(Map<String, dynamic> card, String cardOwnerId) async {
     // Get current player status from state
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentPlayerStatus = recallGameState['playerStatus']?.toString() ?? 'unknown';
     final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+    
+    // Get current user status from SSOT (via myHand slice or derive directly)
+    // For queen_peek/jack_swap, we need the current user's status, not current player's status
+    final myHand = recallGameState['myHand'] as Map<String, dynamic>? ?? {};
+    final currentPlayerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
     
     // Check if current player can interact with cards (queen_peek or jack_swap status)
     if (currentPlayerStatus == 'queen_peek' || currentPlayerStatus == 'jack_swap') {

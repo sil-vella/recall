@@ -444,6 +444,9 @@ class RecallEventHandlerCallbacks {
     _logger.info('  ownerId: $ownerId', isOn: LOGGING_SWITCH);
     _logger.info('  data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
     _logger.info('  turn_events count: ${turnEvents.length}', isOn: LOGGING_SWITCH);
+    if (turnEvents.isNotEmpty) {
+      _logger.info('  🔍 JACK SWAP DEBUG - turn_events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+    }
     final roundNumber = data['round_number'] as int? ?? 1;
     final currentPlayer = data['current_player'];
     final currentPlayerStatus = data['current_player_status']?.toString() ?? 'unknown';

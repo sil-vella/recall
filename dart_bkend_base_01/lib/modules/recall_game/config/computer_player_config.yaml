@@ -234,12 +234,196 @@ events:
     swap_targets:
       strategy: "points_analysis"  # Analyze opponent points
       preferred_targets: ["lowest_points", "most_cards"]
+    
+    # Strategy selection probabilities (similar to play_card)
+    optimal_swap_probability:
+      easy: 0.6      # 60% chance to swap optimally
+      medium: 0.8    # 80% chance to swap optimally
+      hard: 0.95     # 95% chance to swap optimally
+      expert: 1.0    # 100% chance to swap optimally (always optimal)
+    
+    # NEW: YAML-driven strategy rules (ordered from expert down to easy)
+    strategy_rules:
+      # Rule 1 (Expert/Hard): Swap if player knows another player's card (lowest points available) 
+      # and has a card in their own known cards with higher points
+      - name: "swap_lowest_opponent_for_higher_own"
+        priority: 1
+        description: "Swap if player knows opponent's lowest point card and has higher point card in own known cards"
+        condition:
+          type: "and"
+          conditions:
+            # Check if acting player has known cards
+            - field: "acting_player.known_cards"
+              operator: "not_empty"
+            # Check if there are other players with known cards
+            - field: "all_players"
+              operator: "not_empty"
+        action:
+          type: "use_special_play"
+          select_targets: true
+          target_strategy: "lowest_opponent_higher_own"
+        # Probability-based execution (expert/hard use this rule)
+        execution_probability:
+          expert: 1.0    # 100% chance to execute if condition met
+          hard: 0.95     # 95% chance to execute if condition met
+          medium: 0.7    # 70% chance to execute if condition met
+          easy: 0.5      # 50% chance to execute if condition met
+      
+      # Rule 2 (Medium/Easy): Random 2 cards (excluding collection cards) from any 2 other players
+      - name: "swap_random_two_players"
+        priority: 2
+        description: "Random swap of 2 cards (excluding collection cards) from any 2 other players"
+        condition:
+          type: "and"
+          conditions:
+            # Check if there are at least 2 other players
+            - field: "all_players"
+              operator: "not_empty"
+            # Check if acting player has cards in hand (excluding collection)
+            - field: "acting_player.hand"
+              operator: "not_empty"
+        action:
+          type: "use_special_play"
+          select_targets: true
+          target_strategy: "random_two_players"
+        # Probability-based execution (medium/easy use this rule more)
+        execution_probability:
+          expert: 0.0    # 0% chance (expert uses rule 1)
+          hard: 0.05     # 5% chance (hard prefers rule 1)
+          medium: 0.3    # 30% chance (medium uses this as fallback)
+          easy: 0.5      # 50% chance (easy uses this more often)
+      
+      # Rule 3: Skip swap (fallback)
+      - name: "skip_jack_swap"
+        priority: 3
+        description: "Skip using Jack swap"
+        condition:
+          type: "always"
+        action:
+          type: "skip_special_play"
       
   queen_peek:
     # Decision logic for Queen peek
-    peek_targets:
-      strategy: "information_gathering"
-      preferred_targets: ["most_cards", "unknown_hand"]
+    optimal_peek_probability:
+      easy: 0.6      # 60% chance to peek optimally
+      medium: 0.8    # 80% chance to peek optimally
+      hard: 0.95     # 95% chance to peek optimally
+      expert: 1.0    # 100% chance to peek optimally (always optimal)
+    
+    # NEW: YAML-driven strategy rules (ordered from expert down to easy)
+    strategy_rules:
+      # Rule 1 (Expert/Hard): Peek at own cards that are not yet in known cards (excluding collection cards)
+      - name: "peek_own_unknown_cards"
+        priority: 1
+        description: "Peek at own cards that are not yet in known cards (excluding collection cards)"
+        condition:
+          type: "and"
+          conditions:
+            # Check if acting player has cards in hand
+            - field: "acting_player.hand"
+              operator: "not_empty"
+            # Check if acting player has known cards (to compare against)
+            - field: "acting_player.known_cards"
+              operator: "not_empty"
+        action:
+          type: "use_special_play"
+          select_targets: true
+          target_strategy: "own_unknown_cards"
+        # Probability-based execution (expert/hard use this rule)
+        execution_probability:
+          expert: 1.0    # 100% chance to execute if condition met
+          hard: 0.95     # 95% chance to execute if condition met
+          medium: 0.7    # 70% chance to execute if condition met
+          easy: 0.5      # 50% chance to execute if condition met
+      
+      # Rule 2 (Medium/Easy): Random peek at any player's card (excluding their collection cards)
+      - name: "peek_random_other_player"
+        priority: 2
+        description: "Random peek at any player's card (excluding their collection cards)"
+        condition:
+          type: "and"
+          conditions:
+            # Check if there are other players
+            - field: "all_players"
+              operator: "not_empty"
+        action:
+          type: "use_special_play"
+          select_targets: true
+          target_strategy: "random_other_player"
+        # Probability-based execution (medium/easy use this rule more)
+        execution_probability:
+          expert: 0.0    # 0% chance (expert uses rule 1)
+          hard: 0.05     # 5% chance (hard prefers rule 1)
+          medium: 0.3    # 30% chance (medium uses this as fallback)
+          easy: 0.5      # 50% chance (easy uses this more often)
+      
+      # Rule 3: Skip peek (fallback)
+      - name: "skip_queen_peek"
+        priority: 3
+        description: "Skip using Queen peek"
+        condition:
+          type: "always"
+        action:
+          type: "skip_special_play"
+
+  collect_from_discard:
+    # Decision logic for collecting from discard pile
+    optimal_collect_probability:
+      easy: 0.6      # 60% chance to collect optimally
+      medium: 0.8    # 80% chance to collect optimally
+      hard: 0.95     # 95% chance to collect optimally
+      expert: 1.0    # 100% chance to collect optimally (always optimal)
+    
+    # YAML-driven strategy rules (ordered from expert down to easy)
+    strategy_rules:
+      # Rule 1 (Expert/Hard): Collect if player has 3 collection cards already and this is the only remaining card with same rank
+      - name: "collect_if_completes_set"
+        priority: 1
+        description: "Collect if player has 3 collection cards and this is the only remaining card with same rank"
+        condition:
+          type: "and"
+          conditions:
+            # Check if acting player has 3 collection cards
+            - field: "acting_player.collection_cards"
+              operator: "length_equals"
+              value: 3
+            # Check if discard pile top card exists
+            - field: "discard_pile.top_card"
+              operator: "exists"
+        action:
+          type: "collect_from_discard"
+        execution_probability:
+          expert: 1.0    # 100% chance to execute if condition met
+          hard: 0.95     # 95% chance to execute if condition met
+          medium: 0.7    # 70% chance to execute if condition met
+          easy: 0.5      # 50% chance to execute if condition met
+      
+      # Rule 2 (Medium/Easy): Collect if same rank as collection rank
+      - name: "collect_if_same_rank"
+        priority: 2
+        description: "Collect if discard pile top card has same rank as collection rank"
+        condition:
+          type: "and"
+          conditions:
+            # Check if discard pile top card exists
+            - field: "discard_pile.top_card"
+              operator: "exists"
+        action:
+          type: "collect_from_discard"
+        execution_probability:
+          expert: 0.0    # 0% chance (expert uses rule 1)
+          hard: 0.05     # 5% chance (hard prefers rule 1)
+          medium: 0.3    # 30% chance (medium uses this as fallback)
+          easy: 0.5      # 50% chance (easy uses this more often)
+      
+      # Rule 3: Skip collection (fallback)
+      - name: "skip_collect"
+        priority: 3
+        description: "Skip collecting from discard pile"
+        condition:
+          type: "always"
+        action:
+          type: "skip_collect"
 
 # Computer player statistics (for validation)
 computer_stats:
@@ -252,4 +436,3 @@ computer_stats:
     medium: 50
     hard: 20
     expert: 5
-

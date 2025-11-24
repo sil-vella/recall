@@ -5,7 +5,7 @@ import 'game_state_store.dart';
 import '../../../server/websocket_server.dart';
 import '../../../utils/server_logger.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Holds active RecallGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -94,6 +94,15 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
 
   @override
   void onGameStateChanged(Map<String, dynamic> updates) {
+    // Log turn_events if present in updates
+    if (updates.containsKey('turn_events')) {
+      final turnEvents = updates['turn_events'] as List<dynamic>? ?? [];
+      _logger.info('🔍 TURN_EVENTS DEBUG - onGameStateChanged received turn_events: ${turnEvents.length} events', isOn: LOGGING_SWITCH);
+      _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+    } else {
+      _logger.info('🔍 TURN_EVENTS DEBUG - onGameStateChanged received NO turn_events in updates. Keys: ${updates.keys.toList()}', isOn: LOGGING_SWITCH);
+    }
+    
     // Use StateQueueValidator to validate and queue the update
     // The validator will call our update handler with validated updates
     _validator.enqueueUpdate(updates);
@@ -102,6 +111,15 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   /// Apply validated updates to GameStateStore and broadcast
   /// This is called by StateQueueValidator after validation
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
+    // Log turn_events if present in validated updates
+    if (validatedUpdates.containsKey('turn_events')) {
+      final turnEventsInUpdates = validatedUpdates['turn_events'] as List<dynamic>? ?? [];
+      _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received turn_events in validatedUpdates: ${turnEventsInUpdates.length} events', isOn: LOGGING_SWITCH);
+      _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEventsInUpdates.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+    } else {
+      _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received NO turn_events in validatedUpdates. Keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
+    }
+    
     // Merge into state root
     _store.mergeRoot(roomId, validatedUpdates);
     // Read the full state after merge
@@ -110,6 +128,8 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
     
     // Extract turn_events from root state (they're stored at root level, not in game_state)
     final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
+    _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates extracted turn_events from root state: ${turnEvents.length} events', isOn: LOGGING_SWITCH);
+    _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
     
     // CRITICAL: If gamePhase is in updates, copy it to game_state['phase'] for client broadcast
     // Frontend expects gamePhase in game_state['phase'], not at root level
@@ -139,6 +159,9 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
     gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
     // Owner info for gating
     final ownerId = server.getRoomOwner(roomId);
+    _logger.info('🔍 TURN_EVENTS DEBUG - Broadcasting game_state_updated with ${turnEvents.length} turn_events', isOn: LOGGING_SWITCH);
+    _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+    
     server.broadcastToRoom(roomId, {
       'event': 'game_state_updated',
       'game_id': roomId,

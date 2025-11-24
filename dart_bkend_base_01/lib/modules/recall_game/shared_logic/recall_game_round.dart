@@ -1066,11 +1066,16 @@ class RecallGameRound {
       
       // Add turn event for draw action
       final drawnCardId = drawnCard['cardId']?.toString() ?? '';
-      final turnEvents = _getCurrentTurnEvents()..add(_createTurnEvent(drawnCardId, 'draw'));
+      final currentTurnEvents = _getCurrentTurnEvents();
+      _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding draw event: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      
+      final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
+        ..add(_createTurnEvent(drawnCardId, 'draw'));
       _logger.info(
         'Recall: Added turn event - cardId: $drawnCardId, actionType: draw, total events: ${turnEvents.length}',
         isOn: LOGGING_SWITCH,
       );
+      _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
       // If drawing from discard pile, include discard pile in state update
       if (source == 'discard') {
@@ -1272,11 +1277,16 @@ class RecallGameRound {
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
       // Add turn event for collect action
-      final turnEvents = _getCurrentTurnEvents()..add(_createTurnEvent(collectedCardId, 'collect'));
+      final currentTurnEvents = _getCurrentTurnEvents();
+      _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding collect event: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      
+      final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
+        ..add(_createTurnEvent(collectedCardId, 'collect'));
       _logger.info(
         'Recall: Added turn event - cardId: $collectedCardId, actionType: collect, total events: ${turnEvents.length}',
         isOn: LOGGING_SWITCH,
       );
+      _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
       _stateCallback.onGameStateChanged({
         'games': currentGames, // Includes updated player hand (card added)
@@ -1473,19 +1483,24 @@ class RecallGameRound {
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
       // Add turn events for play action and potential reposition
-      final turnEvents = _getCurrentTurnEvents()
+      final currentTurnEvents = _getCurrentTurnEvents();
+      _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding play event: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      
+      final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
         ..add(_createTurnEvent(cardId, 'play'));
       
       // If drawn card is repositioned, also add reposition event
       if (drawnCard != null && drawnCard['cardId'] != cardId) {
         final drawnCardId = drawnCard['cardId']?.toString() ?? '';
         turnEvents.add(_createTurnEvent(drawnCardId, 'reposition'));
+        _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Added reposition event for drawn card: $drawnCardId', isOn: LOGGING_SWITCH);
       }
       
       _logger.info(
         'Recall: Added turn events - play: $cardId${drawnCard != null && drawnCard['cardId'] != cardId ? ', reposition: ${drawnCard['cardId']}' : ''}, total events: ${turnEvents.length}',
         isOn: LOGGING_SWITCH,
       );
+      _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
       _stateCallback.onGameStateChanged({
         'games': currentGamesForPlay, // Games map with modifications
@@ -1810,11 +1825,16 @@ class RecallGameRound {
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
       // Add turn event for same rank play (actionType is 'play' - same as regular play)
-      final turnEvents = _getCurrentTurnEvents()..add(_createTurnEvent(cardId, 'play'));
+      final currentTurnEvents = _getCurrentTurnEvents();
+      _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding same rank play event: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      
+      final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
+        ..add(_createTurnEvent(cardId, 'play'));
       _logger.info(
         'Recall: Added turn event - cardId: $cardId, actionType: play (same rank), total events: ${turnEvents.length}',
         isOn: LOGGING_SWITCH,
       );
+      _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
       _stateCallback.onGameStateChanged({
         'games': currentGamesForSameRank, // Games map with modifications
@@ -2022,13 +2042,17 @@ class RecallGameRound {
       // Use the games map we're working with (currentGames already has modifications)
       
       // Add turn events for jack swap (both cards are repositioned)
-      final turnEvents = _getCurrentTurnEvents()
+      final currentTurnEvents = _getCurrentTurnEvents();
+      _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding jack swap events: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      
+      final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
         ..add(_createTurnEvent(firstCardId, 'reposition'))
         ..add(_createTurnEvent(secondCardId, 'reposition'));
       _logger.info(
         'Recall: Added turn events - jack swap: $firstCardId <-> $secondCardId (both reposition), total events: ${turnEvents.length}',
         isOn: LOGGING_SWITCH,
       );
+      _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
       _stateCallback.onGameStateChanged({
         'games': currentGames, // Games map with modifications

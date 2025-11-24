@@ -39,7 +39,7 @@ class StateQueueValidator {
   /// Logger callback (platform-specific, optional)
   void Function(String message, {bool isError})? _logCallback;
 
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
 
   /// Define the complete state schema with validation rules
   /// Extracted from validated_state_manager.dart - must remain identical
@@ -398,6 +398,11 @@ class StateQueueValidator {
       required: false,
       description: 'Status of current round',
     ),
+    'turn_events': RecallStateFieldSpec(
+      type: List,
+      defaultValue: [],
+      description: 'List of turn events for animations (play, reposition, draw, collect, etc.)',
+    ),
     
     // Game Phase Field
     'gamePhase': RecallStateFieldSpec(
@@ -458,6 +463,13 @@ class StateQueueValidator {
   /// Updates are added to the queue and processed sequentially.
   /// If the queue is empty, processing starts immediately.
   void enqueueUpdate(Map<String, dynamic> update) {
+    // Log turn_events if present
+    if (update.containsKey('turn_events')) {
+      final turnEvents = update['turn_events'] as List<dynamic>? ?? [];
+      _log('🔍 TURN_EVENTS DEBUG - StateQueueValidator.enqueueUpdate received turn_events: ${turnEvents.length} events', isError: false);
+      _log('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isError: false);
+    }
+    
     _updateQueue.add(update);
     _log('StateQueueValidator: Enqueued update with keys: ${update.keys.join(', ')}', isError: false);
     
@@ -485,6 +497,15 @@ class StateQueueValidator {
         try {
           // Validate the update
           final validatedUpdate = validateUpdate(update);
+          
+          // Log turn_events if present in validated update
+          if (validatedUpdate.containsKey('turn_events')) {
+            final turnEvents = validatedUpdate['turn_events'] as List<dynamic>? ?? [];
+            _log('🔍 TURN_EVENTS DEBUG - StateQueueValidator validated turn_events: ${turnEvents.length} events', isError: false);
+            _log('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isError: false);
+          } else if (update.containsKey('turn_events')) {
+            _log('🔍 TURN_EVENTS DEBUG - StateQueueValidator: turn_events were in update but NOT in validatedUpdate! This is a problem!', isError: true);
+          }
 
           // Apply the validated update via handler
           if (_updateHandler != null) {

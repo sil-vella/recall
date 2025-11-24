@@ -250,7 +250,9 @@ class GameEventCoordinator {
     }
 
     // Build deck and deal 4 cards per player (as in practice)
-    final deckFactory = getDeckFactory(roomId) as dynamic; // returns DeckFactory or TestingDeckFactory
+    // Use YamlDeckFactory to respect testing_mode setting from YAML config
+    final configPath = 'lib/modules/recall_game/config/deck_config.yaml';
+    final deckFactory = await YamlDeckFactory.fromFile(roomId, configPath);
     final List<Card> fullDeck = deckFactory.buildDeck();
 
     // Helper to convert Card to Map (full data for originalDeck lookup)

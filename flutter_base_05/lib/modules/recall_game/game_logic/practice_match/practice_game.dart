@@ -2092,6 +2092,11 @@ class PracticeGameCoordinator implements GameStateCallback {
         );
         if (success) {
           _logger.info('Recall: Successfully handled jack_swap', isOn: LOGGING_SWITCH);
+          
+          // NOTE: handleJackSwap in shared logic already calls onGameStateChanged with turn_events
+          // The onGameStateChanged callback will sync widget states and update state with turn_events
+          // No need to do additional state update here - the callback handles it
+          
           return true;
         } else {
           _logger.error('Recall: Failed to handle jack_swap in RecallGameRound', isOn: LOGGING_SWITCH);

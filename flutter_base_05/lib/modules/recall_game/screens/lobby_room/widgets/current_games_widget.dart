@@ -5,7 +5,6 @@ import '../../../../../tools/logging/logger.dart';
 import '../../game_play/widgets/game_phase_chip_widget.dart';
 import '../../../managers/game_coordinator.dart';
 import '../../../utils/recall_game_helpers.dart';
-import '../../../game_logic/practice_match/practice_game.dart';
 
 const bool LOGGING_SWITCH = false;
 
@@ -296,15 +295,7 @@ class CurrentRoomWidget extends StatelessWidget {
   /// Navigate to game play screen with game data
   void _enterGameRoom(BuildContext context, Map<String, dynamic> gameData) async {
     try {
-      // Clean up recall game state before joining real game
-      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-      final currentUserId = loginState['userId']?.toString() ?? '';
-      
-      if (currentUserId == 'recall_user') {
-        _logger.info('CurrentGames: Recall user detected - cleaning up before entering real game', isOn: LOGGING_SWITCH);
-        await PracticeGameCoordinator().cleanupPracticeState();
-      }
-      
+      // Clean up recall game state before joining real game            
       // Store game data in state for the game play screen to access
       final gameId = gameData['game_id']?.toString() ?? '';
       

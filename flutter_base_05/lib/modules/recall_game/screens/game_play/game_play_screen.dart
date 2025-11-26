@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../tools/logging/logger.dart';
-import '../../game_logic/practice_match/practice_game.dart';
 import 'widgets/game_info_widget.dart';
 import 'widgets/opponents_panel_widget.dart';
 import 'widgets/game_board_widget.dart';
@@ -109,8 +108,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     if (_previousGameId != null && _previousGameId!.startsWith('recall_game_')) {
       _logger.info('GamePlay: Navigating away from recall game $_previousGameId - cleaning up', isOn: LOGGING_SWITCH);
       
-      // Clean up recall game state
-      PracticeGameCoordinator().cleanupPracticeState();
+      // todo Clean up recall game state
+    
     }
     
     super.deactivate();
@@ -131,7 +130,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     if (_previousGameId != null && _previousGameId!.startsWith('recall_game_')) {
       _logger.info('GamePlay: Disposing recall game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
       
-      PracticeGameCoordinator().cleanupPracticeState();
+      // todo cleanup practice mode state
     }
     
     // Clean up any game-specific resources

@@ -2,7 +2,6 @@ import 'package:recall/tools/logging/logger.dart';
 
 import 'validated_event_emitter.dart';
 import 'recall_game_state_updater.dart';
-import '../game_logic/practice_match/practice_game.dart';
 
 /// Player action types for the Recall game
 enum PlayerActionType {
@@ -115,21 +114,7 @@ class PlayerAction {
   void _triggerPracticeEvent() {
     try {
       // Get the recall game coordinator (singleton)
-      final recallCoordinator = PracticeGameCoordinator();
-      
-      // Extract session ID (game_id) from payload
-      final sessionId = payload['game_id'] as String? ?? '';
-      
-      if (sessionId.isEmpty) {
-        _logger.warning('Cannot trigger recall event - no game_id in payload', isOn: LOGGING_SWITCH);
-        return;
-      }
-      
-      // Call the recall coordinator to handle the event
-      _logger.info('Calling recall coordinator for event: $eventName (session: $sessionId)', isOn: LOGGING_SWITCH);
-      recallCoordinator.handlePracticeEvent(sessionId, eventName, payload);
-      
-      _logger.info('Recall event handled by coordinator: $eventName', isOn: LOGGING_SWITCH);
+      // todo ... link to practice mode logic (dart bkend replica)
       
     } catch (e) {
       _logger.error('Error triggering recall event: $e', isOn: LOGGING_SWITCH);
@@ -310,13 +295,7 @@ class PlayerAction {
       if (isPracticeGame) {
         // Handle recall game Jack swap
         logger.info('Recall game detected - calling recall coordinator for jack_swap', isOn: LOGGING_SWITCH);
-        final recallCoordinator = PracticeGameCoordinator();
-        await recallCoordinator.handlePracticeEvent(
-          gameId,
-          'jack_swap',
-          swapPayload,
-        );
-        logger.info('Recall jack_swap handled successfully', isOn: LOGGING_SWITCH);
+        // todo link to practice mode
       } else {
         // Send the swap request to backend for regular games
         logger.info('Sending jack_swap event to backend', isOn: LOGGING_SWITCH);

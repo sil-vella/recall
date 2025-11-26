@@ -3,7 +3,6 @@ import 'package:recall/core/managers/navigation_manager.dart';
 import 'package:recall/core/managers/state_manager.dart';
 import 'package:recall/modules/recall_game/screens/game_play/game_play_screen.dart';
 import 'package:recall/modules/recall_game/screens/lobby_room/lobby_screen.dart';
-import 'package:recall/modules/recall_game/screens/practice_room/practice_room.dart';
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../tools/logging/logger.dart';
@@ -164,15 +163,6 @@ class RecallGameMain extends ModuleBase {
 
   /// Register all Recall game screens with NavigationManager
   void _registerScreens() {
-    // Register Recall Game Lobby Screen (Room Management)
-    navigationManager.registerRoute(
-      path: '/recall/practice',
-      screen: (context) => const PracticeScreen(),
-      drawerTitle: 'Practice',
-      drawerIcon: Icons.games,
-      drawerPosition: 5, // After existing screens
-    );
-
     // Register Recall Game Lobby Screen (Room Management)
     navigationManager.registerRoute(
       path: '/recall/lobby',

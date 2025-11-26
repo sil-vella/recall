@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/game_coordinator.dart';
-import '../../../game_logic/practice_match/practice_game.dart';
 import '../../../../../tools/logging/logger.dart';
 
 /// Widget to display current game information
@@ -333,26 +332,7 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       _logger.info('🎮 GameInfoWidget: Recall game check - isPracticeGame: $isPracticeGame', isOn: LOGGING_SWITCH);
       
       if (isPracticeGame) {
-        _logger.info('🎮 GameInfoWidget: Recall game detected - routing directly to PracticeGameCoordinator', isOn: LOGGING_SWITCH);
-        
-        // Route directly to recall game coordinator
-        final recallCoordinator = PracticeGameCoordinator();
-        _logger.info('🎮 GameInfoWidget: Calling PracticeGameCoordinator.matchStart()', isOn: LOGGING_SWITCH);
-        
-        final result = await recallCoordinator.matchStart();
-        _logger.info('🎮 GameInfoWidget: PracticeGameCoordinator.matchStart() completed with result: $result', isOn: LOGGING_SWITCH);
-        
-        // Check state after match start
-        final stateAfterStart = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-        final gameInfoAfter = stateAfterStart['gameInfo'] as Map<String, dynamic>? ?? {};
-        final phaseAfter = gameInfoAfter['gamePhase']?.toString() ?? 'unknown';
-        _logger.info('🎮 GameInfoWidget: Game phase after matchStart: $phaseAfter', isOn: LOGGING_SWITCH);
-        
-        if (result) {
-          _logger.info('🎮 GameInfoWidget: ✅ Match start successful - phase should change to initial_peek', isOn: LOGGING_SWITCH);
-        } else {
-          _logger.warning('🎮 GameInfoWidget: ⚠️ Match start returned false - check logs for errors', isOn: LOGGING_SWITCH);
-        }
+        // todo link to practice mode
         
       } else {
         _logger.info('🎮 GameInfoWidget: Regular game detected - routing to GameCoordinator', isOn: LOGGING_SWITCH);

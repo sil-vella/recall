@@ -1138,9 +1138,21 @@ class RecallGameRound {
         _logger.info('Recall: handleCollectFromDiscard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
       }
       
+      // Check if game has ended - prevent collection after game ends
+      if (_isGameEnded()) {
+        _logger.info('Recall: Cannot collect - game has ended', isOn: LOGGING_SWITCH);
+        
+        _stateCallback.onActionError(
+          'Cannot collect cards - game has ended',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
+        
+        return false;
+      }
+      
       // Check if game is in restricted phases
       final gamePhase = gameState['gamePhase']?.toString() ?? 'unknown';
-      if (gamePhase == 'same_rank_window' || gamePhase == 'initial_peek') {
+      if (gamePhase == 'same_rank_window' || gamePhase == 'initial_peek' || gamePhase == 'game_ended') {
         _logger.info('Recall: Cannot collect during $gamePhase phase', isOn: LOGGING_SWITCH);
         
         // Show error message
@@ -1202,6 +1214,18 @@ class RecallGameRound {
       // DEBUG: Log validation details
       final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
       _logger.info('Recall: DEBUG - Collect validation - Top discard rank: $topDiscardRank, Player collection rank: $playerCollectionRank, Collection cards count: ${collectionRankCards.length}', isOn: LOGGING_SWITCH);
+      
+      // Check if player already has 4 collection cards (winning condition) - prevent collecting 5th card
+      if (collectionRankCards.length >= 4) {
+        _logger.info('Recall: Player already has ${collectionRankCards.length} collection cards (4 is the maximum for winning) - cannot collect more', isOn: LOGGING_SWITCH);
+        
+        _stateCallback.onActionError(
+          'You already have 4 cards of your collection rank - cannot collect more',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
+        
+        return false;
+      }
       
       // Check if ranks match
       if (topDiscardRank.toLowerCase() != playerCollectionRank.toLowerCase()) {

@@ -44,6 +44,7 @@ class RecallGameEventEmitter {
     'jack_swap': {'game_id', 'first_card_id', 'first_player_id', 'second_card_id', 'second_player_id'}, // player_id auto-added
     'queen_peek': {'game_id', 'card_id', 'ownerId'}, // ownerId for card owner
     'completed_initial_peek': {'game_id', 'card_ids'}, // player_id auto-added
+    'collect_from_discard': {'game_id'}, // player_id auto-added
   };
   
   /// Define validation rules for each field
@@ -219,7 +220,7 @@ class RecallGameEventEmitter {
       // 🎯 Auto-include user ID for events that need player_id
       final eventsNeedingPlayerId = {
         'play_card', 'replace_drawn_card', 'play_drawn_card', 
-        'call_recall', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'completed_initial_peek'
+        'call_recall', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'completed_initial_peek', 'collect_from_discard'
       };
       
       if (eventsNeedingPlayerId.contains(eventType)) {

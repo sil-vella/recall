@@ -254,9 +254,9 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
         return;
       }
       
-      // Use existing playerDraw action with discard source
-      final drawAction = PlayerAction.playerDraw(pileType: 'discard_pile', gameId: currentGameId);
-      await drawAction.execute();
+      // Use collectFromDiscard action to collect card matching collection rank
+      final collectAction = PlayerAction.collectFromDiscard(gameId: currentGameId);
+      await collectAction.execute();
       
       setState(() {
         _clickedPileType = 'discard_pile';

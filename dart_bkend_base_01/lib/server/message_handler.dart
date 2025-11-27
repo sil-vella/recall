@@ -62,6 +62,7 @@ class MessageHandler {
       case 'jack_swap':
       case 'queen_peek':
       case 'completed_initial_peek':
+      case 'collect_from_discard':
         _handleGameEvent(sessionId, event, data);
         break;
 

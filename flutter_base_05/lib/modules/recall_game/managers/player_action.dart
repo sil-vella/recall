@@ -18,6 +18,7 @@ enum PlayerActionType {
   completedInitialPeek,
   jackSwap,
   queenPeek,
+  collectFromDiscard,
   
   // Query actions
   getPublicRooms,
@@ -392,6 +393,20 @@ class PlayerAction {
         'game_id': gameId,
         'card_id': cardId,
         'ownerId': ownerId,
+      },
+    );
+  }
+
+  /// Collect card from discard pile if it matches collection rank
+  static PlayerAction collectFromDiscard({
+    required String gameId,
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.collectFromDiscard,
+      eventName: 'collect_from_discard',
+      payload: {
+        'game_id': gameId,
+        // player_id will be automatically included by the event emitter
       },
     );
   }

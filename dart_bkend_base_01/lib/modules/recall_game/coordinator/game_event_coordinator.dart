@@ -180,6 +180,16 @@ class GameEventCoordinator {
             );
           }
           break;
+        case 'collect_from_discard':
+          final gamesMap = _getCurrentGamesMap(roomId);
+          final playerId = _getPlayerIdFromSession(sessionId, roomId);
+          if (playerId != null && playerId.isNotEmpty) {
+            await round.handleCollectFromDiscard(
+              playerId,
+              gamesMap: gamesMap,
+            );
+          }
+          break;
         default:
           // Acknowledge unknown-but-allowed for forward-compat
           break;

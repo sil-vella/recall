@@ -3,9 +3,17 @@ import 'package:recall/tools/logging/logger.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../core/managers/state_manager.dart';
 import '../utils/field_specifications.dart';
+import '../practice/practice_mode_bridge.dart';
+
+/// Transport mode for event emission
+enum EventTransportMode {
+  websocket,
+  practice,
+}
 
 /// Validated event emitter for recall game WebSocket events
 /// Ensures all events follow consistent structure and validation rules
+/// Supports dual transport: WebSocket (multiplayer) or Practice (local)
 class RecallGameEventEmitter {
   static RecallGameEventEmitter? _instance;
   static RecallGameEventEmitter get instance {
@@ -17,8 +25,21 @@ class RecallGameEventEmitter {
   
   // Dependencies
   final WebSocketManager _wsManager = WebSocketManager.instance;
+  final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final Logger _logger = Logger();
   static const bool LOGGING_SWITCH = false;
+  
+  // Current transport mode (defaults to WebSocket for backward compatibility)
+  EventTransportMode _transportMode = EventTransportMode.websocket;
+  
+  /// Set the transport mode
+  void setTransportMode(EventTransportMode mode) {
+    _transportMode = mode;
+    _logger.info('RecallGameEventEmitter: Transport mode set to $mode', isOn: LOGGING_SWITCH);
+  }
+  
+  /// Get the current transport mode
+  EventTransportMode get transportMode => _transportMode;
   
   /// Define allowed fields for each event type
   static const Map<String, Set<String>> _allowedEventFields = {
@@ -231,8 +252,16 @@ class RecallGameEventEmitter {
       }
 
       _logger.info('Sending event to backend: $eventPayload', isOn: LOGGING_SWITCH);
-      // Send via WebSocket
-      return await _wsManager.sendCustomEvent(eventType, eventPayload);
+      
+      // Route based on transport mode
+      if (_transportMode == EventTransportMode.practice) {
+        // Route to practice bridge
+        await _practiceBridge.handleEvent(eventType, eventPayload);
+        return {'success': true, 'mode': 'practice'};
+      } else {
+        // Send via WebSocket (default)
+        return await _wsManager.sendCustomEvent(eventType, eventPayload);
+      }
       
     } catch (e) {
       rethrow;

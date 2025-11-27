@@ -5,6 +5,8 @@ import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
 import '../../managers/game_coordinator.dart';
+import '../../managers/validated_event_emitter.dart';
+import '../../practice/practice_mode_bridge.dart';
 import '../../utils/recall_game_helpers.dart';
 import 'widgets/create_game_widget.dart';
 import 'widgets/join_game_widget.dart';
@@ -76,6 +78,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
  
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
+      // Ensure we're in WebSocket mode for multiplayer
+      final eventEmitter = RecallGameEventEmitter.instance;
+      eventEmitter.setTransportMode(EventTransportMode.websocket);
+      
       // First ensure WebSocket is connected
       if (!_websocketManager.isConnected) {
         _showSnackBar('Connecting to WebSocket...', isError: false);
@@ -110,6 +116,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   Future<void> _joinRoom(String roomId) async {
     try {
+      // Ensure we're in WebSocket mode for multiplayer
+      final eventEmitter = RecallGameEventEmitter.instance;
+      eventEmitter.setTransportMode(EventTransportMode.websocket);
+      
       // First ensure WebSocket is connected
       if (!_websocketManager.isConnected) {
         _showSnackBar('Connecting to WebSocket...', isError: false);
@@ -181,51 +191,38 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
       final currentUserId = loginState['userId']?.toString() ?? 'practice_user_${DateTime.now().millisecondsSinceEpoch}';
       
-      // Generate practice game ID
-      final practiceGameId = 'recall_game_${DateTime.now().millisecondsSinceEpoch}';
+      // Switch event emitter to practice mode
+      final eventEmitter = RecallGameEventEmitter.instance;
+      eventEmitter.setTransportMode(EventTransportMode.practice);
       
-      // Get current games map
-      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final games = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      // Initialize and start practice session
+      final practiceBridge = PracticeModeBridge.instance;
+      await practiceBridge.initialize();
       
-      // Create practice game data structure
-      final practiceGameData = {
-        'gameData': {
-          'game_id': practiceGameId,
-          'game_type': 'practice',
-          'game_state': {
-            'phase': 'setup',
-            'status': 'inactive',
-            'difficulty': practiceSettings['difficulty'] ?? 'medium',
-            'showInstructions': practiceSettings['showInstructions'] ?? true,
-            'players': [
-              {
-                'id': currentUserId,
-                'name': 'You',
-                'status': 'waiting',
-                'hand': [],
-                'collection_rank': null,
-                'collection_rank_cards': [],
-                'known_cards': {},
-              }
-            ],
-          },
-          'owner_id': currentUserId,
+      final practiceRoomId = await practiceBridge.startPracticeSession(
+        userId: currentUserId,
+        maxPlayers: 4,
+        minPlayers: 2,
+        gameType: 'practice',
+      );
+      
+      // Start the match via practice bridge
+      await eventEmitter.emit(
+        eventType: 'start_match',
+        data: {
+          'game_id': practiceRoomId,
+          'min_players': 2,
+          'max_players': 4,
         },
-        'gamePhase': 'setup',
-        'gameStatus': 'inactive',
-        'isRoomOwner': true,
-        'isInGame': true,
-        'joinedAt': DateTime.now().toIso8601String(),
-      };
+      );
       
-      // Add practice game to games map
-      games[practiceGameId] = practiceGameData;
-      
-      // Update recall game state with practice game data
+      // Update UI state to reflect practice game
       RecallGameHelpers.updateUIState({
-        'currentGameId': practiceGameId,
-        'games': games,
+        'currentGameId': practiceRoomId,
+        'currentRoomId': practiceRoomId,
+        'isInRoom': true,
+        'isRoomOwner': true,
+        'gameType': 'practice',
       });
       
       // Navigate to game play screen

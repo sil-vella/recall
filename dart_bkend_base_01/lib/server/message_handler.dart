@@ -1,7 +1,8 @@
 import 'room_manager.dart';
 import 'websocket_server.dart';
 import '../utils/server_logger.dart';
-import '../modules/recall_game/coordinator/game_event_coordinator.dart';
+import '../modules/recall_game/backend_core/coordinator/game_event_coordinator.dart';
+import '../modules/recall_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
 const bool LOGGING_SWITCH = false;

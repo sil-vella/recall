@@ -1,7 +1,7 @@
-import '../../shared_imports.dart';
+import '../../../utils/platform/shared_imports.dart';
 
 // Platform-specific import - must be imported from outside shared_logic
-import '../../utils/computer_player_config_parser.dart';
+import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
 const bool LOGGING_SWITCH = false;

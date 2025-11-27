@@ -1,10 +1,7 @@
-import '../../server/websocket_server.dart';
-import '../../server/room_manager.dart';
-import '../../managers/hooks_manager.dart';
-import 'coordinator/game_event_coordinator.dart';
-import 'services/game_registry.dart';
-import 'services/game_state_store.dart';
-import '../../utils/server_logger.dart';
+import 'utils/platform/shared_imports.dart';
+import 'backend_core/coordinator/game_event_coordinator.dart';
+import 'backend_core/services/game_registry.dart';
+import 'backend_core/services/game_state_store.dart';
 
 const bool LOGGING_SWITCH = false;
 

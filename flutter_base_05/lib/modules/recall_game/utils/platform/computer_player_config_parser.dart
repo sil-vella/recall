@@ -1,6 +1,7 @@
-import 'package:flutter/services.dart' show rootBundle;
 import 'dart:math';
 import 'package:yaml/yaml.dart';
+// Platform-specific import for file loading
+import 'package:flutter/services.dart' show rootBundle;
 
 
 /// YAML Configuration Parser for Computer Player Behavior

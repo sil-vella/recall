@@ -1,6 +1,6 @@
-import 'package:flutter/services.dart' show rootBundle;
+import 'dart:io';
 import 'package:yaml/yaml.dart';
-import '../shared_imports.dart';
+import 'shared_imports.dart';
 
 const bool LOGGING_SWITCH = false;
 
@@ -16,8 +16,12 @@ class PredefinedHandsLoader {
   /// Returns a Map containing 'enabled' flag and 'hands' data
   Future<Map<String, dynamic>> loadConfig() async {
     try {
-      // Flutter: load from assets
-      final yamlString = await rootBundle.loadString('assets/predefined_hands.yaml');
+      // Backend: attempt to read from a local file if present
+      final file = File('lib/modules/recall_game/config/predefined_hands.yaml');
+      if (!file.existsSync()) {
+        return {'enabled': false, 'hands': {}};
+      }
+      final yamlString = await file.readAsString();
       final yamlMap = loadYaml(yamlString);
       final config = Map<String, dynamic>.from(yamlMap as Map);
       _logger.info('Loaded predefined hands config: enabled=${config['enabled']}', isOn: LOGGING_SWITCH);

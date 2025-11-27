@@ -1,11 +1,7 @@
-import 'dart:async';
-import 'dart:math';
+import '../../utils/platform/shared_imports.dart';
 import '../shared_logic/recall_game_round.dart';
 import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
-import '../../../server/room_manager.dart';
-import '../../../server/websocket_server.dart';
-import '../../../utils/server_logger.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 
@@ -261,7 +257,7 @@ class GameEventCoordinator {
 
     // Build deck and deal 4 cards per player (as in practice)
     // Use YamlDeckFactory to respect testing_mode setting from YAML config
-    final configPath = 'lib/modules/recall_game/config/deck_config.yaml';
+    final configPath = 'assets/deck_config.yaml';
     final deckFactory = await YamlDeckFactory.fromFile(roomId, configPath);
     final List<Card> fullDeck = deckFactory.buildDeck();
 

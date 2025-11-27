@@ -6,6 +6,12 @@ export 'dart:async';
 // Flutter logger (replaces backend server_logger)
 export '../../../../tools/logging/logger.dart';
 
+// Type aliases for dependency injection (allows both real and stub implementations)
+// These allow the same code to work with real WebSocketServer/RoomManager or practice stubs
+typedef WebSocketServer = dynamic;
+typedef RoomManager = dynamic;
+typedef HooksManager = dynamic;
+
 // Note: Platform-specific imports (like computer_player_config_parser.dart) 
 // should be imported directly in files that need them, not via shared_imports.dart
 

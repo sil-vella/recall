@@ -7,6 +7,7 @@ import '../../../../core/managers/navigation_manager.dart';
 import '../../managers/game_coordinator.dart';
 import '../../managers/validated_event_emitter.dart';
 import '../../practice/practice_mode_bridge.dart';
+import '../../backend_core/services/game_state_store.dart';
 import '../../utils/recall_game_helpers.dart';
 import 'widgets/create_game_widget.dart';
 import 'widgets/join_game_widget.dart';
@@ -206,23 +207,48 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         gameType: 'practice',
       );
       
-      // Start the match via practice bridge
-      await eventEmitter.emit(
-        eventType: 'start_match',
-        data: {
-          'game_id': practiceRoomId,
-          'min_players': 2,
-          'max_players': 4,
-        },
-      );
+      // Get game state from GameStateStore (after hooks have initialized it)
+      final gameStateStore = GameStateStore.instance;
+      final gameState = gameStateStore.getGameState(practiceRoomId);
       
-      // Update UI state to reflect practice game
+      // Create gameData structure matching multiplayer format
+      final maxPlayersValue = practiceSettings['maxPlayers'] as int? ?? 4;
+      final minPlayersValue = practiceSettings['minPlayers'] as int? ?? 2;
+      final gameData = {
+        'game_id': practiceRoomId,
+        'owner_id': currentUserId,
+        'game_type': 'practice',
+        'game_state': gameState,
+        'max_size': maxPlayersValue,
+        'min_players': minPlayersValue,
+      };
+      
+      // Extract game state information
+      final gamePhase = gameState['phase']?.toString() ?? 'waiting_for_players';
+      final gameStatus = gameState['status']?.toString() ?? 'inactive';
+      
+      // Get current games map
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final games = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      // Add/update the current game in the games map (matching multiplayer format)
+      games[practiceRoomId] = {
+        'gameData': gameData,  // This is the single source of truth
+        'gamePhase': gamePhase,
+        'gameStatus': gameStatus,
+        'isRoomOwner': true,
+        'isInGame': true,
+        'joinedAt': DateTime.now().toIso8601String(),
+      };
+      
+      // Update UI state to reflect practice game (matching multiplayer format)
       RecallGameHelpers.updateUIState({
         'currentGameId': practiceRoomId,
         'currentRoomId': practiceRoomId,
         'isInRoom': true,
         'isRoomOwner': true,
         'gameType': 'practice',
+        'games': games,
       });
       
       // Navigate to game play screen

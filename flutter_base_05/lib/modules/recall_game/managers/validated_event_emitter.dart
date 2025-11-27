@@ -260,7 +260,7 @@ class RecallGameEventEmitter {
         return {'success': true, 'mode': 'practice'};
       } else {
         // Send via WebSocket (default)
-        return await _wsManager.sendCustomEvent(eventType, eventPayload);
+      return await _wsManager.sendCustomEvent(eventType, eventPayload);
       }
       
     } catch (e) {

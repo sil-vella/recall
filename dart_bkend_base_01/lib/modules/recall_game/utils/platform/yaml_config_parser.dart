@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:yaml/yaml.dart';
-import '../shared_logic/models/card.dart';
+import '../../backend_core/shared_logic/models/card.dart';
 
 /// YAML Configuration Parser for Deck Factory
 /// 

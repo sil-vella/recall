@@ -1,4 +1,4 @@
-import '../shared_imports.dart';
+import '../../utils/platform/shared_imports.dart';
 
 /// Game State Callback Interface
 ///

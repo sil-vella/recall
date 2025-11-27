@@ -2,12 +2,13 @@ import 'dart:async';
 import 'package:recall/tools/logging/logger.dart';
 
 import '../backend_core/recall_game_main.dart';
-import '../backend_core/coordinator/game_event_coordinator.dart';
 import '../backend_core/services/game_registry.dart';
 import '../backend_core/services/game_state_store.dart';
-import '../backend_core/practice/stubs/websocket_server_stub.dart';
-import '../backend_core/practice/stubs/room_manager_stub.dart';
+import '../utils/platform/practice/stubs/websocket_server_stub.dart';
+import '../utils/platform/practice/stubs/room_manager_stub.dart';
 import '../managers/recall_event_manager.dart';
+
+const bool LOGGING_SWITCH = false;
 
 /// Practice Mode Bridge
 /// 
@@ -27,6 +28,7 @@ class PracticeModeBridge {
   final RoomManagerStub _roomManager = RoomManagerStub();
   late final WebSocketServerStub _server;
   late final RecallGameModule _gameModule;
+  late final _HooksManagerStub _hooksManager;
   final GameRegistry _registry = GameRegistry.instance;
   final GameStateStore _store = GameStateStore.instance;
   final RecallEventManager _eventManager = RecallEventManager();
@@ -46,18 +48,23 @@ class PracticeModeBridge {
 
     // Create WebSocket server stub with callbacks to route to event manager
     _server = WebSocketServerStub(
+      roomManager: _roomManager,
       onSendToSession: _handleSendToSession,
       onBroadcastToRoom: _handleBroadcastToRoom,
+      onTriggerHook: (hookName, {data, context}) {
+        // Route hooks through hooksManager
+        _hooksManager.triggerHook(hookName, data: data, context: context);
+      },
     );
 
     // Create a stub HooksManager (minimal implementation for practice mode)
-    final hooksManager = _HooksManagerStub();
+    _hooksManager = _HooksManagerStub();
 
-    // Initialize game module with stubs
-    _gameModule = RecallGameModule(_server, _roomManager, hooksManager);
+    // Initialize game module with stubs (this registers the hooks)
+    _gameModule = RecallGameModule(_server, _roomManager, _hooksManager);
 
     _initialized = true;
-    _logger.info('PracticeModeBridge: Initialized', isOn: false);
+    _logger.info('🎮 PracticeModeBridge: Initialized with stubs', isOn: LOGGING_SWITCH);
   }
 
   /// Handle a game event (called from event emitter in practice mode)
@@ -68,15 +75,17 @@ class PracticeModeBridge {
 
     // Ensure we have a session/room context
     if (_currentSessionId == null || _currentRoomId == null) {
-      _logger.warning('PracticeModeBridge: No active session/room for event $event', isOn: false);
+      _logger.warning('⚠️ PracticeModeBridge: No active session/room for event $event', isOn: LOGGING_SWITCH);
       return;
     }
 
     try {
+      _logger.info('📨 PracticeModeBridge: Handling event $event for room $_currentRoomId', isOn: LOGGING_SWITCH);
       // Route event to coordinator
       await _gameModule.coordinator.handle(_currentSessionId!, event, data);
+      _logger.info('✅ PracticeModeBridge: Successfully handled event $event', isOn: LOGGING_SWITCH);
     } catch (e) {
-      _logger.error('PracticeModeBridge: Error handling event $event: $e', isOn: false);
+      _logger.error('❌ PracticeModeBridge: Error handling event $event: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -95,6 +104,8 @@ class PracticeModeBridge {
     _currentSessionId = 'practice_session_$userId';
     _currentUserId = userId;
 
+    _logger.info('🏗️ PracticeModeBridge: Creating practice room for user $userId', isOn: LOGGING_SWITCH);
+    
     // Create a practice room
     _currentRoomId = _roomManager.createRoom(
       _currentSessionId!,
@@ -104,24 +115,35 @@ class PracticeModeBridge {
       gameType: gameType ?? 'practice',
       permission: 'private',
     );
+    
+    _logger.info('✅ PracticeModeBridge: Created practice room $_currentRoomId', isOn: LOGGING_SWITCH);
 
-    // Trigger room_created hook manually (since we're using stubs)
-    await _gameModule.coordinator.handle(_currentSessionId!, 'room_created', {
+    // Trigger room_created hook through hooksManager (matches backend behavior)
+    _logger.info('🎣 PracticeModeBridge: Triggering room_created hook for room $_currentRoomId', isOn: LOGGING_SWITCH);
+    _hooksManager.triggerHook('room_created', data: {
       'room_id': _currentRoomId,
       'owner_id': userId,
       'max_size': maxPlayers ?? 4,
       'min_players': minPlayers ?? 2,
       'game_type': gameType ?? 'practice',
+      'current_size': 1,
+      'permission': 'private',
+      'created_at': DateTime.now().toIso8601String(),
     });
+    _logger.info('✅ PracticeModeBridge: room_created hook completed', isOn: LOGGING_SWITCH);
 
-    // Trigger room_joined hook
-    await _gameModule.coordinator.handle(_currentSessionId!, 'room_joined', {
+    // Trigger room_joined hook through hooksManager (matches backend behavior)
+    _logger.info('🎣 PracticeModeBridge: Triggering room_joined hook for user $userId', isOn: LOGGING_SWITCH);
+    _hooksManager.triggerHook('room_joined', data: {
       'room_id': _currentRoomId,
       'user_id': userId,
       'session_id': _currentSessionId,
+      'owner_id': userId,
+      'current_size': 1,
     });
+    _logger.info('✅ PracticeModeBridge: room_joined hook completed', isOn: LOGGING_SWITCH);
 
-    _logger.info('PracticeModeBridge: Started practice session in room $_currentRoomId', isOn: false);
+    _logger.info('🎮 PracticeModeBridge: Practice session started successfully in room $_currentRoomId', isOn: LOGGING_SWITCH);
     return _currentRoomId!;
   }
 
@@ -135,7 +157,7 @@ class PracticeModeBridge {
     _currentRoomId = null;
     _currentSessionId = null;
     _currentUserId = null;
-    _logger.info('PracticeModeBridge: Ended practice session', isOn: false);
+    _logger.info('🏁 PracticeModeBridge: Ended practice session', isOn: LOGGING_SWITCH);
   }
 
   /// Handle sendToSession from backend (routes to event manager)
@@ -158,7 +180,7 @@ class PracticeModeBridge {
         // Handle action error
         break;
       default:
-        _logger.info('PracticeModeBridge: Unhandled event: $event', isOn: false);
+        _logger.info('ℹ️ PracticeModeBridge: Unhandled event: $event', isOn: LOGGING_SWITCH);
     }
   }
 

@@ -1,8 +1,8 @@
-import '../../shared_imports.dart';
+import '../../../utils/platform/shared_imports.dart';
 import '../models/card.dart';
 import '../models/card_deck.dart';
 // Platform-specific import - must be imported from outside shared_logic
-import '../../utils/yaml_config_parser.dart';
+import '../../../utils/platform/yaml_config_parser.dart';
 
 /// Random Deck Factory for Recall Game
 /// 

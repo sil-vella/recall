@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
+import '../../../../core/managers/state_manager.dart';
+import '../../../../core/managers/navigation_manager.dart';
 import '../../managers/game_coordinator.dart';
 import '../../utils/recall_game_helpers.dart';
 import 'widgets/create_game_widget.dart';
 import 'widgets/join_game_widget.dart';
 import 'widgets/current_games_widget.dart';
 import 'widgets/available_games_widget.dart';
+import 'widgets/practice_match_widget.dart';
 import 'features/lobby_features.dart';
 
 
@@ -172,6 +175,73 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     }
   }
 
+  Future<void> _startPracticeMatch(Map<String, dynamic> practiceSettings) async {
+    try {
+      // Get current user ID
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserId = loginState['userId']?.toString() ?? 'practice_user_${DateTime.now().millisecondsSinceEpoch}';
+      
+      // Generate practice game ID
+      final practiceGameId = 'recall_game_${DateTime.now().millisecondsSinceEpoch}';
+      
+      // Get current games map
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final games = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      
+      // Create practice game data structure
+      final practiceGameData = {
+        'gameData': {
+          'game_id': practiceGameId,
+          'game_type': 'practice',
+          'game_state': {
+            'phase': 'setup',
+            'status': 'inactive',
+            'difficulty': practiceSettings['difficulty'] ?? 'medium',
+            'showInstructions': practiceSettings['showInstructions'] ?? true,
+            'players': [
+              {
+                'id': currentUserId,
+                'name': 'You',
+                'status': 'waiting',
+                'hand': [],
+                'collection_rank': null,
+                'collection_rank_cards': [],
+                'known_cards': {},
+              }
+            ],
+          },
+          'owner_id': currentUserId,
+        },
+        'gamePhase': 'setup',
+        'gameStatus': 'inactive',
+        'isRoomOwner': true,
+        'isInGame': true,
+        'joinedAt': DateTime.now().toIso8601String(),
+      };
+      
+      // Add practice game to games map
+      games[practiceGameId] = practiceGameData;
+      
+      // Update recall game state with practice game data
+      RecallGameHelpers.updateUIState({
+        'currentGameId': practiceGameId,
+        'games': games,
+      });
+      
+      // Navigate to game play screen
+      NavigationManager().navigateTo('/recall/game-play');
+      
+      // Show success message
+      if (mounted) {
+        _showSnackBar('Practice match started!');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar('Failed to start practice match: $e', isError: true);
+      }
+    }
+  }
+
   void _initializeRoomState() {
     // State is now managed by StateManager, no need to initialize local variables
     // Room state is managed by StateManager
@@ -225,6 +295,12 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 20),
+          
+          // Practice Match Section
+          PracticeMatchWidget(
+            onStartPractice: _startPracticeMatch,
           ),
           const SizedBox(height: 20),
           

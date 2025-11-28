@@ -6,7 +6,7 @@ import '../utils/recall_game_helpers.dart';
 /// Dedicated event handlers for Recall game events
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   static final Logger _logger = Logger();
 
   // ========================================
@@ -59,15 +59,31 @@ class RecallEventHandlerCallbacks {
     }
   }
   
-  /// Get current user ID from login state
-  static String _getCurrentUserId() {
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    return loginState['userId']?.toString() ?? '';
+  /// Get current user ID from practice user data or login state
+  /// Practice mode stores user data in recall_game state, multiplayer uses login state
+  static String getCurrentUserId() {
+    // First check for practice user data (practice mode)
+    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final practiceUser = recallGameState['practiceUser'] as Map<String, dynamic>?;
+    _logger.debug('🔍 getCurrentUserId: practiceUser = $practiceUser', isOn: LOGGING_SWITCH);
+    if (practiceUser != null && practiceUser['isPracticeUser'] == true) {
+      final practiceUserId = practiceUser['userId']?.toString();
+      _logger.debug('🔍 getCurrentUserId: Found practice user ID: $practiceUserId', isOn: LOGGING_SWITCH);
+      if (practiceUserId != null && practiceUserId.isNotEmpty) {
+        return practiceUserId;
+      }
+    }
+    
+    // Fall back to login state (multiplayer mode)
+    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    final loginUserId = loginState['userId']?.toString() ?? '';
+    _logger.debug('🔍 getCurrentUserId: Using login user ID: $loginUserId', isOn: LOGGING_SWITCH);
+    return loginUserId;
   }
   
   /// Check if current user is room owner for a specific game
   static bool _isCurrentUserRoomOwner(Map<String, dynamic> gameData) {
-    final currentUserId = _getCurrentUserId();
+    final currentUserId = getCurrentUserId();
     return gameData['owner_id']?.toString() == currentUserId;
   }
   
@@ -111,9 +127,8 @@ class RecallEventHandlerCallbacks {
   /// [turnEvents] Optional turn_events list to include in games map update for widget slices
   static void _syncWidgetStatesFromGameState(String gameId, Map<String, dynamic> gameState, {List<dynamic>? turnEvents}) {
     try {
-      // Extract current user ID from login state
-      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-      final currentUserId = loginState['userId']?.toString() ?? '';
+      // Get current user ID (checks practice user data first, then login state)
+      final currentUserId = getCurrentUserId();
       
       if (currentUserId.isEmpty) {
         _logger.debug('_syncWidgetStatesFromGameState: No current user ID found', isOn: LOGGING_SWITCH);
@@ -501,7 +516,7 @@ class RecallEventHandlerCallbacks {
       
       // Update owner_id and recalculate isRoomOwner at the top level
       if (ownerId != null) {
-        final currentUserId = _getCurrentUserId();
+        final currentUserId = getCurrentUserId();
         _logger.info('🔍 Updating owner_id: $ownerId, currentUserId: $currentUserId', isOn: LOGGING_SWITCH);
         _logger.info('🔍 Setting isRoomOwner: ${ownerId == currentUserId}', isOn: LOGGING_SWITCH);
         _updateGameInMap(gameId, {

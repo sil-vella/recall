@@ -6,6 +6,7 @@ import '../../../tools/logging/logger.dart';
 import '../utils/state_queue_validator.dart';
 import '../models/state/recall_game_state.dart';
 import '../models/state/games_map.dart';
+import 'recall_event_handler_callbacks.dart';
 // ignore: unused_import
 import '../models/state/my_hand_state.dart'; // For future migration
 // ignore: unused_import
@@ -24,7 +25,7 @@ class RecallGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -291,8 +292,8 @@ class RecallGameStateUpdater {
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     final players = gameState['players'] as List<dynamic>? ?? [];
     
-    final loginState = _stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserId = loginState['userId']?.toString() ?? '';
+    // Get current user ID - use helper that handles both practice and multiplayer modes
+    final currentUserId = RecallEventHandlerCallbacks.getCurrentUserId();
     
     if (currentUserId.isEmpty) {
       return 'unknown';
@@ -496,8 +497,8 @@ class RecallGameStateUpdater {
     final allPlayers = gameState['players'] as List<dynamic>? ?? [];
     
     // Get current user ID to filter out self from opponents
-    final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-    final currentUserId = loginState['userId']?.toString() ?? '';
+    // Use helper that handles both practice and multiplayer modes
+    final currentUserId = RecallEventHandlerCallbacks.getCurrentUserId();
     
     // Filter out current player from opponents list
     final opponents = allPlayers.where((player) => 
@@ -602,7 +603,7 @@ class RecallGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

@@ -30,7 +30,7 @@ class PlayerAction {
   static final RecallGameStateUpdater _stateUpdater = RecallGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
   // Jack swap selection tracking
   static String? _firstSelectedCardId;
   static String? _firstSelectedPlayerId;
@@ -83,24 +83,8 @@ class PlayerAction {
       // This prevents the frontend from overriding backend status updates
       _logger.info('Skipping optimistic status update - backend will control player status', isOn: LOGGING_SWITCH);
       
-      // Check if this is a recall game
-      final isPracticeGame = _checkIfPracticeGame();
-      _logger.info('🎯 Recall game check: isPracticeGame=$isPracticeGame, currentGameId=${payload['game_id']}', isOn: LOGGING_SWITCH);
-      
-      if (isPracticeGame) {
-        _logger.info('Recall game detected - triggering recall event handler', isOn: LOGGING_SWITCH);
-        
-        // Trigger recall event through state manager so PracticeRoom can handle it
-        _triggerPracticeEvent();
-        
-        // Clear Jack swap selections after successful practice event trigger
-        if (actionType == PlayerActionType.jackSwap) {
-          _clearJackSwapSelections();
-        }
-        
-        return;
-      }
-      
+      // Use event emitter for both practice and multiplayer games
+      // The event emitter will route to practice bridge if transport mode is practice
       _logger.info('Sending event to backend: $eventName with data: $payload', isOn: LOGGING_SWITCH);
       await _eventEmitter.emit(
         eventType: eventName,
@@ -385,6 +369,53 @@ class PlayerAction {
       actionType: PlayerActionType.getPublicRooms,
       eventName: 'recall_get_public_rooms',
       payload: {},
+    );
+  }
+
+  // ========= GAME ACTIONS =========
+
+  /// Start a match
+  static PlayerAction startMatch({
+    required String gameId,
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.useSpecialPower, // Using a generic type since start_match isn't in the enum
+      eventName: 'start_match',
+      payload: {
+        'game_id': gameId,
+      },
+    );
+  }
+
+  /// Join a game
+  static PlayerAction joinGame({
+    required String gameId,
+    required String playerName,
+    String playerType = 'human',
+    int maxPlayers = 4,
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.useSpecialPower, // Using a generic type
+      eventName: 'join_game',
+      payload: {
+        'game_id': gameId,
+        'player_name': playerName,
+        'player_type': playerType,
+        'max_players': maxPlayers,
+      },
+    );
+  }
+
+  /// Leave a game
+  static PlayerAction leaveGame({
+    required String gameId,
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.useSpecialPower, // Using a generic type
+      eventName: 'leave_game',
+      payload: {
+        'game_id': gameId,
+      },
     );
   }
 

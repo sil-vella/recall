@@ -92,8 +92,8 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         final isRoomOwner = gameInfo['isRoomOwner'] ?? false;
         final isInGame = gameInfo['isInGame'] ?? false;
         
-        // Check if this is a recall game
-        final isPracticeGame = currentGameId.startsWith('recall_game_');
+        // Check if this is a practice game (practice games start with 'practice_room_')
+        final isPracticeGame = currentGameId.startsWith('practice_room_');
         
         // 🔍 DEBUG: Log the values that determine start button visibility
         _logger.info('🔍 GameInfoWidget DEBUG:', isOn: LOGGING_SWITCH);
@@ -327,23 +327,23 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       _logger.info('🎮 GameInfoWidget: Current game ID: $currentGameId', isOn: LOGGING_SWITCH);
       _logger.info('🎮 GameInfoWidget: Current game phase: $currentGamePhase', isOn: LOGGING_SWITCH);
       
-      // Check if this is a recall game
-      final isPracticeGame = currentGameId.startsWith('recall_game_');
+      // Check if this is a practice game (practice games start with 'practice_room_')
+      final isPracticeGame = currentGameId.startsWith('practice_room_');
       _logger.info('🎮 GameInfoWidget: Recall game check - isPracticeGame: $isPracticeGame', isOn: LOGGING_SWITCH);
       
+      // Use GameCoordinator for both practice and multiplayer games
+      // The event emitter will route to practice bridge if transport mode is practice
+      final gameCoordinator = GameCoordinator();
+      
       if (isPracticeGame) {
-        // todo link to practice mode
-        
+        _logger.info('🎮 GameInfoWidget: Practice game detected - routing to GameCoordinator (will use practice bridge)', isOn: LOGGING_SWITCH);
       } else {
         _logger.info('🎮 GameInfoWidget: Regular game detected - routing to GameCoordinator', isOn: LOGGING_SWITCH);
-        
-        // Call GameCoordinator to start the match for regular games
-        final gameCoordinator = GameCoordinator();
-        _logger.info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()', isOn: LOGGING_SWITCH);
-        
-        final result = await gameCoordinator.startMatch();
-        _logger.info('🎮 GameInfoWidget: GameCoordinator.startMatch() completed with result: $result', isOn: LOGGING_SWITCH);
       }
+      
+      _logger.info('🎮 GameInfoWidget: Calling GameCoordinator.startMatch()', isOn: LOGGING_SWITCH);
+      final result = await gameCoordinator.startMatch();
+      _logger.info('🎮 GameInfoWidget: GameCoordinator.startMatch() completed with result: $result', isOn: LOGGING_SWITCH);
       
       _logger.info('🎮 GameInfoWidget: ===== START MATCH FLOW COMPLETED =====', isOn: LOGGING_SWITCH);
       

@@ -27,7 +27,7 @@ class RecallGameEventEmitter {
   final WebSocketManager _wsManager = WebSocketManager.instance;
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
   
   // Current transport mode (defaults to WebSocket for backward compatibility)
   EventTransportMode _transportMode = EventTransportMode.websocket;
@@ -132,8 +132,8 @@ class RecallGameEventEmitter {
     // Game fields
     'game_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^room_[a-zA-Z0-9_]+$',
-      description: 'Game/Room ID in format: room_xxxxx',
+      pattern: r'^(room_|practice_room_)[a-zA-Z0-9_]+$',
+      description: 'Game/Room ID in format: room_xxxxx or practice_room_xxxxx',
     ),
     'player_name': RecallEventFieldSpec(
       type: String,

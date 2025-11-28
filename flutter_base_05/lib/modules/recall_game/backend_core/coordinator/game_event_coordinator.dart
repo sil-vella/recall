@@ -227,8 +227,13 @@ class GameEventCoordinator {
     final minPlayers = roomInfo?.minPlayers ?? (data['min_players'] as int? ?? 2);
     final maxPlayers = roomInfo?.maxSize ?? (data['max_players'] as int? ?? 4);
 
-    // Auto-create computer players until minPlayers is reached (cap at maxPlayers)
-    int needed = minPlayers - players.length;
+    // Auto-create computer players
+    // For practice mode: fill to maxPlayers (practice rooms start with "practice_room_")
+    // For multiplayer: only fill to minPlayers (wait for real players to join)
+    final isPracticeMode = roomId.startsWith('practice_room_');
+    int needed = isPracticeMode 
+        ? maxPlayers - players.length  // Practice mode: fill to maxPlayers
+        : minPlayers - players.length; // Multiplayer: only fill to minPlayers
     if (needed < 0) needed = 0;
     int cpuIndexBase = 1;
     // Find next CPU index not used

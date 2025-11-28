@@ -1,42 +1,6 @@
 import 'dart:async';
 import '../../../../core/managers/state_manager.dart';
-import 'validated_event_emitter.dart';
-
-/// PlayerAction class for handling individual player actions
-class PlayerAction {
-  final String eventName;
-  final Map<String, dynamic> gameData;
-  final DateTime timestamp;
-  
-  PlayerAction({
-    required this.eventName,
-    required this.gameData,
-  }) : timestamp = DateTime.now();
-  
-    /// Execute the player action
-  Future<bool> execute() async {
-    try {
-      // Use validated event emitter for consistent validation and user ID injection
-      final eventEmitter = RecallGameEventEmitter.instance;
-      
-      // Send the action via validated event emitter
-      await eventEmitter.emit(
-        eventType: eventName,
-        data: gameData,
-      );
-      
-      // Check if the emission was successful (no exception thrown)
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-  
-  @override
-  String toString() {
-    return 'PlayerAction(eventName: $eventName, gameData: $gameData, timestamp: $timestamp)';
-  }
-}
+import 'player_action.dart';
 
 /// Game Coordinator for handling all player game actions
 /// 
@@ -55,62 +19,57 @@ class GameCoordinator {
     String playerType = 'human',
     int maxPlayers = 4,
   }) async {
-    // Create game data for join game
-    final gameData = {
-      if (gameId != null) 'game_id': gameId,
-      'player_name': playerName,
-      'player_type': playerType,
-      'max_players': maxPlayers,
-    };
-    
-    // Create and execute the player action
-    final action = PlayerAction(
-      eventName: 'join_game',
-      gameData: gameData,
-    );
-    
-    return await action.execute();
+    try {
+      if (gameId == null || gameId.isEmpty) {
+        return false;
+      }
+      
+      final action = PlayerAction.joinGame(
+        gameId: gameId,
+        playerName: playerName,
+        playerType: playerType,
+        maxPlayers: maxPlayers,
+      );
+      await action.execute();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
   
   /// Leave a game
   Future<bool> leaveGame({
     required String gameId,
   }) async {
-    // Create game data for leave game
-    final gameData = {
-      'game_id': gameId,
-    };
-    
-    // Create and execute the player action
-    final action = PlayerAction(
-      eventName: 'leave_game',
-      gameData: gameData,
-    );
-    
-    return await action.execute();
+    try {
+      final action = PlayerAction.leaveGame(gameId: gameId);
+      await action.execute();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
   
   /// Create and execute a start match action
   Future<bool> startMatch() async {
-    // Get current game state
-    final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-    final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
-    
-    if (currentGameId.isEmpty) {
+    try {
+      // Get current game state
+      final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGameId = recallGameState['currentGameId']?.toString() ?? '';
+      
+      if (currentGameId.isEmpty) {
+        return false;
+      }
+      
+      // Create and execute the player action
+      final action = PlayerAction.startMatch(
+        gameId: currentGameId,
+      );
+      
+      await action.execute();
+      return true;
+    } catch (e) {
       return false;
     }
-    
-    // Create game data for start match (using game_id as per validated event emitter)
-    final gameData = {
-      'game_id': currentGameId,
-    };
-    
-    // Create and execute the player action
-    final action = PlayerAction(
-      eventName: 'start_match',
-      gameData: gameData,
-    );
-    
-    return await action.execute();
   }
 }

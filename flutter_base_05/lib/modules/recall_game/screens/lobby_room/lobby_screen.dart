@@ -4,8 +4,10 @@ import '../../../../core/00_base/screen_base.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
+import '../../../../tools/logging/logger.dart';
 import '../../managers/game_coordinator.dart';
 import '../../managers/validated_event_emitter.dart';
+import '../../managers/recall_event_manager.dart';
 import '../../practice/practice_mode_bridge.dart';
 import '../../backend_core/services/game_state_store.dart';
 import '../../utils/recall_game_helpers.dart';
@@ -28,6 +30,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
+  static const bool LOGGING_SWITCH = true;
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -79,6 +82,11 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
  
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
+      // Clear practice user data when switching to multiplayer
+      RecallGameHelpers.updateUIState({
+        'practiceUser': null,
+      });
+      
       // Ensure we're in WebSocket mode for multiplayer
       final eventEmitter = RecallGameEventEmitter.instance;
       eventEmitter.setTransportMode(EventTransportMode.websocket);
@@ -117,6 +125,11 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   Future<void> _joinRoom(String roomId) async {
     try {
+      // Clear practice user data when switching to multiplayer
+      RecallGameHelpers.updateUIState({
+        'practiceUser': null,
+      });
+      
       // Ensure we're in WebSocket mode for multiplayer
       final eventEmitter = RecallGameEventEmitter.instance;
       eventEmitter.setTransportMode(EventTransportMode.websocket);
@@ -188,17 +201,41 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   Future<void> _startPracticeMatch(Map<String, dynamic> practiceSettings) async {
     try {
-      // Get current user ID
-      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-      final currentUserId = loginState['userId']?.toString() ?? 'practice_user_${DateTime.now().millisecondsSinceEpoch}';
+      final Logger _logger = Logger();
+      _logger.info('🎮 _startPracticeMatch: Starting practice match setup', isOn: LOGGING_SWITCH);
+      
+      // Generate practice mode user data (self-contained, doesn't rely on login module)
+      final currentUserId = 'practice_user_${DateTime.now().millisecondsSinceEpoch}';
+      final practiceUserData = {
+        'userId': currentUserId,
+        'displayName': 'Practice Player',
+        'isPracticeUser': true,
+      };
+      _logger.info('🎮 _startPracticeMatch: Generated practice user: $currentUserId', isOn: LOGGING_SWITCH);
+      
+      // Store practice user data in recall_game state (accessible to event handlers)
+      // Use StateManager directly to ensure immediate update (bypasses queue for critical data)
+      final stateManager = StateManager();
+      final recallGameState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final updatedState = Map<String, dynamic>.from(recallGameState);
+      updatedState['practiceUser'] = practiceUserData;
+      stateManager.updateModuleState('recall_game', updatedState);
+      _logger.info('🎮 _startPracticeMatch: Stored practice user data in state', isOn: LOGGING_SWITCH);
+      
+      // Verify practice user data was stored (read back from state)
+      final verifyState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final verifyPracticeUser = verifyState['practiceUser'] as Map<String, dynamic>?;
+      _logger.info('🎮 _startPracticeMatch: Verified practice user in state: $verifyPracticeUser', isOn: LOGGING_SWITCH);
       
       // Switch event emitter to practice mode
       final eventEmitter = RecallGameEventEmitter.instance;
       eventEmitter.setTransportMode(EventTransportMode.practice);
+      _logger.info('🎮 _startPracticeMatch: Switched to practice mode', isOn: LOGGING_SWITCH);
       
       // Initialize and start practice session
       final practiceBridge = PracticeModeBridge.instance;
       await practiceBridge.initialize();
+      _logger.info('🎮 _startPracticeMatch: Practice bridge initialized', isOn: LOGGING_SWITCH);
       
       final practiceRoomId = await practiceBridge.startPracticeSession(
         userId: currentUserId,
@@ -206,10 +243,12 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         minPlayers: 2,
         gameType: 'practice',
       );
+      _logger.info('🎮 _startPracticeMatch: Practice room created: $practiceRoomId', isOn: LOGGING_SWITCH);
       
       // Get game state from GameStateStore (after hooks have initialized it)
       final gameStateStore = GameStateStore.instance;
       final gameState = gameStateStore.getGameState(practiceRoomId);
+      _logger.info('🎮 _startPracticeMatch: Got game state, phase = ${gameState['phase']}', isOn: LOGGING_SWITCH);
       
       // Create gameData structure matching multiplayer format
       final maxPlayersValue = practiceSettings['maxPlayers'] as int? ?? 4;
@@ -223,8 +262,14 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         'min_players': minPlayersValue,
       };
       
-      // Extract game state information
-      final gamePhase = gameState['phase']?.toString() ?? 'waiting_for_players';
+      // Extract and normalize phase (matching multiplayer format)
+      // Multiplayer normalizes: 'waiting_for_players' -> 'waiting', others -> 'playing'
+      final rawPhase = gameState['phase']?.toString();
+      final uiPhase = rawPhase == 'waiting_for_players'
+          ? 'waiting'
+          : (rawPhase ?? 'playing');
+      
+      // Extract game status
       final gameStatus = gameState['status']?.toString() ?? 'inactive';
       
       // Get current games map
@@ -232,9 +277,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final games = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
       
       // Add/update the current game in the games map (matching multiplayer format)
+      // Note: gamePhase is NOT stored in games map - it's stored in main state only
       games[practiceRoomId] = {
-        'gameData': gameData,  // This is the single source of truth
-        'gamePhase': gamePhase,
+        'gameData': gameData,  // Single source of truth
         'gameStatus': gameStatus,
         'isRoomOwner': true,
         'isInGame': true,
@@ -242,16 +287,63 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       };
       
       // Update UI state to reflect practice game (matching multiplayer format)
+      // Store normalized gamePhase in MAIN state (not in games map)
+      // CRITICAL: Update currentGameId directly via StateManager first to ensure it's available for slice computation
+      _logger.info('🎮 _startPracticeMatch: Updating UI state with currentGameId = $practiceRoomId', isOn: LOGGING_SWITCH);
+      
+      // Get current state and update critical fields directly (bypasses queue for immediate availability)
+      final recallStateManager = StateManager();
+      final currentRecallState = recallStateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final updatedRecallState = Map<String, dynamic>.from(currentRecallState);
+      
+      // Update critical fields directly
+      updatedRecallState['currentGameId'] = practiceRoomId;
+      updatedRecallState['currentRoomId'] = practiceRoomId;
+      updatedRecallState['isInRoom'] = true;
+      updatedRecallState['isRoomOwner'] = true;
+      updatedRecallState['gameType'] = 'practice';
+      updatedRecallState['games'] = games;
+      updatedRecallState['gamePhase'] = uiPhase;
+      updatedRecallState['currentSize'] = 1;
+      updatedRecallState['maxSize'] = maxPlayersValue;
+      updatedRecallState['isInGame'] = true;
+      
+      // Update StateManager directly to ensure immediate availability
+      recallStateManager.updateModuleState('recall_game', updatedRecallState);
+      _logger.info('🎮 _startPracticeMatch: Critical state fields updated directly', isOn: LOGGING_SWITCH);
+      
+      // Now trigger slice recomputation via the queue (this will use the updated currentGameId)
       RecallGameHelpers.updateUIState({
-        'currentGameId': practiceRoomId,
-        'currentRoomId': practiceRoomId,
-        'isInRoom': true,
-        'isRoomOwner': true,
-        'gameType': 'practice',
-        'games': games,
+        'currentGameId': practiceRoomId,  // Trigger gameInfo slice recomputation
+        'games': games,  // Trigger gameInfo slice recomputation
+        'gamePhase': uiPhase,  // Trigger gameInfo slice recomputation
       });
+      _logger.info('🎮 _startPracticeMatch: UI state updated and slices triggered', isOn: LOGGING_SWITCH);
+      
+      // Small delay to allow slice recomputation
+      await Future.delayed(const Duration(milliseconds: 50));
+      final verifyStateAfter = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final verifyGameInfo = verifyStateAfter['gameInfo'] as Map<String, dynamic>? ?? {};
+      final verifyCurrentGameId = verifyGameInfo['currentGameId']?.toString() ?? '';
+      final verifyIsRoomOwner = verifyGameInfo['isRoomOwner'] ?? false;
+      final verifyIsInGame = verifyGameInfo['isInGame'] ?? false;
+      _logger.info('🎮 _startPracticeMatch: Verified gameInfo - currentGameId: $verifyCurrentGameId, isRoomOwner: $verifyIsRoomOwner, isInGame: $verifyIsInGame', isOn: LOGGING_SWITCH);
+      
+      // 🎯 CRITICAL: Trigger game_state_updated event to sync widget slices
+      // This ensures widget slices (myHand, centerBoard, opponentsPanel, etc.) are computed
+      // Multiplayer does this automatically via WebSocket events, practice mode needs to do it manually
+      // This will call _syncWidgetStatesFromGameState and trigger widget slice recomputation
+      _logger.info('🎮 _startPracticeMatch: Triggering handleGameStateUpdated for game_id = $practiceRoomId', isOn: LOGGING_SWITCH);
+      RecallEventManager().handleGameStateUpdated({
+        'game_id': practiceRoomId,
+        'game_state': gameState,
+        'owner_id': currentUserId,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      _logger.info('🎮 _startPracticeMatch: handleGameStateUpdated completed', isOn: LOGGING_SWITCH);
       
       // Navigate to game play screen
+      _logger.info('🎮 _startPracticeMatch: Navigating to game play screen', isOn: LOGGING_SWITCH);
       NavigationManager().navigateTo('/recall/game-play');
       
       // Show success message

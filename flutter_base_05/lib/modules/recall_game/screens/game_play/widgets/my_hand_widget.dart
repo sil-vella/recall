@@ -8,6 +8,7 @@ import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../card_position_tracker.dart';
+import '../../../managers/recall_event_handler_callbacks.dart';
 
 // Logging switch
 const bool LOGGING_SWITCH = false;
@@ -245,9 +246,8 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
         final players = gameState['players'] as List<dynamic>? ?? [];
         
-        // Get login state for current user ID
-        final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-        final currentUserId = loginState['userId']?.toString() ?? '';
+        // Get current user ID - use helper that handles both practice and multiplayer modes
+        final currentUserId = RecallEventHandlerCallbacks.getCurrentUserId();
         
         // Find current player's collection rank cards
         List<dynamic> myCollectionRankCards = [];

@@ -27,7 +27,7 @@ class RecallGameEventEmitter {
   final WebSocketManager _wsManager = WebSocketManager.instance;
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
+  static const bool LOGGING_SWITCH = false; // Temporarily enabled for debugging
   
   // Current transport mode (defaults to WebSocket for backward compatibility)
   EventTransportMode _transportMode = EventTransportMode.websocket;
@@ -45,6 +45,9 @@ class RecallGameEventEmitter {
   static const Map<String, Set<String>> _allowedEventFields = {
     'get_public_rooms': {
       'filter', 'timestamp'
+    },
+    'list_rooms': {
+      // No required fields - just request all rooms
     },
     'create_room': {
       'permission', 'max_players', 'min_players', 

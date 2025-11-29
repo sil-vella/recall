@@ -2,6 +2,7 @@ import '../state_manager.dart';
 import '../module_manager.dart';
 import '../hooks_manager.dart';
 import '../../../modules/recall_game/utils/recall_game_helpers.dart';
+import '../../../modules/recall_game/managers/recall_game_state_updater.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
@@ -675,12 +676,71 @@ class WSEventHandler {
         case 'error':
           handleError(data);
           break;
+        case 'rooms_list':
+          handleRoomsList(data);
+          break;
         default:
           // Unknown event type
           break;
       }
     } catch (e) {
       // Error in unified event handler
+    }
+  }
+  
+  /// Handle rooms_list event (response to list_rooms request)
+  void handleRoomsList(dynamic data) {
+    try {
+      _logger.info('📋 Rooms list received', isOn: LOGGING_SWITCH);
+      
+      if (data is! Map<String, dynamic>) {
+        _logger.warning('Invalid rooms_list data format', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      final rooms = data['rooms'] as List<dynamic>? ?? [];
+      final total = data['total'] as int? ?? rooms.length;
+      
+      // Convert rooms to available games format
+      final availableGames = rooms.map((room) {
+        if (room is! Map<String, dynamic>) return null;
+        
+        // Map room data to game format expected by the UI
+        return {
+          'gameId': room['room_id'] ?? '',
+          'gameName': 'Game_${room['room_id'] ?? 'Unknown'}',
+          'roomId': room['room_id'] ?? '',
+          'playerCount': room['current_size'] ?? 0,
+          'maxPlayers': room['max_size'] ?? 4,
+          'minPlayers': room['min_players'] ?? 2,
+          'phase': 'waiting_for_players', // Default phase for available games
+          'permission': room['permission'] ?? 'public',
+          'gameType': room['game_type'] ?? 'classic',
+          'ownerId': room['owner_id'] ?? '',
+          'createdAt': room['created_at'] ?? '',
+        };
+      }).whereType<Map<String, dynamic>>().toList();
+      
+      // Update recall game state with available games
+      final recallStateUpdater = RecallGameStateUpdater.instance;
+      recallStateUpdater.updateState({
+        'availableGames': availableGames,
+        'isLoading': false,
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      _logger.info('✅ Updated available games: ${availableGames.length} games', isOn: LOGGING_SWITCH);
+      
+      // Trigger custom event callback
+      _eventManager.triggerCallbacks('rooms_list', {
+        'rooms': rooms,
+        'total': total,
+        'availableGames': availableGames,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+    } catch (e) {
+      _logger.error('Error handling rooms_list: $e', isOn: LOGGING_SWITCH);
     }
   }
   

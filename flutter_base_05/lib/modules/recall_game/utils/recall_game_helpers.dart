@@ -1,5 +1,6 @@
 import '../../../core/managers/module_manager.dart';
 import '../../../modules/connections_api_module/connections_api_module.dart';
+import '../../../core/managers/websockets/websocket_manager.dart';
 import '../managers/validated_event_emitter.dart';
 import '../managers/recall_game_state_updater.dart';
 
@@ -58,37 +59,34 @@ class RecallGameHelpers {
     );
   }
 
-  /// Fetch available games from the backend API
+  /// Fetch available games from the Dart backend via WebSocket
+  /// Uses list_rooms WebSocket event to get all available rooms
   static Future<Map<String, dynamic>> fetchAvailableGames() async {
     try {
-      // Get the ConnectionsApiModule instance from the global module manager
-      // Note: This requires the module to be initialized in the app context
-      final moduleManager = ModuleManager();
-      
-      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
-      
-      if (connectionsModule == null) {
-        throw Exception('ConnectionsApiModule not available - ensure it is initialized');
+      // Ensure WebSocket is connected
+      final wsManager = WebSocketManager.instance;
+      if (!wsManager.isConnected) {
+        final connected = await wsManager.connect();
+        if (!connected) {
+          throw Exception('WebSocket not connected - cannot fetch games');
+        }
       }
       
-      // Make API call to fetch available games
-      // The endpoint is JWT protected, but AuthInterceptor handles tokens automatically
-      final response = await connectionsModule.sendGetRequest('/userauth/recall/get-available-games');
+      // Emit list_rooms event via validated event emitter
+      // The response will come back as 'rooms_list' event
+      await _eventEmitter.emit(
+        eventType: 'list_rooms',
+        data: {},
+      );
       
-      // Check if response contains error
-      if (response is Map && response.containsKey('error')) {
-        throw Exception(response['message'] ?? response['error'] ?? 'Failed to fetch games');
-      }
-      
-      // Extract games from response
-      final games = response['games'] ?? [];
-      final message = response['message'] ?? 'Games fetched successfully';
-      
+      // The emit returns immediately, but the actual response comes via WebSocket event
+      // The 'rooms_list' event handler will update the state automatically
+      // Return success - the actual games will be updated via event handler
       return {
         'success': true,
-        'games': games,
-        'message': message,
-        'count': games.length,
+        'message': 'Fetching games...',
+        'games': [],
+        'count': 0,
       };
       
     } catch (e) {

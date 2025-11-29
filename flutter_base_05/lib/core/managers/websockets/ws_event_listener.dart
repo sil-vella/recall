@@ -49,6 +49,7 @@ class WSEventListener {
     _registerLeaveRoomErrorListener();
     _registerRoomClosedListener();
     _registerUserJoinedRoomsListener();
+    _registerRoomsListListener();
 
     // Message events
     _registerMessageListener();
@@ -199,6 +200,15 @@ class WSEventListener {
     });
   }
 
+  /// Register rooms list listener
+  void _registerRoomsListListener() {
+    _logger.debug('🎧 Registering rooms_list event listener', isOn: LOGGING_SWITCH);
+    _socket?.on('rooms_list', (data) {
+      _logger.debug('📡 rooms_list event received', isOn: LOGGING_SWITCH);
+      _eventHandler.handleRoomsList(data);
+    });
+  }
+
   /// Unregister all listeners
   void unregisterAllListeners() {
     _socket?.off('connect');
@@ -215,6 +225,7 @@ class WSEventListener {
     _socket?.off('leave_room_error');
     _socket?.off('room_closed');
     _socket?.off('user_joined_rooms');
+    _socket?.off('rooms_list');
     _socket?.off('message');
     _socket?.off('error');
   }

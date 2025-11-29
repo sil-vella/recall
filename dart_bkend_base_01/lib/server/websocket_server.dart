@@ -3,6 +3,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:uuid/uuid.dart';
 import 'room_manager.dart';
 import 'message_handler.dart';
+import 'random_join_timer_manager.dart';
 import '../services/python_api_client.dart';
 import '../utils/server_logger.dart';
 import '../managers/hooks_manager.dart';
@@ -31,6 +32,9 @@ class WebSocketServer {
     // Wire up room closure hook
     _roomManager.onRoomClosed = (roomId, reason) {
       _logger.info('🎣 Room closure hook triggered: $roomId (reason: $reason)', isOn: LOGGING_SWITCH);
+      
+      // Cleanup timer if room is closed during delay period
+      RandomJoinTimerManager.instance.cleanup(roomId);
       
       // Trigger room_closed hook
       triggerHook('room_closed', data: {

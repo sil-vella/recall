@@ -49,6 +49,9 @@ class RecallGameEventEmitter {
     'list_rooms': {
       // No required fields - just request all rooms
     },
+    'join_random_game': {
+      // No required fields - backend will search for available rooms or create new one
+    },
     'create_room': {
       'permission', 'max_players', 'min_players', 
       'turn_time_limit', 'auto_start', 'game_type', 'password'

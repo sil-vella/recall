@@ -326,8 +326,12 @@ class WSEventHandler {
       final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
       final currentUserId = loginState['userId'] ?? '';
       
+      // Check if this is a random join auto-created room
+      final isRandomJoin = data['is_random_join'] == true;
+      
       // Check if current user is the room owner
-      final isRoomOwner = currentUserId == ownerId;
+      // For random join rooms, always set isOwner to false even if user is the owner
+      final isRoomOwner = isRandomJoin ? false : (currentUserId == ownerId);
       
       // Use validated state updater
       WebSocketStateHelpers.updateRoomInfo(
@@ -363,6 +367,7 @@ class WSEventHandler {
         'room_data': roomData,
         'owner_id': ownerId,
         'is_owner': isRoomOwner,
+        'is_random_join': isRandomJoin,
         'timestamp': DateTime.now().toIso8601String(),
       });
     } catch (e) {

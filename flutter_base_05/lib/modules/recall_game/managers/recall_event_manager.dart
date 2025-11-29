@@ -158,7 +158,9 @@ class RecallEventManager {
     HooksManager().registerHookWithData('room_creation', (data) {
       final status = data['status']?.toString() ?? 'unknown';
       final roomId = data['room_id']?.toString() ?? '';
-      final isOwner = data['is_owner'] == true;
+      final isRandomJoin = data['is_random_join'] == true;
+      // For random join rooms, always set isOwner to false
+      final isOwner = isRandomJoin ? false : (data['is_owner'] == true);
       
       switch (status) {
         case 'success':

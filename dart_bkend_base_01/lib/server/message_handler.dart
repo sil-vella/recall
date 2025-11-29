@@ -1,7 +1,11 @@
+import 'dart:math';
 import 'room_manager.dart';
 import 'websocket_server.dart';
 import '../utils/server_logger.dart';
+import '../utils/config.dart';
+import 'random_join_timer_manager.dart';
 import '../modules/recall_game/backend_core/coordinator/game_event_coordinator.dart';
+import '../modules/recall_game/backend_core/services/game_state_store.dart';
 import '../modules/recall_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
@@ -50,6 +54,9 @@ class MessageHandler {
         break;
       case 'list_rooms':
         _handleListRooms(sessionId);
+        break;
+      case 'join_random_game':
+        _handleJoinRandomGame(sessionId, data);
         break;
 
       // Game events (all handled uniformly)
@@ -281,6 +288,14 @@ class MessageHandler {
         'joined_at': DateTime.now().toIso8601String(),
       });
       
+      // Check if room has active timer and max players reached - start immediately
+      if (RandomJoinTimerManager.instance.isTimerActive(roomId) && 
+          room.currentSize >= Config.RANDOM_JOIN_MAX_PLAYERS) {
+        _logger.room('🚀 Max players reached, starting match immediately for room: $roomId', isOn: LOGGING_SWITCH);
+        RandomJoinTimerManager.instance.cancelTimer(roomId);
+        _startMatchForRandomJoin(roomId);
+      }
+      
       // Broadcast to other room members
       _server.broadcastToRoom(roomId, {
         'event': 'player_joined',
@@ -306,6 +321,12 @@ class MessageHandler {
       final room = _roomManager.getRoomInfo(roomId);
       final userId = _server.getUserIdForSession(sessionId) ?? sessionId; // Get userId from server
       _roomManager.leaveRoom(sessionId);
+      
+      // Cleanup timer if room becomes empty during delay period
+      if (room != null && room.currentSize == 0) {
+        RandomJoinTimerManager.instance.cleanup(roomId);
+        _logger.room('🧹 Cleaned up timer for empty room: $roomId', isOn: LOGGING_SWITCH);
+      }
       
       // Send leave_room_success (primary event matching Python)
       _server.sendToSession(sessionId, {
@@ -350,6 +371,216 @@ class MessageHandler {
       'rooms': rooms.map((r) => r.toJson()).toList(),
       'total': rooms.length,
     });
+  }
+  
+  /// Handle join random game event
+  /// Searches for available public games or auto-creates and auto-starts a new one
+  void _handleJoinRandomGame(String sessionId, Map<String, dynamic> data) {
+    final userId = data['user_id'] as String? ?? sessionId;
+    
+    try {
+      // Get available rooms for random join
+      final availableRooms = _getAvailableRoomsForRandomJoin();
+      
+      if (availableRooms.isNotEmpty) {
+        // Pick a random room
+        final random = Random();
+        final selectedRoom = availableRooms[random.nextInt(availableRooms.length)];
+        
+        _logger.room('🎲 Joining random room: ${selectedRoom.roomId}', isOn: LOGGING_SWITCH);
+        
+        // Use existing join room logic
+        _handleJoinRoom(sessionId, {
+          'room_id': selectedRoom.roomId,
+          'user_id': userId,
+        });
+        
+        return;
+      }
+      
+      // No available rooms - create new room and auto-start
+      _logger.room('🎲 No available rooms found, creating new room for random join', isOn: LOGGING_SWITCH);
+      
+      // Create room with default settings (using config values)
+      final roomId = _roomManager.createRoom(
+        sessionId,
+        userId,
+        maxSize: Config.RANDOM_JOIN_MAX_PLAYERS,
+        minPlayers: Config.RANDOM_JOIN_MIN_PLAYERS,
+        gameType: 'classic',
+        permission: 'public',
+        autoStart: true,
+      );
+      
+      // Get room info
+      final room = _roomManager.getRoomInfo(roomId);
+      if (room == null) {
+        _sendError(sessionId, 'Failed to create room for random join');
+        return;
+      }
+      
+      // Send create_room_success with flag indicating it's for random join
+      _server.sendToSession(sessionId, {
+        'event': 'create_room_success',
+        'room_id': roomId,
+        'owner_id': room.ownerId,
+        'creator_id': room.ownerId,
+        'current_size': room.currentSize,
+        'max_size': room.maxSize,
+        'min_players': room.minPlayers,
+        'game_type': room.gameType,
+        'permission': room.permission,
+        'turn_time_limit': room.turnTimeLimit,
+        'auto_start': room.autoStart,
+        'is_random_join': true, // Flag to indicate this was auto-created for random join
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      // Trigger room_created hook (creates game state)
+      _server.triggerHook('room_created', data: {
+        'room_id': roomId,
+        'owner_id': room.ownerId,
+        'current_size': room.currentSize,
+        'max_size': room.maxSize,
+        'min_players': room.minPlayers,
+        'game_type': room.gameType,
+        'permission': room.permission,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      
+      // Send room_joined event (auto-join creator)
+      _server.sendToSession(sessionId, {
+        'event': 'room_joined',
+        'room_id': roomId,
+        'session_id': sessionId,
+        'user_id': userId,
+        'owner_id': room.ownerId,
+        'current_size': room.currentSize,
+        'max_size': room.maxSize,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      // Trigger room_joined hook (adds player to game state)
+      _server.triggerHook('room_joined', data: {
+        'room_id': roomId,
+        'session_id': sessionId,
+        'user_id': userId,
+        'owner_id': room.ownerId,
+        'current_size': room.currentSize,
+        'max_size': room.maxSize,
+        'joined_at': DateTime.now().toIso8601String(),
+      });
+      
+      // Schedule delayed match start instead of immediate start
+      final delaySeconds = Config.RANDOM_JOIN_DELAY_SECONDS;
+      _logger.room('⏱️  Scheduling delayed match start for random join room: $roomId (delay: ${delaySeconds}s)', isOn: LOGGING_SWITCH);
+      
+      RandomJoinTimerManager.instance.scheduleStartMatch(
+        roomId,
+        delaySeconds,
+        (roomId) => _startMatchForRandomJoin(roomId),
+      );
+      
+      _logger.room('✅ Random join room created with ${delaySeconds}s delay: $roomId', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      _logger.error('❌ Error in _handleJoinRandomGame: $e', isOn: LOGGING_SWITCH);
+      _server.sendToSession(sessionId, {
+        'event': 'join_room_error',
+        'message': 'Failed to join random game: $e',
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    }
+  }
+  
+  /// Start match for a random join room (called after delay or when max players reached)
+  /// Handles race conditions and ensures match only starts once
+  void _startMatchForRandomJoin(String roomId) {
+    try {
+      // Check if match is already starting or started
+      if (RandomJoinTimerManager.instance.isStarting(roomId)) {
+        _logger.game('⚠️  Match already starting for room: $roomId', isOn: LOGGING_SWITCH);
+        return;
+      }
+
+      // Check if room still exists
+      final room = _roomManager.getRoomInfo(roomId);
+      if (room == null) {
+        _logger.error('❌ Room not found when starting match: $roomId', isOn: LOGGING_SWITCH);
+        RandomJoinTimerManager.instance.cleanup(roomId);
+        return;
+      }
+
+      // Check if game already started (check phase)
+      final store = GameStateStore.instance;
+      try {
+        final gameState = store.getGameState(roomId);
+        final phase = gameState['phase'] as String?;
+        if (phase != null && phase != 'waiting_for_players') {
+          _logger.game('⚠️  Game already started for room: $roomId (phase: $phase)', isOn: LOGGING_SWITCH);
+          RandomJoinTimerManager.instance.cleanup(roomId);
+          return;
+        }
+      } catch (e) {
+        // Game state might not exist yet, continue
+      }
+
+      // Get a session ID from the room (use first available session)
+      final sessions = _roomManager.getSessionsInRoom(roomId);
+      if (sessions.isEmpty) {
+        _logger.error('❌ No sessions in room when starting match: $roomId', isOn: LOGGING_SWITCH);
+        RandomJoinTimerManager.instance.cleanup(roomId);
+        return;
+      }
+
+      final sessionId = sessions.first;
+      
+      // Start the match
+      _logger.game('🎮 Starting match for random join room: $roomId', isOn: LOGGING_SWITCH);
+      _gameCoordinator.handle(sessionId, 'start_match', {
+        'game_id': roomId,
+        'min_players': room.minPlayers,
+        'max_players': room.maxSize,
+      });
+
+      // Cleanup timer state
+      RandomJoinTimerManager.instance.cleanup(roomId);
+      
+      _logger.room('✅ Match started for random join room: $roomId', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('❌ Error starting match for random join room $roomId: $e', isOn: LOGGING_SWITCH);
+      RandomJoinTimerManager.instance.cleanup(roomId);
+    }
+  }
+
+  /// Get available rooms for random join
+  /// Filters rooms by: public permission, has capacity, phase is waiting_for_players
+  List<Room> _getAvailableRoomsForRandomJoin() {
+    final allRooms = _roomManager.getAllRooms();
+    final store = GameStateStore.instance;
+    final availableRooms = <Room>[];
+    
+    for (final room in allRooms) {
+      // Filter: public permission
+      if (room.permission != 'public') continue;
+      
+      // Filter: has capacity
+      if (room.currentSize >= room.maxSize) continue;
+      
+      // Filter: phase is waiting_for_players
+      try {
+        final gameState = store.getGameState(room.roomId);
+        final phase = gameState['phase'] as String?;
+        if (phase != 'waiting_for_players') continue;
+      } catch (e) {
+        // If game state doesn't exist yet, skip this room
+        continue;
+      }
+      
+      availableRooms.add(room);
+    }
+    
+    return availableRooms;
   }
   
   // ========= GAME EVENT HANDLER (UNIFIED) =========

@@ -126,6 +126,40 @@ class RecallGameHelpers {
     _stateUpdater.updateState(updates);
   }
 
+  /// Join a random available game or auto-create and start a new one
+  /// Uses join_random_game WebSocket event
+  static Future<Map<String, dynamic>> joinRandomGame() async {
+    try {
+      // Ensure WebSocket is connected
+      final wsManager = WebSocketManager.instance;
+      if (!wsManager.isConnected) {
+        final connected = await wsManager.connect();
+        if (!connected) {
+          throw Exception('WebSocket not connected - cannot join random game');
+        }
+      }
+      
+      // Emit join_random_game event via validated event emitter
+      final result = await _eventEmitter.emit(
+        eventType: 'join_random_game',
+        data: {},
+      );
+      
+      // The emit returns immediately, but the actual response comes via WebSocket events
+      // Return success - the actual join/creation will be handled via event handlers
+      return {
+        'success': true,
+        'message': 'Searching for available game...',
+      };
+      
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Failed to join random game: $e',
+      };
+    }
+  }
+
   /// Find a specific game by room ID via API call
   static Future<Map<String, dynamic>> findRoom(String roomId) async {
     try {

@@ -13,6 +13,7 @@ import '../../backend_core/services/game_state_store.dart';
 import '../../utils/recall_game_helpers.dart';
 import 'widgets/create_game_widget.dart';
 import 'widgets/join_game_widget.dart';
+import 'widgets/join_random_game_widget.dart';
 import 'widgets/current_games_widget.dart';
 import 'widgets/available_games_widget.dart';
 import 'widgets/practice_match_widget.dart';
@@ -410,6 +411,14 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 20),
+          
+          // Join Random Game Widget
+          JoinRandomGameWidget(
+            onJoinRandomGame: () {
+              // Callback after successful random game join
+            },
           ),
           const SizedBox(height: 20),
           

@@ -11,7 +11,7 @@ import '../card_position_tracker.dart';
 import '../../../managers/recall_event_handler_callbacks.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display the player's hand
 /// 

@@ -1526,11 +1526,15 @@ class RecallGameRound {
       );
       _logger.info('Recall: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
+      _logger.info('🔍 STATE_UPDATE DEBUG - Sending state update at line 1529 with hand BEFORE reposition', isOn: LOGGING_SWITCH);
+      _logger.info('🔍 STATE_UPDATE DEBUG - Hand at this point: ${hand.map((c) => c is Map ? c['cardId'] : c.toString()).toList()}', isOn: LOGGING_SWITCH);
+      _logger.info('🔍 STATE_UPDATE DEBUG - Turn events: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       _stateCallback.onGameStateChanged({
         'games': currentGamesForPlay, // Games map with modifications
         'discardPile': updatedDiscardPile, // Updated discard pile
         'turn_events': turnEvents, // Add turn events for animations
       });
+      _logger.info('🔍 STATE_UPDATE DEBUG - State update sent. Reposition will happen AFTER this and AFTER _handleSameRankWindow()', isOn: LOGGING_SWITCH);
       
       // Log player state after playing card
       _logger.info('Recall: === AFTER PLAY CARD for $playerId ===', isOn: LOGGING_SWITCH);
@@ -1590,7 +1594,8 @@ class RecallGameRound {
       if (drawnCard != null && drawnCard['cardId'] != cardId) {
         // The drawn card should fill the blank slot left by the played card
         // The blank slot is at cardIndex (where the played card was)
-        _logger.info('Recall: Repositioning drawn card ${drawnCard['cardId']} to index $cardIndex', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 REPOSITION DEBUG - Repositioning drawn card ${drawnCard['cardId']} to index $cardIndex', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 REPOSITION DEBUG - This happens AFTER state update at line 1529 and AFTER _handleSameRankWindow()', isOn: LOGGING_SWITCH);
         
         // First, find and remove the drawn card from its original position
         int? originalIndex;
@@ -1652,6 +1657,22 @@ class RecallGameRound {
         
         // Update player's hand back to game state (hand list was modified)
         player['hand'] = hand;
+        
+        _logger.info('🔍 REPOSITION DEBUG - Hand updated with repositioned card. Hand now: ${hand.map((c) => c is Map ? c['cardId'] : c.toString()).toList()}', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 REPOSITION DEBUG - CRITICAL: This hand update is NOT sent in a state update! The repositioned hand exists only in memory.', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 REPOSITION DEBUG - The UI will only see the repositioned hand when the next state update includes the games map.', isOn: LOGGING_SWITCH);
+        
+        // CRITICAL: Send a state update with the repositioned hand so the UI can see it immediately
+        // This ensures the repositioned card is visible in the UI, not just in memory
+        // Preserve turn_events so the reposition animation can still be triggered
+        final currentTurnEventsForReposition = _getCurrentTurnEvents();
+        _logger.info('🔍 REPOSITION DEBUG - Sending state update with repositioned hand...', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 REPOSITION DEBUG - Preserving ${currentTurnEventsForReposition.length} turn_events for animation', isOn: LOGGING_SWITCH);
+        _stateCallback.onGameStateChanged({
+          'games': currentGames, // Games map with repositioned hand
+          'turn_events': currentTurnEventsForReposition, // Preserve turn_events for reposition animation
+        });
+        _logger.info('🔍 REPOSITION DEBUG - State update sent with repositioned hand and preserved turn_events', isOn: LOGGING_SWITCH);
         
         // NOTE: Do NOT update status here - all players already have 'same_rank_window' status
         // set by _handleSameRankWindow() (called earlier). Updating to 'waiting' would overwrite
@@ -2369,10 +2390,12 @@ class RecallGameRound {
       
       _logger.info('Recall: Successfully set all players to same_rank_window status', isOn: LOGGING_SWITCH);
       // This ensures collection from discard pile is properly blocked during same rank window
+      _logger.info('🔍 SAME_RANK_WINDOW DEBUG - Sending state update with ONLY gamePhase, NO turn_events, NO games update', isOn: LOGGING_SWITCH);
       _stateCallback.onGameStateChanged({
         'gamePhase': 'same_rank_window',
       });
       _logger.info('Recall: Set gamePhase to same_rank_window', isOn: LOGGING_SWITCH);
+      _logger.info('🔍 SAME_RANK_WINDOW DEBUG - This state update does NOT include the repositioned hand or turn_events', isOn: LOGGING_SWITCH);
       
       // Start 5-second timer to automatically end same rank window
       // Matches backend behavior (game_round.py line 579)

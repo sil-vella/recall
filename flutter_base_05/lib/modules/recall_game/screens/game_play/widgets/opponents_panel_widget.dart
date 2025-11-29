@@ -9,7 +9,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../managers/player_action.dart';
 import '../card_position_tracker.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display other players (opponents)
 /// 

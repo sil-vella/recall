@@ -195,10 +195,7 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
     // Determine cardId for the discard pile
     final cardId = topDiscard?['cardId']?.toString() ?? 'discard_pile_empty';
     
-    _logger.info(
-      'DiscardPileWidget._updateDiscardPilePosition() - Updating position: cardId=$cardId, position=(${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size=(${size.width.toStringAsFixed(1)}, ${size.height.toStringAsFixed(1)})',
-      isOn: LOGGING_SWITCH,
-    );
+    // Verbose logging disabled to reduce log noise
     
     // Update position in tracker
     final tracker = CardPositionTracker.instance();
@@ -209,13 +206,8 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
       'discard_pile',
     );
     
-    _logger.info(
-      'DiscardPileWidget._updateDiscardPilePosition() - Position updated successfully',
-      isOn: LOGGING_SWITCH,
-    );
-    
-    // Log all positions
-    tracker.logAllPositions();
+    // Verbose logging removed to reduce log noise
+    // tracker.logAllPositions(); // Disabled - too verbose
   }
 
   /// Handle pile click for collecting cards from discard pile

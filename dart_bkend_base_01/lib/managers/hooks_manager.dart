@@ -1,7 +1,7 @@
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Represents a hook callback with priority and optional context
 class HookCallback {

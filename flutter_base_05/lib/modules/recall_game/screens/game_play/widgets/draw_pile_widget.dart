@@ -179,10 +179,7 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     final position = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;
     
-    _logger.info(
-      'DrawPileWidget._updateDrawPilePosition() - Updating position: position=(${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size=(${size.width.toStringAsFixed(1)}, ${size.height.toStringAsFixed(1)})',
-      isOn: LOGGING_SWITCH,
-    );
+    // Verbose logging disabled to reduce log noise
     
     // Update position in tracker
     final tracker = CardPositionTracker.instance();
@@ -193,13 +190,8 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
       'draw_pile',
     );
     
-    _logger.info(
-      'DrawPileWidget._updateDrawPilePosition() - Position updated successfully',
-      isOn: LOGGING_SWITCH,
-    );
-    
-    // Log all positions
-    tracker.logAllPositions();
+    // Verbose logging removed to reduce log noise
+    // tracker.logAllPositions(); // Disabled - too verbose
   }
 
   /// Handle pile click for card drawing

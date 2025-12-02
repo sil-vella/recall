@@ -9,7 +9,7 @@ import '../modules/recall_game/backend_core/services/game_state_store.dart';
 import '../modules/recall_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class MessageHandler {
   final RoomManager _roomManager;

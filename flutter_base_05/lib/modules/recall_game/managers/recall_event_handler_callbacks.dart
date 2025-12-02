@@ -65,15 +65,13 @@ class RecallEventHandlerCallbacks {
     // First check for practice user data (practice mode)
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final practiceUser = recallGameState['practiceUser'] as Map<String, dynamic>?;
-    _logger.debug('🔍 getCurrentUserId: practiceUser = $practiceUser', isOn: LOGGING_SWITCH);
+    // DEBUG logs removed to reduce log noise
     if (practiceUser != null && practiceUser['isPracticeUser'] == true) {
       final practiceUserId = practiceUser['userId']?.toString();
-      _logger.debug('🔍 getCurrentUserId: Found practice user ID: $practiceUserId', isOn: LOGGING_SWITCH);
       if (practiceUserId != null && practiceUserId.isNotEmpty) {
         // In practice mode, player ID is the sessionId, not the userId
         // SessionId format: practice_session_<userId>
         final practiceSessionId = 'practice_session_$practiceUserId';
-        _logger.debug('🔍 getCurrentUserId: Returning practice session ID (player ID): $practiceSessionId', isOn: LOGGING_SWITCH);
         return practiceSessionId;
       }
     }
@@ -84,14 +82,12 @@ class RecallEventHandlerCallbacks {
     final sessionData = websocketState['sessionData'] as Map<String, dynamic>?;
     final sessionId = sessionData?['sessionId']?.toString();
     if (sessionId != null && sessionId.isNotEmpty) {
-      _logger.debug('🔍 getCurrentUserId: Using websocket session ID (player ID): $sessionId', isOn: LOGGING_SWITCH);
       return sessionId;
     }
     
     // Last resort: use login userId (for backward compatibility)
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final loginUserId = loginState['userId']?.toString() ?? '';
-    _logger.debug('🔍 getCurrentUserId: Using login user ID: $loginUserId', isOn: LOGGING_SWITCH);
     return loginUserId;
   }
   

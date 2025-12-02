@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false; // Disabled to reduce log noise - only log errors
 
 /// Animation types
 enum AnimationType {

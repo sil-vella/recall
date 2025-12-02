@@ -5,7 +5,7 @@ import '../services/game_state_store.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Coordinates WS game events to the RecallGameRound logic per room.
 class GameEventCoordinator {
@@ -147,6 +147,8 @@ class GameEventCoordinator {
           final secondCardId = (data['second_card_id'] as String?) ?? (data['secondCardId'] as String?);
           final secondPlayerId = (data['second_player_id'] as String?) ?? (data['secondPlayerId'] as String?);
           
+          _logger.info('GameEventCoordinator: jack_swap event received - firstCardId: $firstCardId, firstPlayerId: $firstPlayerId, secondCardId: $secondCardId, secondPlayerId: $secondPlayerId', isOn: LOGGING_SWITCH);
+          
           if (firstCardId != null && firstCardId.isNotEmpty &&
               firstPlayerId != null && firstPlayerId.isNotEmpty &&
               secondCardId != null && secondCardId.isNotEmpty &&
@@ -159,6 +161,14 @@ class GameEventCoordinator {
               secondPlayerId: secondPlayerId,
               gamesMap: gamesMap,
             );
+          } else {
+            _logger.error('GameEventCoordinator: jack_swap validation failed - missing required fields. firstCardId: $firstCardId, firstPlayerId: $firstPlayerId, secondCardId: $secondCardId, secondPlayerId: $secondPlayerId', isOn: LOGGING_SWITCH);
+            server.sendToSession(sessionId, {
+              'event': 'jack_swap_error',
+              'room_id': roomId,
+              'message': 'Missing required fields for jack swap',
+              'timestamp': DateTime.now().toIso8601String(),
+            });
           }
           break;
         case 'collect_from_discard':
@@ -520,17 +530,24 @@ class GameEventCoordinator {
       final gameState = _store.getGameState(roomId);
       final players = gameState['players'] as List<dynamic>? ?? [];
 
-      // Find human player
+      // Find human player by sessionId (player ID = sessionId)
       Map<String, dynamic>? humanPlayer;
-      for (final player in players) {
-        if (player is Map<String, dynamic> && player['isHuman'] == true) {
-          humanPlayer = player;
-          break;
+      final playerIdFromSession = _getPlayerIdFromSession(sessionId, roomId);
+      if (playerIdFromSession != null) {
+        final foundPlayer = players.firstWhere(
+          (p) => p is Map<String, dynamic> && p['id'] == playerIdFromSession,
+          orElse: () => <String, dynamic>{},
+        );
+        // Verify it's actually a human player and not empty
+        if (foundPlayer.isNotEmpty && foundPlayer['isHuman'] == true) {
+          humanPlayer = foundPlayer as Map<String, dynamic>;
+        } else if (foundPlayer.isNotEmpty) {
+          _logger.warning('GameEventCoordinator: Player $playerIdFromSession found but is not human', isOn: LOGGING_SWITCH);
         }
       }
 
-      if (humanPlayer == null) {
-        _logger.error('GameEventCoordinator: Human player not found for completed_initial_peek', isOn: LOGGING_SWITCH);
+      if (humanPlayer == null || humanPlayer.isEmpty) {
+        _logger.error('GameEventCoordinator: Human player with sessionId $sessionId not found for completed_initial_peek', isOn: LOGGING_SWITCH);
         server.sendToSession(sessionId, {
           'event': 'completed_initial_peek_error',
           'room_id': roomId,

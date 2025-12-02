@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../tools/logging/logger.dart';
 import 'state/immutable_state.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false; // Disabled to reduce log noise - only INFO/WARNING/ERROR logs will show
 
 class ModuleState {
   final dynamic state; // Can be Map<String, dynamic> OR ImmutableState

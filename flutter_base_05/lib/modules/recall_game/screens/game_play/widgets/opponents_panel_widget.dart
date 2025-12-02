@@ -516,10 +516,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
 
   /// Update card positions in animation manager
   void _updateCardPositions(List<dynamic> opponents) {
-    _logger.info(
-      'OpponentsPanelWidget._updateCardPositions() called - opponents count: ${opponents.length}',
-      isOn: LOGGING_SWITCH,
-    );
+    // Verbose logging disabled to reduce log noise
     
     // Get turn_events from opponentsPanel slice to determine animation types
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
@@ -538,49 +535,24 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       }
     }
     
-    _logger.info(
-      'OpponentsPanelWidget._updateCardPositions() - Found ${cardIdToActionType.length} turn events: $cardIdToActionType',
-      isOn: LOGGING_SWITCH,
-    );
-    
     final tracker = CardPositionTracker.instance();
-    int cardsUpdated = 0;
-    int cardsSkipped = 0;
     
     for (final opponent in opponents) {
       final playerId = opponent['id']?.toString() ?? '';
       if (playerId.isEmpty) {
-        _logger.info(
-          'OpponentsPanelWidget._updateCardPositions() - Skipping opponent with empty playerId',
-          isOn: LOGGING_SWITCH,
-        );
         continue;
       }
 
       final hand = opponent['hand'] as List<dynamic>? ?? [];
       final playerStatus = opponent['status']?.toString();
-      _logger.info(
-        'OpponentsPanelWidget._updateCardPositions() - Processing opponent: playerId=$playerId, hand size=${hand.length}, status=$playerStatus',
-        isOn: LOGGING_SWITCH,
-      );
       
       for (final card in hand) {
         if (card == null || card is! Map<String, dynamic>) {
-          cardsSkipped++;
-          _logger.info(
-            'OpponentsPanelWidget._updateCardPositions() - Skipping null or invalid card',
-            isOn: LOGGING_SWITCH,
-          );
           continue;
         }
         
         final cardId = card['cardId']?.toString();
         if (cardId == null) {
-          cardsSkipped++;
-          _logger.info(
-            'OpponentsPanelWidget._updateCardPositions() - Skipping card with null cardId',
-            isOn: LOGGING_SWITCH,
-          );
           continue;
         }
         
@@ -591,21 +563,11 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         // Get RenderBox from GlobalKey
         final renderObject = cardKey.currentContext?.findRenderObject();
         if (renderObject == null) {
-          cardsSkipped++;
-          _logger.info(
-            'OpponentsPanelWidget._updateCardPositions() - Skipping card $cardId: renderObject is null (widget not yet rendered)',
-            isOn: LOGGING_SWITCH,
-          );
           continue;
         }
         
         final RenderBox? renderBox = renderObject as RenderBox?;
         if (renderBox == null) {
-          cardsSkipped++;
-          _logger.info(
-            'OpponentsPanelWidget._updateCardPositions() - Skipping card $cardId: renderBox is null',
-            isOn: LOGGING_SWITCH,
-          );
           continue;
         }
         
@@ -634,11 +596,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           }
         }
         
-        _logger.info(
-          'OpponentsPanelWidget._updateCardPositions() - Updating position for card: playerId=$playerId, cardId=$cardId, position=(${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)}), size=(${size.width.toStringAsFixed(1)}, ${size.height.toStringAsFixed(1)}), suggestedAnimationType=$suggestedAnimationType',
-          isOn: LOGGING_SWITCH,
-        );
-        
         // Update position in tracker with player status and suggested animation type
         tracker.updateCardPosition(
           cardId,
@@ -649,17 +606,11 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           playerStatus: playerStatus,
           suggestedAnimationType: suggestedAnimationType,
         );
-        cardsUpdated++;
       }
     }
     
-    _logger.info(
-      'OpponentsPanelWidget._updateCardPositions() - Completed: cardsUpdated=$cardsUpdated, cardsSkipped=$cardsSkipped',
-      isOn: LOGGING_SWITCH,
-    );
-    
-    // Log all positions after updating all opponent cards
-    tracker.logAllPositions();
+    // Verbose logging removed to reduce log noise
+    // tracker.logAllPositions(); // Disabled - too verbose
   }
 
 

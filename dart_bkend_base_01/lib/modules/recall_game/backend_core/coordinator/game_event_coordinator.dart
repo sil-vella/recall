@@ -5,7 +5,7 @@ import '../services/game_state_store.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Coordinates WS game events to the RecallGameRound logic per room.
 class GameEventCoordinator {
@@ -40,42 +40,24 @@ class GameEventCoordinator {
   }
 
   /// Get player ID from session ID and room ID
-  /// Returns the player ID associated with the session, or null if not found
+  /// Returns the player ID associated with the session
+  /// Since player IDs are now sessionIds, this simply returns the sessionId
+  /// after verifying the player exists in the game
   String? _getPlayerIdFromSession(String sessionId, String roomId) {
     try {
-      // Get user ID from session
-      final userId = server.getUserIdForSession(sessionId);
-      if (userId == null) {
-        _logger.warning('GameEventCoordinator: No user ID found for session: $sessionId', isOn: LOGGING_SWITCH);
-        return null;
-      }
-
-      // Get game state and find player matching user ID
+      // Player ID is now sessionId - verify player exists in game
       final gameState = _store.getGameState(roomId);
       final players = (gameState['players'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .toList();
 
-      // Try to find player by user ID (players may have userId field)
-      for (final player in players) {
-        final playerUserId = player['userId'] as String? ?? player['user_id'] as String?;
-        if (playerUserId == userId) {
-          return player['id'] as String?;
-        }
+      // Check if a player with this sessionId exists
+      final playerExists = players.any((p) => p['id'] == sessionId);
+      if (playerExists) {
+        return sessionId; // Player ID = sessionId
       }
 
-      // If no match by userId, try matching by owner (room owner is usually the first human player)
-      final ownerId = server.getRoomOwner(roomId);
-      if (ownerId == userId) {
-        // Find the first human player (likely the owner)
-        for (final player in players) {
-          if (player['isHuman'] == true) {
-            return player['id'] as String?;
-          }
-        }
-      }
-
-      _logger.warning('GameEventCoordinator: No player ID found for session: $sessionId, userId: $userId', isOn: LOGGING_SWITCH);
+      _logger.warning('GameEventCoordinator: No player found with sessionId $sessionId in room $roomId', isOn: LOGGING_SWITCH);
       return null;
     } catch (e) {
       _logger.error('GameEventCoordinator: Failed to get player ID from session: $e', isOn: LOGGING_SWITCH);
@@ -127,7 +109,10 @@ class GameEventCoordinator {
           }
           break;
         case 'same_rank_play':
-          final playerId = (data['player_id'] as String?) ?? (data['playerId'] as String?);
+          // Use sessionId as player ID (player_id from event should be sessionId)
+          final playerId = _getPlayerIdFromSession(sessionId, roomId) ?? 
+                          (data['player_id'] as String?) ?? 
+                          (data['playerId'] as String?);
           final cardId = (data['card_id'] as String?) ?? (data['cardId'] as String?);
           if (playerId != null && cardId != null && cardId.isNotEmpty) {
             final gamesMap = _getCurrentGamesMap(roomId);
@@ -139,9 +124,9 @@ class GameEventCoordinator {
           final ownerId = data['ownerId'] as String?;
           
           if (cardId != null && cardId.isNotEmpty && ownerId != null && ownerId.isNotEmpty) {
-            // Get the peeking player ID from event data (user_id) - this is the actual player making the action
-            // During special card window, currentPlayer may be a CPU, but user_id is always the human player
-            final peekingPlayerId = (data['user_id'] as String?) ?? 
+            // Use sessionId as peeking player ID (player_id from event should be sessionId)
+            // Player ID is now sessionId, so use sessionId directly
+            final peekingPlayerId = _getPlayerIdFromSession(sessionId, roomId) ??
                                    (data['player_id'] as String?) ?? 
                                    (data['playerId'] as String?);
             

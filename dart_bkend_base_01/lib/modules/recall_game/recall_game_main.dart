@@ -3,7 +3,7 @@ import 'backend_core/coordinator/game_event_coordinator.dart';
 import 'backend_core/services/game_registry.dart';
 import 'backend_core/services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Entry point for registering Recall game module components with the server.
 class RecallGameModule {
@@ -42,21 +42,23 @@ class RecallGameModule {
     try {
       final roomId = data['room_id'] as String?;
       final ownerId = data['owner_id'] as String?;
+      final sessionId = data['session_id'] as String?; // Get sessionId for player ID
       final maxSize = data['max_size'] as int? ?? 4;
       final minPlayers = data['min_players'] as int? ?? 2;
       final gameType = data['game_type'] as String? ?? 'multiplayer';
 
-      if (roomId == null || ownerId == null) {
-        _logger.warning('🎣 room_created: missing roomId or ownerId', isOn: LOGGING_SWITCH);
+      if (roomId == null || ownerId == null || sessionId == null) {
+        _logger.warning('🎣 room_created: missing roomId, ownerId, or sessionId', isOn: LOGGING_SWITCH);
         return;
       }
 
-      _logger.info('🎣 room_created: Creating game for room $roomId', isOn: LOGGING_SWITCH);
+      _logger.info('🎣 room_created: Creating game for room $roomId with player ID $sessionId', isOn: LOGGING_SWITCH);
 
       // Create GameRound instance via registry (includes ServerGameStateCallback)
       GameRegistry.instance.getOrCreate(roomId, server);
 
       // Initialize minimal game state in store
+      // Use sessionId as player ID (not ownerId/userId)
       final store = GameStateStore.instance;
       store.mergeRoot(roomId, {
         'game_id': roomId,
@@ -73,9 +75,10 @@ class RecallGameModule {
           'playerCount': 1,
           'players': <Map<String, dynamic>>[
             // Creator added as first player (auto-joined)
+            // Player ID is now sessionId, not ownerId
             {
-              'id': ownerId,
-              'name': 'Player_${ownerId.substring(0, ownerId.length > 8 ? 8 : ownerId.length)}',
+              'id': sessionId, // Use sessionId as player ID
+              'name': 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}',
               'isHuman': true,
               'status': 'waiting',
               'hand': <Map<String, dynamic>>[],
@@ -94,7 +97,7 @@ class RecallGameModule {
       // Send initial game_state_updated to creator
       final initialState = store.getState(roomId);
       server.sendToSession(
-        server.getSessionForUser(ownerId) ?? '',
+        sessionId, // Use sessionId directly instead of lookup
         {
           'event': 'game_state_updated',
           'game_id': roomId,
@@ -105,7 +108,7 @@ class RecallGameModule {
         },
       );
 
-      _logger.info('✅ Game created for room $roomId with creator $ownerId', isOn: LOGGING_SWITCH);
+      _logger.info('✅ Game created for room $roomId with creator session $sessionId', isOn: LOGGING_SWITCH);
     } catch (e) {
       _logger.error('❌ Error in _onRoomCreated: $e', isOn: LOGGING_SWITCH);
     }
@@ -116,33 +119,33 @@ class RecallGameModule {
   void _onRoomJoined(Map<String, dynamic> data) {
     try {
       final roomId = data['room_id'] as String?;
-      final userId = data['user_id'] as String?;
-      final sessionId = data['session_id'] as String?;
+      final userId = data['user_id'] as String?; // Kept for backward compatibility
+      final sessionId = data['session_id'] as String?; // This is now the player ID
 
-      if (roomId == null || userId == null || sessionId == null) {
-        _logger.warning('🎣 room_joined: missing roomId, userId, or sessionId', isOn: LOGGING_SWITCH);
+      if (roomId == null || sessionId == null) {
+        _logger.warning('🎣 room_joined: missing roomId or sessionId', isOn: LOGGING_SWITCH);
         return;
       }
 
-      _logger.info('🎣 room_joined: Adding player $userId to room $roomId', isOn: LOGGING_SWITCH);
+      _logger.info('🎣 room_joined: Adding player with session ID $sessionId to room $roomId', isOn: LOGGING_SWITCH);
 
       final store = GameStateStore.instance;
       final gameState = store.getGameState(roomId);
       final players = gameState['players'] as List<dynamic>? ?? [];
 
-      // Check if player already exists
-      final existingPlayer = players.any((p) => p['id'] == userId);
+      // Check if player already exists (by sessionId, not userId)
+      final existingPlayer = players.any((p) => p['id'] == sessionId);
       if (existingPlayer) {
-        _logger.info('Player $userId already in game $roomId', isOn: LOGGING_SWITCH);
+        _logger.info('Player with session $sessionId already in game $roomId', isOn: LOGGING_SWITCH);
         // Still send snapshot
         _sendGameSnapshot(sessionId, roomId);
         return;
       }
 
-      // Add new player
+      // Add new player - use sessionId as player ID
       players.add({
-        'id': userId,
-        'name': 'Player_${userId.substring(0, userId.length > 8 ? 8 : userId.length)}',
+        'id': sessionId, // Use sessionId as player ID
+        'name': 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}',
         'isHuman': true,
         'status': 'waiting',
         'hand': <Map<String, dynamic>>[],
@@ -167,9 +170,9 @@ class RecallGameModule {
         'room_id': roomId,
         if (ownerId != null) 'owner_id': ownerId,
         'joined_player': {
-          'user_id': userId,
-          'session_id': sessionId,
-          'name': 'Player_${userId.substring(0, userId.length > 8 ? 8 : userId.length)}',
+          'user_id': userId, // Kept for backward compatibility
+          'session_id': sessionId, // This is the player ID
+          'name': 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}',
           'joined_at': DateTime.now().toIso8601String(),
         },
         'game_state': () {
@@ -183,7 +186,7 @@ class RecallGameModule {
         'timestamp': DateTime.now().toIso8601String(),
       });
 
-      _logger.info('✅ Player $userId added to game $roomId', isOn: LOGGING_SWITCH);
+      _logger.info('✅ Player with session $sessionId added to game $roomId', isOn: LOGGING_SWITCH);
     } catch (e) {
       _logger.error('❌ Error in _onRoomJoined: $e', isOn: LOGGING_SWITCH);
     }
@@ -194,25 +197,25 @@ class RecallGameModule {
   void _onLeaveRoom(Map<String, dynamic> data) {
     try {
       final roomId = data['room_id'] as String?;
-      final userId = data['user_id'] as String?;
+      final sessionId = data['session_id'] as String?; // Use sessionId as player ID
 
-      if (roomId == null || userId == null) {
-        _logger.warning('🎣 leave_room: missing roomId or userId', isOn: LOGGING_SWITCH);
+      if (roomId == null || sessionId == null) {
+        _logger.warning('🎣 leave_room: missing roomId or sessionId', isOn: LOGGING_SWITCH);
         return;
       }
 
-      _logger.info('🎣 leave_room: Removing player $userId from room $roomId', isOn: LOGGING_SWITCH);
+      _logger.info('🎣 leave_room: Removing player with session $sessionId from room $roomId', isOn: LOGGING_SWITCH);
 
       final store = GameStateStore.instance;
       final gameState = store.getGameState(roomId);
       final players = (gameState['players'] as List<dynamic>? ?? []);
 
-      // Remove player
-      players.removeWhere((p) => p['id'] == userId);
+      // Remove player by sessionId (player ID)
+      players.removeWhere((p) => p['id'] == sessionId);
       gameState['players'] = players;
       store.setGameState(roomId, gameState);
 
-      _logger.info('✅ Player $userId removed from game $roomId', isOn: LOGGING_SWITCH);
+      _logger.info('✅ Player with session $sessionId removed from game $roomId', isOn: LOGGING_SWITCH);
     } catch (e) {
       _logger.error('❌ Error in _onLeaveRoom: $e', isOn: LOGGING_SWITCH);
     }

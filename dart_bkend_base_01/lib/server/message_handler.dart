@@ -9,7 +9,7 @@ import '../modules/recall_game/backend_core/services/game_state_store.dart';
 import '../modules/recall_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -143,6 +143,7 @@ class MessageHandler {
       _server.triggerHook('room_created', data: {
         'room_id': roomId,
         'owner_id': room.ownerId,
+        'session_id': sessionId, // Add session_id for player ID assignment
         'current_size': room.currentSize,
         'max_size': room.maxSize,
         'min_players': room.minPlayers,
@@ -188,6 +189,7 @@ class MessageHandler {
   
   void _handleJoinRoom(String sessionId, Map<String, dynamic> data) {
     final roomId = data['room_id'] as String?;
+    // Use sessionId directly as player ID (userId kept for backward compatibility in events)
     final userId = data['user_id'] as String? ?? sessionId;
     final password = data['password'] as String?;
     
@@ -278,10 +280,11 @@ class MessageHandler {
       });
       
       // 🎣 Trigger room_joined hook
+      // Note: sessionId is used as player ID, userId kept for backward compatibility
       _server.triggerHook('room_joined', data: {
         'room_id': roomId,
-        'session_id': sessionId,
-        'user_id': userId,
+        'session_id': sessionId, // This is now the player ID
+        'user_id': userId, // Kept for backward compatibility
         'owner_id': room.ownerId,
         'current_size': room.currentSize,
         'max_size': room.maxSize,
@@ -376,6 +379,7 @@ class MessageHandler {
   /// Handle join random game event
   /// Searches for available public games or auto-creates and auto-starts a new one
   void _handleJoinRandomGame(String sessionId, Map<String, dynamic> data) {
+    // Use sessionId directly as player ID (userId kept for backward compatibility)
     final userId = data['user_id'] as String? ?? sessionId;
     
     try {
@@ -440,6 +444,7 @@ class MessageHandler {
       _server.triggerHook('room_created', data: {
         'room_id': roomId,
         'owner_id': room.ownerId,
+        'session_id': sessionId, // Add session_id for player ID assignment
         'current_size': room.currentSize,
         'max_size': room.maxSize,
         'min_players': room.minPlayers,
@@ -461,10 +466,11 @@ class MessageHandler {
       });
       
       // Trigger room_joined hook (adds player to game state)
+      // Note: sessionId is used as player ID, userId kept for backward compatibility
       _server.triggerHook('room_joined', data: {
         'room_id': roomId,
-        'session_id': sessionId,
-        'user_id': userId,
+        'session_id': sessionId, // This is now the player ID
+        'user_id': userId, // Kept for backward compatibility
         'owner_id': room.ownerId,
         'current_size': room.currentSize,
         'max_size': room.maxSize,

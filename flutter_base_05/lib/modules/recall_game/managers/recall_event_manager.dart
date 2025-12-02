@@ -9,7 +9,7 @@ import 'recall_event_handler_callbacks.dart';
 
 
 class RecallEventManager {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   static final RecallEventManager _instance = RecallEventManager._internal();
   factory RecallEventManager() => _instance;
   RecallEventManager._internal();

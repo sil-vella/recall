@@ -19,7 +19,7 @@ class GameInfoWidget extends StatefulWidget {
 }
 
 class _GameInfoWidgetState extends State<GameInfoWidget> {
-  static const bool LOGGING_SWITCH = false; // Enable logging for debugging start button
+  static const bool LOGGING_SWITCH = true; // Enable logging for debugging start button
   static final Logger _logger = Logger();
   bool _isStartingMatch = false;
   
@@ -102,8 +102,8 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
         _logger.info('  isRoomOwner: $isRoomOwner', isOn: LOGGING_SWITCH);
         _logger.info('  isInGame: $isInGame', isOn: LOGGING_SWITCH);
         
-        _logger.info('  Start button condition: isRoomOwner($isRoomOwner) && gamePhase($gamePhase) == "waiting" OR isPracticeGame($isPracticeGame)', isOn: LOGGING_SWITCH);
-        _logger.info('  Should show start button: ${(isRoomOwner && gamePhase == 'waiting') || isPracticeGame}', isOn: LOGGING_SWITCH);
+        _logger.info('  Start button condition: isPracticeGame($isPracticeGame) && gamePhase($gamePhase) == "waiting"', isOn: LOGGING_SWITCH);
+        _logger.info('  Should show start button: ${isPracticeGame && gamePhase == 'waiting'}', isOn: LOGGING_SWITCH);
         _logger.info('  Full gameInfo: $gameInfo', isOn: LOGGING_SWITCH);
         
         // Get additional game state for context
@@ -262,8 +262,8 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
             
             const SizedBox(height: 16),
             
-            // Start Match Button (for room owner during waiting phase OR for recall games in waiting phase)
-            if ((isRoomOwner && gamePhase == 'waiting') || (isPracticeGame && gamePhase == 'setup'))
+            // Start Match Button (for practice games in waiting phase)
+            if (isPracticeGame && gamePhase == 'waiting')
               _buildStartMatchButton(isLoading: _isStartingMatch),
           ],
         ),

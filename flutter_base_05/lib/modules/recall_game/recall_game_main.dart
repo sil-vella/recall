@@ -15,7 +15,7 @@ import 'managers/recall_game_state_updater.dart';
 /// Recall Game Module
 /// Main module for the Recall card game functionality
 class RecallGameMain extends ModuleBase {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   final Logger _logger = Logger();
   
   final navigationManager = NavigationManager();

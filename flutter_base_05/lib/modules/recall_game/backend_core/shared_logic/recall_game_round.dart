@@ -7,7 +7,7 @@ import '../../utils/platform/shared_imports.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class RecallGameRound {
   final Logger _logger = Logger();

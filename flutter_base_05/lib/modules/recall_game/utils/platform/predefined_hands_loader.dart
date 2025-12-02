@@ -3,7 +3,7 @@ import 'shared_imports.dart';
 // Platform-specific import for file loading
 import 'package:flutter/services.dart' show rootBundle;
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 
 /// Predefined Hands Loader for Testing

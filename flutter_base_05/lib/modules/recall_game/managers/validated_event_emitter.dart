@@ -1,7 +1,6 @@
 import 'package:recall/tools/logging/logger.dart';
 
 import '../../../core/managers/websockets/websocket_manager.dart';
-import '../../../core/managers/state_manager.dart';
 import '../utils/field_specifications.dart';
 import '../practice/practice_mode_bridge.dart';
 
@@ -27,7 +26,7 @@ class RecallGameEventEmitter {
   final WebSocketManager _wsManager = WebSocketManager.instance;
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Temporarily enabled for debugging
+  static const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
   
   // Current transport mode (defaults to WebSocket for backward compatibility)
   EventTransportMode _transportMode = EventTransportMode.websocket;
@@ -244,16 +243,17 @@ class RecallGameEventEmitter {
         ...validatedData, // Only validated fields
       };
       
-      // 🎯 Auto-include user ID for events that need player_id
+      // 🎯 Auto-include sessionId as player_id for events that need it
+      // Note: player_id is now sessionId (not userId) since player IDs = sessionIds
       final eventsNeedingPlayerId = {
         'play_card', 'replace_drawn_card', 'play_drawn_card', 
         'call_recall', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'completed_initial_peek', 'collect_from_discard'
       };
       
       if (eventsNeedingPlayerId.contains(eventType)) {
-        final currentUserId = _getCurrentUserId();
-        if (currentUserId.isNotEmpty) {
-          eventPayload['player_id'] = currentUserId;
+        final sessionId = _getSessionId();
+        if (sessionId.isNotEmpty && sessionId != 'unknown_session') {
+          eventPayload['player_id'] = sessionId; // Use sessionId as player_id
         }
       }
 
@@ -415,19 +415,6 @@ class RecallGameEventEmitter {
       return _wsManager.socket?.id ?? 'unknown_session';
     } catch (e) {
       return 'unknown_session';
-    }
-  }
-  
-  /// Get current user ID from login state
-  String _getCurrentUserId() {
-    try {
-      // Import StateManager to access login state
-      // Note: This creates a dependency on StateManager, but it's needed for user identification
-      final stateManager = StateManager();
-      final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
-      return loginState['userId']?.toString() ?? '';
-    } catch (e) {
-      return '';
     }
   }
   

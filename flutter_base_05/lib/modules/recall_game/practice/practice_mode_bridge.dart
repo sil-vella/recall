@@ -8,7 +8,7 @@ import '../utils/platform/practice/stubs/websocket_server_stub.dart';
 import '../utils/platform/practice/stubs/room_manager_stub.dart';
 import '../managers/recall_event_manager.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Practice Mode Bridge
 /// 
@@ -123,6 +123,7 @@ class PracticeModeBridge {
     _hooksManager.triggerHook('room_created', data: {
       'room_id': _currentRoomId,
       'owner_id': userId,
+      'session_id': _currentSessionId, // Include session_id for player ID
       'max_size': maxPlayers ?? 4,
       'min_players': minPlayers ?? 2,
       'game_type': gameType ?? 'practice',

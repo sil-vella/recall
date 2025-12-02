@@ -6,7 +6,7 @@ import '../utils/recall_game_helpers.dart';
 /// Dedicated event handlers for Recall game events
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   static final Logger _logger = Logger();
 
   // ========================================
@@ -70,11 +70,25 @@ class RecallEventHandlerCallbacks {
       final practiceUserId = practiceUser['userId']?.toString();
       _logger.debug('🔍 getCurrentUserId: Found practice user ID: $practiceUserId', isOn: LOGGING_SWITCH);
       if (practiceUserId != null && practiceUserId.isNotEmpty) {
-        return practiceUserId;
+        // In practice mode, player ID is the sessionId, not the userId
+        // SessionId format: practice_session_<userId>
+        final practiceSessionId = 'practice_session_$practiceUserId';
+        _logger.debug('🔍 getCurrentUserId: Returning practice session ID (player ID): $practiceSessionId', isOn: LOGGING_SWITCH);
+        return practiceSessionId;
       }
     }
     
     // Fall back to login state (multiplayer mode)
+    // In multiplayer, try to get sessionId from websocket state first
+    final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
+    final sessionData = websocketState['sessionData'] as Map<String, dynamic>?;
+    final sessionId = sessionData?['sessionId']?.toString();
+    if (sessionId != null && sessionId.isNotEmpty) {
+      _logger.debug('🔍 getCurrentUserId: Using websocket session ID (player ID): $sessionId', isOn: LOGGING_SWITCH);
+      return sessionId;
+    }
+    
+    // Last resort: use login userId (for backward compatibility)
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final loginUserId = loginState['userId']?.toString() ?? '';
     _logger.debug('🔍 getCurrentUserId: Using login user ID: $loginUserId', isOn: LOGGING_SWITCH);
@@ -83,8 +97,40 @@ class RecallEventHandlerCallbacks {
   
   /// Check if current user is room owner for a specific game
   static bool _isCurrentUserRoomOwner(Map<String, dynamic> gameData) {
+    final ownerId = gameData['owner_id']?.toString();
+    if (ownerId == null || ownerId.isEmpty) {
+      return false;
+    }
+    
+    // Get current user ID (this returns sessionId in practice mode, sessionId in multiplayer)
     final currentUserId = getCurrentUserId();
-    return gameData['owner_id']?.toString() == currentUserId;
+    
+    // Direct match (works for multiplayer where owner_id is sessionId)
+    if (ownerId == currentUserId) {
+      return true;
+    }
+    
+    // In practice mode, owner_id is userId but currentUserId is sessionId
+    // Check if currentUserId is a practice sessionId and extract userId for comparison
+    if (currentUserId.startsWith('practice_session_')) {
+      final extractedUserId = currentUserId.replaceFirst('practice_session_', '');
+      if (ownerId == extractedUserId) {
+        _logger.debug('🔍 _isCurrentUserRoomOwner: Practice mode match - ownerId: $ownerId, extractedUserId: $extractedUserId', isOn: LOGGING_SWITCH);
+        return true;
+      }
+    }
+    
+    // Also check if ownerId is a practice sessionId and currentUserId is the userId
+    if (ownerId.startsWith('practice_session_')) {
+      final extractedOwnerUserId = ownerId.replaceFirst('practice_session_', '');
+      // Check if currentUserId matches the extracted userId
+      // This handles the case where owner_id might be set to sessionId
+      if (currentUserId == extractedOwnerUserId || currentUserId == ownerId) {
+        return true;
+      }
+    }
+    
+    return false;
   }
   
   /// Add a game to the games map with standard structure
@@ -517,11 +563,14 @@ class RecallEventHandlerCallbacks {
       // Update owner_id and recalculate isRoomOwner at the top level
       if (ownerId != null) {
         final currentUserId = getCurrentUserId();
+        // Use _isCurrentUserRoomOwner to properly handle practice mode (userId vs sessionId)
+        final gameDataForOwnerCheck = {'owner_id': ownerId};
+        final isOwner = _isCurrentUserRoomOwner(gameDataForOwnerCheck);
         _logger.info('🔍 Updating owner_id: $ownerId, currentUserId: $currentUserId', isOn: LOGGING_SWITCH);
-        _logger.info('🔍 Setting isRoomOwner: ${ownerId == currentUserId}', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 Setting isRoomOwner: $isOwner', isOn: LOGGING_SWITCH);
         _updateGameInMap(gameId, {
           'owner_id': ownerId,
-          'isRoomOwner': ownerId == currentUserId,
+          'isRoomOwner': isOwner,
         });
       } else {
         _logger.info('🔍 ownerId is null, preserving previous ownership', isOn: LOGGING_SWITCH);

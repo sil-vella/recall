@@ -1970,20 +1970,36 @@ class RecallGameRound {
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
 
       // Validate both players exist
+      // Log all player IDs for debugging
+      _logger.info('Recall: Validating jack swap players - firstPlayerId: $firstPlayerId (type: ${firstPlayerId.runtimeType}), secondPlayerId: $secondPlayerId (type: ${secondPlayerId.runtimeType})', isOn: LOGGING_SWITCH);
+      for (final p in players) {
+        final pId = p['id'];
+        _logger.info('Recall: Player in state - name: ${p['name']}, id: $pId (type: ${pId.runtimeType}, toString: ${pId?.toString()})', isOn: LOGGING_SWITCH);
+      }
+      
+      // Try both direct comparison and toString comparison for robustness
       final firstPlayer = players.firstWhere(
-        (p) => p['id'] == firstPlayerId,
+        (p) {
+          final pId = p['id'];
+          return pId == firstPlayerId || pId?.toString() == firstPlayerId;
+        },
         orElse: () => <String, dynamic>{},
       );
 
       final secondPlayer = players.firstWhere(
-        (p) => p['id'] == secondPlayerId,
+        (p) {
+          final pId = p['id'];
+          return pId == secondPlayerId || pId?.toString() == secondPlayerId;
+        },
         orElse: () => <String, dynamic>{},
       );
 
       if (firstPlayer.isEmpty || secondPlayer.isEmpty) {
-        _logger.error('Recall: Invalid Jack swap - one or both players not found', isOn: LOGGING_SWITCH);
+        _logger.error('Recall: Invalid Jack swap - one or both players not found. firstPlayerId: $firstPlayerId (found: ${firstPlayer.isNotEmpty}), secondPlayerId: $secondPlayerId (found: ${secondPlayer.isNotEmpty})', isOn: LOGGING_SWITCH);
         return false;
       }
+      
+      _logger.info('Recall: Both players validated successfully - firstPlayer: ${firstPlayer['name']} (${firstPlayer['id']}), secondPlayer: ${secondPlayer['name']} (${secondPlayer['id']})', isOn: LOGGING_SWITCH);
 
       // Get player hands
       final firstPlayerHand = firstPlayer['hand'] as List<dynamic>? ?? [];

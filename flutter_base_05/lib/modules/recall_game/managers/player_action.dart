@@ -30,7 +30,7 @@ class PlayerAction {
   static final RecallGameStateUpdater _stateUpdater = RecallGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Temporarily enabled for debugging
+  static const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
   // Jack swap selection tracking
   static String? _firstSelectedCardId;
   static String? _firstSelectedPlayerId;

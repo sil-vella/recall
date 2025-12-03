@@ -7,7 +7,7 @@ import '../utils/recall_game_helpers.dart';
 /// Dedicated event handlers for Recall game events
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   static final Logger _logger = Logger();
 
   // ========================================

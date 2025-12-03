@@ -149,8 +149,8 @@ class RecallGameEventEmitter {
     ),
     'player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'Player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+      description: 'Player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
     ),
     'card_id': RecallEventFieldSpec(
       type: String,
@@ -196,8 +196,8 @@ class RecallGameEventEmitter {
     ),
     'first_player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'First player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+      description: 'First player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
     ),
     'second_card_id': RecallEventFieldSpec(
       type: String,
@@ -206,8 +206,8 @@ class RecallGameEventEmitter {
     ),
     'second_player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'Second player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+      description: 'Second player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
     ),
     'queen_peek_card_id': RecallEventFieldSpec(
       type: String,
@@ -216,13 +216,13 @@ class RecallGameEventEmitter {
     ),
     'queen_peek_player_id': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'Player ID whose card to peek at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+      description: 'Player ID whose card to peek at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
     ),
     'ownerId': RecallEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24})$',
-      description: 'Owner ID of the card being peeked at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, or MongoDB ObjectId',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+      description: 'Owner ID of the card being peeked at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
     ),
   };
   

@@ -25,7 +25,7 @@ class RecallGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -528,12 +528,36 @@ class RecallGameStateUpdater {
     // Use helper that handles both practice and multiplayer modes
     final currentUserId = RecallEventHandlerCallbacks.getCurrentUserId();
     
-    // Filter out current player from opponents list
-    final opponents = allPlayers.where((player) => 
-      player['id']?.toString() != currentUserId
-    ).toList();
+    // Find current user's index in allPlayers list
+    int currentUserIndex = -1;
+    for (int i = 0; i < allPlayers.length; i++) {
+      if (allPlayers[i]['id']?.toString() == currentUserId) {
+        currentUserIndex = i;
+        break;
+      }
+    }
     
-    // Find current player index in the opponents list
+    // Filter out current player and reorder opponents list
+    // Order: Start from player after current user, wrap around to player before current user
+    // Example: [A, B, Current, C, D] -> opponents display: [C, D, A, B]
+    List<dynamic> opponents = [];
+    if (currentUserIndex >= 0) {
+      // Add players after current user
+      for (int i = currentUserIndex + 1; i < allPlayers.length; i++) {
+        opponents.add(allPlayers[i]);
+      }
+      // Add players before current user (wraps around)
+      for (int i = 0; i < currentUserIndex; i++) {
+        opponents.add(allPlayers[i]);
+      }
+    } else {
+      // Fallback: if current user not found, just filter them out
+      opponents = allPlayers.where((player) => 
+        player['id']?.toString() != currentUserId
+      ).toList();
+    }
+    
+    // Find current player index in the reordered opponents list
     final currentPlayer = gameState['currentPlayer'];
     int currentTurnIndex = -1;
     if (currentPlayer != null) {

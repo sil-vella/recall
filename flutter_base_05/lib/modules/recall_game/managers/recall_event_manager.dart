@@ -270,6 +270,23 @@ class RecallEventManager {
         
         _logger.info('🔍 websocket_join_room: status=$status, roomId=$roomId', isOn: LOGGING_SWITCH);
         
+        // 🎯 CRITICAL: For any successful room join, set currentGameId and currentRoomId
+        // This ensures player 2 (and any joining player) has the game ID set before receiving game_state_updated
+        if (status == 'success' && roomId.isNotEmpty) {
+          final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+          final currentGameId = recallState['currentGameId']?.toString() ?? '';
+          
+          // Set currentGameId if not already set (important for player 2 joining)
+          if (currentGameId != roomId) {
+            _logger.info('🔍 websocket_join_room: Setting currentGameId to $roomId (was: $currentGameId)', isOn: LOGGING_SWITCH);
+            RecallGameHelpers.updateUIState({
+              'currentGameId': roomId,
+              'currentRoomId': roomId,
+              'isInRoom': true,
+            });
+          }
+        }
+        
         // Check if this is from a random join flow
         final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
         final isRandomJoinInProgress = recallState['isRandomJoinInProgress'] == true;

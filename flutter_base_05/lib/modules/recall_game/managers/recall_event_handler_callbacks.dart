@@ -1,12 +1,13 @@
 import 'package:recall/tools/logging/logger.dart';
 
 import '../../../core/managers/state_manager.dart';
+import '../../../core/managers/websockets/websocket_manager.dart';
 import '../utils/recall_game_helpers.dart';
 
 /// Dedicated event handlers for Recall game events
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   static final Logger _logger = Logger();
 
   // ========================================
@@ -61,33 +62,55 @@ class RecallEventHandlerCallbacks {
   
   /// Get current user ID from practice user data or login state
   /// Practice mode stores user data in recall_game state, multiplayer uses login state
+  /// In multiplayer mode, returns sessionId (which is the player ID), not userId
   static String getCurrentUserId() {
     // First check for practice user data (practice mode)
     final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
     final practiceUser = recallGameState['practiceUser'] as Map<String, dynamic>?;
-    // DEBUG logs removed to reduce log noise
+    _logger.debug('🔍 getCurrentUserId: Checking practiceUser: $practiceUser', isOn: LOGGING_SWITCH);
     if (practiceUser != null && practiceUser['isPracticeUser'] == true) {
       final practiceUserId = practiceUser['userId']?.toString();
       if (practiceUserId != null && practiceUserId.isNotEmpty) {
         // In practice mode, player ID is the sessionId, not the userId
         // SessionId format: practice_session_<userId>
         final practiceSessionId = 'practice_session_$practiceUserId';
+        _logger.debug('🔍 getCurrentUserId: Returning practice session ID: $practiceSessionId', isOn: LOGGING_SWITCH);
         return practiceSessionId;
       }
     }
     
     // Fall back to login state (multiplayer mode)
     // In multiplayer, try to get sessionId from websocket state first
+    // Check both camelCase and snake_case keys for compatibility
     final websocketState = StateManager().getModuleState<Map<String, dynamic>>('websocket') ?? {};
     final sessionData = websocketState['sessionData'] as Map<String, dynamic>?;
-    final sessionId = sessionData?['sessionId']?.toString();
+    final sessionId = sessionData?['session_id']?.toString() ?? 
+                      sessionData?['sessionId']?.toString();
+    _logger.debug('🔍 getCurrentUserId: Checking sessionId from websocket state (sessionData keys: ${sessionData?.keys.toList()}): $sessionId', isOn: LOGGING_SWITCH);
     if (sessionId != null && sessionId.isNotEmpty) {
+      _logger.debug('🔍 getCurrentUserId: Found sessionId in state: $sessionId', isOn: LOGGING_SWITCH);
       return sessionId;
     }
     
+    // Try to get sessionId directly from WebSocketManager socket
+    try {
+      final wsManager = WebSocketManager.instance;
+      final directSessionId = wsManager.socket?.id;
+      _logger.debug('🔍 getCurrentUserId: Checking direct socket ID: $directSessionId', isOn: LOGGING_SWITCH);
+      if (directSessionId != null && directSessionId.isNotEmpty) {
+        _logger.debug('🔍 getCurrentUserId: Using direct socket ID: $directSessionId', isOn: LOGGING_SWITCH);
+        return directSessionId;
+      }
+    } catch (e) {
+      // WebSocketManager might not be initialized, continue to fallback
+      _logger.debug('🔍 getCurrentUserId: WebSocketManager not available: $e', isOn: LOGGING_SWITCH);
+    }
+    
     // Last resort: use login userId (for backward compatibility)
+    // Note: This may not match player IDs in multiplayer mode where player.id = sessionId
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     final loginUserId = loginState['userId']?.toString() ?? '';
+    _logger.warning('⚠️  getCurrentUserId: Falling back to login user ID (this may cause issues in multiplayer): $loginUserId', isOn: LOGGING_SWITCH);
     return loginUserId;
   }
   
@@ -170,23 +193,30 @@ class RecallEventHandlerCallbacks {
   static void _syncWidgetStatesFromGameState(String gameId, Map<String, dynamic> gameState, {List<dynamic>? turnEvents}) {
     try {
       // Get current user ID (checks practice user data first, then login state)
+      // In multiplayer mode, this should return sessionId (which is the player ID)
       final currentUserId = getCurrentUserId();
       
+      _logger.info('🔍 _syncWidgetStatesFromGameState: gameId=$gameId, currentUserId=$currentUserId', isOn: LOGGING_SWITCH);
+      
       if (currentUserId.isEmpty) {
-        _logger.debug('_syncWidgetStatesFromGameState: No current user ID found', isOn: LOGGING_SWITCH);
+        _logger.warning('⚠️  _syncWidgetStatesFromGameState: No current user ID found', isOn: LOGGING_SWITCH);
         return;
       }
       
       // Find player in gameState['players'] matching current user ID
       final players = gameState['players'] as List<dynamic>? ?? [];
+      _logger.info('🔍 _syncWidgetStatesFromGameState: Found ${players.length} players', isOn: LOGGING_SWITCH);
+      _logger.info('🔍 _syncWidgetStatesFromGameState: Player IDs: ${players.map((p) => p is Map ? p['id']?.toString() : 'unknown').join(', ')}', isOn: LOGGING_SWITCH);
+      
       Map<String, dynamic>? myPlayer;
       
       try {
         myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
           (player) => player['id']?.toString() == currentUserId,
         );
+        _logger.info('✅ _syncWidgetStatesFromGameState: Found matching player with ID: ${myPlayer['id']}', isOn: LOGGING_SWITCH);
       } catch (e) {
-        _logger.debug('_syncWidgetStatesFromGameState: Current user not found in players list', isOn: LOGGING_SWITCH);
+        _logger.warning('⚠️  _syncWidgetStatesFromGameState: Current user ($currentUserId) not found in players list. Player IDs: ${players.map((p) => p is Map ? p['id']?.toString() : 'unknown').join(', ')}', isOn: LOGGING_SWITCH);
         return;
       }
       
@@ -238,9 +268,9 @@ class RecallEventHandlerCallbacks {
       // Apply widget updates to games map
       _updateGameInMap(gameId, widgetUpdates);
       
-      _logger.debug('_syncWidgetStatesFromGameState: Synced widget states for game $gameId${turnEvents != null ? ' with ${turnEvents.length} turn_events' : ''}', isOn: LOGGING_SWITCH);
+      _logger.info('✅ _syncWidgetStatesFromGameState: Synced widget states for game $gameId - hand: ${hand.length} cards, status: $status, isMyTurn: $isCurrentPlayer${turnEvents != null ? ', turn_events: ${turnEvents.length}' : ''}', isOn: LOGGING_SWITCH);
     } catch (e) {
-      _logger.error('_syncWidgetStatesFromGameState: Error syncing widget states: $e', isOn: LOGGING_SWITCH);
+      _logger.error('❌ _syncWidgetStatesFromGameState: Error syncing widget states: $e', isOn: LOGGING_SWITCH);
     }
   }
   
@@ -538,7 +568,8 @@ class RecallEventHandlerCallbacks {
     
     // Check if game exists in games map, if not add it
     final currentGames = _getCurrentGamesMap();
-    if (!currentGames.containsKey(gameId)) {
+    final wasNewGame = !currentGames.containsKey(gameId);
+    if (wasNewGame) {
       // Add the game to the games map with the complete game state.
       // IMPORTANT: Do not overwrite ownership with null. Only include owner_id if present.
       final base = {
@@ -549,6 +580,40 @@ class RecallEventHandlerCallbacks {
         base['owner_id'] = ownerId;
       }
       _addGameToMap(gameId, base);
+      _logger.info('🔍 handleGameStateUpdated: Added new game to map: $gameId (players: ${players.length})', isOn: LOGGING_SWITCH);
+      
+      // 🎯 CRITICAL: Immediately update the newly added game with additional information
+      // This ensures the game has all the data it needs before widget sync
+      final currentGamesAfterAdd = _getCurrentGamesMap();
+      if (currentGamesAfterAdd.containsKey(gameId)) {
+        final updateData = {
+          'drawPileCount': drawPileCount,
+          'discardPileCount': discardPileCount,
+          'discardPile': discardPile,
+          'players': players,  // Include all players data
+          'turn_events': turnEvents, // Include turn_events for widget slices
+        };
+        _updateGameInMap(gameId, updateData);
+      }
+      
+      // 🎯 CRITICAL: Get fresh games map after adding and updating (ensures it's in state)
+      final updatedGamesAfterAdd = _getCurrentGamesMap();
+      
+      // 🎯 CRITICAL: Set currentGameId and ensure games map is in main state (important for player 2 joining after match start)
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGameId = currentState['currentGameId']?.toString();
+      if (currentGameId == null || currentGameId.isEmpty) {
+        _logger.info('🔍 handleGameStateUpdated: Setting currentGameId to $gameId (was null or empty)', isOn: LOGGING_SWITCH);
+        _updateMainGameState({
+          'currentGameId': gameId,
+          'games': updatedGamesAfterAdd, // 🎯 CRITICAL: Ensure games map is in main state
+        });
+      } else {
+        // Even if currentGameId is set, ensure games map is updated in main state
+        _updateMainGameState({
+          'games': updatedGamesAfterAdd, // 🎯 CRITICAL: Ensure games map is in main state
+        });
+      }
     } else {
       // Update existing game's game_state
       _logger.info('🔍 Updating existing game: $gameId', isOn: LOGGING_SWITCH);
@@ -578,15 +643,18 @@ class RecallEventHandlerCallbacks {
     }
     
     // Update the games map with additional information first (needed for widget sync)
-    final updateData = {
-      'drawPileCount': drawPileCount,
-      'discardPileCount': discardPileCount,
-      'discardPile': discardPile,
-      'players': players,  // Include all players data
-      'turn_events': turnEvents, // Include turn_events for widget slices
-    };
-    
-    _updateGameInMap(gameId, updateData);
+    // 🎯 CRITICAL: Only update if this wasn't a new game (new games are already updated above)
+    if (!wasNewGame) {
+      final updateData = {
+        'drawPileCount': drawPileCount,
+        'discardPileCount': discardPileCount,
+        'discardPile': discardPile,
+        'players': players,  // Include all players data
+        'turn_events': turnEvents, // Include turn_events for widget slices
+      };
+      
+      _updateGameInMap(gameId, updateData);
+    }
     
     // 🎯 CRITICAL: Sync widget states from game state FIRST (matches practice mode pattern)
     // This ensures myHandCards, myDrawnCard, playerStatus, etc. are synced from game state

@@ -9,7 +9,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../managers/player_action.dart';
 import '../card_position_tracker.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display other players (opponents)
 /// 
@@ -52,14 +52,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         // Get cardsToPeek state slice (current user's peeked cards, could be from opponents)
         final cardsToPeek = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
         
-        // Get current user ID to filter out self from opponents
-        final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
-        final currentUserId = loginState['userId']?.toString() ?? '';
-        
-        // Filter out current player from opponents list
-        final otherPlayers = opponents.where((player) => 
-          player['id']?.toString() != currentUserId
-        ).toList();
+        // Note: opponents list from slice is already filtered (excludes current player)
+        // No need to filter again - use opponents directly
+        final otherPlayers = opponents;
         
         // Get additional game state for context
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';

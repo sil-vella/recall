@@ -24,9 +24,10 @@ class RandomJoinTimerManager {
     
     // Schedule new timer
     _timers[roomId] = Timer(Duration(seconds: delaySeconds), () {
-      _isStarting[roomId] = true;
+      // Remove timer from map first (so isTimerActive returns false)
+      _timers.remove(roomId);
+      // Callback will set isStarting flag and handle cleanup
       callback(roomId);
-      cleanup(roomId);
     });
   }
 
@@ -52,6 +53,14 @@ class RandomJoinTimerManager {
   /// Returns true if match is starting, false otherwise
   bool isStarting(String roomId) {
     return _isStarting[roomId] == true;
+  }
+
+  /// Set the isStarting flag for a room
+  /// Used when starting match early (e.g., when max players reached)
+  /// 
+  /// [roomId] The room ID to set flag for
+  void setStarting(String roomId) {
+    _isStarting[roomId] = true;
   }
 
   /// Cleanup timer and state for a room

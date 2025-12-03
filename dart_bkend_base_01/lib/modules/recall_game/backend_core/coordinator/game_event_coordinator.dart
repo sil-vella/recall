@@ -224,12 +224,18 @@ class GameEventCoordinator {
 
     // Auto-create computer players
     // For practice mode: fill to maxPlayers (practice rooms start with "practice_room_")
-    // For multiplayer: only fill to minPlayers (wait for real players to join)
+    // For random join rooms: fill to maxPlayers (indicated by is_random_join flag)
+    // For autoStart rooms: fill to maxPlayers (rooms with autoStart=true)
+    // For regular multiplayer: only fill to minPlayers (wait for real players to join)
     final isPracticeMode = roomId.startsWith('practice_room_');
-    int needed = isPracticeMode 
-        ? maxPlayers - players.length  // Practice mode: fill to maxPlayers
-        : minPlayers - players.length; // Multiplayer: only fill to minPlayers
+    final isRandomJoin = data['is_random_join'] == true;
+    final isAutoStart = roomInfo?.autoStart == true;
+    int needed = (isPracticeMode || isRandomJoin || isAutoStart)
+        ? maxPlayers - players.length  // Practice mode, random join, or autoStart: fill to maxPlayers
+        : minPlayers - players.length; // Regular multiplayer: only fill to minPlayers
     if (needed < 0) needed = 0;
+    
+    _logger.info('GameEventCoordinator: CPU player creation - isPracticeMode: $isPracticeMode, isRandomJoin: $isRandomJoin, isAutoStart: $isAutoStart, currentPlayers: ${players.length}, needed: $needed, target: ${(isPracticeMode || isRandomJoin || isAutoStart) ? maxPlayers : minPlayers}', isOn: LOGGING_SWITCH);
     int cpuIndexBase = 1;
     // Find next CPU index not used
     final existingNames = players.map((p) => (p['name'] ?? '').toString()).toSet();

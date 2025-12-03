@@ -94,7 +94,7 @@ class MessageHandler {
     final userId = data['user_id'] as String? ?? sessionId;
     
     // Extract room settings from data (matching Python backend)
-    final maxPlayers = data['max_players'] as int? ?? data['maxPlayers'] as int?;
+    final maxPlayers = 4; // Hardcoded to 4, no options
     final minPlayers = data['min_players'] as int? ?? data['minPlayers'] as int?;
     final gameType = data['game_type'] as String? ?? data['gameType'] as String?;
     final permission = data['permission'] as String?;
@@ -174,6 +174,18 @@ class MessageHandler {
         'max_size': room.maxSize,
         'joined_at': DateTime.now().toIso8601String(),
       });
+      
+      // Schedule auto-start timer if autoStart is enabled
+      if (room.autoStart == true) {
+        final delaySeconds = 5;
+        _logger.room('⏱️  Scheduling auto-start timer for room: $roomId (delay: ${delaySeconds}s, maxSize: ${room.maxSize})', isOn: LOGGING_SWITCH);
+        
+        RandomJoinTimerManager.instance.scheduleStartMatch(
+          roomId,
+          delaySeconds,
+          (roomId) => _startMatchForRoom(roomId),
+        );
+      }
       
       _logger.room('✅ Room created and creator auto-joined: $roomId', isOn: LOGGING_SWITCH);
       
@@ -296,11 +308,20 @@ class MessageHandler {
       });
       
       // Check if room has active timer and max players reached - start immediately
-      if (RandomJoinTimerManager.instance.isTimerActive(roomId) && 
-          room.currentSize >= Config.RANDOM_JOIN_MAX_PLAYERS) {
-        _logger.room('🚀 Max players reached, starting match immediately for room: $roomId', isOn: LOGGING_SWITCH);
-        RandomJoinTimerManager.instance.cancelTimer(roomId);
-        _startMatchForRandomJoin(roomId);
+      // This handles both random join rooms and regular rooms with autoStart
+      if (RandomJoinTimerManager.instance.isTimerActive(roomId)) {
+        // For random join rooms, check against Config.RANDOM_JOIN_MAX_PLAYERS
+        if (room.currentSize >= Config.RANDOM_JOIN_MAX_PLAYERS) {
+          _logger.room('🚀 Max players reached, starting match immediately for random join room: $roomId', isOn: LOGGING_SWITCH);
+          RandomJoinTimerManager.instance.cancelTimer(roomId);
+          _startMatchForRandomJoin(roomId);
+        }
+        // For regular rooms, check against room.maxSize
+        else if (room.currentSize >= room.maxSize) {
+          _logger.room('🚀 Max players reached, starting match immediately for room: $roomId', isOn: LOGGING_SWITCH);
+          RandomJoinTimerManager.instance.cancelTimer(roomId);
+          _startMatchForRoom(roomId);
+        }
       }
       
       // Broadcast to other room members
@@ -511,10 +532,15 @@ class MessageHandler {
   void _startMatchForRandomJoin(String roomId) {
     try {
       // Check if match is already starting or started
+      // This prevents race conditions when called from multiple paths (timer + early start)
       if (RandomJoinTimerManager.instance.isStarting(roomId)) {
         _logger.game('⚠️  Match already starting for room: $roomId', isOn: LOGGING_SWITCH);
         return;
       }
+
+      // Set isStarting flag to prevent duplicate starts
+      // This must be set before any async operations to prevent race conditions
+      RandomJoinTimerManager.instance.setStarting(roomId);
 
       // Check if room still exists
       final room = _roomManager.getRoomInfo(roomId);
@@ -562,6 +588,72 @@ class MessageHandler {
       _logger.room('✅ Match started for random join room: $roomId', isOn: LOGGING_SWITCH);
     } catch (e) {
       _logger.error('❌ Error starting match for random join room $roomId: $e', isOn: LOGGING_SWITCH);
+      RandomJoinTimerManager.instance.cleanup(roomId);
+    }
+  }
+
+  /// Start match for a regular room (called after timer expires or max players reached)
+  /// Handles race conditions and ensures match only starts once
+  void _startMatchForRoom(String roomId) {
+    try {
+      // Check if match is already starting or started
+      // This prevents race conditions when called from multiple paths (timer + early start)
+      if (RandomJoinTimerManager.instance.isStarting(roomId)) {
+        _logger.game('⚠️  Match already starting for room: $roomId', isOn: LOGGING_SWITCH);
+        return;
+      }
+
+      // Set isStarting flag to prevent duplicate starts
+      // This must be set before any async operations to prevent race conditions
+      RandomJoinTimerManager.instance.setStarting(roomId);
+
+      // Check if room still exists
+      final room = _roomManager.getRoomInfo(roomId);
+      if (room == null) {
+        _logger.error('❌ Room not found when starting match: $roomId', isOn: LOGGING_SWITCH);
+        RandomJoinTimerManager.instance.cleanup(roomId);
+        return;
+      }
+
+      // Check if game already started (check phase)
+      final store = GameStateStore.instance;
+      try {
+        final gameState = store.getGameState(roomId);
+        final phase = gameState['phase'] as String?;
+        if (phase != null && phase != 'waiting_for_players') {
+          _logger.game('⚠️  Game already started for room: $roomId (phase: $phase)', isOn: LOGGING_SWITCH);
+          RandomJoinTimerManager.instance.cleanup(roomId);
+          return;
+        }
+      } catch (e) {
+        // Game state might not exist yet, continue
+      }
+
+      // Get a session ID from the room (use first available session)
+      final sessions = _roomManager.getSessionsInRoom(roomId);
+      if (sessions.isEmpty) {
+        _logger.error('❌ No sessions in room when starting match: $roomId', isOn: LOGGING_SWITCH);
+        RandomJoinTimerManager.instance.cleanup(roomId);
+        return;
+      }
+
+      final sessionId = sessions.first;
+      
+      // Start the match
+      _logger.game('🎮 Starting match for room: $roomId', isOn: LOGGING_SWITCH);
+      _gameCoordinator.handle(sessionId, 'start_match', {
+        'game_id': roomId,
+        'min_players': room.minPlayers,
+        'max_players': room.maxSize,
+        'auto_start': room.autoStart, // Pass autoStart flag so coordinator can fill to maxPlayers
+      });
+
+      // Cleanup timer state (this also clears isStarting flag)
+      RandomJoinTimerManager.instance.cleanup(roomId);
+      
+      _logger.room('✅ Match started for room: $roomId', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('❌ Error starting match for room $roomId: $e', isOn: LOGGING_SWITCH);
       RandomJoinTimerManager.instance.cleanup(roomId);
     }
   }

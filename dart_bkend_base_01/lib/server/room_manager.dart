@@ -1,8 +1,12 @@
+import 'dart:async';
+import '../utils/config.dart';
+
 class Room {
   final String roomId;
   final String ownerId; // Renamed from creatorId to match Python
   final List<String> sessionIds = [];
   final DateTime createdAt = DateTime.now();
+  DateTime _ttlExpiresAt; // TTL expiration time
   
   // Room settings (matching Python backend)
   final int maxSize;
@@ -23,7 +27,8 @@ class Room {
     this.password,
     this.turnTimeLimit = 30,
     this.autoStart = true,
-  });
+    DateTime? ttlExpiresAt,
+  }) : _ttlExpiresAt = ttlExpiresAt ?? DateTime.now().add(Duration(seconds: 86400)); // Default 24 hours
   
   // Getter for current size
   int get currentSize => sessionIds.length;
@@ -33,6 +38,17 @@ class Room {
   
   // Check if room meets minimum players
   bool get meetsMinPlayers => currentSize >= minPlayers;
+  
+  // Get TTL expiration time
+  DateTime get ttlExpiresAt => _ttlExpiresAt;
+  
+  // Check if room has expired
+  bool get isExpired => DateTime.now().isAfter(_ttlExpiresAt);
+  
+  // Extend TTL (called on join or activity)
+  void extendTtl(Duration ttl) {
+    _ttlExpiresAt = DateTime.now().add(ttl);
+  }
   
   Map<String, dynamic> toJson() {
     return {
@@ -59,6 +75,15 @@ class RoomManager {
   // Callback for room closure events
   Function(String roomId, String reason)? onRoomClosed;
   
+  // TTL cleanup timer
+  Timer? _ttlCleanupTimer;
+  bool _ttlMonitorStarted = false;
+  
+  // Import config for TTL values
+  RoomManager() {
+    _startTtlMonitor();
+  }
+  
   String createRoom(String creatorSessionId, String userId, {
     int? maxSize,
     int? minPlayers,
@@ -69,6 +94,8 @@ class RoomManager {
     bool? autoStart,
   }) {
     final roomId = 'room_${DateTime.now().millisecondsSinceEpoch}';
+    // Initialize TTL from config
+    final ttl = Duration(seconds: Config.WS_ROOM_TTL);
     final room = Room(
       roomId: roomId,
       ownerId: userId,
@@ -79,13 +106,14 @@ class RoomManager {
       password: password,
       turnTimeLimit: turnTimeLimit ?? 30,
       autoStart: autoStart ?? true,
+      ttlExpiresAt: DateTime.now().add(ttl),
     );
     room.sessionIds.add(creatorSessionId);
     
     _rooms[roomId] = room;
     _sessionToRoom[creatorSessionId] = roomId;
     
-    print('🏠 Room created: $roomId by $userId (max: ${room.maxSize}, permission: ${room.permission})');
+    print('🏠 Room created: $roomId by $userId (max: ${room.maxSize}, permission: ${room.permission}, TTL: ${Config.WS_ROOM_TTL}s)');
     return roomId;
   }
   
@@ -116,6 +144,9 @@ class RoomManager {
     
     room.sessionIds.add(sessionId);
     _sessionToRoom[sessionId] = roomId;
+    
+    // Reinstate TTL on join (extend expiration time)
+    reinstateRoomTtl(roomId);
     
     print('👤 $userId joined room $roomId (Players: ${room.currentSize}/${room.maxSize})');
     return true;
@@ -208,5 +239,59 @@ class RoomManager {
     
     // Private rooms require password match
     return room.password == password;
+  }
+  
+  // ========= TTL MANAGEMENT =========
+  
+  /// Reinstate/extend the room TTL (call on each join or activity)
+  void reinstateRoomTtl(String roomId, {Duration? ttl}) {
+    final room = _rooms[roomId];
+    if (room == null) return;
+    
+    final ttlDuration = ttl ?? Duration(seconds: Config.WS_ROOM_TTL);
+    room.extendTtl(ttlDuration);
+  }
+  
+  /// Start TTL monitor for automatic room expiration
+  void _startTtlMonitor() {
+    if (_ttlMonitorStarted) return;
+    _ttlMonitorStarted = true;
+    
+    // Run cleanup every minute (check for expired rooms)
+    _ttlCleanupTimer = Timer.periodic(Duration(seconds: 60), (_) {
+      _cleanupExpiredRooms();
+    });
+    
+    print('⏰ Room TTL monitor started (check interval: 60s, room TTL: ${Config.WS_ROOM_TTL}s)');
+  }
+  
+  /// Cleanup expired rooms
+  void _cleanupExpiredRooms() {
+    final expiredRooms = <String>[];
+    
+    // Find expired rooms
+    for (final entry in _rooms.entries) {
+      final room = entry.value;
+      if (room.isExpired) {
+        expiredRooms.add(entry.key);
+      }
+    }
+    
+    // Close expired rooms
+    for (final roomId in expiredRooms) {
+      print('⏰ Room $roomId expired (TTL: ${Config.WS_ROOM_TTL}s)');
+      closeRoom(roomId, 'ttl_expired');
+    }
+    
+    if (expiredRooms.isNotEmpty) {
+      print('🧹 Cleaned up ${expiredRooms.length} expired room(s)');
+    }
+  }
+  
+  /// Dispose resources (stop TTL monitor)
+  void dispose() {
+    _ttlCleanupTimer?.cancel();
+    _ttlCleanupTimer = null;
+    _ttlMonitorStarted = false;
   }
 }

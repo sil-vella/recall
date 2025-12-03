@@ -26,7 +26,7 @@ class RecallGameEventEmitter {
   final WebSocketManager _wsManager = WebSocketManager.instance;
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
+  static const bool LOGGING_SWITCH = false; // Temporarily enabled for debugging
   
   // Current transport mode (defaults to WebSocket for backward compatibility)
   EventTransportMode _transportMode = EventTransportMode.websocket;

@@ -1,6 +1,7 @@
 import '../../../core/managers/module_manager.dart';
 import '../../../modules/connections_api_module/connections_api_module.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
+import '../../../tools/logging/logger.dart';
 import '../managers/validated_event_emitter.dart';
 import '../managers/recall_game_state_updater.dart';
 
@@ -10,6 +11,9 @@ class RecallGameHelpers {
   // Singleton instances
   static final _eventEmitter = RecallGameEventEmitter.instance;
   static final _stateUpdater = RecallGameStateUpdater.instance;
+  static final _logger = Logger();
+  
+  static const bool LOGGING_SWITCH = true;
   
   // ========================================
   // EVENT EMISSION HELPERS
@@ -139,8 +143,16 @@ class RecallGameHelpers {
         }
       }
       
+      // Set flag to indicate we're in a random join flow (for navigation)
+      // IMPORTANT: Use updateStateSync to ensure synchronous update before emitting event
+      // Using updateUIState goes through StateQueueValidator which is async and can cause race conditions
+      _stateUpdater.updateStateSync({
+        'isRandomJoinInProgress': true,
+      });
+      _logger.info('🎯 Set isRandomJoinInProgress=true using updateStateSync', isOn: LOGGING_SWITCH);
+      
       // Emit join_random_game event via validated event emitter
-      final result = await _eventEmitter.emit(
+      await _eventEmitter.emit(
         eventType: 'join_random_game',
         data: {},
       );
@@ -153,6 +165,10 @@ class RecallGameHelpers {
       };
       
     } catch (e) {
+      // Clear flag on error
+      updateUIState({
+        'isRandomJoinInProgress': false,
+      });
       return {
         'success': false,
         'error': 'Failed to join random game: $e',

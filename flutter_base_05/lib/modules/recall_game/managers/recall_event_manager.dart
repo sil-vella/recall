@@ -3,6 +3,7 @@ import 'package:recall/tools/logging/logger.dart';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/hooks_manager.dart';
+import '../../../core/managers/navigation_manager.dart';
 import '../utils/recall_game_helpers.dart';
 import 'recall_event_listener_validator.dart';
 import 'recall_event_handler_callbacks.dart';
@@ -188,6 +189,21 @@ class RecallEventManager {
             message: 'Successfully created room: $roomId',
             data: data,
           );
+          
+          // Navigate to game play screen if this is a random join
+          if (isRandomJoin) {
+            _logger.info('🎮 Random join room created, navigating to game play screen', isOn: LOGGING_SWITCH);
+            
+            // Clear the random join flag
+            RecallGameHelpers.updateUIState({
+              'isRandomJoinInProgress': false,
+            });
+            
+            // Use a small delay to ensure state is fully updated
+            Future.delayed(const Duration(milliseconds: 300), () {
+              NavigationManager().navigateTo('/recall/game-play');
+            });
+          }
           break;
           
         case 'created':
@@ -241,6 +257,44 @@ class RecallEventManager {
             data: data,
           );
           break;
+      }
+    });
+    
+    // Register websocket_join_room hook callback (for joining existing rooms)
+    HooksManager().registerHookWithData('websocket_join_room', (data) {
+      try {
+        _logger.info('🔍 websocket_join_room hook triggered with data: $data', isOn: LOGGING_SWITCH);
+        
+        final status = data['status']?.toString() ?? 'unknown';
+        final roomId = data['room_id']?.toString() ?? '';
+        
+        _logger.info('🔍 websocket_join_room: status=$status, roomId=$roomId', isOn: LOGGING_SWITCH);
+        
+        // Check if this is from a random join flow
+        final recallState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final isRandomJoinInProgress = recallState['isRandomJoinInProgress'] == true;
+        
+        _logger.info('🔍 websocket_join_room: isRandomJoinInProgress=$isRandomJoinInProgress, recallState keys: ${recallState.keys.toList()}', isOn: LOGGING_SWITCH);
+        
+        if (status == 'success' && isRandomJoinInProgress && roomId.isNotEmpty) {
+          _logger.info('🎮 Random join: joined existing room, navigating to game play screen', isOn: LOGGING_SWITCH);
+          
+          // Clear the random join flag
+          RecallGameHelpers.updateUIState({
+            'isRandomJoinInProgress': false,
+          });
+          
+          // Navigate to game play screen
+          // Use a small delay to ensure state is fully updated
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _logger.info('🎮 Executing navigation to /recall/game-play', isOn: LOGGING_SWITCH);
+            NavigationManager().navigateTo('/recall/game-play');
+          });
+        } else {
+          _logger.info('🔍 websocket_join_room: Navigation skipped - status=$status, isRandomJoinInProgress=$isRandomJoinInProgress, roomId=$roomId', isOn: LOGGING_SWITCH);
+        }
+      } catch (e) {
+        _logger.error('❌ Error in websocket_join_room hook callback: $e', isOn: LOGGING_SWITCH);
       }
     });
     

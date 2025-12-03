@@ -4,7 +4,7 @@ import '../../managers/websockets/websocket_manager.dart';
 import '../../../tools/logging/logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// State-aware connection status feature widget
 /// 

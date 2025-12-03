@@ -86,5 +86,29 @@ class Config {
     'random_join_min_players',
     2,
   );
+
+  // ========= WebSocket Room Configuration =========
+
+  /// Room TTL in seconds (time until room expires)
+  /// Default: 86400 (24 hours)
+  /// Can be overridden via:
+  /// - Environment variable: WS_ROOM_TTL
+  /// - Secret file: ws_room_ttl
+  static int WS_ROOM_TTL = _getConfigInt(
+    'WS_ROOM_TTL',
+    'ws_room_ttl',
+    86400, // 24 hours
+  );
+
+  /// Stale room cleanup age in seconds (rooms older than this are considered stale)
+  /// Default: 600 (10 minutes)
+  /// Can be overridden via:
+  /// - Environment variable: WS_ROOM_CLEANUP_AGE
+  /// - Secret file: ws_room_cleanup_age
+  static int WS_ROOM_CLEANUP_AGE = _getConfigInt(
+    'WS_ROOM_CLEANUP_AGE',
+    'ws_room_cleanup_age',
+    600, // 10 minutes
+  );
 }
 

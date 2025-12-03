@@ -10,10 +10,11 @@ import '../managers/hooks_manager.dart';
 import '../modules/recall_game/recall_game_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};
+  final Map<String, String> _connectionHashes = {}; // Track connection object identity
   final Map<String, String> _sessionToUser = {};
   final Map<String, bool> _authenticatedSessions = {};
   final RoomManager _roomManager = RoomManager();
@@ -97,9 +98,11 @@ class WebSocketServer {
   void handleConnection(WebSocketChannel webSocket) {
     final sessionId = const Uuid().v4();
     _connections[sessionId] = webSocket;
+    _connectionHashes[sessionId] = webSocket.hashCode.toString();
     _authenticatedSessions[sessionId] = false;
 
     _logger.connection('✅ Client connected: $sessionId (Total: ${_connections.length})', isOn: LOGGING_SWITCH);
+    _logger.connection('🔍 Connection hash: ${webSocket.hashCode}', isOn: LOGGING_SWITCH);
 
     _logger.connection('📤 Sending connected event to session: $sessionId', isOn: LOGGING_SWITCH);
     sendToSession(sessionId, {
@@ -179,6 +182,7 @@ class WebSocketServer {
     
     // Clean up connections and authentication
     _connections.remove(sessionId);
+    _connectionHashes.remove(sessionId);
     _sessionToUser.remove(sessionId);
     _authenticatedSessions.remove(sessionId);
     
@@ -205,12 +209,63 @@ class WebSocketServer {
   
   void sendToSession(String sessionId, Map<String, dynamic> message) {
     final connection = _connections[sessionId];
+    final eventName = message['event'] as String? ?? 'unknown';
+    
+    // CRITICAL: Verify we're using sessionId, not userId
+    final userIdInMessage = message['user_id'] as String?;
+    _logger.info('🔍 sendToSession called: sessionId=$sessionId, event=$eventName, userIdInMessage=$userIdInMessage', isOn: LOGGING_SWITCH);
+    _logger.info('🔍 VERIFY: sessionId != userIdInMessage? ${sessionId != userIdInMessage}', isOn: LOGGING_SWITCH);
+    
     if (connection != null) {
       try {
-        connection.sink.add(jsonEncode(message));
+        final messageJson = jsonEncode(message);
+        _logger.info('📤 Sending event "$eventName" to session: $sessionId', isOn: LOGGING_SWITCH);
+        _logger.debug('📤 Message payload: $messageJson', isOn: LOGGING_SWITCH);
+        _logger.debug('📤 Total connections: ${_connections.length}', isOn: LOGGING_SWITCH);
+        _logger.debug('📤 Connection type: ${connection.runtimeType}', isOn: LOGGING_SWITCH);
+        _logger.debug('📤 All session IDs in _connections: ${_connections.keys.toList()}', isOn: LOGGING_SWITCH);
+        _logger.debug('📤 Connection hash: ${connection.hashCode}, Stored hash: ${_connectionHashes[sessionId]}', isOn: LOGGING_SWITCH);
+        _logger.debug('📤 Connection identity match: ${connection.hashCode.toString() == _connectionHashes[sessionId]}', isOn: LOGGING_SWITCH);
+        
+        // Check if sink is closed by attempting to add
+        try {
+          // Check sink.done Future to see if it's already completed (closed)
+          connection.sink.done.then((_) {
+            _logger.warning('⚠️  Sink is done (closed) for session: $sessionId - message may not be delivered', isOn: LOGGING_SWITCH);
+          }).catchError((e) {
+            // Sink is not done, which is good
+          });
+          
+          // Attempt to send the message
+          connection.sink.add(messageJson);
+          _logger.info('✅ Event "$eventName" sent successfully to session: $sessionId', isOn: LOGGING_SWITCH);
+          _logger.debug('✅ Message length: ${messageJson.length} bytes', isOn: LOGGING_SWITCH);
+        } catch (sinkError) {
+          _logger.error('❌ Sink error when sending to $sessionId: $sinkError', isOn: LOGGING_SWITCH);
+          _logger.error('❌ Sink error type: ${sinkError.runtimeType}', isOn: LOGGING_SWITCH);
+          _logger.error('❌ Sink error stack: ${StackTrace.current}', isOn: LOGGING_SWITCH);
+          // Check if sink is done
+          connection.sink.done.then((_) {
+            _logger.warning('⚠️  Sink is done (closed) for session: $sessionId', isOn: LOGGING_SWITCH);
+            _connections.remove(sessionId);
+            _connectionHashes.remove(sessionId);
+          }).catchError((e) {
+            _logger.error('❌ Error checking sink.done: $e', isOn: LOGGING_SWITCH);
+          });
+          rethrow;
+        }
       } catch (e) {
         _logger.error('❌ Error sending to $sessionId: $e', isOn: LOGGING_SWITCH);
+        _logger.error('❌ Error stack trace: ${StackTrace.current}', isOn: LOGGING_SWITCH);
+        // Clean up the connection if there's an error
+        _connections.remove(sessionId);
+        _connectionHashes.remove(sessionId);
       }
+    } else {
+      _logger.warning('⚠️  Cannot send event "$eventName" to session $sessionId: connection not found', isOn: LOGGING_SWITCH);
+      _logger.warning('⚠️  Available sessions: ${_connections.keys.toList()}', isOn: LOGGING_SWITCH);
+      _logger.warning('⚠️  Looking for session: $sessionId', isOn: LOGGING_SWITCH);
+      _logger.warning('⚠️  Session exists in map: ${_connections.containsKey(sessionId)}', isOn: LOGGING_SWITCH);
     }
   }
 

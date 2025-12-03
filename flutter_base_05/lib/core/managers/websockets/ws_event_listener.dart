@@ -107,7 +107,10 @@ class WSEventListener {
 
   /// Register join room success listener
   void _registerJoinRoomSuccessListener() {
+    _logger.debug('🎧 Registering join_room_success event listener', isOn: LOGGING_SWITCH);
     _socket?.on('join_room_success', (data) {
+      _logger.info('📡 join_room_success event received in WSEventListener', isOn: LOGGING_SWITCH);
+      _logger.debug('join_room_success data: $data', isOn: LOGGING_SWITCH);
       _eventHandler.handleJoinRoomSuccess(data);
     });
   }

@@ -195,6 +195,17 @@ class WSEventHandler {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
+      // 🎣 Also trigger websocket_join_room hook (for navigation logic)
+      // This ensures navigation works even if join_room_success event is not received
+      HooksManager().triggerHookWithData('websocket_join_room', {
+        'status': 'success',
+        'room_id': roomId,
+        'room_data': roomData,
+        'owner_id': ownerId,
+        'is_owner': isRoomOwner,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
       _logger.info('✅ WebSocket room joined event handled successfully', isOn: LOGGING_SWITCH);
     } catch (e) {
       _logger.error('❌ Error handling WebSocket room joined event: $e', isOn: LOGGING_SWITCH);
@@ -204,6 +215,9 @@ class WSEventHandler {
   /// Handle join room success event
   void handleJoinRoomSuccess(dynamic data) {
     try {
+      _logger.info('✅ WebSocket join_room_success event received', isOn: LOGGING_SWITCH);
+      _logger.debug('Join room success data: $data', isOn: LOGGING_SWITCH);
+      
       final roomId = data['room_id'] ?? '';
       final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
       final ownerId = data['owner_id'] ?? '';
@@ -241,8 +255,10 @@ class WSEventHandler {
         'is_owner': isRoomOwner,
         'timestamp': DateTime.now().toIso8601String(),
       });
+      
+      _logger.info('✅ WebSocket join_room_success event handled successfully', isOn: LOGGING_SWITCH);
     } catch (e) {
-      // Error handling join room success
+      _logger.error('❌ Error handling join_room_success: $e', isOn: LOGGING_SWITCH);
     }
   }
 

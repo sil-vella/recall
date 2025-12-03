@@ -9,7 +9,7 @@ import '../modules/recall_game/backend_core/services/game_state_store.dart';
 import '../modules/recall_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -254,8 +254,11 @@ class MessageHandler {
     }
     
     // Attempt to join room
+    _logger.room('🔍 _handleJoinRoom: About to join room with sessionId=$sessionId, userId=$userId, roomId=$roomId', isOn: LOGGING_SWITCH);
     if (_roomManager.joinRoom(roomId, sessionId, userId, password: password)) {
       // Send join_room_success (primary event matching Python)
+      _logger.room('📤 Sending join_room_success to session: $sessionId (userId=$userId)', isOn: LOGGING_SWITCH);
+      _logger.room('🔍 VERIFY: Using sessionId=$sessionId for sendToSession, NOT userId=$userId', isOn: LOGGING_SWITCH);
       _server.sendToSession(sessionId, {
         'event': 'join_room_success',
         'room_id': roomId,
@@ -268,6 +271,7 @@ class MessageHandler {
       });
       
       // Also send room_joined for backward compatibility
+      _logger.room('📤 Sending room_joined to session: $sessionId', isOn: LOGGING_SWITCH);
       _server.sendToSession(sessionId, {
         'event': 'room_joined',
         'room_id': roomId,
@@ -379,8 +383,10 @@ class MessageHandler {
   /// Handle join random game event
   /// Searches for available public games or auto-creates and auto-starts a new one
   void _handleJoinRandomGame(String sessionId, Map<String, dynamic> data) {
-    // Use sessionId directly as player ID (userId kept for backward compatibility)
-    final userId = data['user_id'] as String? ?? sessionId;
+    // Get userId from server's session mapping (more reliable than data)
+    final userId = _server.getUserIdForSession(sessionId) ?? sessionId;
+    
+    _logger.room('🔍 _handleJoinRandomGame: sessionId=$sessionId, userId=$userId', isOn: LOGGING_SWITCH);
     
     try {
       // Get available rooms for random join
@@ -392,6 +398,7 @@ class MessageHandler {
         final selectedRoom = availableRooms[random.nextInt(availableRooms.length)];
         
         _logger.room('🎲 Joining random room: ${selectedRoom.roomId}', isOn: LOGGING_SWITCH);
+        _logger.room('🔍 About to call _handleJoinRoom with sessionId=$sessionId, userId=$userId', isOn: LOGGING_SWITCH);
         
         // Use existing join room logic
         _handleJoinRoom(sessionId, {

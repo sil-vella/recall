@@ -6,7 +6,7 @@ import '../../game_play/widgets/game_phase_chip_widget.dart';
 import '../../../managers/game_coordinator.dart';
 import '../../../utils/recall_game_helpers.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Widget to display all joined rooms with join functionality
 /// 

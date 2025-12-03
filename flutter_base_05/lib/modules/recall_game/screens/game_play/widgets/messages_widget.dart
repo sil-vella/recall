@@ -10,7 +10,7 @@ import '../../../../../tools/logging/logger.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class MessagesWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   static final Logger _logger = Logger();
   
   const MessagesWidget({Key? key}) : super(key: key);

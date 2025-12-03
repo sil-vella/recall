@@ -85,6 +85,34 @@ class RecallGameStateUpdater {
     }
   }
   
+  /// Update state synchronously (bypasses async queue)
+  /// Validates the update and applies it immediately to StateManager
+  /// Use this for critical flags that need to be set before async operations complete
+  /// (e.g., isRandomJoinInProgress before emitting WebSocket events)
+  void updateStateSync(Map<String, dynamic> updates) {
+    try {
+      _logger.info('🎬 RecallGameStateUpdater: Synchronous state update with keys: ${updates.keys.toList()}', isOn: LOGGING_SWITCH);
+      
+      // Validate the update using the validator (but don't queue it)
+      final validatedUpdates = _validator.validateUpdate(updates);
+      _logger.debug('🎬 RecallGameStateUpdater: Validation passed, applying updates synchronously', isOn: LOGGING_SWITCH);
+      
+      // Apply validated updates directly to StateManager (synchronous)
+      final currentState = _stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final newState = {
+        ...currentState,
+        ...validatedUpdates,
+      };
+      
+      _stateManager.updateModuleState('recall_game', newState);
+      _logger.info('🎬 RecallGameStateUpdater: Synchronous state update completed successfully', isOn: LOGGING_SWITCH);
+      
+    } catch (e) {
+      _logger.error('RecallGameStateUpdater: Synchronous state update failed: $e', isOn: LOGGING_SWITCH);
+      rethrow;
+    }
+  }
+  
   /// Update state using immutable RecallGameState object
   /// This is the preferred method for new code
   void updateStateImmutable(RecallGameState newState) {

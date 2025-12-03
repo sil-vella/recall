@@ -7,7 +7,7 @@ import '../../core/services/shared_preferences.dart';
 import '../../tools/logging/logger.dart';
 
 class AnimationsModule extends ModuleBase {
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   static final Logger _logger = Logger();
   final List<AnimationController> _controllers = [];
   final Map<String, ConfettiController> _confettiControllers = {};

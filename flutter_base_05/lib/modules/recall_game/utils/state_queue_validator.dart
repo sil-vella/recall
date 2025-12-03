@@ -361,6 +361,11 @@ class StateQueueValidator {
       defaultValue: false,
       description: 'Whether a loading operation is in progress',
     ),
+    'isRandomJoinInProgress': RecallStateFieldSpec(
+      type: bool,
+      defaultValue: false,
+      description: 'Flag indicating if a random game join is in progress (for navigation)',
+    ),
     'lastError': RecallStateFieldSpec(
       type: String,
       required: false,

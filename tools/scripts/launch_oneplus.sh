@@ -49,6 +49,16 @@ filter_logs() {
             # Extract message (everything after [AppLogger] )
             message=$(echo "$line" | sed -n 's/^\[[^]]*\] \[[^]]*\] \[AppLogger\] //p')
             
+            # Skip if timestamp or level extraction failed (empty values)
+            if [ -z "$timestamp" ] || [ -z "$level" ]; then
+                continue
+            fi
+            
+            # Skip if message is empty (nothing to log)
+            if [ -z "$message" ]; then
+                continue
+            fi
+            
             # Determine color based on level
             case "$level" in
                 ERROR)

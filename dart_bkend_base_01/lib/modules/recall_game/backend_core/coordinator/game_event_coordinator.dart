@@ -5,7 +5,7 @@ import '../services/game_state_store.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Coordinates WS game events to the RecallGameRound logic per room.
 class GameEventCoordinator {
@@ -309,6 +309,12 @@ class GameEventCoordinator {
     // Remaining draw pile as ID-only card maps (matches recall game format)
     final drawPileIds = drawStack.map((c) => _cardToIdOnly(c)).toList();
 
+    // Extract showInstructions from data (practice mode) or default to false
+    final showInstructions = data['showInstructions'] as bool? ?? false;
+    
+    // Get turnTimeLimit from room config (reuse roomInfo from earlier in method)
+    final turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;
+    
     // Build updated game_state - set to initial_peek phase
     final gameState = <String, dynamic>{
       'gameId': roomId,
@@ -323,6 +329,8 @@ class GameEventCoordinator {
       'playerCount': players.length,
       'maxPlayers': maxPlayers,
       'minPlayers': minPlayers,
+      'showInstructions': showInstructions, // Store instructions switch
+      'turnTimeLimit': turnTimeLimit, // Store turn time limit
     };
 
     // Set all players to initial_peek status

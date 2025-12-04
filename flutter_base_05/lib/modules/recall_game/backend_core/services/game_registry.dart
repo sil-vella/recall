@@ -332,6 +332,22 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
     final state = _store.getState(roomId);
     return state['currentPlayer'] as Map<String, dynamic>?;
   }
+
+  @override
+  Map<String, dynamic> getTimerConfig() {
+    // Get turnTimeLimit from room config
+    final roomInfo = server.getRoomInfo(roomId);
+    final turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;
+    
+    // Get showInstructions from game state (default to false if not found)
+    final gameState = _store.getGameState(roomId);
+    final showInstructions = gameState['showInstructions'] as bool? ?? false;
+    
+    return {
+      'turnTimeLimit': turnTimeLimit,
+      'showInstructions': showInstructions,
+    };
+  }
 }
 
 

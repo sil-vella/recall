@@ -86,6 +86,12 @@ class WebSocketServer {
     return info?.ownerId;
   }
 
+  /// Get room info for a room
+  /// Returns the Room object or null if not found
+  Room? getRoomInfo(String roomId) {
+    return _roomManager.getRoomInfo(roomId);
+  }
+
   /// Trigger a hook with optional data and context
   void triggerHook(
     String hookName, {

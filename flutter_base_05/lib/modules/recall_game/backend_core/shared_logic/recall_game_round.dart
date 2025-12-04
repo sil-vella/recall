@@ -15,6 +15,8 @@ class RecallGameRound {
   final String _gameId;
   Timer? _sameRankTimer; // Timer for same rank window (5 seconds)
   Timer? _specialCardTimer; // Timer for special card window (10 seconds per card)
+  Timer? _drawActionTimer; // Timer for draw action (applies to both human and CPU)
+  Timer? _playActionTimer; // Timer for play action (applies to both human and CPU)
   
   // Computer player factory for YAML-based AI behavior
   ComputerPlayerFactory? _computerPlayerFactory;
@@ -322,13 +324,20 @@ class RecallGameRound {
       // CRITICAL: Pass currentGames to avoid reading stale state - the games map was just updated above
       _updatePlayerStatusInGamesMap('drawing_card', playerId: nextPlayer['id'], gamesMap: currentGames);
       
+      // Cancel any existing action timers
+      _cancelActionTimers();
+      
+      // Start draw timer for ALL players (human and CPU)
+      // Note: CPU players will still use YAML delays for their actions, but timer acts as a safety timeout
+      _startDrawActionTimer(nextPlayer['id']);
+      
       // Check if this is a computer player and trigger computer turn logic
       final isHuman = nextPlayer['isHuman'] as bool? ?? false;
       if (!isHuman) {
         _logger.info('Recall: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
         _initComputerTurn(gameState);
       } else {
-        _logger.info('Recall: Started turn for human player ${nextPlayer['name']} - status: drawing_card (no timer)', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: Started turn for human player ${nextPlayer['name']} - status: drawing_card', isOn: LOGGING_SWITCH);
       }
       
     } catch (e) {
@@ -1122,6 +1131,10 @@ class RecallGameRound {
         });
       }
       
+      // Cancel draw timer (draw action completed)
+      _drawActionTimer?.cancel();
+      _drawActionTimer = null;
+      
       // STEP 2: If human player, send full card details ONLY to the drawing player
       // This ensures the drawing player receives only one complete state update
       if (isHuman) {
@@ -1141,6 +1154,9 @@ class RecallGameRound {
         // For computer players, update status in games map
         _updatePlayerStatusInGamesMap('playing_card', playerId: actualPlayerId);
       }
+      
+      // Start play timer for ALL players (human and CPU) if status is playing_card
+      _startPlayActionTimer(actualPlayerId);
       
       _logger.info('Recall: Player $actualPlayerId status changed from drawing_card to playing_card', isOn: LOGGING_SWITCH);
       
@@ -1731,6 +1747,12 @@ class RecallGameRound {
 
       // Move to next player (simplified turn management for practice)
       // await _moveToNextPlayer();
+      
+      // Cancel action timers after successful play
+      _playActionTimer?.cancel();
+      _playActionTimer = null;
+      _drawActionTimer?.cancel();
+      _drawActionTimer = null;
       
       return true;
       
@@ -3311,6 +3333,9 @@ class RecallGameRound {
     try {
       _logger.info('Recall: Moving to next player', isOn: LOGGING_SWITCH);
       
+      // Cancel all action timers at start of move to next player
+      _cancelActionTimers();
+      
       // Check if game has ended (winners exist) - prevent progression if game is over
       if (_winnersList.isNotEmpty) {
         _logger.info('Recall: Game has ended - ${_winnersList.length} winner(s) found. Preventing game progression.', isOn: LOGGING_SWITCH);
@@ -3720,10 +3745,126 @@ class RecallGameRound {
     _logger.info('Recall: Added peeked card $peekedCardId to player $actingPlayerId known_cards (from player $targetPlayerId)', isOn: LOGGING_SWITCH);
   }
 
+  /// Check if timer should be started (timer enabled when instructions are OFF)
+  bool _shouldStartTimer() {
+    final config = _stateCallback.getTimerConfig();
+    return !(config['showInstructions'] as bool? ?? false);
+  }
+
+  /// Start draw action timer for a player
+  void _startDrawActionTimer(String playerId) {
+    // Cancel existing timer if active
+    _drawActionTimer?.cancel();
+    _drawActionTimer = null;
+
+    if (!_shouldStartTimer()) {
+      _logger.info('Recall: Timer disabled (showInstructions=true) - not starting draw timer for player $playerId', isOn: LOGGING_SWITCH);
+      return;
+    }
+
+    final config = _stateCallback.getTimerConfig();
+    final turnTimeLimit = config['turnTimeLimit'] as int? ?? 30;
+
+    _logger.info('Recall: Starting draw action timer for player $playerId (${turnTimeLimit}s)', isOn: LOGGING_SWITCH);
+    _drawActionTimer = Timer(Duration(seconds: turnTimeLimit), () {
+      _onDrawActionTimerExpired(playerId);
+    });
+  }
+
+  /// Start play action timer for a player
+  void _startPlayActionTimer(String playerId) {
+    // Cancel existing timer if active
+    _playActionTimer?.cancel();
+    _playActionTimer = null;
+
+    if (!_shouldStartTimer()) {
+      _logger.info('Recall: Timer disabled (showInstructions=true) - not starting play timer for player $playerId', isOn: LOGGING_SWITCH);
+      return;
+    }
+
+    final config = _stateCallback.getTimerConfig();
+    final turnTimeLimit = config['turnTimeLimit'] as int? ?? 30;
+
+    _logger.info('Recall: Starting play action timer for player $playerId (${turnTimeLimit}s)', isOn: LOGGING_SWITCH);
+    _playActionTimer = Timer(Duration(seconds: turnTimeLimit), () {
+      _onPlayActionTimerExpired(playerId);
+    });
+  }
+
+  /// Handle draw action timer expiration
+  void _onDrawActionTimerExpired(String playerId) {
+    _logger.info('Recall: Draw action timer expired for player $playerId - skipping turn', isOn: LOGGING_SWITCH);
+    
+    // Cancel play timer if active (draw expired, no play timer needed)
+    _playActionTimer?.cancel();
+    _playActionTimer = null;
+    
+    // Move to next player (skip turn)
+    _moveToNextPlayer();
+  }
+
+  /// Handle play action timer expiration
+  void _onPlayActionTimerExpired(String playerId) {
+    _logger.info('Recall: Play action timer expired for player $playerId - skipping turn (drawn card remains in hand)', isOn: LOGGING_SWITCH);
+    
+    // Cancel draw timer if active
+    _drawActionTimer?.cancel();
+    _drawActionTimer = null;
+    
+    // Clear drawnCard property and update player status (similar to handlePlayCard)
+    // The drawn card is now in the player's hand, so it's no longer "drawn"
+    try {
+      final currentGames = _stateCallback.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState != null) {
+        final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+        final player = players.firstWhere(
+          (p) => p['id'] == playerId,
+          orElse: () => <String, dynamic>{},
+        );
+        
+        if (player.isNotEmpty) {
+          // Clear drawnCard property (card is now in hand, not "drawn")
+          if (player.containsKey('drawnCard') && player['drawnCard'] != null) {
+            player['drawnCard'] = null;
+            _logger.info('Recall: Cleared drawnCard property for player $playerId (timer expired, card remains in hand)', isOn: LOGGING_SWITCH);
+          }
+          
+          // Update player status to waiting
+          player['status'] = 'waiting';
+          _logger.info('Recall: Updated player $playerId status to waiting (timer expired)', isOn: LOGGING_SWITCH);
+          
+          // Broadcast state update to all players
+          _stateCallback.onGameStateChanged({
+            'games': currentGames,
+          });
+          _logger.info('Recall: Broadcasted state update after play timer expiration for player $playerId', isOn: LOGGING_SWITCH);
+        }
+      }
+    } catch (e) {
+      _logger.error('Recall: Error clearing drawnCard on play timer expiration: $e', isOn: LOGGING_SWITCH);
+    }
+    
+    // Move to next player (drawn card remains in hand)
+    _moveToNextPlayer();
+  }
+
+  /// Cancel all action timers
+  void _cancelActionTimers() {
+    _drawActionTimer?.cancel();
+    _drawActionTimer = null;
+    _playActionTimer?.cancel();
+    _playActionTimer = null;
+  }
+
   /// Dispose of resources
   void dispose() {
     _sameRankTimer?.cancel();
     _specialCardTimer?.cancel();
+    _cancelActionTimers();
     _logger.info('Recall: RecallGameRound disposed for game $_gameId', isOn: LOGGING_SWITCH);
   }
 }

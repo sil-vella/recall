@@ -4,7 +4,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Holds active RecallGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -331,6 +331,22 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   Map<String, dynamic>? getMainStateCurrentPlayer() {
     final state = _store.getState(roomId);
     return state['currentPlayer'] as Map<String, dynamic>?;
+  }
+
+  @override
+  Map<String, dynamic> getTimerConfig() {
+    // Get turnTimeLimit from room config
+    final roomInfo = server.getRoomInfo(roomId);
+    final turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;
+    
+    // Get showInstructions from game state (default to false if not found)
+    final gameState = _store.getGameState(roomId);
+    final showInstructions = gameState['showInstructions'] as bool? ?? false;
+    
+    return {
+      'turnTimeLimit': turnTimeLimit,
+      'showInstructions': showInstructions,
+    };
   }
 }
 

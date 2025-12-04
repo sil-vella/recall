@@ -309,6 +309,12 @@ class GameEventCoordinator {
     // Remaining draw pile as ID-only card maps (matches recall game format)
     final drawPileIds = drawStack.map((c) => _cardToIdOnly(c)).toList();
 
+    // Extract showInstructions from data (practice mode) or default to false
+    final showInstructions = data['showInstructions'] as bool? ?? false;
+    
+    // Get turnTimeLimit from room config (reuse roomInfo from earlier in method)
+    final turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;
+    
     // Build updated game_state - set to initial_peek phase
     final gameState = <String, dynamic>{
       'gameId': roomId,
@@ -323,6 +329,8 @@ class GameEventCoordinator {
       'playerCount': players.length,
       'maxPlayers': maxPlayers,
       'minPlayers': minPlayers,
+      'showInstructions': showInstructions, // Store instructions switch
+      'turnTimeLimit': turnTimeLimit, // Store turn time limit
     };
 
     // Set all players to initial_peek status

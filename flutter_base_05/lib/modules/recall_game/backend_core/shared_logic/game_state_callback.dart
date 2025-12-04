@@ -59,4 +59,8 @@ abstract class GameStateCallback {
   /// Get currentPlayer from main state
   /// Returns the currentPlayer map or null if not available
   Map<String, dynamic>? getMainStateCurrentPlayer();
+
+  /// Get timer configuration for player actions
+  /// Returns map with 'turnTimeLimit' (int) and 'showInstructions' (bool, default false)
+  Map<String, dynamic> getTimerConfig();
 }

@@ -43,6 +43,13 @@ This document tracks high-level development plans, todos, and architectural deci
 - [ ] Add comprehensive error handling for game events
 - [ ] Implement game state persistence (optional, for recovery)
 - [ ] Add game replay/logging system
+- [ ] **Fix CPU player Jack swap decision logic to validate cards exist in hand**
+  - **Issue**: CPU players sometimes attempt Jack swaps with cards that are no longer in their hand
+  - **Root Cause**: CPU decision logic uses `known_cards` (which may contain "forgotten" played cards due to difficulty-based remember probability), but by execution time the card has already been played and removed from hand
+  - **Current Behavior**: Decision is made based on stale `known_cards` data, validation correctly catches invalid swaps but wastes decision attempts
+  - **Solution**: Before making Jack swap decision, validate that selected cards actually exist in the player's current hand, not just in `known_cards`
+  - **Location**: `dart_bkend_base_01/lib/modules/recall_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getJackSwapDecision()` and related selection methods
+  - **Impact**: Improves CPU player decision accuracy, reduces failed swap attempts
 
 ### Low Priority
 
@@ -147,5 +154,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2024-12-19
+**Last Updated**: 2025-12-04
 

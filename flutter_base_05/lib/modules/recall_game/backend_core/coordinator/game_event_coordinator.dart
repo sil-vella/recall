@@ -432,6 +432,14 @@ class GameEventCoordinator {
     computerPlayer['collection_rank_cards'] = collectionRankCards;
     computerPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
 
+    // Add ID-only cardsToPeek for CPU players (for tracking/logic purposes)
+    // CPU players get ID-only format since full data is already in known_cards
+    computerPlayer['cardsToPeek'] = [
+      {'cardId': card1Id, 'suit': '?', 'rank': '?', 'points': 0},
+      {'cardId': card2Id, 'suit': '?', 'rank': '?', 'points': 0},
+    ];
+    _logger.info('GameEventCoordinator: Added ID-only cardsToPeek for CPU player ${computerPlayer['name']}: [$card1Id, $card2Id]', isOn: LOGGING_SWITCH);
+
     _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} peeked at cards at positions $indices', isOn: LOGGING_SWITCH);
     _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
   }
@@ -584,8 +592,40 @@ class GameEventCoordinator {
         return;
       }
 
-      // Update player's cardsToPeek with full card data
+      // STEP 1: Set cardsToPeek to ID-only format and broadcast to all except peeking player
+      final playerId = humanPlayer['id'] as String;
+      final idOnlyCardsToPeek = cardIds.map((cardId) => {
+        'cardId': cardId,
+        'suit': '?',
+        'rank': '?',
+        'points': 0,
+      }).toList();
+      humanPlayer['cardsToPeek'] = idOnlyCardsToPeek;
+      _store.setGameState(roomId, gameState);
+      
+      // Broadcast ID-only cardsToPeek to all except peeking player
+      server.broadcastToRoomExcept(roomId, {
+        'event': 'game_state_updated',
+        'game_id': roomId,
+        'game_state': gameState,
+        'owner_id': server.getRoomOwner(roomId),
+        'timestamp': DateTime.now().toIso8601String(),
+      }, sessionId);
+      _logger.info('GameEventCoordinator: STEP 1 - Broadcast ID-only cardsToPeek to all except player $playerId', isOn: LOGGING_SWITCH);
+
+      // STEP 2: Set cardsToPeek to full card data and send only to peeking player
       humanPlayer['cardsToPeek'] = cardsToPeek;
+      _store.setGameState(roomId, gameState);
+      
+      // Send full card data only to peeking player
+      server.sendToSession(sessionId, {
+        'event': 'game_state_updated',
+        'game_id': roomId,
+        'game_state': gameState,
+        'owner_id': server.getRoomOwner(roomId),
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      _logger.info('GameEventCoordinator: STEP 2 - Sent full cardsToPeek data to player $playerId only', isOn: LOGGING_SWITCH);
 
       // Auto-select collection rank card for human player (same logic as AI)
       // IMPORTANT: Must select collection card BEFORE storing in known_cards
@@ -600,7 +640,6 @@ class GameEventCoordinator {
       // Store only the non-collection card in known_cards with card-ID-based structure
       // (same logic as computer players - collection cards should NOT be in known_cards)
       final humanKnownCards = humanPlayer['known_cards'] as Map<String, dynamic>? ?? {};
-      final playerId = humanPlayer['id'] as String;
       if (humanKnownCards[playerId] == null) {
         humanKnownCards[playerId] = <String, dynamic>{};
       }
@@ -623,18 +662,10 @@ class GameEventCoordinator {
       // Set human player status to WAITING
       humanPlayer['status'] = 'waiting';
 
-      // Update game state
+      // Update game state (cardsToPeek already updated in steps 1 & 2 above)
       _store.setGameState(roomId, gameState);
 
-      // Broadcast update
-      server.broadcastToRoom(roomId, {
-        'event': 'game_state_updated',
-        'game_id': roomId,
-        'game_state': gameState,
-        'owner_id': server.getRoomOwner(roomId),
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-
+      // Status update already sent in step 2, no need to broadcast again
       _logger.info('GameEventCoordinator: Completed initial peek - human player set to WAITING status', isOn: LOGGING_SWITCH);
 
       // Wait 5 seconds then trigger completeInitialPeek to clear states and initialize round

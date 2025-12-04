@@ -2274,31 +2274,42 @@ class RecallGameRound {
       existingCardsToPeek.clear();
       _logger.info('Recall: Cleared existing cards_to_peek for player $peekingPlayerId', isOn: LOGGING_SWITCH);
 
-      // Add the target card to the peeking player's cards_to_peek list (backend line 1307)
-      peekingPlayer['cardsToPeek'] = [fullCardData];
-      _logger.info('Recall: Added card ${fullCardData['cardId']} to player $peekingPlayerId cards_to_peek list', isOn: LOGGING_SWITCH);
-
       // Set player status to PEEKING (backend line 1311)
       peekingPlayer['status'] = 'peeking';
       _logger.info('Recall: Set player $peekingPlayerId status to peeking', isOn: LOGGING_SWITCH);
 
-      // Update main state for the human player (check isHuman field instead of 'recall_user')
       final isHuman = peekingPlayer['isHuman'] as bool? ?? false;
+
+      // STEP 1: Set cardsToPeek to ID-only format and broadcast to all except peeking player
+      final idOnlyCardToPeek = [{
+        'cardId': targetCardId,
+        'suit': '?',
+        'rank': '?',
+        'points': 0,
+      }];
+      peekingPlayer['cardsToPeek'] = idOnlyCardToPeek;
+      
+      _stateCallback.broadcastGameStateExcept(peekingPlayerId, {
+        'games': currentGames,
+      });
+      _logger.info('Recall: STEP 1 - Broadcast ID-only cardsToPeek to all except player $peekingPlayerId', isOn: LOGGING_SWITCH);
+
+      // STEP 2: Set cardsToPeek to full card data and send only to peeking player
+      peekingPlayer['cardsToPeek'] = [fullCardData];
+      
       if (isHuman) {
-        final currentGames = _stateCallback.currentGamesMap;
-        // playerStatus is now computed from SSOT in state slices
-        _stateCallback.onGameStateChanged({
+        // For human players, also update main state myCardsToPeek
+        _stateCallback.sendGameStateToPlayer(peekingPlayerId, {
           'myCardsToPeek': [fullCardData],
-          'games': currentGames, // Status will be computed from SSOT
-        });
-        _logger.info('Recall: Updated main state for human player - myCardsToPeek updated, status computed from SSOT', isOn: LOGGING_SWITCH);
-      } else {
-        // For computer players, just update the games map
-        final currentGames = _stateCallback.currentGamesMap;
-        _stateCallback.onGameStateChanged({
           'games': currentGames,
         });
-        _logger.info('Recall: Updated games state for computer player', isOn: LOGGING_SWITCH);
+        _logger.info('Recall: STEP 2 - Sent full cardsToPeek data to human player $peekingPlayerId only', isOn: LOGGING_SWITCH);
+      } else {
+        // For computer players, just send games map update
+        _stateCallback.sendGameStateToPlayer(peekingPlayerId, {
+          'games': currentGames,
+        });
+        _logger.info('Recall: STEP 2 - Sent full cardsToPeek data to computer player $peekingPlayerId only', isOn: LOGGING_SWITCH);
       }
 
       _logger.info('Recall: Queen peek completed successfully', isOn: LOGGING_SWITCH);

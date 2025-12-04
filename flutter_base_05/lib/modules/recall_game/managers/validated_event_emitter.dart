@@ -57,7 +57,7 @@ class RecallGameEventEmitter {
     },
     'join_room': {'room_id', 'password'},
     'join_game': {'game_id', 'player_name', 'max_players'},
-    'start_match': {'game_id'},
+    'start_match': {'game_id', 'showInstructions'},
     'play_card': {'game_id', 'card_id', 'replace_index'}, // player_id auto-added
     'replace_drawn_card': {'game_id', 'card_index'}, // player_id auto-added
     'play_drawn_card': {'game_id'}, // player_id auto-added
@@ -223,6 +223,11 @@ class RecallGameEventEmitter {
       type: String,
       pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
       description: 'Owner ID of the card being peeked at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, practice_session_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
+    ),
+    'showInstructions': RecallEventFieldSpec(
+      type: bool,
+      required: false,
+      description: 'Whether to show instructions (disable timers) in practice mode',
     ),
   };
   

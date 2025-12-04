@@ -39,7 +39,7 @@ class StateQueueValidator {
 
   /// Logger instance (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
 
   /// Define the complete state schema with validation rules
   /// Must remain identical across Flutter and Dart backend implementations
@@ -442,6 +442,20 @@ class StateQueueValidator {
         'recall',
         'finished'
       ],
+    ),
+    
+    // Practice Mode Fields
+    'practiceUser': RecallStateFieldSpec(
+      type: Map,
+      required: false,
+      nullable: true,
+      description: 'Practice mode user data (userId, displayName, isPracticeUser)',
+    ),
+    'practiceSettings': RecallStateFieldSpec(
+      type: Map,
+      required: false,
+      nullable: true,
+      description: 'Practice mode settings (difficulty, showInstructions)',
     ),
     
     // Game Status Field

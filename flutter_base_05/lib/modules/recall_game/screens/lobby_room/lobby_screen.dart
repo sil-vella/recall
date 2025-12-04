@@ -31,7 +31,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -214,14 +214,14 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       };
       _logger.info('🎮 _startPracticeMatch: Generated practice user: $currentUserId', isOn: LOGGING_SWITCH);
       
-      // Store practice user data in recall_game state (accessible to event handlers)
-      // Use StateManager directly to ensure immediate update (bypasses queue for critical data)
-      final stateManager = StateManager();
-      final recallGameState = stateManager.getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-      final updatedState = Map<String, dynamic>.from(recallGameState);
-      updatedState['practiceUser'] = practiceUserData;
-      stateManager.updateModuleState('recall_game', updatedState);
-      _logger.info('🎮 _startPracticeMatch: Stored practice user data in state', isOn: LOGGING_SWITCH);
+      // Store practice user data and settings in recall_game state (accessible to event handlers)
+      // Use validated state updater to ensure proper validation
+      RecallGameHelpers.updateUIState({
+        'practiceUser': practiceUserData,
+        'practiceSettings': practiceSettings,
+      });
+      _logger.info('🎮 _startPracticeMatch: Stored practice user data and settings in state', isOn: LOGGING_SWITCH);
+      _logger.info('🎮 _startPracticeMatch: showInstructions = ${practiceSettings['showInstructions']}', isOn: LOGGING_SWITCH);
       
       // Verify practice user data was stored (read back from state)
       final verifyState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};

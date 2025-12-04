@@ -61,9 +61,19 @@ class GameCoordinator {
         return false;
       }
       
+      // Get practice settings if this is a practice game (for showInstructions)
+      final bool? showInstructions;
+      if (currentGameId.startsWith('practice_room_')) {
+        final practiceSettings = recallGameState['practiceSettings'] as Map<String, dynamic>?;
+        showInstructions = practiceSettings?['showInstructions'] as bool?;
+      } else {
+        showInstructions = null; // Multiplayer games don't use showInstructions
+      }
+      
       // Create and execute the player action
       final action = PlayerAction.startMatch(
         gameId: currentGameId,
+        showInstructions: showInstructions,
       );
       
       await action.execute();

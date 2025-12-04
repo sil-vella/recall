@@ -30,7 +30,7 @@ class PlayerAction {
   static final RecallGameStateUpdater _stateUpdater = RecallGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Temporarily enabled for debugging
+  static const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
   // Jack swap selection tracking
   static String? _firstSelectedCardId;
   static String? _firstSelectedPlayerId;
@@ -377,13 +377,21 @@ class PlayerAction {
   /// Start a match
   static PlayerAction startMatch({
     required String gameId,
+    bool? showInstructions,
   }) {
+    final payload = <String, dynamic>{
+      'game_id': gameId,
+    };
+    
+    // Include showInstructions if provided (practice mode)
+    if (showInstructions != null) {
+      payload['showInstructions'] = showInstructions;
+    }
+    
     return PlayerAction._(
       actionType: PlayerActionType.useSpecialPower, // Using a generic type since start_match isn't in the enum
       eventName: 'start_match',
-      payload: {
-        'game_id': gameId,
-      },
+      payload: payload,
     );
   }
 

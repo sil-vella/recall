@@ -30,6 +30,20 @@ class WebSocketServerStub {
     _onBroadcastToRoom?.call(roomId, message);
   }
 
+  /// Broadcast to all sessions in a room except the specified session
+  /// In practice mode, this is typically a no-op since there's only one player
+  void broadcastToRoomExcept(String roomId, Map<String, dynamic> message, String excludeSessionId) {
+    final sessions = _roomManager.getSessionsInRoom(roomId);
+    final filteredSessions = sessions.where((sessionId) => sessionId != excludeSessionId).toList();
+    _logger.info('WebSocketServerStub: broadcastToRoomExcept $roomId (excluding $excludeSessionId, ${filteredSessions.length} sessions)', isOn: false);
+    
+    // In practice mode, if we're excluding the only player, this is a no-op
+    // Otherwise, broadcast to remaining sessions
+    for (final sessionId in filteredSessions) {
+      _onSendToSession?.call(sessionId, message);
+    }
+  }
+
   String? getUserIdForSession(String sessionId) {
     // In practice mode, extract userId from sessionId
     if (sessionId.startsWith('practice_session_')) {

@@ -182,41 +182,14 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
       final ownerId = server.getRoomOwner(roomId);
       
       // Broadcast to all players except the excluded one (excludePlayerId = sessionId in this system)
-      // Try to use broadcastToRoomExcept if available, otherwise fall back to regular broadcast
-      try {
-        // Use dynamic call to check if method exists (for compatibility with different server implementations)
-        final serverDynamic = server as dynamic;
-        if (serverDynamic.broadcastToRoomExcept != null) {
-          serverDynamic.broadcastToRoomExcept(roomId, {
-            'event': 'game_state_updated',
-            'game_id': roomId,
-            'game_state': gameState,
-            'turn_events': turnEvents,
-            if (ownerId != null) 'owner_id': ownerId,
-            'timestamp': DateTime.now().toIso8601String(),
-          }, excludePlayerId);
-        } else {
-          // Fallback: use regular broadcast (this shouldn't happen in backend, but handle gracefully)
-          server.broadcastToRoom(roomId, {
-            'event': 'game_state_updated',
-            'game_id': roomId,
-            'game_state': gameState,
-            'turn_events': turnEvents,
-            if (ownerId != null) 'owner_id': ownerId,
-            'timestamp': DateTime.now().toIso8601String(),
-          });
-        }
-      } catch (e) {
-        // Fallback: use regular broadcast if method doesn't exist
-        server.broadcastToRoom(roomId, {
-          'event': 'game_state_updated',
-          'game_id': roomId,
-          'game_state': gameState,
-          'turn_events': turnEvents,
-          if (ownerId != null) 'owner_id': ownerId,
-          'timestamp': DateTime.now().toIso8601String(),
-        });
-      }
+      server.broadcastToRoomExcept(roomId, {
+        'event': 'game_state_updated',
+        'game_id': roomId,
+        'game_state': gameState,
+        'turn_events': turnEvents,
+        if (ownerId != null) 'owner_id': ownerId,
+        'timestamp': DateTime.now().toIso8601String(),
+      }, excludePlayerId);
       
       _logger.info('✅ broadcastGameStateExcept: Broadcasted state update to all except player $excludePlayerId', isOn: LOGGING_SWITCH);
     } catch (e) {

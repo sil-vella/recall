@@ -3,7 +3,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Entry point for registering Recall game module components with the server.
 class RecallGameModule {

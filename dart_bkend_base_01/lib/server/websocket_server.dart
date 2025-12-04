@@ -276,6 +276,20 @@ class WebSocketServer {
       sendToSession(sessionId, message);
     }
   }
+
+  /// Broadcast to all sessions in a room except the specified session
+  /// 
+  /// [roomId] The room ID to broadcast to
+  /// [message] The message to send
+  /// [excludeSessionId] The session ID to exclude from the broadcast
+  void broadcastToRoomExcept(String roomId, Map<String, dynamic> message, String excludeSessionId) {
+    final sessions = _roomManager.getSessionsInRoom(roomId);
+    final filteredSessions = sessions.where((sessionId) => sessionId != excludeSessionId).toList();
+    _logger.room('📢 Broadcasting to room $roomId (${filteredSessions.length} clients, excluding $excludeSessionId)', isOn: LOGGING_SWITCH);
+    for (final sessionId in filteredSessions) {
+      sendToSession(sessionId, message);
+    }
+  }
   
   int get connectionCount => _connections.length;
 }

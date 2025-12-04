@@ -7,24 +7,22 @@ import '../../utils/platform/shared_imports.dart';
 /// in both Flutter recall (StateManager) and Dart backend (WebSocket broadcasts).
 
 abstract class GameStateCallback {
-  /// Update player status for a specific player or all players
-  /// 
-  /// [status] The new status to set
-  /// [playerId] Optional player ID. If null, updates all players
-  /// [updateMainState] Whether to also update the main game state playerStatus
-  /// [triggerInstructions] Whether to trigger contextual instructions after status update
-  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
-  void onPlayerStatusChanged(String status, {
-    String? playerId,
-    bool updateMainState = true,
-    bool triggerInstructions = false,
-    Map<String, dynamic>? gamesMap,
-  });
-
   /// Update game state with provided updates
   /// 
   /// [updates] Map of state updates to apply
   void onGameStateChanged(Map<String, dynamic> updates);
+
+  /// Send game state update to a single player (for sensitive data like drawn card details)
+  /// 
+  /// [playerId] The player ID (session ID) to send the update to
+  /// [updates] Map of state updates to apply and send
+  void sendGameStateToPlayer(String playerId, Map<String, dynamic> updates);
+
+  /// Broadcast game state update to all players except one (for hiding sensitive data from specific player)
+  /// 
+  /// [excludePlayerId] The player ID (session ID) to exclude from the broadcast
+  /// [updates] Map of state updates to apply and broadcast
+  void broadcastGameStateExcept(String excludePlayerId, Map<String, dynamic> updates);
 
   /// Notify that discard pile has been updated
   void onDiscardPileChanged();

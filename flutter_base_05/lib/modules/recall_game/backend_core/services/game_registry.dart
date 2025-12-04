@@ -56,42 +56,6 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   }
 
   @override
-  void onPlayerStatusChanged(String status, {String? playerId, bool updateMainState = true, bool triggerInstructions = false, Map<String, dynamic>? gamesMap}) {
-    final state = _store.getGameState(roomId);
-    final players = (state['players'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList();
-    for (final p in players) {
-      if (playerId == null || p['id'] == playerId) {
-        p['status'] = status;
-      }
-    }
-    if (updateMainState) {
-      // mirror Flutter recall behavior
-      state['playerStatus'] = status;
-    }
-    _store.setGameState(roomId, state);
-    
-    // Also broadcast full game_state_updated to ensure currentPlayer is included
-    // This is needed when starting a new turn and currentPlayer changes
-    final ownerId = server.getRoomOwner(roomId);
-    server.broadcastToRoom(roomId, {
-      'event': 'game_state_updated',
-      'game_id': roomId,
-      'game_state': state, // Include full state with currentPlayer
-      if (ownerId != null) 'owner_id': ownerId,
-      'timestamp': DateTime.now().toIso8601String(),
-    });
-    
-    // Also send player_status_updated for backward compatibility
-    server.broadcastToRoom(roomId, {
-      'event': 'player_status_updated',
-      'room_id': roomId,
-      'player_id': playerId,
-      'status': status,
-      'timestamp': DateTime.now().toIso8601String(),
-    });
-  }
-
-  @override
   void onGameStateChanged(Map<String, dynamic> updates) {
     // Log turn_events if present in updates
     if (updates.containsKey('turn_events')) {
@@ -105,6 +69,159 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
     // Use StateQueueValidator to validate and queue the update
     // The validator will call our update handler with validated updates
     _validator.enqueueUpdate(updates);
+  }
+
+  @override
+  void sendGameStateToPlayer(String playerId, Map<String, dynamic> updates) {
+    // Validate and apply updates to state store (same as onGameStateChanged)
+    // But send only to the specific player instead of broadcasting
+    _logger.info('📤 sendGameStateToPlayer: Sending state update to player $playerId', isOn: LOGGING_SWITCH);
+    
+    try {
+      // Validate updates using the same validator (direct validation, not queued)
+      final validatedUpdates = _validator.validateUpdate(updates);
+      
+      // Apply validated updates to state store
+      _store.mergeRoot(roomId, validatedUpdates);
+      
+      // Read the full state after merge
+      final state = _store.getState(roomId);
+      final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
+      
+      // Extract turn_events from root state
+      final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
+      
+      // Handle phase normalization (same as _applyValidatedUpdates)
+      if (validatedUpdates.containsKey('gamePhase')) {
+        final phase = validatedUpdates['gamePhase']?.toString();
+        if (phase != null) {
+          String normalizedPhase = phase;
+          if (phase == 'special_play_window') {
+            normalizedPhase = 'special_play_window';
+          } else if (phase == 'same_rank_window') {
+            normalizedPhase = 'same_rank_window';
+          } else if (phase == 'player_turn') {
+            normalizedPhase = 'playing';
+          } else if (phase == 'ending_round') {
+            normalizedPhase = 'ending_round';
+          } else if (phase == 'ending_turn') {
+            normalizedPhase = 'ending_turn';
+          }
+          gameState['phase'] = normalizedPhase;
+        }
+      }
+      
+      // Ensure phase key and playerCount
+      gameState['phase'] = gameState['phase'] ?? 'playing';
+      gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
+      
+      // Owner info for gating
+      final ownerId = server.getRoomOwner(roomId);
+      
+      // Send to single player (playerId = sessionId in this system)
+      server.sendToSession(playerId, {
+        'event': 'game_state_updated',
+        'game_id': roomId,
+        'game_state': gameState,
+        'turn_events': turnEvents,
+        if (ownerId != null) 'owner_id': ownerId,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      _logger.info('✅ sendGameStateToPlayer: Sent state update to player $playerId', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('❌ sendGameStateToPlayer: Error sending state update to player $playerId: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  @override
+  void broadcastGameStateExcept(String excludePlayerId, Map<String, dynamic> updates) {
+    // Validate and apply updates to state store (same as onGameStateChanged)
+    // But broadcast to all players except the excluded one
+    _logger.info('📤 broadcastGameStateExcept: Broadcasting state update to all except player $excludePlayerId', isOn: LOGGING_SWITCH);
+    
+    try {
+      // Validate updates using the same validator (direct validation, not queued)
+      final validatedUpdates = _validator.validateUpdate(updates);
+      
+      // Apply validated updates to state store
+      _store.mergeRoot(roomId, validatedUpdates);
+      
+      // Read the full state after merge
+      final state = _store.getState(roomId);
+      final gameState = state['game_state'] as Map<String, dynamic>? ?? {};
+      
+      // Extract turn_events from root state
+      final turnEvents = state['turn_events'] as List<dynamic>? ?? [];
+      
+      // Handle phase normalization (same as _applyValidatedUpdates)
+      if (validatedUpdates.containsKey('gamePhase')) {
+        final phase = validatedUpdates['gamePhase']?.toString();
+        if (phase != null) {
+          String normalizedPhase = phase;
+          if (phase == 'special_play_window') {
+            normalizedPhase = 'special_play_window';
+          } else if (phase == 'same_rank_window') {
+            normalizedPhase = 'same_rank_window';
+          } else if (phase == 'player_turn') {
+            normalizedPhase = 'playing';
+          } else if (phase == 'ending_round') {
+            normalizedPhase = 'ending_round';
+          } else if (phase == 'ending_turn') {
+            normalizedPhase = 'ending_turn';
+          }
+          gameState['phase'] = normalizedPhase;
+        }
+      }
+      
+      // Ensure phase key and playerCount
+      gameState['phase'] = gameState['phase'] ?? 'playing';
+      gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
+      
+      // Owner info for gating
+      final ownerId = server.getRoomOwner(roomId);
+      
+      // Broadcast to all players except the excluded one (excludePlayerId = sessionId in this system)
+      // Try to use broadcastToRoomExcept if available, otherwise fall back to regular broadcast
+      try {
+        // Use dynamic call to check if method exists (for compatibility with different server implementations)
+        final serverDynamic = server as dynamic;
+        if (serverDynamic.broadcastToRoomExcept != null) {
+          serverDynamic.broadcastToRoomExcept(roomId, {
+            'event': 'game_state_updated',
+            'game_id': roomId,
+            'game_state': gameState,
+            'turn_events': turnEvents,
+            if (ownerId != null) 'owner_id': ownerId,
+            'timestamp': DateTime.now().toIso8601String(),
+          }, excludePlayerId);
+        } else {
+          // Fallback: use regular broadcast (this shouldn't happen in backend, but handle gracefully)
+          server.broadcastToRoom(roomId, {
+            'event': 'game_state_updated',
+            'game_id': roomId,
+            'game_state': gameState,
+            'turn_events': turnEvents,
+            if (ownerId != null) 'owner_id': ownerId,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+        }
+      } catch (e) {
+        // Fallback: use regular broadcast if method doesn't exist
+        server.broadcastToRoom(roomId, {
+          'event': 'game_state_updated',
+          'game_id': roomId,
+          'game_state': gameState,
+          'turn_events': turnEvents,
+          if (ownerId != null) 'owner_id': ownerId,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+      }
+      
+      _logger.info('✅ broadcastGameStateExcept: Broadcasted state update to all except player $excludePlayerId', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('❌ broadcastGameStateExcept: Error broadcasting state update: $e', isOn: LOGGING_SWITCH);
+    }
   }
   
   /// Apply validated updates to GameStateStore and broadcast

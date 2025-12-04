@@ -34,6 +34,35 @@ class RecallGameRound {
   String? _recallCaller;
   
   RecallGameRound(this._stateCallback, this._gameId);
+
+  /// Helper method to update player status in games map and broadcast via onGameStateChanged
+  /// Replaces onPlayerStatusChanged to avoid redundant broadcasts
+  void _updatePlayerStatusInGamesMap(String status, {String? playerId, Map<String, dynamic>? gamesMap}) {
+    final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
+    final gameId = _gameId;
+    
+    if (currentGames.containsKey(gameId)) {
+      final gameData = currentGames[gameId] as Map<String, dynamic>;
+      final gameDataInner = gameData['gameData'] as Map<String, dynamic>?;
+      if (gameDataInner != null) {
+        final gameStateData = gameDataInner['game_state'] as Map<String, dynamic>?;
+        if (gameStateData != null) {
+          final players = (gameStateData['players'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList();
+          for (final p in players) {
+            if (playerId == null || p['id'] == playerId) {
+              p['status'] = status;
+            }
+          }
+        }
+      }
+    }
+    
+    // Broadcast the update with playerStatus in main state
+    _stateCallback.onGameStateChanged({
+      'games': currentGames,
+      'playerStatus': status, // Update main state playerStatus
+    });
+  }
   
   /// Initialize the round with the current game state
   /// Replicates backend _initial_peek_timeout() and start_turn() logic
@@ -251,7 +280,7 @@ class RecallGameRound {
       // Reset previous current player's status to waiting (if there was one)
       if (currentPlayerId != null) {
         _logger.info('Recall: Resetting previous current player $currentPlayerId to waiting status', isOn: LOGGING_SWITCH);
-        _stateCallback.onPlayerStatusChanged('waiting', playerId: currentPlayerId, updateMainState: true);
+        _updatePlayerStatusInGamesMap('waiting', playerId: currentPlayerId);
       }
       
       // Update current player in game state (in place for local use)
@@ -291,7 +320,7 @@ class RecallGameRound {
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
       // This matches backend behavior where first player status is DRAWING_CARD
       // CRITICAL: Pass currentGames to avoid reading stale state - the games map was just updated above
-      _stateCallback.onPlayerStatusChanged('drawing_card', playerId: nextPlayer['id'], updateMainState: true, triggerInstructions: true, gamesMap: currentGames);
+      _updatePlayerStatusInGamesMap('drawing_card', playerId: nextPlayer['id'], gamesMap: currentGames);
       
       // Check if this is a computer player and trigger computer turn logic
       final isHuman = nextPlayer['isHuman'] as bool? ?? false;
@@ -1094,7 +1123,7 @@ class RecallGameRound {
       }
       
       // Change player status from DRAWING_CARD to PLAYING_CARD
-      _stateCallback.onPlayerStatusChanged('playing_card', playerId: actualPlayerId, updateMainState: true, triggerInstructions: true);
+      _updatePlayerStatusInGamesMap('playing_card', playerId: actualPlayerId);
       
       _logger.info('Recall: Player $actualPlayerId status changed from drawing_card to playing_card', isOn: LOGGING_SWITCH);
       
@@ -1325,12 +1354,7 @@ class RecallGameRound {
         _logger.info('Recall: Player $playerName ($playerId) has collected all 4 cards of rank ${player['collection_rank']} - FOUR OF A KIND WIN!', isOn: LOGGING_SWITCH);
         
         // Set all players to waiting status
-        _stateCallback.onPlayerStatusChanged(
-          'waiting',
-          playerId: null, // null = update ALL players
-          updateMainState: true,
-          triggerInstructions: false,
-        );
+        _updatePlayerStatusInGamesMap('waiting', playerId: null);
         
         // Add player to winners list
         _winnersList.add({
@@ -1440,7 +1464,7 @@ class RecallGameRound {
           );
           
           // CRITICAL: Restore player status to playing_card so they can retry
-          _stateCallback.onPlayerStatusChanged('playing_card', playerId: playerId, updateMainState: true);
+          _updatePlayerStatusInGamesMap('playing_card', playerId: playerId);
           _logger.info('Recall: Restored player $playerId status to playing_card after failed collection rank play', isOn: LOGGING_SWITCH);
           
           return false;
@@ -1827,7 +1851,7 @@ class RecallGameRound {
         
         // Update player state to reflect the new hand and draw pile
         // CRITICAL: Pass currentGames to avoid reading stale state
-        _stateCallback.onPlayerStatusChanged('waiting', playerId: playerId, updateMainState: true, gamesMap: currentGames);
+        _updatePlayerStatusInGamesMap('waiting', playerId: playerId, gamesMap: currentGames);
         
         // Broadcast the updated game state (hand and drawPile changes)
         // Use the games map we're working with (currentGames already has modifications)
@@ -2140,7 +2164,7 @@ class RecallGameRound {
         
         if (currentPlayerId != null && currentPlayerId.isNotEmpty) {
           // Set player status to waiting
-          _stateCallback.onPlayerStatusChanged('waiting', playerId: currentPlayerId, updateMainState: true);
+          _updatePlayerStatusInGamesMap('waiting', playerId: currentPlayerId);
           _logger.info('Recall: Player $currentPlayerId status set to waiting after Jack swap completion', isOn: LOGGING_SWITCH);
           
           // Remove the processed card from the list
@@ -2390,19 +2414,8 @@ class RecallGameRound {
     try {
       _logger.info('Recall: Starting same rank window - setting all players to same_rank_window status', isOn: LOGGING_SWITCH);
       
-      // Use the unified updatePlayerStatus method with playerId = null to update ALL players
-      // This will:
-      // 1. Update all players' status in the games map
-      // 2. Update playerStatus in main state (for MyHandWidget)
-      // 3. Update currentPlayer and currentPlayerStatus (for OpponentsPanel)
-      // 4. Update isMyTurn (for ActionBar and MyHandWidget)
-      // 5. Update games map in main state (for all state slices)
-      _stateCallback.onPlayerStatusChanged(
-        'same_rank_window',
-        playerId: null, // null = update ALL players
-        updateMainState: true,
-        triggerInstructions: false, // Don't trigger instructions for same rank window
-      );
+      // Update all players' status to same_rank_window
+      _updatePlayerStatusInGamesMap('same_rank_window', playerId: null);
       
       _logger.info('Recall: Successfully set all players to same_rank_window status', isOn: LOGGING_SWITCH);
       // This ensures collection from discard pile is properly blocked during same rank window
@@ -2452,12 +2465,7 @@ class RecallGameRound {
       _logger.info('Recall: No same rank plays recorded (simplified recall mode)', isOn: LOGGING_SWITCH);
       
       // Update all players' status to WAITING
-      _stateCallback.onPlayerStatusChanged(
-        'waiting',
-        playerId: null, // null = update ALL players
-        updateMainState: true,
-        triggerInstructions: false,
-      );
+      _updatePlayerStatusInGamesMap('waiting', playerId: null);
       
       _logger.info('Recall: Successfully reset all players to waiting status', isOn: LOGGING_SWITCH);
       
@@ -2786,12 +2794,7 @@ class RecallGameRound {
         _logger.info('Recall: Cancelled special card timer', isOn: LOGGING_SWITCH);
         
         // Set all players to waiting status
-        _stateCallback.onPlayerStatusChanged(
-          'waiting',
-          playerId: null, // null = update ALL players
-          updateMainState: true,
-          triggerInstructions: false,
-        );
+        _updatePlayerStatusInGamesMap('waiting', playerId: null);
         _logger.info('Recall: Set all players to waiting status', isOn: LOGGING_SWITCH);
         
         // Update game phase to game_ended (must match validator allowed values)
@@ -3089,10 +3092,10 @@ class RecallGameRound {
       
       // Set player status based on special power
       if (specialPower == 'jack_swap') {
-        _stateCallback.onPlayerStatusChanged('jack_swap', playerId: playerId, updateMainState: true);
+        _updatePlayerStatusInGamesMap('jack_swap', playerId: playerId);
         _logger.info('Recall: Player $playerId status set to jack_swap - 10 second timer started', isOn: LOGGING_SWITCH);
       } else if (specialPower == 'queen_peek') {
-        _stateCallback.onPlayerStatusChanged('queen_peek', playerId: playerId, updateMainState: true);
+        _updatePlayerStatusInGamesMap('queen_peek', playerId: playerId);
         _logger.info('Recall: Player $playerId status set to queen_peek - 10 second timer started', isOn: LOGGING_SWITCH);
       } else {
         _logger.warning('Recall: Unknown special power: $specialPower for player $playerId', isOn: LOGGING_SWITCH);
@@ -3177,7 +3180,7 @@ class RecallGameRound {
           }
         }
         
-        _stateCallback.onPlayerStatusChanged('waiting', playerId: playerId, updateMainState: true);
+        _updatePlayerStatusInGamesMap('waiting', playerId: playerId);
         _logger.info('Recall: Player $playerId special card timer expired - status reset to waiting', isOn: LOGGING_SWITCH);
         
         // Remove the processed card from the list
@@ -3304,7 +3307,7 @@ class RecallGameRound {
       
       // Set current player status to waiting before moving to next player
       final currentPlayerId = currentPlayer['id']?.toString() ?? '';
-      _stateCallback.onPlayerStatusChanged('waiting', playerId: currentPlayerId, updateMainState: true);
+          _updatePlayerStatusInGamesMap('waiting', playerId: currentPlayerId);
       _logger.info('Recall: Set current player $currentPlayerId status to waiting', isOn: LOGGING_SWITCH);
       
       // Find current player index
@@ -3330,8 +3333,7 @@ class RecallGameRound {
       gameState['currentPlayer'] = nextPlayer;
       _logger.info('Recall: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
       
-      // CRITICAL: Update currentPlayer in the games map before calling onPlayerStatusChanged
-      // This ensures updatePlayerStatus reads the correct currentPlayer
+      // Update currentPlayer and player status in the games map
       final currentGames = _stateCallback.currentGamesMap;
       final gameId = _gameId;
       if (currentGames.containsKey(gameId)) {
@@ -3341,17 +3343,24 @@ class RecallGameRound {
           final gameStateData = gameDataInner['game_state'] as Map<String, dynamic>?;
           if (gameStateData != null) {
             gameStateData['currentPlayer'] = nextPlayer;
+            // Update player status to drawing_card
+            final players = (gameStateData['players'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList();
+            for (final p in players) {
+              if (p['id'] == nextPlayerId) {
+                p['status'] = 'drawing_card';
+                break;
+              }
+            }
             _logger.info('Recall: Updated currentPlayer in games map to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
           }
         }
       }
       
-      // CRITICAL: Update state with new currentPlayer before calling onPlayerStatusChanged
-      // This ensures the state is updated even though onPlayerStatusChanged will also update it
-      // The gamesMap parameter to onPlayerStatusChanged ensures it uses the correct games map
+      // CRITICAL: Update state with new currentPlayer and status
       _stateCallback.onGameStateChanged({
-        'games': currentGames, // Modified games map with new currentPlayer
+        'games': currentGames, // Modified games map with new currentPlayer and status
         'currentPlayer': nextPlayer, // Also update main state's currentPlayer field for immediate access
+        'playerStatus': 'drawing_card', // Update main state playerStatus
         'turn_events': [], // Clear all turn events for new turn
       });
       _logger.info('Recall: Updated games map with new currentPlayer and cleared turn_events for new turn', isOn: LOGGING_SWITCH);
@@ -3371,7 +3380,7 @@ class RecallGameRound {
       
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
       // CRITICAL: Pass currentGames to avoid reading stale state - the games map was just updated above
-      _stateCallback.onPlayerStatusChanged('drawing_card', playerId: nextPlayerId, updateMainState: true, triggerInstructions: true, gamesMap: currentGames);
+      _updatePlayerStatusInGamesMap('drawing_card', playerId: nextPlayerId, gamesMap: currentGames);
       _logger.info('Recall: Set next player ${nextPlayer['name']} to drawing_card status', isOn: LOGGING_SWITCH);
       
       // Check if this is a computer player and trigger computer turn logic

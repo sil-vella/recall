@@ -25,7 +25,7 @@ class RecallGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   
   // Dependencies
   final StateManager _stateManager = StateManager();

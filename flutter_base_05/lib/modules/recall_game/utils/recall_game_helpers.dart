@@ -13,7 +13,7 @@ class RecallGameHelpers {
   static final _stateUpdater = RecallGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   
   // ========================================
   // EVENT EMISSION HELPERS

@@ -62,6 +62,12 @@ class WebSocketServerStub {
     final info = _roomManager.getRoomInfo(roomId);
     return info?.ownerId;
   }
+
+  /// Get room info for a room
+  /// Returns the RoomInfoStub object or null if not found
+  RoomInfoStub? getRoomInfo(String roomId) {
+    return _roomManager.getRoomInfo(roomId);
+  }
   
   // Method to trigger hooks (needed for compatibility with backend interface)
   void triggerHook(String hookName, {Map<String, dynamic>? data, String? context}) {

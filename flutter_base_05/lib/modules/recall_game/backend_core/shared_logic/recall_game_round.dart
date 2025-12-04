@@ -3828,20 +3828,40 @@ class RecallGameRound {
         
         if (player.isNotEmpty) {
           // Clear drawnCard property (card is now in hand, not "drawn")
-          if (player.containsKey('drawnCard') && player['drawnCard'] != null) {
-            player['drawnCard'] = null;
-            _logger.info('Recall: Cleared drawnCard property for player $playerId (timer expired, card remains in hand)', isOn: LOGGING_SWITCH);
+          // Remove the key entirely to ensure it's not visible to other players
+          if (player.containsKey('drawnCard')) {
+            player.remove('drawnCard');
+            _logger.info('Recall: Removed drawnCard property for player $playerId (timer expired, card remains in hand)', isOn: LOGGING_SWITCH);
           }
           
           // Update player status to waiting
           player['status'] = 'waiting';
           _logger.info('Recall: Updated player $playerId status to waiting (timer expired)', isOn: LOGGING_SWITCH);
           
-          // Broadcast state update to all players
+          // CRITICAL: Sanitize drawnCard for all players before broadcasting
+          // Even though we removed it from the current player, we need to ensure
+          // no other players have drawnCard data visible
+          for (final p in players) {
+            if (p['id'] != playerId && p.containsKey('drawnCard') && p['drawnCard'] != null) {
+              final drawnCard = p['drawnCard'] as Map<String, dynamic>?;
+              if (drawnCard != null && drawnCard.containsKey('rank') && drawnCard['rank'] != '?') {
+                // This player has full drawnCard data - sanitize it to ID-only
+                p['drawnCard'] = {
+                  'cardId': drawnCard['cardId'],
+                  'suit': '?',
+                  'rank': '?',
+                  'points': 0,
+                };
+                _logger.info('Recall: Sanitized drawnCard for player ${p['id']} before broadcast (timer expiration)', isOn: LOGGING_SWITCH);
+              }
+            }
+          }
+          
+          // Broadcast state update to all players (drawnCard is now removed/sanitized)
           _stateCallback.onGameStateChanged({
             'games': currentGames,
           });
-          _logger.info('Recall: Broadcasted state update after play timer expiration for player $playerId', isOn: LOGGING_SWITCH);
+          _logger.info('Recall: Broadcasted state update after play timer expiration for player $playerId (drawnCard removed/sanitized)', isOn: LOGGING_SWITCH);
         }
       }
     } catch (e) {

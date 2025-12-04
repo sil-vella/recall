@@ -336,15 +336,8 @@ class _ServerGameStateCallbackImpl implements GameStateCallback {
   @override
   Map<String, dynamic> getTimerConfig() {
     // Get turnTimeLimit from room config
-    // Use try-catch to handle cases where server might not have getRoomInfo (e.g., practice mode stubs)
-    int turnTimeLimit = 30;
-    try {
-      final roomInfo = server.getRoomInfo(roomId);
-      turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;
-    } catch (e) {
-      // Fallback to default if getRoomInfo is not available (e.g., in practice mode)
-      _logger.info('GameRegistry: getRoomInfo not available, using default turnTimeLimit: $turnTimeLimit', isOn: LOGGING_SWITCH);
-    }
+    final roomInfo = server.getRoomInfo(roomId);
+    final turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;
     
     // Get showInstructions from game state (default to false if not found)
     final gameState = _store.getGameState(roomId);

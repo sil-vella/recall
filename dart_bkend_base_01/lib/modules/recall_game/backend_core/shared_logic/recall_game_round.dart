@@ -1055,11 +1055,11 @@ class RecallGameRound {
       // STEP 1: Set drawnCard to ID-only for ALL players (including human) for initial broadcast
       // This shows all players that a card was drawn without revealing the card details
       final idOnlyDrawnCard = {
-        'cardId': drawnCard['cardId'],
+          'cardId': drawnCard['cardId'],
         'suit': '?',      // Hide suit
         'rank': '?',      // Hide rank
         'points': 0,      // Hide points
-      };
+        };
       player['drawnCard'] = idOnlyDrawnCard;
       
       // For computer players, also add to known_cards (they need full data for logic)
@@ -1128,7 +1128,7 @@ class RecallGameRound {
         _stateCallback.broadcastGameStateExcept(actualPlayerId, {
           'games': currentGames, // Games map with ID-only drawnCard
           'turn_events': turnEvents, // Add turn event for animation
-        });
+      });
       }
       
       // Cancel draw timer (draw action completed)

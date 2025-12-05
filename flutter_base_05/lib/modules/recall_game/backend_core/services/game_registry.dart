@@ -17,7 +17,7 @@ class GameRegistry {
 
   RecallGameRound getOrCreate(String roomId, WebSocketServer server) {
     return _roomIdToRound.putIfAbsent(roomId, () {
-      final callback = _ServerGameStateCallbackImpl(roomId, server);
+      final callback = ServerGameStateCallbackImpl(roomId, server);
       final round = RecallGameRound(callback, roomId);
       _logger.info('GameRegistry: Created RecallGameRound for $roomId', isOn: LOGGING_SWITCH);
       return round;
@@ -32,14 +32,14 @@ class GameRegistry {
 }
 
 /// Server implementation of GameStateCallback for backend-authoritative play.
-class _ServerGameStateCallbackImpl implements GameStateCallback {
+class ServerGameStateCallbackImpl implements GameStateCallback {
   final String roomId;
   final WebSocketServer server;
   final _store = GameStateStore.instance;
   final Logger _logger = Logger();
   final StateQueueValidator _validator = StateQueueValidator.instance;
 
-  _ServerGameStateCallbackImpl(this.roomId, this.server) {
+  ServerGameStateCallbackImpl(this.roomId, this.server) {
     // Initialize state queue validator with logger callback
     _validator.setLogCallback((String message, {bool isError = false}) {
       if (isError) {

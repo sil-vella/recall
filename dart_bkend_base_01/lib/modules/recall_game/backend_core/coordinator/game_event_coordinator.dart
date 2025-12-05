@@ -14,6 +14,7 @@ class GameEventCoordinator {
   final _registry = GameRegistry.instance;
   final _store = GameStateStore.instance;
   final Logger _logger = Logger();
+  final Map<String, Timer?> _initialPeekTimers = {};
 
   GameEventCoordinator(this.roomManager, this.server);
 
@@ -314,7 +315,7 @@ class GameEventCoordinator {
     
     // Get turnTimeLimit from room config (reuse roomInfo from earlier in method)
     final turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;
-    
+
     // Build updated game_state - set to initial_peek phase
     final gameState = <String, dynamic>{
       'gameId': roomId,
@@ -359,7 +360,18 @@ class GameEventCoordinator {
       'timestamp': DateTime.now().toIso8601String(),
     });
 
-    // DO NOT call initializeRound() yet - wait for human completed_initial_peek
+    // Start 15-second timer for initial peek phase (only if instructions are not shown)
+    if (!showInstructions) {
+      _initialPeekTimers[roomId]?.cancel();
+      _initialPeekTimers[roomId] = Timer(Duration(seconds: 15), () {
+        _onInitialPeekTimerExpired(roomId, round);
+      });
+      _logger.info('GameEventCoordinator: Initial peek phase started - 15-second timer started', isOn: LOGGING_SWITCH);
+    } else {
+      _logger.info('GameEventCoordinator: Initial peek phase started - timer disabled (showInstructions=true)', isOn: LOGGING_SWITCH);
+    }
+
+    // DO NOT call initializeRound() yet - wait for timer expiry or all players complete
     _logger.info('GameEventCoordinator: Initial peek phase started - waiting for human player', isOn: LOGGING_SWITCH);
   }
 
@@ -529,6 +541,27 @@ class GameEventCoordinator {
     return null;
   }
 
+  /// Check if all players have completed initial peek
+  /// A player has completed if they have collection_rank set and collection_rank_cards populated
+  bool _allPlayersCompletedInitialPeek(String roomId) {
+    final gameState = _store.getGameState(roomId);
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    
+    for (final player in players) {
+      if (player is! Map<String, dynamic>) continue;
+      
+      final collectionRank = player['collection_rank'] as String?;
+      final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      
+      // Player hasn't completed if collection_rank is null/empty or collection_rank_cards is empty
+      if (collectionRank == null || collectionRank.isEmpty || collectionRankCards.isEmpty) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
   /// Handle the completed_initial_peek event from frontend
   Future<void> _handleCompletedInitialPeek(String roomId, RecallGameRound round, String sessionId, Map<String, dynamic> data) async {
     try {
@@ -606,40 +639,58 @@ class GameEventCoordinator {
         return;
       }
 
-      // STEP 1: Set cardsToPeek to ID-only format and broadcast to all except peeking player
+      // Get current games map (matching draw card pattern)
+      final currentGames = _getCurrentGamesMap(roomId);
       final playerId = humanPlayer['id'] as String;
+      
+      // Get player from games map structure (matching draw card pattern)
+      final gameData = currentGames[roomId]?['gameData']?['game_state'] as Map<String, dynamic>?;
+      if (gameData == null) {
+        _logger.error('GameEventCoordinator: Failed to get game data from games map', isOn: LOGGING_SWITCH);
+        return;
+      }
+      final playersInGamesMap = gameData['players'] as List<dynamic>? ?? [];
+      final playerInGamesMap = playersInGamesMap.firstWhere(
+        (p) => p is Map<String, dynamic> && p['id'] == playerId,
+        orElse: () => <String, dynamic>{},
+      ) as Map<String, dynamic>;
+      
+      if (playerInGamesMap.isEmpty) {
+        _logger.error('GameEventCoordinator: Player $playerId not found in games map', isOn: LOGGING_SWITCH);
+        return;
+      }
+
+      // Create callback instance for this room (matching GameRegistry pattern)
+      final callback = ServerGameStateCallbackImpl(roomId, server);
+
+      // STEP 1: Set cardsToPeek to ID-only format in games map and broadcast to all except peeking player
+      // This matches the draw card pattern exactly
       final idOnlyCardsToPeek = cardIds.map((cardId) => {
         'cardId': cardId,
         'suit': '?',
         'rank': '?',
         'points': 0,
       }).toList();
-      humanPlayer['cardsToPeek'] = idOnlyCardsToPeek;
-      _store.setGameState(roomId, gameState);
+      playerInGamesMap['cardsToPeek'] = idOnlyCardsToPeek;
       
-      // Broadcast ID-only cardsToPeek to all except peeking player
-      server.broadcastToRoomExcept(roomId, {
-        'event': 'game_state_updated',
-        'game_id': roomId,
-        'game_state': gameState,
-        'owner_id': server.getRoomOwner(roomId),
-        'timestamp': DateTime.now().toIso8601String(),
-      }, sessionId);
+      // Use callback method to broadcast (matches draw card pattern)
+      callback.broadcastGameStateExcept(playerId, {
+        'games': currentGames, // Games map with ID-only cardsToPeek
+      });
       _logger.info('GameEventCoordinator: STEP 1 - Broadcast ID-only cardsToPeek to all except player $playerId', isOn: LOGGING_SWITCH);
 
-      // STEP 2: Set cardsToPeek to full card data and send only to peeking player
-      humanPlayer['cardsToPeek'] = cardsToPeek;
-      _store.setGameState(roomId, gameState);
+      // STEP 2: Set cardsToPeek to full card data in games map and send only to peeking player
+      // This matches the draw card pattern exactly
+      playerInGamesMap['cardsToPeek'] = cardsToPeek;
       
-      // Send full card data only to peeking player
-      server.sendToSession(sessionId, {
-        'event': 'game_state_updated',
-        'game_id': roomId,
-        'game_state': gameState,
-        'owner_id': server.getRoomOwner(roomId),
-        'timestamp': DateTime.now().toIso8601String(),
+      // Use callback method to send to player (matches draw card pattern)
+      callback.sendGameStateToPlayer(playerId, {
+        'games': currentGames, // Games map with full cardsToPeek
       });
       _logger.info('GameEventCoordinator: STEP 2 - Sent full cardsToPeek data to player $playerId only', isOn: LOGGING_SWITCH);
+      
+      // Also update the humanPlayer reference for subsequent logic (known_cards, collection_rank, etc.)
+      humanPlayer['cardsToPeek'] = cardsToPeek;
 
       // Auto-select collection rank card for human player (same logic as AI)
       // IMPORTANT: Must select collection card BEFORE storing in known_cards
@@ -660,6 +711,8 @@ class GameEventCoordinator {
       final nonCollectionCardId = nonCollectionCard['cardId'] as String;
       (humanKnownCards[playerId] as Map<String, dynamic>)[nonCollectionCardId] = nonCollectionCard;
       humanPlayer['known_cards'] = humanKnownCards;
+      // Also update in games map for consistency
+      playerInGamesMap['known_cards'] = humanKnownCards;
 
       final fullCardData = _getCardById(gameState, selectedCardForCollection['cardId'] as String);
       if (fullCardData != null) {
@@ -667,6 +720,9 @@ class GameEventCoordinator {
         collectionRankCards.add(fullCardData);
         humanPlayer['collection_rank_cards'] = collectionRankCards;
         humanPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
+        // Also update in games map for consistency
+        playerInGamesMap['collection_rank_cards'] = collectionRankCards;
+        playerInGamesMap['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
 
         _logger.info('GameEventCoordinator: Human player selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
       } else {
@@ -675,18 +731,37 @@ class GameEventCoordinator {
 
       // Set human player status to WAITING
       humanPlayer['status'] = 'waiting';
+      // Also update status in games map for consistency
+      playerInGamesMap['status'] = 'waiting';
 
-      // Update game state (cardsToPeek already updated in steps 1 & 2 above)
+      // Update game state with known_cards, collection_rank, and status changes
+      // The callback methods already updated the store for cardsToPeek, but we need to update
+      // the store with the known_cards, collection_rank, and status changes
       _store.setGameState(roomId, gameState);
 
-      // Status update already sent in step 2, no need to broadcast again
+      // Broadcast status update to all players (status change after peek completion)
+      final updatedGames = _getCurrentGamesMap(roomId);
+      callback.broadcastGameStateExcept(playerId, {
+        'games': updatedGames, // Games map with updated status
+      });
+      // Also send to the player to ensure they have the latest state
+      callback.sendGameStateToPlayer(playerId, {
+        'games': updatedGames, // Games map with updated status
+      });
+
       _logger.info('GameEventCoordinator: Completed initial peek - human player set to WAITING status', isOn: LOGGING_SWITCH);
 
-      // Wait 5 seconds then trigger completeInitialPeek to clear states and initialize round
-      Timer(Duration(seconds: 5), () {
-        _logger.info('GameEventCoordinator: 5-second delay completed, triggering completeInitialPeek', isOn: LOGGING_SWITCH);
+      // Check if all players have completed initial peek
+      if (_allPlayersCompletedInitialPeek(roomId)) {
+        _logger.info('GameEventCoordinator: All players completed initial peek, cancelling timer and completing phase', isOn: LOGGING_SWITCH);
+        // Cancel the timer since all players completed
+        _initialPeekTimers[roomId]?.cancel();
+        _initialPeekTimers[roomId] = null;
+        // Complete initial peek phase immediately
         _completeInitialPeek(roomId, round);
-      });
+      } else {
+        _logger.info('GameEventCoordinator: Player completed initial peek, waiting for others or timer expiry', isOn: LOGGING_SWITCH);
+      }
 
     } catch (e) {
       _logger.error('GameEventCoordinator: Failed to handle completed initial peek: $e', isOn: LOGGING_SWITCH);
@@ -696,6 +771,76 @@ class GameEventCoordinator {
         'message': e.toString(),
         'timestamp': DateTime.now().toIso8601String(),
       });
+    }
+  }
+
+  /// Auto-complete initial peek for remaining human players
+  /// Uses same logic as CPU players (select 2 random cards, decide collection rank)
+  void _autoCompleteRemainingHumanPlayers(String roomId, Map<String, dynamic> gameState) {
+    try {
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      final random = Random();
+      
+      for (final player in players) {
+        if (player is! Map<String, dynamic>) continue;
+        if (player['isHuman'] != true) continue; // Skip CPU players
+        
+        // Check if player has already completed
+        final collectionRank = player['collection_rank'] as String?;
+        final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+        
+        if (collectionRank != null && collectionRank.isNotEmpty && collectionRankCards.isNotEmpty) {
+          continue; // Player already completed
+        }
+        
+        // Player hasn't completed - apply auto logic
+        _logger.info('GameEventCoordinator: Auto-completing initial peek for human player ${player['name']}', isOn: LOGGING_SWITCH);
+        _selectAndStoreAIPeekCards(player, gameState, random);
+        
+        // Set status to waiting (same as when human completes manually)
+        player['status'] = 'waiting';
+      }
+      
+      // Update store with modified game state
+      _store.setGameState(roomId, gameState);
+      
+      // Broadcast updated state to all players
+      server.broadcastToRoom(roomId, {
+        'event': 'game_state_updated',
+        'game_id': roomId,
+        'game_state': gameState,
+        'owner_id': server.getRoomOwner(roomId),
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      _logger.info('GameEventCoordinator: Auto-completed initial peek for remaining human players', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('GameEventCoordinator: Failed to auto-complete remaining human players: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Handle initial peek timer expiration
+  void _onInitialPeekTimerExpired(String roomId, RecallGameRound round) {
+    try {
+      _logger.info('GameEventCoordinator: Initial peek timer expired for room $roomId', isOn: LOGGING_SWITCH);
+      
+      // Clear timer reference
+      _initialPeekTimers[roomId] = null;
+      
+      final gameState = _store.getGameState(roomId);
+      
+      // Check if all players have completed
+      if (!_allPlayersCompletedInitialPeek(roomId)) {
+        _logger.info('GameEventCoordinator: Not all players completed initial peek, applying auto logic', isOn: LOGGING_SWITCH);
+        
+        // Apply auto logic to remaining human players
+        _autoCompleteRemainingHumanPlayers(roomId, gameState);
+      }
+      
+      // Now complete initial peek phase (all players should be done)
+      _completeInitialPeek(roomId, round);
+    } catch (e) {
+      _logger.error('GameEventCoordinator: Failed to handle initial peek timer expiry: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -735,6 +880,12 @@ class GameEventCoordinator {
     } catch (e) {
       _logger.error('GameEventCoordinator: Failed to complete initial peek: $e', isOn: LOGGING_SWITCH);
     }
+  }
+
+  /// Cleanup resources for a room
+  void cleanup(String roomId) {
+    _initialPeekTimers[roomId]?.cancel();
+    _initialPeekTimers.remove(roomId);
   }
 }
 

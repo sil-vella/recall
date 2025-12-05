@@ -317,6 +317,16 @@ class StateQueueValidator {
       defaultValue: [],
       description: 'Cards the current player has peeked at (with full data)',
     ),
+    'protectedCardsToPeek': RecallStateFieldSpec(
+      type: List,
+      required: false,
+      description: 'Protected cardsToPeek data that persists for 5 seconds (for widget protection mechanism)',
+    ),
+    'protectedCardsToPeekTimestamp': RecallStateFieldSpec(
+      type: int,
+      required: false,
+      description: 'Timestamp when protectedCardsToPeek was set (for 5-second timer)',
+    ),
     'cards_to_peek': RecallStateFieldSpec(
       type: List,
       defaultValue: [],

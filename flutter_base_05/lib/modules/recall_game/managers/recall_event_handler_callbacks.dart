@@ -225,6 +225,27 @@ class RecallEventHandlerCallbacks {
       final cardsToPeek = myPlayer['cardsToPeek'] as List<dynamic>? ?? [];
       final drawnCard = myPlayer['drawnCard'] as Map<String, dynamic>?;
       
+      // Check if cardsToPeek contains full card data (for protection mechanism)
+      final hasFullCardData = cardsToPeek.isNotEmpty && cardsToPeek.any((card) {
+        if (card is Map<String, dynamic>) {
+          final hasSuit = card.containsKey('suit') && card['suit'] != '?' && card['suit'] != null;
+          final hasRank = card.containsKey('rank') && card['rank'] != '?' && card['rank'] != null;
+          return hasSuit || hasRank;
+        }
+        return false;
+      });
+      
+      _logger.info('🔍 _syncWidgetStatesFromGameState: cardsToPeek.length: ${cardsToPeek.length}, hasFullCardData: $hasFullCardData', isOn: LOGGING_SWITCH);
+      if (cardsToPeek.isNotEmpty && hasFullCardData) {
+        _logger.info('🔍 _syncWidgetStatesFromGameState: Full card data detected - storing in protectedCardsToPeek', isOn: LOGGING_SWITCH);
+        // Store protected data in main state so widgets can access it
+        // This persists even when cardsToPeek is cleared
+        _updateMainGameState({
+          'protectedCardsToPeek': cardsToPeek, // Store protected data
+          'protectedCardsToPeekTimestamp': DateTime.now().millisecondsSinceEpoch, // Store timestamp for 5-second timer
+        });
+      }
+      
       // Extract score (can be 'points' or 'score' field)
       final score = myPlayer['score'] as int? ?? myPlayer['points'] as int? ?? 0;
       

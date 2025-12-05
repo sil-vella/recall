@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../models/card_model.dart';
@@ -9,7 +10,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../managers/player_action.dart';
 import '../card_position_tracker.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display other players (opponents)
 /// 
@@ -36,6 +37,50 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   
   // Map<playerId_cardId, GlobalKey>
   final Map<String, GlobalKey> _cardKeys = {};
+  
+  // Protection mechanism for cardsToPeek
+  bool _isCardsToPeekProtected = false;
+  List<dynamic>? _protectedCardsToPeek;
+  Timer? _cardsToPeekProtectionTimer;
+
+  /// Protect cardsToPeek data for 5 seconds
+  void _protectCardsToPeek(List<dynamic> cardsToPeek) {
+    // Cancel existing timer if any
+    _cardsToPeekProtectionTimer?.cancel();
+    
+    // Set protection flag and cache data
+    _isCardsToPeekProtected = true;
+    _protectedCardsToPeek = List<dynamic>.from(cardsToPeek);
+    
+    // Start 5-second timer
+    _cardsToPeekProtectionTimer = Timer(Duration(seconds: 5), () {
+      _clearCardsToPeekProtection();
+    });
+    
+    _logger.info('🛡️ CardsToPeek protection activated for 5 seconds', isOn: LOGGING_SWITCH);
+  }
+
+  /// Clear cardsToPeek protection
+  void _clearCardsToPeekProtection() {
+    _isCardsToPeekProtected = false;
+    _protectedCardsToPeek = null;
+    _cardsToPeekProtectionTimer?.cancel();
+    _cardsToPeekProtectionTimer = null;
+    
+    // Trigger rebuild to use state value
+    if (mounted) {
+      setState(() {});
+    }
+    
+    _logger.info('🛡️ CardsToPeek protection cleared', isOn: LOGGING_SWITCH);
+  }
+
+  @override
+  void dispose() {
+    _cardsToPeekProtectionTimer?.cancel();
+    _cardsToPeekProtectionTimer = null;
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +95,31 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final currentTurnIndex = opponentsPanel['currentTurnIndex'] ?? -1;
         
         // Get cardsToPeek state slice (current user's peeked cards, could be from opponents)
-        final cardsToPeek = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
+        final cardsToPeekFromState = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
+        
+        // Check if we need to protect cardsToPeek
+        // Activate protection immediately when we detect full card data (not just IDs)
+        if (cardsToPeekFromState.isNotEmpty && !_isCardsToPeekProtected) {
+          // Check if this is full card data (has 'suit' or 'rank' keys) vs just ID strings
+          final hasFullCardData = cardsToPeekFromState.any((card) {
+            if (card is Map<String, dynamic>) {
+              return card.containsKey('suit') || card.containsKey('rank');
+            }
+            return false;
+          });
+          
+          if (hasFullCardData) {
+            // Full card data detected - activate protection immediately
+            _protectCardsToPeek(cardsToPeekFromState);
+            _logger.info('🛡️ OpponentsPanelWidget: Activated protection for ${cardsToPeekFromState.length} cards', isOn: LOGGING_SWITCH);
+          }
+        }
+        
+        // If protected data exists but state is now empty, we're in protection mode
+        // Use protected data if available, otherwise use state value
+        final cardsToPeek = _isCardsToPeekProtected && _protectedCardsToPeek != null
+            ? _protectedCardsToPeek!
+            : cardsToPeekFromState;
         
         // Note: opponents list from slice is already filtered (excludes current player)
         // No need to filter again - use opponents directly

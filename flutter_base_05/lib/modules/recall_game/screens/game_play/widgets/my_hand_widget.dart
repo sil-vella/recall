@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../models/card_model.dart';
@@ -11,7 +12,7 @@ import '../card_position_tracker.dart';
 import '../../../managers/recall_event_handler_callbacks.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Widget to display the player's hand
 /// 
@@ -42,6 +43,50 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   
   // GlobalKeys for each card to get positions
   final Map<String, GlobalKey> _cardKeys = {};
+  
+  // Protection mechanism for cardsToPeek
+  bool _isCardsToPeekProtected = false;
+  List<dynamic>? _protectedCardsToPeek;
+  Timer? _cardsToPeekProtectionTimer;
+
+  /// Protect cardsToPeek data for 5 seconds
+  void _protectCardsToPeek(List<dynamic> cardsToPeek) {
+    // Cancel existing timer if any
+    _cardsToPeekProtectionTimer?.cancel();
+    
+    // Set protection flag and cache data
+    _isCardsToPeekProtected = true;
+    _protectedCardsToPeek = List<dynamic>.from(cardsToPeek);
+    
+    // Start 5-second timer
+    _cardsToPeekProtectionTimer = Timer(Duration(seconds: 5), () {
+      _clearCardsToPeekProtection();
+    });
+    
+    _logger.info('🛡️ CardsToPeek protection activated for 5 seconds', isOn: LOGGING_SWITCH);
+  }
+
+  /// Clear cardsToPeek protection
+  void _clearCardsToPeekProtection() {
+    _isCardsToPeekProtected = false;
+    _protectedCardsToPeek = null;
+    _cardsToPeekProtectionTimer?.cancel();
+    _cardsToPeekProtectionTimer = null;
+    
+    // Trigger rebuild to use state value
+    if (mounted) {
+      setState(() {});
+    }
+    
+    _logger.info('🛡️ CardsToPeek protection cleared', isOn: LOGGING_SWITCH);
+  }
+
+  @override
+  void dispose() {
+    _cardsToPeekProtectionTimer?.cancel();
+    _cardsToPeekProtectionTimer = null;
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,8 +101,50 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final selectedIndex = myHand['selectedIndex'] ?? -1;
         final selectedCard = myHand['selectedCard'] as Map<String, dynamic>?;
         
-        // Get cardsToPeek state slice
-        final cardsToPeek = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
+        // Get cardsToPeek from state
+        final cardsToPeekFromState = recallGameState['myCardsToPeek'] as List<dynamic>? ?? [];
+        
+        // Check for protected data stored by _syncWidgetStatesFromGameState
+        final protectedCardsToPeek = recallGameState['protectedCardsToPeek'] as List<dynamic>?;
+        final protectedTimestamp = recallGameState['protectedCardsToPeekTimestamp'] as int?;
+        
+        // Check if protected data is still valid (within 5 seconds)
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final isProtectedDataValid = protectedCardsToPeek != null && 
+            protectedTimestamp != null && 
+            (now - protectedTimestamp) < 5000;
+        
+        _logger.info('🛡️ MyHandWidget: cardsToPeekFromState.length: ${cardsToPeekFromState.length}, protectedCardsToPeek.length: ${protectedCardsToPeek?.length ?? 0}, isProtectedDataValid: $isProtectedDataValid, isProtected: $_isCardsToPeekProtected', isOn: LOGGING_SWITCH);
+        
+        // If we have valid protected data from state sync, activate local protection
+        if (isProtectedDataValid && !_isCardsToPeekProtected && protectedCardsToPeek != null) {
+          _protectCardsToPeek(protectedCardsToPeek);
+          _logger.info('🛡️ MyHandWidget: Activated protection from state sync for ${protectedCardsToPeek.length} cards', isOn: LOGGING_SWITCH);
+        }
+        
+        // Also check if current state has full card data (fallback)
+        if (cardsToPeekFromState.isNotEmpty && !_isCardsToPeekProtected) {
+          final hasFullCardData = cardsToPeekFromState.any((card) {
+            if (card is Map<String, dynamic>) {
+              final hasSuit = card.containsKey('suit') && card['suit'] != '?' && card['suit'] != null;
+              final hasRank = card.containsKey('rank') && card['rank'] != '?' && card['rank'] != null;
+              return hasSuit || hasRank;
+            }
+            return false;
+          });
+          
+          if (hasFullCardData) {
+            _protectCardsToPeek(cardsToPeekFromState);
+            _logger.info('🛡️ MyHandWidget: Activated protection from state for ${cardsToPeekFromState.length} cards', isOn: LOGGING_SWITCH);
+          }
+        }
+        
+        // Use protected data if available, otherwise use state value
+        final cardsToPeek = _isCardsToPeekProtected && _protectedCardsToPeek != null
+            ? _protectedCardsToPeek!
+            : cardsToPeekFromState;
+        
+        _logger.info('🛡️ MyHandWidget: Final cardsToPeek.length: ${cardsToPeek.length}', isOn: LOGGING_SWITCH);
         
         // Get additional game state for context
         final gamePhase = recallGameState['gamePhase']?.toString() ?? 'waiting';

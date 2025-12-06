@@ -259,87 +259,116 @@ class RecallEventHandlerCallbacks {
         
         // Show initial instructions if not already marked as "don't show again"
         if (dontShowAgain[GameInstructionsProvider.KEY_INITIAL] != true) {
-          final initialInstructions = GameInstructionsProvider.getInitialInstructions();
-          StateManager().updateModuleState('recall_game', {
-            'instructions': {
-              'isVisible': true,
-              'title': initialInstructions['title'] ?? 'Welcome to Recall!',
-              'content': initialInstructions['content'] ?? '',
-              'key': initialInstructions['key'] ?? GameInstructionsProvider.KEY_INITIAL,
-              'dontShowAgain': dontShowAgain,
-            },
-          });
-          _logger.info('📚 Initial instructions triggered and state updated', isOn: LOGGING_SWITCH);
+          // Check if initial instructions are already showing
+          final instructionsData = currentState['instructions'] as Map<String, dynamic>? ?? {};
+          final currentlyVisible = instructionsData['isVisible'] == true;
+          final currentKey = instructionsData['key']?.toString();
+          
+          // Only show if not already showing
+          if (!currentlyVisible || currentKey != GameInstructionsProvider.KEY_INITIAL) {
+            final initialInstructions = GameInstructionsProvider.getInitialInstructions();
+            StateManager().updateModuleState('recall_game', {
+              'instructions': {
+                'isVisible': true,
+                'title': initialInstructions['title'] ?? 'Welcome to Recall!',
+                'content': initialInstructions['content'] ?? '',
+                'key': initialInstructions['key'] ?? GameInstructionsProvider.KEY_INITIAL,
+                'dontShowAgain': dontShowAgain,
+              },
+            });
+            _logger.info('📚 Initial instructions triggered and state updated', isOn: LOGGING_SWITCH);
+          } else {
+            _logger.info('📚 Initial instructions skipped - already showing', isOn: LOGGING_SWITCH);
+          }
         } else {
           _logger.info('📚 Initial instructions skipped - already marked as dontShowAgain', isOn: LOGGING_SWITCH);
         }
         return;
       }
 
-      // Get current player status if not provided
-      String? currentPlayerStatus = playerStatus;
-      if (currentPlayerStatus == null) {
-        // Try to get from current player in game state
-        final currentPlayer = gameState['currentPlayer'];
-        if (currentPlayer is Map<String, dynamic>) {
-          currentPlayerStatus = currentPlayer['status']?.toString();
-        }
-        
-        // If still null, try to get from current user's player
-        if (currentPlayerStatus == null) {
-          final players = gameState['players'] as List<dynamic>? ?? [];
-          final currentUserId = getCurrentUserId();
-          try {
-            final myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
-              (player) => player['id'] == currentUserId,
-            );
-            currentPlayerStatus = myPlayer['status']?.toString();
-          } catch (e) {
-            // Player not found, continue without status
-          }
+      // Get current user's player status (not the current player's status)
+      // We need the current user's status to show instructions for their actions
+      String? currentUserPlayerStatus = playerStatus;
+      if (currentUserPlayerStatus == null) {
+        // Get from current user's player in game state
+        final players = gameState['players'] as List<dynamic>? ?? [];
+        final currentUserId = getCurrentUserId();
+        try {
+          final myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
+            (player) => player['id'] == currentUserId,
+          );
+          currentUserPlayerStatus = myPlayer['status']?.toString();
+          _logger.info('📚 _triggerInstructionsIfNeeded: Found current user player status=$currentUserPlayerStatus', isOn: LOGGING_SWITCH);
+        } catch (e) {
+          _logger.warning('📚 _triggerInstructionsIfNeeded: Current user player not found in players list', isOn: LOGGING_SWITCH);
+          // Player not found, continue without status
         }
       }
 
       // Get previous instructions state to check if we should show new instructions
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final previousPhase = currentState['gamePhase']?.toString();
-      final previousPlayerStatus = currentState['currentPlayerStatus']?.toString();
+      
+      // Get previous current user's player status (from myHand slice or playerStatus in main state)
+      // Note: currentPlayerStatus in main state is the current player's status, not current user's
+      final myHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
+      final previousUserPlayerStatus = myHand['playerStatus']?.toString() ?? 
+                                       currentState['playerStatus']?.toString();
+      
       final dontShowAgain = Map<String, bool>.from(
         (currentState['instructions'] as Map<String, dynamic>?)?['dontShowAgain'] as Map<String, dynamic>? ?? {},
       );
+
+      _logger.info('📚 _triggerInstructionsIfNeeded: Current user status=$currentUserPlayerStatus, previous=$previousUserPlayerStatus, isMyTurn=$isMyTurn', isOn: LOGGING_SWITCH);
 
       // Check if instructions should be shown
       final shouldShow = GameInstructionsProvider.shouldShowInstructions(
         showInstructions: showInstructions,
         gamePhase: gamePhase,
-        playerStatus: currentPlayerStatus,
+        playerStatus: currentUserPlayerStatus,
         isMyTurn: isMyTurn,
         previousPhase: previousPhase,
-        previousStatus: previousPlayerStatus,
+        previousStatus: previousUserPlayerStatus,
         dontShowAgain: dontShowAgain,
       );
+      
+      _logger.info('📚 _triggerInstructionsIfNeeded: shouldShow=$shouldShow for status=$currentUserPlayerStatus', isOn: LOGGING_SWITCH);
 
       if (shouldShow) {
         // Get instructions content
         final instructions = GameInstructionsProvider.getInstructions(
           gamePhase: gamePhase,
-          playerStatus: currentPlayerStatus,
+          playerStatus: currentUserPlayerStatus,
           isMyTurn: isMyTurn,
         );
 
         if (instructions != null) {
-          // Update instructions state
-          StateManager().updateModuleState('recall_game', {
-            'instructions': {
-              'isVisible': true,
-              'title': instructions['title'] ?? 'Game Instructions',
-              'content': instructions['content'] ?? '',
-              'key': instructions['key'] ?? '',
-              'dontShowAgain': dontShowAgain,
-            },
-          });
+          final instructionKey = instructions['key'] ?? '';
           
-          _logger.info('📚 Instructions triggered: phase=$gamePhase, status=$currentPlayerStatus, isMyTurn=$isMyTurn, key=${instructions['key']}', isOn: LOGGING_SWITCH);
+          // Check if this instruction is already showing
+          final currentInstructions = currentState['instructions'] as Map<String, dynamic>? ?? {};
+          final currentlyVisible = currentInstructions['isVisible'] == true;
+          final currentKey = currentInstructions['key']?.toString();
+          
+          // Only update if:
+          // 1. No instruction is currently showing, OR
+          // 2. The instruction key has changed (different instruction type)
+          if (!currentlyVisible || currentKey != instructionKey) {
+            // Update instructions state
+            StateManager().updateModuleState('recall_game', {
+              'instructions': {
+                'isVisible': true,
+                'title': instructions['title'] ?? 'Game Instructions',
+                'content': instructions['content'] ?? '',
+                'key': instructionKey,
+                'dontShowAgain': dontShowAgain,
+              },
+            });
+            
+            _logger.info('📚 Instructions triggered: phase=$gamePhase, status=$currentUserPlayerStatus, isMyTurn=$isMyTurn, key=$instructionKey', isOn: LOGGING_SWITCH);
+          } else {
+            _logger.info('📚 Instructions skipped: same instruction already showing (key=$instructionKey)', isOn: LOGGING_SWITCH);
+          }
         }
       } else {
         // Don't show instructions, but don't hide if they're already showing
@@ -642,10 +671,23 @@ class RecallEventHandlerCallbacks {
     // Use getCurrentUserId() to handle practice mode correctly (sessionId vs userId)
     final currentUserIdForInstructions = getCurrentUserId();
     final isMyTurn = currentPlayer?['id']?.toString() == currentUserIdForInstructions;
+    
+    // Get current user's player status (not the current player's status)
+    String? currentUserPlayerStatus;
+    try {
+      final myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
+        (player) => player['id'] == currentUserIdForInstructions,
+      );
+      currentUserPlayerStatus = myPlayer['status']?.toString();
+    } catch (e) {
+      // Player not found, will be handled in _triggerInstructionsIfNeeded
+      currentUserPlayerStatus = null;
+    }
+    
     _triggerInstructionsIfNeeded(
       gameId: gameId,
       gameState: gameState,
-      playerStatus: currentPlayer?['status']?.toString(),
+      playerStatus: currentUserPlayerStatus, // Pass current user's player status
       isMyTurn: isMyTurn,
     );
     
@@ -863,6 +905,22 @@ class RecallEventHandlerCallbacks {
     // Extract currentPlayer from game state for main state update
     final currentPlayerFromState = gameState['currentPlayer'] as Map<String, dynamic>?;
     
+    // Get current user's player status for instructions (not the current player's status)
+    // Note: players list is already extracted above
+    final currentUserId = getCurrentUserId();
+    String? currentUserPlayerStatus;
+    try {
+      final myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
+        (player) => player['id'] == currentUserId,
+      );
+      currentUserPlayerStatus = myPlayer['status']?.toString();
+      _logger.info('📚 handleGameStateUpdated: Current user player status=$currentUserPlayerStatus, currentPlayerStatus=$currentPlayerStatus', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.warning('📚 handleGameStateUpdated: Current user player not found: $e', isOn: LOGGING_SWITCH);
+      // Player not found, will be handled in _triggerInstructionsIfNeeded
+      currentUserPlayerStatus = null;
+    }
+    
     // Normalize backend phase to UI phase
     final rawPhase = gameState['phase']?.toString();
     final uiPhase = rawPhase == 'waiting_for_players'
@@ -884,13 +942,13 @@ class RecallEventHandlerCallbacks {
     });
     
     // Trigger instructions if showInstructions is enabled
-    final currentUserId = getCurrentUserId();
     final isMyTurn = currentPlayerFromState?['id']?.toString() == currentUserId ||
                      (currentPlayer is Map && currentPlayer['id']?.toString() == currentUserId);
+    _logger.info('📚 handleGameStateUpdated: Triggering instructions - isMyTurn=$isMyTurn, currentUserStatus=$currentUserPlayerStatus', isOn: LOGGING_SWITCH);
     _triggerInstructionsIfNeeded(
       gameId: gameId,
       gameState: gameState,
-      playerStatus: currentPlayerStatus,
+      playerStatus: currentUserPlayerStatus, // Pass current user's player status, not current player's status
       isMyTurn: isMyTurn,
     );
     

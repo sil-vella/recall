@@ -15,6 +15,9 @@ class InstructionsWidget extends StatelessWidget {
   static const bool LOGGING_SWITCH = false;
   static final Logger _logger = Logger();
   
+  // Track currently showing instruction key to prevent duplicate modals
+  static String? _currentlyShowingKey;
+  
   const InstructionsWidget({Key? key}) : super(key: key);
 
   @override
@@ -32,17 +35,33 @@ class InstructionsWidget extends StatelessWidget {
         final instructionKey = instructionsData['key']?.toString();
         final isInitial = instructionKey == 'initial';
         
-        _logger.info('InstructionsWidget: isVisible=$isVisible, title=$title, key=$instructionKey', isOn: LOGGING_SWITCH);
+        _logger.info('InstructionsWidget: isVisible=$isVisible, title=$title, key=$instructionKey, currentlyShowing=$_currentlyShowingKey', isOn: LOGGING_SWITCH);
         
         // Don't render if not visible
         if (!isVisible || content.isEmpty) {
+          // Clear currently showing key if instructions are hidden
+          if (_currentlyShowingKey != null) {
+            _currentlyShowingKey = null;
+          }
           return const SizedBox.shrink();
         }
         
-        // Show modal using Flutter's official showDialog method
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _showInstructionsModal(context, title, content, instructionKey, isInitial);
-        });
+        // Only show modal if:
+        // 1. No modal is currently showing, OR
+        // 2. The instruction key has changed (different instruction type)
+        final shouldShow = _currentlyShowingKey == null || _currentlyShowingKey != instructionKey;
+        
+        if (shouldShow && instructionKey != null) {
+          // Mark this instruction as currently showing
+          _currentlyShowingKey = instructionKey;
+          
+          // Show modal using Flutter's official showDialog method
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showInstructionsModal(context, title, content, instructionKey, isInitial);
+          });
+        } else if (!shouldShow) {
+          _logger.info('InstructionsWidget: Skipping duplicate modal for key=$instructionKey (already showing)', isOn: LOGGING_SWITCH);
+        }
         
         return const SizedBox.shrink();
       },
@@ -136,12 +155,39 @@ class InstructionsWidget extends StatelessWidget {
           },
         );
       },
-    );
+    ).then((_) {
+      // Handle dialog dismissal (either by close button or tapping outside)
+      // Clear the currently showing key when dialog is dismissed
+      if (_currentlyShowingKey == instructionKey) {
+        _currentlyShowingKey = null;
+        // Also update state to hide instructions
+        final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final instructionsData = recallGameState['instructions'] as Map<String, dynamic>? ?? {};
+        final currentDontShowAgain = Map<String, bool>.from(
+          instructionsData['dontShowAgain'] as Map<String, dynamic>? ?? {},
+        );
+        
+        StateManager().updateModuleState('recall_game', {
+          'instructions': {
+            'isVisible': false,
+            'title': '',
+            'content': '',
+            'key': '',
+            'dontShowAgain': currentDontShowAgain,
+          },
+        });
+      }
+    });
   }
   
   void _closeInstructions(BuildContext context, String? instructionKey, bool dontShowAgain) {
     try {
       _logger.info('InstructionsWidget: Closing instructions modal, key=$instructionKey, dontShowAgain=$dontShowAgain', isOn: LOGGING_SWITCH);
+      
+      // Clear currently showing key
+      if (_currentlyShowingKey == instructionKey) {
+        _currentlyShowingKey = null;
+      }
       
       // Close the dialog first
       Navigator.of(context).pop();
@@ -172,6 +218,10 @@ class InstructionsWidget extends StatelessWidget {
       
     } catch (e) {
       _logger.error('InstructionsWidget: Failed to close instructions: $e', isOn: LOGGING_SWITCH);
+      // Clear the flag even on error
+      if (_currentlyShowingKey == instructionKey) {
+        _currentlyShowingKey = null;
+      }
     }
   }
 }

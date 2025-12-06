@@ -205,18 +205,28 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
         _logger.info('📚 _checkAndShowInitialInstructions: dontShowAgain[initial]=${dontShowAgain['initial']}', isOn: LOGGING_SWITCH);
         
         if (dontShowAgain['initial'] != true) {
-          // Get initial instructions
-          final initialInstructions = instructions.GameInstructionsProvider.getInitialInstructions();
-          StateManager().updateModuleState('recall_game', {
-            'instructions': {
-              'isVisible': true,
-              'title': initialInstructions['title'] ?? 'Welcome to Recall!',
-              'content': initialInstructions['content'] ?? '',
-              'key': initialInstructions['key'] ?? 'initial',
-              'dontShowAgain': dontShowAgain,
-            },
-          });
-          _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions triggered from screen init', isOn: LOGGING_SWITCH);
+          // Check if initial instructions are already showing
+          final instructionsData = recallGameState['instructions'] as Map<String, dynamic>? ?? {};
+          final currentlyVisible = instructionsData['isVisible'] == true;
+          final currentKey = instructionsData['key']?.toString();
+          
+          // Only show if not already showing
+          if (!currentlyVisible || currentKey != 'initial') {
+            // Get initial instructions
+            final initialInstructions = instructions.GameInstructionsProvider.getInitialInstructions();
+            StateManager().updateModuleState('recall_game', {
+              'instructions': {
+                'isVisible': true,
+                'title': initialInstructions['title'] ?? 'Welcome to Recall!',
+                'content': initialInstructions['content'] ?? '',
+                'key': initialInstructions['key'] ?? 'initial',
+                'dontShowAgain': dontShowAgain,
+              },
+            });
+            _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions triggered from screen init', isOn: LOGGING_SWITCH);
+          } else {
+            _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions skipped - already showing', isOn: LOGGING_SWITCH);
+          }
         } else {
           _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions skipped - already marked as dontShowAgain', isOn: LOGGING_SWITCH);
         }

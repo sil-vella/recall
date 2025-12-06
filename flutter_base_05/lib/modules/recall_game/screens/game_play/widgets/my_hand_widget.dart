@@ -12,7 +12,7 @@ import '../card_position_tracker.dart';
 import '../../../managers/recall_event_handler_callbacks.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
 
 /// Widget to display the player's hand
 /// 
@@ -652,6 +652,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     final currentPlayerStatus = currentMyHand['playerStatus']?.toString() ?? 'unknown';
       
     // Check if current player can interact with hand cards (playing_card, jack_swap, queen_peek, same_rank_window, or initial_peek status)
+    if (currentPlayerStatus == 'jack_swap') {
+      _logger.info('🃏 MyHandWidget: Status is jack_swap - cards are interactive', isOn: LOGGING_SWITCH);
+    }
     if (currentPlayerStatus == 'playing_card' || 
         currentPlayerStatus == 'jack_swap' || 
         currentPlayerStatus == 'queen_peek' ||
@@ -709,6 +712,9 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           // Get current user ID (sessionId) - handles both practice and multiplayer modes
           final currentUserId = RecallEventHandlerCallbacks.getCurrentUserId();
           
+          _logger.info('🃏 MyHandWidget: Card tapped during jack_swap - Card: ${card['cardId']}, Player: $currentUserId, Game: $currentGameId', isOn: LOGGING_SWITCH);
+          _logger.info('🃏 MyHandWidget: Current jack swap selection count: ${PlayerAction.getJackSwapSelectionCount()}', isOn: LOGGING_SWITCH);
+          
           await PlayerAction.selectCardForJackSwap(
             cardId: card['cardId']?.toString() ?? '',
             playerId: currentUserId,
@@ -717,6 +723,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           
           // Show feedback for Jack swap selection
           final selectionCount = PlayerAction.getJackSwapSelectionCount();
+          _logger.info('🃏 MyHandWidget: After selection, jack swap count: $selectionCount', isOn: LOGGING_SWITCH);
           if (selectionCount == 1) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

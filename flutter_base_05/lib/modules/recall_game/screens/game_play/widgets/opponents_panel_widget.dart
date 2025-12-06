@@ -10,7 +10,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../managers/player_action.dart';
 import '../card_position_tracker.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
 
 /// Widget to display other players (opponents)
 /// 
@@ -786,6 +786,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     final currentPlayerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
     
     // Check if current player can interact with cards (queen_peek or jack_swap status)
+    if (currentPlayerStatus == 'jack_swap') {
+      _logger.info('🃏 OpponentsPanelWidget: Status is jack_swap - opponent cards are interactive', isOn: LOGGING_SWITCH);
+    }
     if (currentPlayerStatus == 'queen_peek' || currentPlayerStatus == 'jack_swap') {
       final cardId = card['cardId']?.toString();
       if (cardId != null) {
@@ -825,6 +828,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         } else if (currentPlayerStatus == 'jack_swap') {
           // Handle Jack swap card selection
           try {
+            _logger.info('🃏 OpponentsPanelWidget: Card tapped during jack_swap - Card: $cardId, Player: $cardOwnerId, Game: $currentGameId', isOn: LOGGING_SWITCH);
+            _logger.info('🃏 OpponentsPanelWidget: Current jack swap selection count: ${PlayerAction.getJackSwapSelectionCount()}', isOn: LOGGING_SWITCH);
+            
             await PlayerAction.selectCardForJackSwap(
               cardId: cardId,
               playerId: cardOwnerId,
@@ -833,6 +839,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             
             // Show feedback for Jack swap selection
             final selectionCount = PlayerAction.getJackSwapSelectionCount();
+            _logger.info('🃏 OpponentsPanelWidget: After selection, jack swap count: $selectionCount', isOn: LOGGING_SWITCH);
             if (selectionCount == 1) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

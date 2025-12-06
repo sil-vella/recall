@@ -8,7 +8,7 @@ import '../utils/game_instructions_provider.dart';
 /// Dedicated event handlers for Recall game events
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
   static final Logger _logger = Logger();
 
   // ========================================
@@ -580,6 +580,7 @@ class RecallEventHandlerCallbacks {
 
   /// Handle game_started event
   static void handleGameStarted(Map<String, dynamic> data) {
+    _logger.info('🎮 handleGameStarted: Called for gameId=${data['game_id']}', isOn: LOGGING_SWITCH);
     final gameId = data['game_id']?.toString() ?? '';
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final startedBy = data['started_by']?.toString() ?? '';
@@ -655,16 +656,21 @@ class RecallEventHandlerCallbacks {
     
     // Normalize backend phase to UI phase (same logic as handleGameStateUpdated)
     final rawPhase = gameState['phase']?.toString();
-    final uiPhase = rawPhase == 'waiting_for_players'
-        ? 'waiting'
-        : (rawPhase ?? 'playing');
+    String uiPhase;
+    if (rawPhase == 'waiting_for_players') {
+      uiPhase = 'waiting';
+    } else if (rawPhase == 'game_ended') {
+      uiPhase = 'game_ended';
+    } else {
+      uiPhase = rawPhase ?? 'playing';
+    }
     
     // Update main state with gamePhase to ensure status chip and game info widget update correctly
     _updateMainGameState({
       'currentGameId': gameId,  // Ensure currentGameId is set
       'games': currentGamesAfterSync, // Updated games map with widget data synced
       'gamePhase': uiPhase,  // ✅ Update gamePhase so status chip and game info widget reflect correct phase
-      'isGameActive': true,
+      'isGameActive': uiPhase != 'game_ended', // Set to false when game has ended
     });
     
     // Trigger instructions if showInstructions is enabled
@@ -840,6 +846,7 @@ class RecallEventHandlerCallbacks {
       // 🎯 CRITICAL: Set currentGameId and ensure games map is in main state (important for player 2 joining after match start)
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
       final currentGameId = currentState['currentGameId']?.toString();
+      _logger.info('🔍 handleGameStateUpdated: currentGameId check - existing: $currentGameId, new gameId: $gameId', isOn: LOGGING_SWITCH);
       if (currentGameId == null || currentGameId.isEmpty) {
         _logger.info('🔍 handleGameStateUpdated: Setting currentGameId to $gameId (was null or empty)', isOn: LOGGING_SWITCH);
         _updateMainGameState({
@@ -848,6 +855,7 @@ class RecallEventHandlerCallbacks {
         });
       } else {
         // Even if currentGameId is set, ensure games map is updated in main state
+        _logger.info('🔍 handleGameStateUpdated: currentGameId already set to $currentGameId, updating games map only', isOn: LOGGING_SWITCH);
         _updateMainGameState({
           'games': updatedGamesAfterAdd, // 🎯 CRITICAL: Ensure games map is in main state
         });
@@ -923,16 +931,34 @@ class RecallEventHandlerCallbacks {
     
     // Normalize backend phase to UI phase
     final rawPhase = gameState['phase']?.toString();
-    final uiPhase = rawPhase == 'waiting_for_players'
-        ? 'waiting'
-        : (rawPhase ?? 'playing');
+    _logger.info('🔍 handleGameStateUpdated: rawPhase=$rawPhase for gameId=$gameId', isOn: LOGGING_SWITCH);
+    String uiPhase;
+    if (rawPhase == 'waiting_for_players') {
+      uiPhase = 'waiting';
+    } else if (rawPhase == 'game_ended') {
+      uiPhase = 'game_ended';
+    } else {
+      uiPhase = rawPhase ?? 'playing';
+    }
+    _logger.info('🔍 handleGameStateUpdated: normalized uiPhase=$uiPhase for gameId=$gameId', isOn: LOGGING_SWITCH);
+
+    // Extract winners list if game has ended
+    final winners = data['winners'] as List<dynamic>? ?? gameState['winners'] as List<dynamic>?;
+
+    // 🎯 CRITICAL: Always ensure currentGameId is set (even for existing games)
+    // This is essential for the game play screen to update correctly when match starts
+    final currentStateForGameId = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+    final existingCurrentGameId = currentStateForGameId['currentGameId']?.toString();
+    if (existingCurrentGameId != gameId) {
+      _logger.info('🔍 handleGameStateUpdated: Updating currentGameId from $existingCurrentGameId to $gameId', isOn: LOGGING_SWITCH);
+    }
 
     // Then update main state with games map, discardPile, currentPlayer, turn_events (matches practice mode pattern)
     _updateMainGameState({
-      'currentGameId': gameId,  // Ensure currentGameId is set
+      'currentGameId': gameId,  // Always set currentGameId (CRITICAL for game play screen to update)
       'games': currentGamesAfterSync, // Updated games map with widget data synced
       'gamePhase': uiPhase,
-      'isGameActive': true,
+      'isGameActive': uiPhase != 'game_ended', // Set to false when game has ended
       'roundNumber': roundNumber,
       'currentPlayer': currentPlayerFromState ?? currentPlayer, // Use currentPlayer from game state if available
       'currentPlayerStatus': currentPlayerStatus,
@@ -981,19 +1007,60 @@ class RecallEventHandlerCallbacks {
       });
     }
     
-    // Add session message about game state update
-    _addSessionMessage(
-      level: 'info',
-      title: 'Game State Updated',
-      message: 'Round $roundNumber - $currentPlayer is $currentPlayerStatus',
-      data: {
-        'game_id': gameId,
-        'round_number': roundNumber,
-        'current_player': currentPlayer,
-        'current_player_status': currentPlayerStatus,
-        'round_status': roundStatus,
-      },
-    );
+    // Add session message about game state update or game end
+    if (uiPhase == 'game_ended' && winners != null && winners.isNotEmpty) {
+      // Game has ended - notify user with winner information and win reason
+      final winnerMessages = winners.map((w) {
+        if (w is Map<String, dynamic>) {
+          final playerName = w['playerName']?.toString() ?? 'Unknown';
+          final winType = w['winType']?.toString() ?? 'unknown';
+          
+          // Format win type into readable text
+          String winReason;
+          switch (winType) {
+            case 'four_of_a_kind':
+              winReason = 'Four of a Kind';
+              break;
+            case 'empty_hand':
+              winReason = 'No Cards Left';
+              break;
+            case 'recall':
+              winReason = 'Recall Called';
+              break;
+            default:
+              winReason = 'Unknown';
+          }
+          
+          return '$playerName ($winReason)';
+        }
+        return 'Unknown';
+      }).join(', ');
+      
+      _addSessionMessage(
+        level: 'success',
+        title: 'Game Ended',
+        message: 'Winner(s): $winnerMessages',
+        data: {
+          'game_id': gameId,
+          'winners': winners,
+          'game_ended': true,
+        },
+      );
+    } else {
+      // Normal game state update
+      _addSessionMessage(
+        level: 'info',
+        title: 'Game State Updated',
+        message: 'Round $roundNumber - $currentPlayer is $currentPlayerStatus',
+        data: {
+          'game_id': gameId,
+          'round_number': roundNumber,
+          'current_player': currentPlayer,
+          'current_player_status': currentPlayerStatus,
+          'round_status': roundStatus,
+        },
+      );
+    }
   }
 
   /// Handle game_state_partial_update event

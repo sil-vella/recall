@@ -4,7 +4,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Holds active RecallGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -169,6 +169,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
             normalizedPhase = 'ending_round';
           } else if (phase == 'ending_turn') {
             normalizedPhase = 'ending_turn';
+          } else if (phase == 'game_ended') {
+            normalizedPhase = 'game_ended'; // Pass through game_ended as-is
           }
           gameState['phase'] = normalizedPhase;
         }
@@ -177,6 +179,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       // Ensure phase key and playerCount
       gameState['phase'] = gameState['phase'] ?? 'playing';
       gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
+      
+      // Extract winners from validatedUpdates (if present) - needed for game end notification
+      final winners = validatedUpdates['winners'] as List<dynamic>?;
       
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
@@ -187,6 +192,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'game_id': roomId,
         'game_state': gameState,
         'turn_events': turnEvents,
+        if (winners != null) 'winners': winners, // Include winners list for game end notification
         if (ownerId != null) 'owner_id': ownerId,
         'timestamp': DateTime.now().toIso8601String(),
       }, excludePlayerId);
@@ -238,6 +244,8 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
           normalizedPhase = 'ending_round';
         } else if (phase == 'ending_turn') {
           normalizedPhase = 'ending_turn';
+        } else if (phase == 'game_ended') {
+          normalizedPhase = 'game_ended'; // Pass through game_ended as-is
         }
         gameState['phase'] = normalizedPhase;
         _logger.info('GameStateCallback: Copied gamePhase ($phase) to game_state[phase] ($normalizedPhase) for broadcast', isOn: LOGGING_SWITCH);
@@ -246,6 +254,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     // Ensure phase key and playerCount
     gameState['phase'] = gameState['phase'] ?? 'playing';
     gameState['playerCount'] = (gameState['players'] as List<dynamic>? ?? []).length;
+    
+    // Extract winners from validatedUpdates (if present) - needed for game end notification
+    final winners = validatedUpdates['winners'] as List<dynamic>?;
+    if (winners != null) {
+      _logger.info('GameStateCallback: Including winners list in broadcast: ${winners.length} winner(s)', isOn: LOGGING_SWITCH);
+    }
+    
     // Owner info for gating
     final ownerId = server.getRoomOwner(roomId);
     _logger.info('🔍 TURN_EVENTS DEBUG - Broadcasting game_state_updated with ${turnEvents.length} turn_events', isOn: LOGGING_SWITCH);
@@ -256,6 +271,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       'game_id': roomId,
       'game_state': gameState,
       'turn_events': turnEvents, // Include turn_events for animations
+      if (winners != null) 'winners': winners, // Include winners list for game end notification
       if (ownerId != null) 'owner_id': ownerId,
       'timestamp': DateTime.now().toIso8601String(),
     });

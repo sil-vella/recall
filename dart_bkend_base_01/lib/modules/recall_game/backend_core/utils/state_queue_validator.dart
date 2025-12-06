@@ -439,6 +439,14 @@ class StateQueueValidator {
       defaultValue: 'inactive',
       description: 'Current game status (inactive, active, finished, etc.)',
     ),
+    
+    // Winners Field (for game end)
+    'winners': RecallStateFieldSpec(
+      type: List,
+      required: false,
+      defaultValue: [],
+      description: 'List of winners when game ends, each with playerId, playerName, and winType',
+    ),
   };
 
   /// Set the handler for applying validated updates (platform-specific)

@@ -7,7 +7,7 @@ import '../../utils/platform/shared_imports.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
 
 class RecallGameRound {
   final Logger _logger = Logger();
@@ -2012,7 +2012,8 @@ class RecallGameRound {
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
-      _logger.info('Recall: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
+      _logger.info('🃏 Recall: ========== JACK SWAP START ==========', isOn: LOGGING_SWITCH);
+      _logger.info('🃏 Recall: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
 
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
@@ -2183,7 +2184,8 @@ class RecallGameRound {
         'turn_events': turnEvents, // Add turn events for animations
       });
 
-      _logger.info('Recall: Jack swap completed - state updated', isOn: LOGGING_SWITCH);
+      _logger.info('🃏 Recall: Jack swap completed - state updated', isOn: LOGGING_SWITCH);
+      _logger.info('🃏 Recall: ========== JACK SWAP END ==========', isOn: LOGGING_SWITCH);
 
       // Update all players' known_cards after successful Jack swap
       updateKnownCards('jack_swap', firstPlayerId, [firstCardId, secondCardId], swapData: {
@@ -2426,10 +2428,10 @@ class RecallGameRound {
           'description': 'Can switch any two cards between players'
         };
         
-        _logger.info('Recall: DEBUG: special_card_data length before adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 Recall: Jack card detected - special_card_data length before adding: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
         _specialCardData.add(specialCardInfo);
-        _logger.info('Recall: DEBUG: special_card_data length after adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
-        _logger.info('Recall: Added Jack special card for player $playerId: $cardRank of $cardSuit (chronological order)', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 Recall: Added Jack special card for player $playerId: $cardRank of $cardSuit (chronological order)', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 Recall: special_card_data length after adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
         
       } else if (cardRank == 'queen') {
         // Store special card data chronologically (not grouped by player)
@@ -3142,8 +3144,9 @@ class RecallGameRound {
       
       // Set player status based on special power
       if (specialPower == 'jack_swap') {
+        _logger.info('🃏 Recall: Processing jack_swap for player $playerId', isOn: LOGGING_SWITCH);
         _updatePlayerStatusInGamesMap('jack_swap', playerId: playerId);
-        _logger.info('Recall: Player $playerId status set to jack_swap - 10 second timer started', isOn: LOGGING_SWITCH);
+        _logger.info('🃏 Recall: Player $playerId status set to jack_swap - 10 second timer started', isOn: LOGGING_SWITCH);
       } else if (specialPower == 'queen_peek') {
         _updatePlayerStatusInGamesMap('queen_peek', playerId: playerId);
         _logger.info('Recall: Player $playerId status set to queen_peek - 10 second timer started', isOn: LOGGING_SWITCH);

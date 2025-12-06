@@ -39,7 +39,7 @@ class StateQueueValidator {
 
   /// Logger instance (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
 
   /// Define the complete state schema with validation rules
   /// Must remain identical across Flutter and Dart backend implementations

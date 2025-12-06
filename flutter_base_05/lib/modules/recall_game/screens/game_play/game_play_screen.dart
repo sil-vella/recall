@@ -16,7 +16,7 @@ import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.da
 import 'card_position_tracker.dart';
 import '../../utils/game_instructions_provider.dart' as instructions;
 
-const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
+const bool LOGGING_SWITCH = false; // Temporarily enabled for debugging
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);

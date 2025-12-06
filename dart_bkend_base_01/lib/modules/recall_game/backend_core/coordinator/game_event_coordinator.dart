@@ -5,7 +5,7 @@ import '../services/game_state_store.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
 
 /// Coordinates WS game events to the RecallGameRound logic per room.
 class GameEventCoordinator {
@@ -143,12 +143,13 @@ class GameEventCoordinator {
           }
           break;
         case 'jack_swap':
+          _logger.info('🃏 GameEventCoordinator: jack_swap case reached', isOn: LOGGING_SWITCH);
           final firstCardId = (data['first_card_id'] as String?) ?? (data['firstCardId'] as String?);
           final firstPlayerId = (data['first_player_id'] as String?) ?? (data['firstPlayerId'] as String?);
           final secondCardId = (data['second_card_id'] as String?) ?? (data['secondCardId'] as String?);
           final secondPlayerId = (data['second_player_id'] as String?) ?? (data['secondPlayerId'] as String?);
           
-          _logger.info('GameEventCoordinator: jack_swap event received - firstCardId: $firstCardId, firstPlayerId: $firstPlayerId, secondCardId: $secondCardId, secondPlayerId: $secondPlayerId', isOn: LOGGING_SWITCH);
+          _logger.info('🃏 GameEventCoordinator: jack_swap event received - firstCardId: $firstCardId, firstPlayerId: $firstPlayerId, secondCardId: $secondCardId, secondPlayerId: $secondPlayerId', isOn: LOGGING_SWITCH);
           
           if (firstCardId != null && firstCardId.isNotEmpty &&
               firstPlayerId != null && firstPlayerId.isNotEmpty &&

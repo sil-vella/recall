@@ -54,11 +54,11 @@ class InstructionsWidget extends StatelessWidget {
         if (shouldShow && instructionKey != null) {
           // Mark this instruction as currently showing
           _currentlyShowingKey = instructionKey;
-          
-          // Show modal using Flutter's official showDialog method
-          WidgetsBinding.instance.addPostFrameCallback((_) {
+        
+        // Show modal using Flutter's official showDialog method
+        WidgetsBinding.instance.addPostFrameCallback((_) {
             _showInstructionsModal(context, title, content, instructionKey, isInitial);
-          });
+        });
         } else if (!shouldShow) {
           _logger.info('InstructionsWidget: Skipping duplicate modal for key=$instructionKey (already showing)', isOn: LOGGING_SWITCH);
         }
@@ -80,9 +80,9 @@ class InstructionsWidget extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setState) {
             return ModalTemplateWidget(
-              title: title,
-              content: content,
-              icon: Icons.help_outline,
+      title: title,
+      content: content,
+      icon: Icons.help_outline,
               showCloseButton: false, // Remove X button in header
               showFooter: false, // Remove default footer
               customContent: Column(
@@ -151,7 +151,7 @@ class InstructionsWidget extends StatelessWidget {
                   ),
                 ],
               ),
-            );
+    );
           },
         );
       },

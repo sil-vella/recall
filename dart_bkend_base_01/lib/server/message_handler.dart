@@ -9,7 +9,7 @@ import '../modules/recall_game/backend_core/services/game_state_store.dart';
 import '../modules/recall_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true; // Enabled for jack swap tracing
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -697,6 +697,9 @@ class MessageHandler {
   ) {
     _logger.game('🎮 Game event: $event', isOn: LOGGING_SWITCH);
     _logger.game('📦 Data: $data', isOn: LOGGING_SWITCH);
+    if (event == 'jack_swap') {
+      _logger.game('🃏 _handleGameEvent: jack_swap event received - routing to GameEventCoordinator', isOn: LOGGING_SWITCH);
+    }
     _gameCoordinator.handle(sessionId, event, data);
   }
 

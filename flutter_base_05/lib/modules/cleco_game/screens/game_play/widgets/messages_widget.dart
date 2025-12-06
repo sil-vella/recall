@@ -10,7 +10,7 @@ import '../../../../../tools/logging/logger.dart';
 /// 
 /// Follows the established pattern of subscribing to state slices using ListenableBuilder
 class MessagesWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Enabled for winner modal debugging
   static final Logger _logger = Logger();
   
   const MessagesWidget({Key? key}) : super(key: key);
@@ -32,12 +32,21 @@ class MessagesWidget extends StatelessWidget {
         final autoClose = messagesData['autoClose'] ?? false;
         final autoCloseDelay = messagesData['autoCloseDelay'] ?? 3000; // milliseconds
         
-        _logger.info('MessagesWidget: isVisible=$isVisible, title=$title, type=$messageType', isOn: LOGGING_SWITCH);
+        // Get game phase to ensure modal only shows when game has ended
+        final gamePhase = clecoGameState['gamePhase']?.toString() ?? '';
+        final isGameEnded = gamePhase == 'game_ended';
         
-        // Don't render if not visible
-        if (!isVisible || content.isEmpty) {
+        final contentPreview = content.length > 50 ? '${content.substring(0, 50)}...' : content;
+        _logger.info('📬 MessagesWidget: State update - isVisible=$isVisible, gamePhase=$gamePhase, isGameEnded=$isGameEnded, title="$title", content="$contentPreview", type=$messageType', isOn: LOGGING_SWITCH);
+        _logger.info('📬 MessagesWidget: Full messagesData keys: ${messagesData.keys.toList()}', isOn: LOGGING_SWITCH);
+        
+        // Don't render if not visible, content is empty, or game hasn't ended
+        if (!isVisible || content.isEmpty || !isGameEnded) {
+          _logger.info('📬 MessagesWidget: Not rendering - isVisible=$isVisible, content.isEmpty=${content.isEmpty}, isGameEnded=$isGameEnded', isOn: LOGGING_SWITCH);
           return const SizedBox.shrink();
         }
+        
+        _logger.info('📬 MessagesWidget: Rendering modal with title="$title" (game phase is game_ended)', isOn: LOGGING_SWITCH);
         
         return _buildModalOverlay(context, title, content, messageType, showCloseButton, autoClose, autoCloseDelay);
       },

@@ -10,7 +10,7 @@ import '../managers/hooks_manager.dart';
 import '../modules/cleco_game/cleco_game_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};

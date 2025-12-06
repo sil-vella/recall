@@ -8,7 +8,7 @@ import '../utils/game_instructions_provider.dart';
 /// Dedicated event handlers for Cleco game events
 /// Contains all the business logic for processing specific event types
 class ClecoEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
+  static const bool LOGGING_SWITCH = true; // Enabled for winner modal debugging
   static final Logger _logger = Logger();
 
   // ========================================
@@ -489,7 +489,9 @@ class ClecoEventHandlerCallbacks {
   }
   
   /// Add a session message to the message board
-  static void _addSessionMessage({required String? level, required String? title, required String? message, Map<String, dynamic>? data}) {
+  /// [showModal] - If true, displays the modal. Only set to true for game end messages.
+  static void _addSessionMessage({required String? level, required String? title, required String? message, Map<String, dynamic>? data, bool showModal = false}) {
+    _logger.info('📨 _addSessionMessage: Called with level=$level, title="$title", message="$message", showModal=$showModal', isOn: LOGGING_SWITCH);
     final entry = {
       'level': (level ?? 'info'),
       'title': title ?? '',
@@ -507,13 +509,57 @@ class ClecoEventHandlerCallbacks {
     sessionMessages.add(entry);
     if (sessionMessages.length > 200) sessionMessages.removeAt(0);
     
-    // Update state
-    ClecoGameHelpers.updateUIState({
-      'messages': {
-        'session': sessionMessages,
-        'rooms': currentMessages['rooms'] ?? {},
-      },
-    });
+    // Update state - preserve existing modal fields and only update when showModal is true
+    final messagesUpdate = {
+      'session': sessionMessages,
+      'rooms': currentMessages['rooms'] ?? {},
+      // Preserve existing modal fields (isVisible, title, content, type, etc.) if they exist
+      if (currentMessages.containsKey('isVisible')) 'isVisible': currentMessages['isVisible'],
+      if (currentMessages.containsKey('title')) 'title': currentMessages['title'],
+      if (currentMessages.containsKey('content')) 'content': currentMessages['content'],
+      if (currentMessages.containsKey('type')) 'type': currentMessages['type'],
+      if (currentMessages.containsKey('showCloseButton')) 'showCloseButton': currentMessages['showCloseButton'],
+      if (currentMessages.containsKey('autoClose')) 'autoClose': currentMessages['autoClose'],
+      if (currentMessages.containsKey('autoCloseDelay')) 'autoCloseDelay': currentMessages['autoCloseDelay'],
+    };
+    
+    // Only show modal for game end messages (when showModal is true)
+    // For non-game-end messages, preserve existing modal state
+    if (showModal) {
+      messagesUpdate['isVisible'] = true;
+      messagesUpdate['title'] = title ?? '';
+      messagesUpdate['content'] = message ?? '';
+      messagesUpdate['type'] = (level ?? 'info');
+      messagesUpdate['showCloseButton'] = true;
+      messagesUpdate['autoClose'] = false;
+      messagesUpdate['autoCloseDelay'] = 3000;
+      _logger.info('📨 _addSessionMessage: Setting modal visible - title="$title", content="$message", type=$level', isOn: LOGGING_SWITCH);
+    } else {
+      // Don't modify modal fields for non-game-end messages - preserve existing state
+      _logger.info('📨 _addSessionMessage: Not showing modal (showModal=false) - message added to session only, modal fields preserved', isOn: LOGGING_SWITCH);
+    }
+    
+    // If showing modal, also ensure gamePhase is set to game_ended in the same update
+    if (showModal) {
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+      final currentGamePhase = currentState['gamePhase']?.toString() ?? '';
+      if (currentGamePhase != 'game_ended') {
+        _logger.info('📨 _addSessionMessage: Also updating gamePhase to game_ended in same update', isOn: LOGGING_SWITCH);
+        ClecoGameHelpers.updateUIState({
+          'messages': messagesUpdate,
+          'gamePhase': 'game_ended', // Ensure gamePhase is set in same update as modal
+        });
+      } else {
+        ClecoGameHelpers.updateUIState({
+          'messages': messagesUpdate,
+        });
+      }
+    } else {
+      ClecoGameHelpers.updateUIState({
+        'messages': messagesUpdate,
+      });
+    }
+    _logger.info('✅ _addSessionMessage: State updated successfully', isOn: LOGGING_SWITCH);
   }
 
   // ========================================
@@ -942,8 +988,9 @@ class ClecoEventHandlerCallbacks {
     }
     _logger.info('🔍 handleGameStateUpdated: normalized uiPhase=$uiPhase for gameId=$gameId', isOn: LOGGING_SWITCH);
 
-    // Extract winners list if game has ended
+    // Extract winners list if game has ended - check both data and gameState
     final winners = data['winners'] as List<dynamic>? ?? gameState['winners'] as List<dynamic>?;
+    _logger.info('🔍 handleGameStateUpdated: Winners extraction - data.winners=${data['winners']}, gameState.winners=${gameState['winners']}, final winners=${winners?.length ?? 0}', isOn: LOGGING_SWITCH);
 
     // 🎯 CRITICAL: Always ensure currentGameId is set (even for existing games)
     // This is essential for the game play screen to update correctly when match starts
@@ -954,10 +1001,11 @@ class ClecoEventHandlerCallbacks {
     }
 
     // Then update main state with games map, discardPile, currentPlayer, turn_events (matches practice mode pattern)
+    // 🎯 CRITICAL: Update gamePhase FIRST so MessagesWidget can check it
     _updateMainGameState({
       'currentGameId': gameId,  // Always set currentGameId (CRITICAL for game play screen to update)
       'games': currentGamesAfterSync, // Updated games map with widget data synced
-      'gamePhase': uiPhase,
+      'gamePhase': uiPhase, // 🎯 CRITICAL: Set gamePhase before checking for winners modal
       'isGameActive': uiPhase != 'game_ended', // Set to false when game has ended
       'roundNumber': roundNumber,
       'currentPlayer': currentPlayerFromState ?? currentPlayer, // Use currentPlayer from game state if available
@@ -966,6 +1014,7 @@ class ClecoEventHandlerCallbacks {
       'discardPile': discardPile, // Updated discard pile for centerBoard slice
       'turn_events': turnEvents, // Include turn_events for animations (critical for widget slice recomputation)
     });
+    _logger.info('🔍 handleGameStateUpdated: Updated main state with gamePhase=$uiPhase', isOn: LOGGING_SWITCH);
     
     // Trigger instructions if showInstructions is enabled
     final isMyTurn = currentPlayerFromState?['id']?.toString() == currentUserId ||
@@ -1008,7 +1057,9 @@ class ClecoEventHandlerCallbacks {
     }
     
     // Add session message about game state update or game end
+    _logger.info('🎯 handleGameStateUpdated: Checking game end - uiPhase=$uiPhase, winners=${winners?.length ?? 0}', isOn: LOGGING_SWITCH);
     if (uiPhase == 'game_ended' && winners != null && winners.isNotEmpty) {
+      _logger.info('🏆 handleGameStateUpdated: Game ended with ${winners.length} winner(s) - triggering winner modal', isOn: LOGGING_SWITCH);
       // Game has ended - notify user with winner information and win reason
       final winnerMessages = winners.map((w) {
         if (w is Map<String, dynamic>) {
@@ -1045,8 +1096,23 @@ class ClecoEventHandlerCallbacks {
           'winners': winners,
           'game_ended': true,
         },
+        showModal: true, // Show modal for game end
       );
     } else {
+      // Normal game state update - ensure modal is hidden if game hasn't ended
+      if (uiPhase != 'game_ended') {
+        final currentMessages = StateManager().getModuleState<Map<String, dynamic>>('cleco_game')?['messages'] as Map<String, dynamic>? ?? {};
+        if (currentMessages['isVisible'] == true) {
+          _logger.info('🎯 handleGameStateUpdated: Hiding modal - game phase is not game_ended (uiPhase=$uiPhase)', isOn: LOGGING_SWITCH);
+          ClecoGameHelpers.updateUIState({
+            'messages': {
+              ...currentMessages,
+              'isVisible': false,
+            },
+          });
+        }
+      }
+      
       // Normal game state update
       _addSessionMessage(
         level: 'info',
@@ -1059,6 +1125,7 @@ class ClecoEventHandlerCallbacks {
           'current_player_status': currentPlayerStatus,
           'round_status': roundStatus,
         },
+        showModal: false, // Don't show modal for normal updates
       );
     }
   }
@@ -1155,17 +1222,98 @@ class ClecoEventHandlerCallbacks {
       _syncWidgetStatesFromGameState(gameId, updatedGameState, turnEvents: turnEvents);
     }
     
-    // Add session message about partial update
-    _addSessionMessage(
-      level: 'info',
-      title: 'Game State Updated',
-      message: 'Updated: ${changedProperties.join(', ')}',
-      data: {
-        'game_id': gameId,
-        'changed_properties': changedProperties,
-        'partial_updates': partialGameState,
-      },
-    );
+    // Check if game has ended and show winner modal
+    final rawPhase = updatedGameState['phase']?.toString();
+    final uiPhase = rawPhase == 'waiting_for_players'
+        ? 'waiting'
+        : (rawPhase == 'game_ended' ? 'game_ended' : (rawPhase ?? 'playing'));
+    
+    // Extract winners list if game has ended
+    final winners = data['winners'] as List<dynamic>? ?? updatedGameState['winners'] as List<dynamic>?;
+    
+    _logger.info('🎯 handleGameStatePartialUpdate: Checking game end - uiPhase=$uiPhase, winners=${winners?.length ?? 0}', isOn: LOGGING_SWITCH);
+    // Add session message about partial update or game end
+    if (uiPhase == 'game_ended' && winners != null && winners.isNotEmpty) {
+      _logger.info('🏆 handleGameStatePartialUpdate: Game ended with ${winners.length} winner(s) - triggering winner modal', isOn: LOGGING_SWITCH);
+      // Game has ended - notify user with winner information and win reason
+      final winnerMessages = winners.map((w) {
+        if (w is Map<String, dynamic>) {
+          final playerName = w['playerName']?.toString() ?? 'Unknown';
+          final winType = w['winType']?.toString() ?? 'unknown';
+          
+          // Format win type into readable text
+          String winReason;
+          switch (winType) {
+            case 'four_of_a_kind':
+              winReason = 'Four of a Kind';
+              break;
+            case 'empty_hand':
+              winReason = 'No Cards Left';
+              break;
+            case 'cleco':
+              winReason = 'Cleco Called';
+              break;
+            default:
+              winReason = 'Unknown';
+          }
+          
+          return '$playerName ($winReason)';
+        }
+        return 'Unknown';
+      }).join(', ');
+      
+      // Update gamePhase and show modal in the same state update to avoid race condition
+      _logger.info('🏆 handleGameStatePartialUpdate: Updating gamePhase and showing winner modal', isOn: LOGGING_SWITCH);
+      ClecoGameHelpers.updateUIState({
+        'gamePhase': 'game_ended', // Ensure gamePhase is set before showing modal
+      });
+      
+      // Update gamePhase and show modal in the same state update to avoid race condition
+      _logger.info('🏆 handleGameStatePartialUpdate: Updating gamePhase and showing winner modal', isOn: LOGGING_SWITCH);
+      ClecoGameHelpers.updateUIState({
+        'gamePhase': 'game_ended', // Ensure gamePhase is set before showing modal
+      });
+      
+      _logger.info('🏆 handleGameStatePartialUpdate: Calling _addSessionMessage with winner info - title="Game Ended", message="Winner(s): $winnerMessages"', isOn: LOGGING_SWITCH);
+      _addSessionMessage(
+        level: 'success',
+        title: 'Game Ended',
+        message: 'Winner(s): $winnerMessages',
+        data: {
+          'game_id': gameId,
+          'winners': winners,
+          'game_ended': true,
+        },
+        showModal: true, // Show modal for game end
+      );
+    } else {
+      // Normal partial update - ensure modal is hidden if game hasn't ended
+      if (uiPhase != 'game_ended') {
+        final currentMessages = StateManager().getModuleState<Map<String, dynamic>>('cleco_game')?['messages'] as Map<String, dynamic>? ?? {};
+        if (currentMessages['isVisible'] == true) {
+          _logger.info('🎯 handleGameStatePartialUpdate: Hiding modal - game phase is not game_ended (uiPhase=$uiPhase)', isOn: LOGGING_SWITCH);
+          ClecoGameHelpers.updateUIState({
+            'messages': {
+              ...currentMessages,
+              'isVisible': false,
+            },
+          });
+        }
+      }
+      
+      // Normal partial update
+      _addSessionMessage(
+        level: 'info',
+        title: 'Game State Updated',
+        message: 'Updated: ${changedProperties.join(', ')}',
+        data: {
+          'game_id': gameId,
+          'changed_properties': changedProperties,
+          'partial_updates': partialGameState,
+        },
+        showModal: false, // Don't show modal for normal updates
+      );
+    }
   }
 
   /// Handle player_state_updated event

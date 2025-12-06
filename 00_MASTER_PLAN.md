@@ -146,6 +146,13 @@ Python Backend (Auth)
 - Practice mode: `practice_session_<userId>`
 - Validation patterns updated to accept both formats
 
+### Queen Peek Timer
+- **Issue**: Queen peek timer should stop after the player has peeked at a card
+- **Current Behavior**: Timer may continue running even after peek action is completed
+- **Expected Behavior**: Timer should be cancelled/stopped immediately when player completes the peek action
+- **Location**: Timer logic in game round/event handlers, likely in `cleco_game_round.dart` or related timer management code
+- **Impact**: User experience - prevents confusion and ensures timer accurately reflects available time
+
 ---
 
 ## 🚀 Future Enhancements

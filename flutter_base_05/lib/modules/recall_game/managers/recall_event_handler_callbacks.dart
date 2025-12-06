@@ -3,11 +3,12 @@ import 'package:recall/tools/logging/logger.dart';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../utils/recall_game_helpers.dart';
+import '../utils/game_instructions_provider.dart';
 
 /// Dedicated event handlers for Recall game events
 /// Contains all the business logic for processing specific event types
 class RecallEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
   static final Logger _logger = Logger();
 
   // ========================================
@@ -184,6 +185,169 @@ class RecallEventHandlerCallbacks {
   static void _updateMainGameState(Map<String, dynamic> updates) {
     RecallGameHelpers.updateUIState(updates);
     // Removed lastUpdated - causes unnecessary state updates
+  }
+
+  /// Trigger instructions if showInstructions is enabled and state has changed
+  /// 
+  /// Checks if instructions should be shown based on game phase and player status,
+  /// and updates the instructions state accordingly.
+  static void _triggerInstructionsIfNeeded({
+    required String gameId,
+    required Map<String, dynamic> gameState,
+    String? playerStatus,
+    bool isMyTurn = false,
+  }) {
+    try {
+      _logger.info('📚 _triggerInstructionsIfNeeded: Called for gameId=$gameId, phase=${gameState['phase']}', isOn: LOGGING_SWITCH);
+      // Get showInstructions flag from game state
+      final showInstructions = gameState['showInstructions'] as bool? ?? false;
+      _logger.info('📚 _triggerInstructionsIfNeeded: showInstructions from gameState=$showInstructions', isOn: LOGGING_SWITCH);
+      
+      if (!showInstructions) {
+        // Instructions disabled, ensure they're hidden
+        final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final currentInstructions = currentState['instructions'] as Map<String, dynamic>? ?? {};
+        if (currentInstructions['isVisible'] == true) {
+          // Hide instructions if they were previously visible
+          StateManager().updateModuleState('recall_game', {
+            'instructions': {
+              'isVisible': false,
+              'title': '',
+              'content': '',
+              'key': '',
+              'dontShowAgain': currentInstructions['dontShowAgain'] ?? {},
+            },
+          });
+        }
+        return;
+      }
+
+      // Get current game phase
+      final rawPhase = gameState['phase']?.toString();
+      final gamePhase = rawPhase == 'waiting_for_players'
+          ? 'waiting'
+          : (rawPhase ?? 'playing');
+
+      // Check if game hasn't started yet (waiting phase) - show initial instructions
+      // Also check practice settings if showInstructions is not in game state yet
+      if (gamePhase == 'waiting') {
+        // If showInstructions is not in game state, check practice settings
+        bool effectiveShowInstructions = showInstructions;
+        if (!showInstructions) {
+          final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+          final practiceSettings = currentState['practiceSettings'] as Map<String, dynamic>?;
+          final practiceShowInstructions = practiceSettings?['showInstructions'] as bool? ?? false;
+          if (practiceShowInstructions) {
+            _logger.info('📚 _triggerInstructionsIfNeeded: Using showInstructions from practiceSettings=$practiceShowInstructions', isOn: LOGGING_SWITCH);
+            effectiveShowInstructions = true;
+          }
+        }
+        _logger.info('📚 _triggerInstructionsIfNeeded: In waiting phase, showInstructions=$showInstructions, effectiveShowInstructions=$effectiveShowInstructions', isOn: LOGGING_SWITCH);
+        
+        if (!effectiveShowInstructions) {
+          _logger.info('📚 _triggerInstructionsIfNeeded: Instructions disabled, skipping', isOn: LOGGING_SWITCH);
+          return;
+        }
+        
+        final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+        final instructionsData = currentState['instructions'] as Map<String, dynamic>? ?? {};
+        final dontShowAgain = Map<String, bool>.from(
+          instructionsData['dontShowAgain'] as Map<String, dynamic>? ?? {},
+        );
+        
+        _logger.info('📚 _triggerInstructionsIfNeeded: dontShowAgain[initial]=${dontShowAgain[GameInstructionsProvider.KEY_INITIAL]}', isOn: LOGGING_SWITCH);
+        
+        // Show initial instructions if not already marked as "don't show again"
+        if (dontShowAgain[GameInstructionsProvider.KEY_INITIAL] != true) {
+          final initialInstructions = GameInstructionsProvider.getInitialInstructions();
+          StateManager().updateModuleState('recall_game', {
+            'instructions': {
+              'isVisible': true,
+              'title': initialInstructions['title'] ?? 'Welcome to Recall!',
+              'content': initialInstructions['content'] ?? '',
+              'key': initialInstructions['key'] ?? GameInstructionsProvider.KEY_INITIAL,
+              'dontShowAgain': dontShowAgain,
+            },
+          });
+          _logger.info('📚 Initial instructions triggered and state updated', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.info('📚 Initial instructions skipped - already marked as dontShowAgain', isOn: LOGGING_SWITCH);
+        }
+        return;
+      }
+
+      // Get current player status if not provided
+      String? currentPlayerStatus = playerStatus;
+      if (currentPlayerStatus == null) {
+        // Try to get from current player in game state
+        final currentPlayer = gameState['currentPlayer'];
+        if (currentPlayer is Map<String, dynamic>) {
+          currentPlayerStatus = currentPlayer['status']?.toString();
+        }
+        
+        // If still null, try to get from current user's player
+        if (currentPlayerStatus == null) {
+          final players = gameState['players'] as List<dynamic>? ?? [];
+          final currentUserId = getCurrentUserId();
+          try {
+            final myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
+              (player) => player['id'] == currentUserId,
+            );
+            currentPlayerStatus = myPlayer['status']?.toString();
+          } catch (e) {
+            // Player not found, continue without status
+          }
+        }
+      }
+
+      // Get previous instructions state to check if we should show new instructions
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final previousPhase = currentState['gamePhase']?.toString();
+      final previousPlayerStatus = currentState['currentPlayerStatus']?.toString();
+      final dontShowAgain = Map<String, bool>.from(
+        (currentState['instructions'] as Map<String, dynamic>?)?['dontShowAgain'] as Map<String, dynamic>? ?? {},
+      );
+
+      // Check if instructions should be shown
+      final shouldShow = GameInstructionsProvider.shouldShowInstructions(
+        showInstructions: showInstructions,
+        gamePhase: gamePhase,
+        playerStatus: currentPlayerStatus,
+        isMyTurn: isMyTurn,
+        previousPhase: previousPhase,
+        previousStatus: previousPlayerStatus,
+        dontShowAgain: dontShowAgain,
+      );
+
+      if (shouldShow) {
+        // Get instructions content
+        final instructions = GameInstructionsProvider.getInstructions(
+          gamePhase: gamePhase,
+          playerStatus: currentPlayerStatus,
+          isMyTurn: isMyTurn,
+        );
+
+        if (instructions != null) {
+          // Update instructions state
+          StateManager().updateModuleState('recall_game', {
+            'instructions': {
+              'isVisible': true,
+              'title': instructions['title'] ?? 'Game Instructions',
+              'content': instructions['content'] ?? '',
+              'key': instructions['key'] ?? '',
+              'dontShowAgain': dontShowAgain,
+            },
+          });
+          
+          _logger.info('📚 Instructions triggered: phase=$gamePhase, status=$currentPlayerStatus, isMyTurn=$isMyTurn, key=${instructions['key']}', isOn: LOGGING_SWITCH);
+        }
+      } else {
+        // Don't show instructions, but don't hide if they're already showing
+        // (let user close them manually)
+      }
+    } catch (e) {
+      _logger.error('Error triggering instructions: $e', isOn: LOGGING_SWITCH);
+    }
   }
 
   /// Sync widget-specific states from game state
@@ -474,6 +638,17 @@ class RecallEventHandlerCallbacks {
       'isGameActive': true,
     });
     
+    // Trigger instructions if showInstructions is enabled
+    // Use getCurrentUserId() to handle practice mode correctly (sessionId vs userId)
+    final currentUserIdForInstructions = getCurrentUserId();
+    final isMyTurn = currentPlayer?['id']?.toString() == currentUserIdForInstructions;
+    _triggerInstructionsIfNeeded(
+      gameId: gameId,
+      gameState: gameState,
+      playerStatus: currentPlayer?['status']?.toString(),
+      isMyTurn: isMyTurn,
+    );
+    
     // Add session message about game started
     _addSessionMessage(
       level: 'success',
@@ -707,6 +882,17 @@ class RecallEventHandlerCallbacks {
       'discardPile': discardPile, // Updated discard pile for centerBoard slice
       'turn_events': turnEvents, // Include turn_events for animations (critical for widget slice recomputation)
     });
+    
+    // Trigger instructions if showInstructions is enabled
+    final currentUserId = getCurrentUserId();
+    final isMyTurn = currentPlayerFromState?['id']?.toString() == currentUserId ||
+                     (currentPlayer is Map && currentPlayer['id']?.toString() == currentUserId);
+    _triggerInstructionsIfNeeded(
+      gameId: gameId,
+      gameState: gameState,
+      playerStatus: currentPlayerStatus,
+      isMyTurn: isMyTurn,
+    );
     
     // Also update joinedGames list for lobby widgets (if this is a new game)
     final currentGamesForJoined = _getCurrentGamesMap();

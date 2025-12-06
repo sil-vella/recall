@@ -14,8 +14,9 @@ import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../modules/recall_game/managers/feature_registry_manager.dart';
 import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
 import 'card_position_tracker.dart';
+import '../../utils/game_instructions_provider.dart' as instructions;
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true; // Temporarily enabled for debugging
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);
@@ -73,6 +74,11 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     _previousGameId = recallGameState['currentGameId']?.toString();
     
     _logger.info('GamePlay: Screen loaded with game ID: $_previousGameId', isOn: LOGGING_SWITCH);
+    
+    // Check for initial instructions after dependencies are set (game state should be ready)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowInitialInstructions();
+    });
   }
 
   Future<void> _initializeWebSocket() async {
@@ -140,6 +146,84 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   void _initializeGameState() {
     // Initialize game-specific state
     // This will be expanded as we add more game functionality
+    
+    // Check if we should show initial instructions
+    _checkAndShowInitialInstructions();
+  }
+  
+  /// Check if initial instructions should be shown when screen loads
+  void _checkAndShowInitialInstructions() {
+    try {
+      final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
+      final currentGameId = recallGameState['currentGameId']?.toString();
+      
+      if (currentGameId == null || currentGameId.isEmpty) {
+        return;
+      }
+      
+      // Get game from games map
+      final games = recallGameState['games'] as Map<String, dynamic>? ?? {};
+      final game = games[currentGameId] as Map<String, dynamic>?;
+      if (game == null) {
+        return;
+      }
+      
+      final gameData = game['gameData'] as Map<String, dynamic>?;
+      final gameState = gameData?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        return;
+      }
+      
+      // Check if showInstructions is enabled (check both game state and practice settings)
+      bool showInstructions = gameState['showInstructions'] as bool? ?? false;
+      if (!showInstructions) {
+        // Fallback to practice settings if not in game state
+        final practiceSettings = recallGameState['practiceSettings'] as Map<String, dynamic>?;
+        showInstructions = practiceSettings?['showInstructions'] as bool? ?? false;
+        _logger.info('📚 _checkAndShowInitialInstructions: showInstructions not in gameState, checking practiceSettings=$showInstructions', isOn: LOGGING_SWITCH);
+      }
+      if (!showInstructions) {
+        _logger.info('📚 _checkAndShowInitialInstructions: Instructions disabled, skipping', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Check if we're in waiting phase
+      final rawPhase = gameState['phase']?.toString();
+      final gamePhase = rawPhase == 'waiting_for_players'
+          ? 'waiting'
+          : (rawPhase ?? 'playing');
+      
+      if (gamePhase == 'waiting') {
+        _logger.info('📚 _checkAndShowInitialInstructions: In waiting phase, showInstructions=$showInstructions', isOn: LOGGING_SWITCH);
+        // Check if initial instructions haven't been dismissed
+        final instructionsData = recallGameState['instructions'] as Map<String, dynamic>? ?? {};
+        final dontShowAgain = Map<String, bool>.from(
+          instructionsData['dontShowAgain'] as Map<String, dynamic>? ?? {},
+        );
+        
+        _logger.info('📚 _checkAndShowInitialInstructions: dontShowAgain[initial]=${dontShowAgain['initial']}', isOn: LOGGING_SWITCH);
+        
+        if (dontShowAgain['initial'] != true) {
+          // Get initial instructions
+          final initialInstructions = instructions.GameInstructionsProvider.getInitialInstructions();
+          StateManager().updateModuleState('recall_game', {
+            'instructions': {
+              'isVisible': true,
+              'title': initialInstructions['title'] ?? 'Welcome to Recall!',
+              'content': initialInstructions['content'] ?? '',
+              'key': initialInstructions['key'] ?? 'initial',
+              'dontShowAgain': dontShowAgain,
+            },
+          });
+          _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions triggered from screen init', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.info('📚 _checkAndShowInitialInstructions: Initial instructions skipped - already marked as dontShowAgain', isOn: LOGGING_SWITCH);
+        }
+      }
+    } catch (e) {
+      _logger.error('Error checking initial instructions: $e', isOn: LOGGING_SWITCH);
+    }
   }
 
   void _setupEventCallbacks() {

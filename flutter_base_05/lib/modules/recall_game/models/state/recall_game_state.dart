@@ -87,7 +87,7 @@ class RecallGameState extends ImmutableState with EquatableMixin {
       cardsToPeek: const [],
       turnEvents: const [],
       messages: const {'session': [], 'rooms': {}},
-      instructions: const {'isVisible': false, 'title': '', 'content': ''},
+      instructions: const {'isVisible': false, 'title': '', 'content': '', 'key': '', 'dontShowAgain': {}},
       lastUpdated: DateTime.now().toIso8601String(),
     );
   }

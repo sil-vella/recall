@@ -2849,17 +2849,16 @@ class RecallGameRound {
         _updatePlayerStatusInGamesMap('waiting', playerId: null);
         _logger.info('Recall: Set all players to waiting status', isOn: LOGGING_SWITCH);
         
-        // Update game phase to game_ended (must match validator allowed values)
+        // Update game phase to game_ended and include winners list (must match validator allowed values)
         _stateCallback.onGameStateChanged({
           'gamePhase': 'game_ended',
+          'winners': List<Map<String, dynamic>>.from(_winnersList), // Send winners list to frontend
         });
         
-        _logger.info('Recall: Set gamePhase to game_ended - all timers stopped and players set to waiting', isOn: LOGGING_SWITCH);
-        
-        // TODO: Future implementation
-        // - Calculate points for all players if Recall was called
-        // - Determine winner based on points and card count
-        // - Display winner information
+        _logger.info('Recall: Set gamePhase to game_ended with ${_winnersList.length} winner(s) - all timers stopped and players set to waiting', isOn: LOGGING_SWITCH);
+        for (final winner in _winnersList) {
+          _logger.info('Recall: Winner - ${winner['playerName']} (${winner['playerId']}) - Win Type: ${winner['winType']}', isOn: LOGGING_SWITCH);
+        }
       } else {
         _logger.info('Recall: No winners yet - game continues', isOn: LOGGING_SWITCH);
       }

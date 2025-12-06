@@ -132,7 +132,7 @@ class FlutterAppConfigurator:
             
             # Replace app title - more flexible pattern
             content = re.sub(
-                rf'title:\s*"({re.escape(self.old_package_name)}|recall|Flutter Base 04)\s*App"',
+                rf'title:\s*"({re.escape(self.old_package_name)}|cleco|Flutter Base 04)\s*App"',
                 f'title: "{self.app_name} App"',
                 content
             )
@@ -159,7 +159,7 @@ class FlutterAppConfigurator:
             
             # Replace app title - more flexible pattern
             content = re.sub(
-                rf'static const String appTitle = "({re.escape(self.old_package_name)}|Recall|recall)";',
+                rf'static const String appTitle = "({re.escape(self.old_package_name)}|Cleco|cleco)";',
                 f'static const String appTitle = "{self.app_name}";',
                 content
             )
@@ -186,14 +186,14 @@ class FlutterAppConfigurator:
             
             # Replace app label - more flexible pattern
             content = re.sub(
-                rf'android:label="({re.escape(self.old_package_name)}|recall|Flutter Base 04)"',
+                rf'android:label="({re.escape(self.old_package_name)}|cleco|Flutter Base 04)"',
                 f'android:label="{self.app_name}"',
                 content
             )
             
             # Replace deep link scheme - more flexible pattern
             content = re.sub(
-                rf'android:scheme="({re.escape(self.old_package_name)}|recall)"',
+                rf'android:scheme="({re.escape(self.old_package_name)}|cleco)"',
                 f'android:scheme="{self.app_name_lower}"',
                 content
             )
@@ -268,7 +268,7 @@ class FlutterAppConfigurator:
             
             # Replace app scheme - more flexible pattern
             content = re.sub(
-                rf"'app': '({re.escape(self.old_package_name)}|recall)://\$path'",
+                rf"'app': '({re.escape(self.old_package_name)}|cleco)://\$path'",
                 f"'app': '{self.app_name_lower}://\$path'",
                 content
             )
@@ -295,7 +295,7 @@ class FlutterAppConfigurator:
         if hasattr(self, 'extra_old_package_names'):
             old_package_names.extend(self.extra_old_package_names)
         # Always check for common legacy names
-        old_package_names.extend(['recall', 'flutter_base_04'])
+        old_package_names.extend(['cleco', 'flutter_base_04'])
         # Remove duplicates
         old_package_names = list(dict.fromkeys(old_package_names))
         

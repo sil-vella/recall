@@ -1,7 +1,7 @@
-# Master Plan - Recall Game Development
+# Master Plan - Cleco Game Development
 
 ## Overview
-This document tracks high-level development plans, todos, and architectural decisions for the Recall game application.
+This document tracks high-level development plans, todos, and architectural decisions for the Cleco game application.
 
 ---
 
@@ -47,20 +47,20 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Status**: Partially implemented - initial peek phase exists but needs completion
   - **Current State**: Game enters `initial_peek` phase on match start, players can peek at 2 cards
   - **Needs**: Complete the flow from initial peek to game start, ensure all players complete peek before proceeding, handle timeout/auto-complete scenarios
-  - **Location**: `dart_bkend_base_01/lib/modules/recall_game/backend_core/shared_logic/recall_game_round.dart` and related event handlers
+  - **Location**: `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart` and related event handlers
   - **Impact**: Core game feature - players must complete initial peek before game can start
 - [ ] **Complete instructions logic**
   - **Status**: Partially implemented - `showInstructions` flag is stored and passed through, timer logic checks it
   - **Current State**: `showInstructions` is stored in game state, timer logic respects it (timers disabled when `showInstructions == true`), value is passed from practice widget to game logic
   - **Needs**: Complete UI implementation to show/hide instructions based on flag, ensure instructions are displayed correctly in practice mode, verify timer behavior matches instructions visibility
-  - **Location**: Flutter UI components (practice match widget, game play screen), timer logic in `recall_game_round.dart`
+  - **Location**: Flutter UI components (practice match widget, game play screen), timer logic in `cleco_game_round.dart`
   - **Impact**: User experience - players need clear instructions in practice mode
 - [ ] **Fix CPU player Jack swap decision logic to validate cards exist in hand**
   - **Issue**: CPU players sometimes attempt Jack swaps with cards that are no longer in their hand
   - **Root Cause**: CPU decision logic uses `known_cards` (which may contain "forgotten" played cards due to difficulty-based remember probability), but by execution time the card has already been played and removed from hand
   - **Current Behavior**: Decision is made based on stale `known_cards` data, validation correctly catches invalid swaps but wastes decision attempts
   - **Solution**: Before making Jack swap decision, validate that selected cards actually exist in the player's current hand, not just in `known_cards`
-  - **Location**: `dart_bkend_base_01/lib/modules/recall_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getJackSwapDecision()` and related selection methods
+  - **Location**: `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getJackSwapDecision()` and related selection methods
   - **Impact**: Improves CPU player decision accuracy, reduces failed swap attempts
 
 ### Low Priority
@@ -160,9 +160,9 @@ Python Backend (Auth)
 
 ## 📚 Related Documentation
 
-- `Documentation/Recall_game/ROOM_GAME_CREATION_COMPARISON.md` - Python vs Dart backend comparison
-- `Documentation/Recall_game/COMPLETE_STATE_STRUCTURE.md` - Game state structure
-- `.cursor/rules/recall-game-state-rules.mdc` - Game system rules
+- `Documentation/Cleco_game/ROOM_GAME_CREATION_COMPARISON.md` - Python vs Dart backend comparison
+- `Documentation/Cleco_game/COMPLETE_STATE_STRUCTURE.md` - Game state structure
+- `.cursor/rules/cleco-game-state-rules.mdc` - Game system rules
 
 ---
 

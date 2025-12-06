@@ -1,4 +1,4 @@
-import 'package:recall/modules/admobs/banner/banner_ad.dart';
+import 'package:cleco/modules/admobs/banner/banner_ad.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../managers/app_manager.dart';
@@ -7,13 +7,13 @@ import '../managers/navigation_manager.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
 import '../widgets/feature_slot.dart';
-import '../../modules/recall_game/managers/feature_contracts.dart';
-import '../../modules/recall_game/managers/feature_registry_manager.dart';
+import '../../modules/cleco_game/managers/feature_contracts.dart';
+import '../../modules/cleco_game/managers/feature_registry_manager.dart';
 import '../widgets/state_aware_features/index.dart';
 import '../managers/websockets/websocket_manager.dart';
 import '../managers/websockets/websocket_events.dart';
 import 'dart:async';
-// Note: Do not import recall game types here to keep BaseScreen generic.
+// Note: Do not import cleco game types here to keep BaseScreen generic.
 
 abstract class BaseScreen extends StatefulWidget {
   const BaseScreen({Key? key}) : super(key: key);

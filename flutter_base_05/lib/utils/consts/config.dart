@@ -4,7 +4,7 @@ class Config {
 
   static const bool loggerOn = true;
 
-  static const String appTitle = "Recall";
+  static const String appTitle = "Cleco";
 
   // API URL
   static const String apiUrl = String.fromEnvironment(

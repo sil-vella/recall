@@ -35,7 +35,7 @@ class ConnectionsApiModule extends ModuleBase {
   static Map<String, String> generateLinks(String path) {
     return {
       'http': 'https://example.com\$path',
-      'app': 'recall://\$path'
+      'app': 'cleco://\$path'
     };
   }
 

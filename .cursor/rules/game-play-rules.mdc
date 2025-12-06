@@ -1,15 +1,15 @@
 ---
-description: Recall Game play rules.
+description: Cleco Game play rules.
 alwaysApply: true
 ---
 
-# Recall Card Game Rules
+# Cleco Card Game Rules
 
 ## 🎯 Game Objective
 
 The aim of the game is to:
 1. Finish with no cards, OR
-2. Have the fewest points with the least number of cards when 'Recall' is called
+2. Have the fewest points with the least number of cards when 'Cleco' is called
 
 ## 💯 Card Points System
 
@@ -66,9 +66,9 @@ The aim of the game is to:
   - Must play before next player's turn
   - Rank matching ignores card color
 
-### Recall Phase
-- **Triggering Recall**:
-  - Player can call 'Recall' after their play
+### Cleco Phase
+- **Triggering Cleco**:
+  - Player can call 'Cleco' after their play
   - Signals final round of game
   - All other players get one last turn
 
@@ -77,15 +77,15 @@ The aim of the game is to:
 1. **Primary Victory**:
    - First player to have no cards
 
-2. **After Recall**:
+2. **After Cleco**:
    - Lowest points wins
    - If points tie, fewer cards wins
    - If points and cards tie:
-     - Recall caller wins if involved in tie
+     - Cleco caller wins if involved in tie
      - Otherwise, it's a draw
 
 ## 📋 Game End Conditions
 
 Game ends when either:
 1. A player has no cards remaining, OR
-2. A player calls 'Recall' and final round completes
+2. A player calls 'Cleco' and final round completes

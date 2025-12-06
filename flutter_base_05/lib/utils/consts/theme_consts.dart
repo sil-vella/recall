@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Card size options for the Recall game
+/// Card size options for the Cleco game
 enum CardSize {
   small,
   medium,

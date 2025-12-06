@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../managers/state_manager.dart';
-import '../../../modules/recall_game/screens/game_play/widgets/game_phase_chip_widget.dart';
+import '../../../modules/cleco_game/screens/game_play/widgets/game_phase_chip_widget.dart';
 
 /// State-aware game phase chip feature widget
 /// 
-/// This widget subscribes to the recall_game state slice and displays
+/// This widget subscribes to the cleco_game state slice and displays
 /// the current game phase chip in the app bar. It automatically updates
 /// when the game phase changes.
 class StateAwareGamePhaseChipFeature extends StatelessWidget {
@@ -15,9 +15,9 @@ class StateAwareGamePhaseChipFeature extends StatelessWidget {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        // Get recall game state from StateManager
-        final recallGameState = StateManager().getModuleState<Map<String, dynamic>>('recall_game') ?? {};
-        final gameInfo = recallGameState['gameInfo'] as Map<String, dynamic>? ?? {};
+        // Get cleco game state from StateManager
+        final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+        final gameInfo = clecoGameState['gameInfo'] as Map<String, dynamic>? ?? {};
         final currentGameId = gameInfo['currentGameId']?.toString() ?? '';
         
         // Return empty widget if no game is active

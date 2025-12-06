@@ -137,7 +137,7 @@ class _MyAppState extends State<MyApp> {
     navigationManager.setRouterInstance(router);
     
     return MaterialApp.router(
-      title: "Recall App",
+      title: "Cleco App",
       theme: ThemeData.dark(),
       routerConfig: router,
     );

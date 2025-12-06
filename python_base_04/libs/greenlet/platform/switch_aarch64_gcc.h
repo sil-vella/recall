@@ -22,7 +22,7 @@
                      "v12", "v13", "v14", "v15"
 
 /*
- * Recall:
+ * Cleco:
    asm asm-qualifiers ( AssemblerTemplate
                  : OutputOperands
                  [ : InputOperands

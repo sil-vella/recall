@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../modules/recall_game/managers/feature_registry_manager.dart';
+import '../../../../modules/cleco_game/managers/feature_registry_manager.dart';
 import 'connection_status_feature.dart';
 
 /// Helper class to register state-aware features

@@ -13,7 +13,7 @@ def retry(
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """Decorator to automatically retry a function on error.
 
-    If the function raises, the function is recalled with the same arguments
+    If the function raises, the function is clecoed with the same arguments
     until it returns or the time limit is reached. When the time limit is
     surpassed, the last exception raised is reraised.
 

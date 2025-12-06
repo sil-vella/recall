@@ -2,7 +2,7 @@
 
 ## Overview
 
-This documentation covers the Dart WebSocket server implementation for the Recall card game multiplayer functionality. The server provides real-time communication capabilities and room management for game clients.
+This documentation covers the Dart WebSocket server implementation for the Cleco card game multiplayer functionality. The server provides real-time communication capabilities and room management for game clients.
 
 ## 📚 Documentation Structure
 
@@ -81,7 +81,7 @@ Client → WebSocket → MessageHandler → RoomManager → Response → Client
 
 ### 1. Setup
 ```bash
-cd /Users/sil/Documents/Work/reignofplay/Recall/app_dev/dart_bkend_base_01
+cd /Users/sil/Documents/Work/reignofplay/Cleco/app_dev/dart_bkend_base_01
 dart pub get
 ```
 

@@ -4,9 +4,9 @@ import 'websocket_server.dart';
 import '../utils/server_logger.dart';
 import '../utils/config.dart';
 import 'random_join_timer_manager.dart';
-import '../modules/recall_game/backend_core/coordinator/game_event_coordinator.dart';
-import '../modules/recall_game/backend_core/services/game_state_store.dart';
-import '../modules/recall_game/utils/platform/shared_imports.dart';
+import '../modules/cleco_game/backend_core/coordinator/game_event_coordinator.dart';
+import '../modules/cleco_game/backend_core/services/game_state_store.dart';
+import '../modules/cleco_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
 const bool LOGGING_SWITCH = true; // Enabled for jack swap tracing
@@ -65,7 +65,7 @@ class MessageHandler {
       case 'play_card':
       case 'discard_card':
       case 'take_from_discard':
-      case 'call_recall':
+      case 'call_cleco':
       case 'same_rank_play':
       case 'jack_swap':
       case 'queen_peek':

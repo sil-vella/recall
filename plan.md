@@ -28,7 +28,7 @@ Implement visual stacking for collection rank cards in the OpponentsPanelWidget.
 - Should clearly display the rank of all cards in the collection
 
 ## Implementation Location
-- `flutter_base_05/lib/modules/recall_game/widgets/opponents_panel_widget.dart`
+- `flutter_base_05/lib/modules/cleco_game/widgets/opponents_panel_widget.dart`
 - Specifically in the `_buildCardsRow()` method where collection rank cards are displayed
 
 ## Current Behavior

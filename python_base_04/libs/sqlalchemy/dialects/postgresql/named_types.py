@@ -195,7 +195,7 @@ class ENUM(NamedType, type_api.NativeForEmulated, sqltypes.Enum):
         table.drop(engine)  # will emit DROP TABLE and DROP ENUM
 
     To use a common enumerated type between multiple tables, the best
-    recall is to declare the :class:`_types.Enum` or
+    cleco is to declare the :class:`_types.Enum` or
     :class:`_postgresql.ENUM` independently, and associate it with the
     :class:`_schema.MetaData` object itself::
 

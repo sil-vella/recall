@@ -57,7 +57,7 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
         children: [
           // Welcome text with app title
           const Text(
-            'Welcome to Recall',
+            'Welcome to Cleco',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,

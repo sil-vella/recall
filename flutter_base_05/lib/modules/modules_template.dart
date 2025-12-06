@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:recall/core/managers/navigation_manager.dart';
-import 'package:recall/core/managers/state_manager.dart';
-import 'package:recall/core/services/shared_preferences.dart';
-import 'package:recall/modules/recall_game/screens/game_play/game_play_screen.dart';
-import 'package:recall/modules/recall_game/screens/lobby_room/lobby_screen.dart';
+import 'package:cleco/core/managers/navigation_manager.dart';
+import 'package:cleco/core/managers/state_manager.dart';
+import 'package:cleco/core/services/shared_preferences.dart';
+import 'package:cleco/modules/cleco_game/screens/game_play/game_play_screen.dart';
+import 'package:cleco/modules/cleco_game/screens/lobby_room/lobby_screen.dart';
 import '../core/00_base/module_base.dart';
 import '../core/managers/module_manager.dart';
 import '../core/managers/services_manager.dart';
@@ -17,7 +17,7 @@ import '../tools/logging/logger.dart';
 /// 2. Rename the class to your module name
 /// 3. Implement required methods
 /// 4. Add your module-specific functionality
-class RecallGameMain extends ModuleBase {
+class ClecoGameMain extends ModuleBase {
   static final Logger _logger = Logger();
   late ModuleManager _localModuleManager;
   late ServicesManager _servicesManager;
@@ -25,7 +25,7 @@ class RecallGameMain extends ModuleBase {
   final navigationManager = NavigationManager();
 
   /// ✅ Constructor with module key and dependencies
-  RecallGameMain() : super("recall_game_module", dependencies: []);
+  ClecoGameMain() : super("cleco_game_module", dependencies: []);
 
   /// ✅ Initialize module with context and module manager
   @override
@@ -33,7 +33,7 @@ class RecallGameMain extends ModuleBase {
     super.initialize(context, moduleManager);
     _localModuleManager = moduleManager;
     _initDependencies(context);
-    _logger.info('✅ RecallGameMain initialized with context.');
+    _logger.info('✅ ClecoGameMain initialized with context.');
     _registerState();
 
   }
@@ -51,9 +51,9 @@ class RecallGameMain extends ModuleBase {
   void _registerState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final stateManager = StateManager();
-      if (!stateManager.isModuleStateRegistered('recall_game')) {
-        _logger.info('📊 Creating new recall_game state registration...');
-        stateManager.registerModuleState('recall_game', {
+      if (!stateManager.isModuleStateRegistered('cleco_game')) {
+        _logger.info('📊 Creating new cleco_game state registration...');
+        stateManager.registerModuleState('cleco_game', {
           // Connection state
           'isLoading': false,
           'isConnected': false,
@@ -69,7 +69,7 @@ class RecallGameMain extends ModuleBase {
           'actionBar': {
             'showStartButton': false,
             'canPlayCard': false,
-            'canCallRecall': false,
+            'canCallCleco': false,
             'isGameStarted': false,
           },
           'statusBar': {
@@ -100,35 +100,35 @@ class RecallGameMain extends ModuleBase {
           // Metadata
           'lastUpdated': DateTime.now().toIso8601String(),
         });
-        _logger.info('✅ Recall game state registered with widget slices');
+        _logger.info('✅ Cleco game state registered with widget slices');
       } else {
-        _logger.info('📊 Recall game state already registered');
+        _logger.info('📊 Cleco game state already registered');
       }
     });
   }
 
-    /// Register all Recall game screens with NavigationManager
+    /// Register all Cleco game screens with NavigationManager
   void _registerScreens() {
     // Screens no longer require a notifier – nothing to guard here
     
     final navigationManager = NavigationManager();
     _logger.info('🗺️ NavigationManager obtained for screen registration');
 
-    // Register Recall Game Lobby Screen (Room Management)
-    _logger.info('🗺️ Registering LobbyScreen route: /recall/lobby');
+    // Register Cleco Game Lobby Screen (Room Management)
+    _logger.info('🗺️ Registering LobbyScreen route: /cleco/lobby');
     navigationManager.registerRoute(
-      path: '/recall/lobby',
+      path: '/cleco/lobby',
       screen: (context) => const LobbyScreen(),
-      drawerTitle: 'Recall Game',
+      drawerTitle: 'Cleco Game',
       drawerIcon: Icons.games,
       drawerPosition: 6, // After existing screens
     );
     _logger.info('✅ LobbyScreen route registered');
 
     // Register Game Play Screen - ALWAYS with notifier
-    _logger.info('🗺️ Registering GamePlayScreen route: /recall/game-play');
+    _logger.info('🗺️ Registering GamePlayScreen route: /cleco/game-play');
     navigationManager.registerRoute(
-      path: '/recall/game-play',
+      path: '/cleco/game-play',
       screen: (BuildContext context) => const GamePlayScreen(),
       drawerTitle: null, // Hidden from drawer
       drawerIcon: null,
@@ -137,27 +137,27 @@ class RecallGameMain extends ModuleBase {
     _logger.info('✅ GamePlayScreen route registered');
 
     // navigationManager.registerRoute(
-    //   path: '/recall/game-results',
+    //   path: '/cleco/game-results',
     //   screen: (context) => const GameResultsScreen(),
     //   drawerTitle: null, // Don't show in drawer
     //   drawerIcon: null,
     //   drawerPosition: 999,
     // );
 
-    _logger.info('✅ Recall game screens registered with NavigationManager');
+    _logger.info('✅ Cleco game screens registered with NavigationManager');
   }
 
   /// ✅ Cleanup resources when module is disposed
   @override
   void dispose() {
-    _logger.info('🗑 RecallGameMain disposed.');
+    _logger.info('🗑 ClecoGameMain disposed.');
     super.dispose();
   }
 
   /// ✅ Example method - add your module-specific methods below
   Future<Map<String, dynamic>> exampleMethod(BuildContext context) async {
     try {
-      _logger.info('🔧 RecallGameMain example method called');
+      _logger.info('🔧 ClecoGameMain example method called');
       return {"success": "Example method executed successfully"};
     } catch (e) {
       _logger.error('❌ Error in example method: $e');
@@ -171,7 +171,7 @@ class RecallGameMain extends ModuleBase {
     return {
       'module': moduleKey,
       'status': isInitialized ? 'healthy' : 'not_initialized',
-      'details': isInitialized ? 'RecallGameMain is functioning normally' : 'RecallGameMain not initialized',
+      'details': isInitialized ? 'ClecoGameMain is functioning normally' : 'ClecoGameMain not initialized',
       'custom_metric': 'example_value'
     };
   }

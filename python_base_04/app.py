@@ -214,7 +214,7 @@ def list_authenticated_actions():
     except Exception as e:
         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
 
-# Test endpoints removed - Recall game is now managed through ModuleRegistry
+# Test endpoints removed - Cleco game is now managed through ModuleRegistry
     
 
 # Production mode: Let gunicorn handle the app

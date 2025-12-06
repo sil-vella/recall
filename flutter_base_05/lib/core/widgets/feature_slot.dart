@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../utils/consts/theme_consts.dart';
-import '../../modules/recall_game/managers/feature_registry_manager.dart';
-import '../../modules/recall_game/managers/feature_contracts.dart';
+import '../../modules/cleco_game/managers/feature_registry_manager.dart';
+import '../../modules/cleco_game/managers/feature_contracts.dart';
 
 /// A visual template for a feature slot. Enforces padding, spacing, and theme.
 class SlotTemplate extends StatelessWidget {

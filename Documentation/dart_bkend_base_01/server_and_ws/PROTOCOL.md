@@ -229,7 +229,7 @@ Draw card from deck or discard pile.
 The following events follow the same acknowledgment pattern:
 - `discard_card` → `discard_card_acknowledged`
 - `take_from_discard` → `take_from_discard_acknowledged`
-- `call_recall` → `call_recall_acknowledged`
+- `call_cleco` → `call_cleco_acknowledged`
 - `same_rank_play` → `same_rank_play_acknowledged`
 - `jack_swap` → `jack_swap_acknowledged`
 - `queen_peek` → `queen_peek_acknowledged`
@@ -244,7 +244,7 @@ Sent when client successfully connects.
 {
   "event": "connected",
   "session_id": "42a0f96a-d8f5-400f-a3fa-4ae166256b38",
-  "message": "Welcome to Recall Game Server",
+  "message": "Welcome to Cleco Game Server",
   "authenticated": false
 }
 ```
@@ -389,7 +389,7 @@ Server: Cleanup session and room associations
 - `play_card`: Play a card
 - `draw_card`: Draw from deck
 - `end_turn`: End current turn
-- `call_recall`: Call recall phase
+- `call_cleco`: Call cleco phase
 - `game_state`: Broadcast game state updates
 
 ### Example Game Event

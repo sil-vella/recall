@@ -183,7 +183,7 @@ class IDLLexer(RegexLexer):
         'read_jpeg2000', 'read_mrsid', 'read_pict', 'read_png',
         'read_ppm', 'read_spr', 'read_srf', 'read_sylk',
         'read_tiff', 'read_wav', 'read_wave', 'read_x11_bitmap',
-        'read_xwd', 'real_part', 'rebin', 'recall_commands',
+        'read_xwd', 'real_part', 'rebin', 'cleco_commands',
         'recon3', 'reduce_colors', 'reform', 'region_grow',
         'register_cursor', 'regress', 'replicate',
         'replicate_inplace', 'resolve_all', 'resolve_routine',

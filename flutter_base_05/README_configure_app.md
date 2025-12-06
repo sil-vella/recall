@@ -13,7 +13,7 @@ python3 configure_app.py
 ## What the script does
 
 The script will prompt you for:
-1. **App Name** (required) - e.g., "MyApp", "CreditSystem", "Recall"
+1. **App Name** (required) - e.g., "MyApp", "CreditSystem", "Cleco"
 2. **Domain** (optional) - e.g., "myapp.com", "creditsystem.app" (defaults to "example.com" if skipped)
 
 ## Files Updated

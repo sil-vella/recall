@@ -32,7 +32,7 @@ Fixed critical turn flow issues in the backend multiplayer game that were causin
 ## Solution Implemented
 
 ### Fix 1: Refactored _move_to_next_player() 
-**Location**: `python_base_04/core/modules/recall_game/game_logic/game_round.py` lines 365-472
+**Location**: `python_base_04/core/modules/cleco_game/game_logic/game_round.py` lines 365-472
 
 **Changes**:
 1. Added cleanup phase at start:
@@ -53,7 +53,7 @@ Fixed critical turn flow issues in the backend multiplayer game that were causin
 **Result**: No more race conditions, status always correct
 
 ### Fix 2: Refactored start_turn()
-**Location**: `python_base_04/core/modules/recall_game/game_logic/game_round.py` lines 82-124
+**Location**: `python_base_04/core/modules/cleco_game/game_logic/game_round.py` lines 82-124
 
 **Changes**:
 - Removed all player status/timer logic (now in `_move_to_next_player()`)
@@ -65,7 +65,7 @@ Fixed critical turn flow issues in the backend multiplayer game that were causin
 - Individual player turns now managed by `_move_to_next_player()`
 
 ### Fix 3: Cancel Timers in Same Rank Window
-**Location**: `python_base_04/core/modules/recall_game/game_logic/game_round.py` lines 1160-1164
+**Location**: `python_base_04/core/modules/cleco_game/game_logic/game_round.py` lines 1160-1164
 
 **Changes**:
 - Added `_cancel_draw_phase_timer()` call when same rank window starts
@@ -83,7 +83,7 @@ Fixed critical turn flow issues in the backend multiplayer game that were causin
 ✅ Computer players handled automatically after status change
 
 ## Files Modified
-- `python_base_04/core/modules/recall_game/game_logic/game_round.py`
+- `python_base_04/core/modules/cleco_game/game_logic/game_round.py`
 
 ## Commit
 - Commit: 98e5a73

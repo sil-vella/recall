@@ -9,7 +9,7 @@ echo "🚀 Launching Flutter app on Chrome web with filtered Logger output..."
 cd flutter_base_05
 
 # Set up log file to write to Python server log
-SERVER_LOG_FILE="/Users/sil/Documents/Work/reignofplay/Recall/app_dev/python_base_04/tools/logger/server.log"
+SERVER_LOG_FILE="/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/python_base_04/tools/logger/server.log"
 echo "📝 Writing Logger output to: $SERVER_LOG_FILE"
 
 # Launch Flutter app with Chrome web configuration
@@ -61,8 +61,8 @@ filter_logs() {
             esac
             
             # Write clean formatted log to Python server log file
-            # Filter out RecallGameStateUpdater debug/validation logs to reduce noise
-            if ! echo "$message" | grep -qE "(RecallGameStateUpdater|Validating field|validation successful|Rebuilding slice)"; then
+            # Filter out ClecoGameStateUpdater debug/validation logs to reduce noise
+            if ! echo "$message" | grep -qE "(ClecoGameStateUpdater|Validating field|validation successful|Rebuilding slice)"; then
                 echo "[$timestamp] [$level] $message" >> "$SERVER_LOG_FILE"
             fi
             

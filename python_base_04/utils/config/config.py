@@ -520,8 +520,8 @@ class Config:
     WS_PRESENCE_CLEANUP_INTERVAL = int(get_file_first_config_value("ws_presence_cleanup_interval", "WS_PRESENCE_CLEANUP_INTERVAL", "300"))  # Cleanup interval in seconds
     WS_SESSION_TTL = int(get_file_first_config_value("ws_session_ttl", "WS_SESSION_TTL", "3600"))  # Session TTL in seconds
 
-    # Recall Game Configuration
-    RECALL_PLAYER_ACTION_TIMEOUT = int(get_file_first_config_value("recall_player_action_timeout", "RECALL_PLAYER_ACTION_TIMEOUT", "10"))  # Player action timeout in seconds
+    # Cleco Game Configuration
+    RECALL_PLAYER_ACTION_TIMEOUT = int(get_file_first_config_value("cleco_player_action_timeout", "RECALL_PLAYER_ACTION_TIMEOUT", "10"))  # Player action timeout in seconds
 
     @classmethod
     def refresh_from_vault(cls):

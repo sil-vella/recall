@@ -108,7 +108,7 @@ class ModuleRegistry:
             "system_actions_module": [],  # Core system actions - no dependencies
             "wallet_module": ["user_management_module"],  # Needs user management
             "transactions_module": ["user_management_module", "wallet_module"],  # Needs users and wallet
-            "recall_game": ["user_management_module"],  # Needs user management for JWT auth
+            "cleco_game": ["user_management_module"],  # Needs user management for JWT auth
             # "communications_module": [],  # Communications module - no dependencies (temporarily disabled due to missing debugpy)
             # "stripe_module": ["user_management_module"],  # Needs user management (temporarily disabled due to missing stripe)
         }
@@ -139,7 +139,7 @@ class ModuleRegistry:
                 "health_check_enabled": True,
                 "verification_timeout": 30,
             },
-            "recall_game": {
+            "cleco_game": {
                 "enabled": True,
                 "priority": 4,
                 "health_check_enabled": True,

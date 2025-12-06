@@ -4,7 +4,7 @@
 
 ✅ **Structure Already in Place:**
 - `getCollectFromDiscardDecision()` method exists in `computer_player_factory.dart` (line 264)
-- Method is called from `recall_game_round.dart` when collection rank matches top discard card
+- Method is called from `cleco_game_round.dart` when collection rank matches top discard card
 - Rank matching is done in Dart before YAML decision (correct approach)
 - Method currently returns `collect: false` with placeholder reasoning
 
@@ -79,7 +79,7 @@ Add to `flutter_base_05/assets/computer_player_config.yaml`:
 
 ### 2. Update `getCollectFromDiscardDecision()` Method
 
-**Location:** `flutter_base_05/lib/modules/recall_game/game_logic/practice_match/shared_logic/utils/computer_player_factory.dart`
+**Location:** `flutter_base_05/lib/modules/cleco_game/game_logic/practice_match/shared_logic/utils/computer_player_factory.dart`
 
 **Current Implementation (line 264):**
 ```dart
@@ -128,7 +128,7 @@ Map<String, dynamic> getCollectFromDiscardDecision(String difficulty, Map<String
 - Add case for `collect_from_discard` action type
 - Return `{'collect': true, 'reasoning': ruleName}` or `{'collect': false, 'reasoning': ruleName}`
 
-**Note:** The actual collection logic is already implemented in `handleCollectFromDiscard()` in `recall_game_round.dart` - we only need to wire the YAML decision.
+**Note:** The actual collection logic is already implemented in `handleCollectFromDiscard()` in `cleco_game_round.dart` - we only need to wire the YAML decision.
 
 ## Implementation Checklist
 

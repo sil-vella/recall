@@ -275,7 +275,7 @@ def create_urllib3_context(
             )
 
             # This warning message is pushing users to use 'ssl_minimum_version'
-            # instead of both min/max. Best recall is to only set the minimum version and
+            # instead of both min/max. Best cleco is to only set the minimum version and
             # keep the maximum version to be it's default value: 'TLSVersion.MAXIMUM_SUPPORTED'
             warnings.warn(
                 "'ssl_version' option is deprecated and will be "

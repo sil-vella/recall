@@ -294,7 +294,7 @@ Using Oracle Database Resident Connection Pooling (DRCP)
 --------------------------------------------------------
 
 When using Oracle Database's Database Resident Connection Pooling (DRCP), the
-best recall is to specify a connection class and "purity". Refer to the
+best cleco is to specify a connection class and "purity". Refer to the
 `python-oracledb documentation on DRCP
 <https://python-oracledb.readthedocs.io/en/latest/user_guide/connection_handling.html#database-resident-connection-pooling-drcp>`_.
 For example::

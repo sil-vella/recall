@@ -153,6 +153,20 @@ Python Backend (Auth)
 - **Location**: Timer logic in game round/event handlers, likely in `cleco_game_round.dart` or related timer management code
 - **Impact**: User experience - prevents confusion and ensures timer accurately reflects available time
 
+### Game State Cleanup on Navigation
+- **Issue**: Game data persists in state and game maps when navigating away from game play screen
+- **Current Behavior**: Game state, games map, and related data remain in memory when user navigates to other screens
+- **Expected Behavior**: All game data should be completely cleared from state and all game maps when leaving the game play screen
+- **Location**: Navigation logic, game play screen lifecycle (dispose/onExit), state management in `cleco_event_handler_callbacks.dart` and `cleco_game_state_updater.dart`
+- **Impact**: Memory management and state consistency - prevents stale game data from affecting new games or causing memory leaks
+- **Action Items**:
+  - Clear `games` map in state manager
+  - Clear `currentGameId`, `currentRoomId`, and related game identifiers
+  - Clear widget-specific state slices (myHandCards, discardPile, etc.)
+  - Clear messages state (including modal state)
+  - Clear turn_events and animation data
+  - Ensure cleanup happens on both explicit navigation and screen disposal
+
 ---
 
 ## 🚀 Future Enhancements

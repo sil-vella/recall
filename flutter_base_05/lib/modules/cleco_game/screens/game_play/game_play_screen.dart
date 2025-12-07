@@ -15,8 +15,10 @@ import '../../managers/feature_registry_manager.dart';
 import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
 import 'card_position_tracker.dart';
 import '../../utils/game_instructions_provider.dart' as instructions;
+import '../../managers/game_coordinator.dart';
+import '../../utils/cleco_game_helpers.dart';
 
-const bool LOGGING_SWITCH = false; // Temporarily enabled for debugging
+const bool LOGGING_SWITCH = true; // Enabled for cleanup testing
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);
@@ -110,12 +112,28 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   
   @override
   void deactivate() {
-    // Check if we're navigating away from a cleco game
-    if (_previousGameId != null && _previousGameId!.startsWith('cleco_game_')) {
-      _logger.info('GamePlay: Navigating away from cleco game $_previousGameId - cleaning up', isOn: LOGGING_SWITCH);
+    // Check if we're navigating away from a game
+    if (_previousGameId != null && _previousGameId!.isNotEmpty) {
+      _logger.info('GamePlay: Navigating away from game $_previousGameId - cleaning up', isOn: LOGGING_SWITCH);
       
-      // todo Clean up cleco game state
-    
+      // For multiplayer games (room_*), send leave_game event to backend
+      // This removes the player from the game on the backend
+      if (_previousGameId!.startsWith('room_')) {
+        _logger.info('GamePlay: Sending leave_game event for multiplayer game $_previousGameId', isOn: LOGGING_SWITCH);
+        GameCoordinator().leaveGame(gameId: _previousGameId!).catchError((e) {
+          _logger.error('GamePlay: Error leaving game: $e', isOn: LOGGING_SWITCH);
+          return false;
+        });
+      }
+      
+      // For practice games (practice_room_*), just clear state (no backend event needed)
+      // Practice mode bridge handles its own cleanup
+      if (_previousGameId!.startsWith('practice_room_')) {
+        _logger.info('GamePlay: Clearing state for practice game $_previousGameId', isOn: LOGGING_SWITCH);
+      }
+      
+      // Clear all game state (works for both multiplayer and practice)
+      ClecoGameHelpers.clearGameState(gameId: _previousGameId);
     }
     
     super.deactivate();
@@ -132,11 +150,21 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     // Clear card position tracker
     CardPositionTracker.instance().clearAllPositions();
     
-    // Additional cleanup on dispose (failsafe)
-    if (_previousGameId != null && _previousGameId!.startsWith('cleco_game_')) {
-      _logger.info('GamePlay: Disposing cleco game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
+    // Additional cleanup on dispose (failsafe - in case deactivate wasn't called)
+    if (_previousGameId != null && _previousGameId!.isNotEmpty) {
+      _logger.info('GamePlay: Disposing game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
       
-      // todo cleanup practice mode state
+      // For multiplayer games, try to leave (may fail if already left, but that's ok)
+      if (_previousGameId!.startsWith('room_')) {
+        GameCoordinator().leaveGame(gameId: _previousGameId!).catchError((e) {
+          // Ignore errors - game may already be left or connection may be closed
+          _logger.info('GamePlay: Error leaving game on dispose (expected if already left): $e', isOn: LOGGING_SWITCH);
+          return false;
+        });
+      }
+      
+      // Clear all game state as failsafe
+      ClecoGameHelpers.clearGameState(gameId: _previousGameId);
     }
     
     // Clean up any game-specific resources

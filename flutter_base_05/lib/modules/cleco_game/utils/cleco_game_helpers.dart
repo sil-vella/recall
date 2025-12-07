@@ -13,7 +13,7 @@ class ClecoGameHelpers {
   static final _stateUpdater = ClecoGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Enabled for cleanup testing
   
   // ========================================
   // EVENT EMISSION HELPERS
@@ -217,6 +217,77 @@ class ClecoGameHelpers {
         'game': null,
         'timestamp': DateTime.now().toIso8601String(),
       };
+    }
+  }
+
+  /// Clear all game state when leaving game play screen
+  /// This should be called when navigating away from the game play screen
+  /// to prevent stale data from affecting new games
+  static void clearGameState({String? gameId}) {
+    try {
+      _logger.info('🧹 ClecoGameHelpers: Clearing game state${gameId != null ? " for game $gameId" : ""}', isOn: LOGGING_SWITCH);
+      
+      // Clear all game-related state
+      _stateUpdater.updateState({
+        // Clear game identifiers
+        'currentGameId': '',
+        'currentRoomId': '',
+        
+        // Clear games map
+        'games': <String, dynamic>{},
+        
+        // Clear game phase and status
+        'gamePhase': 'waiting',
+        'gameStatus': 'inactive',
+        'isGameActive': false,
+        'isInRoom': false,
+        'isRoomOwner': false,
+        
+        // Clear round information
+        'roundNumber': 0,
+        'currentPlayer': null,
+        'currentPlayerStatus': '',
+        'roundStatus': '',
+        
+        // Clear widget-specific state slices
+        'discardPile': <Map<String, dynamic>>[],
+        'drawPileCount': 0,
+        'discardPileCount': 0,
+        
+        // Clear turn events and animation data
+        'turn_events': <Map<String, dynamic>>[],
+        
+        // Clear messages state (including modal state)
+        'messages': {
+          'session': <Map<String, dynamic>>[],
+          'rooms': <String, List<Map<String, dynamic>>>{},
+          'isVisible': false,
+          'title': '',
+          'content': '',
+          'type': 'info',
+          'showCloseButton': false,
+          'autoClose': false,
+          'autoCloseDelay': 3000,
+        },
+        
+        // Clear instructions state
+        'instructions': {
+          'isVisible': false,
+          'title': '',
+          'content': '',
+          'key': '',
+          'dontShowAgain': <String, bool>{},
+        },
+        
+        // Clear joined games list
+        'joinedGames': <Map<String, dynamic>>[],
+        'totalJoinedGames': 0,
+        'joinedGamesTimestamp': '',
+      });
+      
+      _logger.info('✅ ClecoGameHelpers: Game state cleared successfully', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('❌ ClecoGameHelpers: Error clearing game state: $e', isOn: LOGGING_SWITCH);
     }
   }
     

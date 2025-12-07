@@ -30,7 +30,7 @@ class PlayerAction {
   static final ClecoGameStateUpdater _stateUpdater = ClecoGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for cleanup testing
+  static const bool LOGGING_SWITCH = false; // Enabled for cleanup testing
   // Jack swap selection tracking
   static String? _firstSelectedCardId;
   static String? _firstSelectedPlayerId;
@@ -420,7 +420,7 @@ class PlayerAction {
   }) {
     return PlayerAction._(
       actionType: PlayerActionType.useSpecialPower, // Using a generic type
-      eventName: 'leave_game',
+      eventName: 'leave_room', // Changed from 'leave_game' to match backend handler
       payload: {
         'game_id': gameId,
       },

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
@@ -18,7 +19,7 @@ import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 import '../../utils/cleco_game_helpers.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for cleanup testing
+const bool LOGGING_SWITCH = false; // Enabled for cleanup testing
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);
@@ -34,6 +35,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   final Logger _logger = Logger();
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   String? _previousGameId; // Track game ID to detect navigation away
+  Timer? _leaveGameTimer; // Track active leave timer
+  String? _pendingLeaveGameId; // Track which game has pending leave
 
   @override
   void initState() {
@@ -73,9 +76,18 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     
     // Get current game ID when screen loads
     final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
-    _previousGameId = clecoGameState['currentGameId']?.toString();
+    final currentGameId = clecoGameState['currentGameId']?.toString();
+    _previousGameId = currentGameId;
     
     _logger.info('GamePlay: Screen loaded with game ID: $_previousGameId', isOn: LOGGING_SWITCH);
+    
+    // Check if returning to same game and cancel pending leave timer
+    if (currentGameId != null && 
+        currentGameId == _pendingLeaveGameId && 
+        _leaveGameTimer != null) {
+      _logger.info('GamePlay: Returning to same game $currentGameId - cancelling leave timer', isOn: LOGGING_SWITCH);
+      _cancelLeaveGameTimer();
+    }
     
     // Check for initial instructions after dependencies are set (game state should be ready)
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -114,26 +126,10 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   void deactivate() {
     // Check if we're navigating away from a game
     if (_previousGameId != null && _previousGameId!.isNotEmpty) {
-      _logger.info('GamePlay: Navigating away from game $_previousGameId - cleaning up', isOn: LOGGING_SWITCH);
+      _logger.info('GamePlay: Navigating away from game $_previousGameId - starting 30-second leave timer', isOn: LOGGING_SWITCH);
       
-      // For multiplayer games (room_*), send leave_game event to backend
-      // This removes the player from the game on the backend
-      if (_previousGameId!.startsWith('room_')) {
-        _logger.info('GamePlay: Sending leave_game event for multiplayer game $_previousGameId', isOn: LOGGING_SWITCH);
-        GameCoordinator().leaveGame(gameId: _previousGameId!).catchError((e) {
-          _logger.error('GamePlay: Error leaving game: $e', isOn: LOGGING_SWITCH);
-          return false;
-        });
-      }
-      
-      // For practice games (practice_room_*), just clear state (no backend event needed)
-      // Practice mode bridge handles its own cleanup
-      if (_previousGameId!.startsWith('practice_room_')) {
-        _logger.info('GamePlay: Clearing state for practice game $_previousGameId', isOn: LOGGING_SWITCH);
-      }
-      
-      // Clear all game state (works for both multiplayer and practice)
-      ClecoGameHelpers.clearGameState(gameId: _previousGameId);
+      // Start 30-second timer before leaving (gives user chance to return)
+      _startLeaveGameTimer(_previousGameId!);
     }
     
     super.deactivate();
@@ -141,6 +137,14 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   
   @override
   void dispose() {
+    // Cancel leave timer if still active (prevents timer from firing after widget disposed)
+    if (_leaveGameTimer != null) {
+      _logger.info('GamePlay: Disposing - cancelling active leave timer', isOn: LOGGING_SWITCH);
+      _leaveGameTimer?.cancel();
+      _leaveGameTimer = null;
+      _pendingLeaveGameId = null;
+    }
+    
     // Unregister game phase chip feature
     FeatureRegistryManager.instance.unregister(
       scopeKey: featureScopeKey,
@@ -149,23 +153,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     
     // Clear card position tracker
     CardPositionTracker.instance().clearAllPositions();
-    
-    // Additional cleanup on dispose (failsafe - in case deactivate wasn't called)
-    if (_previousGameId != null && _previousGameId!.isNotEmpty) {
-      _logger.info('GamePlay: Disposing game $_previousGameId - final cleanup', isOn: LOGGING_SWITCH);
-      
-      // For multiplayer games, try to leave (may fail if already left, but that's ok)
-      if (_previousGameId!.startsWith('room_')) {
-        GameCoordinator().leaveGame(gameId: _previousGameId!).catchError((e) {
-          // Ignore errors - game may already be left or connection may be closed
-          _logger.info('GamePlay: Error leaving game on dispose (expected if already left): $e', isOn: LOGGING_SWITCH);
-          return false;
-        });
-      }
-      
-      // Clear all game state as failsafe
-      ClecoGameHelpers.clearGameState(gameId: _previousGameId);
-    }
     
     // Clean up any game-specific resources
     super.dispose();
@@ -270,17 +257,84 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     // The WSEventManager handles all WebSocket events automatically
   }
 
+  /// Start 30-second timer before leaving game
+  /// Gives user chance to return to game within 30 seconds
+  void _startLeaveGameTimer(String gameId) {
+    // Cancel any existing timer first
+    if (_leaveGameTimer != null) {
+      _leaveGameTimer?.cancel();
+    }
+    
+    _pendingLeaveGameId = gameId;
+    _logger.info('GamePlay: Starting 30-second leave timer for game $gameId', isOn: LOGGING_SWITCH);
+    
+    _leaveGameTimer = Timer(const Duration(seconds: 30), () {
+      _logger.info('GamePlay: 30-second timer expired for game $gameId - executing leave', isOn: LOGGING_SWITCH);
+      _executeLeaveGame(gameId);
+    });
+  }
+
+  /// Cancel the leave game timer
+  /// Called when user returns to the same game within 30 seconds
+  void _cancelLeaveGameTimer() {
+    if (_leaveGameTimer != null) {
+      _logger.info('GamePlay: Cancelling leave timer for game $_pendingLeaveGameId', isOn: LOGGING_SWITCH);
+      _leaveGameTimer?.cancel();
+      _leaveGameTimer = null;
+      _pendingLeaveGameId = null;
+    }
+  }
+
+  /// Execute leave game after timer expires
+  /// Handles both multiplayer and practice mode
+  void _executeLeaveGame(String gameId) {
+    _logger.info('GamePlay: Executing leave for game $gameId', isOn: LOGGING_SWITCH);
+    
+    // Clear timer references
+    _leaveGameTimer = null;
+    _pendingLeaveGameId = null;
+    
+    // For multiplayer games (room_*), send leave_room event to backend
+    // This removes the player from the game on the backend
+    if (gameId.startsWith('room_')) {
+      _logger.info('GamePlay: Sending leave_room event for multiplayer game $gameId', isOn: LOGGING_SWITCH);
+      GameCoordinator().leaveGame(gameId: gameId).catchError((e) {
+        _logger.error('GamePlay: Error leaving game: $e', isOn: LOGGING_SWITCH);
+        return false;
+      });
+    }
+    
+    // For practice games (practice_room_*), just clear state (no backend event needed)
+    // Practice mode bridge handles its own cleanup
+    if (gameId.startsWith('practice_room_')) {
+      _logger.info('GamePlay: Clearing state for practice game $gameId', isOn: LOGGING_SWITCH);
+    }
+    
+    // Clear all game state (works for both multiplayer and practice)
+    ClecoGameHelpers.clearGameState(gameId: gameId);
+    
+    // Don't show toast message here - widget may be disposed
+    // The user has already navigated away, so showing a toast doesn't make sense
+    _logger.info('GamePlay: Leave completed for game $gameId', isOn: LOGGING_SWITCH);
+  }
+
   void _showSnackBar(String message, {bool isError = false}) {
     // Check if the widget is still mounted before accessing context
     if (!mounted) return;
     
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? Colors.red : Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      // ScaffoldMessenger might not be available if widget is being disposed
+      // Just log the error instead of crashing
+      _logger.warning('GamePlay: Could not show snackbar - $e', isOn: LOGGING_SWITCH);
+    }
   }
 
   @override

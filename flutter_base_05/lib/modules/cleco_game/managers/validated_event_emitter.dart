@@ -26,7 +26,7 @@ class ClecoGameEventEmitter {
   final WebSocketManager _wsManager = WebSocketManager.instance;
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for cleanup testing
+  static const bool LOGGING_SWITCH = false; // Enabled for cleanup testing
   
   // Current transport mode (defaults to WebSocket for backward compatibility)
   EventTransportMode _transportMode = EventTransportMode.websocket;
@@ -62,7 +62,8 @@ class ClecoGameEventEmitter {
     'replace_drawn_card': {'game_id', 'card_index'}, // player_id auto-added
     'play_drawn_card': {'game_id'}, // player_id auto-added
     'call_cleco': {'game_id'}, // player_id auto-added
-    'leave_game': {'game_id', 'reason'},
+    'leave_room': {'game_id', 'reason'}, // Changed from 'leave_game' to match backend handler
+    'leave_game': {'game_id', 'reason'}, // Keep for backward compatibility
     'draw_card': {'game_id', 'source'}, // player_id auto-added
     'play_out_of_turn': {'game_id', 'card_id'}, // player_id auto-added
     'use_special_power': {'game_id', 'card_id', 'power_data'}, // player_id auto-added

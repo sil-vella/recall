@@ -13,7 +13,7 @@ class ClecoGameHelpers {
   static final _stateUpdater = ClecoGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = true; // Enabled for cleanup testing
+  static const bool LOGGING_SWITCH = false; // Enabled for cleanup testing
   
   // ========================================
   // EVENT EMISSION HELPERS

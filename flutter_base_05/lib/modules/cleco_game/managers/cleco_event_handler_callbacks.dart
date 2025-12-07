@@ -8,7 +8,7 @@ import '../utils/game_instructions_provider.dart';
 /// Dedicated event handlers for Cleco game events
 /// Contains all the business logic for processing specific event types
 class ClecoEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = true; // Enabled for winner modal debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for winner modal debugging
   static final Logger _logger = Logger();
 
   // ========================================

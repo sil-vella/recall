@@ -8,7 +8,7 @@ import '../utils/platform/practice/stubs/websocket_server_stub.dart';
 import '../utils/platform/practice/stubs/room_manager_stub.dart';
 import '../../cleco_game/managers/cleco_event_manager.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Practice Mode Bridge
 /// 

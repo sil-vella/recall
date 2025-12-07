@@ -5,7 +5,7 @@ from tools.logger.custom_logging import custom_log
 cleco_api = Blueprint('cleco_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 @cleco_api.route('/api/auth/validate', methods=['POST'])
 def validate_token():

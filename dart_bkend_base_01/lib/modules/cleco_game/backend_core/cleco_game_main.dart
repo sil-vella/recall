@@ -3,7 +3,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = false; // Enabled for leave_room hook testing
 
 /// Entry point for registering Cleco game module components with the server.
 class ClecoGameModule {

@@ -31,6 +31,8 @@ class RoomManagerStub {
   final Map<String, RoomInfoStub> _rooms = {};
   final Map<String, String> _sessionToRoom = {};
 
+  static const bool LOGGING_SWITCH = false;
+
   RoomManagerStub();
 
   String createRoom(String creatorSessionId, String userId, {
@@ -58,7 +60,7 @@ class RoomManagerStub {
     _rooms[roomId] = room;
     _sessionToRoom[creatorSessionId] = roomId;
     
-    _logger.info('RoomManagerStub: Created practice room $roomId', isOn: false);
+    _logger.info('RoomManagerStub: Created practice room $roomId', isOn: LOGGING_SWITCH);
     return roomId;
   }
 
@@ -67,7 +69,7 @@ class RoomManagerStub {
     if (room == null) return false;
     
     _sessionToRoom[sessionId] = roomId;
-    _logger.info('RoomManagerStub: Joined practice room $roomId', isOn: false);
+    _logger.info('RoomManagerStub: Joined practice room $roomId', isOn: LOGGING_SWITCH);
     return true;
   }
 

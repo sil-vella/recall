@@ -9,7 +9,7 @@ import '../modules/cleco_game/backend_core/services/game_state_store.dart';
 import '../modules/cleco_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
+const bool LOGGING_SWITCH = false; // Enabled for leave_room event testing
 
 class MessageHandler {
   final RoomManager _roomManager;

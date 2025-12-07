@@ -10,7 +10,7 @@ import hashlib
 from flask import request, jsonify
 
 # Logging switch for this module
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 class TokenType(Enum):
     ACCESS = "access"

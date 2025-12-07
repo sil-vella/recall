@@ -8,7 +8,7 @@ import '../utils/game_instructions_provider.dart';
 /// Dedicated event handlers for Cleco game events
 /// Contains all the business logic for processing specific event types
 class ClecoEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Enabled for winner modal debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for draw card debugging
   static final Logger _logger = Logger();
 
   // ========================================
@@ -832,6 +832,24 @@ class ClecoEventHandlerCallbacks {
     final ownerId = data['owner_id']?.toString(); // Extract owner_id from main payload
     final turnEvents = data['turn_events'] as List<dynamic>? ?? []; // Extract turn_events for animations
     
+    // 🔍 DEBUG: Check drawnCard data in received game_state
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    final currentUserId = getCurrentUserId();
+    _logger.info('🔍 DRAW DEBUG - handleGameStateUpdated: Received game_state_updated for gameId: $gameId, currentUserId: $currentUserId', isOn: LOGGING_SWITCH);
+    for (final player in players) {
+      if (player is Map<String, dynamic>) {
+        final playerId = player['id']?.toString() ?? 'unknown';
+        final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
+        if (drawnCard != null) {
+          final rank = drawnCard['rank']?.toString() ?? 'null';
+          final suit = drawnCard['suit']?.toString() ?? 'null';
+          final isIdOnly = rank == '?' && suit == '?';
+          final isCurrentUser = playerId == currentUserId;
+          _logger.info('🔍 DRAW DEBUG - handleGameStateUpdated: Player $playerId (isCurrentUser: $isCurrentUser) drawnCard - rank: $rank, suit: $suit, isIdOnly: $isIdOnly', isOn: LOGGING_SWITCH);
+        }
+      }
+    }
+    
     // 🔍 DEBUG: Log the extracted values
     _logger.info('🔍 handleGameStateUpdated DEBUG:', isOn: LOGGING_SWITCH);
     _logger.info('  gameId: $gameId', isOn: LOGGING_SWITCH);
@@ -854,7 +872,7 @@ class ClecoEventHandlerCallbacks {
     final discardPileCount = discardPile.length;
     
     // Extract players list (used for game map update, widget sync handled separately)
-    final players = gameState['players'] as List<dynamic>? ?? [];
+    // Note: players is already defined above for debug logging
     
     // Check if game exists in games map, if not add it
     final currentGames = _getCurrentGamesMap();
@@ -960,8 +978,7 @@ class ClecoEventHandlerCallbacks {
     final currentPlayerFromState = gameState['currentPlayer'] as Map<String, dynamic>?;
     
     // Get current user's player status for instructions (not the current player's status)
-    // Note: players list is already extracted above
-    final currentUserId = getCurrentUserId();
+    // Note: players list and currentUserId are already extracted above for debug logging
     String? currentUserPlayerStatus;
     try {
       final myPlayer = players.cast<Map<String, dynamic>>().firstWhere(

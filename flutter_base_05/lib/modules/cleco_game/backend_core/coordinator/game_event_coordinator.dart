@@ -5,7 +5,7 @@ import '../services/game_state_store.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
+const bool LOGGING_SWITCH = true; // Enabled for draw card debugging
 
 /// Coordinates WS game events to the ClecoGameRound logic per room.
 class GameEventCoordinator {

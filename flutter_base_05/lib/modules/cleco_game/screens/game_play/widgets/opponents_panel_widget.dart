@@ -10,7 +10,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../managers/player_action.dart';
 import '../card_position_tracker.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
+const bool LOGGING_SWITCH = true; // Enabled for draw card debugging
 
 /// Widget to display other players (opponents)
 /// 
@@ -272,6 +272,15 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
     final hasCalledCleco = player['hasCalledCleco'] ?? false;
     final playerStatus = player['status']?.toString() ?? 'unknown';
+    
+    // 🔍 DEBUG: Log drawnCard data for opponents
+    if (drawnCard != null) {
+      final drawnCardId = drawnCard['cardId']?.toString() ?? 'unknown';
+      final drawnCardRank = drawnCard['rank']?.toString() ?? 'unknown';
+      final drawnCardSuit = drawnCard['suit']?.toString() ?? 'unknown';
+      final isIdOnly = drawnCardRank == '?' && drawnCardSuit == '?';
+      _logger.info('🔍 OpponentsPanel: Player $playerName (${player['id']}) drawnCard - cardId: $drawnCardId, rank: $drawnCardRank, suit: $drawnCardSuit, isIdOnly: $isIdOnly', isOn: LOGGING_SWITCH);
+    }
     
     return LayoutBuilder(
       builder: (context, constraints) {

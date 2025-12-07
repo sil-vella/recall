@@ -9,7 +9,7 @@ echo "🚀 Launching Flutter app on Chrome web with filtered Logger output..."
 cd flutter_base_05
 
 # Set up log file to write to Python server log
-SERVER_LOG_FILE="/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/python_base_04/tools/logger/server.log"
+SERVER_LOG_FILE="/Users/sil/Documents/Work/reignofplay/Recall/app_dev/python_base_04/tools/logger/server.log"
 echo "📝 Writing Logger output to: $SERVER_LOG_FILE"
 
 # Launch Flutter app with Chrome web configuration

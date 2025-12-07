@@ -37,6 +37,46 @@ class ClecoGameRound {
   
   ClecoGameRound(this._stateCallback, this._gameId);
 
+  /// Helper method to sanitize all players' drawnCard data to ID-only format before broadcasting
+  /// This prevents opponents from seeing full card data when state updates are broadcast
+  /// Should be called before any onGameStateChanged() that broadcasts to all players
+  void _sanitizeDrawnCardsInGamesMap(Map<String, dynamic> gamesMap, {String? context}) {
+    try {
+      final gameData = gamesMap[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        return;
+      }
+      
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      for (final p in players) {
+        if (p.containsKey('drawnCard') && p['drawnCard'] != null) {
+          final pDrawnCard = p['drawnCard'] as Map<String, dynamic>?;
+          if (pDrawnCard != null) {
+            final rank = pDrawnCard['rank']?.toString() ?? 'null';
+            final suit = pDrawnCard['suit']?.toString() ?? 'null';
+            final isFullData = rank != '?' && suit != '?';
+            
+            if (isFullData) {
+              final pId = p['id']?.toString() ?? 'unknown';
+              p['drawnCard'] = {
+                'cardId': pDrawnCard['cardId'],
+                'suit': '?',
+                'rank': '?',
+                'points': 0,
+              };
+              _logger.info('🔒 SECURITY: Sanitized player $pId drawnCard to ID-only before broadcast${context != null ? ' ($context)' : ''}', isOn: LOGGING_SWITCH);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      _logger.error('Cleco: Error sanitizing drawnCards: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
   /// Helper method to update player status in games map and broadcast via onGameStateChanged
   /// Replaces onPlayerStatusChanged to avoid redundant broadcasts
   void _updatePlayerStatusInGamesMap(String status, {String? playerId, Map<String, dynamic>? gamesMap}) {
@@ -58,6 +98,9 @@ class ClecoGameRound {
         }
       }
     }
+    
+    // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
+    _sanitizeDrawnCardsInGamesMap(currentGames, context: 'update_player_status');
     
     // Broadcast the update with playerStatus in main state
     _stateCallback.onGameStateChanged({
@@ -310,10 +353,13 @@ class ClecoGameRound {
         }
       }
       
+            // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
+            _sanitizeDrawnCardsInGamesMap(currentGames, context: 'start_next_turn');
+            
             // Clear turn_events for the new turn and update main state's currentPlayer field
             // This ensures handleDrawCardEvent can read the correct currentPlayer even if games map is stale
             _stateCallback.onGameStateChanged({
-              'games': currentGames, // Modified games map with new currentPlayer
+              'games': currentGames, // Modified games map with new currentPlayer (drawnCard sanitized)
               'currentPlayer': nextPlayer, // Also update main state's currentPlayer field for immediate access
               'turn_events': [], // Clear all turn events for new turn
             });
@@ -1374,8 +1420,11 @@ class ClecoGameRound {
       );
       _logger.info('Cleco: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
+      // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
+      _sanitizeDrawnCardsInGamesMap(currentGames, context: 'collect_from_discard');
+      
       _stateCallback.onGameStateChanged({
-        'games': currentGames, // Includes updated player hand (card added)
+        'games': currentGames, // Includes updated player hand (card added, drawnCard sanitized)
         'discardPile': updatedDiscardPile,  // Updated discard pile (card removed)
         'turn_events': turnEvents, // Add turn event for animation
       });
@@ -1583,11 +1632,16 @@ class ClecoGameRound {
       );
       _logger.info('Cleco: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
-      _logger.info('🔍 STATE_UPDATE DEBUG - Sending state update at line 1529 with hand BEFORE reposition', isOn: LOGGING_SWITCH);
+      // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
+      // This prevents opponents from seeing full card data when a player plays a card
+      // The games map may contain full drawnCard data from STEP 2 of draw action
+      _sanitizeDrawnCardsInGamesMap(currentGamesForPlay, context: 'play_card');
+      
+      _logger.info('🔍 STATE_UPDATE DEBUG - Sending state update at line 1629 with hand BEFORE reposition', isOn: LOGGING_SWITCH);
       _logger.info('🔍 STATE_UPDATE DEBUG - Hand at this point: ${hand.map((c) => c is Map ? c['cardId'] : c.toString()).toList()}', isOn: LOGGING_SWITCH);
       _logger.info('🔍 STATE_UPDATE DEBUG - Turn events: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       _stateCallback.onGameStateChanged({
-        'games': currentGamesForPlay, // Games map with modifications
+        'games': currentGamesForPlay, // Games map with modifications (drawnCard sanitized)
         'discardPile': updatedDiscardPile, // Updated discard pile
         'turn_events': turnEvents, // Add turn events for animations
       });
@@ -1725,8 +1779,13 @@ class ClecoGameRound {
         final currentTurnEventsForReposition = _getCurrentTurnEvents();
         _logger.info('🔍 REPOSITION DEBUG - Sending state update with repositioned hand...', isOn: LOGGING_SWITCH);
         _logger.info('🔍 REPOSITION DEBUG - Preserving ${currentTurnEventsForReposition.length} turn_events for animation', isOn: LOGGING_SWITCH);
+        
+        // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting reposition update
+        // Even though drawnCard should be cleared at line 1752, defensive sanitization ensures no leaks
+        _sanitizeDrawnCardsInGamesMap(currentGames, context: 'reposition');
+        
         _stateCallback.onGameStateChanged({
-          'games': currentGames, // Games map with repositioned hand
+          'games': currentGames, // Games map with repositioned hand (drawnCard sanitized)
           'turn_events': currentTurnEventsForReposition, // Preserve turn_events for reposition animation
         });
         _logger.info('🔍 REPOSITION DEBUG - State update sent with repositioned hand and preserved turn_events', isOn: LOGGING_SWITCH);
@@ -1892,8 +1951,11 @@ class ClecoGameRound {
         // CRITICAL: Pass currentGames to avoid reading stale state
         _updatePlayerStatusInGamesMap('waiting', playerId: playerId, gamesMap: currentGames);
         
+        // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting penalty update
+        _sanitizeDrawnCardsInGamesMap(currentGames, context: 'penalty_same_rank');
+        
         // Broadcast the updated game state (hand and drawPile changes)
-        // Use the games map we're working with (currentGames already has modifications)
+        // Use the games map we're working with (currentGames already has modifications, drawnCard sanitized)
         _stateCallback.onGameStateChanged({
           'games': currentGames,
         });
@@ -1944,8 +2006,11 @@ class ClecoGameRound {
       );
       _logger.info('Cleco: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
+      // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
+      _sanitizeDrawnCardsInGamesMap(currentGamesForSameRank, context: 'same_rank_play');
+      
       _stateCallback.onGameStateChanged({
-        'games': currentGamesForSameRank, // Games map with modifications
+        'games': currentGamesForSameRank, // Games map with modifications (drawnCard sanitized)
         'discardPile': updatedDiscardPile, // Updated discard pile
         'turn_events': turnEvents, // Add turn event for animation
       });
@@ -2178,8 +2243,11 @@ class ClecoGameRound {
       );
       _logger.info('Cleco: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
+      // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
+      _sanitizeDrawnCardsInGamesMap(currentGames, context: 'jack_swap');
+      
       _stateCallback.onGameStateChanged({
-        'games': currentGames, // Games map with modifications
+        'games': currentGames, // Games map with modifications (drawnCard sanitized)
         'turn_events': turnEvents, // Add turn events for animations
       });
 
@@ -3419,9 +3487,12 @@ class ClecoGameRound {
         }
       }
       
+      // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
+      _sanitizeDrawnCardsInGamesMap(currentGames, context: 'start_next_turn');
+      
       // CRITICAL: Update state with new currentPlayer and status
       _stateCallback.onGameStateChanged({
-        'games': currentGames, // Modified games map with new currentPlayer and status
+        'games': currentGames, // Modified games map with new currentPlayer and status (drawnCard sanitized)
         'currentPlayer': nextPlayer, // Also update main state's currentPlayer field for immediate access
         'playerStatus': 'drawing_card', // Update main state playerStatus
         'turn_events': [], // Clear all turn events for new turn
@@ -3510,6 +3581,9 @@ class ClecoGameRound {
         
         player['known_cards'] = knownCards;
       }
+      
+      // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
+      _sanitizeDrawnCardsInGamesMap(currentGames, context: 'update_known_cards');
       
       // Update state to trigger UI updates
       _stateCallback.onGameStateChanged({'games': currentGames});

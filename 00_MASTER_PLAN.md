@@ -167,6 +167,28 @@ Python Backend (Auth)
   - Clear turn_events and animation data
   - Ensure cleanup happens on both explicit navigation and screen disposal
 
+### Drawn Card Logic in Opponents Panel
+- **Issue**: Opponents were seeing full drawn card data (rank/suit) when they should only see ID-only format
+- **Status**: ✅ **Almost Fixed** - Sanitization logic implemented, needs final verification
+- **Current Behavior**: 
+  - Fixed: Sanitization function `_sanitizeDrawnCardsInGamesMap()` now converts full card data to ID-only format before broadcasting
+  - Implemented in both Flutter and Dart backend versions of `cleco_game_round.dart`
+  - Sanitization added before all critical `onGameStateChanged()` broadcasts (play_card, same_rank_play, jack_swap, collect_from_discard, etc.)
+- **Expected Behavior**: 
+  - Opponents should only see ID-only format (`{'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}`) for drawn cards
+  - Only the drawing player should see full card data
+  - **CRITICAL**: When sanitizing, preserve the card ID in ID-only format - do NOT completely remove the `drawnCard` property, especially during play actions since the draw data would still be there
+- **Location**: 
+  - `flutter_base_05/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart`
+  - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart`
+  - Helper function: `_sanitizeDrawnCardsInGamesMap()` (lines ~40-76 in both files)
+- **Impact**: Game integrity and fairness - prevents opponents from seeing sensitive card information
+- **Remaining Action Items**:
+  - ✅ Verify sanitization preserves card ID (ID-only format) rather than removing drawnCard completely
+  - ✅ Test that during play actions, drawnCard data is properly sanitized to ID-only (not removed)
+  - Test edge cases: card replacement, card play, turn transitions
+  - Verify with logging that sanitization is working correctly in all scenarios
+
 ---
 
 ## 🚀 Future Enhancements

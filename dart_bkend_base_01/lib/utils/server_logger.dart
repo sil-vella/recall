@@ -16,7 +16,7 @@ class Logger {
   static const bool LOGGING_SWITCH = false;
 
   // Log file path - same as Python server log
-  static const String _logFileName = '/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/python_base_04/tools/logger/server.log';
+  static const String _logFileName = '/Users/sil/Documents/Work/reignofplay/Recall/app_dev/python_base_04/tools/logger/server.log';
   late File _logFile;
   bool _initialized = false;
 

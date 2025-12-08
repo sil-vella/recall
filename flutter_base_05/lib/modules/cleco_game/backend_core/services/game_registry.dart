@@ -4,7 +4,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for draw card debugging
+const bool LOGGING_SWITCH = false;
 
 /// Holds active ClecoGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -77,30 +77,6 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     // But send only to the specific player instead of broadcasting
     _logger.info('📤 sendGameStateToPlayer: Sending state update to player $playerId', isOn: LOGGING_SWITCH);
     
-    // 🔍 DEBUG: Check drawnCard data in games map before sending
-    final games = updates['games'] as Map<String, dynamic>?;
-    if (games != null) {
-      for (final gameEntry in games.entries) {
-        final gameId = gameEntry.key;
-        final gameData = gameEntry.value as Map<String, dynamic>?;
-        final innerGameData = gameData?['gameData'] as Map<String, dynamic>?;
-        final gameState = innerGameData?['game_state'] as Map<String, dynamic>?;
-        final players = gameState?['players'] as List<dynamic>? ?? [];
-        for (final player in players) {
-          if (player is Map<String, dynamic>) {
-            final pId = player['id']?.toString() ?? 'unknown';
-            final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
-            if (drawnCard != null) {
-              final rank = drawnCard['rank']?.toString() ?? 'null';
-              final suit = drawnCard['suit']?.toString() ?? 'null';
-              final isIdOnly = rank == '?' && suit == '?';
-              _logger.info('🔍 DRAW DEBUG - sendGameStateToPlayer: Player $pId drawnCard - rank: $rank, suit: $suit, isIdOnly: $isIdOnly (targetPlayerId: $playerId)', isOn: LOGGING_SWITCH);
-            }
-          }
-        }
-      }
-    }
-    
     try {
       // Validate updates using the same validator (direct validation, not queued)
       final validatedUpdates = _validator.validateUpdate(updates);
@@ -163,30 +139,6 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     // Validate and apply updates to state store (same as onGameStateChanged)
     // But broadcast to all players except the excluded one
     _logger.info('📤 broadcastGameStateExcept: Broadcasting state update to all except player $excludePlayerId', isOn: LOGGING_SWITCH);
-    
-    // 🔍 DEBUG: Check drawnCard data in games map before broadcasting
-    final games = updates['games'] as Map<String, dynamic>?;
-    if (games != null) {
-      for (final gameEntry in games.entries) {
-        final gameId = gameEntry.key;
-        final gameData = gameEntry.value as Map<String, dynamic>?;
-        final innerGameData = gameData?['gameData'] as Map<String, dynamic>?;
-        final gameState = innerGameData?['game_state'] as Map<String, dynamic>?;
-        final players = gameState?['players'] as List<dynamic>? ?? [];
-        for (final player in players) {
-          if (player is Map<String, dynamic>) {
-            final playerId = player['id']?.toString() ?? 'unknown';
-            final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
-            if (drawnCard != null) {
-              final rank = drawnCard['rank']?.toString() ?? 'null';
-              final suit = drawnCard['suit']?.toString() ?? 'null';
-              final isIdOnly = rank == '?' && suit == '?';
-              _logger.info('🔍 DRAW DEBUG - broadcastGameStateExcept: Player $playerId drawnCard - rank: $rank, suit: $suit, isIdOnly: $isIdOnly (excludePlayerId: $excludePlayerId)', isOn: LOGGING_SWITCH);
-            }
-          }
-        }
-      }
-    }
     
     try {
       // Validate updates using the same validator (direct validation, not queued)
@@ -411,6 +363,35 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       'turnTimeLimit': turnTimeLimit,
       'showInstructions': showInstructions,
     };
+  }
+
+  @override
+  void triggerLeaveRoom(String playerId) {
+    // Only trigger for multiplayer matches (room_*), not practice (practice_room_*)
+    if (!roomId.startsWith('room_')) {
+      _logger.info('GameStateCallback: Skipping auto-leave for non-multiplayer room $roomId (player $playerId)', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
+    _logger.info('GameStateCallback: Triggering auto-leave for player $playerId in room $roomId (2 missed actions)', isOn: LOGGING_SWITCH);
+    
+    try {
+      // Get userId from session (playerId = sessionId in this system)
+      final userId = server.getUserIdForSession(playerId) ?? playerId;
+      
+      // Trigger the leave_room hook through the server
+      // This will call the _onLeaveRoom handler in ClecoGameModule
+      server.triggerHook('leave_room', data: {
+        'room_id': roomId,
+        'session_id': playerId, // playerId = sessionId in this system
+        'user_id': userId,
+        'left_at': DateTime.now().toIso8601String(),
+      });
+      
+      _logger.info('GameStateCallback: Successfully triggered leave_room hook for player $playerId', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('GameStateCallback: Error triggering leave room for player $playerId: $e', isOn: LOGGING_SWITCH);
+    }
   }
 }
 

@@ -135,9 +135,17 @@ class WSEventHandler {
     try {
       _logger.info('🚪 WebSocket room joined event received', isOn: LOGGING_SWITCH);
       
-      final roomId = data['room_id'] ?? '';
-      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
-      final ownerId = data['owner_id'] ?? '';
+      // Convert LinkedMap to Map<String, dynamic> if needed
+      final Map<String, dynamic> convertedData;
+      if (data is Map) {
+        convertedData = Map<String, dynamic>.from(data);
+      } else {
+        convertedData = <String, dynamic>{};
+      }
+      
+      final roomId = convertedData['room_id'] ?? '';
+      final roomData = convertedData;
+      final ownerId = convertedData['owner_id'] ?? '';
       
       _logger.debug('Room ID: $roomId, Owner ID: $ownerId', isOn: LOGGING_SWITCH);
       _logger.debug('Room data keys: ${roomData.keys.toList()}', isOn: LOGGING_SWITCH);
@@ -182,8 +190,8 @@ class WSEventHandler {
       });
       
       // Trigger specific event callbacks
-      _eventManager.triggerCallbacks('room_joined', data);
-      _eventManager.triggerCallbacks('join_room_success', data);
+      _eventManager.triggerCallbacks('room_joined', convertedData);
+      _eventManager.triggerCallbacks('join_room_success', convertedData);
       
       // 🎣 Trigger websocket_room_joined hook for other modules
       HooksManager().triggerHookWithData('websocket_room_joined', {
@@ -218,8 +226,16 @@ class WSEventHandler {
       _logger.info('✅ WebSocket join_room_success event received', isOn: LOGGING_SWITCH);
       _logger.debug('Join room success data: $data', isOn: LOGGING_SWITCH);
       
-      final roomId = data['room_id'] ?? '';
-      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      // Convert LinkedMap to Map<String, dynamic> if needed
+      final Map<String, dynamic> convertedData;
+      if (data is Map) {
+        convertedData = Map<String, dynamic>.from(data);
+      } else {
+        convertedData = <String, dynamic>{};
+      }
+      
+      final roomId = convertedData['room_id'] ?? '';
+      final roomData = convertedData;
       final ownerId = data['owner_id'] ?? '';
       
       // Get current user ID from login module state
@@ -244,7 +260,7 @@ class WSEventHandler {
       });
       
       // Trigger specific event callbacks
-      _eventManager.triggerCallbacks('join_room_success', data);
+      _eventManager.triggerCallbacks('join_room_success', convertedData);
       
       // 🎣 Trigger websocket_join_room hook for other modules
       HooksManager().triggerHookWithData('websocket_join_room', {
@@ -265,8 +281,16 @@ class WSEventHandler {
   /// Handle already joined event
   void handleAlreadyJoined(dynamic data) {
     try {
-      final roomId = data['room_id'] ?? '';
-      final roomData = data is Map<String, dynamic> ? data : <String, dynamic>{};
+      // Convert LinkedMap to Map<String, dynamic> if needed
+      final Map<String, dynamic> convertedData;
+      if (data is Map) {
+        convertedData = Map<String, dynamic>.from(data);
+      } else {
+        convertedData = <String, dynamic>{};
+      }
+      
+      final roomId = convertedData['room_id'] ?? '';
+      final roomData = convertedData;
       final ownerId = data['owner_id'] ?? '';
       
       // Get current user ID from login module state
@@ -556,14 +580,21 @@ class WSEventHandler {
   /// Handle new player joined event
   void handleNewPlayerJoined(dynamic data) {
     try {
-      // Validate the data structure
-      if (data is! Map<String, dynamic>) {
-        return;
+      // Convert LinkedMap to Map<String, dynamic> if needed
+      final Map<String, dynamic> convertedData;
+      if (data is Map) {
+        convertedData = Map<String, dynamic>.from(data);
+      } else {
+        return; // Invalid data structure
       }
       
-      final roomId = data['room_id']?.toString() ?? '';
-      final joinedPlayer = data['joined_player'] as Map<String, dynamic>? ?? {};
-      final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
+      final roomId = convertedData['room_id']?.toString() ?? '';
+      final joinedPlayer = (convertedData['joined_player'] as Map? ?? {}) is Map
+          ? Map<String, dynamic>.from(convertedData['joined_player'] as Map)
+          : <String, dynamic>{};
+      final gameState = (convertedData['game_state'] as Map? ?? {}) is Map
+          ? Map<String, dynamic>.from(convertedData['game_state'] as Map)
+          : <String, dynamic>{};
       final timestamp = data['timestamp']?.toString() ?? '';
       
       // Note: State updates are handled by Cleco module via hooks

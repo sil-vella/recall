@@ -18,6 +18,9 @@ class ClecoGameRound {
   Timer? _drawActionTimer; // Timer for draw action (applies to both human and CPU)
   Timer? _playActionTimer; // Timer for play action (applies to both human and CPU)
   
+  // Unified counter for missed draw and play actions per player
+  final Map<String, int> _missedActionCounts = {};
+  
   // Computer player factory for YAML-based AI behavior
   ComputerPlayerFactory? _computerPlayerFactory;
   
@@ -237,6 +240,20 @@ class ClecoGameRound {
   }
 
   
+  /// Get the missed action count for a player
+  int getMissedActionCount(String playerId) {
+    return _missedActionCounts[playerId] ?? 0;
+  }
+
+  /// Handle when a player reaches the missed action threshold (2 missed actions)
+  void _onMissedActionThresholdReached(String playerId) {
+    _logger.info('Cleco: Player $playerId has reached missed action threshold (2 missed actions)', isOn: LOGGING_SWITCH);
+    
+    // Trigger auto-leave through GameStateCallback
+    // The callback implementation will handle multiplayer vs practice distinction
+    _stateCallback.triggerLeaveRoom(playerId);
+  }
+  
   /// Get the current game state from the callback
   Map<String, dynamic>? _getCurrentGameState() {
     try {
@@ -355,7 +372,7 @@ class ClecoGameRound {
       
             // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
             _sanitizeDrawnCardsInGamesMap(currentGames, context: 'start_next_turn');
-            
+      
             // Clear turn_events for the new turn and update main state's currentPlayer field
             // This ensures handleDrawCardEvent can read the correct currentPlayer even if games map is stale
             _stateCallback.onGameStateChanged({
@@ -1216,6 +1233,10 @@ class ClecoGameRound {
       _logger.info('Cleco: Drawn Card: ${drawnCard['cardId']}', isOn: LOGGING_SWITCH);
       _logger.info('Cleco: ================================', isOn: LOGGING_SWITCH);
       
+      // Reset missed action counter on successful draw
+      _missedActionCounts[actualPlayerId] = 0;
+      _logger.info('Cleco: Reset missed action count for player $actualPlayerId (successful draw)', isOn: LOGGING_SWITCH);
+      
       return true;
       
     } catch (e) {
@@ -1816,6 +1837,10 @@ class ClecoGameRound {
       _drawActionTimer?.cancel();
       _drawActionTimer = null;
       
+      // Reset missed action count on successful play
+      _missedActionCounts[actualPlayerId] = 0;
+      _logger.info('Cleco: Reset missed action count for player $actualPlayerId (successful play)', isOn: LOGGING_SWITCH);
+      
       return true;
       
     } catch (e) {
@@ -2360,14 +2385,14 @@ class ClecoGameRound {
         targetCard = drawnCard;
         _logger.info('Cleco: Found target card in drawnCard: ${drawnCard['rank']} of ${drawnCard['suit']}', isOn: LOGGING_SWITCH);
       }
-      
+
       // If not found in drawnCard, search in hand
       if (targetCard == null) {
         final targetPlayerHand = targetPlayer['hand'] as List<dynamic>? ?? [];
-        for (final card in targetPlayerHand) {
-          if (card != null && card is Map<String, dynamic> && card['cardId'] == targetCardId) {
-            targetCard = card;
-            break;
+      for (final card in targetPlayerHand) {
+        if (card != null && card is Map<String, dynamic> && card['cardId'] == targetCardId) {
+          targetCard = card;
+          break;
           }
         }
       }
@@ -3408,6 +3433,11 @@ class ClecoGameRound {
   }
 
   /// Move to the next player (simplified version for practice)
+  /// Public method to move to next player (called from leave_room handler when player is auto-removed)
+  Future<void> moveToNextPlayer() async {
+    await _moveToNextPlayer();
+  }
+
   Future<void> _moveToNextPlayer() async {
     try {
       _logger.info('Cleco: Moving to next player', isOn: LOGGING_SWITCH);
@@ -3527,13 +3557,17 @@ class ClecoGameRound {
       // Status already updated in games map above, no need for separate call
       _logger.info('Cleco: Set next player ${nextPlayer['name']} to drawing_card status', isOn: LOGGING_SWITCH);
       
+      // Start draw timer for ALL players (human and CPU)
+      // Note: CPU players will still use YAML delays for their actions, but timer acts as a safety timeout
+      _startDrawActionTimer(nextPlayerId);
+      
       // Check if this is a computer player and trigger computer turn logic
       final isHuman = nextPlayer['isHuman'] as bool? ?? false;
       if (!isHuman) {
         _logger.info('Cleco: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
         _initComputerTurn(gameState);
       } else {
-        _logger.info('Cleco: Started turn for human player ${nextPlayer['name']} - status: drawing_card (no timer)', isOn: LOGGING_SWITCH);
+        _logger.info('Cleco: Started turn for human player ${nextPlayer['name']} - status: drawing_card', isOn: LOGGING_SWITCH);
       }
       
     } catch (e) {
@@ -3884,8 +3918,17 @@ class ClecoGameRound {
     _playActionTimer?.cancel();
     _playActionTimer = null;
     
-    // Move to next player (skip turn)
+    // Move to next player first (normal flow)
     _moveToNextPlayer();
+    
+    // Then check missed action threshold and trigger auto-leave if needed
+    _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
+    _logger.info('Cleco: Player $playerId missed action count: ${_missedActionCounts[playerId]}', isOn: LOGGING_SWITCH);
+    
+    // Check if threshold reached (2 missed actions)
+    if (_missedActionCounts[playerId] == 2) {
+      _onMissedActionThresholdReached(playerId);
+    }
   }
 
   /// Handle play action timer expiration
@@ -3953,8 +3996,17 @@ class ClecoGameRound {
       _logger.error('Cleco: Error clearing drawnCard on play timer expiration: $e', isOn: LOGGING_SWITCH);
     }
     
-    // Move to next player (drawn card remains in hand)
+    // Move to next player first (normal flow)
     _moveToNextPlayer();
+    
+    // Then check missed action threshold and trigger auto-leave if needed
+    _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
+    _logger.info('Cleco: Player $playerId missed action count: ${_missedActionCounts[playerId]}', isOn: LOGGING_SWITCH);
+    
+    // Check if threshold reached (2 missed actions)
+    if (_missedActionCounts[playerId] == 2) {
+      _onMissedActionThresholdReached(playerId);
+    }
   }
 
   /// Cancel all action timers

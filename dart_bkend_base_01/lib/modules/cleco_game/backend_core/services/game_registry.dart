@@ -364,6 +364,35 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       'showInstructions': showInstructions,
     };
   }
+
+  @override
+  void triggerLeaveRoom(String playerId) {
+    // Only trigger for multiplayer matches (room_*), not practice (practice_room_*)
+    if (!roomId.startsWith('room_')) {
+      _logger.info('GameStateCallback: Skipping auto-leave for non-multiplayer room $roomId (player $playerId)', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
+    _logger.info('GameStateCallback: Triggering auto-leave for player $playerId in room $roomId (2 missed actions)', isOn: LOGGING_SWITCH);
+    
+    try {
+      // Get userId from session (playerId = sessionId in this system)
+      final userId = server.getUserIdForSession(playerId) ?? playerId;
+      
+      // Trigger the leave_room hook through the server
+      // This will call the _onLeaveRoom handler in ClecoGameModule
+      server.triggerHook('leave_room', data: {
+        'room_id': roomId,
+        'session_id': playerId, // playerId = sessionId in this system
+        'user_id': userId,
+        'left_at': DateTime.now().toIso8601String(),
+      });
+      
+      _logger.info('GameStateCallback: Successfully triggered leave_room hook for player $playerId', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('GameStateCallback: Error triggering leave room for player $playerId: $e', isOn: LOGGING_SWITCH);
+    }
+  }
 }
 
 

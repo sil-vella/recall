@@ -32,6 +32,29 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Location**: `dart_bkend_base_01/lib/server/websocket_server.dart` and `message_handler.dart`
   - **Impact**: Security improvement - prevents unauthorized game actions
 
+#### Player Action Validation
+- [ ] **Validate player is still in game before processing any action**
+  - **Issue**: Players who leave a game can still see game updates (they remain subscribed to room broadcasts) and may attempt to perform actions
+  - **Current Behavior**: Actions from players who have left may be processed if validation is missing
+  - **Expected Behavior**: All game actions must verify that the player is still in the game's players list before processing
+  - **Actions to Validate**: 
+    - `draw_card` - verify player exists in game state players list
+    - `play_card` - verify player exists in game state players list
+    - `same_rank_play` - verify player exists in game state players list
+    - `queen_peek` - verify player exists in game state players list
+    - `jack_swap` - verify both players exist in game state players list
+    - `collect_from_discard` - verify player exists in game state players list
+    - Any other game action events
+  - **Location**: 
+    - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/coordinator/game_event_coordinator.dart` - Add validation in `handle()` method before routing to game logic
+    - Or in individual action handlers in `cleco_game_round.dart` (draw, play, etc.)
+  - **Implementation**: 
+    - Get current game state
+    - Check if playerId (sessionId) exists in `gameState['players']` list
+    - If player not found, reject action with appropriate error message
+    - Return early before processing the action
+  - **Impact**: Game integrity - prevents actions from disconnected/removed players from affecting active games
+
 ### Medium Priority
 
 #### Room Management Features
@@ -209,5 +232,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2025-12-04
+**Last Updated**: 2025-01-XX (Added player action validation requirement)
 

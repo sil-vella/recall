@@ -9,7 +9,7 @@ import '../modules/cleco_game/backend_core/services/game_state_store.dart';
 import '../modules/cleco_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for leave_room event testing
+const bool LOGGING_SWITCH = true; // Enabled for leave_room event testing
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -31,6 +31,9 @@ class MessageHandler {
     }
 
     _logger.websocket('📨 Event: $event from session: $sessionId', isOn: LOGGING_SWITCH);
+    if (event == 'leave_room') {
+      _logger.websocket('🎯 LEAVE_ROOM: Received leave_room event from session: $sessionId, data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+    }
 
     // Unified switch for ALL events
     switch (event) {
@@ -344,7 +347,9 @@ class MessageHandler {
   }
   
   void _handleLeaveRoom(String sessionId) {
+    _logger.room('🎯 LEAVE_ROOM: _handleLeaveRoom called for session: $sessionId', isOn: LOGGING_SWITCH);
     final roomId = _roomManager.getRoomForSession(sessionId);
+    _logger.room('🎯 LEAVE_ROOM: getRoomForSession returned roomId: $roomId for session: $sessionId', isOn: LOGGING_SWITCH);
     if (roomId != null) {
       final room = _roomManager.getRoomInfo(roomId);
       final userId = _server.getUserIdForSession(sessionId) ?? sessionId; // Get userId from server

@@ -1,4 +1,5 @@
 import '../../../core/managers/module_manager.dart';
+import '../../../core/managers/state_manager.dart';
 import '../../connections_api_module/connections_api_module.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../tools/logging/logger.dart';
@@ -217,6 +218,65 @@ class ClecoGameHelpers {
         'game': null,
         'timestamp': DateTime.now().toIso8601String(),
       };
+    }
+  }
+
+  /// Remove player from specific game in games map and clear current game references
+  /// This is called when a player leaves a game (after timer expires)
+  /// Only clears game state, not websocket state (websocket module handles that)
+  static void removePlayerFromGame({required String gameId}) {
+    try {
+      _logger.info('🧹 ClecoGameHelpers: Removing player from game $gameId', isOn: LOGGING_SWITCH);
+      
+      final clecoState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+      final games = Map<String, dynamic>.from(clecoState['games'] as Map<String, dynamic>? ?? {});
+      
+      // Remove the specific game from games map
+      if (games.containsKey(gameId)) {
+        games.remove(gameId);
+        _logger.info('🧹 ClecoGameHelpers: Removed game $gameId from games map', isOn: LOGGING_SWITCH);
+      }
+      
+      // Clear currentGameId if it matches the game we're leaving
+      final currentGameId = clecoState['currentGameId']?.toString() ?? '';
+      final shouldClearCurrentGameId = currentGameId == gameId;
+      
+      // Update state to remove game and clear current game references
+      // This will trigger widget updates through StateManager
+      final updates = <String, dynamic>{
+        'games': games,
+      };
+      
+      if (shouldClearCurrentGameId) {
+        updates['currentGameId'] = '';
+        updates['currentRoomId'] = '';
+        updates['isInRoom'] = false;
+        updates['isRoomOwner'] = false;
+        updates['isGameActive'] = false;
+        updates['gamePhase'] = 'waiting';
+        updates['gameStatus'] = 'inactive';
+        
+        // Clear widget-specific state slices
+        updates['discardPile'] = <Map<String, dynamic>>[];
+        updates['drawPileCount'] = 0;
+        updates['discardPileCount'] = 0;
+        updates['turn_events'] = <Map<String, dynamic>>[];
+        
+        // Clear round information
+        updates['roundNumber'] = 0;
+        updates['currentPlayer'] = null;
+        updates['currentPlayerStatus'] = '';
+        updates['roundStatus'] = '';
+        
+        _logger.info('🧹 ClecoGameHelpers: Cleared current game references', isOn: LOGGING_SWITCH);
+      }
+      
+      // Update state (this triggers widget rebuilds)
+      _stateUpdater.updateState(updates);
+      
+      _logger.info('✅ ClecoGameHelpers: Player removed from game $gameId, widgets will update', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('❌ ClecoGameHelpers: Error removing player from game: $e', isOn: LOGGING_SWITCH);
     }
   }
 

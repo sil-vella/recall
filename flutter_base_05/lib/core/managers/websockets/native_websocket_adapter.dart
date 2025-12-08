@@ -89,9 +89,17 @@ class NativeWebSocketAdapter {
     }
     
     try {
+      // Convert LinkedMap to Map<String, dynamic> if needed
+      final Map<String, dynamic> dataMap;
+      if (data is Map) {
+        dataMap = Map<String, dynamic>.from(data);
+      } else {
+        dataMap = {'data': data};
+      }
+      
       final message = jsonEncode({
         'event': event,
-        ...((data is Map<String, dynamic>) ? data : {'data': data}),
+        ...dataMap,
       });
       _logger.info('📤 Emitting event "$event" to WebSocket (message length: ${message.length} bytes)', isOn: LOGGING_SWITCH);
       _channel!.sink.add(message);
@@ -143,7 +151,18 @@ class NativeWebSocketAdapter {
       final truncatedMessage = messageStr.length > 200 ? messageStr.substring(0, 200) : messageStr;
       _logger.debug('📥 Raw WebSocket message received: $truncatedMessage', isOn: LOGGING_SWITCH);
       
-      final data = jsonDecode(message as String);
+      final decoded = jsonDecode(message as String);
+      
+      // Convert LinkedMap<dynamic, dynamic> to Map<String, dynamic>
+      // jsonDecode can return LinkedMap which is not compatible with Map<String, dynamic>
+      final Map<String, dynamic> data;
+      if (decoded is Map) {
+        data = Map<String, dynamic>.from(decoded);
+      } else {
+        _logger.error('❌ Expected JSON object, got ${decoded.runtimeType}', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       final event = data['event'] as String?;
       
       _logger.debug('📨 WebSocket message received: event=$event, data=${data.keys.toList()}', isOn: LOGGING_SWITCH);

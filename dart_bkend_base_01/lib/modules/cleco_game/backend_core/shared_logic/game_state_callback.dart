@@ -63,4 +63,10 @@ abstract class GameStateCallback {
   /// Get timer configuration for player actions
   /// Returns map with 'turnTimeLimit' (int) and 'showInstructions' (bool, default false)
   Map<String, dynamic> getTimerConfig();
+
+  /// Trigger leave room for a player (auto-kick on missed actions)
+  /// 
+  /// [playerId] The player ID (session ID) to remove from the room
+  /// This should only be called for multiplayer matches, not practice matches
+  void triggerLeaveRoom(String playerId);
 }

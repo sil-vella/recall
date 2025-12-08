@@ -128,7 +128,16 @@ class WebSocketServer {
   
   void _onMessage(String sessionId, dynamic message) {
     try {
-      final data = jsonDecode(message as String);
+      final decoded = jsonDecode(message as String);
+      
+      // Convert LinkedMap<dynamic, dynamic> to Map<String, dynamic>
+      // jsonDecode can return LinkedMap which is not compatible with Map<String, dynamic>
+      final Map<String, dynamic> data;
+      if (decoded is Map) {
+        data = Map<String, dynamic>.from(decoded);
+      } else {
+        throw FormatException('Expected JSON object, got ${decoded.runtimeType}');
+      }
 
       // Check for authentication token
       if (data.containsKey('token') && !_authenticatedSessions[sessionId]!) {

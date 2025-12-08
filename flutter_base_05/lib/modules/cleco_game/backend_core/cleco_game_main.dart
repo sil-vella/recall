@@ -3,7 +3,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = false; // Enabled for leave_room hook testing
 
 /// Entry point for registering Cleco game module components with the server.
 class ClecoGameModule {
@@ -211,11 +211,42 @@ class ClecoGameModule {
       final players = (gameState['players'] as List<dynamic>? ?? []);
 
       // Remove player by sessionId (player ID)
+      final initialPlayerCount = players.length;
       players.removeWhere((p) => p['id'] == sessionId);
+      final newPlayerCount = players.length;
+      
+      if (initialPlayerCount == newPlayerCount) {
+        _logger.warning('🎣 leave_room: Player $sessionId not found in game state players list', isOn: LOGGING_SWITCH);
+        _logger.warning('🎣 leave_room: Current players: ${players.map((p) => p['id']?.toString() ?? 'unknown').join(', ')}', isOn: LOGGING_SWITCH);
+      }
+      
       gameState['players'] = players;
+      gameState['playerCount'] = newPlayerCount; // Update player count
+      
+      // Ensure phase is set (preserve existing phase if present)
+      if (!gameState.containsKey('phase')) {
+        gameState['phase'] = 'playing'; // Default phase
+      }
+      
       store.setGameState(roomId, gameState);
 
-      _logger.info('✅ Player with session $sessionId removed from game $roomId', isOn: LOGGING_SWITCH);
+      _logger.info('✅ Player with session $sessionId removed from game $roomId (players: $initialPlayerCount -> $newPlayerCount)', isOn: LOGGING_SWITCH);
+
+      // CRITICAL: Broadcast the updated game state to all remaining players
+      // This ensures other players see that the player has left
+      // Note: If this was triggered by auto-leave, _moveToNextPlayer() was already called
+      // in the timer expiry handler, so the game has already progressed to the next player
+      final ownerId = server.getRoomOwner(roomId);
+      server.broadcastToRoom(roomId, {
+        'event': 'game_state_updated',
+        'game_id': roomId,
+        'game_state': gameState,
+        'turn_events': [], // No turn events for leave
+        if (ownerId != null) 'owner_id': ownerId,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      _logger.info('✅ Broadcasted game_state_updated to all players in room $roomId after player $sessionId left', isOn: LOGGING_SWITCH);
     } catch (e) {
       _logger.error('❌ Error in _onLeaveRoom: $e', isOn: LOGGING_SWITCH);
     }

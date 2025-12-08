@@ -1762,9 +1762,11 @@ class ClecoGameRound {
           _logger.info('Cleco: Appended drawn card to end of hand (slot $cardIndex should not exist)', isOn: LOGGING_SWITCH);
         }
         
-        // Clear the drawn card property since it's no longer "drawn"
-        player['drawnCard'] = null;
-        _logger.info('Cleco: Cleared drawn card property after repositioning', isOn: LOGGING_SWITCH);
+        // Remove the drawn card property completely since it's no longer "drawn"
+        // Using remove() instead of setting to null ensures the property doesn't exist at all
+        // This prevents the UI from showing the card as glowing after reposition
+        player.remove('drawnCard');
+        _logger.info('Cleco: Removed drawn card property after repositioning', isOn: LOGGING_SWITCH);
         
         // Update player's hand back to game state (hand list was modified)
         player['hand'] = hand;
@@ -1795,9 +1797,10 @@ class ClecoGameRound {
         // the correct status for the playing player.
         
       } else if (drawnCard != null && drawnCard['cardId'] == cardId) {
-        // Clear the drawn card property since it's now in the discard pile
-        player['drawnCard'] = null;
-        _logger.info('Cleco: Cleared drawn card property (played card was the drawn card)', isOn: LOGGING_SWITCH);
+        // Remove the drawn card property completely since it's now in the discard pile
+        // Using remove() instead of setting to null ensures the property doesn't exist at all
+        player.remove('drawnCard');
+        _logger.info('Cleco: Removed drawn card property (played card was the drawn card)', isOn: LOGGING_SWITCH);
         
         // NOTE: Do NOT update status here - all players already have 'same_rank_window' status
         // set by _handleSameRankWindow() (called earlier). Updating to 'waiting' would overwrite
@@ -2349,19 +2352,28 @@ class ClecoGameRound {
         return false;
       }
 
-      // Find the target card in the target player's hand
-      final targetPlayerHand = targetPlayer['hand'] as List<dynamic>? ?? [];
+      // Find the target card in the target player's hand OR drawnCard
+      // Check drawnCard first (in case card was just drawn and not yet repositioned)
       Map<String, dynamic>? targetCard;
-
-      for (final card in targetPlayerHand) {
-        if (card != null && card is Map<String, dynamic> && card['cardId'] == targetCardId) {
-          targetCard = card;
-          break;
+      final drawnCard = targetPlayer['drawnCard'] as Map<String, dynamic>?;
+      if (drawnCard != null && drawnCard['cardId'] == targetCardId) {
+        targetCard = drawnCard;
+        _logger.info('Cleco: Found target card in drawnCard: ${drawnCard['rank']} of ${drawnCard['suit']}', isOn: LOGGING_SWITCH);
+      }
+      
+      // If not found in drawnCard, search in hand
+      if (targetCard == null) {
+        final targetPlayerHand = targetPlayer['hand'] as List<dynamic>? ?? [];
+        for (final card in targetPlayerHand) {
+          if (card != null && card is Map<String, dynamic> && card['cardId'] == targetCardId) {
+            targetCard = card;
+            break;
+          }
         }
       }
 
       if (targetCard == null) {
-        _logger.error('Cleco: Card $targetCardId not found in target player $targetPlayerId hand', isOn: LOGGING_SWITCH);
+        _logger.error('Cleco: Card $targetCardId not found in target player $targetPlayerId hand or drawnCard', isOn: LOGGING_SWITCH);
         return false;
       }
 

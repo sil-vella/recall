@@ -9,8 +9,11 @@ import '../../core/managers/state_manager.dart';
 import '../../core/managers/auth_manager.dart';
 import '../../core/managers/hooks_manager.dart';
 import '../../core/managers/navigation_manager.dart';
+import '../../tools/logging/logger.dart';
 
 class LoginModule extends ModuleBase {
+  // Logging switch for guest registration testing
+  static const bool LOGGING_SWITCH = true;
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -97,14 +100,32 @@ class LoginModule extends ModuleBase {
   /// ✅ Perform synchronous logout (for hook callbacks)
   void _performSynchronousLogout() {
     try {
+      // Check if guest account
+      final isGuestAccount = _sharedPref?.getBool('is_guest_account') ?? false;
+      
+      if (isGuestAccount) {
+        Logger().info("LoginModule: Synchronous guest account logout - preserving permanent credentials", isOn: LOGGING_SWITCH);
+      }
+      
       // Clear JWT tokens using AuthManager
       _authManager?.clearTokens();
       
-      // Clear stored user data
+      // Clear session state
       _sharedPref?.setBool('is_logged_in', false);
-      _sharedPref?.remove('user_id');
-      _sharedPref?.remove('username');
-      _sharedPref?.remove('email');
+      
+      if (isGuestAccount) {
+        // Guest account: Only clear session keys, preserve permanent guest credentials
+        _sharedPref?.remove('user_id');
+        _sharedPref?.remove('username');
+        _sharedPref?.remove('email');
+        Logger().debug("LoginModule: Guest account session keys cleared in synchronous logout", isOn: LOGGING_SWITCH);
+        // DO NOT clear: guest_username, guest_email, guest_user_id, is_guest_account
+      } else {
+        // Regular account: Clear all credentials (existing behavior)
+        _sharedPref?.remove('user_id');
+        _sharedPref?.remove('username');
+        _sharedPref?.remove('email');
+      }
       
       // Update state manager
       final stateManager = StateManager();
@@ -285,6 +306,102 @@ class LoginModule extends ModuleBase {
     }
   }
 
+  Future<Map<String, dynamic>> registerGuestUser({
+    required BuildContext context,
+  }) async {
+    Logger().info("LoginModule: Guest registration request initiated", isOn: LOGGING_SWITCH);
+    _initDependencies(context);
+
+    if (_connectionModule == null) {
+      Logger().error("LoginModule: Connection module not available for guest registration", isOn: LOGGING_SWITCH);
+      return {"error": "Service not available."};
+    }
+
+    try {
+      Logger().debug("LoginModule: Calling /public/register-guest endpoint", isOn: LOGGING_SWITCH);
+      // Call guest registration endpoint
+      final response = await _connectionModule!.sendPostRequest(
+        "/public/register-guest",
+        {},
+      );
+
+      if (response is Map) {
+        if (response["success"] == true || response["message"] == "Guest account created successfully") {
+          Logger().info("LoginModule: Guest registration successful, processing credentials", isOn: LOGGING_SWITCH);
+          // Extract credentials from response
+          final credentials = response["data"]?["credentials"] as Map<String, dynamic>?;
+          final userData = response["data"]?["user"] as Map<String, dynamic>?;
+          
+          if (credentials != null && userData != null) {
+            final username = credentials["username"]?.toString() ?? '';
+            final email = credentials["email"]?.toString() ?? '';
+            final password = credentials["password"]?.toString() ?? '';
+            final userId = userData["_id"]?.toString() ?? userData["id"]?.toString() ?? '';
+            
+            Logger().info("LoginModule: Storing guest credentials - Username: $username, User ID: $userId", isOn: LOGGING_SWITCH);
+            
+            // Store credentials in PERMANENT SharedPreferences keys (never cleared on logout)
+            await _sharedPref!.setString('guest_username', username);
+            await _sharedPref!.setString('guest_email', email);
+            await _sharedPref!.setString('guest_user_id', userId);
+            await _sharedPref!.setBool('is_guest_account', true);
+            
+            // Also store in regular keys for current session
+            await _sharedPref!.setString('username', username);
+            await _sharedPref!.setString('email', email);
+            await _sharedPref!.setString('user_id', userId);
+            
+            Logger().debug("LoginModule: Guest credentials stored, attempting auto-login", isOn: LOGGING_SWITCH);
+            
+            // Auto-login the guest user
+            final loginResult = await loginUser(
+              context: context,
+              email: email,
+              password: password,
+            );
+            
+            if (loginResult['success'] != null) {
+              Logger().info("LoginModule: Guest account created and auto-login successful - Username: $username", isOn: LOGGING_SWITCH);
+              return {
+                "success": "Guest account created and logged in successfully",
+                "username": username,
+                "email": email,
+                "credentials": credentials,
+              };
+            } else {
+              Logger().warning("LoginModule: Guest registration succeeded but auto-login failed - Username: $username, Error: ${loginResult['error']}", isOn: LOGGING_SWITCH);
+              // Registration succeeded but login failed
+              return {
+                "success": "Guest account created. Please log in with username: $username",
+                "username": username,
+                "email": email,
+                "credentials": credentials,
+                "loginError": loginResult['error'],
+              };
+            }
+          }
+          
+          Logger().warning("LoginModule: Guest registration response missing credentials or user data", isOn: LOGGING_SWITCH);
+          return {"success": "Guest account created successfully"};
+        } else if (response["error"] != null) {
+          // Handle rate limiting errors
+          if (response["status"] == 429) {
+            return {
+              "error": response["error"] ?? "Too many registration attempts. Please try again later.",
+              "isRateLimited": true
+            };
+          }
+          
+          return {"error": response["error"]};
+        }
+      }
+
+      return {"error": "Unexpected server response format"};
+    } catch (e) {
+      return {"error": "Server error. Check network connection."};
+    }
+  }
+
   Future<Map<String, dynamic>> loginUser({
     required BuildContext context,
     required String email,
@@ -336,6 +453,14 @@ class LoginModule extends ModuleBase {
           return {"error": "Login successful but no access token received"};
         }
         
+        // Check if this is a guest account (from user data or email pattern)
+        final accountType = userData['account_type']?.toString();
+        final isGuestAccount = accountType == 'guest' || email.endsWith('@guest.local');
+        
+        if (isGuestAccount) {
+          Logger().info("LoginModule: Guest account login detected - Username: ${userData['username']}, Email: $email", isOn: LOGGING_SWITCH);
+        }
+        
         // Extract TTL values from backend response
         final expiresIn = response?["data"]?["expires_in"];
         final refreshExpiresIn = response?["data"]?["refresh_expires_in"];
@@ -352,25 +477,37 @@ class LoginModule extends ModuleBase {
         
         // Store user data in SharedPreferences
         await _sharedPref!.setBool('is_logged_in', true);
-        await _sharedPref!.setString('user_id', userData['_id'] ?? userData['id'] ?? '');
-        await _sharedPref!.setString('username', userData['username'] ?? '');
+        final userId = userData['_id'] ?? userData['id'] ?? '';
+        final username = userData['username'] ?? '';
+        
+        await _sharedPref!.setString('user_id', userId);
+        await _sharedPref!.setString('username', username);
         await _sharedPref!.setString('email', email);
         await _sharedPref!.setString('last_login_timestamp', DateTime.now().toIso8601String());
+        
+        // If guest account, store permanent credentials
+        if (isGuestAccount) {
+          Logger().info("LoginModule: Storing permanent guest credentials - Username: $username, User ID: $userId", isOn: LOGGING_SWITCH);
+          await _sharedPref!.setString('guest_username', username);
+          await _sharedPref!.setString('guest_email', email);
+          await _sharedPref!.setString('guest_user_id', userId);
+          await _sharedPref!.setBool('is_guest_account', true);
+        }
         
         // Update state manager
         final stateManager = StateManager();
         stateManager.updateModuleState("login", {
           "isLoggedIn": true,
-          "userId": userData['_id'] ?? userData['id'],
-          "username": userData['username'],
+          "userId": userId,
+          "username": username,
           "email": email,
           "error": null
         });
         
         return {
           "success": "Login successful",
-          "user_id": userData['_id'] ?? userData['id'],
-          "username": userData['username'],
+          "user_id": userId,
+          "username": username,
           "email": email,
           "access_token": accessToken,
           "refresh_token": refreshToken
@@ -391,14 +528,34 @@ class LoginModule extends ModuleBase {
     }
 
     try {
+      // Check if guest account
+      final isGuestAccount = await _sharedPref!.getBool('is_guest_account') ?? false;
+      
+      if (isGuestAccount) {
+        Logger().info("LoginModule: Guest account logout - preserving permanent credentials", isOn: LOGGING_SWITCH);
+      } else {
+        Logger().debug("LoginModule: Regular account logout", isOn: LOGGING_SWITCH);
+      }
+      
       // Clear JWT tokens using AuthManager
       await _authManager!.clearTokens();
       
-      // Clear stored user data
+      // Clear session state
       await _sharedPref!.setBool('is_logged_in', false);
-      await _sharedPref!.remove('user_id');
-      await _sharedPref!.remove('username');
-      await _sharedPref!.remove('email');
+      
+      if (isGuestAccount) {
+        // Guest account: Only clear session keys, preserve permanent guest credentials
+        await _sharedPref!.remove('user_id');
+        await _sharedPref!.remove('username');
+        await _sharedPref!.remove('email');
+        Logger().debug("LoginModule: Guest account session keys cleared, permanent credentials preserved", isOn: LOGGING_SWITCH);
+        // DO NOT clear: guest_username, guest_email, guest_user_id, is_guest_account
+      } else {
+        // Regular account: Clear all credentials (existing behavior)
+        await _sharedPref!.remove('user_id');
+        await _sharedPref!.remove('username');
+        await _sharedPref!.remove('email');
+      }
       
       // Update state manager
       final stateManager = StateManager();

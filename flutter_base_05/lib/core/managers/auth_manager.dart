@@ -9,6 +9,7 @@ import '../managers/hooks_manager.dart';
 import '../managers/navigation_manager.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../utils/consts/config.dart';
+import '../../tools/logging/logger.dart';
 import 'dart:async'; // Added for Timer
 
 enum AuthStatus {
@@ -20,6 +21,9 @@ enum AuthStatus {
 }
 
 class AuthManager extends ChangeNotifier {
+  // Logging switch for guest registration testing
+  static const bool LOGGING_SWITCH = true;
+  
   static final AuthManager _instance = AuthManager._internal();
   
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
@@ -480,6 +484,21 @@ class AuthManager extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Check if guest account credentials exist (before checking login status)
+      final isGuestAccount = _sharedPref!.getBool('is_guest_account') ?? false;
+      final guestUsername = _sharedPref!.getString('guest_username');
+      final guestEmail = _sharedPref!.getString('guest_email');
+      final guestUserId = _sharedPref!.getString('guest_user_id');
+      
+      // If guest account and credentials exist, restore them to session keys
+      if (isGuestAccount && guestUsername != null && guestEmail != null) {
+        Logger().info("AuthManager: Restoring guest credentials on session validation - Username: $guestUsername", isOn: LOGGING_SWITCH);
+        await _sharedPref!.setString('username', guestUsername);
+        await _sharedPref!.setString('email', guestEmail);
+        if (guestUserId != null) {
+          await _sharedPref!.setString('user_id', guestUserId);
+        }
+      }
 
       // Step 1: Check if user thinks they're logged in
       final isLoggedIn = _sharedPref!.getBool('is_logged_in') ?? false;
@@ -498,6 +517,17 @@ class AuthManager extends ChangeNotifier {
         
         // hasValidToken() already attempted token refresh, so we know it failed
         await _clearStoredData();
+        
+        // Restore guest credentials if they exist (for re-login)
+        if (isGuestAccount && guestUsername != null && guestEmail != null) {
+          Logger().info("AuthManager: Token expired, restoring guest credentials for re-login - Username: $guestUsername", isOn: LOGGING_SWITCH);
+          await _sharedPref!.setString('username', guestUsername);
+          await _sharedPref!.setString('email', guestEmail);
+          if (guestUserId != null) {
+            await _sharedPref!.setString('user_id', guestUserId);
+          }
+        }
+        
         _currentStatus = AuthStatus.tokenExpired;
         _isValidating = false;
         notifyListeners();
@@ -516,6 +546,17 @@ class AuthManager extends ChangeNotifier {
         
         if (daysSinceLogin > 30) { // Configurable
           await _clearStoredData();
+          
+          // Restore guest credentials if they exist (for re-login)
+          if (isGuestAccount && guestUsername != null && guestEmail != null) {
+            Logger().info("AuthManager: Session expired (30+ days), restoring guest credentials for re-login - Username: $guestUsername", isOn: LOGGING_SWITCH);
+            await _sharedPref!.setString('username', guestUsername);
+            await _sharedPref!.setString('email', guestEmail);
+            if (guestUserId != null) {
+              await _sharedPref!.setString('user_id', guestUserId);
+            }
+          }
+          
           _currentStatus = AuthStatus.sessionExpired;
           _isValidating = false;
           notifyListeners();

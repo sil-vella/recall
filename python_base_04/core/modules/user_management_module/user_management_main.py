@@ -10,9 +10,14 @@ from typing import Dict, Any
 from bson import ObjectId
 import bcrypt
 import re
+import secrets
+import string
 
 
 class UserManagementModule(BaseModule):
+    # Logging switch for guest registration testing
+    LOGGING_SWITCH = True
+    
     def __init__(self, app_manager=None):
         """Initialize the UserManagementModule."""
         super().__init__(app_manager)
@@ -44,6 +49,7 @@ class UserManagementModule(BaseModule):
         # Public routes (no authentication required)
         self._register_auth_route_helper("/public/users/info", self.get_public_user_info, methods=["GET"])
         self._register_auth_route_helper("/public/register", self.create_user, methods=["POST"])
+        self._register_auth_route_helper("/public/register-guest", self.create_guest_user, methods=["POST"])
         self._register_auth_route_helper("/public/login", self.login_user, methods=["POST"])
         
         # JWT authenticated routes (user authentication)
@@ -229,6 +235,167 @@ class UserManagementModule(BaseModule):
                 "error": "Internal server error"
             }), 500
 
+    def _generate_guest_username(self):
+        """Generate unique guest username in format Guest_*******"""
+        custom_log("UserManagement: Starting guest username generation", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+        max_attempts = 10
+        for attempt in range(max_attempts):
+            random_id = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(8))
+            username = f"Guest_{random_id}"
+            custom_log(f"UserManagement: Generated candidate username: {username} (attempt {attempt + 1}/{max_attempts})", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
+            # Check uniqueness
+            existing = self.db_manager.find_one("users", {"username": username})
+            if not existing:
+                custom_log(f"UserManagement: Unique guest username generated: {username}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                return username
+            else:
+                custom_log(f"UserManagement: Username collision detected: {username}, retrying...", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
+        custom_log("UserManagement: Failed to generate unique guest username after 10 attempts", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+        raise Exception("Failed to generate unique guest username")
+
+    def create_guest_user(self):
+        """Create a new guest user account with auto-generated credentials."""
+        custom_log("UserManagement: Guest registration request received", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+        try:
+            # Generate unique guest username
+            username = self._generate_guest_username()
+            
+            # Generate email from username
+            email = f"guest_{username}@guest.local"
+            
+            # Use username as password
+            password = username
+            
+            custom_log(f"UserManagement: Generated guest credentials - Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            
+            # Hash password
+            hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+            custom_log("UserManagement: Password hashed successfully", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
+            
+            # Get current timestamp for consistent date formatting
+            current_time = datetime.utcnow()
+            
+            # Prepare user data with comprehensive structure (same as regular user)
+            user_data = {
+                # Core fields
+                'username': username,
+                'email': email,
+                'password': hashed_password.decode('utf-8'),
+                'status': 'active',
+                'account_type': 'guest',  # Mark as guest account
+                'created_at': current_time.isoformat(),
+                'updated_at': current_time.isoformat(),
+                'last_login': None,
+                'login_count': 0,
+                
+                # Profile section
+                'profile': {
+                    'first_name': '',
+                    'last_name': '',
+                    'phone': '',
+                    'timezone': 'UTC',
+                    'language': 'en'
+                },
+                
+                # Preferences section
+                'preferences': {
+                    'notifications': {
+                        'email': False,  # Guest accounts don't need email notifications
+                        'sms': False,
+                        'push': True
+                    },
+                    'privacy': {
+                        'profile_visible': True,
+                        'activity_visible': False
+                    }
+                },
+                
+                # Modules section with default configurations
+                'modules': {
+                    'wallet': {
+                        'enabled': True,
+                        'balance': 0,
+                        'currency': 'credits',
+                        'last_updated': current_time.isoformat()
+                    },
+                    'subscription': {
+                        'enabled': False,
+                        'plan': None,
+                        'expires_at': None
+                    },
+                    'referrals': {
+                        'enabled': True,
+                        'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
+                        'referrals_count': 0
+                    }
+                },
+                
+                # Audit section
+                'audit': {
+                    'last_login': None,
+                    'login_count': 0,
+                    'password_changed_at': current_time.isoformat(),
+                    'profile_updated_at': current_time.isoformat()
+                }
+            }
+            
+            # Insert user using database manager
+            custom_log(f"UserManagement: Inserting guest user into database: {username}", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
+            user_id = self.db_manager.insert("users", user_data)
+            
+            if not user_id:
+                custom_log(f"UserManagement: Failed to insert guest user into database: {username}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+                return jsonify({
+                    "success": False,
+                    "error": "Failed to create guest account"
+                }), 500
+            
+            custom_log(f"UserManagement: Guest user created successfully - User ID: {user_id}, Username: {username}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            
+            # Remove password from response
+            user_data.pop('password', None)
+            user_data['_id'] = user_id
+            
+            # Trigger user_created hook for other modules to listen to
+            if self.app_manager:
+                # Import config to get app identification
+                from utils.config.config import Config
+                
+                hook_data = {
+                    'user_id': user_id,
+                    'username': username,
+                    'email': email,  # Auto-generated email
+                    'user_data': user_data,
+                    'created_at': current_time.isoformat(),
+                    'app_id': Config.APP_ID,
+                    'app_name': Config.APP_NAME,
+                    'source': 'external_app',
+                    'account_type': 'guest'
+                }
+                custom_log(f"UserManagement: Triggering user_created hook for guest user: {user_id}", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
+                self.app_manager.trigger_hook("user_created", hook_data)
+            
+            custom_log(f"UserManagement: Guest registration completed successfully - User ID: {user_id}, Username: {username}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            return jsonify({
+                "success": True,
+                "message": "Guest account created successfully",
+                "data": {
+                    "user": user_data,
+                    "credentials": {
+                        "username": username,
+                        "email": email,
+                        "password": password  # Return password so frontend can store it
+                    }
+                }
+            }), 201
+            
+        except Exception as e:
+            custom_log(f"Error creating guest user: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+            return jsonify({
+                "success": False,
+                "error": "Internal server error"
+            }), 500
+
     def get_user(self, user_id):
         """Get user by ID with queued operation."""
         try:
@@ -350,12 +517,22 @@ class UserManagementModule(BaseModule):
             
             # Verify password
             stored_password = user.get("password", "")
+            account_type = user.get("account_type", "regular")
+            is_guest = account_type == "guest"
+            
+            if is_guest:
+                custom_log(f"UserManagement: Guest account login attempt - Email: {email}, Username: {user.get('username')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            else:
+                custom_log(f"UserManagement: Regular account login attempt - Email: {email}", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
+            
             try:
                 check_result = bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8'))
             except Exception as e:
+                custom_log(f"UserManagement: Password verification error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                 check_result = False
             
             if not check_result:
+                custom_log(f"UserManagement: Login failed - Invalid password for email: {email}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
                 return jsonify({
                     "success": False,
                     "error": "Invalid email or password"
@@ -390,6 +567,11 @@ class UserManagementModule(BaseModule):
             
             # Remove password from response
             user.pop('password', None)
+            
+            if is_guest:
+                custom_log(f"UserManagement: Guest account login successful - User ID: {user['_id']}, Username: {user.get('username')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            else:
+                custom_log(f"UserManagement: Regular account login successful - User ID: {user['_id']}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             return jsonify({
                 "success": True,

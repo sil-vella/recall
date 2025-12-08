@@ -4,6 +4,7 @@ import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../modules/login_module/login_module.dart';
+import '../../core/services/shared_preferences.dart';
 import '../../tools/logging/logger.dart';
 
 class AccountScreen extends BaseScreen {
@@ -17,7 +18,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Enabled for guest registration testing
   static final Logger _logger = Logger();
   
   // Form controllers
@@ -47,12 +48,38 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     super.initState();
     _logger.info('🔍 AccountScreen initState called', isOn: LOGGING_SWITCH);
     _initializeModules();
+    _checkForGuestCredentials();
   }
   
   void _initializeModules() {
     _loginModule = _moduleManager.getModuleByType<LoginModule>();
     if (_loginModule == null) {
       _logger.error('❌ Login module not available', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Check for preserved guest credentials and auto-populate login form
+  Future<void> _checkForGuestCredentials() async {
+    try {
+      final sharedPref = SharedPrefManager();
+      await sharedPref.initialize();
+      
+      final isGuestAccount = sharedPref.getBool('is_guest_account') ?? false;
+      final guestUsername = sharedPref.getString('guest_username');
+      
+      if (isGuestAccount && guestUsername != null) {
+        _logger.info('AccountScreen: Found preserved guest credentials - Username: $guestUsername', isOn: LOGGING_SWITCH);
+        
+        // Auto-populate login form with guest credentials
+        // Email: guest_{username}@guest.local, Password: {username}
+        final guestEmailFull = 'guest_$guestUsername@guest.local';
+        _emailController.text = guestEmailFull;
+        _passwordController.text = guestUsername; // Password is same as username
+        
+        _logger.info('AccountScreen: Auto-populated login form with guest credentials', isOn: LOGGING_SWITCH);
+      }
+    } catch (e) {
+      _logger.error('AccountScreen: Error checking for guest credentials', error: e, isOn: LOGGING_SWITCH);
     }
   }
   
@@ -71,6 +98,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       _clearMessages();
       _clearForms();
     });
+    
+    // If switching to login mode, check for guest credentials
+    if (_isLoginMode) {
+      _checkForGuestCredentials();
+    }
   }
   
   void _clearMessages() {
@@ -271,6 +303,138 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         });
       }
     } catch (e) {
+      setState(() {
+        _errorMessage = 'An unexpected error occurred: $e';
+        _isLoading = false;
+      });
+    }
+  }
+  
+  /// Check if guest credentials exist in SharedPreferences
+  Future<bool> _hasGuestCredentials() async {
+    try {
+      final sharedPref = SharedPrefManager();
+      await sharedPref.initialize();
+      
+      final isGuestAccount = sharedPref.getBool('is_guest_account') ?? false;
+      final guestUsername = sharedPref.getString('guest_username');
+      
+      return isGuestAccount && guestUsername != null;
+    } catch (e) {
+      _logger.error('AccountScreen: Error checking for guest credentials', error: e, isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+  
+  /// Handle guest login using preserved credentials
+  Future<void> _handleGuestLogin() async {
+    _logger.info("AccountScreen: Guest login button pressed", isOn: LOGGING_SWITCH);
+    setState(() {
+      _isLoading = true;
+      _clearMessages();
+    });
+    
+    try {
+      final sharedPref = SharedPrefManager();
+      await sharedPref.initialize();
+      
+      final guestUsername = sharedPref.getString('guest_username');
+      
+      if (guestUsername == null) {
+        setState(() {
+          _errorMessage = 'No guest account found. Please register as guest first.';
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      // Guest email format: guest_{username}@guest.local
+      // Guest password: {username} (same as username)
+      final guestEmail = 'guest_$guestUsername@guest.local';
+      
+      _logger.info("AccountScreen: Logging in with guest credentials - Username: $guestUsername", isOn: LOGGING_SWITCH);
+      
+      final result = await _loginModule!.loginUser(
+        context: context,
+        email: guestEmail,
+        password: guestUsername,
+      );
+      
+      if (result['success'] != null) {
+        _logger.info("AccountScreen: Guest login successful", isOn: LOGGING_SWITCH);
+        setState(() {
+          _successMessage = 'Welcome back, $guestUsername!';
+          _isLoading = false;
+        });
+        
+        // Navigate to main screen after successful login
+        Future.delayed(const Duration(seconds: 2), () {
+          context.go('/');
+        });
+      } else {
+        _logger.error("AccountScreen: Guest login failed - Error: ${result['error']}", isOn: LOGGING_SWITCH);
+        setState(() {
+          _errorMessage = result['error'] ?? 'Login failed';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      _logger.error("AccountScreen: Exception during guest login", error: e, isOn: LOGGING_SWITCH);
+      setState(() {
+        _errorMessage = 'An unexpected error occurred: $e';
+        _isLoading = false;
+      });
+    }
+  }
+  
+  Future<void> _handleGuestRegister() async {
+    _logger.info("AccountScreen: Guest registration button pressed", isOn: LOGGING_SWITCH);
+    setState(() {
+      _isLoading = true;
+      _clearMessages();
+    });
+    
+    try {
+      _logger.debug("AccountScreen: Calling registerGuestUser", isOn: LOGGING_SWITCH);
+      final result = await _loginModule!.registerGuestUser(
+        context: context,
+      );
+      
+      if (result['success'] != null) {
+        final username = result['username']?.toString() ?? '';
+        _logger.info("AccountScreen: Guest registration successful - Username: $username", isOn: LOGGING_SWITCH);
+        
+        setState(() {
+          _successMessage = 'Guest account created! Your username is: $username\n\nYour credentials are saved. You can log in again even after closing the app.';
+          _isLoading = false;
+        });
+        
+        // If auto-login was successful, navigate to main screen
+        if (result['success'].toString().contains('logged in')) {
+          _logger.info("AccountScreen: Auto-login successful, navigating to main screen", isOn: LOGGING_SWITCH);
+          Future.delayed(const Duration(seconds: 3), () {
+            context.go('/');
+          });
+        } else {
+          _logger.info("AccountScreen: Auto-login not successful, switching to login mode", isOn: LOGGING_SWITCH);
+          // Switch to login mode after successful registration
+          Future.delayed(const Duration(seconds: 3), () {
+            setState(() {
+              _isLoginMode = true;
+              _clearForms();
+              _clearMessages();
+            });
+          });
+        }
+      } else {
+        _logger.error("AccountScreen: Guest registration failed - Error: ${result['error']}", isOn: LOGGING_SWITCH);
+        setState(() {
+          _errorMessage = result['error'];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      _logger.error("AccountScreen: Exception during guest registration", error: e, isOn: LOGGING_SWITCH);
       setState(() {
         _errorMessage = 'An unexpected error occurred: $e';
         _isLoading = false;
@@ -780,6 +944,72 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
             ),
             
             const SizedBox(height: 16),
+            
+            // Guest Registration Button (only show in register mode)
+            if (!_isLoginMode)
+              Column(
+                children: [
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _handleGuestRegister,
+                    icon: const Icon(Icons.person_outline),
+                    label: const Text('Continue as Guest'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No email or password required',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            
+            // Guest Login Button (only show in login mode if guest credentials exist)
+            if (_isLoginMode)
+              FutureBuilder<bool>(
+                future: _hasGuestCredentials(),
+                builder: (context, snapshot) {
+                  if (snapshot.data == true) {
+                    return Column(
+                      children: [
+                        const Divider(),
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          onPressed: _isLoading ? null : _handleGuestLogin,
+                          icon: const Icon(Icons.person_outline),
+                          label: const Text('Continue as Guest'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Use your saved guest account',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
             
             // Mode Switch
             TextButton(

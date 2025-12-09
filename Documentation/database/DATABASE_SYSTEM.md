@@ -655,28 +655,77 @@ mongodb-external:
 
 **Important**: The Ansible playbook **requires** the MongoDB container to already be running. It will fail if the container doesn't exist.
 
-### Step 2: Database Structure Setup (Ansible Playbook)
+### Step 2: Database Structure Setup (Ansible Playbooks)
 
-Once the MongoDB container is running, use the **Ansible playbook** to set up the database structure (collections, indexes, and seed data).
+Once the MongoDB container is running, use one of the **Ansible playbooks** to set up or update the database structure.
 
-**Playbook Location**: `playbooks/00_local/10_setup_apps_database_structure.yml`
+#### Available Playbooks
 
-**What the Ansible Playbook Does**:
+**Playbook 09 - Update Existing Database (Non-Destructive)**:
+- **Location**: `playbooks/00_local/09_setup_apps_database_structure(update_existing).yml`
+- **Purpose**: Adds missing modules to existing users without erasing data
+- **Use Case**: Update existing database with new modules (cleco_game, in_app_purchases)
+- **Safety**: ✅ Preserves all existing data
+
+**Playbook 10 - Fresh Database Setup**:
+- **Location**: `playbooks/00_local/10_setup_apps_database_structure.yml`
+- **Purpose**: Creates a fresh database structure from scratch
+- **Use Case**: Initial setup or complete database reset
+- **Safety**: ⚠️ Erases all existing data
+
+#### Playbook 09: Update Existing Database
+
+**What Playbook 09 Does**:
 1. ✅ Waits for MongoDB container to be ready
-2. ✅ Empties existing database (optional, can be modified)
+2. ✅ Adds missing modules to `user_modules` registry
+3. ✅ Updates existing users with missing modules (cleco_game, in_app_purchases)
+4. ✅ Preserves all existing user data
+5. ✅ Provides detailed update summary
+
+**What Playbook 09 Does NOT Do**:
+- ❌ Drop any collections
+- ❌ Erase any data
+- ❌ Modify existing module data
+- ❌ Create new collections
+
+**When to Use Playbook 09**:
+- You have existing users and want to add new modules
+- You want to update database structure without losing data
+- You need to add modules to production/staging databases
+- You want to ensure all users have the latest modules
+
+**Running Playbook 09**:
+```bash
+cd playbooks/00_local
+ansible-playbook "09_setup_apps_database_structure(update_existing).yml"
+```
+
+**Documentation**: See `playbooks/00_local/README_09_setup_apps_database_structure(update_existing).yml.md` for detailed information.
+
+#### Playbook 10: Fresh Database Setup
+
+**What Playbook 10 Does**:
+1. ✅ Waits for MongoDB container to be ready
+2. ✅ Empties existing database completely
 3. ✅ Creates core collections with proper structure
 4. ✅ Creates all required indexes for optimal performance
 5. ✅ Inserts dummy data for development and testing
 
-**What the Ansible Playbook Does NOT Do**:
+**What Playbook 10 Does NOT Do**:
 - ❌ Download or install MongoDB
 - ❌ Create Docker container
 - ❌ Start Docker container
 - ❌ Configure Docker networks/volumes
 
-**Collections Created**:
-- `users` - Core user data with modular structure
-- `user_modules` - Module registry for feature management
+**When to Use Playbook 10**:
+- Initial database setup
+- Complete database reset
+- Development/testing environment setup
+- When you want a clean slate
+
+**Collections Created by Playbook 10**:
+- `users` - Core user data with modular structure (includes all 5 modules)
+- `user_modules` - Registry of available modules and their schemas
 - `user_audit_logs` - Complete audit trail system
 
 **Indexes Created**:
@@ -699,6 +748,8 @@ docker ps | grep external_app_mongodb
 ```
 
 **Step 2: Run Ansible Playbook**:
+
+**For Fresh Setup (Playbook 10)**:
 ```bash
 # From the playbooks/00_local directory
 cd playbooks/00_local
@@ -709,6 +760,16 @@ ansible-playbook 10_setup_apps_database_structure.yml -v
 
 # With extra verbose output for debugging
 ansible-playbook 10_setup_apps_database_structure.yml -vvv
+```
+
+**For Updating Existing Database (Playbook 09)**:
+```bash
+# From the playbooks/00_local directory
+cd playbooks/00_local
+ansible-playbook "09_setup_apps_database_structure(update_existing).yml"
+
+# With verbose output
+ansible-playbook "09_setup_apps_database_structure(update_existing).yml" -v
 ```
 
 **Prerequisites**:
@@ -726,11 +787,13 @@ The playbook is pre-configured for the `external_app_mongodb` container:
 - User: `external_app_user`
 - Port: `27017`
 
-**Documentation**: See `playbooks/00_local/README_10_setup_apps_database_structure.md` for detailed information.
+**Documentation**: 
+- Playbook 09: `playbooks/00_local/README_09_setup_apps_database_structure(update_existing).yml.md`
+- Playbook 10: `playbooks/00_local/README_10_setup_apps_database_structure.md`
 
 ### Setup Order Summary
 
-**Complete Database Setup Flow**:
+**Fresh Database Setup Flow (Playbook 10)**:
 ```
 1. docker-compose up -d mongodb-external
    └─> Downloads MongoDB image (if needed)
@@ -739,6 +802,7 @@ The playbook is pre-configured for the `external_app_mongodb` container:
 
 2. ansible-playbook 10_setup_apps_database_structure.yml
    └─> Waits for container to be ready
+   └─> Empties existing database
    └─> Creates collections
    └─> Creates indexes
    └─> Inserts seed data
@@ -746,14 +810,30 @@ The playbook is pre-configured for the `external_app_mongodb` container:
 3. Application can now connect and use database
 ```
 
+**Update Existing Database Flow (Playbook 09)**:
+```
+1. Ensure MongoDB container is running
+   └─> docker ps | grep external_app_mongodb
+
+2. ansible-playbook 09_setup_apps_database_structure(update_existing).yml
+   └─> Waits for container to be ready
+   └─> Adds missing modules to registry
+   └─> Updates existing users with missing modules
+   └─> Preserves all existing data
+
+3. Database updated without data loss
+```
+
 ### Automatic Collection Creation
 
 While the Ansible playbook sets up the initial structure, MongoDB also automatically creates collections when you first write to them. However, **indexes are NOT created automatically** - they must be set up via the playbook or manually.
 
 **Important**: 
-- For **first-time setup**, always run both Docker Compose AND the Ansible playbook
-- For **production deployments**, always run the Ansible playbook to ensure proper indexes and initial structure are in place
-- The Ansible playbook can be re-run safely (it will empty and recreate the database structure)
+- For **first-time setup**, always run both Docker Compose AND Playbook 10
+- For **updating existing databases**, use Playbook 09 to preserve data
+- For **production deployments**, use Playbook 09 to add new modules without downtime
+- Playbook 10 can be re-run safely (it will empty and recreate the database structure)
+- Playbook 09 is idempotent and can be run multiple times safely
 
 ---
 
@@ -772,6 +852,16 @@ The database uses a **modular structure** that supports:
 - `users` - User accounts with embedded module data
 - `user_modules` - Registry of available modules and their schemas
 - `user_audit_logs` - Complete audit trail for all user changes
+
+**User Modules** (Embedded in users collection):
+The `users` collection includes embedded module data for:
+1. **wallet** - Credit balance and transaction management
+2. **subscription** - Premium subscription management
+3. **referrals** - User referral system
+4. **in_app_purchases** - In-app purchase and subscription management
+5. **cleco_game** - Cleco card game statistics and progression
+
+Each module contains module-specific fields and settings. See the playbook documentation for complete module schemas.
 
 **Additional Collections** (Created by Application):
 - `notifications` - User notifications
@@ -830,10 +920,15 @@ db.user_audit_logs.createIndex({ "module": 1 });
    docker-compose up -d mongodb-external
    ```
 
-2. **Run the Ansible playbook** to set up the database structure:
+2. **Run the appropriate Ansible playbook**:
    ```bash
    cd playbooks/00_local
+   
+   # For fresh setup (erases data)
    ansible-playbook 10_setup_apps_database_structure.yml
+   
+   # For updating existing database (preserves data)
+   ansible-playbook "09_setup_apps_database_structure(update_existing).yml"
    ```
 
 3. **Verify collections exist**:
@@ -869,10 +964,15 @@ db.user_audit_logs.createIndex({ "module": 1 });
    # Look for "MongoDB init process complete" or similar message
    ```
 
-4. **Then run the Ansible playbook**:
+4. **Then run the appropriate Ansible playbook**:
    ```bash
    cd playbooks/00_local
+   
+   # For fresh setup
    ansible-playbook 10_setup_apps_database_structure.yml
+   
+   # For updating existing database
+   ansible-playbook "09_setup_apps_database_structure(update_existing).yml"
    ```
 
 ### Connection Issues
@@ -1022,14 +1122,23 @@ if status['queue_size'] > status['max_queue_size'] * 0.8:
 # Step 1: Start MongoDB container
 docker-compose up -d mongodb-external
 
-# Step 2: Run Ansible playbook for database structure
+# Step 2: Run appropriate Ansible playbook
 cd playbooks/00_local
+
+# For fresh setup (erases data)
 ansible-playbook 10_setup_apps_database_structure.yml
+
+# OR for updating existing database (preserves data)
+ansible-playbook "09_setup_apps_database_structure(update_existing).yml"
 ```
 
 ❌ **Don't** try to run the Ansible playbook before starting the MongoDB container - it will fail.
 
 ❌ **Don't** manually create collections and indexes if the playbook exists - use the playbook for consistency.
+
+✅ **Do** use Playbook 09 when you have existing data you want to preserve.
+
+❌ **Don't** use Playbook 10 on production databases with important data - it will erase everything.
 
 ### 6. Index Frequently Queried Fields
 
@@ -1097,8 +1206,10 @@ db.users.createIndex({ "status": 1, "created_at": -1 });
 - **Config System**: `utils/config/config.py`
 - **AppManager**: `core/managers/app_manager.py`
 - **Docker Compose**: `docker-compose.yml`
-- **Ansible Playbook**: `playbooks/00_local/10_setup_apps_database_structure.yml`
-- **Playbook README**: `playbooks/00_local/README_10_setup_apps_database_structure.md`
+- **Ansible Playbook 09** (Update Existing): `playbooks/00_local/09_setup_apps_database_structure(update_existing).yml`
+- **Ansible Playbook 10** (Fresh Setup): `playbooks/00_local/10_setup_apps_database_structure.yml`
+- **Playbook 09 README**: `playbooks/00_local/README_09_setup_apps_database_structure(update_existing).yml.md`
+- **Playbook 10 README**: `playbooks/00_local/README_10_setup_apps_database_structure.md`
 
 ### External Documentation
 
@@ -1110,7 +1221,17 @@ db.users.createIndex({ "status": 1, "created_at": -1 });
 
 ## Changelog
 
-### Version 1.0.0 (Current)
+### Version 1.1.0 (December 2025)
+- Added Playbook 09 for non-destructive database updates
+- Added `cleco_game` module to user schema
+  - Tracks game statistics: wins, losses, total_matches, points, level, rank, win_rate
+- Added `in_app_purchases` module to user schema
+  - Manages in-app purchases and subscriptions
+- Updated all existing users with new modules via Playbook 09
+- Enhanced module registry with 5 total modules (wallet, subscription, referrals, in_app_purchases, cleco_game)
+- Improved documentation for database update workflows
+
+### Version 1.0.0 (2024)
 - Initial database system implementation
 - Singleton DatabaseManager with queue system
 - Automatic field encryption
@@ -1123,6 +1244,6 @@ db.users.createIndex({ "status": 1, "created_at": -1 });
 
 ---
 
-**Last Updated**: 2024
+**Last Updated**: December 2025
 **Maintained By**: Development Team
 

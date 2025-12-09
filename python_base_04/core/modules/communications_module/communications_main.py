@@ -80,14 +80,24 @@ class CommunicationsModule(BaseModule):
         self._register_route_helper("/test-jwt", self.test_jwt, methods=["POST"])
 
     def initialize_database(self):
-        """Verify database connection without creating collections or indexes."""
+        """
+        Verify database connection without creating collections or indexes.
+        
+        Note: This method only verifies the database connection. It does NOT create
+        collections, indexes, or seed data. Database structure setup is handled
+        exclusively by Ansible playbooks (09 or 10).
+        """
         if self._verify_database_connection():
             pass
         else:
             pass
 
     def _verify_database_connection(self) -> bool:
-        """Verify database connection without creating anything."""
+        """
+        Verify database connection without creating anything.
+        
+        Note: Database structure setup is handled exclusively by Ansible playbooks.
+        """
         try:
             # Check if database is available
             if not self.admin_db.available:

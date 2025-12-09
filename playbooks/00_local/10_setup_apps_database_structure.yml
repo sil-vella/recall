@@ -124,6 +124,27 @@
                   "enabled": true,
                   "referral_code": "JOHN123",
                   "referrals_count": 0
+                },
+                "in_app_purchases": {
+                  "enabled": true,
+                  "active_purchases": [],
+                  "subscription_status": "none",
+                  "last_purchase_date": null,
+                  "total_spent": 0,
+                  "currency": "USD",
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                },
+                "cleco_game": {
+                  "enabled": true,
+                  "wins": 0,
+                  "losses": 0,
+                  "total_matches": 0,
+                  "points": 0,
+                  "level": 1,
+                  "rank": "beginner",
+                  "win_rate": 0.0,
+                  "last_match_date": null,
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
                 }
               },
               
@@ -180,6 +201,27 @@
                   "enabled": false,
                   "referral_code": null,
                   "referrals_count": 0
+                },
+                "in_app_purchases": {
+                  "enabled": true,
+                  "active_purchases": [],
+                  "subscription_status": "none",
+                  "last_purchase_date": null,
+                  "total_spent": 0,
+                  "currency": "USD",
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                },
+                "cleco_game": {
+                  "enabled": true,
+                  "wins": 0,
+                  "losses": 0,
+                  "total_matches": 0,
+                  "points": 0,
+                  "level": 1,
+                  "rank": "beginner",
+                  "win_rate": 0.0,
+                  "last_match_date": null,
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
                 }
               },
               
@@ -235,6 +277,27 @@
                   "enabled": true,
                   "referral_code": "BOB456",
                   "referrals_count": 2
+                },
+                "in_app_purchases": {
+                  "enabled": true,
+                  "active_purchases": [],
+                  "subscription_status": "none",
+                  "last_purchase_date": null,
+                  "total_spent": 0,
+                  "currency": "USD",
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                },
+                "cleco_game": {
+                  "enabled": true,
+                  "wins": 0,
+                  "losses": 0,
+                  "total_matches": 0,
+                  "points": 0,
+                  "level": 1,
+                  "rank": "beginner",
+                  "win_rate": 0.0,
+                  "last_match_date": null,
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
                 }
               },
               
@@ -304,6 +367,47 @@
                 "referral_code": "string",
                 "referrals_count": "number"
             },
+              "created_at": new Date("2024-01-01T00:00:00Z"),
+              "updated_at": new Date("2024-01-01T00:00:00Z")
+            },
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439104"),
+              "module_name": "in_app_purchases",
+              "display_name": "In-App Purchases Module",
+              "description": "In-app purchase and subscription management",
+              "status": "active",
+              "version": "1.0.0",
+              "schema": {
+                "enabled": "boolean",
+                "active_purchases": "array",
+                "subscription_status": "string",
+                "last_purchase_date": "date",
+                "total_spent": "number",
+                "currency": "string",
+                "last_updated": "date"
+              },
+              "created_at": new Date("2024-01-01T00:00:00Z"),
+              "updated_at": new Date("2024-01-01T00:00:00Z")
+            },
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439105"),
+              "module_name": "cleco_game",
+              "display_name": "Cleco Game Module",
+              "description": "Cleco card game statistics and progression",
+              "status": "active",
+              "version": "1.0.0",
+              "schema": {
+                "enabled": "boolean",
+                "wins": "number",
+                "losses": "number",
+                "total_matches": "number",
+                "points": "number",
+                "level": "number",
+                "rank": "string",
+                "win_rate": "number",
+                "last_match_date": "date",
+                "last_updated": "date"
+              },
               "created_at": new Date("2024-01-01T00:00:00Z"),
               "updated_at": new Date("2024-01-01T00:00:00Z")
             }

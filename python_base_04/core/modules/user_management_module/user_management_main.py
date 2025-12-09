@@ -64,7 +64,13 @@ class UserManagementModule(BaseModule):
         self._register_auth_route_helper("/public/refresh", self.refresh_token, methods=["POST"])
 
     def initialize_database(self):
-        """Verify database connection for user operations."""
+        """
+        Verify database connection for user operations.
+        
+        Note: This method only verifies the database connection. It does NOT create
+        collections, indexes, or seed data. Database structure setup is handled
+        exclusively by Ansible playbooks (09 or 10).
+        """
         try:
             # Check if database is available
             if not self.analytics_db.available:
@@ -179,6 +185,18 @@ class UserManagementModule(BaseModule):
                         'enabled': True,
                         'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
                         'referrals_count': 0
+                    },
+                    'cleco_game': {
+                        'enabled': True,
+                        'wins': 0,
+                        'losses': 0,
+                        'total_matches': 0,
+                        'points': 0,
+                        'level': 1,
+                        'rank': 'beginner',
+                        'win_rate': 0.0,
+                        'last_match_date': None,
+                        'last_updated': current_time.isoformat()
                     }
                 },
                 
@@ -327,6 +345,18 @@ class UserManagementModule(BaseModule):
                         'enabled': True,
                         'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
                         'referrals_count': 0
+                    },
+                    'cleco_game': {
+                        'enabled': True,
+                        'wins': 0,
+                        'losses': 0,
+                        'total_matches': 0,
+                        'points': 0,
+                        'level': 1,
+                        'rank': 'beginner',
+                        'win_rate': 0.0,
+                        'last_match_date': None,
+                        'last_updated': current_time.isoformat()
                     }
                 },
                 

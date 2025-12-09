@@ -282,7 +282,13 @@ class CreditSystemModule(BaseModule):
         return external_path
 
     def initialize_database(self):
-        """Verify database connection for user operations."""
+        """
+        Verify database connection for user operations.
+        
+        Note: This method only verifies the database connection. It does NOT create
+        collections, indexes, or seed data. Database structure setup is handled
+        exclusively by Ansible playbooks (09 or 10).
+        """
         try:
             # Check if database is available
             if not self.analytics_db.available:

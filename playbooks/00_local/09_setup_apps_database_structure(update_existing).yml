@@ -1,0 +1,260 @@
+---
+- name: Add Missing Modules to Existing Database (Non-Destructive)
+  hosts: localhost
+  connection: local
+  vars:
+    mongodb_container_name: "external_app_mongodb"
+    database_name: "external_system"
+    app_user: "external_app_user"
+    app_password: "6R3jjsvVhIRP20zMiHdkBzNKx"
+    
+    # MongoDB connection details for Docker
+    mongodb_host: "localhost"
+    mongodb_port: "27017"
+    mongodb_auth_db: "external_system"
+
+  tasks:
+    - name: Wait for MongoDB container to be ready
+      shell: docker exec {{ mongodb_container_name }} mongosh --eval "db.adminCommand('ping')" --quiet
+      register: mongodb_ready
+      retries: 30
+      delay: 2
+      until: mongodb_ready.rc == 0
+      changed_when: mongodb_ready.rc == 0
+
+    - name: Create module update script
+      copy:
+        dest: "/tmp/add_missing_modules.js"
+        content: |
+          // MongoDB Module Update Script
+          // Adds missing modules to existing users without erasing data
+          
+          // Switch to the external_system database
+          db = db.getSiblingDB('external_system');
+          
+          print("🔧 Adding Missing Modules to Existing Database...");
+          print("=============================================");
+          
+          // Get current timestamp
+          var currentTime = new Date();
+          
+          // ========================================
+          // 1. UPDATE USER_MODULES REGISTRY
+          // ========================================
+          print("\n📋 Step 1: Updating user_modules registry...");
+          
+          // Check and add in_app_purchases module
+          var inAppPurchasesModule = db.user_modules.findOne({ "module_name": "in_app_purchases" });
+          if (!inAppPurchasesModule) {
+            print("  ➕ Adding in_app_purchases module to registry...");
+            db.user_modules.insertOne({
+              "_id": ObjectId("507f1f77bcf86cd799439104"),
+              "module_name": "in_app_purchases",
+              "display_name": "In-App Purchases Module",
+              "description": "In-app purchase and subscription management",
+              "status": "active",
+              "version": "1.0.0",
+              "schema": {
+                "enabled": "boolean",
+                "active_purchases": "array",
+                "subscription_status": "string",
+                "last_purchase_date": "date",
+                "total_spent": "number",
+                "currency": "string",
+                "last_updated": "date"
+              },
+              "created_at": currentTime,
+              "updated_at": currentTime
+            });
+            print("  ✅ in_app_purchases module added to registry");
+          } else {
+            print("  ✓ in_app_purchases module already exists in registry");
+          }
+          
+          // Check and add cleco_game module
+          var clecoGameModule = db.user_modules.findOne({ "module_name": "cleco_game" });
+          if (!clecoGameModule) {
+            print("  ➕ Adding cleco_game module to registry...");
+            db.user_modules.insertOne({
+              "_id": ObjectId("507f1f77bcf86cd799439105"),
+              "module_name": "cleco_game",
+              "display_name": "Cleco Game Module",
+              "description": "Cleco card game statistics and progression",
+              "status": "active",
+              "version": "1.0.0",
+              "schema": {
+                "enabled": "boolean",
+                "wins": "number",
+                "losses": "number",
+                "total_matches": "number",
+                "points": "number",
+                "level": "number",
+                "rank": "string",
+                "win_rate": "number",
+                "last_match_date": "date",
+                "last_updated": "date"
+              },
+              "created_at": currentTime,
+              "updated_at": currentTime
+            });
+            print("  ✅ cleco_game module added to registry");
+          } else {
+            print("  ✓ cleco_game module already exists in registry");
+          }
+          
+          // ========================================
+          // 2. UPDATE EXISTING USERS
+          // ========================================
+          print("\n👥 Step 2: Updating existing users with missing modules...");
+          
+          var usersUpdated = 0;
+          var usersSkipped = 0;
+          
+          // Find all users
+          var users = db.users.find({}).toArray();
+          print("  Found " + users.length + " users to check");
+          
+          users.forEach(function(user) {
+            var needsUpdate = false;
+            var updateFields = {};
+            
+            // Check for in_app_purchases module
+            if (!user.modules || !user.modules.in_app_purchases) {
+              needsUpdate = true;
+              updateFields["modules.in_app_purchases"] = {
+                "enabled": true,
+                "active_purchases": [],
+                "subscription_status": "none",
+                "last_purchase_date": null,
+                "total_spent": 0,
+                "currency": "USD",
+                "last_updated": currentTime
+              };
+              print("  ➕ Adding in_app_purchases to user: " + user.username + " (" + user.email + ")");
+            }
+            
+            // Check for cleco_game module
+            if (!user.modules || !user.modules.cleco_game) {
+              needsUpdate = true;
+              updateFields["modules.cleco_game"] = {
+                "enabled": true,
+                "wins": 0,
+                "losses": 0,
+                "total_matches": 0,
+                "points": 0,
+                "level": 1,
+                "rank": "beginner",
+                "win_rate": 0.0,
+                "last_match_date": null,
+                "last_updated": currentTime
+              };
+              print("  ➕ Adding cleco_game to user: " + user.username + " (" + user.email + ")");
+            }
+            
+            // Update user if needed
+            if (needsUpdate) {
+              // Ensure modules object exists
+              if (!user.modules) {
+                updateFields["modules"] = {};
+              }
+              
+              // Build update query
+              var updateQuery = { "$set": updateFields };
+              updateQuery["$set"]["updated_at"] = currentTime;
+              
+              db.users.updateOne(
+                { "_id": user._id },
+                updateQuery
+              );
+              usersUpdated++;
+            } else {
+              usersSkipped++;
+            }
+          });
+          
+          print("\n  ✅ Users updated: " + usersUpdated);
+          print("  ✓ Users already up-to-date: " + usersSkipped);
+          
+          // ========================================
+          // FINAL SUMMARY
+          // ========================================
+          print("\n🎉 MODULE UPDATE COMPLETE!");
+          print("=============================================");
+          print("Summary:");
+          print("- User modules registry: " + db.user_modules.countDocuments() + " modules");
+          print("- Users in database: " + db.users.countDocuments());
+          print("- Users updated: " + usersUpdated);
+          print("- Users skipped (already up-to-date): " + usersSkipped);
+          print("\n✅ All missing modules have been added to existing users!");
+        mode: '0644'
+
+    - name: Copy update script to MongoDB container
+      shell: docker cp /tmp/add_missing_modules.js {{ mongodb_container_name }}:/tmp/add_missing_modules.js
+      register: copy_result
+      changed_when: copy_result.rc == 0
+
+    - name: Execute module update script
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "$(cat /tmp/add_missing_modules.js)"
+      register: update_result
+      changed_when: true
+
+    - name: Display update results
+      debug:
+        msg: "{{ update_result.stdout }}"
+
+    - name: Verify module updates
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "
+          db = db.getSiblingDB('external_system');
+          print('\\n📊 VERIFICATION SUMMARY:');
+          print('=====================');
+          print('Registered modules: ' + db.user_modules.countDocuments());
+          print('Total users: ' + db.users.countDocuments());
+          
+          // Count users with each module
+          var usersWithInApp = db.users.countDocuments({ 'modules.in_app_purchases': { \$exists: true } });
+          var usersWithCleco = db.users.countDocuments({ 'modules.cleco_game': { \$exists: true } });
+          
+          print('Users with in_app_purchases: ' + usersWithInApp);
+          print('Users with cleco_game: ' + usersWithCleco);
+          
+          // List registered modules
+          print('\\n📋 Registered Modules:');
+          db.user_modules.find({}, { module_name: 1, display_name: 1, status: 1 }).forEach(function(module) {
+            print('  - ' + module.module_name + ' (' + module.display_name + ') - ' + module.status);
+          });
+        "
+      register: verification_summary
+      changed_when: false
+
+    - name: Display verification summary
+      debug:
+        msg: "{{ verification_summary.stdout }}"
+
+    - name: Clean up temporary files
+      file:
+        path: "/tmp/add_missing_modules.js"
+        state: absent
+
+    - name: Display completion message
+      debug:
+        msg: |
+          ✅ Module Update Playbook Complete!
+          
+          📋 What was done:
+          - Added missing modules to user_modules registry (if needed)
+          - Updated existing users with missing modules (in_app_purchases, cleco_game)
+          - Preserved all existing user data
+          - No collections were dropped or erased
+          
+          🔧 Modules Added:
+          - in_app_purchases: In-app purchase and subscription management
+          - cleco_game: Cleco card game statistics and progression
+          
+          📊 Database Status:
+          - Container: {{ mongodb_container_name }}
+          - Database: {{ database_name }}
+          - All existing data preserved
+          
+          ✅ Your database is now up-to-date with all required modules!

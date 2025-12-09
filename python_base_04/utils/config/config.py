@@ -314,7 +314,7 @@ class Config:
     # Application Identity Configuration
     APP_ID = get_file_first_config_value("app_id", "APP_ID", "external_app_001")
     APP_NAME = get_file_first_config_value("app_name", "APP_NAME", "External Application")
-    APP_VERSION = get_file_first_config_value("app_version", "APP_VERSION", "1.0.0")
+    APP_VERSION = get_file_first_config_value("app_version", "APP_VERSION", "2.0.0")
     APP_DOWNLOAD_BASE_URL = get_file_first_config_value("app_download_base_url", "APP_DOWNLOAD_BASE_URL", "https://download.example.com")
 
     # App URL Configuration

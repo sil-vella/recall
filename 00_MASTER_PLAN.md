@@ -55,6 +55,45 @@ This document tracks high-level development plans, todos, and architectural deci
     - Return early before processing the action
   - **Impact**: Game integrity - prevents actions from disconnected/removed players from affecting active games
 
+#### JWT Authentication Between Dart Backend and Python
+- [ ] **Create JWT token system for Dart backend to Python API communication**
+  - **Current State**: Dart backend calls Python API endpoints (e.g., `/public/cleco/update-game-stats`) without authentication
+  - **Issue**: Public endpoints are vulnerable to unauthorized access
+  - **Expected Behavior**: Dart backend should authenticate with Python backend using JWT tokens
+  - **Implementation Steps**:
+    1. **Dart Backend JWT Client**:
+       - Create JWT token management in Dart backend
+       - Store JWT token (received from Flutter client or obtained via service-to-service auth)
+       - Add JWT token to HTTP request headers when calling Python API
+       - Handle token refresh/expiration
+    2. **Python Backend JWT Validation**:
+       - Modify Python endpoints to accept and validate JWT tokens from Dart backend
+       - Extract user_id from JWT token for authorization
+       - Reject requests with invalid/missing tokens
+    3. **Token Exchange**:
+       - Determine token source: Flutter client passes token to Dart backend, or Dart backend obtains service token
+       - Implement token forwarding/storage mechanism
+  - **Location**: 
+    - `dart_bkend_base_01/lib/services/python_api_client.dart` - Add JWT token handling
+    - `python_base_04/core/modules/cleco_game/cleco_game_main.py` - Add JWT validation to endpoints
+    - `python_base_04/core/managers/jwt_manager.py` - Use existing JWT manager for validation
+  - **Impact**: Security improvement - prevents unauthorized API calls and ensures proper user identification
+
+- [ ] **Modify game statistics update endpoint to use JWT authentication**
+  - **Current State**: `/public/cleco/update-game-stats` endpoint is public (no authentication)
+  - **Expected Behavior**: Endpoint should require JWT authentication and extract user_id from token
+  - **Implementation**:
+    - Change endpoint from `/public/cleco/update-game-stats` to `/cleco/update-game-stats` (remove public prefix)
+    - Add JWT validation decorator/middleware to endpoint
+    - Extract `user_id` from JWT token instead of relying on request body
+    - Validate that JWT user_id matches the user_id in the game results
+    - Update Dart backend to send JWT token in Authorization header
+  - **Location**: 
+    - `python_base_04/core/modules/cleco_game/cleco_game_main.py` - Modify `update_game_stats()` method
+    - `dart_bkend_base_01/lib/services/python_api_client.dart` - Add JWT token to requests
+    - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/services/game_registry.dart` - Pass JWT token when calling API
+  - **Impact**: Security improvement - ensures only authenticated requests can update game statistics, prevents unauthorized data manipulation
+
 ### Medium Priority
 
 #### Room Management Features
@@ -232,5 +271,5 @@ Python Backend (Auth)
 
 ---
 
-**Last Updated**: 2025-01-XX (Added player action validation requirement)
+**Last Updated**: 2025-01-XX (Added JWT authentication system between Dart backend and Python)
 

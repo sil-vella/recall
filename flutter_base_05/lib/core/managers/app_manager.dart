@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'hooks_manager.dart';
 import 'module_manager.dart';
@@ -94,6 +95,12 @@ class AppManager extends ChangeNotifier {
   
   /// Check for app updates after initialization (non-blocking)
   void _checkForAppUpdates(BuildContext context) {
+    // Skip version check on web - web apps update automatically
+    if (kIsWeb) {
+      _logger.info('AppManager: Skipping version check on web platform', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
     // Run asynchronously without blocking app startup
     Future.microtask(() async {
       try {

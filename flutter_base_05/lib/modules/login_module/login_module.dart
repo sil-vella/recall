@@ -12,8 +12,8 @@ import '../../core/managers/navigation_manager.dart';
 import '../../tools/logging/logger.dart';
 
 class LoginModule extends ModuleBase {
-  // Logging switch for guest registration testing
-  static const bool LOGGING_SWITCH = false;
+  // Logging switch for guest registration and conversion testing
+  static const bool LOGGING_SWITCH = true;
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -237,6 +237,8 @@ class LoginModule extends ModuleBase {
     required String username,
     required String email,
     required String password,
+    String? guestEmail,
+    String? guestPassword,
   }) async {
     _initDependencies(context);
 
@@ -274,18 +276,37 @@ class LoginModule extends ModuleBase {
     }
 
     try {
+      // Prepare request data
+      final Map<String, dynamic> requestData = <String, dynamic>{
+        "username": username,
+        "email": email,
+        "password": password,
+      };
+      
+      // Include guest account conversion info if provided
+      if (guestEmail != null && guestPassword != null) {
+        requestData["convert_from_guest"] = true;
+        requestData["guest_email"] = guestEmail;
+        requestData["guest_password"] = guestPassword;
+        Logger().info("LoginModule: Registering with guest account conversion - Guest Email: $guestEmail", isOn: LOGGING_SWITCH);
+      }
+      
       // Use the correct backend route
       final response = await _connectionModule!.sendPostRequest(
         "/public/register",
-        {
-          "username": username,
-          "email": email,
-          "password": password,
-        },
+        requestData,
       );
 
       if (response is Map) {
         if (response["success"] == true || response["message"] == "User created successfully") {
+          // If guest account conversion was successful, clear guest credentials
+          if (guestEmail != null && guestPassword != null) {
+            Logger().info("LoginModule: Guest account conversion successful, clearing guest credentials", isOn: LOGGING_SWITCH);
+            await _sharedPref!.remove('guest_username');
+            await _sharedPref!.remove('guest_email');
+            await _sharedPref!.remove('guest_user_id');
+            await _sharedPref!.setBool('is_guest_account', false);
+          }
           return {"success": "Registration successful. Please log in."};
         } else if (response["error"] != null) {
           // Handle rate limiting errors

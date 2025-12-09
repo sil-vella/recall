@@ -15,8 +15,8 @@ import string
 
 
 class UserManagementModule(BaseModule):
-    # Logging switch for guest registration testing
-    LOGGING_SWITCH = False
+    # Logging switch for guest registration and conversion testing
+    LOGGING_SWITCH = True
     
     def __init__(self, app_manager=None):
         """Initialize the UserManagementModule."""
@@ -99,6 +99,45 @@ class UserManagementModule(BaseModule):
             email = data.get("email")
             password = data.get("password")
             
+            # Check for guest account conversion
+            convert_from_guest = data.get("convert_from_guest", False)
+            guest_email = data.get("guest_email")
+            guest_password = data.get("guest_password")
+            guest_user = None
+            
+            # Validate guest account if conversion requested
+            if convert_from_guest:
+                if not guest_email or not guest_password:
+                    return jsonify({
+                        "success": False,
+                        "error": "Guest email and password are required for account conversion"
+                    }), 400
+                
+                # Find guest user
+                guest_user = self.db_manager.find_one("users", {"email": guest_email})
+                if not guest_user:
+                    return jsonify({
+                        "success": False,
+                        "error": "Guest account not found"
+                    }), 404
+                
+                # Verify it's actually a guest account
+                if guest_user.get("account_type") != "guest":
+                    return jsonify({
+                        "success": False,
+                        "error": "Account is not a guest account"
+                    }), 400
+                
+                # Verify guest password
+                stored_password = guest_user.get("password", "").encode('utf-8')
+                if not bcrypt.checkpw(guest_password.encode('utf-8'), stored_password):
+                    return jsonify({
+                        "success": False,
+                        "error": "Invalid guest account password"
+                    }), 401
+                
+                custom_log(f"UserManagement: Guest account conversion requested - Guest Email: {guest_email}, New Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            
             # Validate email format
             if not self._is_valid_email(email):
                 return jsonify({
@@ -134,8 +173,41 @@ class UserManagementModule(BaseModule):
             # Get current timestamp for consistent date formatting
             current_time = datetime.utcnow()
             
-            # Prepare user data with comprehensive structure
-            user_data = {
+            # Prepare user data - either from guest account or new structure
+            if convert_from_guest and guest_user:
+                # Copy all data from guest account except username, email, password, account_type, _id
+                guest_data = guest_user.copy()
+                
+                # Start with new credentials
+                user_data = {
+                    'username': username,
+                    'email': email,
+                    'password': hashed_password.decode('utf-8'),
+                    'account_type': 'normal',  # Changed from 'guest'
+                    'status': guest_data.get('status', 'active'),
+                    'created_at': guest_data.get('created_at', current_time.isoformat()),  # Preserve original creation date
+                    'updated_at': current_time.isoformat(),
+                    'last_login': guest_data.get('last_login'),
+                    'login_count': guest_data.get('login_count', 0),
+                }
+                
+                # Copy all other fields from guest account
+                fields_to_copy = ['profile', 'preferences', 'modules', 'audit']
+                for field in fields_to_copy:
+                    if field in guest_data:
+                        user_data[field] = guest_data[field]
+                
+                # Ensure all module fields are preserved (in case guest account has custom modules)
+                if 'modules' not in user_data:
+                    user_data['modules'] = {}
+                elif isinstance(user_data['modules'], dict):
+                    # Preserve all existing modules from guest account
+                    pass  # Already copied above
+                
+                custom_log(f"UserManagement: Copied guest account data for conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            else:
+                # Prepare user data with comprehensive structure (new account)
+                user_data = {
                 # Core fields
                 'username': username,
                 'email': email,
@@ -218,6 +290,20 @@ class UserManagementModule(BaseModule):
                     "error": "Failed to create user account"
                 }), 500
             
+            # If guest account conversion, delete the guest account
+            if convert_from_guest and guest_user:
+                try:
+                    guest_user_id = guest_user.get("_id")
+                    if guest_user_id:
+                        delete_result = self.db_manager.delete("users", {"_id": ObjectId(guest_user_id)})
+                        if delete_result:
+                            custom_log(f"UserManagement: Successfully deleted guest account after conversion - Guest ID: {guest_user_id}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                        else:
+                            custom_log(f"UserManagement: Warning - Failed to delete guest account after conversion - Guest ID: {guest_user_id}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
+                except Exception as e:
+                    # Log error but don't fail registration (data integrity maintained)
+                    custom_log(f"UserManagement: Error deleting guest account after conversion: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+            
             # Remove password from response
             user_data.pop('password', None)
             user_data['_id'] = user_id
@@ -235,7 +321,8 @@ class UserManagementModule(BaseModule):
                     'created_at': current_time.isoformat(),
                     'app_id': Config.APP_ID,
                     'app_name': Config.APP_NAME,
-                    'source': 'external_app'
+                    'source': 'external_app',
+                    'account_type': 'normal' if not convert_from_guest else 'converted_from_guest'
                 }
                 self.app_manager.trigger_hook("user_created", hook_data)
             

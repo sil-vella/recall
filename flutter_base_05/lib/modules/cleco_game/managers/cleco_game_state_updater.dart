@@ -213,10 +213,14 @@ class ClecoGameStateUpdater {
       _logger.info('🎬 ClecoGameStateUpdater: Has actual changes, proceeding with state update', isOn: LOGGING_SWITCH);
       
       // Apply only the validated updates
+      // Deep convert validatedUpdates to ensure all nested maps are Map<String, dynamic> (not LinkedMap from JSON decode)
+      _logger.debug('🎬 ClecoGameStateUpdater: Converting validated updates to Map<String, dynamic>', isOn: LOGGING_SWITCH);
+      final convertedValidatedUpdates = _deepConvertToMapStringDynamic(validatedUpdates) as Map<String, dynamic>;
+      
       _logger.debug('🎬 ClecoGameStateUpdater: Merging current state with validated updates', isOn: LOGGING_SWITCH);
       final newState = {
         ...currentState,
-        ...validatedUpdates,
+        ...convertedValidatedUpdates,
       };
       _logger.debug('🎬 ClecoGameStateUpdater: New state keys: ${newState.keys.toList()}', isOn: LOGGING_SWITCH);
       
@@ -240,13 +244,35 @@ class ClecoGameStateUpdater {
     }
   }
   
+  /// Recursively convert LinkedMap and other Map types to Map<String, dynamic>
+  /// This ensures type safety when merging state from different sources (JSON decode vs. already-processed state)
+  /// Returns the converted value (Map, List, or primitive)
+  dynamic _deepConvertToMapStringDynamic(dynamic value) {
+    if (value is Map) {
+      // Convert map and recursively convert all nested values
+      return Map<String, dynamic>.from(
+        value.map((key, val) => MapEntry(
+          key.toString(),
+          _deepConvertToMapStringDynamic(val),
+        )),
+      );
+    } else if (value is List) {
+      // Convert list and recursively convert all nested values
+      return value.map((item) => _deepConvertToMapStringDynamic(item)).toList();
+    } else {
+      // Primitive types, return as-is
+      return value;
+    }
+  }
+  
   /// Update widget slices based on dependency tracking
   Map<String, dynamic> _updateWidgetSlices(
     Map<String, dynamic> oldState,
     Map<String, dynamic> newState,
     Set<String> changedFields,
   ) {
-    final updatedState = Map<String, dynamic>.from(newState);
+    // Deep convert to ensure all nested maps are Map<String, dynamic> (not LinkedMap)
+    final updatedState = _deepConvertToMapStringDynamic(newState) as Map<String, dynamic>;
     
     _logger.debug('🎬 ClecoGameStateUpdater: _updateWidgetSlices - Changed fields: $changedFields', isOn: LOGGING_SWITCH);
     

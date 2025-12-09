@@ -7,7 +7,7 @@ import '../../utils/platform/shared_imports.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
+const bool LOGGING_SWITCH = true; // Enabled for testing game statistics update
 
 class ClecoGameRound {
   final Logger _logger = Logger();
@@ -2962,6 +2962,17 @@ class ClecoGameRound {
         for (final winner in _winnersList) {
           _logger.info('Cleco: Winner - ${winner['playerName']} (${winner['playerId']}) - Win Type: ${winner['winType']}', isOn: LOGGING_SWITCH);
         }
+        
+        // Get all players from current game state for stats update
+        final gameState = _getCurrentGameState();
+        if (gameState != null) {
+          final players = (gameState['players'] as List<dynamic>? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .toList();
+          
+          // Call onGameEnded callback to trigger stats update
+          _stateCallback.onGameEnded(_winnersList, players);
+        }
       } else {
         _logger.info('Cleco: No winners yet - game continues', isOn: LOGGING_SWITCH);
       }
@@ -2969,6 +2980,23 @@ class ClecoGameRound {
     } catch (e) {
       _logger.error('Cleco: Error in _checkGameEnding: $e', isOn: LOGGING_SWITCH);
     }
+  }
+  
+  /// Calculate total points for a player based on remaining cards
+  /// TODO: Implement point calculation logic based on game rules
+  /// For now, returns 0 as placeholder
+  /// 
+  /// Point calculation should be based on:
+  /// - Remaining cards in hand
+  /// - Card point values (2-10 = card number, Ace = 1, Queens/Jacks = 10, etc.)
+  /// - Special cards (Jokers = 0, Red King = 0)
+  int _calculatePlayerPoints(Map<String, dynamic> player, Map<String, dynamic> gameState) {
+    // STUB: Point calculation will be implemented later
+    // Should calculate based on:
+    // - Remaining cards in hand
+    // - Card point values (2-10 = card number, Ace = 1, Queens/Jacks = 10, etc.)
+    // - Special cards (Jokers = 0, Red King = 0)
+    return 0; // Placeholder
   }
 
   /// Helper method to check if the game has ended

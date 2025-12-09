@@ -10,7 +10,7 @@ import '../managers/hooks_manager.dart';
 import '../modules/cleco_game/cleco_game_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};
@@ -85,6 +85,9 @@ class WebSocketServer {
     final info = _roomManager.getRoomInfo(roomId);
     return info?.ownerId;
   }
+
+  /// Get Python API client for making API calls
+  PythonApiClient get pythonClient => _pythonClient;
 
   /// Get room info for a room
   /// Returns the Room object or null if not found

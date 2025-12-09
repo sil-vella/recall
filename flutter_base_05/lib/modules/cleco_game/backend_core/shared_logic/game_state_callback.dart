@@ -69,4 +69,11 @@ abstract class GameStateCallback {
   /// [playerId] The player ID (session ID) to remove from the room
   /// This should only be called for multiplayer matches, not practice matches
   void triggerLeaveRoom(String playerId);
+
+  /// Called when game ends - allows callback implementation to handle stats update
+  /// 
+  /// [winners] List of winner information with playerId, playerName, winType
+  /// [allPlayers] List of all players with their final state
+  /// This should only be called for multiplayer matches, not practice matches
+  void onGameEnded(List<Map<String, dynamic>> winners, List<Map<String, dynamic>> allPlayers);
 }

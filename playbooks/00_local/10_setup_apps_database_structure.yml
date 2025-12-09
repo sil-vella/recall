@@ -407,7 +407,7 @@
                 "win_rate": "number",
                 "last_match_date": "date",
                 "last_updated": "date"
-              },
+            },
               "created_at": new Date("2024-01-01T00:00:00Z"),
               "updated_at": new Date("2024-01-01T00:00:00Z")
             }

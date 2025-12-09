@@ -4,7 +4,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Holds active ClecoGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -402,91 +402,75 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       return;
     }
 
-    _logger.info('GameStateCallback: Game ended for room $roomId - updating statistics for ${allPlayers.length} player(s)', isOn: LOGGING_SWITCH);
+      _logger.info('GameStateCallback: Game ended for room $roomId - updating statistics for ${allPlayers.length} player(s)', isOn: LOGGING_SWITCH);
 
     try {
-      // Check if server has pythonClient (may not be available in Flutter practice mode)
-      // Use dynamic access to check if method exists
-      try {
-        final pythonClient = (server as dynamic).pythonClient;
-        if (pythonClient == null) {
-          _logger.warning('GameStateCallback: pythonClient not available, skipping stats update', isOn: LOGGING_SWITCH);
-          return;
+      // Build list of winner player IDs for quick lookup
+      final winnerPlayerIds = winners.map((w) => w['playerId']?.toString() ?? '').toSet();
+      
+      // Build game_results array for API call
+      final gameResults = <Map<String, dynamic>>[];
+      
+      for (final player in allPlayers) {
+        final playerId = player['id']?.toString() ?? '';
+        if (playerId.isEmpty) {
+          _logger.warning('GameStateCallback: Skipping player with empty ID', isOn: LOGGING_SWITCH);
+          continue;
         }
         
-        // Get current game state
-        final gameState = _store.getGameState(roomId);
-        
-        // Build list of winner player IDs for quick lookup
-        final winnerPlayerIds = winners.map((w) => w['playerId']?.toString() ?? '').toSet();
-        
-        // Build game_results array for API call
-        final gameResults = <Map<String, dynamic>>[];
-        
-        for (final player in allPlayers) {
-          final playerId = player['id']?.toString() ?? '';
-          if (playerId.isEmpty) {
-            _logger.warning('GameStateCallback: Skipping player with empty ID', isOn: LOGGING_SWITCH);
-            continue;
-          }
-          
-          // Get user_id from session (playerId = sessionId in this system)
-          final userId = server.getUserIdForSession(playerId);
-          if (userId == null) {
-            _logger.warning('GameStateCallback: No user_id found for player $playerId, skipping stats update', isOn: LOGGING_SWITCH);
-            continue;
-          }
-          
-          // Determine if this player is a winner
-          final isWinner = winnerPlayerIds.contains(playerId);
-          
-          // Get win type if winner
-          String? winType;
-          if (isWinner) {
-            final winnerInfo = winners.firstWhere(
-              (w) => w['playerId']?.toString() == playerId,
-              orElse: () => {},
-            );
-            winType = winnerInfo['winType']?.toString();
-          }
-          
-          // Calculate points (STUBBED - will be implemented later)
-          // For now, we'll need to get the round instance to call the stub method
-          // Since we don't have direct access, we'll pass 0 for now
-          // TODO: Implement point calculation
-          final points = 0; // Placeholder - will be calculated later
-          
-          gameResults.add({
-            'user_id': userId,
-            'is_winner': isWinner,
-            'points': points,
-            'win_type': winType,
-          });
-          
-          _logger.info('GameStateCallback: Added game result for user $userId - winner: $isWinner, points: $points', isOn: LOGGING_SWITCH);
+        // Get user_id from session (playerId = sessionId in this system)
+        final userId = server.getUserIdForSession(playerId);
+        if (userId == null) {
+          _logger.warning('GameStateCallback: No user_id found for player $playerId, skipping stats update', isOn: LOGGING_SWITCH);
+          continue;
         }
         
-        if (gameResults.isEmpty) {
-          _logger.warning('GameStateCallback: No valid game results to send, skipping API call', isOn: LOGGING_SWITCH);
-          return;
+        // Determine if this player is a winner
+        final isWinner = winnerPlayerIds.contains(playerId);
+        
+        // Get win type if winner
+        String? winType;
+        if (isWinner) {
+          final winnerInfo = winners.firstWhere(
+            (w) => w['playerId']?.toString() == playerId,
+            orElse: () => {},
+          );
+          winType = winnerInfo['winType']?.toString();
         }
         
-        // Call Python API to update statistics
-        _logger.info('GameStateCallback: Calling Python API to update game statistics', isOn: LOGGING_SWITCH);
-        (pythonClient as dynamic).updateGameStats(gameResults).then((result) {
-          if (result['success'] == true) {
-            _logger.info('GameStateCallback: Successfully updated game statistics', isOn: LOGGING_SWITCH);
-          } else {
-            _logger.error('GameStateCallback: Failed to update game statistics: ${result['error']}', isOn: LOGGING_SWITCH);
-          }
-        }).catchError((error) {
-          _logger.error('GameStateCallback: Error updating game statistics: $error', isOn: LOGGING_SWITCH);
-          // Don't throw - stats update failure shouldn't break the game
+        // Calculate points (STUBBED - will be implemented later)
+        // For now, we'll need to get the round instance to call the stub method
+        // Since we don't have direct access, we'll pass 0 for now
+        // TODO: Implement point calculation
+        final points = 0; // Placeholder - will be calculated later
+        
+        gameResults.add({
+          'user_id': userId,
+          'is_winner': isWinner,
+          'points': points,
+          'win_type': winType,
         });
-      } catch (e) {
-        _logger.warning('GameStateCallback: pythonClient not available or error accessing it: $e', isOn: LOGGING_SWITCH);
-        // Don't throw - stats update failure shouldn't break the game
+        
+        _logger.info('GameStateCallback: Added game result for user $userId - winner: $isWinner, points: $points', isOn: LOGGING_SWITCH);
       }
+      
+      if (gameResults.isEmpty) {
+        _logger.warning('GameStateCallback: No valid game results to send, skipping API call', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Call Python API to update statistics
+      _logger.info('GameStateCallback: Calling Python API to update game statistics', isOn: LOGGING_SWITCH);
+      server.pythonClient.updateGameStats(gameResults).then((result) {
+        if (result['success'] == true) {
+          _logger.info('GameStateCallback: Successfully updated game statistics', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.error('GameStateCallback: Failed to update game statistics: ${result['error']}', isOn: LOGGING_SWITCH);
+        }
+      }).catchError((error) {
+        _logger.error('GameStateCallback: Error updating game statistics: $error', isOn: LOGGING_SWITCH);
+        // Don't throw - stats update failure shouldn't break the game
+      });
       
     } catch (e) {
       _logger.error('GameStateCallback: Error in onGameEnded: $e', isOn: LOGGING_SWITCH);

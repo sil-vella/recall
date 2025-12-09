@@ -4,7 +4,7 @@ import '../../../../tools/logging/logger.dart';
 import 'player_action.dart';
 import '../utils/cleco_game_helpers.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for leave game timer debugging
+const bool LOGGING_SWITCH = false; // Enabled for leave game timer debugging
 
 /// Game Coordinator for handling all player game actions
 /// 

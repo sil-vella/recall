@@ -10,7 +10,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../../../managers/player_action.dart';
 import '../card_position_tracker.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for draw card debugging
+const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
 
 /// Widget to display other players (opponents)
 /// 

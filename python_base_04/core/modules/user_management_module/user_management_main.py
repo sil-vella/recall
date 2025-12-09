@@ -16,7 +16,7 @@ import string
 
 class UserManagementModule(BaseModule):
     # Logging switch for guest registration testing
-    LOGGING_SWITCH = True
+    LOGGING_SWITCH = False
     
     def __init__(self, app_manager=None):
         """Initialize the UserManagementModule."""

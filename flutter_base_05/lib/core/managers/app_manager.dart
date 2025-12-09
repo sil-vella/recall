@@ -9,6 +9,9 @@ import 'services_manager.dart';
 import 'state_manager.dart';
 import 'navigation_manager.dart';
 import 'websockets/websocket_manager.dart';
+import '../services/version_check_service.dart';
+import '../../modules/connections_api_module/connections_api_module.dart';
+import '../../tools/logging/logger.dart';
 class AppManager extends ChangeNotifier {
   static final AppManager _instance = AppManager._internal();
   static late BuildContext globalContext;
@@ -22,6 +25,8 @@ class AppManager extends ChangeNotifier {
   final HooksManager _hooksManager = HooksManager();
   final AuthManager _authManager = AuthManager();
   final AdaptersManager _adaptersManager = AdaptersManager();
+  final Logger _logger = Logger();
+  static const bool LOGGING_SWITCH = true;
 
   Future<void> _initializeModules(BuildContext context) async {
     final moduleManager = Provider.of<ModuleManager>(context, listen: false);
@@ -78,10 +83,86 @@ class AppManager extends ChangeNotifier {
         // Mark app as initialized in HooksManager to process pending hooks
         _hooksManager.markAppInitialized();
         
+        // Check for app updates (non-blocking, fire-and-forget)
+        _checkForAppUpdates(context);
+        
       } catch (e) {
         rethrow;
       }
     }
+  }
+  
+  /// Check for app updates after initialization (non-blocking)
+  void _checkForAppUpdates(BuildContext context) {
+    // Run asynchronously without blocking app startup
+    Future.microtask(() async {
+      try {
+        _logger.info('AppManager: Starting version check', isOn: LOGGING_SWITCH);
+        
+        // Get ModuleManager to access ConnectionsApiModule
+        final moduleManager = Provider.of<ModuleManager>(context, listen: false);
+        final apiModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+        
+        if (apiModule == null) {
+          _logger.warning('AppManager: ConnectionsApiModule not available for version check', isOn: LOGGING_SWITCH);
+          return;
+        }
+        
+        // Initialize VersionCheckService if needed
+        final versionCheckService = VersionCheckService();
+        if (!versionCheckService.isInitialized) {
+          await versionCheckService.initialize();
+        }
+        
+        // Check for updates
+        final result = await versionCheckService.checkForUpdates(apiModule);
+        
+        if (result['success'] == true) {
+          final updateAvailable = result['update_available'] == true;
+          final updateRequired = result['update_required'] == true;
+          final currentVersion = result['current_version'];
+          final serverVersion = result['server_version'];
+          final downloadLink = result['download_link']?.toString() ?? '';
+          
+          _logger.info('AppManager: Version check completed - Current: $currentVersion, Server: $serverVersion, Update Available: $updateAvailable, Update Required: $updateRequired', isOn: LOGGING_SWITCH);
+          
+          // If update is required, navigate to blocking update screen
+          if (updateRequired && downloadLink.isNotEmpty) {
+            _logger.info('AppManager: Update required - navigating to update screen', isOn: LOGGING_SWITCH);
+            
+            // Wait for router to be initialized before navigating
+            final navigationManager = Provider.of<NavigationManager>(context, listen: false);
+            
+            // Use a small delay to ensure router is ready, then navigate
+            await Future.delayed(const Duration(milliseconds: 500));
+            
+            // Navigate to update screen with download link as parameter
+            // Use go() which replaces current route (prevents back navigation)
+            final router = navigationManager.router;
+            final updateRoute = '/update-required?download_link=${Uri.encodeComponent(downloadLink)}';
+            router.go(updateRoute);
+            _logger.info('AppManager: Navigated to update screen', isOn: LOGGING_SWITCH);
+            return; // Exit early - don't trigger hook since we're blocking
+          }
+          
+          // Trigger hook for modules to listen to version check results (only if update not required)
+          _hooksManager.triggerHookWithData('app_version_checked', {
+            'update_available': updateAvailable,
+            'update_required': updateRequired,
+            'current_version': currentVersion,
+            'server_version': serverVersion,
+            'download_link': downloadLink,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+        } else {
+          _logger.warning('AppManager: Version check failed: ${result['error']}', isOn: LOGGING_SWITCH);
+        }
+        
+      } catch (e) {
+        // Don't let version check errors affect app startup
+        _logger.error('AppManager: Error during version check: $e', isOn: LOGGING_SWITCH);
+      }
+    });
   }
 
   /// Register core providers with ProviderManager

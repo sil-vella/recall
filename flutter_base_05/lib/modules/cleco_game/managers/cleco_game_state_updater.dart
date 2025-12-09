@@ -25,7 +25,7 @@ class ClecoGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for draw card debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -681,7 +681,7 @@ class ClecoGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for draw card debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

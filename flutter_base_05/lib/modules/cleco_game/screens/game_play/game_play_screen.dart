@@ -18,7 +18,7 @@ import 'card_position_tracker.dart';
 import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for cleanup testing
+const bool LOGGING_SWITCH = false; // Enabled for cleanup testing
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);

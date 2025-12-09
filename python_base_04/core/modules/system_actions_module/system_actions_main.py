@@ -3,6 +3,10 @@ from tools.logger.custom_logging import custom_log
 from typing import Dict, Any
 from flask import request, jsonify
 from datetime import datetime
+from utils.config.config import Config
+
+# Logging switch for this module
+LOGGING_SWITCH = True
 
 
 class SystemActionsModule(BaseModule):
@@ -26,6 +30,12 @@ class SystemActionsModule(BaseModule):
 
     def register_routes(self):
         """Register system actions routes."""
+        try:
+            # Register the check-updates endpoint as public (no authentication)
+            self._register_route_helper("/public/check-updates", self.check_updates, methods=["GET"])
+            custom_log("SystemActions: Registered check-updates endpoint", level="INFO", isOn=LOGGING_SWITCH)
+        except Exception as e:
+            custom_log(f"SystemActions: Error registering routes: {e}", level="ERROR", isOn=LOGGING_SWITCH)
 
     def _register_module_actions(self):
         """Register this module's actions with the UserActionsManager."""
@@ -205,4 +215,71 @@ class SystemActionsModule(BaseModule):
                 'error': f'Failed to check UserActionsManager: {str(e)}'
             }
         
-        return health_status 
+        return health_status
+
+    def check_updates(self):
+        """Check for available updates (public endpoint)"""
+        try:
+            custom_log("SystemActions: Check updates request received", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Get server app version from config
+            server_version = Config.APP_VERSION
+            app_name = Config.APP_NAME
+            app_id = Config.APP_ID
+            download_base_url = Config.APP_DOWNLOAD_BASE_URL
+            
+            # Get client's current version from query parameter (optional)
+            client_version = request.args.get('current_version', server_version)
+            
+            # Compare versions
+            update_available = False
+            update_required = False
+            
+            if client_version != server_version:
+                # Parse versions to compare major versions
+                try:
+                    client_major = int(client_version.split('.')[0]) if '.' in client_version else int(client_version)
+                    server_major = int(server_version.split('.')[0]) if '.' in server_version else int(server_version)
+                    
+                    update_available = True
+                    # Update is required if major version has changed
+                    update_required = server_major > client_major
+                    
+                    custom_log(f"SystemActions: Version comparison - Client: {client_version} (major: {client_major}), Server: {server_version} (major: {server_major}), Required: {update_required}", level="INFO", isOn=LOGGING_SWITCH)
+                except (ValueError, IndexError) as e:
+                    custom_log(f"SystemActions: Error parsing versions: {e}", level="WARNING", isOn=LOGGING_SWITCH)
+                    # If version parsing fails, assume update available but not required
+                    update_available = True
+                    update_required = False
+            
+            # Generate download link (version-specific)
+            download_link = ""
+            if update_available:
+                # Construct version-specific download URL
+                # Format: {base_url}/v{version}/app.apk (or app.ipa for iOS)
+                download_link = f"{download_base_url}/v{server_version}/app.apk"
+                custom_log(f"SystemActions: Generated download link: {download_link}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Return version information
+            response_data = {
+                "success": True,
+                "app_id": app_id,
+                "app_name": app_name,
+                "current_version": client_version,
+                "server_version": server_version,
+                "update_available": update_available,
+                "update_required": update_required,
+                "download_link": download_link if update_available else "",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            custom_log(f"SystemActions: Returning version info - Client: {client_version}, Server: {server_version}, Required: {update_required}", level="INFO", isOn=LOGGING_SWITCH)
+            return jsonify(response_data), 200
+            
+        except Exception as e:
+            custom_log(f"SystemActions: Error in check_updates: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({
+                "success": False,
+                "error": "Failed to check for updates",
+                "message": str(e)
+            }), 500 

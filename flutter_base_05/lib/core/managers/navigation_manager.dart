@@ -5,6 +5,7 @@ import '../../modules/home_module/home_screen.dart';
 import '../../screens/websocket_screen.dart';
 import '../../screens/account_screen/account_screen.dart';
 import '../../screens/auth_test_screen/auth_test_screen.dart';
+import '../../screens/update_required_screen/update_required_screen.dart';
 // In-app purchases screens removed - switching to RevenueCat
 import '../00_base/module_base.dart';
 import '../../tools/logging/logger.dart';
@@ -30,6 +31,7 @@ class RegisteredRoute {
     final route = GoRoute(
       path: path,
       builder: (context, state) {
+        // Pass state to screen builder so it can access query parameters
         final widget = screen(context);
         return widget;
       },
@@ -80,6 +82,12 @@ class NavigationManager extends ChangeNotifier {
       drawerTitle: 'Auth Test',
       drawerIcon: Icons.security,
       drawerPosition: 5,
+    );
+    
+    // Register Update Required screen (no drawer entry - blocking screen)
+    registerRoute(
+      path: '/update-required',
+      screen: (context) => const UpdateRequiredScreen(),
     );
 
     // In-app purchases screens removed - switching to RevenueCat
@@ -223,11 +231,22 @@ class NavigationManager extends ChangeNotifier {
     _lastNavigationRoute = route;
     _lastNavigationTime = now;
     
+    // Append query parameters if provided
+    String finalRoute = route;
+    if (parameters != null && parameters.isNotEmpty) {
+      final uri = Uri.parse(route);
+      final queryParams = Map<String, String>.from(uri.queryParameters);
+      parameters.forEach((key, value) {
+        queryParams[key] = value.toString();
+      });
+      finalRoute = uri.replace(queryParameters: queryParams).toString();
+    }
+    
     try {
       if (_routerInstance != null) {
-        _routerInstance!.go(route);
+        _routerInstance!.go(finalRoute);
       } else if (_navigationCallback != null) {
-        _navigationCallback!(route);
+        _navigationCallback!(finalRoute);
       }
     } catch (e) {
       // Navigation failed

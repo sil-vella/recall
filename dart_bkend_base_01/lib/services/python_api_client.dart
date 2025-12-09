@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 class PythonApiClient {
   final String baseUrl;

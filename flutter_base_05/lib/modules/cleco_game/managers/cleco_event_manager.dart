@@ -10,7 +10,7 @@ import '../../cleco_game/managers/cleco_event_handler_callbacks.dart';
 
 
 class ClecoEventManager {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Enabled for final round debugging
   static final ClecoEventManager _instance = ClecoEventManager._internal();
   factory ClecoEventManager() => _instance;
   ClecoEventManager._internal();

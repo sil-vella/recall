@@ -11,7 +11,8 @@ enum PlayerActionType {
   replaceCard,
   
   // Special actions
-  callCleco,
+  callCleco, // Deprecated, use callFinalRound
+  callFinalRound,
   playSameRank,
   useSpecialPower,
   initialPeek,
@@ -30,7 +31,7 @@ class PlayerAction {
   static final ClecoGameStateUpdater _stateUpdater = ClecoGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for final round debugging
   // Jack swap selection tracking
   static String? _firstSelectedCardId;
   static String? _firstSelectedPlayerId;
@@ -354,6 +355,21 @@ class PlayerAction {
     return PlayerAction._(
       actionType: PlayerActionType.collectFromDiscard,
       eventName: 'collect_from_discard',
+      payload: {
+        'game_id': gameId,
+        // player_id will be automatically included by the event emitter
+      },
+    );
+  }
+
+  /// Call final round - signals the final round of the game
+  /// After calling, all players get one last turn, then game ends and winners are calculated
+  static PlayerAction callFinalRound({
+    required String gameId,
+  }) {
+    return PlayerAction._(
+      actionType: PlayerActionType.callFinalRound,
+      eventName: 'call_final_round',
       payload: {
         'game_id': gameId,
         // player_id will be automatically included by the event emitter

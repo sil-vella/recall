@@ -26,7 +26,7 @@ class ClecoGameEventEmitter {
   final WebSocketManager _wsManager = WebSocketManager.instance;
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for final round debugging // Enabled for draw card debugging
   
   // Current transport mode (defaults to WebSocket for backward compatibility)
   EventTransportMode _transportMode = EventTransportMode.websocket;
@@ -61,7 +61,8 @@ class ClecoGameEventEmitter {
     'play_card': {'game_id', 'card_id', 'replace_index'}, // player_id auto-added
     'replace_drawn_card': {'game_id', 'card_index'}, // player_id auto-added
     'play_drawn_card': {'game_id'}, // player_id auto-added
-    'call_cleco': {'game_id'}, // player_id auto-added
+    'call_cleco': {'game_id'}, // player_id auto-added (deprecated, use call_final_round)
+    'call_final_round': {'game_id'}, // player_id auto-added
     'leave_room': {'game_id', 'reason'}, // Changed from 'leave_game' to match backend handler
     'leave_game': {'game_id', 'reason'}, // Keep for backward compatibility
     'draw_card': {'game_id', 'source'}, // player_id auto-added
@@ -253,7 +254,7 @@ class ClecoGameEventEmitter {
       // Note: player_id is now sessionId (not userId) since player IDs = sessionIds
       final eventsNeedingPlayerId = {
         'play_card', 'replace_drawn_card', 'play_drawn_card', 
-        'call_cleco', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'completed_initial_peek', 'collect_from_discard'
+        'call_cleco', 'call_final_round', 'draw_card', 'play_out_of_turn', 'use_special_power', 'same_rank_play', 'jack_swap', 'completed_initial_peek', 'collect_from_discard'
       };
       
       if (eventsNeedingPlayerId.contains(eventType)) {
@@ -264,15 +265,21 @@ class ClecoGameEventEmitter {
       }
 
       _logger.info('Sending event to backend: $eventPayload', isOn: LOGGING_SWITCH);
+      _logger.info('🎯 EventEmitter: Transport mode is $_transportMode for event $eventType', isOn: LOGGING_SWITCH);
       
       // Route based on transport mode
       if (_transportMode == EventTransportMode.practice) {
+        _logger.info('🎯 EventEmitter: Routing to PracticeModeBridge', isOn: LOGGING_SWITCH);
         // Route to practice bridge
         await _practiceBridge.handleEvent(eventType, eventPayload);
+        _logger.info('✅ EventEmitter: PracticeModeBridge handled event', isOn: LOGGING_SWITCH);
         return {'success': true, 'mode': 'practice'};
       } else {
+        _logger.info('🎯 EventEmitter: Routing to WebSocket', isOn: LOGGING_SWITCH);
         // Send via WebSocket (default)
-      return await _wsManager.sendCustomEvent(eventType, eventPayload);
+        final result = await _wsManager.sendCustomEvent(eventType, eventPayload);
+        _logger.info('✅ EventEmitter: WebSocket sent event, result: $result', isOn: LOGGING_SWITCH);
+        return result;
       }
       
     } catch (e) {

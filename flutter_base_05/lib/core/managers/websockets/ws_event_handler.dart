@@ -8,7 +8,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true; // Enabled for final round debugging
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events

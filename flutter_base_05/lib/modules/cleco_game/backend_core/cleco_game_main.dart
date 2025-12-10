@@ -86,6 +86,7 @@ class ClecoGameModule {
               'points': 0,
               'known_cards': <String, dynamic>{},
               'collection_rank_cards': <String>[],
+              'isActive': true,  // Required for winner calculation and same rank play filtering
             }
           ],
           'drawPile': <String>[],
@@ -153,6 +154,7 @@ class ClecoGameModule {
         'points': 0,
         'known_cards': <String, dynamic>{},
         'collection_rank_cards': <String>[],
+        'isActive': true,  // Required for winner calculation and same rank play filtering
       });
 
       gameState['players'] = players;

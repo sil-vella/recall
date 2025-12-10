@@ -9,7 +9,7 @@ import '../modules/cleco_game/backend_core/services/game_state_store.dart';
 import '../modules/cleco_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for leave_room event testing
+const bool LOGGING_SWITCH = true; // Enabled for winner determination testing
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -69,6 +69,7 @@ class MessageHandler {
       case 'discard_card':
       case 'take_from_discard':
       case 'call_cleco':
+      case 'call_final_round':
       case 'same_rank_play':
       case 'jack_swap':
       case 'queen_peek':

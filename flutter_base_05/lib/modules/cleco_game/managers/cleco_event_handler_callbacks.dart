@@ -8,7 +8,7 @@ import '../utils/game_instructions_provider.dart';
 /// Dedicated event handlers for Cleco game events
 /// Contains all the business logic for processing specific event types
 class ClecoEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for final round debugging
   static final Logger _logger = Logger();
 
   // ========================================
@@ -1092,6 +1092,9 @@ class ClecoEventHandlerCallbacks {
             case 'empty_hand':
               winReason = 'No Cards Left';
               break;
+            case 'lowest_points':
+              winReason = 'Lowest Points';
+              break;
             case 'cleco':
               winReason = 'Cleco Called';
               break;
@@ -1266,6 +1269,9 @@ class ClecoEventHandlerCallbacks {
               break;
             case 'empty_hand':
               winReason = 'No Cards Left';
+              break;
+            case 'lowest_points':
+              winReason = 'Lowest Points';
               break;
             case 'cleco':
               winReason = 'Cleco Called';

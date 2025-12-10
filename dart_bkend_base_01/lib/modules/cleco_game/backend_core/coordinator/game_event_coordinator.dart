@@ -5,7 +5,7 @@ import '../services/game_state_store.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
+const bool LOGGING_SWITCH = true; // Enabled for winner determination testing
 
 /// Coordinates WS game events to the ClecoGameRound logic per room.
 class GameEventCoordinator {
@@ -183,6 +183,17 @@ class GameEventCoordinator {
             );
           }
           break;
+        case 'call_final_round':
+        case 'call_cleco': // Keep for backward compatibility
+          final gamesMap = _getCurrentGamesMap(roomId);
+          final playerId = _getPlayerIdFromSession(sessionId, roomId);
+          if (playerId != null && playerId.isNotEmpty) {
+            await round.handleCallFinalRound(
+              playerId,
+              gamesMap: gamesMap,
+            );
+          }
+          break;
         default:
           // Acknowledge unknown-but-allowed for forward-compat
           break;
@@ -343,6 +354,10 @@ class GameEventCoordinator {
       // Initialize known_cards as empty map
       if (player['known_cards'] is! Map<String, dynamic>) {
         player['known_cards'] = <String, dynamic>{};
+      }
+      // Ensure isActive is set to true for all players (required for winner calculation)
+      if (player['isActive'] != true) {
+        player['isActive'] = true;
       }
     }
 

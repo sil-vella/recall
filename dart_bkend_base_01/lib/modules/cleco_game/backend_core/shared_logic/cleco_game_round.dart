@@ -7,7 +7,7 @@ import '../../utils/platform/shared_imports.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing game statistics update
+const bool LOGGING_SWITCH = true; // Enabled for final round debugging
 
 class ClecoGameRound {
   final Logger _logger = Logger();
@@ -35,8 +35,12 @@ class ClecoGameRound {
   // Winners list - stores winner information when game ends
   List<Map<String, dynamic>> _winnersList = [];
   
-  // Cleco caller - stores the player ID who called Cleco
-  String? _clecoCaller;
+  // Final round caller - stores the player ID who called final round
+  String? _finalRoundCaller;
+  
+  // Track which players have had their turn in the final round
+  // Used to determine when final round is complete
+  Set<String> _finalRoundPlayersCompleted = {};
   
   ClecoGameRound(this._stateCallback, this._gameId);
 
@@ -1241,6 +1245,128 @@ class ClecoGameRound {
       
     } catch (e) {
       _logger.error('Cleco: Error handling draw card: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  /// Handle calling final round - player signals the final round of the game
+  /// After final round is called, all players get one last turn, then game ends and winners are calculated
+  /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
+  Future<bool> handleCallFinalRound(String playerId, {Map<String, dynamic>? gamesMap}) async {
+    try {
+      _logger.info('Cleco: Handling call final round for player $playerId', isOn: LOGGING_SWITCH);
+      
+      // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
+      // Otherwise read from state
+      final currentGames = gamesMap ?? _stateCallback.currentGamesMap;
+      final gameData = currentGames[_gameId];
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      
+      if (gameState == null) {
+        _logger.error('Cleco: Failed to get game state for call final round', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      if (gamesMap != null) {
+        _logger.info('Cleco: handleCallFinalRound using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+      }
+      
+      // Check if game has ended - cannot call final round after game ends
+      if (_isGameEnded()) {
+        _logger.info('Cleco: Cannot call final round - game has ended', isOn: LOGGING_SWITCH);
+        
+        _stateCallback.onActionError(
+          'Cannot call final round - game has ended',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
+        
+        return false;
+      }
+      
+      // Check if final round has already been called
+      if (_finalRoundCaller != null) {
+        _logger.info('Cleco: Cannot call final round - already called by $_finalRoundCaller', isOn: LOGGING_SWITCH);
+        
+        _stateCallback.onActionError(
+          'Final round has already been called',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
+        
+        return false;
+      }
+      
+      // Validate player exists and is active
+      final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
+      final player = players.firstWhere(
+        (p) => p['id']?.toString() == playerId,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      if (player.isEmpty) {
+        _logger.error('Cleco: Player $playerId not found in players list', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final isActive = player['isActive'] as bool? ?? true;
+      if (!isActive) {
+        _logger.info('Cleco: Cannot call final round - player $playerId is not active', isOn: LOGGING_SWITCH);
+        
+        _stateCallback.onActionError(
+          'Cannot call final round - player is not active',
+          data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+        );
+        
+        return false;
+      }
+      
+      // Set final round caller
+      _finalRoundCaller = playerId;
+      _logger.info('Cleco: Final round called by player $playerId', isOn: LOGGING_SWITCH);
+      
+      // Clear final round players completed set (will be populated as players complete their turns)
+      _finalRoundPlayersCompleted.clear();
+      
+      // Mark the caller as having completed their turn (they called it after their turn)
+      _finalRoundPlayersCompleted.add(playerId);
+      _logger.info('Cleco: Marked caller $playerId as completed in final round', isOn: LOGGING_SWITCH);
+      
+      // Update game state to indicate final round is active
+      gameState['finalRoundCalledBy'] = playerId;
+      gameState['finalRoundActive'] = true;
+      
+      // Update player's hasCalledFinalRound flag
+      player['hasCalledFinalRound'] = true;
+      
+      // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
+      _sanitizeDrawnCardsInGamesMap(currentGames, context: 'call_final_round');
+      
+      // Broadcast state update
+      _stateCallback.onGameStateChanged({
+        'games': currentGames, // Updated games map with final round info
+        'finalRoundCalledBy': playerId,
+        'finalRoundActive': true,
+      });
+      
+      _logger.info('Cleco: Final round activated - all players will get one last turn', isOn: LOGGING_SWITCH);
+      
+      // Check if all players have already completed their turn (e.g., single-player game or all players already had their turn)
+      final activePlayers = players.where((p) => (p['isActive'] as bool? ?? true) == true).toList();  // Default to true if missing
+      final activePlayerIds = activePlayers.map((p) => p['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+      
+      _logger.info('Cleco: Checking if final round should end immediately. Active players: ${activePlayerIds.length}, Completed: ${_finalRoundPlayersCompleted.length}', isOn: LOGGING_SWITCH);
+      
+      // If all active players have completed their turn, end the game immediately
+      if (_finalRoundPlayersCompleted.length >= activePlayerIds.length) {
+        _logger.info('Cleco: All players have completed their turn in final round - ending game immediately', isOn: LOGGING_SWITCH);
+        _endFinalRoundAndCalculateWinners();
+        return true;
+      }
+      
+      return true;
+      
+    } catch (e) {
+      _logger.error('Cleco: Error handling call final round: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }
@@ -2926,11 +3052,134 @@ class ClecoGameRound {
     }
   }
 
+  /// End the final round and calculate winners based on points
+  /// Called when all players have completed their turn in the final round
+  /// The final round caller (_finalRoundCaller) gets special tie-breaking logic
+  void _endFinalRoundAndCalculateWinners() {
+    try {
+      _logger.info('Cleco: Ending final round and calculating winners. Final round caller: $_finalRoundCaller', isOn: LOGGING_SWITCH);
+      
+      final gameState = _getCurrentGameState();
+      if (gameState == null) {
+        _logger.error('Cleco: Cannot end final round - game state is null', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      final players = (gameState['players'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .where((p) => (p['isActive'] as bool? ?? true) == true)  // Default to true if missing
+          .toList();
+      
+      if (players.isEmpty) {
+        _logger.error('Cleco: No active players found for final round calculation', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Calculate points for all players
+      final playerScores = <String, Map<String, dynamic>>{};
+      for (final player in players) {
+        final playerId = player['id']?.toString() ?? '';
+        final playerName = player['name']?.toString() ?? 'Unknown';
+        final hand = player['hand'] as List<dynamic>? ?? [];
+        final points = _calculatePlayerPoints(player, gameState);
+        final cardCount = hand.length;
+        
+        playerScores[playerId] = {
+          'playerId': playerId,
+          'playerName': playerName,
+          'points': points,
+          'cardCount': cardCount,
+        };
+        
+        _logger.info('Cleco: Player $playerName ($playerId) - Points: $points, Cards: $cardCount', isOn: LOGGING_SWITCH);
+      }
+      
+      // Find winners: lowest points wins, if tie then fewer cards, if still tie then final round caller wins
+      final sortedPlayers = playerScores.values.toList()
+        ..sort((a, b) {
+          // First sort by points (ascending)
+          final pointsDiff = (a['points'] as int) - (b['points'] as int);
+          if (pointsDiff != 0) return pointsDiff;
+          
+          // If points are equal, sort by card count (ascending)
+          final cardDiff = (a['cardCount'] as int) - (b['cardCount'] as int);
+          if (cardDiff != 0) return cardDiff;
+          
+          // If still equal, final round caller wins
+          final aId = a['playerId'] as String;
+          final bId = b['playerId'] as String;
+          if (aId == _finalRoundCaller) return -1; // a wins
+          if (bId == _finalRoundCaller) return 1;  // b wins
+          
+          return 0; // No preference if neither is caller
+        });
+      
+      // Get the best score (first in sorted list)
+      if (sortedPlayers.isEmpty) {
+        _logger.error('Cleco: No players to determine winner', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      final bestScore = sortedPlayers.first;
+      final bestPoints = bestScore['points'] as int;
+      final bestCardCount = bestScore['cardCount'] as int;
+      
+      // Find all players with the same best score (points and card count)
+      final winners = sortedPlayers.where((p) => 
+        (p['points'] as int) == bestPoints && 
+        (p['cardCount'] as int) == bestCardCount
+      ).toList();
+      
+      // Handle tie-breaking according to game rules:
+      // - If points and cards tie: Final round caller wins if involved in tie
+      // - Otherwise, it's a draw (all tied players win)
+      if (winners.length > 1 && _finalRoundCaller != null) {
+        // Check if final round caller is among the tied players
+        final callerInTie = winners.any((w) => (w['playerId'] as String) == _finalRoundCaller);
+        
+        if (callerInTie) {
+          // Final round caller is in the tie - they win
+          final callerWinner = winners.firstWhere(
+            (w) => (w['playerId'] as String) == _finalRoundCaller,
+          );
+          winners.clear();
+          winners.add(callerWinner);
+          _logger.info('Cleco: Tie broken - final round caller ${callerWinner['playerName']} wins (was involved in tie)', isOn: LOGGING_SWITCH);
+        } else {
+          // Final round caller is NOT in the tie - it's a draw (all tied players win)
+          _logger.info('Cleco: Tie between ${winners.length} players, but final round caller is not involved - draw (all tied players win)', isOn: LOGGING_SWITCH);
+        }
+      } else if (winners.length == 1) {
+        // Single winner - no tie
+        _logger.info('Cleco: Single winner - ${winners.first['playerName']} with ${winners.first['points']} points and ${winners.first['cardCount']} cards', isOn: LOGGING_SWITCH);
+      }
+      
+      // Add all winners to winners list
+      // Win reason is based on the winning condition (lowest points), not the game phase
+      for (final winner in winners) {
+        _winnersList.add({
+          'playerId': winner['playerId'],
+          'playerName': winner['playerName'],
+          'winType': 'lowest_points',  // Win reason: lowest points (final round caller only matters for tie-breaking)
+          'points': winner['points'],
+          'cardCount': winner['cardCount'],
+        });
+        _logger.info('Cleco: Final round winner - ${winner['playerName']} (${winner['playerId']}) - Points: ${winner['points']}, Cards: ${winner['cardCount']}, Win Type: lowest_points', isOn: LOGGING_SWITCH);
+      }
+      
+      // End the game
+      _checkGameEnding();
+      
+    } catch (e) {
+      _logger.error('Cleco: Error ending final round and calculating winners: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
   /// Check if the game should end (unified game ending check)
   /// This method checks for:
   /// 1. Empty hand win condition (player has no cards left)
-  /// 2. Cleco called (player called Cleco to end the game)
-  /// 3. Final round completion (after Cleco is called)
+  /// 2. Final round called (player called final round to end the game)
+  /// 3. Final round completion (after final round is called)
   void _checkGameEnding() {
     try {
       _logger.info('Cleco: Checking if game should end', isOn: LOGGING_SWITCH);
@@ -2983,20 +3232,81 @@ class ClecoGameRound {
   }
   
   /// Calculate total points for a player based on remaining cards
-  /// TODO: Implement point calculation logic based on game rules
-  /// For now, returns 0 as placeholder
-  /// 
-  /// Point calculation should be based on:
-  /// - Remaining cards in hand
-  /// - Card point values (2-10 = card number, Ace = 1, Queens/Jacks = 10, etc.)
-  /// - Special cards (Jokers = 0, Red King = 0)
+  /// Point calculation based on game rules:
+  /// - Numbered Cards (2-10): Points equal to card number
+  /// - Ace Cards: 1 point
+  /// - Queens & Jacks: 10 points
+  /// - Kings (Black): 10 points
+  /// - Joker Cards: 0 points
+  /// - Red King: 0 points
   int _calculatePlayerPoints(Map<String, dynamic> player, Map<String, dynamic> gameState) {
-    // STUB: Point calculation will be implemented later
-    // Should calculate based on:
-    // - Remaining cards in hand
-    // - Card point values (2-10 = card number, Ace = 1, Queens/Jacks = 10, etc.)
-    // - Special cards (Jokers = 0, Red King = 0)
-    return 0; // Placeholder
+    try {
+      final hand = player['hand'] as List<dynamic>? ?? [];
+      int totalPoints = 0;
+      
+      // Get original deck to look up full card data
+      final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
+      
+      for (final card in hand) {
+        if (card == null) continue; // Skip blank slots
+        
+        Map<String, dynamic>? fullCard;
+        if (card is Map<String, dynamic>) {
+          final cardId = card['cardId']?.toString();
+          if (cardId != null) {
+            // Try to get full card data from original deck
+            for (final deckCard in originalDeck) {
+              if (deckCard is Map<String, dynamic> && deckCard['cardId']?.toString() == cardId) {
+                fullCard = deckCard;
+                break;
+              }
+            }
+            // If not found in deck, use card data directly (might already have full data)
+            fullCard ??= card;
+          } else {
+            fullCard = card;
+          }
+        }
+        
+        if (fullCard == null) continue;
+        
+        // Get card points (may already be calculated)
+        if (fullCard.containsKey('points')) {
+          final points = fullCard['points'] as int? ?? 0;
+          totalPoints += points;
+          continue;
+        }
+        
+        // Calculate points based on rank if not already set
+        final rank = fullCard['rank']?.toString().toLowerCase() ?? '';
+        final suit = fullCard['suit']?.toString().toLowerCase() ?? '';
+        
+        if (rank == 'joker') {
+          totalPoints += 0; // Jokers are 0 points
+        } else if (rank == 'king' && suit == 'hearts') {
+          totalPoints += 0; // Red King is 0 points
+        } else if (rank == 'ace') {
+          totalPoints += 1; // Ace is 1 point
+        } else if (rank == 'queen' || rank == 'jack') {
+          totalPoints += 10; // Queens and Jacks are 10 points
+        } else if (rank == 'king') {
+          totalPoints += 10; // Black Kings are 10 points
+        } else {
+          // Numbered cards (2-10): points equal to card number
+          final cardNumber = int.tryParse(rank);
+          if (cardNumber != null && cardNumber >= 2 && cardNumber <= 10) {
+            totalPoints += cardNumber;
+          } else {
+            _logger.warning('Cleco: Unknown card rank for point calculation: $rank', isOn: LOGGING_SWITCH);
+          }
+        }
+      }
+      
+      return totalPoints;
+    } catch (e) {
+      _logger.error('Cleco: Error calculating player points: $e', isOn: LOGGING_SWITCH);
+      return 0;
+    }
   }
 
   /// Helper method to check if the game has ended
@@ -3489,6 +3799,35 @@ class ClecoGameRound {
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+      
+      // Check if final round is active and if we've completed it
+      // This check happens BEFORE moving to next player, so currentPlayer is the one who just finished
+      if (_finalRoundCaller != null && currentPlayer != null) {
+        _logger.info('Cleco: Final round is active (called by $_finalRoundCaller)', isOn: LOGGING_SWITCH);
+        
+        // Mark the current player (who just finished their turn) as completed in final round
+        final currentPlayerId = currentPlayer['id']?.toString() ?? '';
+        if (currentPlayerId.isNotEmpty) {
+          _finalRoundPlayersCompleted.add(currentPlayerId);
+          _logger.info('Cleco: Player $currentPlayerId completed their turn in final round. Completed: ${_finalRoundPlayersCompleted.length}', isOn: LOGGING_SWITCH);
+        }
+        
+        // Get all active players to check if final round is complete
+        final activePlayers = players.where((p) => (p['isActive'] as bool? ?? true) == true).toList();  // Default to true if missing
+        final activePlayerIds = activePlayers.map((p) => p['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+        
+        // Check if all active players have completed their turn in the final round
+        if (_finalRoundPlayersCompleted.length >= activePlayerIds.length) {
+          _logger.info('Cleco: Final round complete! All ${activePlayerIds.length} active players have had their turn. Ending game and calculating winners.', isOn: LOGGING_SWITCH);
+          
+          // Final round is complete - end the game and calculate winners based on points
+          // The caller (_finalRoundCaller) needs special logic during winner decision
+          _endFinalRoundAndCalculateWinners();
+          return;
+        } else {
+          _logger.info('Cleco: Final round in progress. ${_finalRoundPlayersCompleted.length}/${activePlayerIds.length} players completed.', isOn: LOGGING_SWITCH);
+        }
+      }
       
       if (currentPlayer == null || players.isEmpty) {
         _logger.error('Cleco: No current player or players list for move to next player', isOn: LOGGING_SWITCH);

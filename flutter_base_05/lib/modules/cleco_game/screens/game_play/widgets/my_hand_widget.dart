@@ -12,7 +12,7 @@ import '../card_position_tracker.dart';
 import '../../../../cleco_game/managers/cleco_event_handler_callbacks.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = false; // Enabled for jack swap tracing
+const bool LOGGING_SWITCH = true; // Enabled for final round debugging
 
 /// Widget to display the player's hand
 /// 
@@ -153,6 +153,24 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         // Get playerStatus from myHand slice (computed from SSOT)
         final playerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
         
+        // Check what's in the games map
+        final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
+        final games = clecoGameState['games'] as Map<String, dynamic>? ?? {};
+        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+        final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+        final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+        
+        // Check final round status from games map
+        final finalRoundActive = gameState['finalRoundActive'] as bool? ?? false;
+        final finalRoundCalledBy = gameState['finalRoundCalledBy']?.toString();
+        final currentUserId = _getCurrentUserId();
+        final hasPlayerCalledFinalRound = gameState['players'] != null
+            ? (gameState['players'] as List<dynamic>?)
+                ?.any((p) => p is Map<String, dynamic> && 
+                    p['id']?.toString() == currentUserId && 
+                    p['hasCalledFinalRound'] == true) ?? false
+            : false;
+        
         // Update card positions on rebuild (after cards are rendered)
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _updateCardPositions(cards, playerStatus);
@@ -191,11 +209,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         }
         _logger.info('🃏 MyHandWidget - myHand keys: ${myHand.keys.toList()}', isOn: LOGGING_SWITCH);
         _logger.info('🃏 MyHandWidget - clecoGameState keys: ${clecoGameState.keys.toList()}', isOn: LOGGING_SWITCH);
-        
-        // Check what's in the games map
-        final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
-        final games = clecoGameState['games'] as Map<String, dynamic>? ?? {};
-        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
         final myHandCards = currentGame['myHandCards'] as List<dynamic>? ?? [];
         _logger.info('🃏 MyHandWidget - currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
         _logger.info('🃏 MyHandWidget - myHandCards.length: ${myHandCards.length}', isOn: LOGGING_SWITCH);
@@ -215,6 +228,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           isGameActive: isGameActive,
           isMyTurn: isMyTurn,
           playerStatus: playerStatus,
+          finalRoundActive: finalRoundActive,
+          finalRoundCalledBy: finalRoundCalledBy,
+          hasPlayerCalledFinalRound: hasPlayerCalledFinalRound,
+          currentGameId: currentGameId,
         );
       },
     );
@@ -230,6 +247,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     required bool isGameActive,
     required bool isMyTurn,
     required String playerStatus,
+    required bool finalRoundActive,
+    required String? finalRoundCalledBy,
+    required bool hasPlayerCalledFinalRound,
+    required String currentGameId,
   }) {
     return Card(
       child: Padding(
@@ -256,6 +277,48 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                     playerId: _getCurrentUserId(),
                     size: PlayerStatusChipSize.small,
                   ),
+                  const SizedBox(width: 8),
+                ],
+                // Call Final Round button
+                if (isGameActive && isMyTurn && playerStatus == 'playing_card' && !finalRoundActive && !hasPlayerCalledFinalRound) ...[
+                  ElevatedButton.icon(
+                    onPressed: () => _handleCallFinalRound(context, currentGameId),
+                    icon: const Icon(Icons.flag, size: 16),
+                    label: const Text(
+                      'Call Final Round',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ] else if (finalRoundActive) ...[
+                  // Show indicator if final round is active
+                  Chip(
+                    avatar: Icon(
+                      finalRoundCalledBy == _getCurrentUserId() 
+                          ? Icons.flag 
+                          : Icons.flag_outlined,
+                      size: 16,
+                      color: Colors.orange,
+                    ),
+                    label: Text(
+                      finalRoundCalledBy == _getCurrentUserId()
+                          ? 'You Called Final Round'
+                          : 'Final Round Active',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                    backgroundColor: Colors.orange.withOpacity(0.2),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 8),
                 ],
                 const Spacer(),
                 Text(
@@ -546,6 +609,77 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   String _getCurrentUserId() {
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
     return loginState['userId']?.toString() ?? '';
+  }
+
+  /// Handle calling final round
+  Future<void> _handleCallFinalRound(BuildContext context, String gameId) async {
+    _logger.info('🎯 MyHandWidget - _handleCallFinalRound called with gameId: $gameId', isOn: LOGGING_SWITCH);
+    
+    if (_isProcessingAction) {
+      _logger.info('🚫 MyHandWidget - Action already in progress, ignoring call final round', isOn: LOGGING_SWITCH);
+      return;
+    }
+
+    if (gameId.isEmpty) {
+      _logger.warning('⚠️ MyHandWidget - gameId is empty', isOn: LOGGING_SWITCH);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: No active game found'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    try {
+      // Set local processing flag
+      setState(() {
+        _isProcessingAction = true;
+      });
+      _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true (call final round)', isOn: LOGGING_SWITCH);
+
+      // Execute call final round action
+      _logger.info('🎯 MyHandWidget - Creating PlayerAction.callFinalRound with gameId: $gameId', isOn: LOGGING_SWITCH);
+      final callFinalRoundAction = PlayerAction.callFinalRound(gameId: gameId);
+      _logger.info('🎯 MyHandWidget - Executing callFinalRoundAction...', isOn: LOGGING_SWITCH);
+      await callFinalRoundAction.execute();
+      _logger.info('✅ MyHandWidget - callFinalRoundAction.execute() completed', isOn: LOGGING_SWITCH);
+
+      // Reset processing flag after a short delay
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            _isProcessingAction = false;
+          });
+          _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (call final round)', isOn: LOGGING_SWITCH);
+        }
+      });
+
+      // Show success feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Final Round Called! All players will get one last turn.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      // Reset processing flag on error
+      if (mounted) {
+        setState(() {
+          _isProcessingAction = false;
+        });
+        _logger.info('🔓 MyHandWidget - Reset _isProcessingAction = false (call final round error)', isOn: LOGGING_SWITCH);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to call final round: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   /// Detect state changes and create animation triggers

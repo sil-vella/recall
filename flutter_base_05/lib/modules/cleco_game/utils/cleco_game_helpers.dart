@@ -347,6 +347,35 @@ class ClecoGameHelpers {
     }
   }
 
+  /// Check if user has enough coins to join/create a game
+  /// 
+  /// [requiredCoins] - The number of coins required (defaults to 25)
+  /// Returns true if user has enough coins, false otherwise
+  /// Logs a warning if not enough coins
+  static bool checkCoinsRequirement({int requiredCoins = 25}) {
+    try {
+      final userStats = getUserClecoGameStats();
+      
+      if (userStats == null) {
+        _logger.warning('⚠️ ClecoGameHelpers: Cannot check coins - userStats not found', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final currentCoins = userStats['coins'] as int? ?? 0;
+      
+      if (currentCoins < requiredCoins) {
+        _logger.warning('⚠️ ClecoGameHelpers: Insufficient coins - Required: $requiredCoins, Current: $currentCoins', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      _logger.info('✅ ClecoGameHelpers: Coins check passed - Required: $requiredCoins, Current: $currentCoins', isOn: LOGGING_SWITCH);
+      return true;
+    } catch (e) {
+      _logger.error('❌ ClecoGameHelpers: Error checking coins requirement: $e', isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
   /// Remove player from specific game in games map and clear current game references
   /// This is called when a player leaves a game (after timer expires)
   /// Only clears game state, not websocket state (websocket module handles that)

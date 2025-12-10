@@ -150,6 +150,22 @@ class _JoinRoomWidgetState extends State<JoinRoomWidget> {
     });
 
     try {
+      // Check if user has enough coins (default 25)
+      if (!ClecoGameHelpers.checkCoinsRequirement()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Insufficient coins to join a game. Required: 25'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+      
       final roomId = _roomIdController.text.trim();
       final password = _passwordController.text.trim();
 

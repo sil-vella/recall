@@ -65,6 +65,22 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
     });
 
     try {
+      // Check if user has enough coins (default 25)
+      if (!ClecoGameHelpers.checkCoinsRequirement()) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Insufficient coins to join a game. Required: 25'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      
       // Use the helper method to join random game
       final result = await ClecoGameHelpers.joinRandomGame();
       

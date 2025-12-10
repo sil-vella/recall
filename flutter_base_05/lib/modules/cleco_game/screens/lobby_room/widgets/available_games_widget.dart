@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/game_coordinator.dart';
+import '../../../../cleco_game/utils/cleco_game_helpers.dart';
 
 /// Widget to display available games with fetch functionality
 /// 
@@ -267,7 +268,7 @@ class AvailableGamesWidget extends StatelessWidget {
                     button: true,
                     child: ElevatedButton(
                       onPressed: () {
-                        _joinGame(gameId);
+                        _joinGame(context, gameId);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
@@ -370,8 +371,19 @@ class AvailableGamesWidget extends StatelessWidget {
   }
 
   /// Join a game using GameCoordinator
-  void _joinGame(String gameId) {
+  void _joinGame(BuildContext context, String gameId) {
     try {
+      // Check if user has enough coins (default 25)
+      if (!ClecoGameHelpers.checkCoinsRequirement()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Insufficient coins to join a game. Required: 25'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      
       // Use GameCoordinator to join the game
       final gameCoordinator = GameCoordinator();
       gameCoordinator.joinGame(gameId: gameId, playerName: 'Player');

@@ -450,10 +450,11 @@ class ClecoGameMain(BaseModule):
                 "losses": cleco_game.get('losses', 0),
                 "total_matches": cleco_game.get('total_matches', 0),
                 "points": cleco_game.get('points', 0),
-                "coins": cleco_game.get('coins', 0),  # ✅ Newly added field
+                "coins": cleco_game.get('coins', 0),
                 "level": cleco_game.get('level', 1),
                 "rank": cleco_game.get('rank', 'beginner'),
                 "win_rate": cleco_game.get('win_rate', 0.0),
+                "subscription_tier": cleco_game.get('subscription_tier', 'promotional'),
                 "last_match_date": cleco_game.get('last_match_date'),
                 "last_updated": cleco_game.get('last_updated')
             }

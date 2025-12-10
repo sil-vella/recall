@@ -92,6 +92,7 @@
                 "level": "number",
                 "rank": "string",
                 "win_rate": "number",
+                "subscription_tier": "string",
                 "last_match_date": "date",
                 "last_updated": "date"
               },
@@ -101,20 +102,30 @@
             print("  ✅ cleco_game module added to registry");
           } else {
             // Check if coins field exists in schema, if not add it
+            var needsSchemaUpdate = false;
+            var schemaUpdates = {};
+            
             if (!clecoGameModule.schema || !clecoGameModule.schema.coins) {
-              print("  🔄 Updating cleco_game module schema to include coins field...");
+              needsSchemaUpdate = true;
+              schemaUpdates["schema.coins"] = "number";
+            }
+            
+            // Check if subscription_tier field exists in schema, if not add it
+            if (!clecoGameModule.schema || !clecoGameModule.schema.subscription_tier) {
+              needsSchemaUpdate = true;
+              schemaUpdates["schema.subscription_tier"] = "string";
+            }
+            
+            if (needsSchemaUpdate) {
+              print("  🔄 Updating cleco_game module schema to include missing fields...");
+              schemaUpdates["updated_at"] = currentTime;
               db.user_modules.updateOne(
                 { "module_name": "cleco_game" },
-                {
-                  "$set": {
-                    "schema.coins": "number",
-                    "updated_at": currentTime
-                  }
-                }
+                { "$set": schemaUpdates }
               );
-              print("  ✅ cleco_game module schema updated with coins field");
+              print("  ✅ cleco_game module schema updated with missing fields");
             } else {
-              print("  ✓ cleco_game module already exists in registry with coins field");
+              print("  ✓ cleco_game module already exists in registry with all required fields");
             }
           }
           
@@ -162,16 +173,35 @@
                 "level": 1,
                 "rank": "beginner",
                 "win_rate": 0.0,
+                "subscription_tier": "promotional",
                 "last_match_date": null,
                 "last_updated": currentTime
               };
               print("  ➕ Adding cleco_game to user: " + user.username + " (" + user.email + ")");
-            } else if (user.modules.cleco_game && user.modules.cleco_game.coins === undefined) {
-              // Update existing cleco_game module to add missing coins field
-              needsUpdate = true;
-              updateFields["modules.cleco_game.coins"] = 0;
-              updateFields["modules.cleco_game.last_updated"] = currentTime;
-              print("  🔄 Adding coins field to existing cleco_game for user: " + user.username + " (" + user.email + ")");
+            } else if (user.modules.cleco_game) {
+              // Update existing cleco_game module to add missing fields (coins, subscription_tier)
+              var needsClecoUpdate = false;
+              if (user.modules.cleco_game.coins === undefined) {
+                needsUpdate = true;
+                needsClecoUpdate = true;
+                updateFields["modules.cleco_game.coins"] = 0;
+                print("  🔄 Adding coins field to existing cleco_game for user: " + user.username + " (" + user.email + ")");
+              }
+              if (user.modules.cleco_game.subscription_tier === undefined) {
+                needsUpdate = true;
+                needsClecoUpdate = true;
+                updateFields["modules.cleco_game.subscription_tier"] = "promotional";
+                print("  🔄 Adding subscription_tier field to existing cleco_game for user: " + user.username + " (" + user.email + ")");
+              } else if (user.modules.cleco_game.subscription_tier === "free") {
+                // Update old "free" values to "promotional"
+                needsUpdate = true;
+                needsClecoUpdate = true;
+                updateFields["modules.cleco_game.subscription_tier"] = "promotional";
+                print("  🔄 Updating subscription_tier from 'free' to 'promotional' for user: " + user.username + " (" + user.email + ")");
+              }
+              if (needsClecoUpdate) {
+                updateFields["modules.cleco_game.last_updated"] = currentTime;
+              }
             }
             
             // Update user if needed

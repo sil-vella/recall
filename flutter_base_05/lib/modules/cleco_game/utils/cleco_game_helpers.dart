@@ -347,14 +347,70 @@ class ClecoGameHelpers {
     }
   }
 
+  /// Check subscription tier from user stats
+  /// 
+  /// [fetchFromAPI] - If true, fetches fresh stats from API before checking (defaults to true)
+  /// Returns the subscription tier string (defaults to 'promotional' if not found)
+  static Future<String> getSubscriptionTier({bool fetchFromAPI = true}) async {
+    try {
+      String subscriptionTier = 'promotional';
+      
+      if (fetchFromAPI) {
+        // Fetch fresh stats from API to ensure we have latest tier
+        _logger.info('📊 ClecoGameHelpers: Fetching fresh user stats from API for tier check', isOn: LOGGING_SWITCH);
+        final statsResult = await getUserClecoGameData();
+        
+        if (statsResult != null && 
+            statsResult['success'] == true && 
+            statsResult['data'] != null) {
+          final data = statsResult['data'] as Map<String, dynamic>?;
+          if (data != null) {
+            subscriptionTier = data['subscription_tier'] as String? ?? 'promotional';
+          }
+          _logger.info('📊 ClecoGameHelpers: Fetched subscription_tier from API: $subscriptionTier', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.warning('⚠️ ClecoGameHelpers: Failed to fetch stats from API, falling back to state', isOn: LOGGING_SWITCH);
+          // Fallback to state if API call fails
+          final userStats = getUserClecoGameStats();
+          subscriptionTier = userStats?['subscription_tier'] as String? ?? 'promotional';
+        }
+      } else {
+        // Use cached state
+        final userStats = getUserClecoGameStats();
+        subscriptionTier = userStats?['subscription_tier'] as String? ?? 'promotional';
+      }
+      
+      return subscriptionTier;
+    } catch (e) {
+      _logger.error('❌ ClecoGameHelpers: Error checking subscription tier: $e', isOn: LOGGING_SWITCH);
+      return 'promotional'; // Default to promotional on error
+    }
+  }
+
   /// Check if user has enough coins to join/create a game
   /// 
   /// [requiredCoins] - The number of coins required (defaults to 25)
   /// [fetchFromAPI] - If true, fetches fresh stats from API before checking (defaults to true)
-  /// Returns true if user has enough coins, false otherwise
+  /// Returns true if user has enough coins or has promotional subscription tier, false otherwise
   /// Logs a warning if not enough coins
+  /// 
+  /// Logic:
+  /// - If subscription_tier is 'promotional', skip coin check (promotional tier users play for free)
+  /// - If subscription_tier is NOT 'promotional', check coins requirement (premium users need coins)
   static Future<bool> checkCoinsRequirement({int requiredCoins = 25, bool fetchFromAPI = true}) async {
     try {
+      // First check subscription tier
+      final subscriptionTier = await getSubscriptionTier(fetchFromAPI: fetchFromAPI);
+      
+      // If user has promotional tier, skip coin check (promotional tier is promotion period - play for free)
+      if (subscriptionTier == 'promotional') {
+        _logger.info('✅ ClecoGameHelpers: User has promotional tier - skipping coin check (free play)', isOn: LOGGING_SWITCH);
+        return true;
+      }
+      
+      // For non-promotional tier users, check coins requirement
+      _logger.info('📊 ClecoGameHelpers: User has subscription tier "$subscriptionTier" - checking coins requirement', isOn: LOGGING_SWITCH);
+      
       int currentCoins = 0;
       
       if (fetchFromAPI) {

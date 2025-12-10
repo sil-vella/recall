@@ -371,10 +371,12 @@ class AvailableGamesWidget extends StatelessWidget {
   }
 
   /// Join a game using GameCoordinator
-  void _joinGame(BuildContext context, String gameId) {
+  Future<void> _joinGame(BuildContext context, String gameId) async {
     try {
       // Check if user has enough coins (default 25)
-      if (!ClecoGameHelpers.checkCoinsRequirement()) {
+      // Fetch fresh stats from API before checking
+      final hasEnoughCoins = await ClecoGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
+      if (!hasEnoughCoins) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Insufficient coins to join a game. Required: 25'),

@@ -151,7 +151,9 @@ class _JoinRoomWidgetState extends State<JoinRoomWidget> {
 
     try {
       // Check if user has enough coins (default 25)
-      if (!ClecoGameHelpers.checkCoinsRequirement()) {
+      // Fetch fresh stats from API before checking
+      final hasEnoughCoins = await ClecoGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
+      if (!hasEnoughCoins) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

@@ -66,7 +66,9 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
 
     try {
       // Check if user has enough coins (default 25)
-      if (!ClecoGameHelpers.checkCoinsRequirement()) {
+      // Fetch fresh stats from API before checking
+      final hasEnoughCoins = await ClecoGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
+      if (!hasEnoughCoins) {
         setState(() {
           _isLoading = false;
         });

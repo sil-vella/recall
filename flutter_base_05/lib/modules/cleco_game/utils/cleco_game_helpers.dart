@@ -350,18 +350,41 @@ class ClecoGameHelpers {
   /// Check if user has enough coins to join/create a game
   /// 
   /// [requiredCoins] - The number of coins required (defaults to 25)
+  /// [fetchFromAPI] - If true, fetches fresh stats from API before checking (defaults to true)
   /// Returns true if user has enough coins, false otherwise
   /// Logs a warning if not enough coins
-  static bool checkCoinsRequirement({int requiredCoins = 25}) {
+  static Future<bool> checkCoinsRequirement({int requiredCoins = 25, bool fetchFromAPI = true}) async {
     try {
-      final userStats = getUserClecoGameStats();
+      int currentCoins = 0;
       
-      if (userStats == null) {
-        _logger.warning('⚠️ ClecoGameHelpers: Cannot check coins - userStats not found', isOn: LOGGING_SWITCH);
-        return false;
+      if (fetchFromAPI) {
+        // Fetch fresh stats from API to ensure we have latest coin count
+        _logger.info('📊 ClecoGameHelpers: Fetching fresh user stats from API for coin check', isOn: LOGGING_SWITCH);
+        final statsResult = await getUserClecoGameData();
+        
+        if (statsResult != null && 
+            statsResult['success'] == true && 
+            statsResult['data'] != null) {
+          final data = statsResult['data'] as Map<String, dynamic>?;
+          if (data != null) {
+            currentCoins = data['coins'] as int? ?? 0;
+          }
+          _logger.info('📊 ClecoGameHelpers: Fetched coins from API: $currentCoins', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.warning('⚠️ ClecoGameHelpers: Failed to fetch stats from API, falling back to state', isOn: LOGGING_SWITCH);
+          // Fallback to state if API call fails
+          final userStats = getUserClecoGameStats();
+          currentCoins = userStats?['coins'] as int? ?? 0;
+        }
+      } else {
+        // Use cached state
+        final userStats = getUserClecoGameStats();
+        if (userStats == null) {
+          _logger.warning('⚠️ ClecoGameHelpers: Cannot check coins - userStats not found', isOn: LOGGING_SWITCH);
+          return false;
+        }
+        currentCoins = userStats['coins'] as int? ?? 0;
       }
-      
-      final currentCoins = userStats['coins'] as int? ?? 0;
       
       if (currentCoins < requiredCoins) {
         _logger.warning('⚠️ ClecoGameHelpers: Insufficient coins - Required: $requiredCoins, Current: $currentCoins', isOn: LOGGING_SWITCH);

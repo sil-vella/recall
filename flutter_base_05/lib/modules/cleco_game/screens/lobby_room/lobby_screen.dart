@@ -84,8 +84,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
       // Check if user has enough coins (default 25, can be overridden in roomSettings)
+      // Fetch fresh stats from API before checking
       final requiredCoins = roomSettings['requiredCoins'] as int? ?? 25;
-      if (!ClecoGameHelpers.checkCoinsRequirement(requiredCoins: requiredCoins)) {
+      final hasEnoughCoins = await ClecoGameHelpers.checkCoinsRequirement(requiredCoins: requiredCoins, fetchFromAPI: true);
+      if (!hasEnoughCoins) {
         if (mounted) _showSnackBar('Insufficient coins to create a game. Required: $requiredCoins', isError: true);
         return;
       }
@@ -134,7 +136,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   Future<void> _joinRoom(String roomId) async {
     try {
       // Check if user has enough coins (default 25)
-      if (!ClecoGameHelpers.checkCoinsRequirement()) {
+      // Fetch fresh stats from API before checking
+      final hasEnoughCoins = await ClecoGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
+      if (!hasEnoughCoins) {
         if (mounted) _showSnackBar('Insufficient coins to join a game. Required: 25', isError: true);
         return;
       }

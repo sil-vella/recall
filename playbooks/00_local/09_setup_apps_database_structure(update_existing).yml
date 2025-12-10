@@ -88,6 +88,7 @@
                 "losses": "number",
                 "total_matches": "number",
                 "points": "number",
+                "coins": "number",
                 "level": "number",
                 "rank": "string",
                 "win_rate": "number",
@@ -99,7 +100,22 @@
             });
             print("  ✅ cleco_game module added to registry");
           } else {
-            print("  ✓ cleco_game module already exists in registry");
+            // Check if coins field exists in schema, if not add it
+            if (!clecoGameModule.schema || !clecoGameModule.schema.coins) {
+              print("  🔄 Updating cleco_game module schema to include coins field...");
+              db.user_modules.updateOne(
+                { "module_name": "cleco_game" },
+                {
+                  "$set": {
+                    "schema.coins": "number",
+                    "updated_at": currentTime
+                  }
+                }
+              );
+              print("  ✅ cleco_game module schema updated with coins field");
+            } else {
+              print("  ✓ cleco_game module already exists in registry with coins field");
+            }
           }
           
           // ========================================
@@ -142,6 +158,7 @@
                 "losses": 0,
                 "total_matches": 0,
                 "points": 0,
+                "coins": 0,
                 "level": 1,
                 "rank": "beginner",
                 "win_rate": 0.0,
@@ -149,6 +166,12 @@
                 "last_updated": currentTime
               };
               print("  ➕ Adding cleco_game to user: " + user.username + " (" + user.email + ")");
+            } else if (user.modules.cleco_game && user.modules.cleco_game.coins === undefined) {
+              // Update existing cleco_game module to add missing coins field
+              needsUpdate = true;
+              updateFields["modules.cleco_game.coins"] = 0;
+              updateFields["modules.cleco_game.last_updated"] = currentTime;
+              print("  🔄 Adding coins field to existing cleco_game for user: " + user.username + " (" + user.email + ")");
             }
             
             // Update user if needed

@@ -5,17 +5,19 @@ import 'package:cleco/modules/cleco_game/screens/game_play/game_play_screen.dart
 import 'package:cleco/modules/cleco_game/screens/lobby_room/lobby_screen.dart';
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
+import '../../core/managers/hooks_manager.dart';
 import '../../tools/logging/logger.dart';
 
 // Import Cleco game components
 import '../cleco_game/managers/cleco_module_manager.dart';
 import '../cleco_game/managers/cleco_event_manager.dart';
 import '../cleco_game/managers/cleco_game_state_updater.dart';
+import '../cleco_game/utils/cleco_game_helpers.dart';
 
 /// Cleco Game Module
 /// Main module for the Cleco card game functionality
 class ClecoGameMain extends ModuleBase {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging user stats fetching
   final Logger _logger = Logger();
   
   final navigationManager = NavigationManager();
@@ -79,10 +81,16 @@ class ClecoGameMain extends ModuleBase {
         return;
       }
       
-      // Step 5: Register screens with NavigationManager
+      // Step 5: Register hooks for user stats fetching
+      _registerHooks();
+      
+      // Step 6: Register screens with NavigationManager
       _registerScreens();
       
-      // Step 6: Final verification
+      // Step 7: Fetch user stats if already logged in
+      _fetchUserStatsIfLoggedIn();
+      
+      // Step 8: Final verification
       await _performFinalVerification();
       
     } catch (e) {
@@ -138,6 +146,10 @@ class ClecoGameMain extends ModuleBase {
           'currentGameId': '',
           'games': <String, dynamic>{},
           
+          // User statistics (from database)
+          'userStats': null,
+          'userStatsLastUpdated': null,
+          
           // UI control state
           'showCreateRoom': true,
           'showRoomList': true,
@@ -159,6 +171,50 @@ class ClecoGameMain extends ModuleBase {
         });
       }
     });
+  }
+
+  /// Register hooks for fetching user stats
+  void _registerHooks() {
+    final hooksManager = HooksManager();
+    
+    // Register hook to fetch user stats when user is fully logged in (after tokens are stored)
+    hooksManager.registerHookWithData('auth_login_complete', (data) {
+      _logger.info('🎬 ClecoGameMain: auth_login_complete hook triggered - fetching user stats', isOn: LOGGING_SWITCH);
+      _fetchUserStats();
+    });
+    
+    _logger.info('🎬 ClecoGameMain: Registered auth_login_complete hook for user stats', isOn: LOGGING_SWITCH);
+  }
+
+  /// Fetch user stats if user is already logged in (on module initialization)
+  void _fetchUserStatsIfLoggedIn() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final stateManager = StateManager();
+      final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+      final isLoggedIn = loginState['isLoggedIn'] == true;
+      
+      if (isLoggedIn) {
+        _logger.info('🎬 ClecoGameMain: User is already logged in - fetching user stats', isOn: LOGGING_SWITCH);
+        _fetchUserStats();
+      } else {
+        _logger.info('🎬 ClecoGameMain: User is not logged in - skipping user stats fetch', isOn: LOGGING_SWITCH);
+      }
+    });
+  }
+
+  /// Fetch user cleco game stats from API and update state
+  Future<void> _fetchUserStats() async {
+    try {
+      _logger.info('🎬 ClecoGameMain: Fetching user cleco game stats...', isOn: LOGGING_SWITCH);
+      final success = await ClecoGameHelpers.fetchAndUpdateUserClecoGameData();
+      if (success) {
+        _logger.info('✅ ClecoGameMain: User stats fetched and updated successfully', isOn: LOGGING_SWITCH);
+      } else {
+        _logger.warning('⚠️ ClecoGameMain: Failed to fetch user stats', isOn: LOGGING_SWITCH);
+      }
+    } catch (e) {
+      _logger.error('❌ ClecoGameMain: Error fetching user stats: $e', isOn: LOGGING_SWITCH);
+    }
   }
 
   /// Register all Cleco game screens with NavigationManager

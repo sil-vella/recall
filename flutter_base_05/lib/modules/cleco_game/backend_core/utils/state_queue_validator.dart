@@ -447,6 +447,20 @@ class StateQueueValidator {
       defaultValue: [],
       description: 'List of winners when game ends, each with playerId, playerName, and winType',
     ),
+    
+    // User Statistics (from database)
+    'userStats': ClecoStateFieldSpec(
+      type: Map,
+      required: false,
+      nullable: true,
+      description: 'User cleco_game module statistics from database (wins, losses, points, coins, level, rank, etc.)',
+    ),
+    'userStatsLastUpdated': ClecoStateFieldSpec(
+      type: String,
+      required: false,
+      nullable: true,
+      description: 'ISO timestamp when userStats was last fetched from the database',
+    ),
   };
 
   /// Set the handler for applying validated updates (platform-specific)

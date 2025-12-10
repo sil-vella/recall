@@ -14,7 +14,7 @@ class ClecoGameHelpers {
   static final _stateUpdater = ClecoGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for cleanup testing
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging coins display
   
   // ========================================
   // EVENT EMISSION HELPERS
@@ -218,6 +218,132 @@ class ClecoGameHelpers {
         'game': null,
         'timestamp': DateTime.now().toIso8601String(),
       };
+    }
+  }
+
+  /// Fetch user cleco game statistics from the database
+  /// Uses the dedicated /userauth/cleco/get-user-stats endpoint
+  /// Returns the cleco_game module data including wins, losses, points, coins, level, rank, etc.
+  /// 
+  /// Returns:
+  /// - Map with 'success': true and 'data' containing cleco_game module data on success
+  /// - Map with 'success': false and 'error' message on failure
+  /// - null if cleco_game module doesn't exist for the user
+  static Future<Map<String, dynamic>?> getUserClecoGameData() async {
+    try {
+      _logger.info('📊 ClecoGameHelpers: Fetching user cleco_game stats from API', isOn: LOGGING_SWITCH);
+      
+      // Get the ConnectionsApiModule instance from the global module manager
+      final moduleManager = ModuleManager();
+      
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      
+      if (connectionsModule == null) {
+        throw Exception('ConnectionsApiModule not available - ensure it is initialized');
+      }
+      
+      // Make API call to get user cleco game stats (dedicated endpoint)
+      final response = await connectionsModule.sendGetRequest('/userauth/cleco/get-user-stats');
+      
+      // Check if response contains error
+      if (response is Map && response.containsKey('error')) {
+        final errorMessage = response['message'] ?? response['error'] ?? 'Failed to fetch user stats';
+        _logger.error('❌ ClecoGameHelpers: API error: $errorMessage', isOn: LOGGING_SWITCH);
+        return {
+          'success': false,
+          'error': errorMessage,
+          'data': null,
+        };
+      }
+      
+      // Check if response indicates success
+      if (response is! Map || response['success'] != true) {
+        _logger.warning('⚠️ ClecoGameHelpers: API response indicates failure', isOn: LOGGING_SWITCH);
+        return {
+          'success': false,
+          'error': response['message'] ?? response['error'] ?? 'Failed to fetch user stats',
+          'data': null,
+        };
+      }
+      
+      // Extract data from response
+      final statsData = response['data'] as Map<String, dynamic>?;
+      
+      if (statsData == null) {
+        _logger.warning('⚠️ ClecoGameHelpers: Response missing data field', isOn: LOGGING_SWITCH);
+        return {
+          'success': false,
+          'error': 'Response missing data field',
+          'data': null,
+        };
+      }
+      
+      _logger.info('✅ ClecoGameHelpers: Successfully fetched cleco_game stats: ${statsData.keys.toList()}', isOn: LOGGING_SWITCH);
+      
+      return {
+        'success': true,
+        'data': statsData,
+        'timestamp': response['timestamp'] ?? DateTime.now().toIso8601String(),
+      };
+      
+    } catch (e, stackTrace) {
+      _logger.error('❌ ClecoGameHelpers: Error fetching user cleco_game stats: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      return {
+        'success': false,
+        'error': e.toString(),
+        'data': null,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+    }
+  }
+
+  /// Fetch user cleco_game data from API and update local state
+  /// This is a convenience method that combines getUserClecoGameData() with state update
+  /// 
+  /// Returns:
+  /// - true if data was successfully fetched and state was updated
+  /// - false if there was an error or no data was found
+  static Future<bool> fetchAndUpdateUserClecoGameData() async {
+    try {
+      _logger.info('📊 ClecoGameHelpers: Fetching and updating user cleco_game data', isOn: LOGGING_SWITCH);
+      
+      // Fetch data from API
+      final result = await getUserClecoGameData();
+      
+      if (result == null || result['success'] != true || result['data'] == null) {
+        final error = result?['error'] ?? 'Unknown error';
+        _logger.warning('⚠️ ClecoGameHelpers: Failed to fetch cleco_game data: $error', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final clecoGameData = result['data'] as Map<String, dynamic>;
+      
+      // Update local state with fetched data
+      // Store in a separate key to preserve game state while having user stats available
+      _stateUpdater.updateState({
+        'userStats': clecoGameData,
+        'userStatsLastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      _logger.info('✅ ClecoGameHelpers: Successfully updated local state with cleco_game data', isOn: LOGGING_SWITCH);
+      
+      return true;
+      
+    } catch (e, stackTrace) {
+      _logger.error('❌ ClecoGameHelpers: Error fetching and updating user cleco_game data: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      return false;
+    }
+  }
+
+  /// Get user cleco_game stats from local state
+  /// Returns the userStats object if available, or null if not found
+  static Map<String, dynamic>? getUserClecoGameStats() {
+    try {
+      final clecoState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+      return clecoState['userStats'] as Map<String, dynamic>?;
+    } catch (e) {
+      _logger.error('❌ ClecoGameHelpers: Error getting user stats from state: $e', isOn: LOGGING_SWITCH);
+      return null;
     }
   }
 

@@ -525,6 +525,18 @@ class LoginModule extends ModuleBase {
           "error": null
         });
         
+        // Trigger auth_login_complete hook after tokens are stored and user is fully logged in
+        final hooksManager = HooksManager();
+        hooksManager.triggerHookWithData('auth_login_complete', {
+          'status': 'logged_in',
+          'userData': {
+            "isLoggedIn": true,
+            "userId": userId,
+            "username": username,
+            "email": email,
+          },
+        });
+        
         return {
           "success": "Login successful",
           "user_id": userId,

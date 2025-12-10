@@ -82,6 +82,9 @@ class ClecoGameMain(BaseModule):
             # Register the update-game-stats endpoint as public (no authentication)
             self._register_route_helper("/public/cleco/update-game-stats", self.update_game_stats, methods=["POST"])
 
+            # Register the get-user-stats endpoint with JWT authentication
+            self._register_route_helper("/userauth/cleco/get-user-stats", self.get_user_stats, methods=["GET"], auth="jwt")
+
             custom_log("🔐 ClecoGame: All routes registered successfully", level="INFO", isOn=LOGGING_SWITCH)
             return True
         except Exception as e:
@@ -395,6 +398,88 @@ class ClecoGameMain(BaseModule):
                 "success": False,
                 "message": "Failed to update game statistics",
                 "error": str(e)
+            }), 500
+    
+    def get_user_stats(self):
+        """Get current user's cleco game statistics (JWT protected endpoint)"""
+        try:
+            # User ID is set by JWT middleware
+            user_id = request.user_id
+            if not user_id:
+                return jsonify({
+                    "success": False,
+                    "error": "User not authenticated",
+                    "message": "No user ID found in request"
+                }), 401
+            
+            # Get database manager
+            db_manager = self.app_manager.get_db_manager(role="read_write")
+            if not db_manager:
+                return jsonify({
+                    "success": False,
+                    "error": "Database connection unavailable",
+                    "message": "Failed to connect to database"
+                }), 500
+            
+            # Get user from database
+            user = db_manager.find_one("users", {"_id": ObjectId(user_id)})
+            if not user:
+                return jsonify({
+                    "success": False,
+                    "error": "User not found",
+                    "message": f"User with ID {user_id} not found in database"
+                }), 404
+            
+            # Extract cleco_game module data
+            modules = user.get('modules', {})
+            cleco_game = modules.get('cleco_game', {})
+            
+            # Check if cleco_game module exists
+            if not cleco_game:
+                return jsonify({
+                    "success": False,
+                    "error": "Cleco game module not found",
+                    "message": "User does not have cleco_game module initialized",
+                    "data": None
+                }), 404
+            
+            # Prepare response data with all cleco_game fields
+            stats_data = {
+                "enabled": cleco_game.get('enabled', True),
+                "wins": cleco_game.get('wins', 0),
+                "losses": cleco_game.get('losses', 0),
+                "total_matches": cleco_game.get('total_matches', 0),
+                "points": cleco_game.get('points', 0),
+                "coins": cleco_game.get('coins', 0),  # ✅ Newly added field
+                "level": cleco_game.get('level', 1),
+                "rank": cleco_game.get('rank', 'beginner'),
+                "win_rate": cleco_game.get('win_rate', 0.0),
+                "last_match_date": cleco_game.get('last_match_date'),
+                "last_updated": cleco_game.get('last_updated')
+            }
+            
+            # Convert datetime objects to ISO format strings
+            if stats_data.get('last_match_date') and isinstance(stats_data['last_match_date'], datetime):
+                stats_data['last_match_date'] = stats_data['last_match_date'].isoformat()
+            if stats_data.get('last_updated') and isinstance(stats_data['last_updated'], datetime):
+                stats_data['last_updated'] = stats_data['last_updated'].isoformat()
+            
+            custom_log(f"✅ ClecoGame: Successfully retrieved stats for user {user_id}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            return jsonify({
+                "success": True,
+                "message": "User statistics retrieved successfully",
+                "data": stats_data,
+                "user_id": str(user_id),
+                "timestamp": datetime.utcnow().isoformat()
+            }), 200
+            
+        except Exception as e:
+            custom_log(f"❌ ClecoGame: Error in get_user_stats: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({
+                "success": False,
+                "error": "Failed to retrieve user statistics",
+                "message": str(e)
             }), 500
     
     

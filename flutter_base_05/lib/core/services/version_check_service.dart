@@ -14,7 +14,7 @@ class VersionCheckService extends ServicesBase {
   VersionCheckService._internal();
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   
   // SharedPreferences keys
   static const String _keyLastCheckedVersion = 'last_checked_app_version';

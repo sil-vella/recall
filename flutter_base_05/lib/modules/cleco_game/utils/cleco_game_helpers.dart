@@ -14,7 +14,7 @@ class ClecoGameHelpers {
   static final _stateUpdater = ClecoGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = true; // Enabled for debugging coins display
+  static const bool LOGGING_SWITCH = false; // Enabled for debugging coins display
   
   // ========================================
   // EVENT EMISSION HELPERS

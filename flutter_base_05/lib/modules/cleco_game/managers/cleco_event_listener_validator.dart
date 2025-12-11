@@ -16,7 +16,7 @@ class EventConfig {
 /// Cleco Game Event Listener Validator
 /// Ensures all incoming events follow the defined schema and validation rules
 class ClecoGameEventListenerValidator {
-  static const bool LOGGING_SWITCH = true; // Enabled for final round debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for final round debugging
   static ClecoGameEventListenerValidator? _instance;
   
   static ClecoGameEventListenerValidator get instance {

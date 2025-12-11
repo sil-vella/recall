@@ -5,7 +5,7 @@ import 'coins_display_feature.dart';
 import '../../../tools/logging/logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// Helper class to register state-aware features
 class StateAwareFeatureRegistry {

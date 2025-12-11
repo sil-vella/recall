@@ -484,24 +484,34 @@ class AuthManager extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Check if guest account credentials exist (before checking login status)
-      final isGuestAccount = _sharedPref!.getBool('is_guest_account') ?? false;
-      final guestUsername = _sharedPref!.getString('guest_username');
-      final guestEmail = _sharedPref!.getString('guest_email');
-      final guestUserId = _sharedPref!.getString('guest_user_id');
-      
-      // If guest account and credentials exist, restore them to session keys
-      if (isGuestAccount && guestUsername != null && guestEmail != null) {
-        Logger().info("AuthManager: Restoring guest credentials on session validation - Username: $guestUsername", isOn: LOGGING_SWITCH);
-        await _sharedPref!.setString('username', guestUsername);
-        await _sharedPref!.setString('email', guestEmail);
-        if (guestUserId != null) {
-          await _sharedPref!.setString('user_id', guestUserId);
-        }
-      }
-
       // Step 1: Check if user thinks they're logged in
       final isLoggedIn = _sharedPref!.getBool('is_logged_in') ?? false;
+      
+      // Step 2: Check if JWT token exists and is valid
+      final hasValidJWT = await hasValidToken();
+      
+      // Only restore guest credentials if user is NOT logged in and has valid guest credentials
+      // Do NOT restore if user was logged in but tokens are invalid (could be converted account)
+      if (!isLoggedIn || !hasValidJWT) {
+        // Check if guest account credentials exist (only if not logged in or tokens invalid)
+        final isGuestAccount = _sharedPref!.getBool('is_guest_account') ?? false;
+        final guestUsername = _sharedPref!.getString('guest_username');
+        final guestEmail = _sharedPref!.getString('guest_email');
+        final guestUserId = _sharedPref!.getString('guest_user_id');
+        
+        // Only restore guest credentials if:
+        // 1. User is not logged in (fresh start), OR
+        // 2. User was logged in but tokens are invalid AND we have guest credentials
+        // But do NOT restore if tokens are invalid - let user log in fresh
+        if (!isLoggedIn && isGuestAccount && guestUsername != null && guestEmail != null) {
+          Logger().info("AuthManager: Restoring guest credentials on session validation - Username: $guestUsername", isOn: LOGGING_SWITCH);
+          await _sharedPref!.setString('username', guestUsername);
+          await _sharedPref!.setString('email', guestEmail);
+          if (guestUserId != null) {
+            await _sharedPref!.setString('user_id', guestUserId);
+          }
+        }
+      }
       
       if (!isLoggedIn) {
         _currentStatus = AuthStatus.loggedOut;
@@ -509,24 +519,12 @@ class AuthManager extends ChangeNotifier {
         notifyListeners();
         return AuthStatus.loggedOut;
       }
-
-      // Step 2: Check if JWT token exists and is valid
-      final hasValidJWT = await hasValidToken();
       
       if (!hasValidJWT) {
-        
         // hasValidToken() already attempted token refresh, so we know it failed
+        // Clear all stored data including guest credentials if tokens are invalid
+        // This prevents auto-login with converted accounts
         await _clearStoredData();
-        
-        // Restore guest credentials if they exist (for re-login)
-        if (isGuestAccount && guestUsername != null && guestEmail != null) {
-          Logger().info("AuthManager: Token expired, restoring guest credentials for re-login - Username: $guestUsername", isOn: LOGGING_SWITCH);
-          await _sharedPref!.setString('username', guestUsername);
-          await _sharedPref!.setString('email', guestEmail);
-          if (guestUserId != null) {
-            await _sharedPref!.setString('user_id', guestUserId);
-          }
-        }
         
         _currentStatus = AuthStatus.tokenExpired;
         _isValidating = false;
@@ -545,17 +543,9 @@ class AuthManager extends ChangeNotifier {
         final daysSinceLogin = DateTime.now().difference(lastLoginTime).inDays;
         
         if (daysSinceLogin > 30) { // Configurable
+          // Clear all stored data - do NOT restore guest credentials
+          // This prevents auto-login with converted accounts
           await _clearStoredData();
-          
-          // Restore guest credentials if they exist (for re-login)
-          if (isGuestAccount && guestUsername != null && guestEmail != null) {
-            Logger().info("AuthManager: Session expired (30+ days), restoring guest credentials for re-login - Username: $guestUsername", isOn: LOGGING_SWITCH);
-            await _sharedPref!.setString('username', guestUsername);
-            await _sharedPref!.setString('email', guestEmail);
-            if (guestUserId != null) {
-              await _sharedPref!.setString('user_id', guestUserId);
-            }
-          }
           
           _currentStatus = AuthStatus.sessionExpired;
           _isValidating = false;
@@ -656,8 +646,18 @@ class AuthManager extends ChangeNotifier {
     _isClearingTokens = true;
     
     try {
-      // Only clear tokens - logout and navigation handled by LoginModule hooks
+      // Clear tokens
       await clearTokens();
+      
+      // Clear session data to prevent auto-login with invalid tokens
+      // This is especially important for converted guest accounts
+      if (_sharedPref != null) {
+        await _sharedPref!.setBool('is_logged_in', false);
+        await _sharedPref!.remove('user_id');
+        await _sharedPref!.remove('username');
+        await _sharedPref!.remove('email');
+        await _sharedPref!.remove('last_login_timestamp');
+      }
     } catch (e) {
     } finally {
       _isClearingTokens = false;

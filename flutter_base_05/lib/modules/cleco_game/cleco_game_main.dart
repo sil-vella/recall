@@ -17,7 +17,7 @@ import '../cleco_game/utils/cleco_game_helpers.dart';
 /// Cleco Game Module
 /// Main module for the Cleco card game functionality
 class ClecoGameMain extends ModuleBase {
-  static const bool LOGGING_SWITCH = true; // Enabled for debugging user stats fetching
+  static const bool LOGGING_SWITCH = false; // Enabled for debugging user stats fetching
   final Logger _logger = Logger();
   
   final navigationManager = NavigationManager();

@@ -75,7 +75,12 @@ Password Hashing (bcrypt)
     ↓
 User Data Structure Creation
     ↓
-Database Insert (MongoDB)
+DatabaseManager.insert() - Automatic Encryption
+    ├─ Email → Deterministic encryption (det_...)
+    ├─ Username → Deterministic encryption (det_...)
+    └─ Phone → Fernet encryption (gAAAAAB...)
+    ↓
+Database Insert (MongoDB - encrypted data)
     ↓
 Hook Trigger: user_created
     ↓
@@ -354,6 +359,8 @@ if existing_user:
     }), 409
 ```
 
+**Note**: The `DatabaseManager.find_one()` method automatically encrypts the search query for email (using deterministic encryption) before querying the database. This allows searching encrypted email fields.
+
 **Username Uniqueness**:
 ```python
 existing_username = self.db_manager.find_one("users", {"username": username})
@@ -363,6 +370,8 @@ if existing_username:
         "error": "Username already taken"
     }), 409
 ```
+
+**Note**: Similar to email, the username query is automatically encrypted (deterministic) before database lookup.
 
 #### Step 3: Password Hashing
 
@@ -450,6 +459,8 @@ if not user_id:
         "error": "Failed to create user account"
     }), 500
 ```
+
+**Note**: The `DatabaseManager.insert()` method automatically encrypts sensitive fields (email, username, phone, etc.) before inserting into MongoDB. The encryption is transparent to the registration code - you pass plain text data, and it's encrypted automatically.
 
 #### Step 6: Hook Triggering
 
@@ -838,7 +849,12 @@ Hash Password (bcrypt)
     ↓
 Create User Data (account_type: 'guest')
     ↓
-Database Insert (MongoDB)
+DatabaseManager.insert() - Automatic Encryption
+    ├─ Email → Deterministic encryption (det_...)
+    ├─ Username → Deterministic encryption (det_...)
+    └─ Phone → Fernet encryption (if provided)
+    ↓
+Database Insert (MongoDB - encrypted data)
     ↓
 Hook Trigger: user_created (with account_type: 'guest')
     ↓
@@ -1208,9 +1224,9 @@ These keys are cleared on logout but restored from permanent keys when needed:
 ```json
 {
   "_id": "ObjectId",
-  "username": "string",
-  "email": "string",
-  "password": "string (bcrypt hashed)",
+  "username": "string (encrypted: det_... or gAAAAAB...)",
+  "email": "string (encrypted: det_... or gAAAAAB...)",
+  "password": "string (bcrypt hashed, NOT encrypted)",
   "status": "string ('active' | 'inactive' | 'suspended')",
   "created_at": "ISO 8601 timestamp",
   "updated_at": "ISO 8601 timestamp",
@@ -1220,7 +1236,7 @@ These keys are cleared on logout but restored from permanent keys when needed:
   "profile": {
     "first_name": "string",
     "last_name": "string",
-    "phone": "string",
+    "phone": "string (encrypted: gAAAAAB... if provided)",
     "timezone": "string (default: 'UTC')",
     "language": "string (default: 'en')"
   },
@@ -1253,6 +1269,18 @@ These keys are cleared on logout but restored from permanent keys when needed:
       "enabled": "boolean (default: true)",
       "referral_code": "string (format: '{USERNAME}{YYYYMM}')",
       "referrals_count": "integer (default: 0)"
+    },
+    "cleco_game": {
+      "enabled": "boolean (default: true)",
+      "wins": "integer (default: 0)",
+      "losses": "integer (default: 0)",
+      "total_matches": "integer (default: 0)",
+      "points": "integer (default: 0)",
+      "level": "integer (default: 1)",
+      "rank": "string (default: 'beginner')",
+      "win_rate": "float (default: 0.0)",
+      "last_match_date": "ISO 8601 timestamp | null",
+      "last_updated": "ISO 8601 timestamp"
     }
   },
   
@@ -1415,6 +1443,110 @@ These keys are cleared on logout but restored from permanent keys when needed:
 - Password removed from API responses
 - Password not included in hook data
 
+### 2. Data Encryption at Rest
+
+**Automatic Encryption**:
+- All sensitive fields are automatically encrypted by `DatabaseManager` before database insertion
+- Encryption happens transparently during `db_manager.insert()` operation
+- No manual encryption required in registration code
+
+**Encryption Process**:
+```python
+# In DatabaseManager._execute_insert()
+encrypted_data = self._encrypt_sensitive_fields(data)
+result = self.db[collection].insert_one(encrypted_data)
+```
+
+**Sensitive Fields Encrypted**:
+Fields defined in `Config.SENSITIVE_FIELDS` are automatically encrypted:
+- `email` - Deterministic encryption (searchable)
+- `username` - Deterministic encryption (searchable)
+- `phone` - Fernet encryption (non-deterministic)
+- `user_id` - Fernet encryption
+- `address` - Fernet encryption
+- `credit_balance` - Fernet encryption
+- `transaction_history` - Fernet encryption
+
+**Encryption Methods**:
+
+**Deterministic Encryption** (for `email` and `username`):
+- **Purpose**: Allows searching/querying encrypted fields
+- **Method**: SHA-256 hash with prefix
+- **Format**: `det_{sha256_hash}`
+- **Implementation**:
+  ```python
+  combined = ENCRYPTION_KEY.encode() + data.encode()
+  encrypted_data = hashlib.sha256(combined).hexdigest()
+  return f"det_{encrypted_data}"
+  ```
+- **Characteristics**:
+  - Same input always produces same output
+  - Enables exact-match queries on encrypted data
+  - Less secure than Fernet (hash-based, not true encryption)
+  - Used for fields that need to be searchable
+
+**Fernet Encryption** (for other sensitive fields):
+- **Purpose**: Strong encryption for non-searchable sensitive data
+- **Method**: Fernet (AES-128 in CBC mode with HMAC)
+- **Format**: Base64 string starting with `gAAAAAB`
+- **Implementation**:
+  ```python
+  # Key derivation using PBKDF2
+  kdf = PBKDF2HMAC(
+      algorithm=hashes.SHA256(),
+      length=32,
+      salt=ENCRYPTION_SALT.encode(),
+      iterations=100000
+  )
+  derived_key = base64.urlsafe_b64encode(kdf.derive(ENCRYPTION_KEY.encode()))
+  fernet = Fernet(derived_key)
+  encrypted_data = fernet.encrypt(data.encode())
+  ```
+- **Characteristics**:
+  - Random IV each time (non-deterministic)
+  - Strong encryption with authentication
+  - Cannot search encrypted values directly
+  - Used for fields that don't need searching
+
+**Encryption Key Management**:
+- **Primary Source**: HashiCorp Vault (`flask-app/app` → `encryption_key`)
+- **Fallback**: Environment variable `ENCRYPTION_KEY`
+- **Default (Development)**: `"development-encryption-key-change-in-production"`
+- **Salt**: `ENCRYPTION_SALT` from Vault/env/default: `"default_salt_123"`
+
+**Encryption During Registration**:
+1. User data prepared in `create_user()` method
+2. Data passed to `db_manager.insert("users", user_data)`
+3. `DatabaseManager` automatically encrypts sensitive fields:
+   - `email` → Deterministic hash (`det_...`)
+   - `username` → Deterministic hash (`det_...`)
+   - `phone` (if provided) → Fernet encryption (`gAAAAAB...`)
+4. Encrypted data inserted into MongoDB
+5. On retrieval, `DatabaseManager` automatically decrypts fields
+
+**Decryption on Read**:
+- `DatabaseManager` automatically decrypts sensitive fields when reading from database
+- Methods like `find_one()` and `find()` return decrypted data
+- Encryption/decryption is transparent to application code
+
+**Example Encrypted Values**:
+```json
+{
+  "_id": "ObjectId(...)",
+  "email": "det_ef688dcc40b4be2528428e52b827e2b704130f966168c3da0c54db84f5fa0619",
+  "username": "det_a1b2c3d4e5f6...",
+  "phone": "gAAAAABobl2Vc5sJXbNwtPnHS7r74FBeKM3vIVJwU7p-KgEVyPueOfbNUWSx6r2m60aDUbafaV8FiBBQkPYt68GPZYjnEKdlbgWMutswXeYsVhEKSJWbWWE=",
+  "password": "$2b$12$..."  // bcrypt hash (not encrypted)
+}
+```
+
+**Security Considerations**:
+- **Deterministic Encryption Trade-off**: Less secure but enables searching
+- **Key Management**: Encryption keys stored securely in Vault
+- **Key Rotation**: Changing encryption key requires re-encryption of all data
+- **Backup Security**: Encrypted data remains secure in backups
+- **Performance**: Minimal overhead (encryption happens during insert/update)
+
 ### 2. Input Validation
 
 **Multi-Layer Validation**:
@@ -1427,7 +1559,7 @@ These keys are cleared on logout but restored from permanent keys when needed:
 - Email trimmed and lowercased (if needed)
 - SQL injection prevention (using parameterized queries)
 
-### 3. Duplicate Prevention
+### 4. Duplicate Prevention
 
 **Uniqueness Checks**:
 - Email uniqueness enforced
@@ -1441,7 +1573,7 @@ These keys are cleared on logout but restored from permanent keys when needed:
 - No disclosure of existing usernames/emails in error messages
 - Internal server errors return generic messages
 
-### 5. Rate Limiting
+### 6. Rate Limiting
 
 **Protection**:
 - Rate limiting applied at API level
@@ -1735,6 +1867,15 @@ Initial Wallet/Credits Setup
 - `python_base_04/core/managers/database_manager.py`
   - Database operations
   - User document insertion
+  - Automatic encryption/decryption of sensitive fields
+  - `_encrypt_sensitive_fields()` method
+  - `_decrypt_sensitive_fields()` method
+
+- `python_base_04/core/managers/encryption_manager.py`
+  - Encryption/decryption logic
+  - Deterministic encryption (for searchable fields)
+  - Fernet encryption (for non-searchable fields)
+  - Key derivation using PBKDF2
 
 - `python_base_04/core/managers/hooks_manager.py`
   - Hook system
@@ -1858,13 +1999,16 @@ The user registration process is a comprehensive system that handles user accoun
 
 - **Multi-layer validation** (frontend and backend)
 - **Secure password hashing** (bcrypt)
+- **Automatic data encryption** (email, username, phone, and other sensitive fields)
+  - Deterministic encryption for searchable fields (email, username)
+  - Fernet encryption for non-searchable sensitive fields
 - **Duplicate prevention** (email and username uniqueness)
 - **Comprehensive user data structure** (profile, preferences, modules, audit)
 - **Hook system** for post-registration actions
 - **Error handling** with security-conscious messages
 - **Rate limiting** protection
 
-The system is designed to be secure, scalable, and extensible, with clear separation of concerns between frontend and backend components.
+The system is designed to be secure, scalable, and extensible, with clear separation of concerns between frontend and backend components. All sensitive data is automatically encrypted at rest by the DatabaseManager before storage.
 
 ---
 
@@ -1877,6 +2021,7 @@ The user registration process is a comprehensive system that handles user accoun
 ### Regular Registration
 - **Multi-layer validation** (frontend and backend)
 - **Secure password hashing** (bcrypt)
+- **Automatic data encryption** (email, username, phone encrypted at rest)
 - **Duplicate prevention** (email and username uniqueness)
 - **Comprehensive user data structure** (profile, preferences, modules, audit)
 - **Hook system** for post-registration actions
@@ -1886,14 +2031,15 @@ The user registration process is a comprehensive system that handles user accoun
 ### Guest Registration
 - **Zero-friction registration** (no user input required)
 - **Auto-generated credentials** (username, email, password)
+- **Automatic data encryption** (same encryption as regular accounts)
 - **Persistent credentials** (survive logout and app restarts)
 - **Seamless re-login** (auto-population and one-click login)
 - **Full account functionality** (same features as regular accounts)
 - **Secure credential generation** (cryptographically secure randomness)
 - **Account type distinction** (marked as 'guest' in database)
 
-The system is designed to be secure, scalable, and extensible, with clear separation of concerns between frontend and backend components. Guest registration provides a low-friction entry point while maintaining the same security and functionality standards as regular registration.
+The system is designed to be secure, scalable, and extensible, with clear separation of concerns between frontend and backend components. Guest registration provides a low-friction entry point while maintaining the same security and functionality standards as regular registration. All sensitive user data (email, username, phone) is automatically encrypted at rest using deterministic encryption for searchable fields and Fernet encryption for other sensitive data.
 
 ---
 
-**Last Updated**: 2025-01-XX (Added Guest Registration feature)
+**Last Updated**: 2025-12-11 (Added encryption documentation and Guest Registration feature)

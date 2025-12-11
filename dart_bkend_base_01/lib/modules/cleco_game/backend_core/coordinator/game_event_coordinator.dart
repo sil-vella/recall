@@ -5,7 +5,7 @@ import '../services/game_state_store.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for winner determination testing
+const bool LOGGING_SWITCH = false; // Enabled for winner determination testing
 
 /// Coordinates WS game events to the ClecoGameRound logic per room.
 class GameEventCoordinator {

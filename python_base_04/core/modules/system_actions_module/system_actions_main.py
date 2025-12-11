@@ -6,7 +6,7 @@ from datetime import datetime
 from utils.config.config import Config
 
 # Logging switch for this module
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class SystemActionsModule(BaseModule):

@@ -15,7 +15,7 @@ class UpdateRequiredScreen extends StatefulWidget {
 
 class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   
   String? _downloadLink;
   bool _isLaunching = false;

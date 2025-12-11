@@ -3,7 +3,7 @@ import '../../managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true;
+const bool LOGGING_SWITCH = false;
 
 /// State-aware coins display feature widget
 /// 

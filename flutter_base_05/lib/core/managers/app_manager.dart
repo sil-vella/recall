@@ -27,7 +27,7 @@ class AppManager extends ChangeNotifier {
   final AuthManager _authManager = AuthManager();
   final AdaptersManager _adaptersManager = AdaptersManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
 
   Future<void> _initializeModules(BuildContext context) async {
     final moduleManager = Provider.of<ModuleManager>(context, listen: false);

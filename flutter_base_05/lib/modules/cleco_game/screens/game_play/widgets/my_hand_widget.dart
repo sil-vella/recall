@@ -12,7 +12,7 @@ import '../card_position_tracker.dart';
 import '../../../../cleco_game/managers/cleco_event_handler_callbacks.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = true; // Enabled for final round debugging
+const bool LOGGING_SWITCH = false; // Enabled for final round debugging
 
 /// Widget to display the player's hand
 /// 

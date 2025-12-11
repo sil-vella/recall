@@ -31,7 +31,7 @@ class PlayerAction {
   static final ClecoGameStateUpdater _stateUpdater = ClecoGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for final round debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for final round debugging
   // Jack swap selection tracking
   static String? _firstSelectedCardId;
   static String? _firstSelectedPlayerId;

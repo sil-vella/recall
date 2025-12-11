@@ -4,7 +4,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for winner determination testing
+const bool LOGGING_SWITCH = false; // Enabled for winner determination testing
 
 /// Holds active ClecoGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.

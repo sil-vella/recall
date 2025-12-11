@@ -105,6 +105,12 @@ class UserManagementModule(BaseModule):
             guest_password = data.get("guest_password")
             guest_user = None
             
+            # Log registration attempt
+            if convert_from_guest:
+                custom_log(f"UserManagement: Registration request received (with guest conversion) - Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            else:
+                custom_log(f"UserManagement: Regular registration request received - Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            
             # Validate guest account if conversion requested
             if convert_from_guest:
                 if not guest_email or not guest_password:
@@ -325,6 +331,12 @@ class UserManagementModule(BaseModule):
                     'account_type': 'normal' if not convert_from_guest else 'converted_from_guest'
                 }
                 self.app_manager.trigger_hook("user_created", hook_data)
+            
+            # Log successful registration
+            if convert_from_guest:
+                custom_log(f"UserManagement: Guest account conversion completed successfully - User ID: {user_id}, Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            else:
+                custom_log(f"UserManagement: Regular registration completed successfully - User ID: {user_id}, Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             return jsonify({
                 "success": True,
@@ -634,7 +646,7 @@ class UserManagementModule(BaseModule):
             
             # Verify password
             stored_password = user.get("password", "")
-            account_type = user.get("account_type", "regular")
+            account_type = user.get("account_type", "normal")  # Default to 'normal' to match registration
             is_guest = account_type == "guest"
             
             if is_guest:
@@ -685,10 +697,15 @@ class UserManagementModule(BaseModule):
             # Remove password from response
             user.pop('password', None)
             
+            # Ensure account_type is included in response (for Flutter to determine guest status)
+            if 'account_type' not in user:
+                user['account_type'] = account_type
+            
+            # Log successful login with account type
             if is_guest:
-                custom_log(f"UserManagement: Guest account login successful - User ID: {user['_id']}, Username: {user.get('username')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                custom_log(f"UserManagement: Guest account login successful - User ID: {user['_id']}, Username: {user.get('username')}, Account Type: {account_type}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             else:
-                custom_log(f"UserManagement: Regular account login successful - User ID: {user['_id']}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                custom_log(f"UserManagement: Regular account login successful - User ID: {user['_id']}, Email: {email}, Account Type: {account_type}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             return jsonify({
                 "success": True,

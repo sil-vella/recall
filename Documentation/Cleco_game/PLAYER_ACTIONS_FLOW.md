@@ -322,11 +322,11 @@ PlayerAction.execute()
                   → StateQueueValidator.enqueueUpdate()
                     → StateQueueValidator.validateUpdate()
                       → ServerGameStateCallbackImpl broadcasts 'game_state_updated'
-                        → WebSocketManager receives event
+            → WebSocketManager receives event
                           → ClecoGameEventListenerValidator._handleDirectEvent()
-                            → ClecoEventHandlerCallbacks.handle*()
-                              → StateManager.updateModuleState()
-                                → Widget rebuild
+              → ClecoEventHandlerCallbacks.handle*()
+                → StateManager.updateModuleState()
+                  → Widget rebuild
 ```
 
 ---

@@ -276,6 +276,13 @@ class LoginModule extends ModuleBase {
     }
 
     try {
+      // Log registration attempt
+      if (guestEmail != null && guestPassword != null) {
+        Logger().info("LoginModule: Registration request initiated (with guest conversion) - Username: $username, Email: $email, Guest Email: $guestEmail", isOn: LOGGING_SWITCH);
+      } else {
+        Logger().info("LoginModule: Regular registration request initiated - Username: $username, Email: $email", isOn: LOGGING_SWITCH);
+      }
+      
       // Prepare request data
       final Map<String, dynamic> requestData = <String, dynamic>{
         "username": username,
@@ -299,16 +306,20 @@ class LoginModule extends ModuleBase {
 
       if (response is Map) {
         if (response["success"] == true || response["message"] == "User created successfully") {
-          // If guest account conversion was successful, clear guest credentials
+          // Log successful registration
           if (guestEmail != null && guestPassword != null) {
-            Logger().info("LoginModule: Guest account conversion successful, clearing guest credentials", isOn: LOGGING_SWITCH);
+            Logger().info("LoginModule: Guest account conversion successful - Username: $username, Email: $email, clearing guest credentials", isOn: LOGGING_SWITCH);
             await _sharedPref!.remove('guest_username');
             await _sharedPref!.remove('guest_email');
             await _sharedPref!.remove('guest_user_id');
             await _sharedPref!.setBool('is_guest_account', false);
+          } else {
+            Logger().info("LoginModule: Regular registration successful - Username: $username, Email: $email", isOn: LOGGING_SWITCH);
           }
           return {"success": "Registration successful. Please log in."};
         } else if (response["error"] != null) {
+          // Log registration failure
+          Logger().warning("LoginModule: Registration failed - Username: $username, Email: $email, Error: ${response["error"]}", isOn: LOGGING_SWITCH);
           // Handle rate limiting errors
           if (response["status"] == 429) {
             return {
@@ -435,6 +446,9 @@ class LoginModule extends ModuleBase {
     }
 
     try {
+      // Log login attempt
+      Logger().info("LoginModule: Login request initiated - Email: $email", isOn: LOGGING_SWITCH);
+      
       // Use the correct backend route
       final response = await _connectionModule!.sendPostRequest(
         "/public/login",
@@ -451,6 +465,9 @@ class LoginModule extends ModuleBase {
 
       if (response?["error"] != null || response?["message"]?.contains("error") == true) {
         String errorMessage = response?["message"] ?? response?["error"] ?? "Unknown error occurred";
+        
+        // Log login failure
+        Logger().warning("LoginModule: Login failed - Email: $email, Error: $errorMessage", isOn: LOGGING_SWITCH);
         
         // Handle rate limiting errors
         if (response?["status"] == 429) {
@@ -506,14 +523,21 @@ class LoginModule extends ModuleBase {
         await _sharedPref!.setString('email', email);
         await _sharedPref!.setString('last_login_timestamp', DateTime.now().toIso8601String());
         
-        // If guest account, store permanent credentials
+        // Set guest account flag based on account_type from backend
         if (isGuestAccount) {
           Logger().info("LoginModule: Storing permanent guest credentials - Username: $username, User ID: $userId", isOn: LOGGING_SWITCH);
           await _sharedPref!.setString('guest_username', username);
           await _sharedPref!.setString('guest_email', email);
           await _sharedPref!.setString('guest_user_id', userId);
           await _sharedPref!.setBool('is_guest_account', true);
+        } else {
+          // Explicitly set to false for regular accounts to clear any previous guest account flag
+          Logger().info("LoginModule: Regular account login - clearing guest account flag", isOn: LOGGING_SWITCH);
+          await _sharedPref!.setBool('is_guest_account', false);
         }
+        
+        // Log successful login
+        Logger().info("LoginModule: Login successful - Username: $username, Email: $email, Account Type: ${isGuestAccount ? 'guest' : 'regular'}", isOn: LOGGING_SWITCH);
         
         // Update state manager
         final stateManager = StateManager();

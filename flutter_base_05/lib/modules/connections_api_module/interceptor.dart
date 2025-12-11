@@ -26,8 +26,10 @@ class AuthInterceptor implements InterceptorContract {
       _authManager = AuthManager();
     }
     
-    // Skip token addition for token refresh endpoints to prevent infinite loops
-    if (request.url.path.contains('/public/refresh')) {
+    // Skip token addition for public endpoints (login, register, refresh) to prevent issues
+    if (request.url.path.contains('/public/refresh') || 
+        request.url.path.contains('/public/login') ||
+        request.url.path.contains('/public/register')) {
       return request;
     }
     

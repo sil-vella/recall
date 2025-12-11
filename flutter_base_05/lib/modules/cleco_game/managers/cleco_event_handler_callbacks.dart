@@ -1017,6 +1017,16 @@ class ClecoEventHandlerCallbacks {
       _logger.info('🔍 handleGameStateUpdated: Updating currentGameId from $existingCurrentGameId to $gameId', isOn: LOGGING_SWITCH);
     }
 
+    // Check if game just started (phase changed to initial_peek) and deduct coins
+    final previousPhase = currentStateForGameId['gamePhase']?.toString();
+    final isGameStarting = (previousPhase == null || previousPhase == 'waiting' || previousPhase == 'waiting_for_players') && 
+                           (rawPhase == 'initial_peek');
+    
+    if (isGameStarting) {
+      _logger.info('💰 handleGameStateUpdated: Game starting - phase changed to initial_peek, checking for coin deduction', isOn: LOGGING_SWITCH);
+      _handleCoinDeductionOnGameStart(gameId, gameState);
+    }
+    
     // Then update main state with games map, discardPile, currentPlayer, turn_events (matches practice mode pattern)
     // 🎯 CRITICAL: Update gamePhase FIRST so MessagesWidget can check it
     _updateMainGameState({
@@ -1488,6 +1498,117 @@ class ClecoEventHandlerCallbacks {
   }
 
   /// Handle cards_to_peek event
+
+  /// Handle coin deduction when game starts
+  /// Called when game phase changes to initial_peek (game started)
+  static Future<void> _handleCoinDeductionOnGameStart(String gameId, Map<String, dynamic> gameState) async {
+    try {
+      _logger.info('💰 _handleCoinDeductionOnGameStart: Processing coin deduction for game $gameId', isOn: LOGGING_SWITCH);
+      
+      // Skip coin deduction for practice mode games
+      if (gameId.startsWith('practice_room_')) {
+        _logger.info('💰 _handleCoinDeductionOnGameStart: Skipping coin deduction for practice mode game', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Check if coins were already deducted for this game (prevent duplicate deductions)
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+      final coinsDeductedGames = Set<String>.from(currentState['coinsDeductedGames'] as List<dynamic>? ?? []);
+      
+      if (coinsDeductedGames.contains(gameId)) {
+        _logger.info('💰 _handleCoinDeductionOnGameStart: Coins already deducted for game $gameId, skipping', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Get all active players from game state
+      final players = (gameState['players'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .where((p) => (p['isActive'] as bool? ?? true) == true)  // Only active players
+          .toList();
+      
+      if (players.isEmpty) {
+        _logger.warning('⚠️ _handleCoinDeductionOnGameStart: No active players found for coin deduction', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      _logger.info('💰 _handleCoinDeductionOnGameStart: Found ${players.length} active player(s) for coin deduction', isOn: LOGGING_SWITCH);
+      
+      // Get user IDs for all players
+      // Note: Player IDs are sessionIds, but we need user IDs (MongoDB ObjectIds) for the API
+      // userId is stored in player objects when they join (from room_created/room_joined events)
+      final playerIds = <String>[];
+      final currentUserId = getCurrentUserId();
+      final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+      final currentUserMongoId = loginState['userId']?.toString() ?? '';
+      
+      for (final player in players) {
+        final playerSessionId = player['id']?.toString() ?? '';
+        if (playerSessionId.isEmpty) continue;
+        
+        // First, try to get userId from player object (stored when player joins)
+        final playerUserId = player['userId']?.toString() ?? player['user_id']?.toString();
+        if (playerUserId != null && playerUserId.isNotEmpty) {
+          playerIds.add(playerUserId);
+          _logger.info('💰 _handleCoinDeductionOnGameStart: Added player userId from player object: $playerUserId (sessionId: $playerSessionId)', isOn: LOGGING_SWITCH);
+        } else {
+          // Fallback: If this is the current user and userId not in player object, use login state
+          if (playerSessionId == currentUserId && currentUserMongoId.isNotEmpty) {
+            playerIds.add(currentUserMongoId);
+            _logger.info('💰 _handleCoinDeductionOnGameStart: Added current user MongoDB ID from login state: $currentUserMongoId', isOn: LOGGING_SWITCH);
+          } else {
+            // Cannot get userId for this player - log warning but continue
+            _logger.warning('⚠️ _handleCoinDeductionOnGameStart: Cannot get userId for player $playerSessionId, skipping coin deduction for this player', isOn: LOGGING_SWITCH);
+          }
+        }
+      }
+      
+      if (playerIds.isEmpty) {
+        _logger.warning('⚠️ _handleCoinDeductionOnGameStart: No valid user IDs found for coin deduction. Players: ${players.length}, User IDs found: 0', isOn: LOGGING_SWITCH);
+        // Don't return - log error but allow game to continue (backend should have validated coins already)
+        return;
+      }
+      
+      // Check if we got user IDs for all players
+      if (playerIds.length < players.length) {
+        _logger.warning('⚠️ _handleCoinDeductionOnGameStart: Only found user IDs for ${playerIds.length} out of ${players.length} players. Some players may not have coins deducted.', isOn: LOGGING_SWITCH);
+      }
+      
+      _logger.info('💰 _handleCoinDeductionOnGameStart: Deducting coins for ${playerIds.length} player(s) out of ${players.length} total players', isOn: LOGGING_SWITCH);
+      
+      // Deduct coins (default: 25 coins)
+      final requiredCoins = 25;
+      final result = await ClecoGameHelpers.deductGameCoins(
+        coins: requiredCoins,
+        gameId: gameId,
+        playerIds: playerIds,
+      );
+      
+      if (result != null && result['success'] == true) {
+        // Mark coins as deducted for this game
+        coinsDeductedGames.add(gameId);
+        _updateMainGameState({
+          'coinsDeductedGames': coinsDeductedGames.toList(),
+        });
+        
+        final updatedPlayers = result['updated_players'] as List<dynamic>? ?? [];
+        _logger.info('✅ _handleCoinDeductionOnGameStart: Successfully deducted coins for game $gameId. Updated ${updatedPlayers.length} player(s)', isOn: LOGGING_SWITCH);
+        
+        // Check if all players had coins deducted
+        if (updatedPlayers.length < playerIds.length) {
+          _logger.warning('⚠️ _handleCoinDeductionOnGameStart: Only ${updatedPlayers.length} out of ${playerIds.length} players had coins deducted successfully', isOn: LOGGING_SWITCH);
+        }
+      } else {
+        final error = result?['error'] ?? 'Unknown error';
+        _logger.error('❌ _handleCoinDeductionOnGameStart: Failed to deduct coins: $error', isOn: LOGGING_SWITCH);
+        // Note: Game has already started, so we can't prevent it now
+        // The coin check should have happened before game start, so this is a rare edge case
+        // Log error for monitoring but allow game to continue
+      }
+      
+    } catch (e, stackTrace) {
+      _logger.error('❌ _handleCoinDeductionOnGameStart: Error processing coin deduction: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+    }
+  }
 
   /// Handle cleco_error event
   static void handleClecoError(Map<String, dynamic> data) {

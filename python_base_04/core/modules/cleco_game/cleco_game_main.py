@@ -85,6 +85,9 @@ class ClecoGameMain(BaseModule):
             # Register the get-user-stats endpoint with JWT authentication
             self._register_route_helper("/userauth/cleco/get-user-stats", self.get_user_stats, methods=["GET"], auth="jwt")
 
+            # Register the deduct-game-coins endpoint with JWT authentication
+            self._register_route_helper("/userauth/cleco/deduct-game-coins", self.deduct_game_coins, methods=["POST"], auth="jwt")
+
             custom_log("🔐 ClecoGame: All routes registered successfully", level="INFO", isOn=LOGGING_SWITCH)
             return True
         except Exception as e:
@@ -481,6 +484,191 @@ class ClecoGameMain(BaseModule):
                 "success": False,
                 "error": "Failed to retrieve user statistics",
                 "message": str(e)
+            }), 500
+    
+    def deduct_game_coins(self):
+        """Deduct game coins from multiple players when game starts (JWT protected endpoint)"""
+        try:
+            # User ID is set by JWT middleware
+            user_id = request.user_id
+            if not user_id:
+                return jsonify({
+                    "success": False,
+                    "error": "User not authenticated",
+                    "message": "No user ID found in request"
+                }), 401
+            
+            # Get request body
+            data = request.get_json()
+            if not data:
+                return jsonify({
+                    "success": False,
+                    "error": "Request body is required",
+                    "message": "Missing request body"
+                }), 400
+            
+            # Validate required fields
+            coins = data.get('coins')
+            game_id = data.get('game_id')
+            player_ids = data.get('player_ids')
+            
+            if coins is None or not isinstance(coins, int) or coins <= 0:
+                return jsonify({
+                    "success": False,
+                    "error": "Invalid coins amount",
+                    "message": "coins must be a positive integer"
+                }), 400
+            
+            if not game_id or not isinstance(game_id, str):
+                return jsonify({
+                    "success": False,
+                    "error": "Invalid game_id",
+                    "message": "game_id is required and must be a string"
+                }), 400
+            
+            if not player_ids or not isinstance(player_ids, list) or len(player_ids) == 0:
+                return jsonify({
+                    "success": False,
+                    "error": "Invalid player_ids",
+                    "message": "player_ids must be a non-empty array"
+                }), 400
+            
+            custom_log(f"💰 ClecoGame: Deducting {coins} coins for game {game_id} from {len(player_ids)} player(s)", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Get database manager
+            db_manager = self.app_manager.get_db_manager(role="read_write")
+            if not db_manager:
+                return jsonify({
+                    "success": False,
+                    "error": "Database connection unavailable",
+                    "message": "Failed to connect to database"
+                }), 500
+            
+            # Get current timestamp
+            current_time = datetime.utcnow()
+            current_timestamp = current_time.isoformat()
+            
+            # Process each player's coin deduction
+            updated_players = []
+            errors = []
+            
+            for player_id_str in player_ids:
+                try:
+                    if not player_id_str or not isinstance(player_id_str, str):
+                        error_msg = f"Invalid player_id format: {player_id_str}"
+                        errors.append(error_msg)
+                        custom_log(f"❌ ClecoGame: {error_msg}", level="ERROR", isOn=LOGGING_SWITCH)
+                        continue
+                    
+                    # Convert player_id to ObjectId
+                    try:
+                        player_id = ObjectId(player_id_str)
+                    except Exception as e:
+                        error_msg = f"Invalid player_id format '{player_id_str}': {str(e)}"
+                        errors.append(error_msg)
+                        custom_log(f"❌ ClecoGame: {error_msg}", level="ERROR", isOn=LOGGING_SWITCH)
+                        continue
+                    
+                    custom_log(f"💰 ClecoGame: Processing coin deduction for player_id: {player_id_str}", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Get current user data
+                    user = db_manager.find_one("users", {"_id": player_id})
+                    if not user:
+                        error_msg = f"User not found: {player_id_str}"
+                        errors.append(error_msg)
+                        custom_log(f"❌ ClecoGame: {error_msg}", level="ERROR", isOn=LOGGING_SWITCH)
+                        continue
+                    
+                    # Get current cleco_game module data
+                    modules = user.get('modules', {})
+                    cleco_game = modules.get('cleco_game', {})
+                    
+                    # Get current coins
+                    current_coins = cleco_game.get('coins', 0)
+                    
+                    custom_log(f"💰 ClecoGame: Current coins for {player_id_str}: {current_coins}", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Check if user has enough coins (defense in depth - frontend should have checked already)
+                    if current_coins < coins:
+                        error_msg = f"Insufficient coins for user {player_id_str}: has {current_coins}, needs {coins}"
+                        errors.append(error_msg)
+                        custom_log(f"❌ ClecoGame: {error_msg}", level="ERROR", isOn=LOGGING_SWITCH)
+                        continue
+                    
+                    # Calculate new coins
+                    new_coins = current_coins - coins
+                    
+                    # Use $inc for atomic coin deduction
+                    # Note: db_manager.update() automatically wraps in $set, so we need to use raw MongoDB operation
+                    update_operation = {
+                        '$inc': {'modules.cleco_game.coins': -coins},
+                        '$set': {
+                            'modules.cleco_game.last_updated': current_timestamp,
+                            'updated_at': current_timestamp
+                        }
+                    }
+                    
+                    custom_log(f"💰 ClecoGame: Updating database for player_id: {player_id_str} (deducting {coins} coins)", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Use raw MongoDB update with $inc for atomic operation
+                    # Access db directly since db_manager.update() only supports $set
+                    result = db_manager.db["users"].update_one(
+                        {"_id": player_id},
+                        update_operation
+                    )
+                    
+                    if result.modified_count > 0:
+                        custom_log(f"✅ ClecoGame: Successfully deducted {coins} coins for player_id: {player_id_str} (new balance: {new_coins})", level="INFO", isOn=LOGGING_SWITCH)
+                        updated_players.append({
+                            "user_id": player_id_str,
+                            "coins_deducted": coins,
+                            "previous_coins": current_coins,
+                            "new_coins": new_coins
+                        })
+                    else:
+                        error_msg = f"Failed to update coins for user: {player_id_str} (modified_count: {result.modified_count})"
+                        errors.append(error_msg)
+                        custom_log(f"❌ ClecoGame: {error_msg}", level="ERROR", isOn=LOGGING_SWITCH)
+                        
+                except Exception as e:
+                    error_msg = f"Error processing coin deduction for player {player_id_str}: {str(e)}"
+                    errors.append(error_msg)
+                    custom_log(f"❌ ClecoGame: {error_msg}", level="ERROR", isOn=LOGGING_SWITCH)
+            
+            # Return response
+            if len(updated_players) > 0:
+                custom_log(f"✅ ClecoGame: Successfully deducted coins for {len(updated_players)} player(s)", level="INFO", isOn=LOGGING_SWITCH)
+                if errors:
+                    custom_log(f"⚠️ ClecoGame: {len(errors)} error(s) occurred during coin deduction", level="WARNING", isOn=LOGGING_SWITCH)
+                
+                response_data = {
+                    "success": True,
+                    "message": f"Coins deducted successfully for {len(updated_players)} player(s)",
+                    "game_id": game_id,
+                    "coins_deducted": coins,
+                    "updated_players": updated_players
+                }
+                
+                if errors:
+                    response_data["warnings"] = errors
+                    response_data["message"] += f" ({len(errors)} error(s) occurred)"
+                
+                return jsonify(response_data), 200
+            else:
+                custom_log(f"❌ ClecoGame: Failed to deduct coins for any player. Errors: {errors}", level="ERROR", isOn=LOGGING_SWITCH)
+                return jsonify({
+                    "success": False,
+                    "message": "Failed to deduct coins for any player",
+                    "error": "All deductions failed",
+                    "errors": errors
+                }), 500
+            
+        except Exception as e:
+            custom_log(f"❌ ClecoGame: Error in deduct_game_coins: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({
+                "success": False,
+                "message": "Failed to deduct game coins",
+                "error": str(e)
             }), 500
     
     

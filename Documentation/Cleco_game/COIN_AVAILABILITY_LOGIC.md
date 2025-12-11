@@ -10,11 +10,13 @@ The coin availability system validates that users have enough coins (default: 25
 - Join a random available game
 - Join a game from the available games list
 
-**Key Principle:** All validation happens on the frontend (Flutter) before any WebSocket events are sent to the backend. This ensures:
-- Fresh coin data from the database
-- No unnecessary WebSocket connections
-- Immediate user feedback
-- No backend changes required
+**Coin Deduction:** Coins are deducted from all active players (including creator) when the game actually starts (when `start_match` event is processed and game phase changes to `initial_peek`). This happens after coin availability validation but before the game begins.
+
+**Key Principles:**
+- **Validation:** All validation happens on the frontend (Flutter) before any WebSocket events are sent to the backend
+- **Deduction:** Coins are deducted when the game starts, not when players join/create
+- **Scope:** All active players have coins deducted (creator + all joiners)
+- **Practice Mode:** Practice mode games do NOT deduct coins
 
 ---
 
@@ -22,16 +24,14 @@ The coin availability system validates that users have enough coins (default: 25
 
 ### Components
 
-1. **API Endpoint** (`/userauth/cleco/get-user-stats`)
-   - Python backend endpoint that returns user's cleco_game module data
-   - Includes `coins` field along with other game statistics
-   - Protected by JWT authentication
+1. **API Endpoints:**
+   - `/userauth/cleco/get-user-stats` (GET) - Returns user's cleco_game module data including coins
+   - `/userauth/cleco/deduct-game-coins` (POST) - Deducts coins from multiple players when game starts
+   - Both endpoints are protected by JWT authentication
 
-2. **Helper Method** (`ClecoGameHelpers.checkCoinsRequirement()`)
-   - Centralized validation logic
-   - Fetches fresh stats from API by default
-   - Falls back to cached state if API fails
-   - Returns `Future<bool>` indicating if user has enough coins
+2. **Helper Methods:**
+   - `ClecoGameHelpers.checkCoinsRequirement()` - Validates coins before create/join
+   - `ClecoGameHelpers.deductGameCoins()` - Deducts coins from all players when game starts
 
 3. **Entry Points** (All game join/create actions)
    - Lobby screen create room
@@ -40,9 +40,14 @@ The coin availability system validates that users have enough coins (default: 25
    - Join random game widget
    - Available games widget
 
+4. **Coin Deduction Trigger**
+   - `ClecoEventHandlerCallbacks._handleCoinDeductionOnGameStart()` - Triggered when game phase changes to `initial_peek`
+
 ---
 
 ## Flow Diagram
+
+### Coin Validation Flow (Before Game Start)
 
 ```
 User Action (Create/Join Game)
@@ -54,8 +59,40 @@ Fetch Fresh Stats from API
     └─ Failure → Fallback to cached state
     ↓
 Compare: currentCoins >= requiredCoins?
-    ├─ Yes → Proceed with WebSocket event
+    ├─ Yes → Proceed with WebSocket event (create/join room)
     └─ No → Show error, stop (no WebSocket event)
+```
+
+### Coin Deduction Flow (When Game Starts)
+
+```
+Game Start (start_match event processed)
+    ↓
+Game Phase Changes to 'initial_peek'
+    ↓
+Flutter: handleGameStateUpdated() detects phase change
+    ↓
+Check: Is practice mode? (practice_room_*)
+    ├─ Yes → Skip coin deduction
+    └─ No → Continue
+    ↓
+Check: Coins already deducted for this game?
+    ├─ Yes → Skip (prevent duplicate deductions)
+    └─ No → Continue
+    ↓
+Get all active players from game state
+    ↓
+Extract user IDs from player objects
+    ↓
+Call ClecoGameHelpers.deductGameCoins()
+    ↓
+POST /userauth/cleco/deduct-game-coins
+    ├─ For each player: Deduct coins using MongoDB $inc
+    └─ Return success/error with updated counts
+    ↓
+Mark coins as deducted in state
+    ↓
+Refresh user stats to show updated coin count
 ```
 
 ---
@@ -248,6 +285,52 @@ Future<void> _handleJoinRandomGame() async {
 - Validates coins before calling `GameCoordinator.joinGame()`
 - Shows error snackbar if insufficient
 - Prevents game join action
+
+---
+
+### 4. Coin Deduction on Game Start
+
+**Location:** `cleco_event_handler_callbacks.dart` → `_handleCoinDeductionOnGameStart()`
+
+**Trigger:** When game phase changes to `initial_peek` (game started)
+
+**Flow:**
+```dart
+// In handleGameStateUpdated()
+if (phase changes to 'initial_peek') {
+  _handleCoinDeductionOnGameStart(gameId, gameState);
+}
+```
+
+**Deduction Process:**
+1. **Skip Practice Mode:** If `gameId.startsWith('practice_room_')`, skip deduction
+2. **Check Duplicate Prevention:** Verify coins haven't already been deducted for this game
+3. **Get Active Players:** Extract all players with `isActive == true` from game state
+4. **Extract User IDs:** Get MongoDB user IDs from player objects (stored when players join)
+5. **Call API:** `ClecoGameHelpers.deductGameCoins()` with all player user IDs
+6. **Mark as Deducted:** Store game ID in `coinsDeductedGames` state to prevent duplicates
+7. **Refresh Stats:** Update local user stats to show new coin count
+
+**Python API Endpoint:** `/userauth/cleco/deduct-game-coins`
+- Method: POST
+- Authentication: JWT required
+- Request body: `{ "coins": 25, "game_id": "room_xxx", "player_ids": ["user_id1", "user_id2", ...] }`
+- For each player:
+  - Validates user has enough coins (defense in depth)
+  - Uses MongoDB `$inc` operator to atomically deduct coins
+  - Updates `last_updated` timestamp
+- Returns: Success/error with list of updated players and their new coin counts
+
+**User ID Storage:**
+- `userId` is stored in player objects when they join (from `room_created`/`room_joined` events)
+- Creator's `userId` comes from `ownerId` in `room_created` event
+- Joiners' `userId` comes from `user_id` in `room_joined` event
+- Fallback: Current user's `userId` from login state if not in player object
+
+**Error Handling:**
+- If deduction fails, game continues (coin check should have passed before game start)
+- Partial failures are logged but don't prevent game from continuing
+- Missing user IDs for some players are logged as warnings
 
 ---
 
@@ -472,18 +555,31 @@ If API is slow or fails:
 
 ## Summary
 
-The coin availability logic provides a robust, user-friendly validation system that:
+The coin availability logic provides a robust, user-friendly validation and deduction system that:
 
 ✅ **Validates before action** - Checks coins before sending WebSocket events  
-✅ **Uses fresh data** - Fetches latest coins from API  
+✅ **Deducts on game start** - Coins are deducted when game actually starts (not on join/create)  
+✅ **All players included** - Creator and all joiners have coins deducted  
+✅ **Practice mode exempt** - Practice games do NOT deduct coins  
+✅ **Uses fresh data** - Fetches latest coins from API for validation  
 ✅ **Graceful fallback** - Uses cached state if API fails  
 ✅ **Clear feedback** - Shows specific error messages to users  
 ✅ **Comprehensive coverage** - Validates all game entry points  
+✅ **Duplicate prevention** - Tracks deducted games to prevent double-charging  
 ✅ **Well logged** - Detailed logging for debugging  
 ✅ **Configurable** - Supports custom coin requirements  
 
+**Coin Deduction Details:**
+- **When:** Game phase changes to `initial_peek` (game started)
+- **Who:** All active players (creator + joiners)
+- **Amount:** Default 25 coins (configurable)
+- **Mode:** Multiplayer only (practice mode exempt)
+- **API:** `/userauth/cleco/deduct-game-coins` (JWT protected)
+- **Atomic Operation:** Uses MongoDB `$inc` for safe coin deduction
+
 **Future Improvements:**
-- Add backend validation for security
+- Add backend validation for security (defense in depth)
 - Implement caching to reduce API calls
 - Support dynamic coin requirements based on game type/room settings
-- Add analytics to track coin validation failures
+- Add analytics to track coin validation failures and deduction success rates
+- Handle race conditions better (multiple players triggering deduction simultaneously)

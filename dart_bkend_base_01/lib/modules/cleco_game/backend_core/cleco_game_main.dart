@@ -87,6 +87,7 @@ class ClecoGameModule {
               'known_cards': <String, dynamic>{},
               'collection_rank_cards': <String>[],
               'isActive': true,  // Required for winner calculation and same rank play filtering
+              'userId': ownerId,  // Store userId (MongoDB ObjectId) for coin deduction
             }
           ],
           'drawPile': <String>[],
@@ -155,6 +156,7 @@ class ClecoGameModule {
         'known_cards': <String, dynamic>{},
         'collection_rank_cards': <String>[],
         'isActive': true,  // Required for winner calculation and same rank play filtering
+        if (userId != null && userId.isNotEmpty) 'userId': userId,  // Store userId for coin deduction
       });
 
       gameState['players'] = players;

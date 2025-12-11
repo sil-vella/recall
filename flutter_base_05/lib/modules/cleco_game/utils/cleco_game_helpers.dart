@@ -297,6 +297,95 @@ class ClecoGameHelpers {
     }
   }
 
+  /// Deduct game coins from multiple players when game starts
+  /// 
+  /// [coins] - Number of coins to deduct (default: 25)
+  /// [gameId] - Game/room ID where coins are being deducted
+  /// [playerIds] - List of user IDs (not session IDs) to deduct coins from
+  /// 
+  /// Returns:
+  /// - Map with 'success': true and 'updated_players' list on success
+  /// - Map with 'success': false and 'error' message on failure
+  /// - null on exception
+  static Future<Map<String, dynamic>?> deductGameCoins({
+    required int coins,
+    required String gameId,
+    required List<String> playerIds,
+  }) async {
+    try {
+      _logger.info('💰 ClecoGameHelpers: Deducting $coins coins for game $gameId from ${playerIds.length} player(s)', isOn: LOGGING_SWITCH);
+      
+      // Get the ConnectionsApiModule instance from the global module manager
+      final moduleManager = ModuleManager();
+      
+      final connectionsModule = moduleManager.getModuleByType<ConnectionsApiModule>();
+      
+      if (connectionsModule == null) {
+        throw Exception('ConnectionsApiModule not available - ensure it is initialized');
+      }
+      
+      // Prepare request body
+      final requestBody = {
+        'coins': coins,
+        'game_id': gameId,
+        'player_ids': playerIds,
+      };
+      
+      // Make API call to deduct coins
+      final response = await connectionsModule.sendPostRequest(
+        '/userauth/cleco/deduct-game-coins',
+        requestBody,
+      );
+      
+      // Check if response contains error
+      if (response is Map && response.containsKey('error')) {
+        final errorMessage = response['message'] ?? response['error'] ?? 'Failed to deduct coins';
+        _logger.error('❌ ClecoGameHelpers: API error: $errorMessage', isOn: LOGGING_SWITCH);
+        return {
+          'success': false,
+          'error': errorMessage,
+          'updated_players': <Map<String, dynamic>>[],
+        };
+      }
+      
+      // Check if response indicates success
+      if (response is! Map || response['success'] != true) {
+        _logger.warning('⚠️ ClecoGameHelpers: API response indicates failure', isOn: LOGGING_SWITCH);
+        return {
+          'success': false,
+          'error': response['message'] ?? response['error'] ?? 'Failed to deduct coins',
+          'updated_players': <Map<String, dynamic>>[],
+        };
+      }
+      
+      // Extract updated players from response
+      final updatedPlayers = response['updated_players'] as List<dynamic>? ?? [];
+      
+      _logger.info('✅ ClecoGameHelpers: Successfully deducted coins for ${updatedPlayers.length} player(s)', isOn: LOGGING_SWITCH);
+      
+      // Refresh user stats to show updated coin count
+      await fetchAndUpdateUserClecoGameData();
+      
+      return {
+        'success': true,
+        'message': response['message'] ?? 'Coins deducted successfully',
+        'game_id': response['game_id'] as String? ?? gameId,
+        'coins_deducted': response['coins_deducted'] as int? ?? coins,
+        'updated_players': updatedPlayers,
+        'timestamp': response['timestamp'] ?? DateTime.now().toIso8601String(),
+      };
+      
+    } catch (e, stackTrace) {
+      _logger.error('❌ ClecoGameHelpers: Error deducting game coins: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      return {
+        'success': false,
+        'error': e.toString(),
+        'updated_players': <Map<String, dynamic>>[],
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+    }
+  }
+
   /// Fetch user cleco_game data from API and update local state
   /// This is a convenience method that combines getUserClecoGameData() with state update
   /// 

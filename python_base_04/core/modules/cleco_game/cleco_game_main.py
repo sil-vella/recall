@@ -18,7 +18,7 @@ from bson import ObjectId
 import time
 
 # Logging switch for this module
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 
 class ClecoGameMain(BaseModule):
@@ -583,10 +583,24 @@ class ClecoGameMain(BaseModule):
                     modules = user.get('modules', {})
                     cleco_game = modules.get('cleco_game', {})
                     
+                    # Check subscription tier - skip deduction for promotional tier (free play)
+                    subscription_tier = cleco_game.get('subscription_tier', 'promotional')
+                    if subscription_tier == 'promotional':
+                        custom_log(f"💰 ClecoGame: Skipping coin deduction for player {player_id_str} - promotional tier (free play)", level="INFO", isOn=LOGGING_SWITCH)
+                        updated_players.append({
+                            "user_id": player_id_str,
+                            "coins_deducted": 0,
+                            "previous_coins": cleco_game.get('coins', 0),
+                            "new_coins": cleco_game.get('coins', 0),
+                            "skipped": True,
+                            "reason": "promotional_tier"
+                        })
+                        continue
+                    
                     # Get current coins
                     current_coins = cleco_game.get('coins', 0)
                     
-                    custom_log(f"💰 ClecoGame: Current coins for {player_id_str}: {current_coins}", level="INFO", isOn=LOGGING_SWITCH)
+                    custom_log(f"💰 ClecoGame: Current coins for {player_id_str}: {current_coins}, subscription_tier: {subscription_tier}", level="INFO", isOn=LOGGING_SWITCH)
                     
                     # Check if user has enough coins (defense in depth - frontend should have checked already)
                     if current_coins < coins:

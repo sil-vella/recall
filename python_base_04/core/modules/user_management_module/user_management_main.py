@@ -273,6 +273,7 @@ class UserManagementModule(BaseModule):
                         'level': 1,
                         'rank': 'beginner',
                         'win_rate': 0.0,
+                        'subscription_tier': 'promotional',
                         'last_match_date': None,
                         'last_updated': current_time.isoformat()
                     }
@@ -454,6 +455,7 @@ class UserManagementModule(BaseModule):
                         'level': 1,
                         'rank': 'beginner',
                         'win_rate': 0.0,
+                        'subscription_tier': 'promotional',
                         'last_match_date': None,
                         'last_updated': current_time.isoformat()
                     }

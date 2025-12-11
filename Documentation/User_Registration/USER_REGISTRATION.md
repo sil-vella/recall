@@ -435,6 +435,19 @@ user_data = {
             'enabled': True,
             'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
             'referrals_count': 0
+        },
+        'cleco_game': {
+            'enabled': True,
+            'wins': 0,
+            'losses': 0,
+            'total_matches': 0,
+            'points': 0,
+            'level': 1,
+            'rank': 'beginner',
+            'win_rate': 0.0,
+            'subscription_tier': 'promotional',  # Default: promotional tier (free play)
+            'last_match_date': None,
+            'last_updated': current_time.isoformat()
         }
     },
     
@@ -1279,6 +1292,8 @@ These keys are cleared on logout but restored from permanent keys when needed:
       "level": "integer (default: 1)",
       "rank": "string (default: 'beginner')",
       "win_rate": "float (default: 0.0)",
+      "subscription_tier": "string (default: 'promotional')",
+      "coins": "integer (default: 0)",
       "last_match_date": "ISO 8601 timestamp | null",
       "last_updated": "ISO 8601 timestamp"
     }
@@ -1286,11 +1301,22 @@ These keys are cleared on logout but restored from permanent keys when needed:
   
   "audit": {
     "last_login": "ISO 8601 timestamp | null",
-    "login_count": "integer (default: 0)",
+    "login_count": "integer",
     "password_changed_at": "ISO 8601 timestamp",
     "profile_updated_at": "ISO 8601 timestamp"
   }
 }
+```
+
+**Subscription Tier System (cleco_game module):**
+- **subscription_tier**: Determines coin requirements for Cleco game
+  - `'promotional'` (default): Free play - no coin check required, no coins deducted during gameplay
+  - `'free'`: Requires coins - coin check and deduction applies
+  - `'regular'`: Requires coins - coin check and deduction applies
+- **coins**: Starting coin balance (default: 0)
+- Both fields are initialized during user registration (both guest and regular accounts)
+- Subscription tier affects coin validation before game creation/join and coin deduction when games start
+- See `COIN_AVAILABILITY_LOGIC.md` for detailed information on how subscription tier affects gameplay
 ```
 
 ### API Request Payload
@@ -2024,6 +2050,7 @@ The user registration process is a comprehensive system that handles user accoun
 - **Automatic data encryption** (email, username, phone encrypted at rest)
 - **Duplicate prevention** (email and username uniqueness)
 - **Comprehensive user data structure** (profile, preferences, modules, audit)
+- **Cleco game module initialization** (subscription_tier: 'promotional', coins: 0)
 - **Hook system** for post-registration actions
 - **Error handling** with security-conscious messages
 - **Rate limiting** protection
@@ -2037,6 +2064,14 @@ The user registration process is a comprehensive system that handles user accoun
 - **Full account functionality** (same features as regular accounts)
 - **Secure credential generation** (cryptographically secure randomness)
 - **Account type distinction** (marked as 'guest' in database)
+- **Cleco game module initialization** (subscription_tier: 'promotional', coins: 0)
+
+### Subscription Tier System
+- **Default tier**: All new users (guest and regular) start with `subscription_tier: 'promotional'`
+- **Promotional tier**: Free play - no coin check required, no coins deducted
+- **Free/Regular tier**: Requires coins - coin check and deduction applies
+- **Location**: Stored in `modules.cleco_game.subscription_tier`
+- **Impact**: Affects coin validation before game creation/join and coin deduction when games start
 
 The system is designed to be secure, scalable, and extensible, with clear separation of concerns between frontend and backend components. Guest registration provides a low-friction entry point while maintaining the same security and functionality standards as regular registration. All sensitive user data (email, username, phone) is automatically encrypted at rest using deterministic encryption for searchable fields and Fernet encryption for other sensitive data.
 

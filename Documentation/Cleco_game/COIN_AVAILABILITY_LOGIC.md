@@ -10,12 +10,24 @@ The coin availability system validates that users have enough coins (default: 25
 - Join a random available game
 - Join a game from the available games list
 
-**Coin Deduction:** Coins are deducted from all active players (including creator) when the game actually starts (when `start_match` event is processed and game phase changes to `initial_peek`). This happens after coin availability validation but before the game begins.
+**Subscription Tier System:**
+- Users have a `subscription_tier` field in `modules.cleco_game.subscription_tier`
+- **Promotional Tier** (`'promotional'`): Free play - no coin check required, no coins deducted
+- **Free/Regular Tier** (`'free'` or `'regular'`): Requires coins - coin check and deduction applies
+- Default tier for new users: `'promotional'`
+- Tier is checked before coin validation and during coin deduction
+
+**Coin Deduction:** Coins are deducted from all active players (including creator) when the game actually starts (when `start_match` event is processed and game phase changes to `initial_peek`). This happens after coin availability validation but before the game begins. **Promotional tier players are exempt from coin deduction.**
 
 **Key Principles:**
+- **Subscription Tier System:** Users have a `subscription_tier` field in `modules.cleco_game.subscription_tier`
+  - **Promotional Tier:** Free play - no coin check required, no coins deducted
+  - **Free/Regular Tier:** Requires coins - coin check and deduction applies
 - **Validation:** All validation happens on the frontend (Flutter) before any WebSocket events are sent to the backend
+- **Tier Check First:** Subscription tier is checked before coin validation (promotional tier skips coin check)
 - **Deduction:** Coins are deducted when the game starts, not when players join/create
-- **Scope:** All active players have coins deducted (creator + all joiners)
+- **Per-Player Tier Check:** Each player's subscription tier is checked individually during coin deduction
+- **Scope:** All active players have coins deducted (creator + all joiners), except promotional tier players
 - **Practice Mode:** Practice mode games do NOT deduct coins
 
 ---
@@ -52,10 +64,14 @@ The coin availability system validates that users have enough coins (default: 25
 ```
 User Action (Create/Join Game)
     ↓
+Check Subscription Tier
+    ├─ Promotional → Skip coin check, proceed (free play)
+    └─ Free/Regular → Continue to coin check
+    ↓
 Check Coins Requirement
     ↓
 Fetch Fresh Stats from API
-    ├─ Success → Extract coins from response
+    ├─ Success → Extract coins and subscription_tier from response
     └─ Failure → Fallback to cached state
     ↓
 Compare: currentCoins >= requiredCoins?
@@ -87,8 +103,11 @@ Extract user IDs from player objects
 Call ClecoGameHelpers.deductGameCoins()
     ↓
 POST /userauth/cleco/deduct-game-coins
-    ├─ For each player: Deduct coins using MongoDB $inc
-    └─ Return success/error with updated counts
+    ├─ For each player:
+    │   ├─ Check subscription_tier
+    │   ├─ If promotional → Skip deduction (free play)
+    │   └─ If free/regular → Deduct coins using MongoDB $inc
+    └─ Return success/error with updated counts (includes skipped players)
     ↓
 Mark coins as deducted in state
     ↓
@@ -116,19 +135,30 @@ static Future<bool> checkCoinsRequirement({
 - `fetchFromAPI`: Whether to fetch fresh stats from API (default: true)
 
 **Behavior:**
-1. If `fetchFromAPI` is true:
+1. **First checks subscription tier:**
+   - Calls `getSubscriptionTier()` to get user's subscription tier
+   - If `subscription_tier == 'promotional'` → Returns `true` immediately (free play, no coin check)
+   - If `subscription_tier != 'promotional'` → Continues with coin check
+2. If `fetchFromAPI` is true:
    - Calls `getUserClecoGameData()` to fetch fresh stats from API
-   - Extracts `coins` from API response
+   - Extracts `coins` and `subscription_tier` from API response
    - Falls back to cached state if API call fails
-2. If `fetchFromAPI` is false:
+3. If `fetchFromAPI` is false:
    - Uses cached state from `getUserClecoGameStats()`
-3. Compares current coins with required coins
-4. Returns `true` if sufficient, `false` otherwise
-5. Logs all operations for debugging
+4. Compares current coins with required coins
+5. Returns `true` if sufficient, `false` otherwise
+6. Logs all operations for debugging
+
+**Subscription Tier Integration:**
+- First checks `subscription_tier` from user stats
+- If `subscription_tier == 'promotional'` → Returns `true` immediately (free play, no coin check)
+- If `subscription_tier != 'promotional'` → Proceeds with coin validation
+- This allows promotional tier users to play for free without coin requirements
 
 **Example Usage:**
 ```dart
 // Check with default 25 coins, fetch from API
+// Will skip coin check if user has promotional tier
 final hasEnough = await ClecoGameHelpers.checkCoinsRequirement();
 
 // Check with custom requirement, fetch from API
@@ -162,12 +192,18 @@ final hasEnough = await ClecoGameHelpers.checkCoinsRequirement(
     "points": 150,
     "level": 3,
     "rank": "intermediate",
+    "subscription_tier": "promotional",
     ...
   },
   "user_id": "68700c8550fad8a5be4e28bd",
   "timestamp": "2025-12-10T12:41:05.225Z"
 }
 ```
+
+**Subscription Tier Values:**
+- `"promotional"`: Free play tier - no coin check or deduction required
+- `"free"`: Free tier - requires coins for gameplay
+- `"regular"`: Regular tier - requires coins for gameplay
 
 **Error Response:**
 ```json
@@ -316,10 +352,18 @@ if (phase changes to 'initial_peek') {
 - Authentication: JWT required
 - Request body: `{ "coins": 25, "game_id": "room_xxx", "player_ids": ["user_id1", "user_id2", ...] }`
 - For each player:
-  - Validates user has enough coins (defense in depth)
-  - Uses MongoDB `$inc` operator to atomically deduct coins
-  - Updates `last_updated` timestamp
-- Returns: Success/error with list of updated players and their new coin counts
+  1. **Check Subscription Tier:**
+     - Retrieves player's `modules.cleco_game.subscription_tier` from database
+     - If `subscription_tier == 'promotional'`:
+       - Skips coin deduction (free play)
+       - Adds player to response with `coins_deducted: 0`, `skipped: true`, `reason: "promotional_tier"`
+       - Logs: "Skipping coin deduction for player X - promotional tier (free play)"
+     - If `subscription_tier != 'promotional'`:
+       - Continues with coin deduction
+  2. **Validate Coins:** Validates user has enough coins (defense in depth)
+  3. **Deduct Coins:** Uses MongoDB `$inc` operator to atomically deduct coins
+  4. **Update Timestamp:** Updates `last_updated` timestamp
+- Returns: Success/error with list of updated players (includes both deducted and skipped players) and their new coin counts
 
 **User ID Storage:**
 - `userId` is stored in player objects when they join (from `room_created`/`room_joined` events)
@@ -557,9 +601,12 @@ If API is slow or fails:
 
 The coin availability logic provides a robust, user-friendly validation and deduction system that:
 
-✅ **Validates before action** - Checks coins before sending WebSocket events  
+✅ **Subscription tier aware** - Checks subscription tier before coin validation and deduction  
+✅ **Promotional tier free play** - Promotional tier users skip coin check and deduction  
+✅ **Validates before action** - Checks coins before sending WebSocket events (for non-promotional users)  
 ✅ **Deducts on game start** - Coins are deducted when game actually starts (not on join/create)  
-✅ **All players included** - Creator and all joiners have coins deducted  
+✅ **Per-player tier check** - Each player's subscription tier is checked individually during deduction  
+✅ **All players included** - Creator and all joiners have coins deducted (except promotional tier)  
 ✅ **Practice mode exempt** - Practice games do NOT deduct coins  
 ✅ **Uses fresh data** - Fetches latest coins from API for validation  
 ✅ **Graceful fallback** - Uses cached state if API fails  
@@ -571,11 +618,22 @@ The coin availability logic provides a robust, user-friendly validation and dedu
 
 **Coin Deduction Details:**
 - **When:** Game phase changes to `initial_peek` (game started)
-- **Who:** All active players (creator + joiners)
+- **Who:** All active players (creator + joiners), except promotional tier players
+- **Subscription Tier Check:** Each player's tier is checked individually during deduction
+  - **Promotional Tier:** No coins deducted (free play)
+  - **Free/Regular Tier:** Coins deducted (default 25 coins)
 - **Amount:** Default 25 coins (configurable)
 - **Mode:** Multiplayer only (practice mode exempt)
 - **API:** `/userauth/cleco/deduct-game-coins` (JWT protected)
 - **Atomic Operation:** Uses MongoDB `$inc` for safe coin deduction
+- **Per-Player Processing:** Each player is processed individually, allowing mixed-tier games
+
+**Subscription Tier System:**
+- **Promotional Tier** (`'promotional'`): Free play - no coin check, no coin deduction
+- **Free/Regular Tier** (`'free'` or `'regular'`): Requires coins - coin check and deduction applies
+- **Default**: New users start with `subscription_tier: 'promotional'`
+- **Per-Player Check**: Each player's tier is checked individually during deduction
+- **Mixed Games**: Promotional tier players can play with free/regular tier players (only free/regular players pay)
 
 **Future Improvements:**
 - Add backend validation for security (defense in depth)
@@ -583,3 +641,4 @@ The coin availability logic provides a robust, user-friendly validation and dedu
 - Support dynamic coin requirements based on game type/room settings
 - Add analytics to track coin validation failures and deduction success rates
 - Handle race conditions better (multiple players triggering deduction simultaneously)
+- Support additional subscription tiers (e.g., premium, VIP)

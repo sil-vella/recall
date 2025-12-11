@@ -307,47 +307,54 @@ class ClecoGameMain(BaseModule):
                     current_wins = cleco_game.get('wins', 0)
                     current_losses = cleco_game.get('losses', 0)
                     current_total_matches = cleco_game.get('total_matches', 0)
-                    current_points = cleco_game.get('points', 0)
+                    current_coins = cleco_game.get('coins', 0)
                     
-                    custom_log(f"📊 Python: Current stats for {user_id_str} - wins: {current_wins}, losses: {current_losses}, matches: {current_total_matches}, points: {current_points}", level="INFO", isOn=LOGGING_SWITCH)
+                    custom_log(f"📊 Python: Current stats for {user_id_str} - wins: {current_wins}, losses: {current_losses}, matches: {current_total_matches}, coins: {current_coins}", level="INFO", isOn=LOGGING_SWITCH)
                     
                     # Get new values from game result
                     is_winner = player_result.get('is_winner', False)
-                    points_to_add = player_result.get('points', 0)
+                    pot = player_result.get('pot', 0)  # Pot amount for this player (already split if multiple winners)
                     
-                    custom_log(f"📊 Python: Game result for {user_id_str} - is_winner: {is_winner}, points_to_add: {points_to_add}", level="INFO", isOn=LOGGING_SWITCH)
+                    custom_log(f"📊 Python: Game result for {user_id_str} - is_winner: {is_winner}, pot: {pot}", level="INFO", isOn=LOGGING_SWITCH)
                     
                     # Calculate new statistics
                     new_total_matches = current_total_matches + 1
                     new_wins = current_wins + (1 if is_winner else 0)
                     new_losses = current_losses + (0 if is_winner else 1)
-                    new_points = current_points + points_to_add
+                    new_coins = current_coins + pot  # Add pot to winner's coins
                     
                     # Calculate win rate (wins / total_matches)
                     new_win_rate = float(new_wins) / float(new_total_matches) if new_total_matches > 0 else 0.0
                     
-                    custom_log(f"📊 Python: New stats for {user_id_str} - wins: {new_wins}, losses: {new_losses}, matches: {new_total_matches}, points: {new_points}, win_rate: {new_win_rate:.2f}", level="INFO", isOn=LOGGING_SWITCH)
+                    custom_log(f"📊 Python: New stats for {user_id_str} - wins: {new_wins}, losses: {new_losses}, matches: {new_total_matches}, coins: {new_coins} (added {pot}), win_rate: {new_win_rate:.2f}", level="INFO", isOn=LOGGING_SWITCH)
                     
                     # Prepare update data using MongoDB dot notation
-                    update_data = {
-                        'modules.cleco_game.total_matches': new_total_matches,
-                        'modules.cleco_game.wins': new_wins,
-                        'modules.cleco_game.losses': new_losses,
-                        'modules.cleco_game.points': new_points,
-                        'modules.cleco_game.win_rate': new_win_rate,
-                        'modules.cleco_game.last_match_date': current_timestamp,
-                        'modules.cleco_game.last_updated': current_timestamp,
-                        'updated_at': current_timestamp
+                    # Use $inc for coins (atomic operation) and $set for other fields
+                    # Note: db_manager.update() automatically wraps in $set, so we need raw MongoDB operation for $inc
+                    update_operation = {
+                        '$set': {
+                            'modules.cleco_game.total_matches': new_total_matches,
+                            'modules.cleco_game.wins': new_wins,
+                            'modules.cleco_game.losses': new_losses,
+                            'modules.cleco_game.win_rate': new_win_rate,
+                            'modules.cleco_game.last_match_date': current_timestamp,
+                            'modules.cleco_game.last_updated': current_timestamp,
+                            'updated_at': current_timestamp
+                        }
                     }
                     
-                    # Update user in database
-                    # Note: db_manager.update() automatically wraps data in {'$set': ...}, so pass update_data directly
+                    # Add coin reward for winners using $inc (atomic operation)
+                    if is_winner and pot > 0:
+                        update_operation['$inc'] = {'modules.cleco_game.coins': pot}
+                        custom_log(f"💰 Python: Awarding {pot} coins to winner {user_id_str} (current: {current_coins}, new: {new_coins})", level="INFO", isOn=LOGGING_SWITCH)
+                    
+                    # Update user in database using raw MongoDB operation (for $inc support)
                     custom_log(f"📊 Python: Updating database for user_id: {user_id_str}", level="INFO", isOn=LOGGING_SWITCH)
-                    modified_count = db_manager.update(
-                        "users",
+                    result = db_manager.db["users"].update_one(
                         {"_id": user_id},
-                        update_data
+                        update_operation
                     )
+                    modified_count = result.modified_count if result else 0
                     
                     if modified_count > 0:
                         custom_log(f"✅ Python: Successfully updated database for user_id: {user_id_str} (modified_count: {modified_count})", level="INFO", isOn=LOGGING_SWITCH)
@@ -356,7 +363,8 @@ class ClecoGameMain(BaseModule):
                             "wins": new_wins,
                             "losses": new_losses,
                             "total_matches": new_total_matches,
-                            "points": new_points,
+                            "coins": new_coins,
+                            "coins_added": pot if is_winner else 0,
                             "win_rate": new_win_rate
                         })
                     else:

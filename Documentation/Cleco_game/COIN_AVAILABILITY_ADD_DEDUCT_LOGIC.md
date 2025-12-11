@@ -597,9 +597,126 @@ If API is slow or fails:
 
 ---
 
+## Coin Addition (Rewards) on Game End
+
+### Overview
+
+When a game ends, winners receive coin rewards based on the match pot. The pot is calculated at game start and equals `coin_cost × number_of_active_players`. The winner(s) receive the full pot (split evenly if multiple winners).
+
+### Match Pot Calculation
+
+**Location:** `game_event_coordinator.dart` → `_handleStartMatch()`
+
+**Calculation:**
+- **Default coin cost:** 25 coins per player
+- **Pot formula:** `pot = coin_cost × active_player_count`
+- **Example:** 4 players × 25 coins = 100 coin pot
+
+**Storage:**
+- Pot is stored in game state: `gameData.game_state.match_pot`
+- Also stored: `match_class` (default: 'standard') and `coin_cost_per_player` (default: 25)
+- These values are set at game start and remain constant throughout the game
+
+### Winner Reward Distribution
+
+**Location:** `game_registry.dart` → `onGameEnded()`
+
+**Process:**
+1. Game ends with winner(s) determined
+2. Match pot is retrieved from game state
+3. For each winner:
+   - If single winner: Receives full pot
+   - If multiple winners: Pot is split evenly among all winners
+   - Non-winners: Receive 0 coins
+4. Game results are sent to Python backend for database update
+
+**Example:**
+- Pot: 100 coins
+- Single winner: Receives 100 coins
+- Two winners: Each receives 50 coins
+- Three winners: Each receives 33 coins (rounded)
+
+### Database Update
+
+**Location:** `cleco_game_main.py` → `update_game_stats()`
+
+**Process:**
+1. Receives game results with `pot` value for each player
+2. For winners (`is_winner: true`):
+   - Retrieves current coins from database
+   - Calculates new coins: `new_coins = current_coins + pot`
+   - Uses MongoDB `$inc` operator to atomically add coins: `{'modules.cleco_game.coins': pot}`
+3. Updates game statistics:
+   - Increments `wins` for winners
+   - Increments `losses` for non-winners
+   - Increments `total_matches` for all players
+4. Returns updated player statistics
+
+**Atomic Operation:**
+- Uses MongoDB `$inc` operator for safe coin addition
+- Prevents race conditions and ensures data consistency
+- Updates `last_updated` timestamp
+
+### UI Refresh After Game End
+
+**Location:** `cleco_event_handler_callbacks.dart` → `handleGameStateUpdated()` and `handleGameStatePartialUpdate()`
+
+**Problem:**
+- Database is updated correctly with new coin balance
+- UI (app bar coins display) doesn't automatically refresh
+- User sees stale coin count until manual refresh
+
+**Solution:**
+When game ends (`uiPhase == 'game_ended'` and winners exist):
+1. Show winner modal (existing behavior)
+2. **Automatically refresh user stats** by calling `ClecoGameHelpers.fetchAndUpdateUserClecoGameData()`
+3. This fetches fresh stats from API (including updated coins)
+4. Updates `cleco_game.userStats.coins` in state
+5. `StateAwareCoinsDisplayFeature` widget (uses `ListenableBuilder`) automatically rebuilds with new coin count
+
+**Implementation:**
+```dart
+// After showing winner modal
+_logger.info('🔄 Refreshing user stats after game end to update coins display');
+ClecoGameHelpers.fetchAndUpdateUserClecoGameData().then((success) {
+  if (success) {
+    _logger.info('✅ Successfully refreshed user stats after game end');
+  } else {
+    _logger.warning('⚠️ Failed to refresh user stats after game end');
+  }
+});
+```
+
+**Flow:**
+```
+Game Ends
+    ↓
+Database Updated (coins added to winner)
+    ↓
+Game End Event Received in Frontend
+    ↓
+Show Winner Modal
+    ↓
+Refresh User Stats from API
+    ↓
+Update State: cleco_game.userStats.coins
+    ↓
+Coins Display Widget Rebuilds (ListenableBuilder)
+    ↓
+App Bar Shows Updated Coin Count
+```
+
+**Benefits:**
+- ✅ Automatic UI update - no manual refresh needed
+- ✅ Accurate display - shows latest coin balance
+- ✅ Seamless UX - user sees updated coins immediately after game ends
+- ✅ Works for both wins and losses (though only winners get coins)
+
+---
+
 ## Summary
 
-The coin availability logic provides a robust, user-friendly validation and deduction system that:
+The coin availability, deduction, and addition logic provides a robust, user-friendly system that:
 
 ✅ **Subscription tier aware** - Checks subscription tier before coin validation and deduction  
 ✅ **Promotional tier free play** - Promotional tier users skip coin check and deduction  
@@ -615,6 +732,8 @@ The coin availability logic provides a robust, user-friendly validation and dedu
 ✅ **Duplicate prevention** - Tracks deducted games to prevent double-charging  
 ✅ **Well logged** - Detailed logging for debugging  
 ✅ **Configurable** - Supports custom coin requirements  
+✅ **Winner rewards** - Winners receive match pot as coin reward  
+✅ **Automatic UI refresh** - Coins display updates automatically after game ends  
 
 **Coin Deduction Details:**
 - **When:** Game phase changes to `initial_peek` (game started)
@@ -628,12 +747,23 @@ The coin availability logic provides a robust, user-friendly validation and dedu
 - **Atomic Operation:** Uses MongoDB `$inc` for safe coin deduction
 - **Per-Player Processing:** Each player is processed individually, allowing mixed-tier games
 
+**Coin Addition (Rewards) Details:**
+- **When:** Game ends with winner(s) determined
+- **Who:** Winner(s) only (non-winners receive 0 coins)
+- **Amount:** Match pot = `coin_cost × active_player_count` (default: 25 × players)
+- **Distribution:** Full pot to single winner, split evenly among multiple winners
+- **Mode:** Multiplayer only (practice mode exempt)
+- **API:** `/userauth/cleco/update-game-stats` (JWT protected)
+- **Atomic Operation:** Uses MongoDB `$inc` for safe coin addition
+- **UI Refresh:** Automatically refreshes user stats after game end to update coins display
+
 **Subscription Tier System:**
 - **Promotional Tier** (`'promotional'`): Free play - no coin check, no coin deduction
 - **Free/Regular Tier** (`'free'` or `'regular'`): Requires coins - coin check and deduction applies
 - **Default**: New users start with `subscription_tier: 'promotional'`
 - **Per-Player Check**: Each player's tier is checked individually during deduction
 - **Mixed Games**: Promotional tier players can play with free/regular tier players (only free/regular players pay)
+- **Rewards**: All players (regardless of tier) can receive coin rewards if they win
 
 **Future Improvements:**
 - Add backend validation for security (defense in depth)
@@ -642,3 +772,5 @@ The coin availability logic provides a robust, user-friendly validation and dedu
 - Add analytics to track coin validation failures and deduction success rates
 - Handle race conditions better (multiple players triggering deduction simultaneously)
 - Support additional subscription tiers (e.g., premium, VIP)
+- Add coin transaction history/logging
+- Support different pot distributions (e.g., winner-takes-all, tiered rewards)

@@ -4,7 +4,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for winner determination testing
+const bool LOGGING_SWITCH = true; // Enabled for winner determination testing
 
 /// Holds active ClecoGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -395,14 +395,15 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   }
 
   @override
-  void onGameEnded(List<Map<String, dynamic>> winners, List<Map<String, dynamic>> allPlayers) {
+  void onGameEnded(List<Map<String, dynamic>> winners, List<Map<String, dynamic>> allPlayers, {int? matchPot}) {
     // Only update stats for multiplayer matches (room_*), not practice (practice_room_*)
     if (!roomId.startsWith('room_')) {
       _logger.info('GameStateCallback: Skipping stats update for non-multiplayer room $roomId (practice mode)', isOn: LOGGING_SWITCH);
       return;
     }
 
-      _logger.info('GameStateCallback: Game ended for room $roomId - updating statistics for ${allPlayers.length} player(s)', isOn: LOGGING_SWITCH);
+      final pot = matchPot ?? 0;
+      _logger.info('GameStateCallback: Game ended for room $roomId - updating statistics for ${allPlayers.length} player(s), match_pot: $pot', isOn: LOGGING_SWITCH);
 
     try {
       // Build list of winner player IDs for quick lookup
@@ -438,20 +439,18 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
           winType = winnerInfo['winType']?.toString();
         }
         
-        // Calculate points (STUBBED - will be implemented later)
-        // For now, we'll need to get the round instance to call the stub method
-        // Since we don't have direct access, we'll pass 0 for now
-        // TODO: Implement point calculation
-        final points = 0; // Placeholder - will be calculated later
+        // Calculate pot for this player (full pot if winner, 0 if not)
+        // If multiple winners, pot will be split equally among winners
+        final playerPot = isWinner ? (pot > 0 && winners.isNotEmpty ? (pot / winners.length).round() : 0) : 0;
         
         gameResults.add({
           'user_id': userId,
           'is_winner': isWinner,
-          'points': points,
+          'pot': playerPot, // Pot amount for this player (full pot if single winner, split if multiple winners)
           'win_type': winType,
         });
         
-        _logger.info('GameStateCallback: Added game result for user $userId - winner: $isWinner, points: $points', isOn: LOGGING_SWITCH);
+        _logger.info('GameStateCallback: Added game result for user $userId - winner: $isWinner, pot: $playerPot', isOn: LOGGING_SWITCH);
       }
       
       if (gameResults.isEmpty) {

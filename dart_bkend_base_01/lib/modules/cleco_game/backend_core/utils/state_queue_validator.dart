@@ -461,6 +461,14 @@ class StateQueueValidator {
       nullable: true,
       description: 'ISO timestamp when userStats was last fetched from the database',
     ),
+    
+    // Coin Deduction Tracking
+    'coinsDeductedGames': ClecoStateFieldSpec(
+      type: List,
+      required: false,
+      defaultValue: [],
+      description: 'List of game IDs for which coins have already been deducted (prevents duplicate deductions)',
+    ),
   };
 
   /// Set the handler for applying validated updates (platform-specific)

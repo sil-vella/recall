@@ -7,7 +7,7 @@ import '../../utils/platform/shared_imports.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for final round debugging
+const bool LOGGING_SWITCH = true; // Enabled for final round debugging
 
 class ClecoGameRound {
   final Logger _logger = Logger();
@@ -1039,10 +1039,42 @@ class ClecoGameRound {
         // Draw from draw pile
         final drawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
         if (drawPile.isEmpty) {
-          _logger.error('Cleco: Cannot draw from empty draw pile', isOn: LOGGING_SWITCH);
-          return false;
+          // Draw pile is empty - reshuffle discard pile (except top card) into draw pile
+          final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+          
+          if (discardPile.length <= 1) {
+            _logger.error('Cleco: Cannot reshuffle - draw pile is empty and discard pile has ${discardPile.length} card(s)', isOn: LOGGING_SWITCH);
+            return false;
+          }
+          
+          // Extract all cards except the last one (top card that's currently showing)
+          final topCard = discardPile.last; // Keep this in discard pile
+          final cardsToReshuffle = discardPile.sublist(0, discardPile.length - 1);
+          
+          _logger.info('Cleco: Draw pile empty - reshuffling ${cardsToReshuffle.length} cards from discard pile (keeping top card: ${topCard['cardId']})', isOn: LOGGING_SWITCH);
+          
+          // Convert full data cards to ID-only format (draw pile uses ID-only)
+          final idOnlyCards = cardsToReshuffle.map((card) => {
+            'cardId': card['cardId'],
+            'suit': '?',      // Face-down: hide suit
+            'rank': '?',      // Face-down: hide rank
+            'points': 0,      // Face-down: hide points
+          }).toList();
+          
+          // Shuffle the cards
+          idOnlyCards.shuffle();
+          
+          // Add shuffled cards to draw pile
+          drawPile.addAll(idOnlyCards);
+          gameState['drawPile'] = drawPile;
+          
+          // Keep only the top card in discard pile
+          gameState['discardPile'] = [topCard];
+          
+          _logger.info('Cleco: Reshuffled ${idOnlyCards.length} cards into draw pile. Draw pile now has ${drawPile.length} cards, discard pile has 1 card', isOn: LOGGING_SWITCH);
         }
         
+        // Now draw from the (potentially reshuffled) draw pile
         final idOnlyCard = drawPile.removeLast(); // Remove last card (top of pile)
         _logger.info('Cleco: Drew card ${idOnlyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
         
@@ -3213,14 +3245,25 @@ class ClecoGameRound {
         }
         
         // Get all players from current game state for stats update
-        final gameState = _getCurrentGameState();
-        if (gameState != null) {
-          final players = (gameState['players'] as List<dynamic>? ?? [])
+        final currentGameState = _getCurrentGameState();
+        if (currentGameState != null) {
+          final players = (currentGameState['players'] as List<dynamic>? ?? [])
               .whereType<Map<String, dynamic>>()
               .toList();
           
+          // Get match_pot from game state (calculated at game start)
+          // Pot is stored in game_state.match_pot (not gameData.match_pot)
+          final gamesMap = _stateCallback.currentGamesMap;
+          final gameData = gamesMap[_gameId] as Map<String, dynamic>?;
+          final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+          final storedGameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+          final matchPot = storedGameState?['match_pot'] as int? ?? 0;
+          
+          _logger.info('Cleco: Game ending - match_pot: $matchPot, winners: ${_winnersList.length}', isOn: LOGGING_SWITCH);
+          
           // Call onGameEnded callback to trigger stats update
-          _stateCallback.onGameEnded(_winnersList, players);
+          // Pass match_pot so it can be included in game_results for winner reward
+          _stateCallback.onGameEnded(_winnersList, players, matchPot: matchPot);
         }
       } else {
         _logger.info('Cleco: No winners yet - game continues', isOn: LOGGING_SWITCH);

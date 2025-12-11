@@ -74,6 +74,7 @@ abstract class GameStateCallback {
   /// 
   /// [winners] List of winner information with playerId, playerName, winType
   /// [allPlayers] List of all players with their final state
+  /// [matchPot] The total pot amount (coin_cost × active_players) to be awarded to winner(s)
   /// This should only be called for multiplayer matches, not practice matches
-  void onGameEnded(List<Map<String, dynamic>> winners, List<Map<String, dynamic>> allPlayers);
+  void onGameEnded(List<Map<String, dynamic>> winners, List<Map<String, dynamic>> allPlayers, {int? matchPot});
 }

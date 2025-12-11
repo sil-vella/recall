@@ -1128,6 +1128,17 @@ class ClecoEventHandlerCallbacks {
         },
         showModal: true, // Show modal for game end
       );
+      
+      // Refresh user stats (including coins) after game ends to update app bar display
+      // This ensures the coins display shows the updated balance after winning/losing
+      _logger.info('🔄 handleGameStateUpdated: Refreshing user stats after game end to update coins display', isOn: LOGGING_SWITCH);
+      ClecoGameHelpers.fetchAndUpdateUserClecoGameData().then((success) {
+        if (success) {
+          _logger.info('✅ handleGameStateUpdated: Successfully refreshed user stats after game end', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.warning('⚠️ handleGameStateUpdated: Failed to refresh user stats after game end', isOn: LOGGING_SWITCH);
+        }
+      });
     } else {
       // Normal game state update - ensure modal is hidden if game hasn't ended
       if (uiPhase != 'game_ended') {
@@ -1301,13 +1312,19 @@ class ClecoEventHandlerCallbacks {
         'gamePhase': 'game_ended', // Ensure gamePhase is set before showing modal
       });
       
-      // Update gamePhase and show modal in the same state update to avoid race condition
-      _logger.info('🏆 handleGameStatePartialUpdate: Updating gamePhase and showing winner modal', isOn: LOGGING_SWITCH);
-      ClecoGameHelpers.updateUIState({
-        'gamePhase': 'game_ended', // Ensure gamePhase is set before showing modal
+      _logger.info('🏆 handleGameStatePartialUpdate: Calling _addSessionMessage with winner info - title="Game Ended", message="Winner(s): $winnerMessages"', isOn: LOGGING_SWITCH);
+      
+      // Refresh user stats (including coins) after game ends to update app bar display
+      // This ensures the coins display shows the updated balance after winning/losing
+      _logger.info('🔄 handleGameStatePartialUpdate: Refreshing user stats after game end to update coins display', isOn: LOGGING_SWITCH);
+      ClecoGameHelpers.fetchAndUpdateUserClecoGameData().then((success) {
+        if (success) {
+          _logger.info('✅ handleGameStatePartialUpdate: Successfully refreshed user stats after game end', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.warning('⚠️ handleGameStatePartialUpdate: Failed to refresh user stats after game end', isOn: LOGGING_SWITCH);
+        }
       });
       
-      _logger.info('🏆 handleGameStatePartialUpdate: Calling _addSessionMessage with winner info - title="Game Ended", message="Winner(s): $winnerMessages"', isOn: LOGGING_SWITCH);
       _addSessionMessage(
         level: 'success',
         title: 'Game Ended',
@@ -1505,9 +1522,55 @@ class ClecoEventHandlerCallbacks {
     try {
       _logger.info('💰 _handleCoinDeductionOnGameStart: Processing coin deduction for game $gameId', isOn: LOGGING_SWITCH);
       
-      // Skip coin deduction for practice mode games
+      // Get all active players from game state (for both practice and multiplayer)
+      final players = (gameState['players'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .where((p) => (p['isActive'] as bool? ?? true) == true)  // Only active players
+          .toList();
+      
+      if (players.isEmpty) {
+        _logger.warning('⚠️ _handleCoinDeductionOnGameStart: No active players found', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Calculate pot: coin_cost × number_of_active_players (regardless of subscription tier)
+      // Default coin cost is 25 (will be tied to match_class in future)
+      final coinCost = 25;
+      final activePlayerCount = players.length;
+      final pot = coinCost * activePlayerCount;
+      
+      // Store match_class, coin_cost_per_player, and match_pot in game_state
+      // This allows the pot to be displayed during gameplay
+      // Need to update game_state within gameData, not gameData directly
+      final currentGames = _getCurrentGamesMap();
+      if (currentGames.containsKey(gameId)) {
+        final currentGame = currentGames[gameId] as Map<String, dynamic>? ?? {};
+        final currentGameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+        final currentGameState = currentGameData['game_state'] as Map<String, dynamic>? ?? {};
+        
+        // Update game_state with pot information
+        final updatedGameState = Map<String, dynamic>.from(currentGameState);
+        updatedGameState.addAll({
+          'match_class': 'standard', // Placeholder for future match class system
+          'coin_cost_per_player': coinCost,
+          'match_pot': pot,
+        });
+        
+        // Update gameData with updated game_state
+        final updatedGameData = Map<String, dynamic>.from(currentGameData);
+        updatedGameData['game_state'] = updatedGameState;
+        
+        // Update the game
+        _updateGameInMap(gameId, {
+          'gameData': updatedGameData,
+        });
+      }
+      
+      _logger.info('💰 _handleCoinDeductionOnGameStart: Calculated pot for game $gameId - coin_cost: $coinCost, players: $activePlayerCount, pot: $pot', isOn: LOGGING_SWITCH);
+      
+      // Skip coin deduction for practice mode games (but pot is still calculated and stored)
       if (gameId.startsWith('practice_room_')) {
-        _logger.info('💰 _handleCoinDeductionOnGameStart: Skipping coin deduction for practice mode game', isOn: LOGGING_SWITCH);
+        _logger.info('💰 _handleCoinDeductionOnGameStart: Skipping coin deduction for practice mode game (pot calculated: $pot)', isOn: LOGGING_SWITCH);
         return;
       }
       
@@ -1517,17 +1580,6 @@ class ClecoEventHandlerCallbacks {
       
       if (coinsDeductedGames.contains(gameId)) {
         _logger.info('💰 _handleCoinDeductionOnGameStart: Coins already deducted for game $gameId, skipping', isOn: LOGGING_SWITCH);
-        return;
-      }
-      
-      // Get all active players from game state
-      final players = (gameState['players'] as List<dynamic>? ?? [])
-          .whereType<Map<String, dynamic>>()
-          .where((p) => (p['isActive'] as bool? ?? true) == true)  // Only active players
-          .toList();
-      
-      if (players.isEmpty) {
-        _logger.warning('⚠️ _handleCoinDeductionOnGameStart: No active players found for coin deduction', isOn: LOGGING_SWITCH);
         return;
       }
       
@@ -1577,8 +1629,8 @@ class ClecoEventHandlerCallbacks {
       
       // Note: Backend will check each player's subscription_tier and skip deduction for promotional tier
       // We send all player IDs and let the backend handle the tier check per player
-      // Deduct coins (default: 25 coins)
-      final requiredCoins = 25;
+      // Use the coin_cost_per_player that was stored in game state (default: 25 coins)
+      final requiredCoins = coinCost;
       final result = await ClecoGameHelpers.deductGameCoins(
         coins: requiredCoins,
         gameId: gameId,

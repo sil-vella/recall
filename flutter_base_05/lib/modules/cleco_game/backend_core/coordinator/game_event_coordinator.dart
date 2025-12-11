@@ -5,7 +5,7 @@ import '../services/game_state_store.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for winner determination testing
+const bool LOGGING_SWITCH = true; // Enabled for winner determination testing
 
 /// Coordinates WS game events to the ClecoGameRound logic per room.
 class GameEventCoordinator {
@@ -328,6 +328,14 @@ class GameEventCoordinator {
     // Get turnTimeLimit from room config (reuse roomInfo from earlier in method)
     final turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;
 
+    // Calculate pot: coin_cost × number_of_active_players (regardless of subscription tier)
+    // Default coin cost is 25 (will be tied to match_class in future)
+    final coinCost = 25;
+    final activePlayerCount = players.length;
+    final pot = coinCost * activePlayerCount;
+    
+    _logger.info('GameEventCoordinator: Calculated pot for game $roomId - coin_cost: $coinCost, players: $activePlayerCount, pot: $pot', isOn: LOGGING_SWITCH);
+    
     // Build updated game_state - set to initial_peek phase
     final gameState = <String, dynamic>{
       'gameId': roomId,
@@ -344,6 +352,9 @@ class GameEventCoordinator {
       'minPlayers': minPlayers,
       'showInstructions': showInstructions, // Store instructions switch
       'turnTimeLimit': turnTimeLimit, // Store turn time limit
+      'match_class': 'standard', // Placeholder for future match class system
+      'coin_cost_per_player': coinCost,
+      'match_pot': pot,
     };
 
     // Set all players to initial_peek status

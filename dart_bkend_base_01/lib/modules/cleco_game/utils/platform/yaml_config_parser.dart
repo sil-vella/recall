@@ -33,9 +33,13 @@ class DeckConfig {
     try {
       var resolvedPath = filePath;
       if (filePath.startsWith('assets/')) {
-        final candidate = File('lib/modules/cleco_game/config/deck_config.yaml');
-        if (candidate.existsSync()) {
-          resolvedPath = candidate.path;
+        // Try backend_core config first (for Dart backend), then fallback to regular config
+        final backendCoreCandidate = File('lib/modules/cleco_game/backend_core/config/deck_config.yaml');
+        final regularCandidate = File('lib/modules/cleco_game/config/deck_config.yaml');
+        if (backendCoreCandidate.existsSync()) {
+          resolvedPath = backendCoreCandidate.path;
+        } else if (regularCandidate.existsSync()) {
+          resolvedPath = regularCandidate.path;
         }
       }
       final yamlString = await File(resolvedPath).readAsString();

@@ -1054,7 +1054,7 @@ class ClecoGameRound {
           _logger.info('Cleco: Draw pile empty - reshuffling ${cardsToReshuffle.length} cards from discard pile (keeping top card: ${topCard['cardId']})', isOn: LOGGING_SWITCH);
           
           // Convert full data cards to ID-only format (draw pile uses ID-only)
-          final idOnlyCards = cardsToReshuffle.map((card) => {
+          final idOnlyCards = cardsToReshuffle.map((card) => <String, dynamic>{
             'cardId': card['cardId'],
             'suit': '?',      // Face-down: hide suit
             'rank': '?',      // Face-down: hide rank

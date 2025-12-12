@@ -12,13 +12,14 @@ This document describes the complete user registration process in the Recall app
 2. [Frontend Flow](#frontend-flow)
 3. [Backend Flow](#backend-flow)
 4. [Guest Registration](#guest-registration)
-5. [Data Structures](#data-structures)
-6. [Validation Rules](#validation-rules)
-7. [Security Features](#security-features)
-8. [Error Handling](#error-handling)
-9. [Hook System](#hook-system)
-10. [Related Files](#related-files)
-11. [Future Improvements](#future-improvements)
+5. [Google Sign-In](#google-sign-in)
+6. [Data Structures](#data-structures)
+7. [Validation Rules](#validation-rules)
+8. [Security Features](#security-features)
+9. [Error Handling](#error-handling)
+10. [Hook System](#hook-system)
+11. [Related Files](#related-files)
+12. [Future Improvements](#future-improvements)
 
 ---
 
@@ -1226,6 +1227,672 @@ These keys are cleared on logout but restored from permanent keys when needed:
 
 ---
 
+## Google Sign-In
+
+### Overview
+
+Google Sign-In allows users to authenticate using their Google accounts, providing a quick and secure alternative to email/password registration. The implementation uses Flutter's `google_sign_in` package on the frontend and verifies Google ID tokens on the Python backend, seamlessly integrating with the existing JWT authentication system.
+
+**Key Features**:
+- One-click authentication with Google account
+- Automatic account creation for new users
+- Account linking for existing users (by email)
+- Same JWT token system as email/password login
+- Platform-specific handling (Web, Android, iOS)
+
+### Architecture
+
+**Approach**: Flutter-side Google Sign-In with backend token verification
+- Flutter handles the Google OAuth flow using `google_sign_in` package
+- Backend verifies the Google ID token (or access token on web) and creates/updates user accounts
+- Returns standard JWT tokens (same as email/password login)
+- Supports both new user registration and existing user login
+
+**Why this approach**:
+- Better UX for mobile apps (no redirects)
+- Reuses existing JWT token system
+- Can link Google accounts to existing email accounts
+- Simpler implementation than full OAuth2 redirect flow
+
+### Frontend Flow
+
+#### 1. User Interface (AccountScreen)
+
+**Location**: `flutter_base_05/lib/screens/account_screen/account_screen.dart`
+
+**UI Components**:
+- "Sign in with Google" button in login mode
+- "Sign up with Google" button in registration mode
+- Positioned above email/password form with "OR" divider
+- Google logo icon (with fallback to login icon)
+
+**Button Handler**:
+```dart
+Future<void> _handleGoogleSignIn() async {
+  setState(() {
+    _isLoading = true;
+    _clearMessages();
+  });
+  
+  try {
+    final result = await _loginModule!.signInWithGoogle(
+      context: context,
+    );
+    
+    if (result['success'] != null) {
+      setState(() {
+        _successMessage = result['success'];
+        _isLoading = false;
+      });
+      // Navigate to main screen after successful login
+      Future.delayed(const Duration(seconds: 2), () {
+        context.go('/');
+      });
+    } else {
+      setState(() {
+        _errorMessage = result['error'];
+        _isLoading = false;
+      });
+    }
+  } catch (e) {
+    setState(() {
+      _errorMessage = 'An unexpected error occurred: $e';
+      _isLoading = false;
+    });
+  }
+}
+```
+
+#### 2. LoginModule Google Sign-In Logic
+
+**Location**: `flutter_base_05/lib/modules/login_module/login_module.dart`
+
+**Method**: `signInWithGoogle()`
+
+**Process**:
+
+##### Step 1: Initialize GoogleSignIn
+
+**Platform-Specific Configuration**:
+```dart
+final GoogleSignIn googleSignIn = GoogleSignIn(
+  scopes: ['email', 'profile', 'openid'],
+  // Web requires explicit client ID
+  clientId: kIsWeb ? Config.googleClientId : null,
+);
+```
+
+**Configuration**:
+- **Scopes**: `['email', 'profile', 'openid']` - Required for ID token retrieval
+- **Web Client ID**: Required for web platform (from `Config.googleClientId`)
+- **Mobile**: Client ID not needed (uses app configuration)
+
+##### Step 2: Sign-In Flow
+
+**Web-Specific Handling**:
+```dart
+GoogleSignInAccount? googleUser;
+if (kIsWeb) {
+  try {
+    // Try silent sign-in first (for returning users)
+    googleUser = await googleSignIn.signInSilently();
+  } catch (e) {
+    // Silent sign-in failed, will prompt user
+  }
+}
+
+// If silent sign-in didn't work or not on web, prompt user
+if (googleUser == null) {
+  googleUser = await googleSignIn.signIn();
+}
+```
+
+**User Cancellation**:
+```dart
+if (googleUser == null) {
+  return {"error": "Sign-in cancelled"};
+}
+```
+
+##### Step 3: Get Authentication Tokens
+
+```dart
+final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+final String? idToken = googleAuth.idToken;
+final String? accessToken = googleAuth.accessToken;
+```
+
+##### Step 4: Handle Token Types
+
+**ID Token (Preferred - Mobile)**:
+```dart
+if (idToken != null) {
+  // Send ID token to backend
+  requestPayload = {"id_token": idToken};
+}
+```
+
+**Access Token (Fallback - Web)**:
+```dart
+else if (accessToken != null && kIsWeb) {
+  // Fetch user info from Google using access token
+  final userInfoResponse = await http.get(
+    Uri.parse('https://www.googleapis.com/oauth2/v2/userinfo'),
+    headers: {'Authorization': 'Bearer $accessToken'},
+  );
+  
+  if (userInfoResponse.statusCode == 200) {
+    final userInfo = json.decode(userInfoResponse.body);
+    // Send access token and user info to backend
+    requestPayload = {
+      "access_token": accessToken,
+      "user_info": userInfo,
+    };
+  }
+}
+```
+
+##### Step 5: Send to Backend
+
+```dart
+final response = await _connectionModule!.sendPostRequest(
+  "/public/google-signin",
+  requestPayload,
+);
+```
+
+##### Step 6: Process Response
+
+```dart
+if (response?["success"] == true) {
+  // Store JWT tokens
+  await AuthManager().storeTokens(
+    accessToken: response["data"]["access_token"],
+    refreshToken: response["data"]["refresh_token"],
+  );
+  
+  // Store user data
+  final userData = response["data"]["user"];
+  await _sharedPref!.setString('username', userData["username"]);
+  await _sharedPref!.setString('email', userData["email"]);
+  await _sharedPref!.setString('user_id', userData["_id"]);
+  
+  return {"success": "Google Sign-In successful"};
+}
+```
+
+### Backend Flow
+
+#### 1. Route Registration
+
+**Location**: `python_base_04/core/modules/user_management_module/user_management_main.py`
+
+**Route**:
+```python
+self._register_auth_route_helper("/public/google-signin", self.google_signin, methods=["POST"])
+```
+
+#### 2. Google Sign-In Handler
+
+**Location**: `python_base_04/core/modules/user_management_module/user_management_main.py`
+
+**Method**: `google_signin()`
+
+**Process**:
+
+##### Step 1: Extract Token/User Info
+
+```python
+data = request.get_json()
+id_token_string = data.get("id_token")
+access_token = data.get("access_token")
+user_info_from_client = data.get("user_info")  # For web fallback
+```
+
+##### Step 2: Verify Token
+
+**ID Token Verification (Mobile)**:
+```python
+if id_token_string:
+    google_auth_service = GoogleAuthService()
+    user_info = google_auth_service.get_user_info(id_token_string)
+```
+
+**Access Token Verification (Web)**:
+```python
+elif access_token and user_info_from_client:
+    # Verify access token by calling Google's tokeninfo endpoint
+    token_info_response = http_requests.get(
+        f'https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}',
+        timeout=10
+    )
+    
+    if token_info_response.status_code == 200:
+        token_info = token_info_response.json()
+        # Verify email matches
+        # Use user info from client
+        user_info = {
+            'google_id': user_info_from_client.get('id'),
+            'email': user_info_from_client.get('email'),
+            'email_verified': user_info_from_client.get('verified_email', False),
+            'name': user_info_from_client.get('name'),
+            'picture': user_info_from_client.get('picture'),
+            'given_name': user_info_from_client.get('given_name'),
+            'family_name': user_info_from_client.get('family_name')
+        }
+```
+
+##### Step 3: Check for Existing User
+
+**Account Linking by Email**:
+```python
+# Check if user exists by email
+existing_user = self.db_manager.find_one("users", {"email": user_info['email']})
+
+if existing_user:
+    # Link Google account to existing user
+    # Update auth_providers to include 'google'
+    auth_providers = existing_user.get('auth_providers', [])
+    if 'google' not in auth_providers:
+        auth_providers.append('google')
+        self.db_manager.update("users", {"_id": existing_user['_id']}, {
+            "auth_providers": auth_providers
+        })
+    user_id = existing_user['_id']
+else:
+    # Create new user account
+    # Generate username from email or name
+    username = self._generate_username_from_google(user_info)
+    # Create user with Google authentication
+    user_id = self._create_user_from_google(user_info, username)
+```
+
+##### Step 4: Generate JWT Tokens
+
+```python
+jwt_manager = self.app_manager.jwt_manager
+access_token = jwt_manager.create_access_token(
+    user_id=str(user_id),
+    additional_claims={"username": username, "email": user_info['email']}
+)
+refresh_token = jwt_manager.create_refresh_token(user_id=str(user_id))
+```
+
+##### Step 5: Response
+
+```python
+return jsonify({
+    "success": True,
+    "message": "Google Sign-In successful",
+    "data": {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": {
+            "_id": str(user_id),
+            "username": username,
+            "email": user_info['email'],
+            "auth_providers": auth_providers
+        }
+    }
+}), 200
+```
+
+### Google Sign-In Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Google Sign-In Flow                         │
+└─────────────────────────────────────────────────────────────┘
+
+User Clicks "Sign in with Google" (AccountScreen)
+    ↓
+_handleGoogleSignIn()
+    ↓
+LoginModule.signInWithGoogle()
+    ↓
+Initialize GoogleSignIn (with scopes: email, profile, openid)
+    ↓
+[Web: Try signInSilently() first]
+    ↓
+googleSignIn.signIn() - User selects Google account
+    ↓
+Get GoogleSignInAuthentication
+    ├─ ID Token (Mobile) OR
+    └─ Access Token (Web)
+    ↓
+[Web Only: Fetch user info from Google API using access token]
+    ↓
+Send to Backend: POST /public/google-signin
+    ├─ {id_token: "..."} OR
+    └─ {access_token: "...", user_info: {...}}
+    ↓
+UserManagementModule.google_signin()
+    ↓
+Verify Token (ID token or access token)
+    ↓
+Extract User Info (email, name, picture, etc.)
+    ↓
+Check for Existing User by Email
+    ├─ If exists: Link Google account (update auth_providers)
+    └─ If not: Create new user account
+    ↓
+Generate JWT Tokens (access + refresh)
+    ↓
+Response: JWT Tokens + User Data
+    ↓
+Frontend: Store Tokens & User Data
+    ↓
+User Logged In
+```
+
+### Account Linking
+
+**Behavior**: If a user signs in with Google using an email that already exists in the system (from email/password registration), the system automatically links the Google account to the existing user account.
+
+**Process**:
+1. User signs in with Google
+2. Backend extracts email from Google token
+3. Backend checks if user exists with that email
+4. If exists:
+   - Updates `auth_providers` field to include `'google'`
+   - Returns existing user account
+   - Issues JWT tokens
+5. If not exists:
+   - Creates new user account
+   - Sets `auth_providers: ['google']`
+   - Issues JWT tokens
+
+**User Document Update**:
+```python
+auth_providers = existing_user.get('auth_providers', [])
+if 'google' not in auth_providers:
+    auth_providers.append('google')
+    self.db_manager.update("users", {"_id": existing_user['_id']}, {
+        "auth_providers": auth_providers
+    })
+```
+
+### Platform-Specific Handling
+
+#### Web Platform
+
+**Requirements**:
+- Explicit `clientId` must be provided to `GoogleSignIn` constructor
+- Client ID stored in `Config.googleClientId`
+- JavaScript origins must be registered in Google Cloud Console
+
+**Token Handling**:
+- Web may not always return ID tokens
+- Fallback to access token + user info API call
+- Access token verified via Google's tokeninfo endpoint
+
+**Configuration**:
+```dart
+// In flutter_base_05/lib/utils/consts/config.dart
+static const String googleClientId = String.fromEnvironment(
+  'GOOGLE_CLIENT_ID',
+  defaultValue: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
+);
+```
+
+#### Mobile Platforms (Android/iOS)
+
+**Requirements**:
+- Client ID configured in platform-specific files
+- Android: SHA fingerprints in Google Cloud Console
+- iOS: Reversed client ID in Info.plist
+
+**Token Handling**:
+- ID tokens are reliably available
+- No fallback needed
+
+### API Endpoints
+
+#### Google Sign-In
+
+**Endpoint**: `POST /public/google-signin`
+
+**Request Body (ID Token)**:
+```json
+{
+  "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..."
+}
+```
+
+**Request Body (Access Token - Web)**:
+```json
+{
+  "access_token": "ya29.a0AfH6SMC...",
+  "user_info": {
+    "id": "114551541773982562267",
+    "email": "user@example.com",
+    "verified_email": true,
+    "name": "John Doe",
+    "picture": "https://...",
+    "given_name": "John",
+    "family_name": "Doe"
+  }
+}
+```
+
+**Success Response (200 OK)**:
+```json
+{
+  "success": true,
+  "message": "Google Sign-In successful",
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "_id": "ObjectId",
+      "username": "johndoe",
+      "email": "user@example.com",
+      "auth_providers": ["google"]
+    }
+  }
+}
+```
+
+**Error Response (400 Bad Request)**:
+```json
+{
+  "success": false,
+  "error": "Google ID token or access token is required"
+}
+```
+
+**Error Response (401 Unauthorized)**:
+```json
+{
+  "success": false,
+  "error": "Invalid or expired Google token"
+}
+```
+
+**Error Response (503 Service Unavailable)**:
+```json
+{
+  "success": false,
+  "error": "Google Sign-In is not available. Please install google-auth package."
+}
+```
+
+### Data Structures
+
+#### User Document with Google Authentication
+
+**Additional Field**:
+```json
+{
+  "_id": "ObjectId",
+  "username": "johndoe",
+  "email": "user@example.com",
+  "auth_providers": ["google"],  // NEW FIELD
+  "status": "active",
+  // ... rest same as regular user
+}
+```
+
+**Auth Providers Field**:
+- **Type**: Array of strings
+- **Values**: `['email']`, `['google']`, or `['email', 'google']`
+- **Purpose**: Tracks which authentication methods are linked to the account
+- **Default**: `['email']` for regular registration, `['google']` for Google-only accounts
+
+### Security Features
+
+#### 1. Token Verification
+
+**ID Token Verification**:
+- Uses `google-auth` Python library
+- Verifies token signature
+- Validates token issuer (accounts.google.com)
+- Checks token expiration
+- Verifies audience (client ID)
+
+**Access Token Verification (Web)**:
+- Calls Google's tokeninfo endpoint
+- Verifies token validity
+- Validates client ID (audience)
+- Checks email match between token and user info
+
+#### 2. Account Linking Security
+
+**Email Verification**:
+- Only links accounts with matching verified emails
+- Prevents unauthorized account linking
+- Requires email verification from Google
+
+#### 3. Error Handling
+
+**Security-Conscious Error Messages**:
+- Generic error messages for invalid tokens
+- No disclosure of internal verification details
+- Proper HTTP status codes
+
+### Error Handling
+
+#### Common Errors
+
+**1. "Sign-in cancelled"**:
+- User cancelled the Google Sign-In flow
+- Normal behavior, not an error
+
+**2. "Error 400: redirect_uri_mismatch"**:
+- **Cause**: JavaScript origin not registered in Google Cloud Console
+- **Fix**: Add origin (e.g., `http://localhost:3002`) to Authorized JavaScript origins
+
+**3. "Error 403: People API has not been used"**:
+- **Cause**: People API not enabled in Google Cloud Console
+- **Fix**: Enable People API in APIs & Services → Library
+
+**4. "No ID token received"**:
+- **Cause**: Web platform may not return ID tokens
+- **Fix**: System automatically falls back to access token method
+
+**5. "Invalid or expired Google token"**:
+- **Cause**: Token verification failed
+- **Fix**: User should try signing in again
+
+### Configuration Requirements
+
+#### Google Cloud Console Setup
+
+**Required Steps**:
+1. Create OAuth 2.0 Client ID for Web
+2. Create OAuth 2.0 Client ID for Android (with SHA fingerprints)
+3. Create OAuth 2.0 Client ID for iOS (with bundle ID)
+4. Enable People API
+5. Add authorized JavaScript origins (for web)
+6. Configure OAuth consent screen
+
+#### Backend Configuration
+
+**Required Environment Variables/Secrets**:
+- `GOOGLE_CLIENT_ID`: Web Client ID (for token verification)
+- `GOOGLE_CLIENT_SECRET`: Client Secret (optional, for future use)
+
+**Configuration Priority**:
+1. HashiCorp Vault (`flask-app/google-oauth`)
+2. Secret files (`secrets/google_client_id`, `secrets/google_client_secret`)
+3. Environment variables (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`)
+4. Default values (empty strings)
+
+#### Frontend Configuration
+
+**Required**:
+- Web Client ID in `Config.googleClientId` (for web platform)
+- Platform-specific configurations (Android SHA, iOS bundle ID)
+
+### Related Files
+
+**Frontend**:
+- `flutter_base_05/lib/screens/account_screen/account_screen.dart`
+  - Google Sign-In button UI
+  - Button handler
+
+- `flutter_base_05/lib/modules/login_module/login_module.dart`
+  - `signInWithGoogle()` method
+  - Token handling
+  - Error handling
+
+- `flutter_base_05/lib/utils/consts/config.dart`
+  - `googleClientId` constant
+
+- `flutter_base_05/pubspec.yaml`
+  - `google_sign_in: ^6.2.1` dependency
+
+**Backend**:
+- `python_base_04/core/modules/user_management_module/user_management_main.py`
+  - `google_signin()` method
+  - Token verification
+  - Account linking logic
+  - User creation from Google
+
+- `python_base_04/core/services/google_auth_service.py`
+  - `GoogleAuthService` class
+  - ID token verification
+  - User info extraction
+
+- `python_base_04/utils/config/config.py`
+  - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` configuration
+
+- `python_base_04/requirements.txt`
+  - `google-auth==2.23.4` dependency
+
+### Future Improvements
+
+#### 1. Additional OAuth Providers
+
+**Proposed Enhancement**:
+- Facebook Sign-In
+- Apple Sign-In
+- GitHub Sign-In
+- Twitter/X Sign-In
+
+#### 2. Profile Picture Sync
+
+**Proposed Enhancement**:
+- Automatically sync Google profile picture
+- Store in user profile
+- Update on each Google Sign-In
+
+#### 3. Enhanced Account Linking
+
+**Proposed Enhancement**:
+- Allow users to manually link/unlink accounts
+- UI for managing connected accounts
+- Security verification for unlinking
+
+#### 4. Google Account Disconnection
+
+**Proposed Enhancement**:
+- Allow users to disconnect Google account
+- Prevent disconnection if it's the only auth method
+- Require password setup before disconnection
+
+---
+
 ## Data Structures
 
 ### User Document Structure
@@ -1967,15 +2634,15 @@ Initial Wallet/Credits Setup
 - Verify CAPTCHA on backend
 - Prevent automated registration attempts
 
-### 6. Social Registration
+### 6. Additional Social Registration Providers
 
-**Current State**: Only email/password registration
+**Current State**: Google Sign-In implemented
 
 **Proposed Enhancement**:
-- Google OAuth registration
 - Facebook OAuth registration
 - Apple Sign-In registration
-- Link social accounts to existing accounts
+- GitHub OAuth registration
+- Twitter/X OAuth registration
 
 ### 7. Two-Factor Authentication Setup
 
@@ -2042,9 +2709,9 @@ The system is designed to be secure, scalable, and extensible, with clear separa
 
 ## Summary
 
-The user registration process is a comprehensive system that handles user account creation from the Flutter frontend through the Python backend to MongoDB storage. The system now includes both regular and guest registration options:
+The user registration process is a comprehensive system that handles user account creation from the Flutter frontend through the Python backend to MongoDB storage. The system now includes three registration methods:
 
-### Regular Registration
+### Regular Registration (Email/Password)
 - **Multi-layer validation** (frontend and backend)
 - **Secure password hashing** (bcrypt)
 - **Automatic data encryption** (email, username, phone encrypted at rest)
@@ -2066,6 +2733,16 @@ The user registration process is a comprehensive system that handles user accoun
 - **Account type distinction** (marked as 'guest' in database)
 - **Cleco game module initialization** (subscription_tier: 'promotional', coins: 0)
 
+### Google Sign-In Registration
+- **One-click authentication** with Google account
+- **Automatic account creation** for new users
+- **Account linking** for existing users (by email)
+- **Token verification** (ID tokens on mobile, access tokens on web)
+- **Platform-specific handling** (Web, Android, iOS)
+- **Same JWT token system** as email/password login
+- **Auth providers tracking** (auth_providers field in user document)
+- **Cleco game module initialization** (subscription_tier: 'promotional', coins: 0)
+
 ### Subscription Tier System
 - **Default tier**: All new users (guest and regular) start with `subscription_tier: 'promotional'`
 - **Promotional tier**: Free play - no coin check required, no coins deducted
@@ -2077,4 +2754,4 @@ The system is designed to be secure, scalable, and extensible, with clear separa
 
 ---
 
-**Last Updated**: 2025-12-11 (Added encryption documentation and Guest Registration feature)
+**Last Updated**: 2025-12-12 (Added Google Sign-In authentication feature)

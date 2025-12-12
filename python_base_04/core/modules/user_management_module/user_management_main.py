@@ -12,11 +12,20 @@ import bcrypt
 import re
 import secrets
 import string
+import requests as http_requests
+
+# Lazy import for GoogleAuthService to avoid import errors if google-auth is not installed
+try:
+    from core.services.google_auth_service import GoogleAuthService
+    GOOGLE_AUTH_AVAILABLE = True
+except ImportError:
+    GOOGLE_AUTH_AVAILABLE = False
+    GoogleAuthService = None
 
 
 class UserManagementModule(BaseModule):
     # Logging switch for guest registration and conversion testing
-    LOGGING_SWITCH = False
+    LOGGING_SWITCH = True
     
     def __init__(self, app_manager=None):
         """Initialize the UserManagementModule."""
@@ -51,6 +60,7 @@ class UserManagementModule(BaseModule):
         self._register_auth_route_helper("/public/register", self.create_user, methods=["POST"])
         self._register_auth_route_helper("/public/register-guest", self.create_guest_user, methods=["POST"])
         self._register_auth_route_helper("/public/login", self.login_user, methods=["POST"])
+        self._register_auth_route_helper("/public/google-signin", self.google_signin, methods=["POST"])
         
         # JWT authenticated routes (user authentication)
         self._register_auth_route_helper("/userauth/users/profile", self.get_user_profile, methods=["GET"])
@@ -723,6 +733,466 @@ class UserManagementModule(BaseModule):
             }), 200
             
         except Exception as e:
+            custom_log(f"UserManagement: Login error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+            return jsonify({
+                "success": False,
+                "error": "Internal server error"
+            }), 500
+
+    def google_signin(self):
+        """Handle Google Sign-In authentication."""
+        try:
+            data = request.get_json()
+            
+            # Check for guest account conversion
+            convert_from_guest = data.get("convert_from_guest", False)
+            guest_email = data.get("guest_email")
+            guest_password = data.get("guest_password")
+            guest_user = None
+            
+            # Check if we have ID token or access token
+            id_token_string = data.get("id_token")
+            access_token = data.get("access_token")
+            user_info_from_client = data.get("user_info")  # For web fallback
+            
+            user_info = None
+            
+            if id_token_string:
+                # Preferred: Verify ID token (requires GoogleAuthService)
+                if not GOOGLE_AUTH_AVAILABLE or GoogleAuthService is None:
+                    return jsonify({
+                        "success": False,
+                        "error": "Google Sign-In with ID token requires google-auth package. Please install it."
+                    }), 503
+                
+                custom_log("UserManagement: Google Sign-In - Using ID token", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                google_auth_service = GoogleAuthService()
+                user_info = google_auth_service.get_user_info(id_token_string)
+            elif access_token and user_info_from_client:
+                # Fallback for web: Verify access token and use provided user info
+                custom_log("UserManagement: Google Sign-In - Using access token (web fallback)", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                
+                # Verify access token by calling Google's tokeninfo endpoint
+                try:
+                    token_info_response = http_requests.get(
+                        f'https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}',
+                        timeout=10
+                    )
+                    
+                    if token_info_response.status_code == 200:
+                        token_info = token_info_response.json()
+                        custom_log(f"UserManagement: Token info received: {token_info}", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
+                        
+                        # Verify the token is valid
+                        # For web tokens, we check if the email matches and token is valid
+                        token_email = token_info.get('email')
+                        client_email = user_info_from_client.get('email')
+                        
+                        # Verify email matches (if both are present)
+                        if token_email and client_email and token_email != client_email:
+                            custom_log(f"UserManagement: Email mismatch - token: {token_email}, client: {client_email}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
+                            return jsonify({
+                                "success": False,
+                                "error": "Token email mismatch"
+                            }), 401
+                        
+                        # Verify client ID if configured (optional check)
+                        if Config.GOOGLE_CLIENT_ID:
+                            token_audience = token_info.get('audience') or token_info.get('issued_to')
+                            if token_audience and token_audience != Config.GOOGLE_CLIENT_ID:
+                                custom_log(f"UserManagement: Client ID mismatch - token: {token_audience}, config: {Config.GOOGLE_CLIENT_ID}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
+                                # Still proceed if email matches - web tokens might have different audience format
+                        
+                        # Use user info from client (already fetched from userinfo endpoint)
+                        user_info = {
+                            'google_id': user_info_from_client.get('id'),
+                            'email': user_info_from_client.get('email') or token_email,
+                            'email_verified': user_info_from_client.get('verified_email', False) or token_info.get('verified_email', False),
+                            'name': user_info_from_client.get('name'),
+                            'picture': user_info_from_client.get('picture'),
+                            'given_name': user_info_from_client.get('given_name'),
+                            'family_name': user_info_from_client.get('family_name')
+                        }
+                        custom_log(f"UserManagement: Access token verified, user info: {user_info.get('email')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                    else:
+                        error_text = token_info_response.text[:200] if token_info_response.text else "Unknown error"
+                        custom_log(f"UserManagement: Access token verification failed: {token_info_response.status_code} - {error_text}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
+                        return jsonify({
+                            "success": False,
+                            "error": f"Invalid access token: {token_info_response.status_code}"
+                        }), 401
+                except Exception as e:
+                    custom_log(f"UserManagement: Error verifying access token: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+                    import traceback
+                    custom_log(f"UserManagement: Traceback: {traceback.format_exc()}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+                    return jsonify({
+                        "success": False,
+                        "error": f"Error verifying token: {str(e)}"
+                    }), 500
+            
+            # Validate that we have user info
+            if not id_token_string and not access_token:
+                return jsonify({
+                    "success": False,
+                    "error": "Google ID token or access token is required"
+                }), 400
+            
+            if not user_info:
+                return jsonify({
+                    "success": False,
+                    "error": "Invalid or expired Google token"
+                }), 401
+            
+            email = user_info.get('email')
+            google_id = user_info.get('google_id')
+            name = user_info.get('name', '')
+            given_name = user_info.get('given_name', '')
+            family_name = user_info.get('family_name', '')
+            picture = user_info.get('picture')
+            
+            if not email:
+                return jsonify({
+                    "success": False,
+                    "error": "Email not provided by Google"
+                }), 400
+            
+            # Validate guest account if conversion requested
+            if convert_from_guest:
+                if not guest_email or not guest_password:
+                    return jsonify({
+                        "success": False,
+                        "error": "Guest email and password are required for account conversion"
+                    }), 400
+                
+                # Find guest user
+                guest_user = self.db_manager.find_one("users", {"email": guest_email})
+                if not guest_user:
+                    return jsonify({
+                        "success": False,
+                        "error": "Guest account not found"
+                    }), 404
+                
+                # Verify it's actually a guest account
+                if guest_user.get("account_type") != "guest":
+                    return jsonify({
+                        "success": False,
+                        "error": "Account is not a guest account"
+                    }), 400
+                
+                # Verify guest password
+                stored_password = guest_user.get("password", "").encode('utf-8')
+                if not bcrypt.checkpw(guest_password.encode('utf-8'), stored_password):
+                    return jsonify({
+                        "success": False,
+                        "error": "Invalid guest account password"
+                    }), 401
+                
+                custom_log(f"UserManagement: Google Sign-In with guest account conversion requested - Guest Email: {guest_email}, Google Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            
+            # Check if user exists by email
+            existing_user = self.db_manager.find_one("users", {"email": email})
+            
+            if existing_user:
+                # User exists - handle account linking or login
+                auth_providers = existing_user.get('auth_providers', [])
+                
+                # Check if Google is already linked
+                if 'google' in auth_providers:
+                    # Normal Google login
+                    custom_log(f"UserManagement: Google Sign-In - Existing user with Google auth - Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                else:
+                    # Link Google account to existing account
+                    custom_log(f"UserManagement: Google Sign-In - Linking Google to existing account - Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                    
+                    # Update auth_providers to include Google
+                    if not auth_providers:
+                        auth_providers = ['email']  # Assume email if not set
+                    if 'google' not in auth_providers:
+                        auth_providers.append('google')
+                    
+                    # Update user document
+                    update_data = {
+                        'auth_providers': auth_providers,
+                        'google_id': google_id,
+                        'updated_at': datetime.utcnow().isoformat()
+                    }
+                    
+                    # Update profile if Google provides better info
+                    if given_name or family_name:
+                        if 'profile' not in existing_user:
+                            existing_user['profile'] = {}
+                        if given_name and not existing_user['profile'].get('first_name'):
+                            update_data['profile.first_name'] = given_name
+                        if family_name and not existing_user['profile'].get('last_name'):
+                            update_data['profile.last_name'] = family_name
+                    
+                    self.db_manager.update("users", {"_id": existing_user["_id"]}, update_data)
+                
+                user = existing_user
+            else:
+                # New user - create account with Google info
+                custom_log(f"UserManagement: Google Sign-In - Creating new user - Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                
+                # Generate username from email or name
+                if given_name and family_name:
+                    # Try to create username from name
+                    base_username = f"{given_name.lower()}{family_name.lower()}"
+                    base_username = re.sub(r'[^a-z0-9]', '', base_username)
+                    if len(base_username) < 3:
+                        base_username = email.split('@')[0].lower()
+                        base_username = re.sub(r'[^a-z0-9]', '', base_username)
+                else:
+                    # Use email prefix
+                    base_username = email.split('@')[0].lower()
+                    base_username = re.sub(r'[^a-z0-9]', '', base_username)
+                
+                # Ensure username meets requirements (3-20 chars, valid format)
+                if len(base_username) < 3:
+                    base_username = base_username + "123"
+                if len(base_username) > 20:
+                    base_username = base_username[:20]
+                
+                # Check uniqueness and generate unique username if needed
+                username = base_username
+                max_attempts = 10
+                for attempt in range(max_attempts):
+                    existing = self.db_manager.find_one("users", {"username": username})
+                    if not existing:
+                        break
+                    # Append random suffix
+                    suffix = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
+                    username = f"{base_username[:16]}{suffix}"
+                
+                # If still not unique, use timestamp
+                existing = self.db_manager.find_one("users", {"username": username})
+                if existing:
+                    timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+                    username = f"{base_username[:10]}{timestamp[-6:]}"
+                
+                # Create user data structure - either from guest account or new structure
+                current_time = datetime.utcnow()
+                
+                if convert_from_guest and guest_user:
+                    # Copy all data from guest account except username, email, password, account_type, _id
+                    guest_data = guest_user.copy()
+                    
+                    # Start with new credentials
+                    user_data = {
+                        'username': username,
+                        'email': email,
+                        'password': '',  # No password for Google-only accounts
+                        'account_type': 'normal',  # Changed from 'guest'
+                        'auth_providers': ['google'],
+                        'google_id': google_id,
+                        'status': guest_data.get('status', 'active'),
+                        'created_at': guest_data.get('created_at', current_time.isoformat()),  # Preserve original creation date
+                        'updated_at': current_time.isoformat(),
+                        'last_login': guest_data.get('last_login'),
+                        'login_count': guest_data.get('login_count', 0),
+                    }
+                    
+                    # Copy all other fields from guest account
+                    fields_to_copy = ['profile', 'preferences', 'modules', 'audit']
+                    for field in fields_to_copy:
+                        if field in guest_data:
+                            user_data[field] = guest_data[field]
+                    
+                    # Update profile with Google info if available
+                    if 'profile' not in user_data:
+                        user_data['profile'] = {}
+                    if given_name:
+                        user_data['profile']['first_name'] = given_name
+                    if family_name:
+                        user_data['profile']['last_name'] = family_name
+                    if picture:
+                        user_data['profile']['picture'] = picture
+                    
+                    custom_log(f"UserManagement: Copied guest account data for Google Sign-In conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                else:
+                    # Prepare user data with comprehensive structure (new account)
+                    user_data = {
+                        'username': username,
+                        'email': email,
+                        'password': '',  # No password for Google-only accounts
+                        'status': 'active',
+                        'account_type': 'normal',
+                        'auth_providers': ['google'],
+                        'google_id': google_id,
+                        'created_at': current_time.isoformat(),
+                        'updated_at': current_time.isoformat(),
+                        'last_login': None,
+                        'login_count': 0,
+                        
+                        # Profile section
+                        'profile': {
+                            'first_name': given_name or '',
+                            'last_name': family_name or '',
+                            'phone': '',
+                            'timezone': 'UTC',
+                            'language': 'en',
+                            'picture': picture or ''
+                        },
+                        
+                        # Preferences section
+                        'preferences': {
+                            'notifications': {
+                                'email': True,
+                                'sms': False,
+                                'push': True
+                            },
+                            'privacy': {
+                                'profile_visible': True,
+                                'activity_visible': False
+                            }
+                        },
+                        
+                        # Modules section with default configurations
+                        'modules': {
+                            'wallet': {
+                                'enabled': True,
+                                'balance': 0,
+                                'currency': 'credits',
+                                'last_updated': current_time.isoformat()
+                            },
+                            'subscription': {
+                                'enabled': False,
+                                'plan': None,
+                                'expires_at': None
+                            },
+                            'referrals': {
+                                'enabled': True,
+                                'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
+                                'referrals_count': 0
+                            },
+                            'cleco_game': {
+                                'enabled': True,
+                                'wins': 0,
+                                'losses': 0,
+                                'total_matches': 0,
+                                'points': 0,
+                                'level': 1,
+                                'rank': 'beginner',
+                                'win_rate': 0.0,
+                                'subscription_tier': 'promotional',
+                                'last_match_date': None,
+                                'last_updated': current_time.isoformat()
+                            }
+                        },
+                        
+                        # Audit section
+                        'audit': {
+                            'last_login': None,
+                            'login_count': 0,
+                            'password_changed_at': None,
+                            'profile_updated_at': current_time.isoformat()
+                        }
+                    }
+                
+                # Insert user
+                user_id = self.db_manager.insert("users", user_data)
+                
+                if not user_id:
+                    return jsonify({
+                        "success": False,
+                        "error": "Failed to create user account"
+                    }), 500
+                
+                # If guest account conversion, delete the guest account
+                if convert_from_guest and guest_user:
+                    try:
+                        guest_user_id = guest_user.get("_id")
+                        if guest_user_id:
+                            delete_result = self.db_manager.delete("users", {"_id": ObjectId(guest_user_id)})
+                            if delete_result:
+                                custom_log(f"UserManagement: Successfully deleted guest account after Google Sign-In conversion - Guest ID: {guest_user_id}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                            else:
+                                custom_log(f"UserManagement: Warning - Failed to delete guest account after Google Sign-In conversion - Guest ID: {guest_user_id}", level="WARNING", isOn=UserManagementModule.LOGGING_SWITCH)
+                    except Exception as e:
+                        # Log error but don't fail registration (data integrity maintained)
+                        custom_log(f"UserManagement: Error deleting guest account after Google Sign-In conversion: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+                
+                # Get the created user
+                user = self.db_manager.find_one("users", {"_id": user_id})
+                
+                # Trigger user_created hook
+                if self.app_manager:
+                    hook_data = {
+                        'user_id': user_id,
+                        'username': username,
+                        'email': email,
+                        'user_data': user_data,
+                        'created_at': current_time.isoformat(),
+                        'app_id': Config.APP_ID,
+                        'app_name': Config.APP_NAME,
+                        'source': 'external_app',
+                        'auth_provider': 'google'
+                    }
+                    if convert_from_guest:
+                        hook_data['converted_from_guest'] = True
+                        hook_data['guest_user_id'] = str(guest_user.get("_id")) if guest_user else None
+                    self.app_manager.trigger_hook("user_created", hook_data)
+                    
+                    if convert_from_guest:
+                        custom_log(f"UserManagement: Google Sign-In with guest account conversion completed successfully - User ID: {user_id}, Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            
+            # Check if user is active
+            if user.get("status") != "active":
+                return jsonify({
+                    "success": False,
+                    "error": "Account is not active"
+                }), 401
+            
+            # Update last login and login count
+            update_data = {
+                "last_login": datetime.utcnow().isoformat(),
+                "login_count": user.get("login_count", 0) + 1,
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            
+            self.db_manager.update("users", {"_id": user["_id"]}, update_data)
+            
+            # Create JWT tokens
+            access_token_payload = {
+                'user_id': str(user['_id']),
+                'username': user['username'],
+                'email': email,
+                'type': 'access'
+            }
+            
+            refresh_token_payload = {
+                'user_id': str(user['_id']),
+                'type': 'refresh'
+            }
+            
+            # Get JWT manager from app_manager
+            jwt_manager = self.app_manager.jwt_manager
+            access_token = jwt_manager.create_token(access_token_payload, TokenType.ACCESS)
+            refresh_token = jwt_manager.create_token(refresh_token_payload, TokenType.REFRESH)
+            
+            # Remove password from response
+            user.pop('password', None)
+            
+            # Ensure account_type is included in response
+            if 'account_type' not in user:
+                user['account_type'] = 'normal'
+            
+            custom_log(f"UserManagement: Google Sign-In successful - User ID: {user['_id']}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+            
+            return jsonify({
+                "success": True,
+                "message": "Google Sign-In successful",
+                "data": {
+                    "user": user,
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "token_type": "Bearer",
+                    "expires_in": Config.JWT_ACCESS_TOKEN_EXPIRES,
+                    "refresh_expires_in": Config.JWT_REFRESH_TOKEN_EXPIRES
+                }
+            }), 200
+            
+        except Exception as e:
+            custom_log(f"UserManagement: Google Sign-In error: {e}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
             return jsonify({
                 "success": False,
                 "error": "Internal server error"

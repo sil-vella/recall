@@ -18,7 +18,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = false; // Enabled for guest account conversion testing
+  static const bool LOGGING_SWITCH = true; // Enabled for guest account conversion testing
   static final Logger _logger = Logger();
   
   // Form controllers
@@ -45,6 +45,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   String? _guestPassword;
   bool _isConvertingGuest = false;
   bool _isGuestAccount = false;
+  bool _lastLoggedInState = false; // Track previous login state to prevent rebuild loops
   
   // Module manager
   final ModuleManager _moduleManager = ModuleManager();
@@ -64,9 +65,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     try {
       final sharedPref = SharedPrefManager();
       await sharedPref.initialize();
-      setState(() {
-        _isGuestAccount = sharedPref.getBool('is_guest_account') ?? false;
-      });
+      final newIsGuestAccount = sharedPref.getBool('is_guest_account') ?? false;
+      
+      // Only call setState if the value actually changed (prevents unnecessary rebuilds)
+      if (newIsGuestAccount != _isGuestAccount) {
+        setState(() {
+          _isGuestAccount = newIsGuestAccount;
+        });
+      }
       _logger.info('AccountScreen: Guest account status checked - isGuestAccount: $_isGuestAccount', isOn: LOGGING_SWITCH);
     } catch (e) {
       _logger.error('AccountScreen: Error checking guest account status: $e', isOn: LOGGING_SWITCH);
@@ -299,6 +305,46 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         context: context,
         email: _emailController.text.trim(),
         password: _passwordController.text,
+      );
+      
+      if (result['success'] != null) {
+        setState(() {
+          _successMessage = result['success'];
+          _isLoading = false;
+        });
+        
+        // Navigate to main screen after successful login
+        Future.delayed(const Duration(seconds: 2), () {
+          context.go('/');
+        });
+      } else {
+        setState(() {
+          _errorMessage = result['error'];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'An unexpected error occurred: $e';
+        _isLoading = false;
+      });
+    }
+  }
+  
+  Future<void> _handleGoogleSignIn() async {
+    setState(() {
+      _isLoading = true;
+      _clearMessages();
+    });
+    
+    // Check for guest account conversion before Google Sign-In
+    await _checkForGuestAccountForConversion();
+    
+    try {
+      final result = await _loginModule!.signInWithGoogle(
+        context: context,
+        guestEmail: _isConvertingGuest ? _guestEmail : null,
+        guestPassword: _isConvertingGuest ? _guestPassword : null,
       );
       
       if (result['success'] != null) {
@@ -613,9 +659,15 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         final username = loginState?["username"] ?? "";
         final email = loginState?["email"] ?? "";
         
-        // Update guest account status when login state changes
-        if (isLoggedIn) {
-          _checkGuestAccountStatus();
+        // Update guest account status only when login state actually changes (prevents rebuild loop)
+        if (isLoggedIn != _lastLoggedInState) {
+          _lastLoggedInState = isLoggedIn;
+          if (isLoggedIn) {
+            // Use WidgetsBinding to schedule the check after the current build completes
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _checkGuestAccountStatus();
+            });
+          }
         }
         
         _logger.info('🔍 AccountScreen - isLoggedIn: $isLoggedIn, username: $username, isGuestAccount: $_isGuestAccount, showRegistrationForm: $_showRegistrationForm', isOn: LOGGING_SWITCH);
@@ -1139,6 +1191,50 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               ),
             
             const SizedBox(height: 24),
+            
+            // Google Sign-In Button
+            OutlinedButton.icon(
+              onPressed: _isLoading ? null : _handleGoogleSignIn,
+              icon: Image.asset(
+                'assets/images/google_logo.png',
+                height: 20,
+                width: 20,
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback to icon if image not found
+                  return const Icon(Icons.login, size: 20);
+                },
+              ),
+              label: Text(_isLoginMode ? 'Sign in with Google' : 'Sign up with Google'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                side: BorderSide(color: Colors.grey[300]!),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Divider with "OR"
+            Row(
+              children: [
+                Expanded(child: Divider(color: Colors.grey[300])),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'OR',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Expanded(child: Divider(color: Colors.grey[300])),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
             
             // Action Button
             Semantics(

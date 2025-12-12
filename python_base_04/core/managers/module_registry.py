@@ -9,7 +9,7 @@ import os
 import importlib
 import inspect
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True
 
 class ModuleRegistry:
     """

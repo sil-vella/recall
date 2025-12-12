@@ -18,7 +18,7 @@ from bson import ObjectId
 import time
 
 # Logging switch for this module
-LOGGING_SWITCH = True
+LOGGING_SWITCH = False
 
 
 class ClecoGameMain(BaseModule):

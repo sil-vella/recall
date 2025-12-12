@@ -366,6 +366,10 @@ class Config:
     STRIPE_WEBHOOK_SECRET = get_sensitive_config_value("flask-app/stripe", "webhook_secret", "stripe_webhook_secret", "STRIPE_WEBHOOK_SECRET", "")
     STRIPE_API_VERSION = get_file_first_config_value("stripe_api_version", "STRIPE_API_VERSION", "2023-10-16")
 
+    # Google OAuth2 Configuration (for Google Sign-In)
+    GOOGLE_CLIENT_ID = get_config_value("flask-app/google-oauth", "client_id", "google_client_id", "GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET = get_sensitive_config_value("flask-app/google-oauth", "client_secret", "google_client_secret", "GOOGLE_CLIENT_SECRET", "")
+
     # Google Play Developer API Configuration - Removed (switching to RevenueCat)
     # GOOGLE_PLAY_PACKAGE_NAME = get_file_first_config_value("google_play_package_name", "GOOGLE_PLAY_PACKAGE_NAME", "com.yourcompany.yourapp")
     # GOOGLE_PLAY_SERVICE_ACCOUNT_FILE = get_file_first_config_value("google_play_service_account", "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", "secrets/google_play_service_account")

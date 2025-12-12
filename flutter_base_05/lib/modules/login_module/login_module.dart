@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../connections_api_module/connections_api_module.dart';
 import 'package:provider/provider.dart';
 import '../../core/00_base/module_base.dart';
@@ -10,10 +14,11 @@ import '../../core/managers/auth_manager.dart';
 import '../../core/managers/hooks_manager.dart';
 import '../../core/managers/navigation_manager.dart';
 import '../../tools/logging/logger.dart';
+import '../../utils/consts/config.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration and conversion testing
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -574,6 +579,254 @@ class LoginModule extends ModuleBase {
       return {"error": "Unexpected server response"};
     } catch (e) {
       return {"error": "Server error. Check network connection."};
+    }
+  }
+
+  Future<Map<String, dynamic>> signInWithGoogle({
+    required BuildContext context,
+    String? guestEmail,
+    String? guestPassword,
+  }) async {
+    _initDependencies(context);
+
+    if (_connectionModule == null || _sharedPref == null || _authManager == null) {
+      return {"error": "Service not available."};
+    }
+
+    try {
+      Logger().info("LoginModule: Google Sign-In request initiated", isOn: LOGGING_SWITCH);
+      
+      // Check if guest account conversion is requested
+      final isConvertingGuest = guestEmail != null && guestPassword != null;
+      if (isConvertingGuest) {
+        Logger().info("LoginModule: Guest account conversion requested for Google Sign-In - Guest Email: $guestEmail", isOn: LOGGING_SWITCH);
+      }
+
+      // Initialize Google Sign-In
+      // On web, we need to provide the client ID
+      // 'openid' scope is required for ID tokens on web
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile', 'openid'],
+        // Web requires explicit client ID
+        clientId: kIsWeb ? Config.googleClientId : null,
+      );
+      
+      Logger().info("LoginModule: Google Sign-In initialized - Platform: ${kIsWeb ? 'Web' : 'Mobile'}, Client ID: ${kIsWeb ? Config.googleClientId.substring(0, 20) + '...' : 'Not needed'}", isOn: LOGGING_SWITCH);
+
+      // Trigger the authentication flow
+      // On web, try signInSilently first, then fall back to signIn
+      GoogleSignInAccount? googleUser;
+      if (kIsWeb) {
+        try {
+          // Try silent sign-in first (for returning users)
+          googleUser = await googleSignIn.signInSilently();
+          Logger().info("LoginModule: Silent sign-in attempted on web", isOn: LOGGING_SWITCH);
+        } catch (e) {
+          Logger().info("LoginModule: Silent sign-in failed, will prompt user: $e", isOn: LOGGING_SWITCH);
+        }
+      }
+      
+      // If silent sign-in didn't work or not on web, prompt user
+      if (googleUser == null) {
+        googleUser = await googleSignIn.signIn();
+      }
+
+      if (googleUser == null) {
+        // User cancelled the sign-in
+        Logger().info("LoginModule: Google Sign-In cancelled by user", isOn: LOGGING_SWITCH);
+        return {"error": "Sign-in cancelled"};
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      Logger().info("LoginModule: Google authentication obtained - Email: ${googleUser.email}, Has ID Token: ${googleAuth.idToken != null}, Has Access Token: ${googleAuth.accessToken != null}", isOn: LOGGING_SWITCH);
+
+      // Get the ID token or access token
+      final String? idToken = googleAuth.idToken;
+      final String? accessToken = googleAuth.accessToken;
+
+      // Prepare request payload
+      Map<String, dynamic> requestPayload;
+
+      if (idToken != null) {
+        // Preferred: Use ID token if available
+        Logger().info("LoginModule: Google Sign-In - ID token obtained, sending to backend", isOn: LOGGING_SWITCH);
+        requestPayload = {"id_token": idToken};
+      } else if (accessToken != null && kIsWeb) {
+        // Fallback for web: Use access token to get user info, then send to backend
+        Logger().info("LoginModule: Google Sign-In - No ID token, using access token to fetch user info (web)", isOn: LOGGING_SWITCH);
+        
+        try {
+          // Fetch user info from Google using access token
+          final userInfoResponse = await http.get(
+            Uri.parse('https://www.googleapis.com/oauth2/v2/userinfo'),
+            headers: {'Authorization': 'Bearer $accessToken'},
+          );
+
+          if (userInfoResponse.statusCode == 200) {
+            final userInfo = json.decode(userInfoResponse.body);
+            Logger().info("LoginModule: User info fetched from Google API - Email: ${userInfo['email']}", isOn: LOGGING_SWITCH);
+            
+            // Send access token and user info to backend
+            requestPayload = {
+              "access_token": accessToken,
+              "user_info": userInfo,
+            };
+          } else {
+            Logger().error("LoginModule: Failed to fetch user info from Google API: ${userInfoResponse.statusCode}", isOn: LOGGING_SWITCH);
+            return {"error": "Failed to get user information from Google"};
+          }
+        } catch (e) {
+          Logger().error("LoginModule: Error fetching user info from Google: $e", isOn: LOGGING_SWITCH);
+          return {"error": "Failed to get user information from Google"};
+        }
+      } else {
+        Logger().warning("LoginModule: Google Sign-In - No ID token or access token received", isOn: LOGGING_SWITCH);
+        return {"error": "Failed to get Google authentication token. Please ensure Google Sign-In is properly configured."};
+      }
+
+      // Add guest account conversion info if provided
+      if (isConvertingGuest && guestEmail != null && guestPassword != null) {
+        requestPayload["convert_from_guest"] = true;
+        requestPayload["guest_email"] = guestEmail;
+        requestPayload["guest_password"] = guestPassword;
+        Logger().info("LoginModule: Adding guest account conversion info to Google Sign-In request", isOn: LOGGING_SWITCH);
+      }
+
+      // Send to backend
+      final response = await _connectionModule!.sendPostRequest(
+        "/public/google-signin",
+        requestPayload,
+      );
+
+      // Handle error responses
+      if (response?["error"] != null || response?["message"]?.contains("error") == true) {
+        String errorMessage = response?["message"] ?? response?["error"] ?? "Unknown error occurred";
+        
+        Logger().warning("LoginModule: Google Sign-In failed - Error: $errorMessage", isOn: LOGGING_SWITCH);
+        
+        // Handle rate limiting errors
+        if (response?["status"] == 429) {
+          return {
+            "error": errorMessage,
+            "isRateLimited": true
+          };
+        }
+        
+        return {"error": errorMessage};
+      }
+
+      // Handle successful Google Sign-In (aligned with backend response format)
+      if (response?["success"] == true || response?["message"] == "Google Sign-In successful") {
+        // Extract user data from response
+        final userData = response?["data"]?["user"] ?? {};
+        final accessToken = response?["data"]?["access_token"];
+        final refreshToken = response?["data"]?["refresh_token"];
+        
+        if (accessToken == null) {
+          return {"error": "Google Sign-In successful but no access token received"};
+        }
+        
+        // Extract user information
+        final email = userData['email']?.toString() ?? googleUser.email;
+        final userId = userData['_id'] ?? userData['id'] ?? '';
+        final username = userData['username'] ?? '';
+        final accountType = userData['account_type']?.toString();
+        final isGuestAccount = accountType == 'guest' || email.endsWith('@guest.local');
+        
+        // Extract TTL values from backend response
+        final expiresIn = response?["data"]?["expires_in"];
+        final refreshExpiresIn = response?["data"]?["refresh_expires_in"];
+        final accessTokenTtl = expiresIn is int ? expiresIn : null;
+        final refreshTokenTtl = refreshExpiresIn is int ? refreshExpiresIn : null;
+        
+        // Store JWT tokens using AuthManager with TTL values
+        await _authManager!.storeTokens(
+          accessToken: accessToken,
+          refreshToken: refreshToken ?? '',
+          accessTokenTtl: accessTokenTtl,
+          refreshTokenTtl: refreshTokenTtl,
+        );
+        
+        // Store user data in SharedPreferences
+        await _sharedPref!.setBool('is_logged_in', true);
+        await _sharedPref!.setString('user_id', userId);
+        await _sharedPref!.setString('username', username);
+        await _sharedPref!.setString('email', email);
+        await _sharedPref!.setString('last_login_timestamp', DateTime.now().toIso8601String());
+        
+        // Clear guest account flags if conversion happened
+        if (isConvertingGuest) {
+          await _sharedPref!.remove('is_guest_account');
+          await _sharedPref!.remove('guest_username');
+          await _sharedPref!.remove('guest_email');
+          await _sharedPref!.remove('guest_user_id');
+          Logger().info("LoginModule: Cleared guest account credentials after Google Sign-In conversion", isOn: LOGGING_SWITCH);
+        }
+        
+        // Set guest account flag (should be false for Google Sign-In)
+        await _sharedPref!.setBool('is_guest_account', false);
+        
+        // Log successful Google Sign-In
+        Logger().info("LoginModule: Google Sign-In successful - Username: $username, Email: $email", isOn: LOGGING_SWITCH);
+        
+        // Update state manager
+        final stateManager = StateManager();
+        stateManager.updateModuleState("login", {
+          "isLoggedIn": true,
+          "userId": userId,
+          "username": username,
+          "email": email,
+          "error": null
+        });
+        
+        // Trigger auth_login_complete hook after tokens are stored and user is fully logged in
+        final hooksManager = HooksManager();
+        hooksManager.triggerHookWithData('auth_login_complete', {
+          'status': 'logged_in',
+          'userData': {
+            "isLoggedIn": true,
+            "userId": userId,
+            "username": username,
+            "email": email,
+          },
+        });
+        
+        return {
+          "success": "Google Sign-In successful",
+          "user_id": userId,
+          "username": username,
+          "email": email,
+          "access_token": accessToken,
+          "refresh_token": refreshToken
+        };
+      }
+
+      return {"error": "Unexpected server response"};
+    } catch (e, stackTrace) {
+      Logger().error("LoginModule: Google Sign-In error: $e", isOn: LOGGING_SWITCH);
+      Logger().error("LoginModule: Google Sign-In error stack trace: $stackTrace", isOn: LOGGING_SWITCH);
+      
+      // Handle specific Google Sign-In errors
+      final errorString = e.toString().toLowerCase();
+      
+      if (errorString.contains('sign_in_canceled') || errorString.contains('cancelled')) {
+        return {"error": "Sign-in cancelled"};
+      } else if (errorString.contains('network') || errorString.contains('connection')) {
+        return {"error": "Network error. Please check your connection."};
+      } else if (errorString.contains('redirect_uri_mismatch') || errorString.contains('redirect_uri')) {
+        return {"error": "OAuth configuration error. Please contact support or try again later."};
+      } else if (errorString.contains('clientexception')) {
+        // Extract more details from ClientException
+        final errorMessage = e.toString();
+        if (errorMessage.contains('redirect_uri_mismatch')) {
+          return {"error": "OAuth configuration error. The app origin is not authorized. Please contact support."};
+        }
+        return {"error": "Google Sign-In configuration error: ${errorMessage.length > 100 ? errorMessage.substring(0, 100) + '...' : errorMessage}"};
+      }
+      
+      return {"error": "Google Sign-In failed: ${e.toString().length > 150 ? e.toString().substring(0, 150) + '...' : e.toString()}"};
     }
   }
 

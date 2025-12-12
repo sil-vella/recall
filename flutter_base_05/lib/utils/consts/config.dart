@@ -93,6 +93,12 @@ class Config {
     defaultValue: true,
   );
 
+  // Google Sign-In Client ID (Web)
+  static const String googleClientId = String.fromEnvironment(
+    'GOOGLE_CLIENT_ID',
+    defaultValue: '907176907209-q53b29haj3t690ol7kbtqrqo0hkt9ku7.apps.googleusercontent.com',
+  );
+
   // Diagnostics
   static const String platform = String.fromEnvironment('APP_PLATFORM', defaultValue: 'flutter');
   static const String buildMode = String.fromEnvironment('BUILD_MODE', defaultValue: 'debug');

@@ -9,6 +9,7 @@ from tools.logger.custom_logging import custom_log, function_log, game_play_log,
 import os
 from flask import request, jsonify
 import time
+from datetime import datetime, timedelta
 from utils.config.config import Config
 from redis.exceptions import RedisError
 from core.monitoring.metrics_collector import metrics_collector
@@ -138,6 +139,11 @@ class AppManager:
 
         # Initialize services
         self.services_manager.initialize_services()
+        
+        # Register AnalyticsService
+        from core.services.analytics_service import AnalyticsService
+        analytics_service = AnalyticsService(self)
+        self.services_manager.register_service('analytics_service', analytics_service)
 
         # Register common hooks before module initialization
         self._register_common_hooks()
@@ -518,10 +524,51 @@ class AppManager:
             except Exception as e:
                 pass
         
+        def update_active_users():
+            """Calculate and update active users metrics."""
+            try:
+                if not hasattr(self, 'db_manager') or not self.db_manager:
+                    return
+                
+                current_time = datetime.utcnow()
+                
+                # Calculate daily active users (last 24 hours)
+                daily_threshold = current_time - timedelta(days=1)
+                daily_active = self.db_manager.count("users", {
+                    "last_login": {"$gte": daily_threshold.isoformat()}
+                })
+                metrics_collector.update_active_users('daily', daily_active)
+                
+                # Calculate weekly active users (last 7 days)
+                weekly_threshold = current_time - timedelta(days=7)
+                weekly_active = self.db_manager.count("users", {
+                    "last_login": {"$gte": weekly_threshold.isoformat()}
+                })
+                metrics_collector.update_active_users('weekly', weekly_active)
+                
+                # Calculate monthly active users (last 30 days)
+                monthly_threshold = current_time - timedelta(days=30)
+                monthly_active = self.db_manager.count("users", {
+                    "last_login": {"$gte": monthly_threshold.isoformat()}
+                })
+                metrics_collector.update_active_users('monthly', monthly_active)
+                
+            except Exception as e:
+                # Silently fail to avoid disrupting system metrics
+                pass
+        
         # Schedule periodic updates
         self.scheduler.add_job(
             update_system_metrics,
             'interval',
             seconds=15,
             id='system_metrics_update'
+        )
+        
+        # Schedule active users calculation (every 5 minutes)
+        self.scheduler.add_job(
+            update_active_users,
+            'interval',
+            minutes=5,
+            id='active_users_update'
         )

@@ -2,6 +2,8 @@ import 'package:cleco/tools/logging/logger.dart';
 
 import 'validated_event_emitter.dart';
 import '../../cleco_game/managers/cleco_game_state_updater.dart';
+import '../../../core/managers/module_manager.dart';
+import '../../../modules/analytics_module/analytics_module.dart';
 
 /// Player action types for the Cleco game
 enum PlayerActionType {
@@ -32,6 +34,22 @@ class PlayerAction {
   
   final Logger _logger = Logger();
   static const bool LOGGING_SWITCH = false; // Enabled for final round debugging
+  
+  // Analytics module cache
+  static AnalyticsModule? _analyticsModule;
+  
+  /// Get analytics module instance
+  static AnalyticsModule? _getAnalyticsModule() {
+    if (_analyticsModule == null) {
+      try {
+        final moduleManager = ModuleManager();
+        _analyticsModule = moduleManager.getModuleByType<AnalyticsModule>();
+      } catch (e) {
+        // Silently fail
+      }
+    }
+    return _analyticsModule;
+  }
   // Jack swap selection tracking
   static String? _firstSelectedCardId;
   static String? _firstSelectedPlayerId;
@@ -101,6 +119,63 @@ class PlayerAction {
     } catch (e) {
       _logger.error('Error executing action ${actionType.name}: $e', isOn: LOGGING_SWITCH);
       rethrow;
+    }
+  }
+  
+  /// Track analytics event for player actions
+  static Future<void> _trackAnalyticsEvent(
+    PlayerActionType actionType,
+    String eventName,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final analyticsModule = _getAnalyticsModule();
+      if (analyticsModule == null) return;
+      
+      // Map action types to analytics events
+      switch (actionType) {
+        case PlayerActionType.playCard:
+        case PlayerActionType.replaceCard:
+          await analyticsModule.trackEvent(
+            eventType: 'card_played',
+            eventData: {
+              'action_type': actionType.name,
+              'event_name': eventName,
+            },
+          );
+          break;
+        case PlayerActionType.queenPeek:
+          await analyticsModule.trackEvent(
+            eventType: 'special_card_used',
+            eventData: {
+              'card_type': 'queen_peek',
+              'event_name': eventName,
+            },
+          );
+          break;
+        case PlayerActionType.jackSwap:
+          await analyticsModule.trackEvent(
+            eventType: 'special_card_used',
+            eventData: {
+              'card_type': 'jack_swap',
+              'event_name': eventName,
+            },
+          );
+          break;
+        case PlayerActionType.callFinalRound:
+          await analyticsModule.trackEvent(
+            eventType: 'cleco_called',
+            eventData: {
+              'event_name': eventName,
+            },
+          );
+          break;
+        default:
+          // Track other actions as generic game actions
+          break;
+      }
+    } catch (e) {
+      // Silently fail - don't block game actions if analytics fails
     }
   }
 

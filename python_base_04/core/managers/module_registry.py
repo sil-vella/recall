@@ -104,6 +104,7 @@ class ModuleRegistry:
         """
         dependencies = {
             "user_management_module": [],  # Core user management - no dependencies
+            "analytics_module": ["user_management_module"],  # Needs user management for JWT auth
             "credit_system_module": ["user_management_module"],  # Needs user management
             "system_actions_module": [],  # Core system actions - no dependencies
             "wallet_module": ["user_management_module"],  # Needs user management
@@ -133,36 +134,41 @@ class ModuleRegistry:
                 "health_check_enabled": True,
                 "session_timeout": 3600,
             },
-            "stripe_module": {
+            "analytics_module": {
                 "enabled": True,
                 "priority": 3,
+                "health_check_enabled": True,
+            },
+            "stripe_module": {
+                "enabled": True,
+                "priority": 4,
                 "health_check_enabled": True,
                 "verification_timeout": 30,
             },
             "cleco_game": {
                 "enabled": True,
-                "priority": 4,
+                "priority": 5,
                 "health_check_enabled": True,
                 "websocket_required": True,
             },
             "credit_system_module": {
                 "enabled": True,
-                "priority": 5,
+                "priority": 6,
                 "health_check_enabled": True,
             },
             "system_actions_module": {
                 "enabled": True,
-                "priority": 6,
+                "priority": 7,
                 "health_check_enabled": True,
             },
             "wallet_module": {
                 "enabled": True,
-                "priority": 7,
+                "priority": 8,
                 "health_check_enabled": True,
             },
             "transactions_module": {
                 "enabled": True,
-                "priority": 8,
+                "priority": 9,
                 "health_check_enabled": True,
             },
         }

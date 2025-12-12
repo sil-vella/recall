@@ -10,6 +10,8 @@ import '../../screens/update_required_screen/update_required_screen.dart';
 import '../00_base/module_base.dart';
 import '../../tools/logging/logger.dart';
 import 'hooks_manager.dart';
+import '../../modules/analytics_module/analytics_module.dart';
+import 'module_manager.dart';
 
 class RegisteredRoute {
   final String path;
@@ -54,6 +56,9 @@ class NavigationManager extends ChangeNotifier {
   bool _isRouterInitialized = false;
   bool _hasTriggeredRouterHook = false;
   final List<Function()> _pendingNavigations = [];
+  
+  // Analytics tracking
+  AnalyticsModule? _analyticsModule;
   
   factory NavigationManager() => _instance;
   NavigationManager._internal() {
@@ -231,6 +236,9 @@ class NavigationManager extends ChangeNotifier {
     _lastNavigationRoute = route;
     _lastNavigationTime = now;
     
+    // Track screen view
+    _trackScreenView(route);
+    
     // Append query parameters if provided
     String finalRoute = route;
     if (parameters != null && parameters.isNotEmpty) {
@@ -285,5 +293,27 @@ class NavigationManager extends ChangeNotifier {
   /// ✅ Check if route exists
   bool routeExists(String route) {
     return _routes.any((r) => r.path == route);
+  }
+  
+  /// Track screen view for analytics
+  void _trackScreenView(String route) {
+    try {
+      // Get analytics module if not already cached
+      if (_analyticsModule == null) {
+        final moduleManager = ModuleManager();
+        _analyticsModule = moduleManager.getModuleByType<AnalyticsModule>();
+      }
+      
+      // Extract screen name from route (remove leading slash)
+      var screenName = route.startsWith('/') ? route.substring(1) : route;
+      if (screenName.isEmpty) {
+        screenName = 'home';
+      }
+      
+      // Track screen view asynchronously (don't await to avoid blocking navigation)
+      _analyticsModule?.trackScreenView(screenName);
+    } catch (e) {
+      // Silently fail - don't block navigation if analytics fails
+    }
   }
 }

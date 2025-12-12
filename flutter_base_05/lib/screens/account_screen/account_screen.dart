@@ -4,6 +4,7 @@ import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../modules/login_module/login_module.dart';
+import '../../modules/analytics_module/analytics_module.dart';
 import '../../core/services/shared_preferences.dart';
 import '../../tools/logging/logger.dart';
 
@@ -50,6 +51,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   // Module manager
   final ModuleManager _moduleManager = ModuleManager();
   LoginModule? _loginModule;
+  AnalyticsModule? _analyticsModule;
   
   @override
   void initState() {
@@ -58,6 +60,17 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     _initializeModules();
     _checkForGuestCredentials();
     _checkGuestAccountStatus();
+    _trackScreenView();
+  }
+  
+  /// Track screen view
+  Future<void> _trackScreenView() async {
+    try {
+      _analyticsModule = _moduleManager.getModuleByType<AnalyticsModule>();
+      await _analyticsModule?.trackScreenView('account_screen');
+    } catch (e) {
+      _logger.error('AccountScreen: Error tracking screen view: $e', isOn: LOGGING_SWITCH);
+    }
   }
   
   /// Check if current user is a guest account
@@ -81,6 +94,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   
   void _initializeModules() {
     _loginModule = _moduleManager.getModuleByType<LoginModule>();
+    _analyticsModule = _moduleManager.getModuleByType<AnalyticsModule>();
     if (_loginModule == null) {
       _logger.error('❌ Login module not available', isOn: LOGGING_SWITCH);
     }
@@ -291,6 +305,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   }
   
   Future<void> _handleLogin() async {
+    // Track button click
+    await _analyticsModule?.trackButtonClick('login_button', screenName: 'account_screen');
+    
     if (!_loginFormKey.currentState!.validate()) {
       return;
     }
@@ -353,6 +370,16 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           _isLoading = false;
         });
         
+        // Track successful Google Sign-In
+        await _analyticsModule?.trackEvent(
+          eventType: 'google_sign_in',
+          eventData: {
+            'auth_method': 'google',
+            'screen_name': 'account_screen',
+            'converted_from_guest': _isConvertingGuest,
+          },
+        );
+        
         // Navigate to main screen after successful login
         Future.delayed(const Duration(seconds: 2), () {
           context.go('/');
@@ -372,6 +399,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   }
   
   Future<void> _handleRegister() async {
+    // Track button click
+    await _analyticsModule?.trackButtonClick('register_button', screenName: 'account_screen');
+    
     if (!_registerFormKey.currentState!.validate()) {
       return;
     }
@@ -392,6 +422,16 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       );
       
       if (result['success'] != null) {
+        // Track successful registration
+        await _analyticsModule?.trackEvent(
+          eventType: 'user_registered',
+          eventData: {
+            'registration_type': 'email',
+            'screen_name': 'account_screen',
+            'converted_from_guest': _isConvertingGuest,
+          },
+        );
+        
         // If guest account conversion was successful, update guest account status and log out
         if (_isConvertingGuest) {
           await _checkGuestAccountStatus();

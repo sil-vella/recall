@@ -16,6 +16,7 @@ from flask import request, jsonify
 from datetime import datetime
 from bson import ObjectId
 import time
+from core.monitoring.metrics_collector import metrics_collector
 
 # Logging switch for this module
 LOGGING_SWITCH = False
@@ -358,6 +359,19 @@ class ClecoGameMain(BaseModule):
                     
                     if modified_count > 0:
                         custom_log(f"✅ Python: Successfully updated database for user_id: {user_id_str} (modified_count: {modified_count})", level="INFO", isOn=LOGGING_SWITCH)
+                        
+                        # Track game completion metrics
+                        game_mode = player_result.get('game_mode', 'multiplayer')  # Default to multiplayer if not specified
+                        result = 'win' if is_winner else 'loss'
+                        game_duration = player_result.get('duration', 0)  # Duration in seconds, default 0 if not provided
+                        
+                        # Track game completion
+                        metrics_collector.track_game_completed(game_mode, result, game_duration)
+                        
+                        # Track coin transactions if coins were earned
+                        if is_winner and pot > 0:
+                            metrics_collector.track_coin_transaction('game_reward', 'credit', pot)
+                        
                         updated_players.append({
                             "user_id": user_id_str,
                             "wins": new_wins,

@@ -1188,13 +1188,16 @@ These keys are cleared on logout but restored from permanent keys when needed:
 
 ### Future Improvements
 
-#### 1. Guest Account Upgrade
+#### 1. Additional Guest Account Upgrade Methods
+
+**Current State**: Guest accounts can be upgraded via:
+- ✅ Email/password registration (with guest conversion)
+- ✅ Google Sign-In (with guest conversion)
 
 **Proposed Enhancement**:
-- Allow guests to upgrade to regular accounts
-- Add email/password to existing guest account
-- Preserve game history and data
-- Convert `account_type` from 'guest' to 'regular'
+- Facebook Sign-In with guest conversion
+- Apple Sign-In with guest conversion
+- Other OAuth providers with guest conversion
 
 #### 2. Guest Account Expiration
 
@@ -1548,7 +1551,11 @@ User Clicks "Sign in with Google" (AccountScreen)
     ↓
 _handleGoogleSignIn()
     ↓
-LoginModule.signInWithGoogle()
+_checkForGuestAccountForConversion()
+    ├─ Checks persistent storage for guest credentials
+    └─ Sets _isConvertingGuest, _guestEmail, _guestPassword if found
+    ↓
+LoginModule.signInWithGoogle(guestEmail?, guestPassword?)
     ↓
 Initialize GoogleSignIn (with scopes: email, profile, openid)
     ↓
@@ -1562,9 +1569,11 @@ Get GoogleSignInAuthentication
     ↓
 [Web Only: Fetch user info from Google API using access token]
     ↓
+Prepare Request Payload
+    ├─ {id_token: "..."} OR {access_token: "...", user_info: {...}}
+    └─ [If guest conversion] + {convert_from_guest: true, guest_email, guest_password}
+    ↓
 Send to Backend: POST /public/google-signin
-    ├─ {id_token: "..."} OR
-    └─ {access_token: "...", user_info: {...}}
     ↓
 UserManagementModule.google_signin()
     ↓
@@ -1572,9 +1581,19 @@ Verify Token (ID token or access token)
     ↓
 Extract User Info (email, name, picture, etc.)
     ↓
+[If convert_from_guest] Validate Guest Account
+    ├─ Check guest account exists
+    ├─ Verify account_type == 'guest'
+    └─ Verify guest password
+    ↓
 Check for Existing User by Email
     ├─ If exists: Link Google account (update auth_providers)
     └─ If not: Create new user account
+        ├─ [If guest conversion] Copy all guest data (modules, stats, etc.)
+        ├─ Preserve original creation date
+        └─ Update with Google info
+    ↓
+[If guest conversion] Delete Guest Account
     ↓
 Generate JWT Tokens (access + refresh)
     ↓
@@ -1582,7 +1601,9 @@ Response: JWT Tokens + User Data
     ↓
 Frontend: Store Tokens & User Data
     ↓
-User Logged In
+[If guest conversion] Clear Guest Credentials from Persistent Storage
+    ↓
+User Logged In (All Progress Preserved if Converted)
 ```
 
 ### Account Linking
@@ -1611,6 +1632,323 @@ if 'google' not in auth_providers:
         "auth_providers": auth_providers
     })
 ```
+
+### Guest Account Conversion via Google Sign-In
+
+**Overview**: Guest accounts can be upgraded to full Google-authenticated accounts while preserving all their game progress, stats, and data. This provides a seamless upgrade path for users who started as guests.
+
+**Key Features**:
+- Preserves all guest account data (modules, stats, coins, game history)
+- Maintains original account creation date
+- Deletes guest account after successful conversion
+- Clears guest credentials from persistent storage
+- Same conversion logic as email/password registration
+
+#### Frontend Flow
+
+**Guest Account Detection**:
+```dart
+// In AccountScreen._handleGoogleSignIn()
+await _checkForGuestAccountForConversion();
+
+// Checks persistent storage for guest credentials
+final isGuestAccount = sharedPref.getBool('is_guest_account') ?? false;
+final guestUsername = sharedPref.getString('guest_username');
+final guestEmail = sharedPref.getString('guest_email');
+
+if (isGuestAccount && guestUsername != null && guestEmail != null) {
+  _isConvertingGuest = true;
+  _guestEmail = guestEmail;
+  _guestPassword = guestUsername; // Password is same as username
+}
+```
+
+**Google Sign-In with Conversion**:
+```dart
+// Pass guest credentials to LoginModule
+final result = await _loginModule!.signInWithGoogle(
+  context: context,
+  guestEmail: _isConvertingGuest ? _guestEmail : null,
+  guestPassword: _isConvertingGuest ? _guestPassword : null,
+);
+```
+
+**LoginModule Processing**:
+```dart
+// Check if guest account conversion is requested
+final isConvertingGuest = guestEmail != null && guestPassword != null;
+
+// Include in request payload
+if (isConvertingGuest && guestEmail != null && guestPassword != null) {
+  requestPayload["convert_from_guest"] = true;
+  requestPayload["guest_email"] = guestEmail;
+  requestPayload["guest_password"] = guestPassword;
+}
+
+// After successful conversion, clear guest credentials
+if (isConvertingGuest) {
+  await _sharedPref!.remove('is_guest_account');
+  await _sharedPref!.remove('guest_username');
+  await _sharedPref!.remove('guest_email');
+  await _sharedPref!.remove('guest_user_id');
+}
+```
+
+#### Backend Flow
+
+**Guest Account Validation**:
+```python
+# Validate guest account if conversion requested
+if convert_from_guest:
+    if not guest_email or not guest_password:
+        return jsonify({
+            "success": False,
+            "error": "Guest email and password are required for account conversion"
+        }), 400
+    
+    # Find guest user
+    guest_user = self.db_manager.find_one("users", {"email": guest_email})
+    if not guest_user:
+        return jsonify({
+            "success": False,
+            "error": "Guest account not found"
+        }), 404
+    
+    # Verify it's actually a guest account
+    if guest_user.get("account_type") != "guest":
+        return jsonify({
+            "success": False,
+            "error": "Account is not a guest account"
+        }), 400
+    
+    # Verify guest password
+    stored_password = guest_user.get("password", "").encode('utf-8')
+    if not bcrypt.checkpw(guest_password.encode('utf-8'), stored_password):
+        return jsonify({
+            "success": False,
+            "error": "Invalid guest account password"
+        }), 401
+```
+
+**Data Preservation**:
+```python
+if convert_from_guest and guest_user:
+    # Copy all data from guest account except username, email, password, account_type, _id
+    guest_data = guest_user.copy()
+    
+    # Start with new credentials
+    user_data = {
+        'username': username,  # Generated from Google name/email
+        'email': email,  # Google email
+        'password': '',  # No password for Google-only accounts
+        'account_type': 'normal',  # Changed from 'guest'
+        'auth_providers': ['google'],
+        'google_id': google_id,
+        'status': guest_data.get('status', 'active'),
+        'created_at': guest_data.get('created_at', current_time.isoformat()),  # Preserve original creation date
+        'updated_at': current_time.isoformat(),
+        'last_login': guest_data.get('last_login'),
+        'login_count': guest_data.get('login_count', 0),
+    }
+    
+    # Copy all other fields from guest account
+    fields_to_copy = ['profile', 'preferences', 'modules', 'audit']
+    for field in fields_to_copy:
+        if field in guest_data:
+            user_data[field] = guest_data[field]
+    
+    # Update profile with Google info if available
+    if given_name:
+        user_data['profile']['first_name'] = given_name
+    if family_name:
+        user_data['profile']['last_name'] = family_name
+    if picture:
+        user_data['profile']['picture'] = picture
+```
+
+**Guest Account Deletion**:
+```python
+# After successful user creation
+if convert_from_guest and guest_user:
+    try:
+        guest_user_id = guest_user.get("_id")
+        if guest_user_id:
+            delete_result = self.db_manager.delete("users", {"_id": ObjectId(guest_user_id)})
+            if delete_result:
+                custom_log(f"Successfully deleted guest account after Google Sign-In conversion")
+    except Exception as e:
+        # Log error but don't fail registration (data integrity maintained)
+        custom_log(f"Error deleting guest account after conversion: {e}", level="ERROR")
+```
+
+#### Guest Account Conversion Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│        Guest Account Conversion via Google Sign-In           │
+└─────────────────────────────────────────────────────────────┘
+
+User Has Guest Account (Guest_vqzfyb4h)
+    ↓
+User Clicks "Sign in with Google" (AccountScreen)
+    ↓
+AccountScreen._handleGoogleSignIn()
+    ↓
+_checkForGuestAccountForConversion()
+    ↓
+Detects Guest Credentials in Persistent Storage
+    ↓
+Sets _isConvertingGuest = true
+    ↓
+LoginModule.signInWithGoogle(guestEmail, guestPassword)
+    ↓
+Google OAuth Flow (User selects Google account)
+    ↓
+Get Google ID Token or Access Token
+    ↓
+Send to Backend: POST /public/google-signin
+    ├─ {id_token: "..."} OR {access_token: "...", user_info: {...}}
+    ├─ convert_from_guest: true
+    ├─ guest_email: "guest_Guest_vqzfyb4h@guest.local"
+    └─ guest_password: "Guest_vqzfyb4h"
+    ↓
+UserManagementModule.google_signin()
+    ↓
+Verify Google Token
+    ↓
+Validate Guest Account
+    ├─ Check guest account exists
+    ├─ Verify account_type == 'guest'
+    └─ Verify guest password
+    ↓
+Extract Google User Info (email, name, picture)
+    ↓
+Generate Username from Google Info
+    ↓
+Create New User Account
+    ├─ Copy all guest data (modules, stats, preferences, audit)
+    ├─ Preserve original creation date
+    ├─ Update with Google info (email, name, picture)
+    ├─ Set account_type: 'normal'
+    └─ Set auth_providers: ['google']
+    ↓
+Delete Guest Account
+    ↓
+Trigger user_created Hook (with converted_from_guest flag)
+    ↓
+Response: JWT Tokens + New User Data
+    ↓
+Frontend: Store Tokens & User Data
+    ↓
+Frontend: Clear Guest Credentials from Persistent Storage
+    ↓
+User Logged In with Google Account (All Progress Preserved)
+```
+
+#### API Request/Response
+
+**Request Body (with Guest Conversion)**:
+```json
+{
+  "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij...",
+  "convert_from_guest": true,
+  "guest_email": "guest_Guest_vqzfyb4h@guest.local",
+  "guest_password": "Guest_vqzfyb4h"
+}
+```
+
+**Success Response (200 OK)**:
+```json
+{
+  "success": true,
+  "message": "Google Sign-In successful",
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "_id": "ObjectId",
+      "username": "silvestervella",
+      "email": "user@example.com",
+      "account_type": "normal",
+      "auth_providers": ["google"],
+      "created_at": "2025-12-12T21:59:32.000Z",  // Preserved from guest account
+      "modules": {
+        "cleco_game": {
+          "wins": 5,  // Preserved from guest account
+          "losses": 2,  // Preserved from guest account
+          "coins": 100,  // Preserved from guest account
+          // ... all other guest data preserved
+        }
+      }
+    }
+  }
+}
+```
+
+**Error Response (404 Not Found)**:
+```json
+{
+  "success": false,
+  "error": "Guest account not found"
+}
+```
+
+**Error Response (400 Bad Request)**:
+```json
+{
+  "success": false,
+  "error": "Account is not a guest account"
+}
+```
+
+**Error Response (401 Unauthorized)**:
+```json
+{
+  "success": false,
+  "error": "Invalid guest account password"
+}
+```
+
+#### Data Preservation
+
+**What Gets Preserved**:
+- ✅ All module data (cleco_game, wallet, subscription, referrals)
+- ✅ Game statistics (wins, losses, coins, points, level, rank)
+- ✅ Original account creation date
+- ✅ Login count and last login timestamp
+- ✅ Profile preferences and settings
+- ✅ Audit trail data
+
+**What Gets Updated**:
+- ✅ Username (generated from Google name/email)
+- ✅ Email (Google email)
+- ✅ Account type (changed from 'guest' to 'normal')
+- ✅ Auth providers (set to ['google'])
+- ✅ Profile picture (from Google if available)
+- ✅ First/Last name (from Google if available)
+
+**What Gets Removed**:
+- ❌ Guest account (deleted after conversion)
+- ❌ Guest credentials from persistent storage (cleared on frontend)
+
+#### Security Considerations
+
+**Guest Account Validation**:
+- Guest account must exist in database
+- Account type must be 'guest'
+- Guest password must match (bcrypt verification)
+- Prevents unauthorized account conversion
+
+**Data Integrity**:
+- Guest account deletion happens after successful user creation
+- If deletion fails, data is still preserved in new account
+- Error logged but conversion still succeeds
+- No data loss scenarios
+
+**Credential Security**:
+- Guest credentials cleared from persistent storage after conversion
+- New Google account uses secure OAuth tokens
+- No password stored for Google-only accounts
 
 ### Platform-Specific Handling
 
@@ -1675,6 +2013,16 @@ static const String googleClientId = String.fromEnvironment(
 }
 ```
 
+**Request Body (with Guest Account Conversion)**:
+```json
+{
+  "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij...",
+  "convert_from_guest": true,
+  "guest_email": "guest_Guest_vqzfyb4h@guest.local",
+  "guest_password": "Guest_vqzfyb4h"
+}
+```
+
 **Success Response (200 OK)**:
 ```json
 {
@@ -1714,6 +2062,30 @@ static const String googleClientId = String.fromEnvironment(
 {
   "success": false,
   "error": "Google Sign-In is not available. Please install google-auth package."
+}
+```
+
+**Error Response (404 Not Found - Guest Conversion)**:
+```json
+{
+  "success": false,
+  "error": "Guest account not found"
+}
+```
+
+**Error Response (400 Bad Request - Guest Conversion)**:
+```json
+{
+  "success": false,
+  "error": "Account is not a guest account"
+}
+```
+
+**Error Response (401 Unauthorized - Guest Conversion)**:
+```json
+{
+  "success": false,
+  "error": "Invalid guest account password"
 }
 ```
 
@@ -1830,9 +2202,12 @@ static const String googleClientId = String.fromEnvironment(
 - `flutter_base_05/lib/screens/account_screen/account_screen.dart`
   - Google Sign-In button UI
   - Button handler
+  - Guest account conversion detection
+  - `_checkForGuestAccountForConversion()` method
 
 - `flutter_base_05/lib/modules/login_module/login_module.dart`
   - `signInWithGoogle()` method
+  - Guest account conversion support
   - Token handling
   - Error handling
 
@@ -1847,6 +2222,8 @@ static const String googleClientId = String.fromEnvironment(
   - `google_signin()` method
   - Token verification
   - Account linking logic
+  - Guest account conversion logic
+  - Guest data preservation
   - User creation from Google
 
 - `python_base_04/core/services/google_auth_service.py`
@@ -2737,10 +3114,12 @@ The user registration process is a comprehensive system that handles user accoun
 - **One-click authentication** with Google account
 - **Automatic account creation** for new users
 - **Account linking** for existing users (by email)
+- **Guest account conversion** - upgrade guest accounts while preserving all progress
 - **Token verification** (ID tokens on mobile, access tokens on web)
 - **Platform-specific handling** (Web, Android, iOS)
 - **Same JWT token system** as email/password login
 - **Auth providers tracking** (auth_providers field in user document)
+- **Data preservation** - all guest account data (modules, stats, coins) preserved during conversion
 - **Cleco game module initialization** (subscription_tier: 'promotional', coins: 0)
 
 ### Subscription Tier System
@@ -2754,4 +3133,4 @@ The system is designed to be secure, scalable, and extensible, with clear separa
 
 ---
 
-**Last Updated**: 2025-12-12 (Added Google Sign-In authentication feature)
+**Last Updated**: 2025-12-12 (Added Google Sign-In authentication feature with guest account conversion support)

@@ -2,18 +2,52 @@ import 'package:cleco/tools/logging/logger.dart';
 
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
+import '../../../core/managers/module_manager.dart';
 import '../../cleco_game/utils/cleco_game_helpers.dart';
 import '../utils/game_instructions_provider.dart';
+import '../../../modules/analytics_module/analytics_module.dart';
 
 /// Dedicated event handlers for Cleco game events
 /// Contains all the business logic for processing specific event types
 class ClecoEventHandlerCallbacks {
   static const bool LOGGING_SWITCH = false; // Enabled for final round debugging
   static final Logger _logger = Logger();
+  
+  // Analytics module cache
+  static AnalyticsModule? _analyticsModule;
 
   // ========================================
   // HELPER METHODS TO REDUCE DUPLICATION
   // ========================================
+  
+  /// Get analytics module instance
+  static AnalyticsModule? _getAnalyticsModule() {
+    if (_analyticsModule == null) {
+      try {
+        final moduleManager = ModuleManager();
+        _analyticsModule = moduleManager.getModuleByType<AnalyticsModule>();
+      } catch (e) {
+        _logger.error('Error getting analytics module: $e', isOn: LOGGING_SWITCH);
+      }
+    }
+    return _analyticsModule;
+  }
+  
+  /// Track game event
+  static Future<void> _trackGameEvent(String eventType, Map<String, dynamic> eventData) async {
+    try {
+      final analyticsModule = _getAnalyticsModule();
+      if (analyticsModule != null) {
+        await analyticsModule.trackEvent(
+          eventType: eventType,
+          eventData: eventData,
+        );
+      }
+    } catch (e) {
+      // Silently fail - don't block game events if analytics fails
+      _logger.error('Error tracking game event: $e', isOn: LOGGING_SWITCH);
+    }
+  }
   
   /// Get current games map from state manager
   static Map<String, dynamic> _getCurrentGamesMap() {
@@ -1129,6 +1163,21 @@ class ClecoEventHandlerCallbacks {
         showModal: true, // Show modal for game end
       );
       
+      // Track game completed event
+      final gameMode = gameState['game_mode']?.toString() ?? 'multiplayer';
+      final isCurrentUserWinner = winners.any((w) {
+        if (w is Map<String, dynamic>) {
+          return w['id']?.toString() == currentUserId;
+        }
+        return false;
+      });
+      _trackGameEvent('game_completed', {
+        'game_id': gameId,
+        'game_mode': gameMode,
+        'result': isCurrentUserWinner ? 'win' : 'loss',
+        'winners_count': winners.length,
+      });
+      
       // Refresh user stats (including coins) after game ends to update app bar display
       // This ensures the coins display shows the updated balance after winning/losing
       _logger.info('🔄 handleGameStateUpdated: Refreshing user stats after game end to update coins display', isOn: LOGGING_SWITCH);
@@ -1237,6 +1286,13 @@ class ClecoEventHandlerCallbacks {
           break;
         case 'cleco_called_by':
           updates['clecoCalledBy'] = updatedGameState['cleco_called_by'];
+          // Track Cleco call event
+          final gameMode = updatedGameState['game_mode']?.toString() ?? 'multiplayer';
+          _trackGameEvent('cleco_called', {
+            'game_id': gameId,
+            'game_mode': gameMode,
+            'called_by': updatedGameState['cleco_called_by']?.toString(),
+          });
           break;
         case 'game_ended':
           updates['isGameActive'] = !(updatedGameState['game_ended'] == true);

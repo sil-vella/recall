@@ -9,6 +9,7 @@ import '../../utils/consts/config.dart';
 import '../../modules/main_helper_module/main_helper_module.dart';
 import '../../modules/login_module/login_module.dart';
 import '../../modules/connections_api_module/connections_api_module.dart';
+import '../../modules/analytics_module/analytics_module.dart';
 // WebSocket module removed - now using WebSocketManager directly
 import '../../modules/audio_module/audio_module.dart';
 import '../../modules/animations_module/animations_module.dart';
@@ -96,6 +97,8 @@ class ModuleRegistry {
     registerModule('login', () => LoginModule());
     
     registerModule('connections_api', () => ConnectionsApiModule(Config.apiUrl));
+    
+    registerModule('analytics', () => AnalyticsModule(), dependencies: ['connections_api']);
     
     // WebSocket module removed - now using WebSocketManager directly
     // registerModule('websocket', () => WebSocketModule(), 

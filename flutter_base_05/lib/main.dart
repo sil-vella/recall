@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'package:provider/provider.dart';
 import 'core/managers/app_manager.dart';
 import 'core/managers/module_manager.dart';
 import 'core/managers/module_registry.dart';
 import 'core/managers/navigation_manager.dart';
 import 'core/managers/provider_manager.dart';
+import 'modules/analytics_module/analytics_module.dart';
 import 'tools/logging/logger.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Set up global error handlers for analytics tracking
+  _setupErrorHandlers();
 
   // Initialize platform-specific implementations
   await Future.wait([
@@ -141,5 +147,58 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData.dark(),
       routerConfig: router,
     );
+  }
+}
+
+/// Set up global error handlers for analytics tracking
+void _setupErrorHandlers() {
+  // Handle Flutter framework errors
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    _trackError(
+      error: details.exception.toString(),
+      stackTrace: details.stack?.toString(),
+      context: 'Flutter Framework Error',
+      additionalData: {
+        'library': details.library,
+        'information': details.informationCollector?.call().toString(),
+      },
+    );
+  };
+  
+  // Handle platform errors (async errors not caught by Flutter)
+  PlatformDispatcher.instance.onError = (error, stack) {
+    _trackError(
+      error: error.toString(),
+      stackTrace: stack?.toString(),
+      context: 'Platform Error',
+    );
+    return true; // Return true to indicate error was handled
+  };
+}
+
+/// Track error in analytics
+void _trackError({
+  required String error,
+  String? stackTrace,
+  String? context,
+  Map<String, dynamic>? additionalData,
+}) {
+  try {
+    // Get analytics module (may not be initialized yet, so handle gracefully)
+    final moduleManager = ModuleManager();
+    final analyticsModule = moduleManager.getModuleByType<AnalyticsModule>();
+    
+    if (analyticsModule != null) {
+      // Track error asynchronously (don't await to avoid blocking)
+      analyticsModule.trackError(
+        error: error,
+        stackTrace: stackTrace,
+        context: context,
+        additionalData: additionalData,
+      );
+    }
+  } catch (e) {
+    // Silently fail - don't break app if analytics fails
   }
 }

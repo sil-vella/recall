@@ -15,3 +15,6 @@ typedef HooksManager = dynamic;
 // Note: Platform-specific imports (like computer_player_config_parser.dart) 
 // should be imported directly in files that need them, not via shared_imports.dart
 
+// Platform-specific config paths (Flutter)
+const String DECK_CONFIG_PATH = 'assets/deck_config.yaml';
+

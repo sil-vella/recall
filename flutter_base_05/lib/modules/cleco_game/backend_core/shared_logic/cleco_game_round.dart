@@ -1075,8 +1075,18 @@ class ClecoGameRound {
         }
         
         // Now draw from the (potentially reshuffled) draw pile
-        final idOnlyCard = drawPile.removeLast(); // Remove last card (top of pile)
+        // Re-fetch drawPile in case it was reshuffled above
+        final currentDrawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
+        if (currentDrawPile.isEmpty) {
+          _logger.error('Cleco: Draw pile is empty after reshuffle check - cannot draw', isOn: LOGGING_SWITCH);
+          return false;
+        }
+        
+        final idOnlyCard = currentDrawPile.removeLast(); // Remove last card (top of pile)
         _logger.info('Cleco: Drew card ${idOnlyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
+        
+        // Update gameState with modified draw pile
+        gameState['drawPile'] = currentDrawPile;
         
         // Convert ID-only card to full card data using the coordinator's method
         drawnCard = _stateCallback.getCardById(gameState, idOnlyCard['cardId']);
@@ -1086,7 +1096,7 @@ class ClecoGameRound {
         }
         
         // Check if draw pile is now empty
-        if (drawPile.isEmpty) {
+        if (currentDrawPile.isEmpty) {
           _logger.info('Cleco: Draw pile is now empty', isOn: LOGGING_SWITCH);
         }
         

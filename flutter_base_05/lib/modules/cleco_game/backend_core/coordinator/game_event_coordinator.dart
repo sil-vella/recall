@@ -276,9 +276,10 @@ class GameEventCoordinator {
 
     // Build deck and deal 4 cards per player (as in practice)
     // Use YamlDeckFactory to respect testing_mode setting from YAML config
-    final configPath = 'assets/deck_config.yaml';
-    final deckFactory = await YamlDeckFactory.fromFile(roomId, configPath);
+    final deckFactory = await YamlDeckFactory.fromFile(roomId, DECK_CONFIG_PATH);
     final List<Card> fullDeck = deckFactory.buildDeck();
+    
+    _logger.info('GameEventCoordinator: Built deck with ${fullDeck.length} cards (testing_mode: ${deckFactory.getSummary()['testing_mode']})', isOn: LOGGING_SWITCH);
 
     // Helper to convert Card to Map (full data for originalDeck lookup)
     Map<String, dynamic> _cardToMap(Card c) => {

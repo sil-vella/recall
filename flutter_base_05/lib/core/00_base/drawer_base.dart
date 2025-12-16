@@ -63,7 +63,7 @@ class CustomDrawer extends StatelessWidget {
                     button: true,
                     child: ListTile(
                     leading: Icon(Icons.home, color: AppColors.accentColor),
-                    title: Text('Home', style: AppTextStyles.bodyLarge),
+                    title: Text('Home', style: AppTextStyles.bodyLarge()),
                     onTap: () => context.go('/'),
                   ),
                   ),
@@ -74,7 +74,7 @@ class CustomDrawer extends StatelessWidget {
                       button: true,
                       child: ListTile(
                       leading: Icon(route.drawerIcon, color: AppColors.accentColor),
-                      title: Text(route.drawerTitle ?? '', style: AppTextStyles.bodyLarge),
+                      title: Text(route.drawerTitle ?? '', style: AppTextStyles.bodyLarge()),
                       onTap: () => context.go(route.path),
                       ),
                     );

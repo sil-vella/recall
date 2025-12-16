@@ -4,6 +4,7 @@ import '../core/00_base/screen_base.dart';
 import '../core/managers/module_manager.dart';
 import '../core/managers/websockets/websocket_manager.dart';
 import '../core/managers/websockets/websocket_events.dart';
+import '../utils/consts/theme_consts.dart';
 
 class WebSocketScreen extends BaseScreen {
   const WebSocketScreen({Key? key}) : super(key: key);
@@ -147,19 +148,19 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                   // Connection Status
                   Container(
                     padding: const EdgeInsets.all(16),
-                    color: isConnected ? Colors.green : Colors.red,
+                    color: isConnected ? AppColors.successColor : AppColors.errorColor,
                     child: Row(
                       children: [
                         Icon(
                           isConnected ? Icons.wifi : Icons.wifi_off,
-                          color: Colors.white,
+                          color: AppColors.textOnAccent,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             isConnected ? 'Connected' : 'Disconnected',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: AppTextStyles.bodyMedium().copyWith(
+                              color: AppColors.textOnAccent,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -167,8 +168,8 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                         if (sessionId != null)
                           Text(
                             'ID: ${sessionId!.substring(0, 8)}...',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: AppTextStyles.bodyMedium().copyWith(
+                              color: AppColors.textOnAccent,
                               fontSize: 12,
                             ),
                           ),
@@ -182,24 +183,23 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                       padding: const EdgeInsets.all(16),
                       margin: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
+                        color: AppColors.infoColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.shade200),
+                        border: Border.all(color: AppColors.infoColor.withOpacity(0.3)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Session Data:',
-                            style: TextStyle(
+                            style: AppTextStyles.bodyMedium().copyWith(
                               fontWeight: FontWeight.bold,
-                              fontSize: 16,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             json.encode(sessionData),
-                            style: const TextStyle(fontSize: 12),
+                            style: AppTextStyles.bodySmall(),
                           ),
                         ],
                       ),
@@ -220,13 +220,15 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                             child: ElevatedButton(
                             onPressed: isConnected ? _disconnect : _connect,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: isConnected ? Colors.red : Colors.green,
-                              foregroundColor: Colors.white,
+                              backgroundColor: isConnected ? AppColors.errorColor : AppColors.successColor,
+                              foregroundColor: AppColors.textOnAccent,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
                             child: Text(
                               isConnected ? 'Disconnect' : 'Connect',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              style: AppTextStyles.bodyMedium().copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             ),
                           ),
@@ -238,18 +240,17 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.green.shade50,
+                            color: AppColors.successColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.green.shade200),
+                            border: Border.all(color: AppColors.successColor.withOpacity(0.3)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'Send Messages',
-                                style: TextStyle(
+                                style: AppTextStyles.bodyMedium().copyWith(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -278,8 +279,8 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                                     child: ElevatedButton(
                                     onPressed: isConnected ? _sendMessage : null,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green,
-                                      foregroundColor: Colors.white,
+                                      backgroundColor: AppColors.successColor,
+                                      foregroundColor: AppColors.textOnAccent,
                                     ),
                                     child: const Text('Send'),
                                   ),
@@ -312,8 +313,8 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                                     child: ElevatedButton(
                                     onPressed: isConnected ? _sendTestMessage : null,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      foregroundColor: Colors.white,
+                                      backgroundColor: AppColors.infoColor,
+                                      foregroundColor: AppColors.textOnAccent,
                                     ),
                                     child: const Text('Send Test'),
                                   ),
@@ -340,8 +341,8 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                             child: ElevatedButton(
                             onPressed: _clearMessages,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.grey,
-                              foregroundColor: Colors.white,
+                              backgroundColor: AppColors.disabledColor,
+                              foregroundColor: AppColors.textOnAccent,
                             ),
                             child: const Text('Clear Messages'),
                           ),
@@ -358,7 +359,7 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                     height: 300,
                     margin: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(color: AppColors.borderDefault),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
@@ -366,7 +367,7 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: AppColors.surfaceVariant,
                             borderRadius: const BorderRadius.only(
                               topLeft: Radius.circular(8),
                               topRight: Radius.circular(8),
@@ -376,14 +377,18 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                             children: [
                               const Icon(Icons.message),
                               const SizedBox(width: 8),
-                              const Text(
+                              Text(
                                 'WebSocket Messages',
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                                style: AppTextStyles.bodyMedium().copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               const Spacer(),
                               Text(
                                 '${messages.length} messages',
-                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                style: AppTextStyles.bodySmall().copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
                             ],
                           ),
@@ -394,12 +399,12 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                             itemCount: messages.length,
                             itemBuilder: (context, index) {
                               final message = messages[index];
-                              Color messageColor = Colors.grey.shade50;
+                              Color messageColor = AppColors.surfaceVariant;
                               
                               // Color code messages based on type
-                              if (message.contains('✅')) messageColor = Colors.green.shade50;
-                              else if (message.contains('❌') || message.contains('🚨')) messageColor = Colors.red.shade50;
-                              else if (message.contains('💬')) messageColor = Colors.blue.shade50;
+                              if (message.contains('✅')) messageColor = AppColors.successColor.withOpacity(0.1);
+                              else if (message.contains('❌') || message.contains('🚨')) messageColor = AppColors.errorColor.withOpacity(0.1);
+                              else if (message.contains('💬')) messageColor = AppColors.infoColor.withOpacity(0.1);
                               
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 4),
@@ -410,7 +415,7 @@ class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
                                 ),
                                 child: Text(
                                   message,
-                                  style: const TextStyle(fontSize: 12),
+                                  style: AppTextStyles.bodySmall(),
                                 ),
                               );
                             },

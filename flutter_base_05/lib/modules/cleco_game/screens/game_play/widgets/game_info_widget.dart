@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/game_coordinator.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 /// Widget to display current game information
 /// 
@@ -144,39 +145,33 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
 
   /// Build empty state when no game is active
   Widget _buildEmptyState() {
-    return Card(
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      decoration: BoxDecoration(
+        color: AppColors.widgetContainerBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppPadding.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.info, color: Colors.orange),
-                const SizedBox(width: 8),
-                const Text(
-                  'Game Information',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            Text(
+              'Game Information',
+              style: AppTextStyles.headingSmall(),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'No active game found',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
+              style: AppTextStyles.label().copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Return to the lobby to join a game',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
+              style: AppTextStyles.bodySmall().copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -199,26 +194,20 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
     required String playerStatus,
     required bool isPracticeGame,
   }) {
-    return Card(
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      decoration: BoxDecoration(
+        color: AppColors.widgetContainerBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppPadding.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.games, color: Colors.blue),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    roomName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+            Text(
+              roomName,
+              style: AppTextStyles.headingSmall(),
             ),
             
             const SizedBox(height: 12),
@@ -227,13 +216,12 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
             if (gamePhase != 'playing' && gamePhase != 'out_of_turn') ...[
               Row(
                 children: [
-                  Icon(Icons.tag, size: 16, color: Colors.grey[600]),
+                  Icon(Icons.tag, size: 16, color: AppColors.textSecondary),
                   const SizedBox(width: 4),
                   Text(
                     'Game ID: $currentGameId',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
+                    style: AppTextStyles.bodySmall().copyWith(
+                      color: AppColors.textSecondary,
                       fontFamily: 'monospace',
                     ),
                   ),
@@ -244,13 +232,12 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
               
               Row(
                 children: [
-                  Icon(Icons.people, size: 16, color: Colors.grey[600]),
+                  Icon(Icons.people, size: 16, color: AppColors.textSecondary),
                   const SizedBox(width: 4),
                   Text(
                     'Players: $currentSize/$maxSize',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
+                    style: AppTextStyles.bodySmall().copyWith(
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -278,30 +265,29 @@ class _GameInfoWidgetState extends State<GameInfoWidget> {
       child: ElevatedButton.icon(
         onPressed: isLoading ? null : _handleStartMatch,
         icon: isLoading 
-          ? const SizedBox(
+          ? SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.textOnAccent),
               ),
             )
           : const Icon(Icons.play_arrow, size: 18),
         label: Text(
           isLoading ? 'Starting Match...' : 'Start Match',
-          style: const TextStyle(
-            fontSize: 16,
+          style: AppTextStyles.bodyMedium().copyWith(
             fontWeight: FontWeight.bold,
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: isLoading ? Colors.grey : Colors.green,
-          foregroundColor: Colors.white,
+          backgroundColor: isLoading ? AppColors.disabledColor : AppColors.successColor,
+          foregroundColor: AppColors.textOnAccent,
           padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
-          disabledBackgroundColor: Colors.grey,
+          disabledBackgroundColor: AppColors.disabledColor,
         ),
       ),
     );

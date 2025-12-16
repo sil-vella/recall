@@ -271,9 +271,8 @@ class CardSystemDemoWidget extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           label,
-          style: AppTextStyles.bodyMedium.copyWith(
+          style: AppTextStyles.bodySmall().copyWith(
             color: AppColors.darkGray,
-            fontSize: 12,
           ),
           textAlign: TextAlign.center,
         ),

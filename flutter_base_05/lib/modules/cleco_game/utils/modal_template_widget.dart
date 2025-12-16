@@ -102,7 +102,7 @@ class ModalTemplateWidget extends StatelessWidget {
     final screenSize = MediaQuery.of(context).size;
     
     return Material(
-      color: Colors.black54, // Semi-transparent background
+      color: AppColors.black.withOpacity(0.54), // Semi-transparent background
       child: Center(
         child: Container(
           margin: const EdgeInsets.all(20),
@@ -115,7 +115,7 @@ class ModalTemplateWidget extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: AppColors.black.withOpacity(0.3),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -301,8 +301,8 @@ class ModalTypes {
       icon: Icons.check_circle_outline,
       closeButtonText: 'OK',
       onClose: onClose,
-      backgroundColor: Colors.green.shade50,
-      textColor: Colors.green.shade800,
+      backgroundColor: AppColors.successColor.withOpacity(0.1),
+      textColor: AppColors.successColor,
     );
   }
 
@@ -318,8 +318,8 @@ class ModalTypes {
       icon: Icons.error_outline,
       closeButtonText: 'OK',
       onClose: onClose,
-      backgroundColor: Colors.red.shade50,
-      textColor: Colors.red.shade800,
+      backgroundColor: AppColors.errorColor.withOpacity(0.1),
+      textColor: AppColors.errorColor,
     );
   }
 
@@ -335,8 +335,8 @@ class ModalTypes {
       icon: Icons.warning_outlined,
       closeButtonText: 'OK',
       onClose: onClose,
-      backgroundColor: Colors.orange.shade50,
-      textColor: Colors.orange.shade800,
+      backgroundColor: AppColors.warningColor.withOpacity(0.1),
+      textColor: AppColors.warningColor,
     );
   }
 
@@ -378,7 +378,7 @@ class ModalTypes {
                   child: const Text('Confirm'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.textOnAccent,
                   ),
                 ),
               ],

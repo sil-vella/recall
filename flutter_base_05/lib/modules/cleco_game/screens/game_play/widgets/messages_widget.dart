@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 /// Messages Widget for Cleco Game
 /// 
@@ -62,7 +63,7 @@ class MessagesWidget extends StatelessWidget {
     }
     
     return Material(
-      color: Colors.black54, // Semi-transparent background
+      color: AppColors.black.withOpacity(0.54), // Semi-transparent background
       child: Center(
         child: Container(
           margin: const EdgeInsets.all(20),
@@ -75,7 +76,7 @@ class MessagesWidget extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: AppColors.black.withOpacity(0.3),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -171,14 +172,14 @@ class MessagesWidget extends StatelessWidget {
   Color _getMessageTypeColor(BuildContext context, String messageType) {
     switch (messageType) {
       case 'success':
-        return Colors.green;
+        return AppColors.successColor;
       case 'warning':
-        return Colors.orange;
+        return AppColors.warningColor;
       case 'error':
-        return Colors.red;
+        return AppColors.errorColor;
       case 'info':
       default:
-        return Theme.of(context).primaryColor;
+        return AppColors.infoColor;
     }
   }
   

@@ -5,6 +5,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../../game_play/widgets/game_phase_chip_widget.dart';
 import '../../../managers/game_coordinator.dart';
 import '../../../../cleco_game/utils/cleco_game_helpers.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 const bool LOGGING_SWITCH = false;
 
@@ -63,41 +64,33 @@ class CurrentRoomWidget extends StatelessWidget {
 
   /// Build empty state when user is not in any games
   Widget _buildEmptyState() {
-    return Card(
-      margin: const EdgeInsets.all(16),
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      decoration: BoxDecoration(
+        color: AppColors.widgetContainerBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppPadding.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.games, color: Colors.grey[600]),
-                const SizedBox(width: 8),
-                Text(
-                  'Joined Games',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
-                  ),
-                ),
-              ],
+            Text(
+              'Joined Games',
+              style: AppTextStyles.headingSmall(),
             ),
             const SizedBox(height: 12),
             Text(
               'Not currently in any games',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
+              style: AppTextStyles.label().copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Create a new game or join an existing one to start playing',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[500],
+              style: AppTextStyles.bodySmall().copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -114,48 +107,46 @@ class CurrentRoomWidget extends StatelessWidget {
     required String timestamp,
     required String currentUserId,
   }) {
-    return Card(
-      margin: const EdgeInsets.all(16),
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      decoration: BoxDecoration(
+        color: AppColors.widgetContainerBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppPadding.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header with count and timestamp
             Row(
               children: [
-                Icon(Icons.games, color: Colors.blue),
-                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Joined Games ($totalJoinedGames)',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppTextStyles.headingSmall(),
                   ),
                 ),
                 if (timestamp.isNotEmpty)
                   Text(
                     'Updated: ${_formatTimestamp(timestamp)}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey[500],
+                    style: AppTextStyles.overline().copyWith(
+                      color: AppColors.textSecondary,
                     ),
                   ),
               ],
             ),
-            
-            const SizedBox(height: 16),
-            
-            // List of joined games
-            ...joinedGames.map((gameData) => _buildGameCard(
-              context,
-              gameData: gameData,
-              currentUserId: currentUserId,
-            )).toList(),
-          ],
-        ),
+          
+          const SizedBox(height: 16),
+          
+          // List of joined games
+          ...joinedGames.map((gameData) => _buildGameCard(
+            context,
+            gameData: gameData,
+            currentUserId: currentUserId,
+          )).toList(),
+        ],
+      ),
       ),
     );
   }
@@ -189,105 +180,101 @@ class CurrentRoomWidget extends StatelessWidget {
                         gamePhase == 'waiting' && 
                         currentSize >= minSize;
 
-    return Card(
-      margin: const EdgeInsets.all(16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with room name and status
-            Row(
-              children: [
-                Icon(
-                  Icons.room,
-                  color: gameStatus == 'active' ? Colors.green : Colors.blue,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    roomName.isNotEmpty ? roomName : 'Room $roomId',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+    return Padding(
+      padding: AppPadding.cardPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with room name and status
+          Row(
+            children: [
+              Icon(
+                Icons.room,
+                color: gameStatus == 'active' ? AppColors.successColor : AppColors.infoColor,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  roomName.isNotEmpty ? roomName : 'Room $roomId',
+                  style: AppTextStyles.bodyLarge().copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                GamePhaseChip(
-                  gameId: gameId,
-                  size: GamePhaseChipSize.small,
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 12),
-            
-            // Game details
-            _buildGameDetails(
-              gameId: gameId,
-              roomId: roomId,
-              currentSize: currentSize,
-              maxSize: maxSize,
-              minSize: minSize,
-              permission: permission,
-              isGameOwner: isGameOwner,
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Action buttons
-            Row(
-              children: [
-                if (canStartGame)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        // TODO: Implement start game logic
-                      },
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Start Game'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                
-                if (canStartGame) const SizedBox(width: 8),
-                
-                // Enter Game Room button - navigate to game play screen
+              ),
+              GamePhaseChip(
+                gameId: gameId,
+                size: GamePhaseChipSize.small,
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Game details
+          _buildGameDetails(
+            gameId: gameId,
+            roomId: roomId,
+            currentSize: currentSize,
+            maxSize: maxSize,
+            minSize: minSize,
+            permission: permission,
+            isGameOwner: isGameOwner,
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Action buttons
+          Row(
+            children: [
+              if (canStartGame)
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      _enterGameRoom(context, gameData);
+                      // TODO: Implement start game logic
                     },
-                    icon: const Icon(Icons.games),
-                    label: const Text('Enter Game Room'),
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Start Game'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.successColor,
+                      foregroundColor: AppColors.textOnAccent,
                     ),
                   ),
                 ),
-                
-                const SizedBox(width: 8),
-                
-                // Leave Game button
-                ElevatedButton.icon(
+              
+              if (canStartGame) const SizedBox(width: 8),
+              
+              // Enter Game Room button - navigate to game play screen
+              Expanded(
+                child: ElevatedButton.icon(
                   onPressed: () {
-                    _leaveRoom(roomId);
+                    _enterGameRoom(context, gameData);
                   },
-                  icon: const Icon(Icons.exit_to_app),
-                  label: const Text('Leave'),
+                  icon: const Icon(Icons.games),
+                  label: const Text('Enter Game Room'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.infoColor,
+                    foregroundColor: AppColors.textOnAccent,
                   ),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              
+              const SizedBox(width: 8),
+              
+              // Leave Game button
+              ElevatedButton.icon(
+                onPressed: () {
+                  _leaveRoom(roomId);
+                },
+                icon: const Icon(Icons.exit_to_app),
+                label: const Text('Leave'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.errorColor,
+                  foregroundColor: AppColors.textOnAccent,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -353,13 +340,12 @@ class CurrentRoomWidget extends StatelessWidget {
         // Room ID
         Row(
           children: [
-            Icon(Icons.tag, size: 16, color: Colors.grey[600]),
+            Icon(Icons.tag, size: 16, color: AppColors.textSecondary),
             const SizedBox(width: 4),
             Text(
               'ID: $roomId',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
+              style: AppTextStyles.bodySmall().copyWith(
+                color: AppColors.textSecondary,
                 fontFamily: 'monospace',
               ),
             ),
@@ -371,13 +357,12 @@ class CurrentRoomWidget extends StatelessWidget {
         // Player count
         Row(
           children: [
-            Icon(Icons.people, size: 16, color: Colors.grey[600]),
+            Icon(Icons.people, size: 16, color: AppColors.textSecondary),
             const SizedBox(width: 4),
             Text(
               'Players: $currentSize/$maxSize (min: $minSize)',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
+              style: AppTextStyles.bodySmall().copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -396,9 +381,8 @@ class CurrentRoomWidget extends StatelessWidget {
             const SizedBox(width: 4),
                            Text(
                  permission.toUpperCase(),
-                 style: TextStyle(
-                   fontSize: 12,
-                   color: Colors.grey[600],
+                 style: AppTextStyles.bodySmall().copyWith(
+                   color: AppColors.textSecondary,
                  ),
                ),
           ],
@@ -410,13 +394,12 @@ class CurrentRoomWidget extends StatelessWidget {
         if (isGameOwner)
           Row(
             children: [
-              Icon(Icons.star, size: 16, color: Colors.orange),
+              Icon(Icons.star, size: 16, color: AppColors.warningColor),
               const SizedBox(width: 4),
               Text(
                 'You are the room owner',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.orange[700],
+                style: AppTextStyles.bodySmall().copyWith(
+                  color: AppColors.warningColor,
                   fontWeight: FontWeight.w500,
                 ),
               ),

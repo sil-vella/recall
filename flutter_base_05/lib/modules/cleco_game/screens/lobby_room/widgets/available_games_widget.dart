@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../managers/game_coordinator.dart';
 import '../../../../cleco_game/utils/cleco_game_helpers.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 /// Widget to display available games with fetch functionality
 /// 
@@ -43,23 +44,24 @@ class AvailableGamesWidget extends StatelessWidget {
             .toSet();
         
 
-        return Card(
-          margin: const EdgeInsets.all(16),
+        return Container(
+          margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+          decoration: BoxDecoration(
+            color: AppColors.widgetContainerBackground,
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: AppPadding.cardPadding,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header with title and fetch button
                 Row(
                   children: [
-                    Icon(Icons.games, color: Colors.blue[600]),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Available Games',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: Text(
+                        'Available Games',
+                        style: AppTextStyles.headingSmall(),
                       ),
                     ),
                     const Spacer(),
@@ -70,17 +72,17 @@ class AvailableGamesWidget extends StatelessWidget {
                       child: ElevatedButton.icon(
                         onPressed: isLoading ? null : onFetchGames,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.infoColor,
+                          foregroundColor: AppColors.textOnAccent,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         ),
                         icon: isLoading 
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 16,
                               width: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: AppColors.textOnAccent,
                               ),
                             )
                           : const Icon(Icons.refresh, size: 16),
@@ -96,9 +98,8 @@ class AvailableGamesWidget extends StatelessWidget {
                 if (lastUpdated != null)
                   Text(
                     'Last updated: ${_formatTimestamp(lastUpdated)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
+                    style: AppTextStyles.bodySmall().copyWith(
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 
@@ -122,32 +123,30 @@ class AvailableGamesWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[300]!),
+        border: Border.all(color: AppColors.borderDefault),
       ),
       child: Column(
         children: [
           Icon(
             Icons.games_outlined,
             size: 48,
-            color: Colors.grey[400],
+            color: AppColors.textSecondary,
           ),
           const SizedBox(height: 12),
           Text(
             'No games available',
-            style: TextStyle(
-              fontSize: 16,
+            style: AppTextStyles.bodyMedium().copyWith(
               fontWeight: FontWeight.w500,
-              color: Colors.grey[600],
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Click "Fetch Games" to find available games you can join',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
+            style: AppTextStyles.label().copyWith(
+              color: AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
           ),
@@ -162,10 +161,9 @@ class AvailableGamesWidget extends StatelessWidget {
       children: [
         Text(
           '${games.length} game${games.length == 1 ? '' : 's'} available',
-          style: TextStyle(
-            fontSize: 14,
+          style: AppTextStyles.label().copyWith(
             fontWeight: FontWeight.w500,
-            color: Colors.grey[700],
+            color: AppColors.textPrimary,
           ),
         ),
         const SizedBox(height: 12),
@@ -183,106 +181,100 @@ class AvailableGamesWidget extends StatelessWidget {
     final minPlayers = game['minPlayers'] ?? 2;
     final phase = game['phase']?.toString() ?? 'waiting';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            // Game icon and status
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _getPhaseColor(phase),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                _getPhaseIcon(phase),
-                color: Colors.white,
-                size: 20,
-              ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          // Game icon and status
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: _getPhaseColor(phase),
+              borderRadius: BorderRadius.circular(8),
             ),
-            
-            const SizedBox(width: 12),
-            
-            // Game details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    gameName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Players: $playerCount/$maxPlayers (min: $minPlayers)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Phase: ${phase.toUpperCase()}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ],
-              ),
+            child: Icon(
+              _getPhaseIcon(phase),
+              color: Colors.white,
+              size: 20,
             ),
-            
-            // Join/Leave button based on user's current status
-            Builder(
-              builder: (context) {
-                final isUserInGame = userJoinedGameIds.contains(gameId);
-                
-                if (isUserInGame) {
-                  // User is already in this game - show Leave button
-                  return Semantics(
-                    label: 'leave_game_$gameId',
-                    identifier: 'leave_game_$gameId',
-                    button: true,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        _leaveGame(gameId);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      ),
-                      child: const Text('Leave'),
-                    ),
-                  );
-                } else {
-                  // User is not in this game - show Join button
-                  return Semantics(
-                    label: 'join_game_$gameId',
-                    identifier: 'join_game_$gameId',
-                    button: true,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        _joinGame(context, gameId);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      ),
-                      child: const Text('Join'),
-                    ),
-                  );
-                }
-              },
+          ),
+          
+          const SizedBox(width: 12),
+          
+          // Game details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  gameName,
+                  style: AppTextStyles.bodyMedium().copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Players: $playerCount/$maxPlayers (min: $minPlayers)',
+                  style: AppTextStyles.label().copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Phase: ${phase.toUpperCase()}',
+                  style: AppTextStyles.bodySmall().copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          
+          // Join/Leave button based on user's current status
+          Builder(
+            builder: (context) {
+              final isUserInGame = userJoinedGameIds.contains(gameId);
+              
+              if (isUserInGame) {
+                // User is already in this game - show Leave button
+                return Semantics(
+                  label: 'leave_game_$gameId',
+                  identifier: 'leave_game_$gameId',
+                  button: true,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      _leaveGame(gameId);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.errorColor,
+                      foregroundColor: AppColors.textOnAccent,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    child: const Text('Leave'),
+                  ),
+                );
+              } else {
+                // User is not in this game - show Join button
+                return Semantics(
+                  label: 'join_game_$gameId',
+                  identifier: 'join_game_$gameId',
+                  button: true,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      _joinGame(context, gameId);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.successColor,
+                      foregroundColor: AppColors.textOnAccent,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    child: const Text('Join'),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
       ),
     );
   }
@@ -378,9 +370,9 @@ class AvailableGamesWidget extends StatelessWidget {
       final hasEnoughCoins = await ClecoGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
       if (!hasEnoughCoins) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Insufficient coins to join a game. Required: 25'),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: const Text('Insufficient coins to join a game. Required: 25'),
+            backgroundColor: AppColors.errorColor,
           ),
         );
         return;

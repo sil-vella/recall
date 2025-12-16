@@ -10,6 +10,7 @@ import '../../../managers/player_action.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../card_position_tracker.dart';
 import '../../../../cleco_game/managers/cleco_event_handler_callbacks.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 // Logging switch
 const bool LOGGING_SWITCH = false; // Enabled for final round debugging
@@ -186,7 +187,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(message),
-                backgroundColor: Colors.orange,
+                backgroundColor: AppColors.warningColor,
                 duration: const Duration(seconds: 3),
               ),
             );
@@ -252,22 +253,24 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     required bool hasPlayerCalledFinalRound,
     required String currentGameId,
   }) {
-    return Card(
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      decoration: BoxDecoration(
+        color: AppColors.widgetContainerBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppPadding.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Title and Status
             Row(
               children: [
-                Icon(Icons.style, color: Colors.green),
-                const SizedBox(width: 8),
-                const Text(
-                  'My Hand',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'My Hand',
+                    style: AppTextStyles.headingSmall(),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -284,13 +287,15 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                   ElevatedButton.icon(
                     onPressed: () => _handleCallFinalRound(context, currentGameId),
                     icon: const Icon(Icons.flag, size: 16),
-                    label: const Text(
+                    label: Text(
                       'Call Final Round',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      style: AppTextStyles.bodySmall().copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.warningColor,
+                      foregroundColor: AppColors.textOnAccent,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -305,15 +310,18 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                           ? Icons.flag 
                           : Icons.flag_outlined,
                       size: 16,
-                      color: Colors.orange,
+                      color: AppColors.warningColor,
                     ),
                     label: Text(
                       finalRoundCalledBy == _getCurrentUserId()
                           ? 'You Called Final Round'
                           : 'Final Round Active',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                      style: AppTextStyles.bodySmall().copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    backgroundColor: Colors.orange.withOpacity(0.2),
+                    backgroundColor: AppColors.warningColor.withOpacity(0.2),
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
@@ -323,10 +331,8 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 const Spacer(),
                 Text(
                   '${cards.length} cards',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
+                  style: AppTextStyles.label().copyWith(
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -351,26 +357,24 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     return Container(
       height: 120,
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: AppColors.borderDefault),
       ),
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.style,
               size: 32,
-              color: Colors.grey,
+              color: AppColors.textSecondary,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'No cards in hand',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
+              style: AppTextStyles.label().copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -623,10 +627,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     if (gameId.isEmpty) {
       _logger.warning('⚠️ MyHandWidget - gameId is empty', isOn: LOGGING_SWITCH);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error: No active game found'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
+        SnackBar(
+          content: const Text('Error: No active game found'),
+          backgroundColor: AppColors.errorColor,
+          duration: const Duration(seconds: 3),
         ),
       );
       return;
@@ -658,10 +662,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
 
       // Show success feedback
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Final Round Called! All players will get one last turn.'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
+        SnackBar(
+          content: const Text('Final Round Called! All players will get one last turn.'),
+          backgroundColor: AppColors.warningColor,
+          duration: const Duration(seconds: 3),
         ),
       );
     } catch (e) {
@@ -675,7 +679,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to call final round: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.errorColor,
           duration: const Duration(seconds: 3),
         ),
       );
@@ -812,10 +816,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
       if (currentGameId.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: No active game found'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
+          SnackBar(
+            content: const Text('Error: No active game found'),
+            backgroundColor: AppColors.errorColor,
+            duration: const Duration(seconds: 3),
           ),
         );
         return;
@@ -837,7 +841,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               content: Text(
                 'Same Rank Play: ${card['rank']} of ${card['suit']}'
               ),
-              backgroundColor: Colors.blue,
+              backgroundColor: AppColors.infoColor,
               duration: Duration(seconds: 2),
             ),
           );
@@ -864,7 +868,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 content: Text(
                   'First card selected: ${card['rank']} of ${card['suit']}. Select another card to swap.'
                 ),
-                backgroundColor: Colors.orange,
+                backgroundColor: AppColors.warningColor,
                 duration: Duration(seconds: 2),
               ),
             );
@@ -874,7 +878,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 content: Text(
                   'Second card selected: ${card['rank']} of ${card['suit']}. Swapping cards...'
                 ),
-                backgroundColor: Colors.purple,
+                backgroundColor: AppColors.accentColor,
                 duration: Duration(seconds: 2),
               ),
             );
@@ -897,7 +901,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               content: Text(
                 'Peeking at: ${card['rank']} of ${card['suit']}'
               ),
-              backgroundColor: Colors.pink,
+              backgroundColor: AppColors.accentColor2,
               duration: Duration(seconds: 2),
             ),
           );
@@ -909,7 +913,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Invalid card data'),
-                backgroundColor: Colors.red,
+                backgroundColor: AppColors.errorColor,
                 duration: Duration(seconds: 2),
               ),
             );
@@ -921,7 +925,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Card already selected'),
-                backgroundColor: Colors.orange,
+                backgroundColor: AppColors.warningColor,
                 duration: Duration(seconds: 2),
               ),
             );
@@ -939,7 +943,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 content: Text(
                   'Card ${_initialPeekSelectionCount}/2 selected'
                 ),
-                backgroundColor: Colors.teal,
+                backgroundColor: AppColors.infoColor,
                 duration: Duration(seconds: 2),
               ),
             );
@@ -962,7 +966,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                   content: Text(
                     'Initial peek completed! You have looked at 2 cards.'
                   ),
-                  backgroundColor: Colors.green,
+                  backgroundColor: AppColors.successColor,
                   duration: Duration(seconds: 3),
                 ),
               );
@@ -978,7 +982,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 content: Text(
                   'You have already peeked at 2 cards. Initial peek is complete.'
                 ),
-                backgroundColor: Colors.orange,
+                backgroundColor: AppColors.warningColor,
                 duration: Duration(seconds: 2),
               ),
             );
@@ -1023,7 +1027,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to execute action: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.errorColor,
             duration: Duration(seconds: 3),
           ),
         );
@@ -1035,7 +1039,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           content: Text(
             'Invalid action: Cannot interact with hand cards while status is "$currentPlayerStatus"'
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warningColor,
           duration: Duration(seconds: 3),
         ),
       );
@@ -1052,10 +1056,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       height: cardDimensions.height,
       child: Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Colors.grey.shade300,
+          color: AppColors.borderDefault,
           width: 2,
           style: BorderStyle.solid,
         ),
@@ -1067,14 +1071,14 @@ class _MyHandWidgetState extends State<MyHandWidget> {
             Icon(
               Icons.space_bar,
               size: 24,
-              color: Colors.grey.shade400,
+              color: AppColors.textSecondary,
             ),
             const SizedBox(height: 4),
             Text(
               'Empty',
               style: TextStyle(
                 fontSize: 10,
-                color: Colors.grey.shade500,
+                color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),

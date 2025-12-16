@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../cleco_game/utils/cleco_game_helpers.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 /// Widget to join a random available game
 /// 
@@ -38,7 +39,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Join random game failed: $error'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.errorColor,
           ),
         );
         // Reset loading state
@@ -74,9 +75,9 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Insufficient coins to join a game. Required: 25'),
-              backgroundColor: Colors.red,
+            SnackBar(
+              content: const Text('Insufficient coins to join a game. Required: 25'),
+              backgroundColor: AppColors.errorColor,
             ),
           );
         }
@@ -92,7 +93,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(message),
-              backgroundColor: Colors.green,
+              backgroundColor: AppColors.successColor,
             ),
           );
         }
@@ -108,7 +109,7 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to join random game: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.errorColor,
           ),
         );
       }
@@ -123,32 +124,26 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.all(16),
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      decoration: BoxDecoration(
+        color: AppColors.widgetContainerBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppPadding.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.shuffle, color: Colors.purple[600]),
-                const SizedBox(width: 8),
-                const Text(
-                  'Quick Join',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            Text(
+              'Quick Join',
+              style: AppTextStyles.headingSmall(),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Join a random available game or start a new one automatically',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
+            Text(
+              'Join a random available game',
+              style: AppTextStyles.label().copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 16),
@@ -161,24 +156,23 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
                 child: ElevatedButton.icon(
                   onPressed: _isLoading ? null : _handleJoinRandomGame,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.accentColor,
+                    foregroundColor: AppColors.textOnAccent,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   icon: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: AppColors.textOnAccent,
                         ),
                       )
                     : const Icon(Icons.shuffle, size: 20),
                   label: Text(
                     _isLoading ? 'Joining...' : 'Join Random Game',
-                    style: const TextStyle(
-                      fontSize: 16,
+                    style: AppTextStyles.bodyMedium().copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),

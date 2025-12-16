@@ -1,3 +1,4 @@
+import 'package:cleco/utils/consts/theme_consts.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../managers/services_manager.dart';
@@ -51,9 +52,11 @@ class _TimerWidgetState extends State<TimerWidget> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             widget.callback();
           });
-          return const Text("⏳ Time's up!", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold));
+          return Text("⏳ Time's up!", style: AppTextStyles.headingMedium().copyWith(
+            fontWeight: FontWeight.bold,
+          ));
         }
-        return Text("⏳ ${remainingTime}s", style: TextStyle(fontSize: 24));
+        return Text("⏳ ${remainingTime}s", style: AppTextStyles.headingMedium());
       },
     );
   }

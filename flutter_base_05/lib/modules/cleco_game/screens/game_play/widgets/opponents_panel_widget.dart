@@ -9,6 +9,7 @@ import 'player_status_chip_widget.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../managers/player_action.dart';
 import '../card_position_tracker.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
 
@@ -159,16 +160,24 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     required bool isMyTurn,
     required String playerStatus,
   }) {
-    return Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Opponents display
-          if (opponents.isEmpty)
-            _buildEmptyOpponents()
-          else
-            _buildOpponentsGrid(opponents, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
-        ],
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      decoration: BoxDecoration(
+        color: AppColors.widgetContainerBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: AppPadding.cardPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Opponents display
+            if (opponents.isEmpty)
+              _buildEmptyOpponents()
+            else
+              _buildOpponentsGrid(opponents, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
+          ],
+        ),
       ),
     );
   }
@@ -178,25 +187,24 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     return Container(
       height: 80,
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: AppColors.borderDefault),
       ),
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.people,
               size: 24,
-              color: Colors.grey,
+              color: AppColors.textSecondary,
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               'No other players',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
+              style: AppTextStyles.bodySmall().copyWith(
+                color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -292,15 +300,15 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         return Container(
           padding: EdgeInsets.all(containerPadding),
           decoration: BoxDecoration(
-            color: isCurrentPlayer ? Colors.blue.shade50 : (isCurrentTurn ? Colors.yellow.shade50 : Colors.white),
+            color: isCurrentPlayer ? AppColors.infoColor.withOpacity(0.1) : (isCurrentTurn ? AppColors.accentColor2.withOpacity(0.1) : AppColors.surface),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isCurrentPlayer ? Colors.blue.shade400 : (isCurrentTurn ? Colors.yellow.shade400 : Colors.grey.shade300),
+              color: isCurrentPlayer ? AppColors.infoColor : (isCurrentTurn ? AppColors.accentColor2 : AppColors.borderDefault),
               width: (isCurrentPlayer || isCurrentTurn) ? 2 : 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: isCurrentPlayer ? Colors.blue.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+                color: isCurrentPlayer ? AppColors.infoColor.withOpacity(0.1) : AppColors.black.withOpacity(0.05),
                 blurRadius: isCurrentPlayer ? 4 : 2,
                 offset: const Offset(0, 1),
               ),
@@ -333,7 +341,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                           Icon(
                             Icons.flag,
                             size: 16,
-                            color: Colors.red,
+                            color: AppColors.errorColor,
                           ),
                           const SizedBox(width: 4),
                         ],
@@ -341,7 +349,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                           Icon(
                             Icons.play_arrow,
                             size: 16,
-                            color: Colors.yellow.shade700,
+                            color: AppColors.accentColor2,
                           ),
                           const SizedBox(width: 4),
                         ],
@@ -349,10 +357,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                           child: Text(
                             playerName,
                             textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontSize: 14,
+                            style: AppTextStyles.label().copyWith(
                               fontWeight: FontWeight.bold,
-                              color: isCurrentPlayer ? Colors.blue.shade800 : Colors.black87,
+                              color: isCurrentPlayer ? AppColors.infoColor : AppColors.textPrimary,
                             ),
                           ),
                         ),
@@ -741,26 +748,24 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     return Container(
       height: 70,
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: AppColors.borderDefault),
       ),
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.style,
               size: 20,
-              color: Colors.grey,
+              color: AppColors.textSecondary,
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               'No cards',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
+              style: AppTextStyles.overline().copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -821,7 +826,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                 content: Text(
                   'Peeking at: ${card['rank']} of ${card['suit']}'
                 ),
-                backgroundColor: Colors.pink,
+                  backgroundColor: AppColors.accentColor2,
                 duration: Duration(seconds: 2),
               ),
             );
@@ -829,7 +834,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Failed to peek at card: $e'),
-                backgroundColor: Colors.red,
+                backgroundColor: AppColors.errorColor,
                 duration: Duration(seconds: 3),
               ),
             );
@@ -855,7 +860,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                   content: Text(
                     'First card selected: ${card['rank']} of ${card['suit']}. Select another card to swap.'
                   ),
-                  backgroundColor: Colors.orange,
+                  backgroundColor: AppColors.warningColor,
                   duration: Duration(seconds: 2),
                 ),
               );
@@ -865,7 +870,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                   content: Text(
                     'Second card selected: ${card['rank']} of ${card['suit']}. Swapping cards...'
                   ),
-                  backgroundColor: Colors.purple,
+                  backgroundColor: AppColors.accentColor,
                   duration: Duration(seconds: 2),
                 ),
               );
@@ -874,7 +879,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Failed to select card for Jack swap: $e'),
-                backgroundColor: Colors.red,
+                backgroundColor: AppColors.errorColor,
                 duration: Duration(seconds: 3),
               ),
             );
@@ -882,10 +887,10 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: Card information incomplete'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: const Text('Error: Card information incomplete'),
+            backgroundColor: AppColors.errorColor,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -896,7 +901,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           content: Text(
             'Invalid action: Cannot interact with cards while status is "$currentPlayerStatus"'
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warningColor,
           duration: const Duration(seconds: 3),
         ),
       );
@@ -916,10 +921,10 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       height: dimensions.height,
       child: Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: Colors.grey.shade300,
+          color: AppColors.borderDefault,
           width: 1,
           style: BorderStyle.solid,
         ),
@@ -931,14 +936,14 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             Icon(
               Icons.space_bar,
               size: 16,
-              color: Colors.grey.shade400,
+              color: AppColors.textSecondary,
             ),
             const SizedBox(height: 2),
             Text(
               'Empty',
-              style: TextStyle(
+              style: AppTextStyles.overline().copyWith(
                 fontSize: 8,
-                color: Colors.grey.shade500,
+                color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),

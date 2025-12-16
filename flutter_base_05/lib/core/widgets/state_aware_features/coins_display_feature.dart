@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../managers/state_manager.dart';
 import '../../../tools/logging/logger.dart';
+import '../../../utils/consts/theme_consts.dart';
 
 // Logging switch for this file
 const bool LOGGING_SWITCH = false;
@@ -44,19 +45,18 @@ class StateAwareCoinsDisplayFeature extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Chip(
-            avatar: const Icon(
+            avatar: Icon(
               Icons.monetization_on,
               size: 18,
-              color: Colors.amber,
+              color: AppColors.accentColor2,
             ),
             label: Text(
               coins.toString(),
-              style: const TextStyle(
+              style: AppTextStyles.label().copyWith(
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
               ),
             ),
-            backgroundColor: Colors.amber.withOpacity(0.2),
+            backgroundColor: AppColors.accentColor2.withOpacity(0.2),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.compact,

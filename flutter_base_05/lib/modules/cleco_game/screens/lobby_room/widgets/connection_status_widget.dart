@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 class ConnectionStatusWidget extends StatelessWidget {
   const ConnectionStatusWidget({Key? key}) : super(key: key);
@@ -18,20 +19,20 @@ class ConnectionStatusWidget extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isConnected ? Colors.green : isLoading ? Colors.orange : Colors.red,
+            color: isConnected ? AppColors.successColor : isLoading ? AppColors.warningColor : AppColors.errorColor,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             children: [
               Icon(
                 isConnected ? Icons.wifi : isLoading ? Icons.sync : Icons.wifi_off,
-                color: Colors.white,
+                color: AppColors.textOnAccent,
               ),
               const SizedBox(width: 8),
               Text(
                 isConnected ? 'Connected' : isLoading ? 'Connecting...' : 'Disconnected',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.textOnAccent,
                   fontWeight: FontWeight.bold,
                 ),
               ),

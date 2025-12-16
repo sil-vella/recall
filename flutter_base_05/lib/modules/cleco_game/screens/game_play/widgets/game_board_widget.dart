@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 import 'draw_pile_widget.dart';
 import 'discard_pile_widget.dart';
 
@@ -15,9 +16,14 @@ class GameBoardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      decoration: BoxDecoration(
+        color: AppColors.widgetContainerBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppPadding.cardPadding,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [

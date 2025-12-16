@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../utils/consts/theme_consts.dart';
 
 /// Represents a single card in the Cleco game
 class CardModel {
@@ -114,9 +115,9 @@ class CardModel {
   /// Get the color for this card
   Color get color {
     if (suit.toLowerCase() == 'hearts' || suit.toLowerCase() == 'diamonds') {
-      return Colors.red;
+      return AppColors.errorColor; // Red suits
     }
-    return Colors.black;
+    return AppColors.black; // Black suits
   }
 
   /// Get the suit symbol

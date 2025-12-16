@@ -57,7 +57,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('JWT test successful: ${response['message'] ?? 'Success'}'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.successColor,
           ),
         );
       }
@@ -68,7 +68,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('JWT test failed: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.errorColor,
           ),
         );
       }
@@ -92,7 +92,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Access token TTL set to 10 seconds for testing (was ${currentTtl}s)'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.successColor,
           ),
         );
       }
@@ -103,7 +103,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to set access token TTL: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.errorColor,
           ),
         );
       }
@@ -144,7 +144,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Refresh token TTL set to 10 seconds for testing (was ${currentRefreshTtl}s)'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.successColor,
           ),
         );
       }
@@ -155,7 +155,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to set refresh token TTL: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.errorColor,
           ),
         );
       }
@@ -183,7 +183,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
           const SizedBox(height: 8),
           Text(
             'Test JWT authentication and token management',
-            style: AppTextStyles.bodyLarge.copyWith(
+            style: AppTextStyles.bodyLarge().copyWith(
               color: AppColors.lightGray,
             ),
             textAlign: TextAlign.center,
@@ -211,7 +211,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
               const SizedBox(height: 16),
               Text(
                 'Test JWT token validation and authentication',
-                style: AppTextStyles.bodyMedium,
+                style: AppTextStyles.bodyMedium(),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
@@ -230,7 +230,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
                             // This will rebuild the FutureBuilder
                           });
                         },
-                        icon: const Icon(Icons.refresh, color: Colors.white),
+                        icon: Icon(Icons.refresh, color: AppColors.textOnPrimary),
                         tooltip: 'Refresh TTL values',
                       ),
                     ],
@@ -244,9 +244,9 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
                         return Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.grey[900],
+                            color: AppColors.primaryColor,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[700]!),
+                            border: Border.all(color: AppColors.borderDefault),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,8 +254,8 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text('Access Token:', style: AppTextStyles.bodyMedium),
-                                  Text('${ttlData['access']}s', style: AppTextStyles.bodyMedium.copyWith(
+                                  Text('Access Token:', style: AppTextStyles.bodyMedium()),
+                                  Text('${ttlData['access']}s', style: AppTextStyles.bodyMedium().copyWith(
                                     color: AppColors.accentColor,
                                     fontWeight: FontWeight.bold,
                                   )),
@@ -265,8 +265,8 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text('Refresh Token:', style: AppTextStyles.bodyMedium),
-                                  Text('${ttlData['refresh']}s', style: AppTextStyles.bodyMedium.copyWith(
+                                  Text('Refresh Token:', style: AppTextStyles.bodyMedium()),
+                                  Text('${ttlData['refresh']}s', style: AppTextStyles.bodyMedium().copyWith(
                                     color: AppColors.accentColor,
                                     fontWeight: FontWeight.bold,
                                   )),
@@ -291,7 +291,7 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
                 label: const Text('Test JWT'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.accentColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.textOnAccent,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -304,8 +304,8 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
                 icon: const Icon(Icons.timer),
                 label: const Text('Set Access Token TTL to 10s'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.warningColor,
+                  foregroundColor: AppColors.textOnAccent,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -318,8 +318,8 @@ class _AuthTestScreenState extends BaseScreenState<AuthTestScreen> {
                 icon: const Icon(Icons.refresh),
                 label: const Text('Set Refresh Token TTL to 10s'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.accentColor2,
+                  foregroundColor: AppColors.textOnAccent,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),

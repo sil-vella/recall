@@ -142,7 +142,7 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
                     // Message
                     Text(
                       'A new version of the app is required to continue. Please download and install the latest version.',
-                      style: AppTextStyles.bodyLarge.copyWith(color: AppColors.white),
+                      style: AppTextStyles.bodyLarge().copyWith(color: AppColors.white),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
@@ -178,7 +178,7 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
                                   const SizedBox(width: 8),
                                   Text(
                                     'Download Update',
-                                    style: AppTextStyles.buttonText,
+                                    style: AppTextStyles.buttonText(),
                                   ),
                                 ],
                               ),
@@ -209,7 +209,7 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
                             '1. Tap the "Download Update" button above\n'
                             '2. Install the downloaded file\n'
                             '3. Open the updated app to continue',
-                            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.white),
+                            style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
                           ),
                         ],
                       ),
@@ -220,13 +220,13 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
                       const SizedBox(height: 16),
                       Text(
                         'Or copy this link:',
-                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.lightGray),
+                        style: AppTextStyles.bodyMedium().copyWith(color: AppColors.lightGray),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       SelectableText(
                         _downloadLink!,
-                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.accentColor),
+                        style: AppTextStyles.bodyMedium().copyWith(color: AppColors.accentColor),
                         textAlign: TextAlign.center,
                       ),
                     ],

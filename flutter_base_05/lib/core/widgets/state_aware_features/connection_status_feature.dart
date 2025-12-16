@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../managers/state_manager.dart';
 import '../../managers/websockets/websocket_manager.dart';
 import '../../../tools/logging/logger.dart';
+import '../../../utils/consts/theme_consts.dart';
 
 // Logging switch for this file
 const bool LOGGING_SWITCH = false;
@@ -40,15 +41,15 @@ class StateAwareConnectionStatusFeature extends StatelessWidget {
         
         if (isConnecting) {
           icon = Icons.sync;
-          color = Colors.orange;
+          color = AppColors.warningColor;
           tooltip = 'WebSocket Connecting...';
         } else if (isConnected) {
           icon = Icons.wifi;
-          color = Colors.green;
+          color = AppColors.successColor;
           tooltip = 'WebSocket Connected - Tap to disconnect';
         } else {
           icon = Icons.wifi_off;
-          color = Colors.red;
+          color = AppColors.errorColor;
           tooltip = 'WebSocket Disconnected - Tap to connect';
         }
         
@@ -70,33 +71,33 @@ class StateAwareConnectionStatusFeature extends StatelessWidget {
                   // Disconnect if currently connected
                   websocketManager.disconnect();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('WebSocket: Disconnecting...'),
-                      backgroundColor: Colors.orange,
+                    SnackBar(
+                      content: const Text('WebSocket: Disconnecting...'),
+                      backgroundColor: AppColors.warningColor,
                     ),
                   );
                 } else {
                   // Connect if currently disconnected
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('WebSocket: Connecting...'),
-                      backgroundColor: Colors.blue,
+                    SnackBar(
+                      content: const Text('WebSocket: Connecting...'),
+                      backgroundColor: AppColors.infoColor,
                     ),
                   );
                   
                   final success = await websocketManager.connect();
                   if (success) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('WebSocket: Connected successfully!'),
-                        backgroundColor: Colors.green,
+                      SnackBar(
+                        content: const Text('WebSocket: Connected successfully!'),
+                        backgroundColor: AppColors.successColor,
                       ),
                     );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('WebSocket: Connection failed'),
-                        backgroundColor: Colors.red,
+                      SnackBar(
+                        content: const Text('WebSocket: Connection failed'),
+                        backgroundColor: AppColors.errorColor,
                       ),
                     );
                   }

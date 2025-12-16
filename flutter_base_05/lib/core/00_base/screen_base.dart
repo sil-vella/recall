@@ -129,12 +129,12 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   Widget buildContentCard(BuildContext context, {required Widget child}) {
     return Card(
       margin: widget.getContentMargin(context) ?? AppPadding.defaultPadding,
-      color: AppColors.primaryColor.withOpacity(0.8),
-      elevation: 4,
+      color: AppColors.surface,
+      elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: AppColors.accentColor.withOpacity(0.3),
+          color: AppColors.borderDefault,
           width: 1,
         ),
       ),
@@ -158,8 +158,8 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     return SizedBox(
       width: double.infinity,
       child: ListTile(
-        title: Text(title, style: AppTextStyles.bodyLarge),
-        subtitle: subtitle != null ? Text(subtitle, style: AppTextStyles.bodyMedium) : null,
+        title: Text(title, style: AppTextStyles.bodyLarge()),
+        subtitle: subtitle != null ? Text(subtitle, style: AppTextStyles.bodyMedium()) : null,
         leading: leading,
         trailing: trailing,
         onTap: onTap,
@@ -239,25 +239,25 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          labelStyle: AppTextStyles.bodyMedium.copyWith(
+          labelStyle: AppTextStyles.bodyMedium().copyWith(
             color: AppColors.accentColor,
           ),
-          hintStyle: AppTextStyles.bodyMedium.copyWith(
+          hintStyle: AppTextStyles.bodyMedium().copyWith(
             color: AppColors.lightGray,
           ),
           filled: true,
-          fillColor: AppColors.primaryColor.withOpacity(0.8),
+          fillColor: AppColors.surface,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(
-              color: AppColors.accentColor.withOpacity(0.3),
+              color: AppColors.borderDefault,
               width: 1,
             ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(
-              color: AppColors.accentColor.withOpacity(0.3),
+              color: AppColors.borderDefault,
               width: 1,
             ),
           ),
@@ -287,13 +287,13 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
         obscureText: obscureText,
         keyboardType: keyboardType,
         validator: validator,
-        style: AppTextStyles.bodyMedium,
+        style: AppTextStyles.bodyMedium(),
       ),
     );
   }
 
   Widget buildLoadingIndicator() {
-    return const SizedBox(
+    return SizedBox(
       width: double.infinity,
       child: Center(
         child: CircularProgressIndicator(
@@ -318,7 +318,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
             const SizedBox(height: 16),
             Text(
               message,
-              style: AppTextStyles.bodyLarge,
+              style: AppTextStyles.bodyLarge(),
               textAlign: TextAlign.center,
             ),
           ],
@@ -342,7 +342,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
   Widget buildDivider() {
     return Divider(
-      color: AppColors.accentColor.withOpacity(0.3),
+      color: AppColors.borderDefault,
       height: 1,
     );
   }
@@ -427,9 +427,9 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
       body: SafeArea(
         child: Container(
           decoration: widget.getBackground(context) ??
-            // Temporarily disabled background image
+            // Clean background - use scaffold background
             BoxDecoration(
-              color: AppColors.primaryColor,
+              color: AppColors.scaffoldBackgroundColor,
             ),
             // (AppBackgrounds.backgrounds.isNotEmpty
             //   ? BoxDecoration(
@@ -528,12 +528,12 @@ class BaseCard extends StatelessWidget {
       width: double.infinity,
       child: Card(
         margin: EdgeInsets.zero,
-        color: AppColors.primaryColor.withOpacity(0.8),
-        elevation: 4,
+        color: AppColors.surface,
+        elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
-            color: AppColors.accentColor.withOpacity(0.3),
+            color: AppColors.borderDefault,
             width: 1,
           ),
         ),
@@ -572,7 +572,7 @@ class BaseButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
             side: BorderSide(
-              color: AppColors.accentColor.withOpacity(0.3),
+              color: AppColors.borderDefault,
               width: 1,
             ),
           ),
@@ -588,7 +588,7 @@ class BaseButton extends StatelessWidget {
             Flexible(
               child: Text(
                 text,
-                style: AppTextStyles.buttonText,
+                style: AppTextStyles.buttonText(),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -632,14 +632,14 @@ class BaseTextField extends StatelessWidget {
       maxLines: maxLines,
       keyboardType: keyboardType,
       onChanged: onChanged,
-      style: AppTextStyles.bodyMedium,
+      style: AppTextStyles.bodyMedium(),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        labelStyle: AppTextStyles.bodyMedium.copyWith(
+        labelStyle: AppTextStyles.bodyMedium().copyWith(
           color: AppColors.accentColor,
         ),
-        hintStyle: AppTextStyles.bodyMedium.copyWith(
+        hintStyle: AppTextStyles.bodyMedium().copyWith(
           color: AppColors.lightGray,
         ),
         filled: true,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../../core/managers/state_manager.dart';
+import '../../../../../../utils/consts/theme_consts.dart';
 
 /// Unified Player Status Chip Widget
 /// 
@@ -89,13 +90,13 @@ class PlayerStatusChip extends StatelessWidget {
           Icon(
             statusData.icon,
             size: _getIconSize(),
-            color: Colors.white,
+            color: AppColors.textOnAccent,
           ),
           SizedBox(width: _getSpacing()),
           Text(
             statusData.text,
-            style: TextStyle(
-              color: Colors.white,
+            style: AppTextStyles.bodySmall().copyWith(
+              color: AppColors.textOnAccent,
               fontSize: _getFontSize(),
               fontWeight: FontWeight.w500,
             ),
@@ -176,13 +177,13 @@ class PlayerStatusChip extends StatelessWidget {
         );
       case 'disconnected':
         return _StatusData(
-          color: Colors.red.shade700,
+          color: AppColors.errorColor,
           text: 'Disconnected',
           icon: Icons.wifi_off,
         );
       default:
         return _StatusData(
-          color: Colors.grey,
+          color: AppColors.textSecondary,
           text: 'Unknown',
           icon: Icons.help,
         );

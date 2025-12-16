@@ -69,7 +69,7 @@ class CardWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: AppColors.black.withOpacity(0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -193,7 +193,7 @@ class CardWidget extends StatelessWidget {
         vertical: 2,
       ),
       decoration: BoxDecoration(
-        color: card.points == 0 ? Colors.green : Colors.red,
+        color: card.points == 0 ? AppColors.successColor : AppColors.errorColor,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -218,7 +218,7 @@ class CardWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: AppColors.black.withOpacity(0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),

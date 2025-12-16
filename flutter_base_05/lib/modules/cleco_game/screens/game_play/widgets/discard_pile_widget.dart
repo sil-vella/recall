@@ -7,6 +7,7 @@ import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../card_position_tracker.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 const bool LOGGING_SWITCH = false;
 
@@ -80,67 +81,56 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
   }) {
     final bool hasCards = topDiscard != null;
     
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Title
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'Last Played',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            
-            // Discard pile visual representation (clickable) - CardWidget handles its own sizing
-            Builder(
-              builder: (context) {
-                final cardDimensions = CardDimensions.getUnifiedDimensions();
-                return hasCards 
-                    ? CardWidget(
-                        key: _discardCardKey,
-                        card: CardModel.fromMap(topDiscard),
-                        dimensions: cardDimensions, // Pass dimensions directly
-                        config: CardDisplayConfig.forDiscardPile(),
-                        onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
-                      )
-                    : CardWidget(
-                        key: _discardCardKey,
-                        card: CardModel(
-                          cardId: 'discard_pile_empty',
-                          rank: '?',
-                          suit: '?',
-                          points: 0,
-                        ),
-                        dimensions: cardDimensions, // Pass dimensions directly
-                        config: CardDisplayConfig.forDiscardPile(),
-                        showBack: true, // Show back when empty
-                        onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
-                      );
-              },
-            ),
-            
-            // Update position on rebuild (after card is rendered)
-            Builder(
-              builder: (context) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _updateDiscardPilePosition(topDiscard);
-                });
-                return const SizedBox.shrink();
-              },
-            ),
-          ],
-        ),
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Title
+          Text(
+            'Last Played',
+            style: AppTextStyles.headingSmall(),
+          ),
+          const SizedBox(height: 12),
+          
+          // Discard pile visual representation (clickable) - CardWidget handles its own sizing
+          Builder(
+            builder: (context) {
+              final cardDimensions = CardDimensions.getUnifiedDimensions();
+              return hasCards 
+                  ? CardWidget(
+                      key: _discardCardKey,
+                      card: CardModel.fromMap(topDiscard),
+                      dimensions: cardDimensions, // Pass dimensions directly
+                      config: CardDisplayConfig.forDiscardPile(),
+                      onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
+                    )
+                  : CardWidget(
+                      key: _discardCardKey,
+                      card: CardModel(
+                        cardId: 'discard_pile_empty',
+                        rank: '?',
+                        suit: '?',
+                        points: 0,
+                      ),
+                      dimensions: cardDimensions, // Pass dimensions directly
+                      config: CardDisplayConfig.forDiscardPile(),
+                      showBack: true, // Show back when empty
+                      onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
+                    );
+            },
+          ),
+          
+          // Update position on rebuild (after card is rendered)
+          Builder(
+            builder: (context) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _updateDiscardPilePosition(topDiscard);
+              });
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
       ),
     );
   }
@@ -225,7 +215,7 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(reason),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warningColor,
           duration: const Duration(seconds: 2),
         ),
       );
@@ -237,10 +227,10 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
       final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
       if (currentGameId.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: No active game found'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
+          SnackBar(
+            content: const Text('Error: No active game found'),
+            backgroundColor: AppColors.errorColor,
+            duration: const Duration(seconds: 3),
           ),
         );
         return;
@@ -261,7 +251,7 @@ class _DiscardPileWidgetState extends State<DiscardPileWidget> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to collect card: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.errorColor,
           duration: const Duration(seconds: 3),
         ),
       );

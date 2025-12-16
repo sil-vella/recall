@@ -56,17 +56,17 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Welcome text with app title
-          const Text(
+          Text(
             'Welcome to Cleco',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+            style: AppTextStyles.headingLarge(),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Text(
             'Check out the new app bar action buttons!',
-            style: AppTextStyles.bodyMedium,
+            style: AppTextStyles.bodyLarge().copyWith(
+              color: AppColors.textSecondary,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -74,10 +74,10 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.primaryColor.withOpacity(0.8),
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: _isConnected ? Colors.green : Colors.red,
+                color: _isConnected ? AppColors.successColor : AppColors.errorColor,
                 width: 2,
               ),
             ),
@@ -86,14 +86,14 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
               children: [
                 Icon(
                   _isConnected ? Icons.wifi : Icons.wifi_off,
-                  color: _isConnected ? Colors.green : Colors.red,
+                  color: _isConnected ? AppColors.successColor : AppColors.errorColor,
                   size: 24,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   _isConnected ? 'WebSocket Connected' : 'WebSocket Disconnected',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: _isConnected ? Colors.green : Colors.red,
+                  style: AppTextStyles.bodyMedium().copyWith(
+                    color: _isConnected ? AppColors.successColor : AppColors.errorColor,
                   ),
                 ),
               ],
@@ -107,9 +107,9 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
                 // Disconnect
                 _websocketManager.disconnect();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Disconnected from WebSocket'),
-                    backgroundColor: Colors.orange,
+                  SnackBar(
+                    content: const Text('Disconnected from WebSocket'),
+                    backgroundColor: AppColors.warningColor,
                   ),
                 );
               } else {
@@ -117,24 +117,24 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
                 final success = await _websocketManager.connect();
                 if (success) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Connected to WebSocket'),
-                      backgroundColor: Colors.green,
+                    SnackBar(
+                      content: const Text('Connected to WebSocket'),
+                      backgroundColor: AppColors.successColor,
                     ),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Failed to connect to WebSocket'),
-                      backgroundColor: Colors.red,
+                    SnackBar(
+                      content: const Text('Failed to connect to WebSocket'),
+                      backgroundColor: AppColors.errorColor,
                     ),
                   );
                 }
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: _isConnected ? Colors.red : Colors.green,
-              foregroundColor: Colors.white,
+              backgroundColor: _isConnected ? AppColors.errorColor : AppColors.successColor,
+              foregroundColor: AppColors.textOnAccent,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
             child: Row(
@@ -157,7 +157,7 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
             label: const Text('Go to Account'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.accentColor,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.textOnAccent,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),

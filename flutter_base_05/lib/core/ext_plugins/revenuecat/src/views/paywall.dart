@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import '../constant.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 /// Generic Paywall Widget for RevenueCat
 /// Can be customized for your app's specific needs
@@ -34,33 +35,31 @@ class _PaywallState extends State<Paywall> {
                   top: Radius.circular(25.0)
                 ),
               ),
-              child: const Center(
-                child: Text(
+              child: Center(
+                  child: Text(
                   '✨ Premium Subscription',
-                  style: TextStyle(
-                    fontSize: 20,
+                  style: AppTextStyles.headingSmall().copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textOnAccent,
                   ),
                 ),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.only(
+            Padding(
+              padding: const EdgeInsets.only(
                 top: 32, 
                 bottom: 16, 
                 left: 16.0, 
                 right: 16.0
               ),
               child: SizedBox(
+                width: double.infinity,
                 child: Text(
                   'PREMIUM FEATURES',
-                  style: TextStyle(
-                    fontSize: 16,
+                  style: AppTextStyles.bodyMedium().copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                width: double.infinity,
               ),
             ),
             ListView.builder(
@@ -68,7 +67,7 @@ class _PaywallState extends State<Paywall> {
               itemBuilder: (BuildContext context, int index) {
                 var myProductList = widget.offering.availablePackages;
                 return Card(
-                  color: Colors.grey[100],
+                  color: AppColors.surfaceVariant,
                   child: ListTile(
                     onTap: () async {
                       try {
@@ -98,19 +97,17 @@ class _PaywallState extends State<Paywall> {
                     },
                     title: Text(
                       myProductList[index].storeProduct.title,
-                      style: const TextStyle(
-                        fontSize: 16,
+                      style: AppTextStyles.bodyMedium().copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     subtitle: Text(
                       myProductList[index].storeProduct.description,
-                      style: const TextStyle(fontSize: 12),
+                      style: AppTextStyles.bodySmall(),
                     ),
                     trailing: Text(
                       myProductList[index].storeProduct.priceString,
-                      style: const TextStyle(
-                        fontSize: 16,
+                      style: AppTextStyles.bodyMedium().copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -120,19 +117,19 @@ class _PaywallState extends State<Paywall> {
               shrinkWrap: true,
               physics: const ClampingScrollPhysics(),
             ),
-            const Padding(
-              padding: EdgeInsets.only(
+            Padding(
+              padding: const EdgeInsets.only(
                 top: 32, 
                 bottom: 16, 
                 left: 16.0, 
                 right: 16.0
               ),
               child: SizedBox(
+                width: double.infinity,
                 child: Text(
                   footerText,
-                  style: TextStyle(fontSize: 12),
+                  style: AppTextStyles.bodySmall(),
                 ),
-                width: double.infinity,
               ),
             ),
           ],

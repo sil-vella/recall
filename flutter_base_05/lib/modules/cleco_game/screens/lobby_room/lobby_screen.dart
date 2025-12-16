@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
+import '../../../../utils/consts/theme_consts.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../core/managers/navigation_manager.dart';
@@ -11,11 +12,9 @@ import '../../../cleco_game/managers/cleco_event_manager.dart';
 import '../../practice/practice_mode_bridge.dart';
 import '../../backend_core/services/game_state_store.dart';
 import '../../../cleco_game/utils/cleco_game_helpers.dart';
-import 'widgets/create_game_widget.dart';
-import 'widgets/join_game_widget.dart';
+import 'widgets/create_join_game_widget.dart';
 import 'widgets/join_random_game_widget.dart';
 import 'widgets/current_games_widget.dart';
-import 'widgets/available_games_widget.dart';
 import 'widgets/practice_match_widget.dart';
 import 'features/lobby_features.dart';
 
@@ -180,42 +179,6 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     }
   }
 
-  Future<void> _fetchAvailableGames() async {
-    try {
-      // Set loading state
-      ClecoGameHelpers.updateUIState({
-        'isLoading': true,
-      });
-
-      // Use the helper method to fetch available games
-      final result = await ClecoGameHelpers.fetchAvailableGames();
-      
-      if (result['success'] == true) {
-        // Extract games from response
-        final games = result['games'] ?? [];
-        final message = result['message'] ?? 'Games fetched successfully';
-        
-        // Update state with real game data
-        ClecoGameHelpers.updateUIState({
-          'availableGames': games,
-          'isLoading': false,
-          'lastUpdated': DateTime.now().toIso8601String(),
-        });
-        
-        if (mounted) _showSnackBar(message);
-      } else {
-        // Handle error from helper method
-        final errorMessage = result['error'] ?? 'Failed to fetch games';
-        throw Exception(errorMessage);
-      }
-      
-    } catch (e) {
-      ClecoGameHelpers.updateUIState({
-        'isLoading': false,
-      });
-      if (mounted) _showSnackBar('Failed to fetch available games: $e', isError: true);
-    }
-  }
 
   Future<void> _startPracticeMatch(Map<String, dynamic> practiceSettings) async {
     try {
@@ -393,7 +356,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        backgroundColor: isError ? AppColors.errorColor : AppColors.successColor,
         duration: const Duration(seconds: 3),
       ),
     );
@@ -401,62 +364,38 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
-    // Screen doesn't read state directly - widgets handle their own subscriptions
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          
-          // Create and Join Room Section (Side by Side)
-          Row(
-            children: [
-              // Create Room Widget (50% width)
-              Expanded(
-                child: CreateRoomWidget(
-                  onCreateRoom: _createRoom,
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Join Room Widget (50% width)
-              Expanded(
-                child: JoinRoomWidget(
-                  onJoinRoom: () {
-                    // JoinRoomWidget handles its own room joining logic
-                    // This callback is called after successful join request
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          
-          // Join Random Game Widget
+          // Quick Actions Section
           JoinRandomGameWidget(
             onJoinRandomGame: () {
               // Callback after successful random game join
             },
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: AppPadding.smallPadding.top),
           
           // Practice Match Section
           PracticeMatchWidget(
             onStartPractice: _startPracticeMatch,
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: AppPadding.smallPadding.top),
           
-          // Current Room Section (moved under Create/Join buttons)
+          // Create and Join Room Section (Unified Widget)
+          CreateJoinGameWidget(
+            onCreateRoom: _createRoom,
+            onJoinRoom: () {
+              // Callback after successful join request
+            },
+          ),
+          SizedBox(height: AppPadding.smallPadding.top),
+          
+          // Current Room Section
           CurrentRoomWidget(
             onJoinRoom: _joinRoom,
           ),
-          const SizedBox(height: 20),
-          
-          // Available Games Section
-          AvailableGamesWidget(
-            onFetchGames: _fetchAvailableGames,
-          ),
-          const SizedBox(height: 20),
-        
         ],
       ),
     );

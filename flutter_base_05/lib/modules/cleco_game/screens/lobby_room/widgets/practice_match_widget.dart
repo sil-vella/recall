@@ -15,6 +15,7 @@
 /// passing a Map containing the selected difficulty and instructions setting.
 
 import 'package:flutter/material.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 class PracticeMatchWidget extends StatefulWidget {
   final Function(Map<String, dynamic>) onStartPractice;
@@ -68,18 +69,20 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      decoration: BoxDecoration(
+        color: AppColors.widgetContainerBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppPadding.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Practice Match',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: AppTextStyles.headingSmall(),
             ),
             const SizedBox(height: 16),
             
@@ -138,18 +141,18 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
                 child: ElevatedButton.icon(
                   onPressed: _isStarting ? null : _startPractice,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.infoColor,
+                    foregroundColor: AppColors.textOnAccent,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   icon: const Icon(Icons.school),
                   label: _isStarting
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: AppColors.textOnAccent,
                           ),
                         )
                       : const Text('Start Practice Match'),

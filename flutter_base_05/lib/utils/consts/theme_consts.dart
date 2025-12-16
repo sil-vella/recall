@@ -8,73 +8,340 @@ enum CardSize {
   extraLarge,
 }
 
+/// Theme preset options - change this to switch themes
+enum ThemePreset {
+  defaultTheme, // Current brown/gold theme
+  blue,
+  red,
+  green,
+  purple,
+  orange,
+  teal,
+}
+
+/// Theme configuration that generates colors based on preset
+class ThemeConfig {
+  static ThemePreset currentTheme = ThemePreset.blue;
+
+  /// Get primary color based on current theme
+  static Color get primaryColor {
+    switch (currentTheme) {
+      case ThemePreset.blue:
+        return const Color(0xFF1E3A5F);
+      case ThemePreset.red:
+        return const Color(0xFF5F1E1E);
+      case ThemePreset.green:
+        return const Color(0xFF1E5F3A);
+      case ThemePreset.purple:
+        return const Color(0xFF4A1E5F);
+      case ThemePreset.orange:
+        return const Color(0xFF5F3A1E);
+      case ThemePreset.teal:
+        return const Color(0xFF1E5F5F);
+      case ThemePreset.defaultTheme:
+        return const Color(0xFF41282F); // Current brown
+    }
+  }
+
+  /// Get accent color - auto-generated based on primary
+  static Color get accentColor {
+    switch (currentTheme) {
+      case ThemePreset.blue:
+        return const Color(0xFF4A90E2);
+      case ThemePreset.red:
+        return const Color(0xFFE24A4A);
+      case ThemePreset.green:
+        return const Color(0xFF4AE24A);
+      case ThemePreset.purple:
+        return const Color(0xFF904AE2);
+      case ThemePreset.orange:
+        return const Color(0xFFE2904A);
+      case ThemePreset.teal:
+        return const Color(0xFF4AE2E2);
+      case ThemePreset.defaultTheme:
+        return const Color.fromARGB(255, 120, 67, 82); // Current
+    }
+  }
+
+  /// Get secondary accent color
+  static Color get accentColor2 {
+    switch (currentTheme) {
+      case ThemePreset.blue:
+        return const Color(0xFF6BB6FF);
+      case ThemePreset.red:
+        return const Color(0xFFFF6B6B);
+      case ThemePreset.green:
+        return const Color(0xFF6BFF6B);
+      case ThemePreset.purple:
+        return const Color(0xFFB66BFF);
+      case ThemePreset.orange:
+        return const Color(0xFFFFB66B);
+      case ThemePreset.teal:
+        return const Color(0xFF6BFFFF);
+      case ThemePreset.defaultTheme:
+        return const Color(0xFFFBC02D); // Current gold
+    }
+  }
+
+  /// Get scaffold background color
+  static Color get scaffoldBackgroundColor {
+    switch (currentTheme) {
+      case ThemePreset.blue:
+        return const Color(0xFF1A2332);
+      case ThemePreset.red:
+        return const Color(0xFF2A1F1F);
+      case ThemePreset.green:
+        return const Color(0xFF1F2A1F);
+      case ThemePreset.purple:
+        return const Color(0xFF2A1F2A);
+      case ThemePreset.orange:
+        return const Color(0xFF2A251F);
+      case ThemePreset.teal:
+        return const Color(0xFF1F2A2A);
+      case ThemePreset.defaultTheme:
+        return const Color(0xFF1F1A1A); // Dark background
+    }
+  }
+
+  /// Semantic colors - auto-adjusted based on theme
+  static Color get successColor {
+    // Green variant that complements the theme
+    switch (currentTheme) {
+      case ThemePreset.green:
+        return const Color(0xFF4CAF50);
+      default:
+        return const Color(0xFF4CAF50); // Standard green
+    }
+  }
+
+  static Color get errorColor {
+    // Red variant that complements the theme
+    switch (currentTheme) {
+      case ThemePreset.red:
+        return const Color(0xFFE53935);
+      default:
+        return const Color(0xFFE53935); // Standard red
+    }
+  }
+
+  static Color get warningColor {
+    // Orange variant that complements the theme
+    switch (currentTheme) {
+      case ThemePreset.orange:
+        return const Color(0xFFFF9800);
+      default:
+        return const Color(0xFFFF9800); // Standard orange
+    }
+  }
+
+  static Color get infoColor {
+    // Blue variant that complements the theme
+    switch (currentTheme) {
+      case ThemePreset.blue:
+        return const Color(0xFF2196F3);
+      default:
+        return const Color(0xFF2196F3); // Standard blue
+    }
+  }
+
+  /// Calculate text color for a given background color
+  static Color getTextColorForBackground(Color backgroundColor) {
+    final luminance = backgroundColor.computeLuminance();
+    // Return dark text for light backgrounds, light text for dark backgrounds
+    // Use direct color constants to avoid circular dependency
+    return luminance > 0.5 ? const Color(0xFF333333) : Colors.white;
+  }
+
+  /// Get text color for primary background
+  static Color getTextColorForPrimary() {
+    return getTextColorForBackground(primaryColor);
+  }
+
+  /// Get text color for accent background
+  static Color getTextColorForAccent() {
+    return getTextColorForBackground(accentColor);
+  }
+}
+
+/// App colors - now theme-aware and dynamic
 class AppColors {
-  static const Color primaryColor = Color(0xFF41282F);
-  static const Color accentColor = Color.fromARGB(255, 120, 67, 82);
-  static const Color accentColor2 = Color(0xFFFBC02D);
-  static const Color scaffoldBackgroundColor = Color.fromARGB(255, 255, 249, 240); 
+  // Base theme colors
+  static Color get primaryColor => ThemeConfig.primaryColor;
+  static Color get accentColor => ThemeConfig.accentColor;
+  static Color get accentColor2 => ThemeConfig.accentColor2;
+  static Color get scaffoldBackgroundColor => ThemeConfig.scaffoldBackgroundColor;
+
+  // Neutral colors (theme-independent)
   static const Color white = Colors.white;
+  static const Color black = Colors.black;
   static const Color darkGray = Color(0xFF333333);
   static const Color lightGray = Color(0xFFB0BEC5);
-  static const Color redAccent = Colors.redAccent;
+
+  // Semantic colors
+  static Color get successColor => ThemeConfig.successColor;
+  static Color get errorColor => ThemeConfig.errorColor;
+  static Color get warningColor => ThemeConfig.warningColor;
+  static Color get infoColor => ThemeConfig.infoColor;
+  static Color get redAccent => ThemeConfig.errorColor;
+
+  // State colors
+  static Color get disabledColor => lightGray.withOpacity(0.5);
+  static Color get hoverColor => primaryColor.withOpacity(0.1);
+  static Color get pressedColor => primaryColor.withOpacity(0.2);
+  static Color get focusedColor => accentColor;
+
+  // Border colors
+  static Color get borderDefault => lightGray;
+  static Color get borderFocused => accentColor;
+  static Color get borderError => errorColor;
+  static Color get borderSuccess => successColor;
+
+  // Background variants
+  static Color get surface => white;
+  static Color get surfaceVariant => lightGray.withOpacity(0.1);
+  static Color get card => white;
+  static Color get cardVariant => primaryColor.withOpacity(0.05);
+  static Color get widgetContainerBackground => Color.lerp(
+    scaffoldBackgroundColor,
+    Colors.white,
+    0.05,
+  ) ?? scaffoldBackgroundColor;
+
+  // Text color variants
+  static Color get textPrimary => darkGray;
+  static Color get textSecondary => lightGray;
+  static Color get textTertiary => lightGray.withOpacity(0.7);
+  static Color get textOnPrimary => ThemeConfig.getTextColorForPrimary();
+  static Color get textOnAccent => ThemeConfig.getTextColorForAccent();
+  static Color get textOnSurface => textPrimary;
+  static Color get textOnCard => textPrimary;
 }
 
 class AppBackgrounds {
-  static const String _path = 'assets/images/backgrounds/';
-
   static const List<String> backgrounds = [
     // Background images temporarily removed
   ];
 }
 
 class AppTextStyles {
-  // ✅ Heading Styles with Custom Color
-  static TextStyle headingLarge({Color color = AppColors.accentColor}) {
+  // Heading Styles with theme-aware colors
+  static TextStyle headingLarge({Color? color}) {
     return TextStyle(
       fontSize: 28,
       fontWeight: FontWeight.bold,
-      color: color, // 🎨 Dynamic Color
+      color: color ?? AppColors.accentColor,
     );
   }
 
-  static TextStyle headingMedium({Color color = AppColors.accentColor}) {
+  static TextStyle headingMedium({Color? color}) {
     return TextStyle(
       fontSize: 24,
       fontWeight: FontWeight.w600,
-      color: color, // 🎨 Dynamic Color
+      color: color ?? AppColors.accentColor,
     );
   }
 
-  static TextStyle headingSmall({Color color = AppColors.accentColor}) {
+  static TextStyle headingSmall({Color? color}) {
     return TextStyle(
       fontSize: 20,
       fontWeight: FontWeight.w500,
-      color: color, // 🎨 Dynamic Color
+      color: color ?? AppColors.accentColor,
     );
   }
 
-  // ✅ Body Text (Fixed White Color)
-  static const TextStyle bodyMedium = TextStyle(
-    fontSize: 16,
-    color: AppColors.white,
-  );
+  // Body Text with theme-aware colors
+  static TextStyle bodySmall({Color? color}) {
+    return TextStyle(
+      fontSize: 12,
+      color: color ?? AppColors.textSecondary,
+    );
+  }
 
-  static const TextStyle bodyLarge = TextStyle(
-    fontSize: 18,
-    color: AppColors.lightGray, // 💡 Light Gray for Less Prominent Text
-  );
+  static TextStyle bodyMedium({Color? color}) {
+    return TextStyle(
+      fontSize: 16,
+      color: color ?? AppColors.textOnPrimary,
+    );
+  }
 
-  // ✅ Button Text
-  static const TextStyle buttonText = TextStyle(
-    fontSize: 18,
-    fontWeight: FontWeight.w600,
-    color: AppColors.white, // White text for buttons
-  );
+  static TextStyle bodyLarge({Color? color}) {
+    return TextStyle(
+      fontSize: 18,
+      color: color ?? AppColors.textSecondary,
+    );
+  }
+
+  // Small text styles
+  static TextStyle caption({Color? color}) {
+    return TextStyle(
+      fontSize: 12,
+      color: color ?? AppColors.textSecondary,
+    );
+  }
+
+  static TextStyle overline({Color? color}) {
+    return TextStyle(
+      fontSize: 10,
+      color: color ?? AppColors.textTertiary,
+      fontWeight: FontWeight.w500,
+    );
+  }
+
+  // Label text (for form labels, metadata)
+  static TextStyle label({Color? color}) {
+    return TextStyle(
+      fontSize: 14,
+      color: color ?? AppColors.textSecondary,
+      fontWeight: FontWeight.w500,
+    );
+  }
+
+  // Button Text
+  static TextStyle buttonText({Color? color}) {
+    return TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.w600,
+      color: color ?? AppColors.textOnAccent,
+    );
+  }
+
+  // Semantic text styles
+  static TextStyle successText({Color? color}) {
+    return TextStyle(
+      fontSize: 16,
+      color: color ?? AppColors.successColor,
+    );
+  }
+
+  static TextStyle errorText({Color? color}) {
+    return TextStyle(
+      fontSize: 16,
+      color: color ?? AppColors.errorColor,
+    );
+  }
+
+  static TextStyle warningText({Color? color}) {
+    return TextStyle(
+      fontSize: 16,
+      color: color ?? AppColors.warningColor,
+    );
+  }
+
+  static TextStyle infoText({Color? color}) {
+    return TextStyle(
+      fontSize: 16,
+      color: color ?? AppColors.infoColor,
+    );
+  }
 }
 
 class AppPadding {
   static const EdgeInsets defaultPadding = EdgeInsets.all(16.0);
   static const EdgeInsets cardPadding = EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0);
+  static const EdgeInsets screenPadding = EdgeInsets.all(24.0);
+  static const EdgeInsets smallPadding = EdgeInsets.all(8.0);
+  static const EdgeInsets mediumPadding = EdgeInsets.all(12.0);
+  static const EdgeInsets largePadding = EdgeInsets.all(20.0);
 }
 
 class AppTheme {
@@ -82,31 +349,32 @@ class AppTheme {
     return ThemeData.dark().copyWith(
       primaryColor: AppColors.primaryColor,
       scaffoldBackgroundColor: AppColors.scaffoldBackgroundColor,
-      hintColor: AppColors.accentColor, // ✅ Use Gold as highlight color
+      hintColor: AppColors.accentColor,
+      cardColor: AppColors.card,
 
-      // ✅ Apply Global Text Styles
-      textTheme: const TextTheme(
+      // Apply Global Text Styles
+      textTheme: TextTheme(
         displayLarge: TextStyle(
           fontSize: 32,
           fontWeight: FontWeight.bold,
-          color: AppColors.accentColor, // 🌟 Gold Titles
+          color: AppColors.accentColor,
         ),
         bodyMedium: TextStyle(
           fontSize: 16,
-          color: AppColors.white, // 📝 White Body Text
+          color: AppColors.textOnPrimary,
         ),
         bodyLarge: TextStyle(
           fontSize: 18,
-          color: AppColors.lightGray, // 💡 Light Gray for Less Prominent Text
+          color: AppColors.textSecondary,
         ),
       ),
 
-      // ✅ Buttons: Gold Background
+      // Buttons: Accent Background
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          textStyle: AppTextStyles.buttonText(),
           backgroundColor: AppColors.accentColor,
-          foregroundColor: AppColors.white,
+          foregroundColor: AppColors.textOnAccent,
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
@@ -114,52 +382,67 @@ class AppTheme {
 
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          textStyle: AppTextStyles.buttonText(),
           backgroundColor: AppColors.accentColor,
-          foregroundColor: AppColors.white,
+          foregroundColor: AppColors.textOnAccent,
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
 
-      // ✅ Input Fields: Gold Glow + Dark Background
+      // Input Fields: Accent Glow + Primary Background
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.primaryColor, // 🎨 Dark Input Background
+        fillColor: AppColors.primaryColor,
         border: OutlineInputBorder(
-          borderSide: const BorderSide(color: AppColors.lightGray),
+          borderSide: BorderSide(color: AppColors.borderDefault),
           borderRadius: BorderRadius.circular(8.0),
         ),
         enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: AppColors.accentColor), // 🌟 Gold Border
+          borderSide: BorderSide(color: AppColors.borderFocused),
           borderRadius: BorderRadius.circular(8.0),
         ),
         focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: AppColors.accentColor2), // ✨ Softer Gold Focus
+          borderSide: BorderSide(color: AppColors.accentColor2),
           borderRadius: BorderRadius.circular(8.0),
         ),
-        labelStyle: const TextStyle(color: AppColors.white),
-        hintStyle: const TextStyle(color: AppColors.lightGray),
-        errorStyle: const TextStyle(color: AppColors.redAccent),
+        errorBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: AppColors.borderError),
+          borderRadius: BorderRadius.circular(8.0),
+        ),
+        labelStyle: AppTextStyles.label(),
+        hintStyle: AppTextStyles.bodySmall(),
+        errorStyle: AppTextStyles.errorText(),
       ),
 
-      // ✅ Cursor + Selection Color: Gold Theme
+      // Cursor + Selection Color: Accent Theme
       textSelectionTheme: TextSelectionThemeData(
-        cursorColor: AppColors.accentColor, // 🖋 Gold Cursor
+        cursorColor: AppColors.accentColor,
         selectionColor: AppColors.accentColor.withOpacity(0.5),
         selectionHandleColor: AppColors.accentColor2,
       ),
 
-      // ✅ Drawer & NavigationBar Styles
-      drawerTheme: const DrawerThemeData(
+      // Drawer & NavigationBar Styles
+      drawerTheme: DrawerThemeData(
         backgroundColor: AppColors.scaffoldBackgroundColor,
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.primaryColor,
         indicatorColor: AppColors.accentColor2.withOpacity(0.2),
         labelTextStyle: MaterialStateProperty.all(
-          const TextStyle(fontSize: 14, color: AppColors.white),
+          AppTextStyles.label(),
         ),
+      ),
+
+      // Divider theme
+      dividerTheme: DividerThemeData(
+        color: AppColors.borderDefault,
+        thickness: 1,
+      ),
+
+      // Icon theme
+      iconTheme: IconThemeData(
+        color: AppColors.accentColor,
       ),
     );
   }

@@ -9,6 +9,7 @@ import 'core/managers/navigation_manager.dart';
 import 'core/managers/provider_manager.dart';
 import 'modules/analytics_module/analytics_module.dart';
 import 'tools/logging/logger.dart';
+import 'utils/consts/theme_consts.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized
@@ -121,15 +122,17 @@ class _MyAppState extends State<MyApp> {
 
     // Show loading screen while initializing
     if (_isInitializing || !appManager.isInitialized) {
-      return const MaterialApp(
+      return MaterialApp(
         home: Scaffold(
           body: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Initializing app...', style: TextStyle(color: Colors.white)),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text('Initializing app...', style: AppTextStyles.bodyMedium().copyWith(
+                  color: AppColors.textOnPrimary,
+                )),
               ],
             ),
           ),
@@ -144,7 +147,7 @@ class _MyAppState extends State<MyApp> {
     
     return MaterialApp.router(
       title: "Cleco App",
-      theme: ThemeData.dark(),
+      theme: AppTheme.darkTheme,
       routerConfig: router,
     );
   }
@@ -170,7 +173,7 @@ void _setupErrorHandlers() {
   PlatformDispatcher.instance.onError = (error, stack) {
     _trackError(
       error: error.toString(),
-      stackTrace: stack?.toString(),
+      stackTrace: stack.toString(),
       context: 'Platform Error',
     );
     return true; // Return true to indicate error was handled

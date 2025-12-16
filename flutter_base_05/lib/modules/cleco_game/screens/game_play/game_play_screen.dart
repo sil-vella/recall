@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
+import '../../../../utils/consts/theme_consts.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../tools/logging/logger.dart';
 import 'widgets/game_info_widget.dart';
@@ -259,7 +260,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: isError ? Colors.red : Colors.green,
+          backgroundColor: isError ? AppColors.errorColor : AppColors.successColor,
           duration: const Duration(seconds: 3),
         ),
       );
@@ -272,30 +273,34 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
-    // Screen doesn't read state directly - widgets handle their own subscriptions
     return Stack(
       children: [
         // Main game content
         SingleChildScrollView(
+          padding: EdgeInsets.zero,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              
               // Game Information Widget
               const GameInfoWidget(),
+              
+              SizedBox(height: AppPadding.smallPadding.top),
               
               // Opponents Panel Section
               const OpponentsPanelWidget(),
               
+              SizedBox(height: AppPadding.smallPadding.top),
+              
               // Game Board Section
               const GameBoardWidget(),
+              
+              SizedBox(height: AppPadding.smallPadding.top),
               
               // My Hand Section
               const MyHandWidget(),
             ],
           ),
         ),
-        
         
         // Instructions Modal Widget - handles its own state subscription
         const InstructionsWidget(),

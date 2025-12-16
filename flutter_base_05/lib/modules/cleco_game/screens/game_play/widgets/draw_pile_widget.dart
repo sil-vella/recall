@@ -7,6 +7,7 @@ import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../card_position_tracker.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
 
@@ -77,61 +78,48 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     required String playerStatus,
   }) {
     
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Title
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.style, color: Colors.blue),
-                const SizedBox(width: 8),
-                const Text(
-                  'Draw',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Title
+          Text(
+            'Draw',
+            style: AppTextStyles.headingSmall(),
+          ),
+          const SizedBox(height: 12),
+          
+          // Draw pile visual representation (clickable) - CardWidget handles its own sizing
+          Builder(
+            builder: (context) {
+              final cardDimensions = CardDimensions.getUnifiedDimensions();
+              return CardWidget(
+                key: _drawCardKey,
+                card: CardModel(
+                  cardId: 'draw_pile_${drawPileCount > 0 ? 'full' : 'empty'}',
+                  rank: '?',
+                  suit: '?',
+                  points: 0,
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            
-            // Draw pile visual representation (clickable) - CardWidget handles its own sizing
-            Builder(
-              builder: (context) {
-                final cardDimensions = CardDimensions.getUnifiedDimensions();
-                return CardWidget(
-                  key: _drawCardKey,
-                  card: CardModel(
-                    cardId: 'draw_pile_${drawPileCount > 0 ? 'full' : 'empty'}',
-                    rank: '?',
-                    suit: '?',
-                    points: 0,
-                  ),
-                  dimensions: cardDimensions, // Pass dimensions directly
-                  config: CardDisplayConfig.forDrawPile(),
-                  showBack: true, // Always show back for draw pile
-                  onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
-                );
-              },
-            ),
-            
-            // Update position on rebuild (after card is rendered)
-            Builder(
-              builder: (context) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _updateDrawPilePosition();
-                });
-                return const SizedBox.shrink();
-              },
-            ),
-          ],
-        ),
+                dimensions: cardDimensions, // Pass dimensions directly
+                config: CardDisplayConfig.forDrawPile(),
+                showBack: true, // Always show back for draw pile
+                onTap: _handlePileClick, // Use CardWidget's internal GestureDetector
+              );
+            },
+          ),
+          
+          // Update position on rebuild (after card is rendered)
+          Builder(
+            builder: (context) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _updateDrawPilePosition();
+              });
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
       ),
     );
   }
@@ -209,10 +197,10 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
         final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
         if (currentGameId.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error: No active game found'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
+            SnackBar(
+              content: const Text('Error: No active game found'),
+              backgroundColor: AppColors.errorColor,
+              duration: const Duration(seconds: 3),
             ),
           );
           return;
@@ -231,17 +219,17 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
         
         // Show success feedback
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Card drawn from draw pile'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: const Text('Card drawn from draw pile'),
+            backgroundColor: AppColors.successColor,
+            duration: const Duration(seconds: 2),
           ),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to draw card: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.errorColor,
             duration: Duration(seconds: 3),
           ),
         );
@@ -253,7 +241,7 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
           content: Text(
             'Invalid action: Cannot interact with draw pile while status is "$currentPlayerStatus"'
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warningColor,
           duration: Duration(seconds: 3),
         ),
       );

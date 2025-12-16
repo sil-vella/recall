@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../../../../../core/managers/state_manager.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 /// Unified Game Phase Chip Widget
 /// 
@@ -163,13 +164,13 @@ class _GamePhaseChipState extends State<GamePhaseChip> {
           Icon(
             phaseData.icon,
             size: _getIconSize(),
-            color: Colors.white,
+            color: AppColors.textOnAccent,
           ),
           SizedBox(width: _getSpacing()),
           Text(
             phaseData.text,
-            style: TextStyle(
-              color: Colors.white,
+            style: AppTextStyles.bodySmall().copyWith(
+              color: AppColors.textOnAccent,
               fontSize: _getFontSize(),
               fontWeight: FontWeight.w500,
             ),

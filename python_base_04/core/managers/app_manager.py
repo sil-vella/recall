@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timedelta
 from utils.config.config import Config
 from redis.exceptions import RedisError
-from core.monitoring.metrics_collector import metrics_collector
+from core.monitoring.metrics_collector import MetricsCollector
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from core.managers.database_manager import DatabaseManager
@@ -21,7 +21,11 @@ from core.managers.state_manager import StateManager
 from core.managers.user_actions_manager import UserActionsManager
 from core.managers.action_discovery_manager import ActionDiscoveryManager
 from core.managers.websockets.websocket_manager import WebSocketManager
+
 class AppManager:
+    METRICS_SWITCH = True
+    LOGGING_SWITCH = True
+    
     def __init__(self):
         # Plugin system removed - ModuleManager is now primary orchestrator
         # self.plugin_manager = PluginManager()  # DEPRECATED
@@ -43,6 +47,7 @@ class AppManager:
         self.jwt_manager = None
         self.user_actions_manager = None
         self.action_discovery_manager = None
+        self.metrics_collector = None
         self._initialized = False
 
     def is_initialized(self):
@@ -92,6 +97,10 @@ class AppManager:
         """Get the WebSocket manager instance."""
         return self.websocket_manager
 
+    def get_metrics_collector(self):
+        """Get the metrics collector instance."""
+        return self.metrics_collector
+
 
 
     @log_function_call
@@ -136,6 +145,9 @@ class AppManager:
         self.websocket_manager.set_room_access_check(self.websocket_manager.room_manager.check_room_access)
         self.websocket_manager.set_app_manager(self)
         self.websocket_manager.initialize(app, use_builtin_handlers=True)
+        
+        # Initialize metrics collector (singleton via __new__)
+        self.metrics_collector = MetricsCollector()
 
         # Initialize services
         self.services_manager.initialize_services()
@@ -471,13 +483,13 @@ class AppManager:
                     duration = 0
                 
                 # Track request metrics
-                metrics_collector.track_request(
-                    method=request.method,
-                    endpoint=request.endpoint,
-                    status=response.status_code,
-                    duration=duration,
-                    size=getattr(request, 'request_size', 0)
-                )
+                self.metrics_collector.collect_metric('request', {
+                    'method': request.method,
+                    'endpoint': request.endpoint,
+                    'status': response.status_code,
+                    'duration': duration,
+                    'size': getattr(request, 'request_size', 0)
+                }, isOn=AppManager.METRICS_SWITCH)
             except Exception as e:
                 pass
             
@@ -512,15 +524,15 @@ class AppManager:
             try:
                 # Update MongoDB connections
                 if hasattr(self, 'db_manager'):
-                    metrics_collector.update_mongodb_connections(
-                        self.db_manager.get_connection_count()
-                    )
+                    self.metrics_collector.collect_metric('mongodb_connections', {
+                        'count': self.db_manager.get_connection_count()
+                    }, isOn=AppManager.METRICS_SWITCH)
                 
                 # Update Redis connections
                 if hasattr(self, 'redis_manager'):
-                    metrics_collector.update_redis_connections(
-                        self.redis_manager.get_connection_count()
-                    )
+                    self.metrics_collector.collect_metric('redis_connections', {
+                        'count': self.redis_manager.get_connection_count()
+                    }, isOn=AppManager.METRICS_SWITCH)
             except Exception as e:
                 pass
         
@@ -537,21 +549,30 @@ class AppManager:
                 daily_active = self.db_manager.count("users", {
                     "last_login": {"$gte": daily_threshold.isoformat()}
                 })
-                metrics_collector.update_active_users('daily', daily_active)
+                self.metrics_collector.collect_metric('active_users', {
+                    'time_period': 'daily',
+                    'count': daily_active
+                }, isOn=AppManager.METRICS_SWITCH)
                 
                 # Calculate weekly active users (last 7 days)
                 weekly_threshold = current_time - timedelta(days=7)
                 weekly_active = self.db_manager.count("users", {
                     "last_login": {"$gte": weekly_threshold.isoformat()}
                 })
-                metrics_collector.update_active_users('weekly', weekly_active)
+                self.metrics_collector.collect_metric('active_users', {
+                    'time_period': 'weekly',
+                    'count': weekly_active
+                }, isOn=AppManager.METRICS_SWITCH)
                 
                 # Calculate monthly active users (last 30 days)
                 monthly_threshold = current_time - timedelta(days=30)
                 monthly_active = self.db_manager.count("users", {
                     "last_login": {"$gte": monthly_threshold.isoformat()}
                 })
-                metrics_collector.update_active_users('monthly', monthly_active)
+                self.metrics_collector.collect_metric('active_users', {
+                    'time_period': 'monthly',
+                    'count': monthly_active
+                }, isOn=AppManager.METRICS_SWITCH)
                 
             except Exception as e:
                 # Silently fail to avoid disrupting system metrics

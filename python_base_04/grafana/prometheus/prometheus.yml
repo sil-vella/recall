@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'flask-app-monitor'
+
+scrape_configs:
+  # Scrape Flask app metrics
+  # PRIMARY: Flask route /metrics endpoint (port 5001) - recommended for development
+  #   This ensures metrics are always from the current Flask process, avoiding
+  #   issues with Flask's debug reloader creating new processes.
+  # FALLBACK: Separate HTTP server (port 8000) - available for production
+  #   The separate HTTP server is kept as a fallback option.
+  # Using host.docker.internal to access host machine from container
+  - job_name: 'flask-app-metrics'
+    scrape_interval: 15s
+    static_configs:
+      # Primary: Flask app /metrics endpoint (recommended)
+      - targets: ['host.docker.internal:5001']
+        labels:
+          instance: 'flask-app'
+          service: 'flask-app-metrics'
+          endpoint: 'flask-route'
+      # Fallback: Separate HTTP server (if needed)
+      - targets: ['host.docker.internal:8000']
+        labels:
+          instance: 'flask-app'
+          service: 'flask-app-metrics'
+          endpoint: 'http-server'

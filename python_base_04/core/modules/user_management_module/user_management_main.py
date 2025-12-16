@@ -22,14 +22,13 @@ except ImportError:
     GOOGLE_AUTH_AVAILABLE = False
     GoogleAuthService = None
 
-# Import metrics collector for tracking
-from core.monitoring.metrics_collector import metrics_collector
 from core.services.analytics_service import AnalyticsService
 
 
 class UserManagementModule(BaseModule):
     # Logging switch for guest registration and conversion testing
     LOGGING_SWITCH = True
+    METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):
         """Initialize the UserManagementModule."""
@@ -350,12 +349,7 @@ class UserManagementModule(BaseModule):
             # Log successful registration
             if convert_from_guest:
                 custom_log(f"UserManagement: Guest account conversion completed successfully - User ID: {user_id}, Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
-                # Track guest conversion metric
-                metrics_collector.track_guest_conversion('email')
-                # Track registration as email type (converted from guest)
-                metrics_collector.track_user_registration('email', 'normal')
-                
-                # Track event in analytics service
+                # Track event in analytics service (automatically updates metrics)
                 analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
                 if analytics_service:
                     analytics_service.track_event(
@@ -377,10 +371,7 @@ class UserManagementModule(BaseModule):
                     )
             else:
                 custom_log(f"UserManagement: Regular registration completed successfully - User ID: {user_id}, Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
-                # Track registration metric
-                metrics_collector.track_user_registration('email', 'normal')
-                
-                # Track event in analytics service
+                # Track event in analytics service (automatically updates metrics)
                 analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
                 if analytics_service:
                     analytics_service.track_event(
@@ -389,7 +380,8 @@ class UserManagementModule(BaseModule):
                         event_data={
                             'registration_type': 'email',
                             'account_type': 'normal'
-                        }
+                        },
+                        metrics_enabled=UserManagementModule.METRICS_SWITCH
                     )
             
             return jsonify({
@@ -561,10 +553,7 @@ class UserManagementModule(BaseModule):
             
             custom_log(f"UserManagement: Guest registration completed successfully - User ID: {user_id}, Username: {username}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
-            # Track guest registration metric
-            metrics_collector.track_user_registration('guest', 'guest')
-            
-            # Track event in analytics service
+            # Track event in analytics service (automatically updates metrics)
             analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
             if analytics_service:
                 analytics_service.track_event(
@@ -778,10 +767,7 @@ class UserManagementModule(BaseModule):
             else:
                 custom_log(f"UserManagement: Regular account login successful - User ID: {user['_id']}, Email: {email}, Account Type: {account_type}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
-            # Track login metric
-            metrics_collector.track_user_login('email', account_type)
-            
-            # Track event in analytics service
+            # Track event in analytics service (automatically updates metrics)
             analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
             if analytics_service:
                 analytics_service.track_event(
@@ -790,7 +776,8 @@ class UserManagementModule(BaseModule):
                     event_data={
                         'auth_method': 'email',
                         'account_type': account_type
-                    }
+                    },
+                    metrics_enabled=UserManagementModule.METRICS_SWITCH
                 )
             
             return jsonify({
@@ -1208,12 +1195,7 @@ class UserManagementModule(BaseModule):
                     
                     if convert_from_guest:
                         custom_log(f"UserManagement: Google Sign-In with guest account conversion completed successfully - User ID: {user_id}, Username: {username}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
-                        # Track guest conversion metric
-                        metrics_collector.track_guest_conversion('google')
-                        # Track registration as Google type (converted from guest)
-                        metrics_collector.track_user_registration('google', 'normal')
-                        
-                        # Track events in analytics service
+                        # Track events in analytics service (automatically updates metrics)
                         analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
                         if analytics_service:
                             analytics_service.track_event(
@@ -1222,7 +1204,8 @@ class UserManagementModule(BaseModule):
                                 event_data={
                                     'conversion_method': 'google',
                                     'guest_user_id': str(guest_user.get('_id')) if guest_user else None
-                                }
+                                },
+                                metrics_enabled=UserManagementModule.METRICS_SWITCH
                             )
                             analytics_service.track_event(
                                 user_id=str(user_id),
@@ -1231,13 +1214,11 @@ class UserManagementModule(BaseModule):
                                     'registration_type': 'google',
                                     'account_type': 'normal',
                                     'converted_from_guest': True
-                                }
+                                },
+                                metrics_enabled=UserManagementModule.METRICS_SWITCH
                             )
                     else:
-                        # Track new user registration via Google
-                        metrics_collector.track_user_registration('google', 'normal')
-                        
-                        # Track event in analytics service
+                        # Track event in analytics service (automatically updates metrics)
                         analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
                         if analytics_service:
                             analytics_service.track_event(
@@ -1292,11 +1273,8 @@ class UserManagementModule(BaseModule):
             
             custom_log(f"UserManagement: Google Sign-In successful - User ID: {user['_id']}, Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
-            # Track login metric (for both new and existing users)
+            # Track event in analytics service (automatically updates metrics)
             account_type = user.get('account_type', 'normal')
-            metrics_collector.track_user_login('google', account_type)
-            
-            # Track event in analytics service
             analytics_service = self.app_manager.services_manager.get_service('analytics_service') if self.app_manager else None
             if analytics_service:
                 analytics_service.track_event(
@@ -1305,7 +1283,8 @@ class UserManagementModule(BaseModule):
                     event_data={
                         'auth_method': 'google',
                         'account_type': account_type
-                    }
+                    },
+                    metrics_enabled=UserManagementModule.METRICS_SWITCH
                 )
                 # Also track as login event
                 analytics_service.track_event(
@@ -1314,7 +1293,8 @@ class UserManagementModule(BaseModule):
                     event_data={
                         'auth_method': 'google',
                         'account_type': account_type
-                    }
+                    },
+                    metrics_enabled=UserManagementModule.METRICS_SWITCH
                 )
             
             return jsonify({

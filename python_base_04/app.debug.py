@@ -9,7 +9,7 @@ from utils.config.config import Config
 from tools.logger.custom_logging import custom_log
 
 # Test logging control
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True  # Enabled for debugging Grafana datasource issues
 
 # Clear Python's import cache to prevent stale imports
 importlib.invalidate_caches()
@@ -91,6 +91,82 @@ else:
 
 # Additional app-level configurations
 app.config["DEBUG"] = True  # Force debug mode for development
+
+@app.route('/metrics')
+def metrics_endpoint():
+    """
+    Expose Prometheus metrics through Flask route.
+    
+    This ensures metrics are always read from the current process's REGISTRY,
+    avoiding issues with Flask's debug reloader creating new processes.
+    The separate HTTP server on port 8000 is kept as a fallback for production.
+    
+    This endpoint is the PRIMARY way to expose metrics in development (Flask debug mode).
+    Prometheus should scrape this endpoint instead of the separate HTTP server.
+    """
+    from prometheus_client import generate_latest, REGISTRY
+    from flask import Response, request
+    
+    try:
+        custom_log(f"Flask /metrics endpoint: Request from {request.remote_addr}, User-Agent: {request.headers.get('User-Agent', 'unknown')}", isOn=LOGGING_SWITCH)
+        
+        # Generate metrics from current process's REGISTRY
+        # This always reads from the current Flask process, not a stale one
+        metrics_output = generate_latest(REGISTRY)
+        
+        # Log detailed metrics info for debugging
+        if LOGGING_SWITCH:
+            output_str = metrics_output.decode('utf-8')
+            user_logins_lines = [l for l in output_str.split('\n') 
+                               if 'user_logins_total' in l and not l.startswith('#') and l.strip()]
+            user_regs_lines = [l for l in output_str.split('\n') 
+                             if 'user_registrations_total' in l and not l.startswith('#') and l.strip()]
+            flask_reqs_lines = [l for l in output_str.split('\n') 
+                              if 'flask_app_requests_total' in l and not l.startswith('#') and l.strip()]
+            
+            custom_log(f"Flask /metrics endpoint: REGISTRY id={id(REGISTRY)}, output size={len(output_str)} bytes", isOn=LOGGING_SWITCH)
+            custom_log(f"Flask /metrics endpoint: user_logins_total={len(user_logins_lines)} lines, user_registrations_total={len(user_regs_lines)} lines, flask_app_requests_total={len(flask_reqs_lines)} lines", isOn=LOGGING_SWITCH)
+            
+            if user_logins_lines:
+                custom_log(f"Flask /metrics endpoint: Sample user_logins_total line: {user_logins_lines[0][:100]}", isOn=LOGGING_SWITCH)
+            if flask_reqs_lines:
+                custom_log(f"Flask /metrics endpoint: Sample flask_app_requests_total line: {flask_reqs_lines[0][:100]}", isOn=LOGGING_SWITCH)
+        
+        return Response(
+            metrics_output,
+            mimetype='text/plain; version=0.0.4; charset=utf-8'
+        )
+    except Exception as e:
+        custom_log(f"Flask /metrics endpoint: Error generating metrics: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+        import traceback
+        custom_log(f"Flask /metrics endpoint: Traceback: {traceback.format_exc()}", level="ERROR", isOn=LOGGING_SWITCH)
+        return jsonify({
+            'success': False,
+            'error': f'Failed to generate metrics: {str(e)}'
+        }), 500
+
+@app.route('/metrics/verify')
+def verify_metrics():
+    """Verify metrics are in REGISTRY and accessible via HTTP server."""
+    try:
+        metrics_collector = app_manager.get_metrics_collector()
+        if metrics_collector:
+            result = metrics_collector.verify_http_server_registry()
+            return jsonify({
+                'success': True,
+                'registry_check': result,
+                'message': 'Metrics registry verification completed'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'MetricsCollector not available'
+            }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/health')
 def health_check():

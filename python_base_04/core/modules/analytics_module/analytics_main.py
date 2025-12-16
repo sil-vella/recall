@@ -6,7 +6,6 @@ This module provides API endpoints for tracking and querying user analytics even
 
 from core.modules.base_module import BaseModule
 from core.services.analytics_service import AnalyticsService
-from core.monitoring.metrics_collector import metrics_collector
 from tools.logger.custom_logging import custom_log
 from flask import request, jsonify
 from datetime import datetime
@@ -15,7 +14,7 @@ from datetime import datetime
 class AnalyticsModule(BaseModule):
     """Module for tracking and querying user analytics events."""
     
-    LOGGING_SWITCH = False
+    LOGGING_SWITCH = True
     
     def __init__(self, app_manager=None):
         """Initialize the AnalyticsModule."""
@@ -40,20 +39,18 @@ class AnalyticsModule(BaseModule):
     
     def register_routes(self):
         """Register analytics routes."""
-        # JWT authenticated route for tracking events
+        # JWT authenticated route for tracking events (auth determined by /userauth/ prefix)
         self._register_auth_route_helper(
             "/userauth/analytics/track",
             self.track_event,
-            methods=["POST"],
-            auth="jwt"
+            methods=["POST"]
         )
         
         # JWT authenticated route for querying user events (optional, for debugging/admin)
         self._register_auth_route_helper(
             "/userauth/analytics/events",
             self.get_user_events,
-            methods=["GET"],
-            auth="jwt"
+            methods=["GET"]
         )
     
     def track_event(self):

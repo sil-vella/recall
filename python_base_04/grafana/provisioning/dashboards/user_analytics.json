@@ -79,10 +79,7 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
+          "datasource": "Prometheus",
           "expr": "rate(user_registrations_total[5m])",
           "interval": "",
           "legendFormat": "{{registration_type}} - {{account_type}}",
@@ -207,10 +204,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
+          "datasource": "Prometheus",
           "expr": "active_users_current{time_period=\"daily\"}",
           "interval": "",
           "legendFormat": "DAU",
@@ -265,10 +259,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
+          "datasource": "Prometheus",
           "expr": "active_users_current{time_period=\"weekly\"}",
           "interval": "",
           "legendFormat": "WAU",
@@ -323,10 +314,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
+          "datasource": "Prometheus",
           "expr": "active_users_current{time_period=\"monthly\"}",
           "interval": "",
           "legendFormat": "MAU",
@@ -382,6 +370,7 @@
       },
       "targets": [
         {
+          "datasource": "Prometheus",
           "expr": "sum by (conversion_method) (guest_account_conversions_total)",
           "interval": "",
           "legendFormat": "{{conversion_method}}",
@@ -507,6 +496,7 @@
       },
       "targets": [
         {
+          "datasource": "Prometheus",
           "expr": "sum by (registration_type) (user_registrations_total)",
           "interval": "",
           "legendFormat": "{{registration_type}}",

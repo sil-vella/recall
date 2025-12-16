@@ -10,10 +10,7 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -84,10 +81,7 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
+          "datasource": "Prometheus",
           "expr": "rate(flask_app_requests_total[5m])",
           "legendFormat": "{{method}} {{endpoint}}",
           "refId": "A"
@@ -97,10 +91,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -171,10 +162,7 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
+          "datasource": "Prometheus",
           "expr": "rate(flask_app_request_duration_seconds_sum[5m]) / rate(flask_app_request_duration_seconds_count[5m])",
           "legendFormat": "{{method}} {{endpoint}}",
           "refId": "A"
@@ -184,10 +172,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -258,10 +243,7 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
+          "datasource": "Prometheus",
           "expr": "rate(credit_system_transactions_total[5m])",
           "legendFormat": "{{type}} {{status}}",
           "refId": "A"
@@ -271,10 +253,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -345,18 +324,12 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
+          "datasource": "Prometheus",
           "expr": "mongodb_connections",
           "refId": "A"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
+          "datasource": "Prometheus",
           "expr": "redis_connections",
           "refId": "B"
         }
@@ -382,4 +355,4 @@
   "uid": "credit_system",
   "version": 1,
   "weekStart": ""
-} 
+}

@@ -19,10 +19,7 @@
   "links": [],
   "panels": [
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -59,7 +56,7 @@
               }
             ]
           },
-          "unit": "ops"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -82,9 +79,9 @@
       },
       "targets": [
         {
-          "expr": "rate(cleco_games_created_total[5m])",
+          "expr": "cleco_games_completed_total",
           "interval": "",
-          "legendFormat": "{{game_mode}}",
+          "legendFormat": "{{game_mode}} - {{result}}",
           "refId": "A"
         }
       ],
@@ -92,10 +89,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -132,7 +126,7 @@
               }
             ]
           },
-          "unit": "ops"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -155,11 +149,8 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(cleco_games_completed_total[5m])",
+          "datasource": "Prometheus",
+          "expr": "cleco_games_completed_total",
           "interval": "",
           "legendFormat": "{{game_mode}} - {{result}}",
           "refId": "A"
@@ -169,10 +160,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -216,10 +204,6 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
           "expr": "histogram_quantile(0.5, rate(cleco_game_duration_seconds_bucket[5m]))",
           "interval": "",
           "legendFormat": "Median Duration",
@@ -230,10 +214,7 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -278,10 +259,6 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
           "expr": "sum by (result) (cleco_games_completed_total)",
           "interval": "",
           "legendFormat": "{{result}}",
@@ -292,10 +269,7 @@
       "type": "piechart"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -355,11 +329,7 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(cleco_coin_transactions_total[5m])",
+          "expr": "increase(cleco_coin_transactions_total[5m])",
           "interval": "",
           "legendFormat": "{{transaction_type}} - {{direction}}",
           "refId": "A"
@@ -369,10 +339,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -432,10 +399,6 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
           "expr": "sum by (card_type) (cleco_special_card_used_total)",
           "interval": "",
           "legendFormat": "{{card_type}}",
@@ -446,10 +409,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -493,10 +453,6 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
           "expr": "rate(cleco_calls_total[5m])",
           "interval": "",
           "legendFormat": "Cleco Calls",
@@ -507,10 +463,7 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -570,10 +523,6 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
           "expr": "rate(cleco_calls_total[5m])",
           "interval": "",
           "legendFormat": "{{game_mode}}",

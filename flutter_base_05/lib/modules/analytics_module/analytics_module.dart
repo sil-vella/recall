@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
@@ -122,8 +123,8 @@ class AnalyticsModule extends ModuleBase {
     try {
       if (_authManager == null) return null;
       
-      final authState = _authManager!.getAuthState();
-      final userId = authState['userId'] as String?;
+      final userData = _authManager!.getCurrentUserData();
+      final userId = userData['userId'] as String?;
       
       if (userId != null && userId.isNotEmpty) {
         return userId;

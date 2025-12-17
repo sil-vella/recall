@@ -1,0 +1,109 @@
+---
+- name: Install Docker and Docker Compose
+  hosts: "{{ vm_name }}_user"
+  become: true
+  vars:
+    docker_compose_version: "2.24.0"
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install prerequisites
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        update_cache: yes
+
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Verify Docker is running
+      systemd:
+        name: docker
+        state: started
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Verify Docker installation
+      command: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: Display Docker version
+      debug:
+        msg: "{{ docker_version.stdout }}"
+
+    - name: Verify Docker Compose installation
+      command: docker compose version
+      register: docker_compose_version_output
+      changed_when: false
+
+    - name: Display Docker Compose version
+      debug:
+        msg: "{{ docker_compose_version_output.stdout }}"
+
+    - name: Test Docker with hello-world
+      command: docker run --rm hello-world
+      register: docker_test
+      changed_when: false
+      failed_when: false
+
+    - name: Display Docker test result
+      debug:
+        msg: "{{ docker_test.stdout_lines }}"
+      when: docker_test.rc == 0
+
+    - name: Display completion message
+      debug:
+        msg: |
+          ============================================
+          ✓ DOCKER INSTALLATION COMPLETE!
+          ============================================
+          ✓ Docker installed and running
+          ✓ Docker Compose installed
+          ✓ User {{ ansible_user }} added to docker group
+          
+          Note: You may need to log out and log back in
+          for the docker group membership to take effect,
+          or run: newgrp docker
+          
+          Test Docker:
+          docker run hello-world
+          
+          Test Docker Compose:
+          docker compose version
+          ============================================

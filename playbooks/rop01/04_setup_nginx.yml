@@ -1,0 +1,270 @@
+---
+- name: Setup Nginx with SSL and Domain Configuration
+  hosts: "{{ vm_name }}_user"
+  become: true
+  vars:
+    # Domain configuration - can be overridden via -e flag
+    domains: "{{ nginx_domains | default([
+      {
+        'domain': 'reignofplay.com',
+        'www_domain': 'www.reignofplay.com',
+        'root_dir': '/var/www/reignofplay.com'
+      },
+      {
+        'domain': 'cleco.reignofplay.com',
+        'root_dir': '/var/www/cleco.reignofplay.com'
+      }
+    ]) }}"
+    # Email for Let's Encrypt notifications
+    certbot_email_address: "{{ certbot_email | default('admin@reignofplay.com') }}"
+    # Nginx user
+    nginx_user: "www-data"
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Install Certbot and Python3 Certbot Nginx plugin
+      apt:
+        name:
+          - certbot
+          - python3-certbot-nginx
+        state: present
+
+    - name: Ensure Nginx is stopped initially (for SSL setup)
+      service:
+        name: nginx
+        state: stopped
+      when: domains | length > 0
+
+    - name: Create Nginx configuration directory for sites
+      file:
+        path: /etc/nginx/sites-available
+        state: directory
+        mode: '0755'
+
+    - name: Create Nginx enabled sites directory
+      file:
+        path: /etc/nginx/sites-enabled
+        state: directory
+        mode: '0755'
+
+    - name: Remove default Nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Create website root directories
+      file:
+        path: "{{ item.root_dir | default('/var/www/' + item.domain) }}"
+        state: directory
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: '0755'
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      when: domains | length > 0
+
+    - name: Create default index.html for each domain
+      copy:
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>{{ item.domain }}</title>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+          </head>
+          <body>
+              <h1>Welcome to {{ item.domain }}</h1>
+              <p>This site is under construction.</p>
+          </body>
+          </html>
+        dest: "{{ item.root_dir | default('/var/www/' + item.domain) }}/index.html"
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: '0644'
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      when: domains | length > 0
+
+    - name: Create basic Nginx configuration for each domain
+      template:
+        src: nginx-site.conf.j2
+        dest: "/etc/nginx/sites-available/{{ item.domain }}"
+        mode: '0644'
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      when: domains | length > 0
+      notify: test nginx config
+
+    - name: Enable Nginx sites
+      file:
+        src: "/etc/nginx/sites-available/{{ item.domain }}"
+        dest: "/etc/nginx/sites-enabled/{{ item.domain }}"
+        state: link
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      when: domains | length > 0
+
+    - name: Test Nginx configuration
+      command: nginx -t
+      register: nginx_test
+      changed_when: false
+      failed_when: false
+
+    - name: Display Nginx configuration test results
+      debug:
+        msg: "{{ nginx_test.stdout_lines }}"
+      when: nginx_test.rc != 0
+
+    - name: Start and enable Nginx service
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Obtain SSL certificates for domains with www
+      shell: >
+        certbot --nginx
+        --non-interactive
+        --agree-tos
+        --email {{ certbot_email_address }}
+        --redirect
+        -d {{ item.domain }}
+        -d {{ item.www_domain }}
+      register: certbot_result
+      loop: "{{ domains }}"
+      when: domains | length > 0 and item.www_domain is defined
+      changed_when: >
+        certbot_result.stdout is defined and (
+        'Congratulations' in certbot_result.stdout or
+        'Successfully' in certbot_result.stdout or
+        'already' in certbot_result.stdout
+        )
+      failed_when: false
+
+    - name: Obtain SSL certificates for domains without www
+      shell: >
+        certbot --nginx
+        --non-interactive
+        --agree-tos
+        --email {{ certbot_email_address }}
+        --redirect
+        -d {{ item.domain }}
+      register: certbot_result
+      loop: "{{ domains }}"
+      when: domains | length > 0 and item.www_domain is not defined
+      changed_when: >
+        certbot_result.stdout is defined and (
+        'Congratulations' in certbot_result.stdout or
+        'Successfully' in certbot_result.stdout or
+        'already' in certbot_result.stdout
+        )
+      failed_when: false
+
+    - name: Display Certbot results for domains with www
+      debug:
+        msg: "{{ item.stdout_lines | default([]) }}"
+      loop: "{{ certbot_result.results | default([]) }}"
+      when: 
+        - domains | length > 0
+        - item.rc is defined
+        - item.rc == 0
+      loop_control:
+        label: "{{ item.item.domain | default('unknown') }}"
+
+    - name: Display warning if Certbot failed for domains with www
+      debug:
+        msg: |
+          Certbot may have failed for {{ item.item.domain | default('unknown') }}. This could be because:
+          1. Domains are not pointing to this server's IP
+          2. DNS propagation is not complete
+          3. Ports 80/443 are not accessible
+          You can run certbot manually later: certbot --nginx -d {{ item.item.domain }}
+      loop: "{{ certbot_result.results | default([]) }}"
+      when: 
+        - domains | length > 0
+        - item.rc is defined
+        - item.rc != 0
+      loop_control:
+        label: "{{ item.item.domain | default('unknown') }}"
+      failed_when: false
+
+    - name: Setup Certbot renewal cron job
+      cron:
+        name: "Renew Let's Encrypt certificates"
+        minute: "0"
+        hour: "3"
+        day: "*"
+        month: "*"
+        weekday: "*"
+        job: "/usr/bin/certbot renew --quiet --no-self-upgrade"
+        user: root
+
+    - name: Test Certbot renewal (dry run)
+      command: certbot renew --dry-run
+      register: certbot_renewal_test
+      changed_when: false
+      failed_when: false
+      when: domains | length > 0
+
+    - name: Configure Nginx security headers
+      blockinfile:
+        path: /etc/nginx/nginx.conf
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - Security Headers"
+        block: |
+          # Security headers configuration
+          add_header X-Frame-Options "SAMEORIGIN" always;
+          add_header X-Content-Type-Options "nosniff" always;
+          add_header X-XSS-Protection "1; mode=block" always;
+          add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        insertafter: "^http {"
+        create: yes
+
+    - name: Reload Nginx to apply all configurations
+      service:
+        name: nginx
+        state: reloaded
+
+    - name: Display Nginx status
+      command: systemctl status nginx --no-pager
+      register: nginx_status
+      changed_when: false
+      failed_when: false
+
+    - name: Show Nginx status
+      debug:
+        msg: "{{ nginx_status.stdout_lines }}"
+
+    - name: Display completion message
+      debug:
+        msg: |
+          ============================================
+          ✓ Nginx Setup Complete!
+          ============================================
+          {% if domains | length > 0 %}
+          Configured domains:
+          {% for domain in domains %}
+          - {{ domain.domain }}{% if domain.www_domain is defined %} (and {{ domain.www_domain }}){% endif %}
+          {% endfor %}
+          {% else %}
+          No domains configured. Nginx is installed and ready.
+          To add domains, run this playbook with:
+          ansible-playbook -i inventory.ini 04_setup_nginx.yml -e vm_name=rop01 -e '{"nginx_domains": [{"domain": "example.com", "www_domain": "www.example.com"}]}'
+          {% endif %}
+          ============================================
+
+  handlers:
+    - name: test nginx config
+      command: nginx -t

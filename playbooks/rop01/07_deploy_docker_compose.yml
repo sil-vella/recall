@@ -1,0 +1,175 @@
+---
+- name: Deploy Docker Compose Application
+  hosts: "{{ vm_name }}_user"
+  become: false
+  vars:
+    app_dir: "/opt/apps/reignofplay/cleco"
+    data_dir: "/opt/apps/reignofplay/cleco/data"
+    compose_file: "docker-compose.yml"
+  tasks:
+    - name: Create application directory structure
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ app_dir }}"
+        - "{{ data_dir }}/mongodb"
+        - "{{ data_dir }}/redis"
+        - "{{ data_dir }}/prometheus/config"
+        - "{{ data_dir }}/prometheus/storage"
+        - "{{ data_dir }}/grafana"
+        - "{{ data_dir }}/grafana/provisioning"
+        - "{{ data_dir }}/grafana/dashboards"
+
+    - name: Copy docker-compose.yml to server
+      copy:
+        src: "{{ playbook_dir }}/../../{{ compose_file }}"
+        dest: "{{ app_dir }}/{{ compose_file }}"
+        mode: '0644'
+        remote_src: false
+
+    - name: Create minimal Prometheus configuration file
+      copy:
+        content: |
+          global:
+            scrape_interval: 15s
+            evaluation_interval: 15s
+
+          scrape_configs:
+            - job_name: 'flask-app'
+              static_configs:
+                - targets: ['flask-external:5001']
+              metrics_path: '/metrics'
+        dest: "{{ data_dir }}/prometheus/config/prometheus.yml"
+        mode: '0644'
+
+    - name: Verify docker-compose.yml was copied
+      stat:
+        path: "{{ app_dir }}/{{ compose_file }}"
+      register: compose_file_stat
+
+    - name: Display docker-compose.yml location
+      debug:
+        msg: |
+          ============================================
+          Docker Compose file deployed successfully!
+          ============================================
+          Location: {{ app_dir }}/{{ compose_file }}
+          
+          To start the services, SSH into the server and run:
+          cd {{ app_dir }}
+          docker compose up -d
+          
+          To view logs:
+          docker compose logs -f
+          
+          To stop services:
+          docker compose down
+          ============================================
+
+    - name: Check if Docker Compose is available
+      command: docker compose version
+      register: docker_compose_check
+      changed_when: false
+      failed_when: false
+
+    - name: Display Docker Compose version
+      debug:
+        msg: "{{ docker_compose_check.stdout }}"
+      when: docker_compose_check.rc == 0
+
+    - name: Validate docker-compose.yml syntax
+      command: docker compose -f "{{ app_dir }}/{{ compose_file }}" config
+      register: compose_validate
+      changed_when: false
+      failed_when: false
+      when: docker_compose_check.rc == 0
+
+    - name: Display validation result
+      debug:
+        msg: |
+          Docker Compose file validation:
+          {{ compose_validate.stdout if compose_validate.rc == 0 else 'Validation failed - check the error above' }}
+      when: compose_validate.rc == 0
+
+    - name: Display warning if validation failed
+      debug:
+        msg: |
+          ⚠ WARNING: Docker Compose file validation failed.
+          Please check the docker-compose.yml file for errors.
+          Error: {{ compose_validate.stderr }}
+      when: compose_validate.rc != 0
+
+    - name: Prompt for interactive docker compose run
+      pause:
+        prompt: |
+          ============================================
+          Ready to start Docker Compose services?
+          ============================================
+          The docker-compose.yml file has been deployed to:
+          {{ app_dir }}/{{ compose_file }}
+          
+          Would you like to start the services now?
+          (This will run: docker compose up -d)
+          
+          Press Enter to continue, or Ctrl+C to cancel.
+          ============================================
+      register: start_prompt
+
+    - name: Start Docker Compose services
+      command: docker compose -f "{{ app_dir }}/{{ compose_file }}" up -d
+      register: compose_up_result
+      when: start_prompt.user_input | default('') != ''
+
+    - name: Display service startup result
+      debug:
+        msg: "{{ compose_up_result.stdout_lines }}"
+      when: compose_up_result is defined
+
+    - name: Wait for services to be ready
+      wait_for:
+        host: localhost
+        port: "{{ item.port }}"
+        delay: 5
+        timeout: 30
+      loop:
+        - { port: 5001, name: "Flask App" }
+        - { port: 27018, name: "MongoDB" }
+        - { port: 6380, name: "Redis" }
+      failed_when: false
+      when: compose_up_result is defined
+
+    - name: Check running containers
+      command: docker compose -f "{{ app_dir }}/{{ compose_file }}" ps
+      register: container_status
+      changed_when: false
+      when: compose_up_result is defined
+
+    - name: Display container status
+      debug:
+        msg: |
+          ============================================
+          Container Status:
+          ============================================
+          {{ container_status.stdout }}
+          ============================================
+      when: container_status is defined
+
+    - name: Display completion message
+      debug:
+        msg: |
+          ============================================
+          ✓ DEPLOYMENT COMPLETE!
+          ============================================
+          Docker Compose file: {{ app_dir }}/{{ compose_file }}
+          
+          Services should be starting up. Check status with:
+          cd {{ app_dir }}
+          docker compose ps
+          docker compose logs -f
+          
+          To stop all services:
+          docker compose down
+          ============================================
+      when: compose_up_result is defined

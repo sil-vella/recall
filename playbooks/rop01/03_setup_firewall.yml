@@ -1,0 +1,256 @@
+---
+- name: Initial Firewall Setup
+  hosts: "{{ vm_name }}_root"
+  become: true
+  vars:
+    new_user: "{{ vm_name }}_user"
+  tasks:
+    - name: Install iptables-persistent
+      apt:
+        name: iptables-persistent
+        state: present
+        update_cache: yes
+
+    - name: Ensure netfilter-persistent is available
+      command: which netfilter-persistent
+      register: netfilter_check
+      changed_when: false
+      failed_when: false
+
+    - name: Create netfilter-persistent symlink if needed
+      file:
+        src: /usr/sbin/netfilter-persistent
+        dest: /usr/local/bin/netfilter-persistent
+        state: link
+      when: netfilter_check.rc != 0
+    - name: Allow localhost traffic
+      iptables:
+        table: filter
+        chain: INPUT
+        in_interface: lo
+        jump: ACCEPT
+        comment: Allow localhost
+        state: present
+
+    - name: Allow established connections
+      iptables:
+        table: filter
+        chain: INPUT
+        match: state
+        ctstate: ESTABLISHED,RELATED
+        jump: ACCEPT
+        comment: Allow established connections
+        state: present
+
+    - name: Allow SSH from public IP
+      iptables:
+        table: filter
+        chain: INPUT
+        protocol: tcp
+        destination_port: 22
+        source: 0.0.0.0/0
+        jump: ACCEPT
+        comment: Allow SSH from public IP
+        state: present
+
+    - name: Allow HTTP traffic
+      iptables:
+        table: filter
+        chain: INPUT
+        protocol: tcp
+        destination_port: 80
+        source: 0.0.0.0/0
+        jump: ACCEPT
+        comment: Allow HTTP traffic
+        state: present
+
+    - name: Allow HTTPS traffic
+      iptables:
+        table: filter
+        chain: INPUT
+        protocol: tcp
+        destination_port: 443
+        source: 0.0.0.0/0
+        jump: ACCEPT
+        comment: Allow HTTPS traffic
+        state: present
+
+    # WireGuard configuration (commented out for future use)
+    # - name: Allow WireGuard UDP traffic
+    #   iptables:
+    #     table: filter
+    #     chain: INPUT
+    #     protocol: udp
+    #     destination_port: 51820
+    #     source: 0.0.0.0/0
+    #     jump: ACCEPT
+    #     comment: Allow WireGuard UDP traffic
+    #     state: present
+
+    # Vault access - only from localhost (handled by Docker/Kubernetes port-forwarding)
+    - name: Allow Vault (port 8200) from localhost only
+      iptables:
+        table: filter
+        chain: INPUT
+        in_interface: lo
+        protocol: tcp
+        destination_port: 8200
+        jump: ACCEPT
+        comment: Allow Vault API from localhost only
+        state: present
+
+    # API port rules (commented out - will be added later)
+    # - name: Allow API port from public IP
+    #   iptables:
+    #     table: filter
+    #     chain: INPUT
+    #     protocol: tcp
+    #     destination_port: <API_PORT>
+    #     source: 0.0.0.0/0
+    #     jump: ACCEPT
+    #     comment: Allow API access from public IP
+    #     state: present
+
+    - name: Set default policies
+      iptables:
+        chain: "{{ item.chain }}"
+        policy: "{{ item.policy }}"
+        state: present
+      with_items:
+        - { chain: 'INPUT', policy: 'DROP' }
+        - { chain: 'FORWARD', policy: 'DROP' }
+        - { chain: 'OUTPUT', policy: 'ACCEPT' }
+
+    - name: Save iptables rules
+      shell: netfilter-persistent save
+      args:
+        creates: /etc/iptables/rules.v4
+
+    - name: Display current iptables rules
+      shell: iptables -L -v -n
+      register: iptables_output
+
+    - name: Show iptables rules
+      debug:
+        var: iptables_output.stdout_lines 
+    
+    - name: Save final iptables rules
+      shell: netfilter-persistent save
+
+    - name: Display final iptables rules
+      shell: iptables -L -v -n
+      register: iptables_output
+
+    - name: Show final iptables rules
+      debug:
+        var: iptables_output.stdout_lines
+
+    # ========================================
+    # FINAL STEP: Disable root SSH access
+    # ========================================
+    - name: Verify new user can connect before disabling root
+      command: >
+        ssh -i {{ lookup('env', 'HOME') }}/.ssh/{{ vm_name }}_key
+        -o StrictHostKeyChecking=no
+        -o ConnectTimeout=5
+        -o UserKnownHostsFile=/dev/null
+        {{ new_user }}@{{ ansible_host }}
+        "echo 'New user connection verified'"
+      delegate_to: localhost
+      become: false
+      register: user_connection_test
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if new user cannot connect
+      fail:
+        msg: |
+          Cannot verify connection as {{ new_user }}. Root access will NOT be disabled.
+          Please ensure you can connect as {{ new_user }} before proceeding.
+          Test: ssh -i ~/.ssh/{{ vm_name }}_key {{ new_user }}@{{ ansible_host }}
+      when: user_connection_test.rc != 0
+
+    - name: Display warning before disabling root
+      debug:
+        msg: |
+          ============================================
+          FINAL STEP: Disabling root SSH access
+          ============================================
+          Firewall configuration is complete.
+          New user {{ new_user }} can connect successfully.
+          Root access will now be disabled.
+          ============================================
+
+    - name: Disable root login in SSH configuration
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?PermitRootLogin"
+        line: "PermitRootLogin no"
+        state: present
+
+    - name: Verify SSH configuration is valid
+      command: sshd -t
+      changed_when: false
+      failed_when: false
+      register: sshd_config_test
+
+    - name: Fail if SSH configuration is invalid
+      fail:
+        msg: "SSH configuration test failed. Root access will NOT be disabled. Please check /etc/ssh/sshd_config"
+      when: sshd_config_test.rc != 0
+
+    - name: Restart SSH service (this will disable root login)
+      service:
+        name: ssh
+        state: restarted
+      register: ssh_restarted
+      when: sshd_config_test.rc == 0
+
+    - name: Wait for SSH service to be ready after restart
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        delay: 5
+        timeout: 30
+      delegate_to: localhost
+      become: false
+      when: ssh_restarted.changed | default(false)
+
+    - name: Verify new user can still connect after root is disabled
+      command: >
+        ssh -i {{ lookup('env', 'HOME') }}/.ssh/{{ vm_name }}_key
+        -o StrictHostKeyChecking=no
+        -o ConnectTimeout=5
+        -o UserKnownHostsFile=/dev/null
+        {{ new_user }}@{{ ansible_host }}
+        "echo 'Connection verified - root access disabled successfully'"
+      delegate_to: localhost
+      become: false
+      register: final_connection_test
+      changed_when: false
+      when: ssh_restarted.changed | default(false)
+
+    - name: Display success message
+      debug:
+        msg: |
+          ============================================
+          ✓ FIREWALL CONFIGURATION COMPLETE!
+          ============================================
+          ✓ Firewall rules configured and saved
+          ✓ Root login disabled
+          ✓ New user {{ new_user }} can connect via SSH key
+          
+          You can now connect using:
+          ssh -i ~/.ssh/{{ vm_name }}_key {{ new_user }}@{{ ansible_host }}
+          
+          For future playbook runs, use the {{ vm_name }}_user inventory group.
+          ============================================
+      when: final_connection_test.rc | default(1) == 0
+
+    - name: Display warning if final connection test failed
+      debug:
+        msg: |
+          ⚠ WARNING: Could not verify connection as {{ new_user }} after disabling root.
+          Root access has been disabled. If you cannot connect, you may need console access.
+          Test manually: ssh -i ~/.ssh/{{ vm_name }}_key {{ new_user }}@{{ ansible_host }}
+      when: final_connection_test.rc | default(1) != 0

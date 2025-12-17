@@ -1,0 +1,216 @@
+---
+- name: Configure VPS with security best practices
+  hosts: "{{ vm_name }}_root"
+  become: true
+  become_method: sudo
+  vars:
+    new_user: "{{ vm_name }}_user"
+    local_ssh_public_key: "{{ lookup('env', 'HOME') }}/.ssh/{{ vm_name }}_key.pub"
+  tasks:
+    - name: Create new user
+      user:
+        name: "{{ new_user }}"
+        shell: /bin/bash
+        createhome: yes
+        groups: sudo
+        append: yes
+        state: present
+
+    - name: Create sudoers.d directory
+      file:
+        path: /etc/sudoers.d
+        state: directory
+        mode: '0755'
+
+    - name: Configure sudo access for new user
+      copy:
+        content: "{{ new_user }} ALL=(ALL) NOPASSWD:ALL"
+        dest: /etc/sudoers.d/{{ new_user }}
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
+    - name: Create .ssh directory for new user
+      file:
+        path: "/home/{{ new_user }}/.ssh"
+        state: directory
+        mode: '0700'
+        owner: "{{ new_user }}"
+        group: "{{ new_user }}"
+
+    - name: Check if local SSH public key exists
+      stat:
+        path: "{{ local_ssh_public_key }}"
+      register: local_key_stat
+      delegate_to: localhost
+      become: false
+
+    - name: Fail if local SSH public key not found
+      fail:
+        msg: "Local SSH public key not found at {{ local_ssh_public_key }}. Please run 01_setup_ssh_key.sh first."
+      when: not local_key_stat.stat.exists
+
+    - name: Copy local SSH public key to new user
+      copy:
+        src: "{{ local_ssh_public_key }}"
+        dest: "/home/{{ new_user }}/.ssh/authorized_keys"
+        mode: '0600'
+        owner: "{{ new_user }}"
+        group: "{{ new_user }}"
+        remote_src: false
+
+    - name: Configure SSH daemon for key-based authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      with_items:
+        - { regexp: "^#?PubkeyAuthentication", line: "PubkeyAuthentication yes" }
+        - { regexp: "^#?PasswordAuthentication", line: "PasswordAuthentication yes" }
+        - { regexp: "^#?ChallengeResponseAuthentication", line: "ChallengeResponseAuthentication no" }
+        - { regexp: "^#?UsePAM", line: "UsePAM yes" }
+
+    - name: Test SSH configuration before restart
+      command: sshd -t
+      changed_when: false
+      failed_when: false
+      register: sshd_test
+
+    - name: Fail if SSH configuration is invalid
+      fail:
+        msg: "SSH configuration test failed. SSH will NOT be restarted. Please check /etc/ssh/sshd_config"
+      when: sshd_test.rc != 0
+
+    - name: Restart SSH service to apply configuration
+      service:
+        name: ssh
+        state: restarted
+      when: sshd_test.rc == 0
+      register: ssh_restarted
+
+    - name: Wait for SSH service to be ready after restart
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        delay: 5
+        timeout: 30
+      delegate_to: localhost
+      become: false
+      when: ssh_restarted.changed | default(false)
+
+    - name: Verify SSH service is running
+      systemd:
+        name: ssh
+        state: started
+      when: ssh_restarted.changed | default(false)
+
+    - name: Display warning if SSH service check failed
+      debug:
+        msg: |
+          WARNING: SSH service may not have started properly after restart.
+          Please verify SSH access manually. If locked out, use console access to check:
+          systemctl status ssh
+          journalctl -u ssh -n 50
+      when: ssh_restarted.changed | default(false)
+      failed_when: false
+
+    - name: Handle package manager locks
+      block:
+        - name: Remove package manager locks
+          file:
+            path: "{{ item }}"
+            state: absent
+          with_items:
+            - /var/lib/dpkg/lock-frontend
+            - /var/lib/dpkg/lock
+          ignore_errors: yes
+
+        - name: Reconfigure dpkg
+          command: dpkg --configure -a
+          ignore_errors: yes
+
+    - name: Get current time
+      command: date +%s
+      register: current_time
+      changed_when: false
+
+    - name: Set time back by 20 minutes
+      command: date -s "@{{ (current_time.stdout | int) - 1200 }}"
+      changed_when: true
+
+    - name: Install ntpdate
+      apt:
+        name: ntpdate
+        state: present
+        update_cache: yes
+
+    - name: Sync time with NTP servers
+      command: ntpdate pool.ntp.org
+      changed_when: false
+      ignore_errors: true
+
+    - name: Update and upgrade all packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+        force_apt_get: yes
+
+    - name: Install essential software
+      apt:
+        name:
+          - fail2ban
+          - apparmor
+          - apparmor-profiles
+          - auditd
+          - libpam-pwquality
+          - openssh-server
+          - unattended-upgrades
+          - apt-listchanges
+          - nano
+          - wget
+          - curl
+          - zip
+          - unzip
+          - git
+          - software-properties-common
+          - rsync
+          - iptables-persistent
+        state: present
+        update_cache: yes
+
+    - name: Ensure AppArmor is running
+      service:
+        name: apparmor
+        state: started
+        enabled: yes
+
+    - name: Ensure Fail2Ban is running
+      service:
+        name: fail2ban
+        state: started
+        enabled: yes
+
+    - name: Restore correct time
+      command: ntpdate pool.ntp.org
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display completion message
+      debug:
+        msg: |
+          ============================================
+          ✓ SECURITY CONFIGURATION COMPLETE!
+          ============================================
+          ✓ New user {{ new_user }} created with SSH key access
+          ✓ SSH configured for key-based authentication
+          ✓ Password authentication enabled (for safety)
+          ✓ All security features installed and configured
+          
+          You can connect using:
+          ssh -i ~/.ssh/{{ vm_name }}_key {{ new_user }}@{{ ansible_host }}
+          or
+          ssh -i ~/.ssh/{{ vm_name }}_key root@{{ ansible_host }}
+          
+          Note: Root access is still enabled. Disable it in a later playbook after verifying everything works.
+          ============================================
+

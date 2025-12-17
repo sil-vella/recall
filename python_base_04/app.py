@@ -21,7 +21,24 @@ app_manager = AppManager()
 app = Flask(__name__)
 
 # Enable Cross-Origin Resource Sharing (CORS)
-CORS(app)
+# Production: Allow requests from reignofplay.com domains
+# Development: Use app.debug.py with localhost origins
+if Config.DEBUG:
+    # Development mode - allow all origins for flexibility
+    CORS(app)
+else:
+    # Production mode - restrict to reignofplay.com domains
+    CORS(app,
+        origins=[
+            "https://reignofplay.com",
+            "https://www.reignofplay.com",
+            "https://cleco.reignofplay.com",
+        ],
+        supports_credentials=True,
+        allow_headers=["*"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        expose_headers=["*"]
+    )
 
 # Initialize metrics
 metrics = init_metrics(app)

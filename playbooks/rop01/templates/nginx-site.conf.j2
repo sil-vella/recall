@@ -1,0 +1,69 @@
+# Nginx configuration for {{ item.domain }}
+# This is a basic template - customize as needed
+
+{% if item.www_domain is defined %}
+# Redirect www to non-www (or vice versa)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ item.www_domain }};
+
+    # Let Certbot handle this during SSL setup
+    location / {
+        return 301 http://{{ item.domain }}$request_uri;
+    }
+}
+{% endif %}
+
+# Main server block
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ item.domain }};
+
+    # Root directory
+    root {{ item.root_dir | default('/var/www/' + item.domain) }};
+    index index.html index.htm;
+
+    # Logging
+    access_log /var/log/nginx/{{ item.domain }}.access.log;
+    error_log /var/log/nginx/{{ item.domain }}.error.log;
+
+    # Basic location block
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Security: deny access to hidden files
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # If you need to proxy to a backend (uncomment and adjust)
+    # location /api/ {
+    #     proxy_pass http://localhost:{{ item.backend_port | default(8000) }};
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Upgrade $http_upgrade;
+    #     proxy_set_header Connection 'upgrade';
+    #     proxy_set_header Host $host;
+    #     proxy_cache_bypass $http_upgrade;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Forwarded-Proto $scheme;
+    # }
+
+    # If you need to serve static files (uncomment and adjust)
+    # location /static/ {
+    #     alias /var/www/{{ item.domain }}/static/;
+    #     expires 30d;
+    #     add_header Cache-Control "public, immutable";
+    # }
+}
+
+# SSL configuration will be added automatically by Certbot
+# After SSL setup, Certbot will modify this file to add:
+# - listen 443 ssl;
+# - SSL certificate paths
+# - SSL redirect from HTTP to HTTPS

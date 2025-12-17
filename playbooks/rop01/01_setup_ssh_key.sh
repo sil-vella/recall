@@ -146,11 +146,11 @@ if [ -f "$PRIVATE_KEY" ]; then
                         fi
                     fi
                 else
-                    echo -e "\n${YELLOW}Add this key to the VPS by running on the server:${NC}"
-                    echo "  mkdir -p ~/.ssh"
-                    echo "  echo '$(cat "$PUBLIC_KEY")' >> ~/.ssh/authorized_keys"
-                    echo "  chmod 700 ~/.ssh"
-                    echo "  chmod 600 ~/.ssh/authorized_keys"
+                echo -e "\n${YELLOW}Add this key to the VPS by running on the server:${NC}"
+                echo "  mkdir -p ~/.ssh"
+                echo "  echo '$(cat "$PUBLIC_KEY")' >> ~/.ssh/authorized_keys"
+                echo "  chmod 700 ~/.ssh"
+                echo "  chmod 600 ~/.ssh/authorized_keys"
                 fi
                 
                 echo -e "\n${GREEN}=== Setup Complete ===${NC}"
@@ -212,14 +212,14 @@ echo "----------------------------------------"
 echo ""
 read -p "Do you want to automatically add this key to the VPS? (y/n): " auto_add
 if [[ "$auto_add" =~ ^[Yy]$ ]]; then
-    echo ""
+echo ""
     echo -e "${YELLOW}You will be prompted for the VPS password...${NC}"
     
     # Check if sshpass is available
     if command -v sshpass &> /dev/null; then
         # Use sshpass for non-interactive password entry
         read -sp "Enter VPS password for ${VPS_USER}@${VPS_IP}: " vps_password
-        echo ""
+echo ""
         
         if [ -z "$vps_password" ]; then
             echo -e "${RED}Password cannot be empty. Skipping automatic key addition.${NC}"
@@ -286,17 +286,17 @@ if [[ "$auto_add" =~ ^[Yy]$ ]]; then
 else
     # Instructions for manual addition
     echo -e "\n${YELLOW}=== Manual Key Addition ===${NC}"
-    echo ""
+echo ""
     echo "Add the key to the VPS by running:"
     echo "  ssh-copy-id -i ${PUBLIC_KEY} ${VPS_USER}@${VPS_IP}"
-    echo ""
+echo ""
     echo "Or manually:"
     echo "  ssh ${VPS_USER}@${VPS_IP}"
     echo "  mkdir -p ~/.ssh"
     echo "  echo '$(cat "$PUBLIC_KEY")' >> ~/.ssh/authorized_keys"
     echo "  chmod 700 ~/.ssh"
     echo "  chmod 600 ~/.ssh/authorized_keys"
-    echo ""
+echo ""
 fi
 
 # Optional: Add to SSH config

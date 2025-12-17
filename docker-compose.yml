@@ -1,8 +1,8 @@
 services:
   # MongoDB Service (for external app)
-  mongodb-external:
-    image: bitnami/mongodb:7.0
-    container_name: external_app_mongodb
+  cleco_mongodb-external:
+    image: bitnami/mongodb:latest
+    container_name: cleco_external_app_mongodb
     environment:
       - MONGODB_ROOT_USER=mongodb_admin
       - MONGODB_ROOT_PASSWORD=MongoAdmin123!@#SecurePass
@@ -18,9 +18,9 @@ services:
     restart: unless-stopped
 
   # Redis Service (for external app)
-  redis-external:
-    image: bitnami/redis:7.2
-    container_name: external_app_redis
+  cleco_redis-external:
+    image: bitnami/redis:latest
+    container_name: cleco_external_app_redis
     environment:
       - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
     ports:
@@ -32,33 +32,35 @@ services:
     restart: unless-stopped
 
   # External Flask Application (Production)
-  flask-external:
+  cleco_flask-external:
     image: silvella/cleco_flask_app:latest  # Pull from Docker Hub
-    container_name: external_app_flask
+    container_name: cleco_external_app_flask
     ports:
       - "5001:5001"
     environment:
       - DEBUG_MODE=false
       - APP_URL=https://reignofplay.com
-      - MONGODB_SERVICE_NAME=mongodb-external
-      - REDIS_HOST=redis-external
+      - MONGODB_SERVICE_NAME=cleco_mongodb-external
+      - REDIS_HOST=cleco_redis-external
       - REDIS_PORT=6379
       - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
       - RATE_LIMIT_ENABLED=true
       - RATE_LIMIT_IP_REQUESTS=1000
       - RATE_LIMIT_IP_WINDOW=60
-      - CREDIT_SYSTEM_URL=http://flask-external:5001
+      - CREDIT_SYSTEM_URL=http://cleco_flask-external:5001
+    volumes:
+      - /opt/apps/reignofplay/cleco/secrets/mongodb_user_password:/app/secrets/mongodb_user_password:ro
     depends_on:
-      - mongodb-external
-      - redis-external
+      - cleco_mongodb-external
+      - cleco_redis-external
     networks:
       - app-network
     restart: unless-stopped
 
   # Prometheus Service (for metrics collection)
-  prometheus:
+  cleco_prometheus:
     image: prom/prometheus:latest
-    container_name: prometheus
+    container_name: cleco_prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -74,9 +76,9 @@ services:
     restart: unless-stopped
 
   # Grafana Service (for metrics visualization)
-  grafana:
+  cleco_grafana:
     image: grafana/grafana:latest
-    container_name: grafana
+    container_name: cleco_grafana
     ports:
       - "3001:3000"
     environment:
@@ -89,7 +91,7 @@ services:
       - /opt/apps/reignofplay/cleco/data/grafana/provisioning:/etc/grafana/provisioning
       - /opt/apps/reignofplay/cleco/data/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
-      - prometheus
+      - cleco_prometheus
     networks:
       - app-network
     restart: unless-stopped

@@ -29,10 +29,24 @@ server {
     access_log /var/log/nginx/{{ item.domain }}.access.log;
     error_log /var/log/nginx/{{ item.domain }}.error.log;
 
-    # Basic location block
+    {% if item.backend_port is defined %}
+    # Reverse proxy to backend application (e.g. Flask in Docker)
+    location / {
+        proxy_pass http://127.0.0.1:{{ item.backend_port }};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    {% else %}
+    # Basic static-site location block
     location / {
         try_files $uri $uri/ =404;
     }
+    {% endif %}
 
     # Security: deny access to hidden files
     location ~ /\. {
@@ -40,19 +54,6 @@ server {
         access_log off;
         log_not_found off;
     }
-
-    # If you need to proxy to a backend (uncomment and adjust)
-    # location /api/ {
-    #     proxy_pass http://localhost:{{ item.backend_port | default(8000) }};
-    #     proxy_http_version 1.1;
-    #     proxy_set_header Upgrade $http_upgrade;
-    #     proxy_set_header Connection 'upgrade';
-    #     proxy_set_header Host $host;
-    #     proxy_cache_bypass $http_upgrade;
-    #     proxy_set_header X-Real-IP $remote_addr;
-    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    #     proxy_set_header X-Forwarded-Proto $scheme;
-    # }
 
     # If you need to serve static files (uncomment and adjust)
     # location /static/ {

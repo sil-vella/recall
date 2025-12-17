@@ -1,8 +1,8 @@
 services:
   # MongoDB Service (for external app)
-  mongodb-external:
+  cleco_mongodb-external:
     image: bitnami/mongodb:7.0
-    container_name: external_app_mongodb
+    container_name: cleco_external_app_mongodb
     environment:
       - MONGODB_ROOT_USER=mongodb_admin
       - MONGODB_ROOT_PASSWORD=MongoAdmin123!@#SecurePass
@@ -18,9 +18,9 @@ services:
     restart: unless-stopped
 
   # Redis Service (for external app)
-  redis-external:
+  cleco_redis-external:
     image: bitnami/redis:7.2
-    container_name: external_app_redis
+    container_name: cleco_external_app_redis
     environment:
       - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
     ports:
@@ -32,11 +32,11 @@ services:
     restart: unless-stopped
 
   # External Flask Application (Debug Mode)
-  flask-external:
+  cleco_flask-external:
     build:
       context: ./python_base_04
       dockerfile: Dockerfile.debug
-    container_name: external_app_flask
+    container_name: cleco_external_app_flask
     ports:
       - "8081:5001"
       - "5678:5678"  # Debugpy port for VS Code debugging
@@ -46,25 +46,25 @@ services:
       - DEBUG_MODE=true  # Set to 'true' to enable debug mode
       - FLASK_ENV=development
       - FLASK_DEBUG=1
-      - MONGODB_SERVICE_NAME=mongodb-external
-      - REDIS_HOST=redis-external
+      - MONGODB_SERVICE_NAME=cleco_mongodb-external
+      - REDIS_HOST=cleco_redis-external
       - REDIS_PORT=6379
       - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
       - RATE_LIMIT_ENABLED=false
       - RATE_LIMIT_IP_REQUESTS=1000
       - RATE_LIMIT_IP_WINDOW=60
-      - CREDIT_SYSTEM_URL=http://flask-app:5001
+      - CREDIT_SYSTEM_URL=http://cleco_flask-external:5001
     depends_on:
-      - mongodb-external
-      - redis-external
+      - cleco_mongodb-external
+      - cleco_redis-external
     networks:
       - app-network
     restart: unless-stopped
 
   # Prometheus Service (for metrics collection)
-  prometheus:
+  cleco_prometheus:
     image: prom/prometheus:latest
-    container_name: prometheus
+    container_name: cleco_prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -80,9 +80,9 @@ services:
     restart: unless-stopped
 
   # Grafana Service (for metrics visualization)
-  grafana:
+  cleco_grafana:
     image: grafana/grafana:latest
-    container_name: grafana
+    container_name: cleco_grafana
     ports:
       - "3001:3000"
     environment:
@@ -95,7 +95,7 @@ services:
       - ./python_base_04/grafana/provisioning:/etc/grafana/provisioning
       - ./python_base_04/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
-      - prometheus
+      - cleco_prometheus
     networks:
       - app-network
     restart: unless-stopped

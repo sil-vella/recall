@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from core.managers.app_manager import AppManager
 import sys
@@ -7,6 +7,9 @@ import importlib
 from core.metrics import init_metrics
 from utils.config.config import Config
 from tools.logger.custom_logging import custom_log
+
+# Logging switch for optional verbose metrics/logging
+LOGGING_SWITCH = Config.DEBUG
 
 # Clear Python's import cache to prevent stale imports
 importlib.invalidate_caches()
@@ -54,6 +57,115 @@ else:
 
 # Additional app-level configurations
 app.config["DEBUG"] = Config.DEBUG
+
+@app.route('/metrics')
+def metrics_endpoint():
+    """
+    Expose Prometheus metrics through Flask route.
+    
+    This mirrors the behavior in app.debug.py so that Prometheus/Grafana
+    can scrape metrics from the production container as well.
+    """
+    from prometheus_client import generate_latest, REGISTRY
+    
+    try:
+        custom_log(
+            f"Flask /metrics endpoint: Request from {request.remote_addr}, "
+            f"User-Agent: {request.headers.get('User-Agent', 'unknown')}",
+            isOn=LOGGING_SWITCH
+        )
+        
+        # Generate metrics from current process's REGISTRY
+        metrics_output = generate_latest(REGISTRY)
+        
+        # Optional detailed logging in debug mode
+        if LOGGING_SWITCH:
+            output_str = metrics_output.decode('utf-8')
+            user_logins_lines = [
+                l for l in output_str.split('\n')
+                if 'user_logins_total' in l and not l.startswith('#') and l.strip()
+            ]
+            user_regs_lines = [
+                l for l in output_str.split('\n')
+                if 'user_registrations_total' in l and not l.startswith('#') and l.strip()
+            ]
+            flask_reqs_lines = [
+                l for l in output_str.split('\n')
+                if 'flask_app_requests_total' in l and not l.startswith('#') and l.strip()
+            ]
+            
+            custom_log(
+                f"Flask /metrics endpoint: REGISTRY id={id(REGISTRY)}, "
+                f"output size={len(output_str)} bytes",
+                isOn=LOGGING_SWITCH
+            )
+            custom_log(
+                "Flask /metrics endpoint: "
+                f"user_logins_total={len(user_logins_lines)} lines, "
+                f"user_registrations_total={len(user_regs_lines)} lines, "
+                f"flask_app_requests_total={len(flask_reqs_lines)} lines",
+                isOn=LOGGING_SWITCH
+            )
+            
+            if user_logins_lines:
+                custom_log(
+                    "Flask /metrics endpoint: Sample user_logins_total line: "
+                    f"{user_logins_lines[0][:100]}",
+                    isOn=LOGGING_SWITCH
+                )
+            if flask_reqs_lines:
+                custom_log(
+                    "Flask /metrics endpoint: Sample flask_app_requests_total line: "
+                    f"{flask_reqs_lines[0][:100]}",
+                    isOn=LOGGING_SWITCH
+                )
+        
+        return Response(
+            metrics_output,
+            mimetype='text/plain; version=0.0.4; charset=utf-8'
+        )
+    except Exception as e:
+        custom_log(
+            f"Flask /metrics endpoint: Error generating metrics: {e}",
+            level="ERROR",
+            isOn=LOGGING_SWITCH
+        )
+        import traceback
+        custom_log(
+            f"Flask /metrics endpoint: Traceback: {traceback.format_exc()}",
+            level="ERROR",
+            isOn=LOGGING_SWITCH
+        )
+        return jsonify({
+            'success': False,
+            'error': f'Failed to generate metrics: {str(e)}'
+        }), 500
+
+@app.route('/metrics/verify')
+def verify_metrics():
+    """
+    Verify metrics are in REGISTRY and accessible via the metrics HTTP server.
+    Mirrors the debug app helper so you can sanity-check metrics in prod.
+    """
+    try:
+        metrics_collector = app_manager.get_metrics_collector()
+        if metrics_collector:
+            result = metrics_collector.verify_http_server_registry()
+            return jsonify({
+                'success': True,
+                'registry_check': result,
+                'message': 'Metrics registry verification completed'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'MetricsCollector not available'
+            }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/health')
 def health_check():
@@ -218,6 +330,39 @@ def list_internal_actions():
             return jsonify(result), 500
     except Exception as e:
         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
+
+@app.route('/log', methods=['POST'])
+def frontend_log():
+    """
+    Simple endpoint to catch frontend logs and append to server.log.
+    Brought over from app.debug.py so production can also capture client logs.
+    """
+    try:
+        data = request.get_json() or {}
+        
+        # Extract log data
+        message = data.get('message', '')
+        level = data.get('level', 'INFO')
+        source = data.get('source', 'frontend')
+        platform = data.get('platform', 'flutter')
+        build_mode = data.get('buildMode', 'debug')
+        timestamp = data.get('timestamp', '')
+        
+        # Format the log message
+        log_entry = f"[{timestamp}] - {source} - {level} - [{platform}|{build_mode}] {message}"
+        
+        # Append to server.log
+        log_file_path = os.path.join(
+            os.path.dirname(__file__),
+            'tools', 'logger', 'server.log'
+        )
+        with open(log_file_path, 'a') as f:
+            f.write(log_entry + '\n')
+        
+        return jsonify({'success': True, 'message': 'Log recorded'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Log failed: {str(e)}'}), 500
 
 @app.route('/api-auth/actions', methods=['GET'])
 def list_authenticated_actions():

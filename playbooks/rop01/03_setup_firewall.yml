@@ -143,7 +143,7 @@
 
     - name: Show final iptables rules
       debug:
-        var: iptables_output.stdout_lines
+        var: iptables_output.stdout_lines 
 
     # ========================================
     # FINAL STEP: Disable root SSH access

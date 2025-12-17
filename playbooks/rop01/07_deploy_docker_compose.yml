@@ -14,6 +14,7 @@
         mode: '0755'
       loop:
         - "{{ app_dir }}"
+        - "{{ app_dir }}/secrets"
         - "{{ data_dir }}/mongodb"
         - "{{ data_dir }}/redis"
         - "{{ data_dir }}/prometheus/config"
@@ -21,6 +22,12 @@
         - "{{ data_dir }}/grafana"
         - "{{ data_dir }}/grafana/provisioning"
         - "{{ data_dir }}/grafana/dashboards"
+
+    - name: Create MongoDB user password secret file for Flask app
+      copy:
+        dest: "{{ app_dir }}/secrets/mongodb_user_password"
+        content: "6R3jjsvVhIRP20zMiHdkBzNKx\n"
+        mode: '0600'
 
     - name: Copy docker-compose.yml to server
       copy:
@@ -39,7 +46,7 @@
           scrape_configs:
             - job_name: 'flask-app'
               static_configs:
-                - targets: ['flask-external:5001']
+                - targets: ['cleco_flask-external:5001']
               metrics_path: '/metrics'
         dest: "{{ data_dir }}/prometheus/config/prometheus.yml"
         mode: '0644'
@@ -69,7 +76,7 @@
           ============================================
 
     - name: Check if Docker Compose is available
-      command: docker compose version
+      shell: sg docker -c "docker compose version"
       register: docker_compose_check
       changed_when: false
       failed_when: false
@@ -77,29 +84,29 @@
     - name: Display Docker Compose version
       debug:
         msg: "{{ docker_compose_check.stdout }}"
-      when: docker_compose_check.rc == 0
+      when: docker_compose_check.rc is defined and docker_compose_check.rc == 0
 
     - name: Validate docker-compose.yml syntax
-      command: docker compose -f "{{ app_dir }}/{{ compose_file }}" config
+      shell: sg docker -c "docker compose -f {{ app_dir }}/{{ compose_file }} config"
       register: compose_validate
       changed_when: false
       failed_when: false
-      when: docker_compose_check.rc == 0
+      when: docker_compose_check.rc is defined and docker_compose_check.rc == 0
 
     - name: Display validation result
       debug:
         msg: |
           Docker Compose file validation:
-          {{ compose_validate.stdout if compose_validate.rc == 0 else 'Validation failed - check the error above' }}
-      when: compose_validate.rc == 0
+          {{ compose_validate.stdout if (compose_validate.rc is defined and compose_validate.rc == 0) else 'Validation failed - check the error above' }}
+      when: compose_validate is defined and compose_validate.rc is defined and compose_validate.rc == 0
 
     - name: Display warning if validation failed
       debug:
         msg: |
           ⚠ WARNING: Docker Compose file validation failed.
           Please check the docker-compose.yml file for errors.
-          Error: {{ compose_validate.stderr }}
-      when: compose_validate.rc != 0
+          Error: {{ compose_validate.stderr | default('Unknown error') }}
+      when: compose_validate is defined and compose_validate.rc is defined and compose_validate.rc != 0
 
     - name: Prompt for interactive docker compose run
       pause:
@@ -116,16 +123,17 @@
           Press Enter to continue, or Ctrl+C to cancel.
           ============================================
       register: start_prompt
+      when: ansible_check_mode == False
 
     - name: Start Docker Compose services
-      command: docker compose -f "{{ app_dir }}/{{ compose_file }}" up -d
+      shell: sg docker -c "cd {{ app_dir }} && docker compose -f {{ compose_file }} up -d"
       register: compose_up_result
-      when: start_prompt.user_input | default('') != ''
+      when: start_prompt is defined and start_prompt.user_input is defined
 
     - name: Display service startup result
       debug:
-        msg: "{{ compose_up_result.stdout_lines }}"
-      when: compose_up_result is defined
+        msg: "{{ compose_up_result.stdout_lines | default([]) }}"
+      when: compose_up_result is defined and compose_up_result.stdout_lines is defined
 
     - name: Wait for services to be ready
       wait_for:
@@ -138,13 +146,13 @@
         - { port: 27018, name: "MongoDB" }
         - { port: 6380, name: "Redis" }
       failed_when: false
-      when: compose_up_result is defined
+      when: compose_up_result is defined and compose_up_result.changed | default(false)
 
     - name: Check running containers
-      command: docker compose -f "{{ app_dir }}/{{ compose_file }}" ps
+      shell: sg docker -c "cd {{ app_dir }} && docker compose -f {{ compose_file }} ps"
       register: container_status
       changed_when: false
-      when: compose_up_result is defined
+      when: compose_up_result is defined and compose_up_result.changed | default(false)
 
     - name: Display container status
       debug:
@@ -152,7 +160,7 @@
           ============================================
           Container Status:
           ============================================
-          {{ container_status.stdout }}
+          {{ container_status.stdout | default('Containers not started') }}
           ============================================
       when: container_status is defined
 
@@ -172,4 +180,4 @@
           To stop all services:
           docker compose down
           ============================================
-      when: compose_up_result is defined
+      when: compose_up_result is defined and compose_up_result.changed | default(false)

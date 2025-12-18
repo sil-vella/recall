@@ -20,7 +20,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = false; // Enabled for guest account conversion testing
+  static const bool LOGGING_SWITCH = true; // Enabled for guest account conversion testing
   static final Logger _logger = Logger();
   
   // Form controllers

@@ -7,8 +7,9 @@ class Config {
   static const String appTitle = "Cleco";
 
   // API URL
+  // Single source of truth – always use API_URL (set per launch config)
   static const String apiUrl = String.fromEnvironment(
-    'API_URL_LOCAL',
+    'API_URL',
     defaultValue: 'http://10.0.2.2:8081',
   );
 
@@ -19,9 +20,10 @@ class Config {
   );
 
   // WebSocket URL for external app
+  // Single source of truth – always use WS_URL (set per launch config)
   static const String wsUrl = String.fromEnvironment(
-    'WS_URL_LOCAL',
-    defaultValue: 'ws://127.0.0.1:8080', // Changed from 8081 to 8080 (Dart server)
+    'WS_URL',
+    defaultValue: 'ws://127.0.0.1:8080', // Default to local Dart server
   );
 
   // HTTP Request Timeout Configuration

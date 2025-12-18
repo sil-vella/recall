@@ -28,7 +28,8 @@ class WebSocketServer {
   WebSocketServer() {
     _logger.initialize();
     _messageHandler = MessageHandler(_roomManager, this);
-    _pythonClient = PythonApiClient(baseUrl: 'http://localhost:5001'); // Updated to port 5001
+    // In Docker, use the Flask service name on the compose network
+    _pythonClient = PythonApiClient(baseUrl: 'http://cleco_flask-external:5001');
     
     // Wire up room closure hook
     _roomManager.onRoomClosed = (roomId, reason) {

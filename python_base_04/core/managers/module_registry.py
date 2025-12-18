@@ -36,6 +36,11 @@ class ModuleRegistry:
             for item in os.listdir(modules_dir):
                 item_path = os.path.join(modules_dir, item)
                 custom_log(f"DEBUG: Scanning module: {item_path}", level="INFO", isOn=LOGGING_SWITCH)
+
+                # Allow disabling specific modules purely via registry logic.
+                # Credit system is currently not used in the cleco stack, so skip it.
+                if item == "credit_system_module":
+                    continue
                 
                 # Check if it's a directory and has __init__.py
                 if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, '__init__.py')):
@@ -105,7 +110,7 @@ class ModuleRegistry:
         dependencies = {
             "user_management_module": [],  # Core user management - no dependencies
             "analytics_module": ["user_management_module"],  # Needs user management for JWT auth
-            "credit_system_module": ["user_management_module"],  # Needs user management
+            # Credit system module is currently disabled for cleco.pro stack
             "system_actions_module": [],  # Core system actions - no dependencies
             "wallet_module": ["user_management_module"],  # Needs user management
             "transactions_module": ["user_management_module", "wallet_module"],  # Needs users and wallet
@@ -152,7 +157,8 @@ class ModuleRegistry:
                 "websocket_required": True,
             },
             "credit_system_module": {
-                "enabled": True,
+                # Credit system module is currently disabled for cleco stack
+                "enabled": False,
                 "priority": 6,
                 "health_check_enabled": True,
             },

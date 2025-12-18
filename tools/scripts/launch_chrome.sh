@@ -15,6 +15,19 @@ echo "📝 Writing Logger output to: $SERVER_LOG_FILE"
 # Launch Flutter app with Chrome web configuration
 echo "🎯 Launching Flutter app with Chrome web configuration..."
 
+# Determine backend target from first argument: 'local' (default) or 'vps'
+BACKEND_TARGET="${1:-local}"
+
+if [ "$BACKEND_TARGET" = "vps" ]; then
+    API_URL="https://cleco.reignofplay.com"
+    WS_URL="wss://cleco.reignofplay.com/ws"
+    echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
+else
+    API_URL="http://localhost:5001"
+    WS_URL="ws://localhost:8080"
+    echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
+fi
+
 # Function to filter and display only Logger calls
 filter_logs() {
     while IFS= read -r line; do
@@ -77,10 +90,8 @@ flutter run \
     -d chrome \
     --web-port=3002 \
     --web-hostname=localhost \
-    --dart-define=API_URL_LOCAL=http://localhost:5001 \
-    --dart-define=API_URL=https://fmif.reignofplay.com \
-    --dart-define=WS_URL_LOCAL=ws://localhost:8080 \
-    --dart-define=WS_URL=wss://fmif.reignofplay.com \
+    --dart-define=API_URL="$API_URL" \
+    --dart-define=WS_URL="$WS_URL" \
     --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
     --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
     --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \

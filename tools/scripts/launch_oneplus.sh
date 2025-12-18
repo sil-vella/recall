@@ -33,6 +33,20 @@ echo "📝 Writing Logger output to: $SERVER_LOG_FILE"
 # Launch Flutter app with OnePlus device configuration
 echo "🎯 Launching Flutter app with OnePlus configuration..."
 
+# Determine backend target from first argument: 'local' (default) or 'vps'
+BACKEND_TARGET="${1:-local}"
+
+if [ "$BACKEND_TARGET" = "vps" ]; then
+    API_URL="https://cleco.reignofplay.com"
+    WS_URL="wss://cleco.reignofplay.com/ws"
+    echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
+else
+    # Local LAN IP for Python & Dart services
+    API_URL="http://192.168.178.81:5001"
+    WS_URL="ws://192.168.178.81:8080"
+    echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
+fi
+
 # Function to filter and display only Logger calls
 filter_logs() {
     while IFS= read -r line; do
@@ -93,10 +107,8 @@ filter_logs() {
 # Launch Flutter and filter output
 flutter run \
     -d 84fbcf31 \
-    --dart-define=API_URL_LOCAL=http://192.168.178.81:5001 \
-    --dart-define=API_URL=https://fmif.reignofplay.com \
-    --dart-define=WS_URL_LOCAL=ws://192.168.178.81:8080 \
-    --dart-define=WS_URL=wss://fmif.reignofplay.com \
+    --dart-define=API_URL="$API_URL" \
+    --dart-define=WS_URL="$WS_URL" \
     --dart-define=JWT_ACCESS_TOKEN_EXPIRES=3600 \
     --dart-define=JWT_REFRESH_TOKEN_EXPIRES=604800 \
     --dart-define=JWT_TOKEN_REFRESH_COOLDOWN=300 \

@@ -31,11 +31,14 @@ if Config.DEBUG:
     CORS(app)
 else:
     # Production mode - restrict to reignofplay.com domains
+    # plus allow local Flutter web dev origins for testing
     CORS(app,
         origins=[
             "https://reignofplay.com",
             "https://www.reignofplay.com",
             "https://cleco.reignofplay.com",
+            "http://localhost:3002",
+            "http://127.0.0.1:3002",
         ],
         supports_credentials=True,
         allow_headers=["*"],
@@ -184,30 +187,49 @@ def health_check():
             return {'status': 'unhealthy', 'reason': 'Redis connection failed'}, 503
         
         # Check state manager status
-        state_manager_health = app_manager.state_manager.health_check()
+        try:
+            state_manager_health = app_manager.state_manager.health_check()
+        except Exception as e:
+            return {
+                'status': 'unhealthy',
+                'reason': f'State manager health check failed: {str(e)}'
+            }, 503
+
         if state_manager_health.get('status') != 'healthy':
             return {'status': 'unhealthy', 'reason': 'State manager unhealthy'}, 503
-        
-        # Check module status
-        module_status = app_manager.module_manager.get_module_status()
-        unhealthy_modules = []
-        
-        for module_key, module_info in module_status.get('modules', {}).items():
-            if module_info.get('health', {}).get('status') != 'healthy':
-                unhealthy_modules.append(module_key)
-        
-        if unhealthy_modules:
-            return {
-                'status': 'degraded', 
-                'reason': f'Unhealthy modules: {unhealthy_modules}',
-                'module_status': module_status
-            }, 200  # Still return 200 for degraded but functional
-            
+
+        # Lightweight module status overview (avoid deep or recursive health checks)
+        module_manager = app_manager.module_manager
+        modules = getattr(module_manager, 'modules', {})
+
+        module_summary = {}
+        uninitialized_modules = []
+
+        for module_key, module_instance in modules.items():
+            is_initialized = True
+            if hasattr(module_instance, 'is_initialized'):
+                try:
+                    is_initialized = bool(module_instance.is_initialized())
+                except Exception:
+                    is_initialized = False
+
+            module_summary[module_key] = {
+                'initialized': is_initialized,
+                'class': module_instance.__class__.__name__,
+            }
+
+            if not is_initialized:
+                uninitialized_modules.append(module_key)
+
+        overall_status = 'healthy' if not uninitialized_modules else 'degraded'
+
         return {
-            'status': 'healthy',
-            'modules_initialized': module_status.get('initialized_modules', 0),
-            'total_modules': module_status.get('total_modules', 0),
-            'state_manager': state_manager_health
+            'status': overall_status,
+            'modules_initialized': len(modules) - len(uninitialized_modules),
+            'total_modules': len(modules),
+            'uninitialized_modules': uninitialized_modules,
+            'state_manager': state_manager_health,
+            'modules': module_summary,
         }, 200
     except Exception as e:
         return {'status': 'unhealthy', 'reason': str(e)}, 503

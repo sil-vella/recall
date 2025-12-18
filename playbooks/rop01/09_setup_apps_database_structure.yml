@@ -1,0 +1,570 @@
+---
+- name: Setup MongoDB Database Structure and Dummy Data (Remote Docker)
+  hosts: "{{ vm_name }}_user"
+  become: true
+  vars:
+    mongodb_container_name: "cleco_external_app_mongodb"
+    database_name: "external_system"
+    app_user: "external_app_user"
+    app_password: "6R3jjsvVhIRP20zMiHdkBzNKx"
+
+    # MongoDB connection details for VPS Docker host
+    mongodb_host: "localhost"
+    mongodb_port: "27018"  # Host port mapped to MongoDB
+    mongodb_auth_db: "external_system"
+
+  tasks:
+    - name: Wait for MongoDB container to be ready
+      shell: docker exec {{ mongodb_container_name }} mongosh --eval "db.adminCommand('ping')" --quiet
+      register: mongodb_ready
+      retries: 30
+      delay: 2
+      until: mongodb_ready.rc == 0
+      changed_when: mongodb_ready.rc == 0
+
+    - name: Empty database completely
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "
+          db = db.getSiblingDB('external_system');
+          print('🗑️ Emptying database completely...');
+          
+          // Get all collection names
+          var collections = db.getCollectionNames();
+          print('Found ' + collections.length + ' collections to drop');
+          
+          // Drop each collection
+          collections.forEach(function(collectionName) {
+            if (collectionName !== 'system.indexes' && collectionName !== 'system.namespaces') {
+              print('Dropping collection: ' + collectionName);
+              db[collectionName].drop();
+            }
+          });
+          
+          print('✅ Database emptied successfully');
+          print('Remaining collections: ' + db.getCollectionNames().length);
+        "
+      register: empty_db_result
+      changed_when: true
+
+    - name: Display empty database results
+      debug:
+        msg: "{{ empty_db_result.stdout }}"
+
+    - name: Create database structure setup script
+      copy:
+        dest: "/tmp/setup_database.js"
+        content: |
+          // MongoDB Database Structure Setup Script
+          // Modular Credit System Database - Basic User Structure
+          
+          // Switch to the external_system database
+          db = db.getSiblingDB('external_system');
+          
+          print("🗄️ Setting up Modular Credit System Database Structure...");
+          
+          // ========================================
+          // 1. USERS COLLECTION (Core User Module)
+          // ========================================
+          print("📝 Creating modular users collection...");
+          
+          // Create users collection with indexes
+          db.createCollection("users");
+          db.users.createIndex({ "email": 1 }, { unique: true });
+          db.users.createIndex({ "username": 1 });
+          db.users.createIndex({ "status": 1 });
+          db.users.createIndex({ "created_at": 1 });
+          db.users.createIndex({ "updated_at": 1 });
+          
+          // Insert dummy users with modular structure
+          db.users.insertMany([
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439011"),
+              "email": "john.doe@example.com",
+              "username": "johndoe",
+              "password": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/HS.i8e", // "password123"
+              "status": "active",
+              "created_at": new Date("2024-01-15T10:30:00Z"),
+              "updated_at": new Date("2024-01-15T10:30:00Z"),
+              
+              // Modular extensions - can be easily added/removed
+              "profile": {
+                "first_name": "John",
+                "last_name": "Doe",
+                "phone": "+1234567890",
+                "timezone": "America/New_York",
+                "language": "en"
+              },
+              
+              "preferences": {
+                "notifications": {
+                  "email": true,
+                  "sms": false,
+                  "push": true
+                },
+                "privacy": {
+                  "profile_visible": true,
+                  "activity_visible": false
+                }
+              },
+              
+              // Module-specific data - can be extended per module
+              "modules": {
+                "wallet": {
+                  "enabled": true,
+                  "balance": 1500,
+                  "currency": "credits",
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                },
+                "subscription": {
+                  "enabled": false,
+                  "plan": null,
+                  "expires_at": null
+                },
+                "referrals": {
+                  "enabled": true,
+                  "referral_code": "JOHN123",
+                  "referrals_count": 0
+                },
+                "in_app_purchases": {
+                  "enabled": true,
+                  "active_purchases": [],
+                  "subscription_status": "none",
+                  "last_purchase_date": null,
+                  "total_spent": 0,
+                  "currency": "USD",
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                },
+                "cleco_game": {
+                  "enabled": true,
+                  "wins": 0,
+                  "losses": 0,
+                  "total_matches": 0,
+                  "points": 0,
+                  "coins": 0,
+                  "level": 1,
+                  "rank": "beginner",
+                  "win_rate": 0.0,
+                  "subscription_tier": "promotional",
+                  "last_match_date": null,
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                }
+              },
+              
+              // Audit trail for user changes
+              "audit": {
+                "last_login": new Date("2024-03-01T10:30:00Z"),
+                "login_count": 15,
+                "password_changed_at": new Date("2024-01-15T10:30:00Z"),
+                "profile_updated_at": new Date("2024-02-15T14:20:00Z")
+              }
+            },
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439012"),
+              "email": "jane.smith@example.com",
+              "username": "janesmith",
+              "password": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/HS.i8e", // "password123"
+              "status": "active",
+              "created_at": new Date("2024-01-20T14:45:00Z"),
+              "updated_at": new Date("2024-01-20T14:45:00Z"),
+              
+              "profile": {
+                "first_name": "Jane",
+                "last_name": "Smith",
+                "phone": "+1987654321",
+                "timezone": "Europe/London",
+                "language": "en"
+              },
+              
+              "preferences": {
+                "notifications": {
+                  "email": true,
+                  "sms": true,
+                  "push": false
+                },
+                "privacy": {
+                  "profile_visible": false,
+                  "activity_visible": true
+                }
+              },
+              
+              "modules": {
+                "wallet": {
+                  "enabled": true,
+                  "balance": 750,
+                  "currency": "credits",
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                },
+                "subscription": {
+                  "enabled": true,
+                  "plan": "premium",
+                  "expires_at": new Date("2024-12-31T23:59:59Z")
+                },
+                "referrals": {
+                  "enabled": false,
+                  "referral_code": null,
+                  "referrals_count": 0
+                },
+                "in_app_purchases": {
+                  "enabled": true,
+                  "active_purchases": [],
+                  "subscription_status": "none",
+                  "last_purchase_date": null,
+                  "total_spent": 0,
+                  "currency": "USD",
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                },
+                "cleco_game": {
+                  "enabled": true,
+                  "wins": 0,
+                  "losses": 0,
+                  "total_matches": 0,
+                  "points": 0,
+                  "coins": 0,
+                  "level": 1,
+                  "rank": "beginner",
+                  "win_rate": 0.0,
+                  "subscription_tier": "promotional",
+                  "last_match_date": null,
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                }
+              },
+              
+              "audit": {
+                "last_login": new Date("2024-03-01T09:15:00Z"),
+                "login_count": 8,
+                "password_changed_at": new Date("2024-01-20T14:45:00Z"),
+                "profile_updated_at": new Date("2024-02-10T11:30:00Z")
+              }
+            },
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439013"),
+              "email": "bob.wilson@example.com",
+              "username": "bobwilson",
+              "password": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/HS.i8e", // "password123"
+              "status": "active",
+              "created_at": new Date("2024-02-01T09:15:00Z"),
+              "updated_at": new Date("2024-02-01T09:15:00Z"),
+              
+              "profile": {
+                "first_name": "Bob",
+                "last_name": "Wilson",
+                "phone": "+1122334455",
+                "timezone": "America/Chicago",
+                "language": "en"
+              },
+              
+              "preferences": {
+                "notifications": {
+                  "email": false,
+                  "sms": false,
+                  "push": true
+                },
+                "privacy": {
+                  "profile_visible": true,
+                  "activity_visible": true
+                }
+              },
+              
+              "modules": {
+                "wallet": {
+                  "enabled": true,
+                  "balance": 2200,
+                  "currency": "credits",
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                },
+                "subscription": {
+                  "enabled": false,
+                  "plan": null,
+                  "expires_at": null
+                },
+                "referrals": {
+                  "enabled": true,
+                  "referral_code": "BOB456",
+                  "referrals_count": 2
+                },
+                "in_app_purchases": {
+                  "enabled": true,
+                  "active_purchases": [],
+                  "subscription_status": "none",
+                  "last_purchase_date": null,
+                  "total_spent": 0,
+                  "currency": "USD",
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                },
+                "cleco_game": {
+                  "enabled": true,
+                  "wins": 0,
+                  "losses": 0,
+                  "total_matches": 0,
+                  "points": 0,
+                  "coins": 0,
+                  "level": 1,
+                  "rank": "beginner",
+                  "win_rate": 0.0,
+                  "subscription_tier": "promotional",
+                  "last_match_date": null,
+                  "last_updated": new Date("2024-03-01T12:00:00Z")
+                }
+              },
+              
+              "audit": {
+                "last_login": new Date("2024-03-01T16:45:00Z"),
+                "login_count": 23,
+                "password_changed_at": new Date("2024-02-01T09:15:00Z"),
+                "profile_updated_at": new Date("2024-02-25T13:20:00Z")
+              }
+            }
+          ]);
+          
+          print("✅ Users collection created with " + db.users.countDocuments() + " users");
+          
+          // ========================================
+          // 2. USER_MODULES COLLECTION (Module Registry)
+          // ========================================
+          print("🔧 Creating user_modules collection for module management...");
+          
+          db.createCollection("user_modules");
+          db.user_modules.createIndex({ "module_name": 1 }, { unique: true });
+          db.user_modules.createIndex({ "status": 1 });
+          db.user_modules.createIndex({ "created_at": 1 });
+          
+          // Insert module registry
+          db.user_modules.insertMany([
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439101"),
+              "module_name": "wallet",
+              "display_name": "Wallet Module",
+              "description": "Credit balance and transaction management",
+              "status": "active",
+              "version": "1.0.0",
+              "schema": {
+                "enabled": "boolean",
+                "balance": "number",
+                "currency": "string",
+                "last_updated": "date"
+              },
+              "created_at": new Date("2024-01-01T00:00:00Z"),
+              "updated_at": new Date("2024-01-01T00:00:00Z")
+            },
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439102"),
+              "module_name": "subscription",
+              "display_name": "Subscription Module",
+              "description": "Premium subscription management",
+              "status": "active",
+              "version": "1.0.0",
+              "schema": {
+                "enabled": "boolean",
+                "plan": "string",
+                "expires_at": "date"
+              },
+              "created_at": new Date("2024-01-01T00:00:00Z"),
+              "updated_at": new Date("2024-01-01T00:00:00Z")
+            },
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439103"),
+              "module_name": "referrals",
+              "display_name": "Referral Module",
+              "description": "User referral system",
+              "status": "active",
+              "version": "1.0.0",
+              "schema": {
+                "enabled": "boolean",
+                "referral_code": "string",
+                "referrals_count": "number"
+              },
+              "created_at": new Date("2024-01-01T00:00:00Z"),
+              "updated_at": new Date("2024-01-01T00:00:00Z")
+            },
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439104"),
+              "module_name": "in_app_purchases",
+              "display_name": "In-App Purchases Module",
+              "description": "In-app purchase and subscription management",
+              "status": "active",
+              "version": "1.0.0",
+              "schema": {
+                "enabled": "boolean",
+                "active_purchases": "array",
+                "subscription_status": "string",
+                "last_purchase_date": "date",
+                "total_spent": "number",
+                "currency": "string",
+                "last_updated": "date"
+              },
+              "created_at": new Date("2024-01-01T00:00:00Z"),
+              "updated_at": new Date("2024-01-01T00:00:00Z")
+            },
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439105"),
+              "module_name": "cleco_game",
+              "display_name": "Cleco Game Module",
+              "description": "Cleco card game statistics and progression",
+              "status": "active",
+              "version": "1.0.0",
+              "schema": {
+                "enabled": "boolean",
+                "wins": "number",
+                "losses": "number",
+                "total_matches": "number",
+                "points": "number",
+                "coins": "number",
+                "level": "number",
+                "rank": "string",
+                "win_rate": "number",
+                "subscription_tier": "string",
+                "last_match_date": "date",
+                "last_updated": "date"
+              },
+              "created_at": new Date("2024-01-01T00:00:00Z"),
+              "updated_at": new Date("2024-01-01T00:00:00Z")
+            }
+          ]);
+          
+          print("✅ User modules collection created with " + db.user_modules.countDocuments() + " modules");
+          
+          // ========================================
+          // 3. USER_AUDIT_LOGS COLLECTION (Audit Trail)
+          // ========================================
+          print("📋 Creating user_audit_logs collection...");
+          
+          db.createCollection("user_audit_logs");
+          db.user_audit_logs.createIndex({ "user_id": 1 });
+          db.user_audit_logs.createIndex({ "action": 1 });
+          db.user_audit_logs.createIndex({ "timestamp": 1 });
+          db.user_audit_logs.createIndex({ "module": 1 });
+          
+          // Insert sample audit logs
+          db.user_audit_logs.insertMany([
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439201"),
+              "user_id": ObjectId("507f1f77bcf86cd799439011"),
+              "action": "profile_updated",
+              "module": "core",
+              "changes": {
+                "profile.first_name": { "old": "John", "new": "John" },
+                "profile.last_name": { "old": "Doe", "new": "Doe" }
+              },
+              "timestamp": new Date("2024-02-15T14:20:00Z"),
+              "ip_address": "192.168.1.100"
+            },
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439202"),
+              "user_id": ObjectId("507f1f77bcf86cd799439012"),
+              "action": "module_enabled",
+              "module": "subscription",
+              "changes": {
+                "modules.subscription.enabled": { "old": false, "new": true },
+                "modules.subscription.plan": { "old": null, "new": "premium" }
+              },
+              "timestamp": new Date("2024-02-10T11:30:00Z"),
+              "ip_address": "192.168.1.101"
+            },
+            {
+              "_id": ObjectId("507f1f77bcf86cd799439203"),
+              "user_id": ObjectId("507f1f77bcf86cd799439013"),
+              "action": "wallet_updated",
+              "module": "wallet",
+              "changes": {
+                "modules.wallet.balance": { "old": 2000, "new": 2200 }
+              },
+              "timestamp": new Date("2024-03-01T12:00:00Z"),
+              "ip_address": "192.168.1.102"
+            }
+          ]);
+          
+          print("✅ User audit logs collection created with " + db.user_audit_logs.countDocuments() + " logs");
+          
+
+          // ========================================
+          // FINAL SUMMARY
+          // ========================================
+          print("\n🎉 MODULAR DATABASE STRUCTURE SETUP COMPLETE!");
+          print("=============================================");
+          print("Collections created:");
+          print("- users: " + db.users.countDocuments() + " documents (modular structure)");
+          print("- user_modules: " + db.user_modules.countDocuments() + " modules registered");
+          print("- user_audit_logs: " + db.user_audit_logs.countDocuments() + " audit records");
+          print("\n📊 Total documents: " + (db.users.countDocuments() + db.user_modules.countDocuments() + db.user_audit_logs.countDocuments()));
+          print("\n🔧 Modular Features:");
+          print("- Users have embedded module data for easy access");
+          print("- Module registry for managing available modules");
+          print("- Audit trail for all user changes");
+          print("- Extensible structure for future modules");
+          print("\n✅ Modular Credit System Database is ready for development!");
+        mode: '0644'
+
+    - name: Copy setup script to MongoDB container
+      shell: docker cp /tmp/setup_database.js {{ mongodb_container_name }}:/tmp/setup_database.js
+      register: copy_result
+      changed_when: copy_result.rc == 0
+
+    - name: Execute database structure setup
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "$(cat /tmp/setup_database.js)"
+      register: db_setup_result
+      changed_when: true
+
+    - name: Display database setup results
+      debug:
+        msg: "{{ db_setup_result.stdout }}"
+
+    - name: Verify database collections
+      shell: |
+        docker exec {{ mongodb_container_name }} mongosh -u {{ app_user }} -p "{{ app_password }}" --authenticationDatabase {{ mongodb_auth_db }} --eval "
+          db = db.getSiblingDB('external_system');
+          print('\n📋 COLLECTION SUMMARY:');
+          print('=====================');
+          db.getCollectionNames().forEach(function(collection) {
+            print(collection + ': ' + db[collection].countDocuments() + ' documents');
+          });
+          print('\n📊 TOTAL DOCUMENTS: ' + db.getCollectionNames().reduce(function(total, collection) {
+            return total + db[collection].countDocuments();
+          }, 0));
+        "
+      register: collection_summary
+      changed_when: false
+
+    - name: Display collection summary
+      debug:
+        msg: "{{ collection_summary.stdout }}"
+
+    - name: Clean up temporary files
+      file:
+        path: "/tmp/setup_database.js"
+        state: absent
+
+    - name: Display database structure summary
+      debug:
+        msg: |
+          🗄️ Modular MongoDB Database Structure Setup Complete!
+          
+          📋 Collections Created:
+          - users: Core user data with embedded modular extensions
+          - user_modules: Registry of available modules and their schemas
+          - user_audit_logs: Complete audit trail for all user changes
+          
+          🔧 Modular Design Features:
+          - Embedded module data in users collection for fast access
+          - Module registry for managing available modules
+          - Schema validation through module definitions
+          - Audit trail for all changes across modules
+          - Easy to add new modules without restructuring
+          
+          📊 User Structure:
+          - Core fields: email, username, password, status, timestamps
+          - Profile: personal information (name, phone, timezone, language)
+          - Preferences: user settings (notifications, privacy)
+          - Modules: embedded module-specific data (wallet, subscription, referrals)
+          - Audit: user activity tracking (logins, changes)
+          
+          🔗 Connection Details:
+          - Container: {{ mongodb_container_name }}
+          - Host: {{ mongodb_host }}
+          - Port: {{ mongodb_port }}
+          - Database: {{ database_name }}
+          - User: {{ app_user }}
+          - Password: {{ app_password }}
+          - Auth Source: {{ mongodb_auth_db }}
+          
+          ✅ Database is ready for modular application development!

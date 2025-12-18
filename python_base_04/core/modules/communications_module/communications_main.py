@@ -126,7 +126,6 @@ class CommunicationsModule(BaseModule):
             return {"error": f"Failed to retrieve database data: {str(e)}"}, 500
 
     def test_jwt(self):
-        debugpy.breakpoint()
         """Test JWT token validation and return token information."""
         try:
             # Get JWT manager from app_manager

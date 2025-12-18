@@ -17,8 +17,8 @@ import '../../tools/logging/logger.dart';
 import '../../utils/consts/config.dart';
 
 class LoginModule extends ModuleBase {
-  // Logging switch for guest registration and conversion testing
-  static const bool LOGGING_SWITCH = false;
+  // Logging switch for guest registration, login, and backend connectivity
+  static const bool LOGGING_SWITCH = true;
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;

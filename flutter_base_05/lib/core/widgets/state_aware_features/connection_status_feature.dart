@@ -5,7 +5,7 @@ import '../../../tools/logging/logger.dart';
 import '../../../utils/consts/theme_consts.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// State-aware connection status feature widget
 /// 

@@ -22,7 +22,7 @@ enum AuthStatus {
 
 class AuthManager extends ChangeNotifier {
   // Logging switch for guest registration testing
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
   
   static final AuthManager _instance = AuthManager._internal();
   

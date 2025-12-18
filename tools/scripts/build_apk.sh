@@ -101,7 +101,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
 
   # Upload APK to a temporary location, then move into place with sudo
   scp -i "$VPS_SSH_KEY" "$OUTPUT_APK" "$VPS_SSH_TARGET":"$REMOTE_TMP_APK"
-  ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" \"sudo mkdir -p '$REMOTE_VERSION_DIR' && sudo mv '$REMOTE_TMP_APK' '$REMOTE_APK_PATH' && sudo chown www-data:www-data '$REMOTE_APK_PATH' && sudo chmod 644 '$REMOTE_APK_PATH'\"
+  ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mkdir -p '$REMOTE_VERSION_DIR' && sudo mv '$REMOTE_TMP_APK' '$REMOTE_APK_PATH' && sudo chown www-data:www-data '$REMOTE_APK_PATH' && sudo chmod 644 '$REMOTE_APK_PATH'"
 
   echo "✅ APK uploaded to VPS: $REMOTE_APK_PATH"
   echo "🔗 Expected download URL: https://cleco.reignofplay.com/downloads/v$APP_VERSION/app.apk"
@@ -125,7 +125,7 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
 EOF
 
   scp -i "$VPS_SSH_KEY" "$TMP_MANIFEST" "$VPS_SSH_TARGET":"$REMOTE_TMP_MANIFEST"
-  ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" \"sudo mkdir -p '$REMOTE_SECRETS_DIR' && sudo mv '$REMOTE_TMP_MANIFEST' '$REMOTE_MANIFEST_PATH' && sudo chown root:root '$REMOTE_MANIFEST_PATH' && sudo chmod 644 '$REMOTE_MANIFEST_PATH'\"
+  ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mkdir -p '$REMOTE_SECRETS_DIR' && sudo mv '$REMOTE_TMP_MANIFEST' '$REMOTE_MANIFEST_PATH' && sudo chown root:root '$REMOTE_MANIFEST_PATH' && sudo chmod 644 '$REMOTE_MANIFEST_PATH'"
   rm -f "$TMP_MANIFEST"
 
   echo "✅ mobile_release.json updated on VPS: $REMOTE_MANIFEST_PATH"

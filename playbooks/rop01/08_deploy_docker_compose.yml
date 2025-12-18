@@ -43,6 +43,12 @@
         content: "6R3jjsvVhIRP20zMiHdkBzNKx\n"
         mode: '0600'
 
+    - name: Create app_download_base_url secret file for Flask app
+      copy:
+        dest: "{{ app_dir }}/secrets/app_download_base_url"
+        content: "https://cleco.reignofplay.com/downloads\n"
+        mode: '0644'
+
     - name: Copy docker-compose.yml to server
       copy:
         src: "{{ playbook_dir }}/../../{{ compose_file }}"

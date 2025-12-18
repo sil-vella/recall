@@ -4,6 +4,8 @@ from typing import Dict, Any
 from flask import request, jsonify
 from datetime import datetime
 from utils.config.config import Config
+import os
+import json
 
 # Logging switch for this module
 LOGGING_SWITCH = False
@@ -218,49 +220,92 @@ class SystemActionsModule(BaseModule):
         return health_status
 
     def check_updates(self):
-        """Check for available updates (public endpoint)"""
+        """Check for available mobile app updates (public endpoint).
+
+        Uses a dynamic mobile_release.json manifest when available so that
+        mobile app versions are decoupled from the Flask backend version.
+        """
         try:
             custom_log("SystemActions: Check updates request received", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # Get server app version from config
-            server_version = Config.APP_VERSION
+
             app_name = Config.APP_NAME
             app_id = Config.APP_ID
             download_base_url = Config.APP_DOWNLOAD_BASE_URL
-            
+
+            # Try to load mobile release manifest from secrets (no restart required to update)
+            manifest = None
+            manifest_path_used = None
+            manifest_paths = [
+                os.getenv("MOBILE_RELEASE_MANIFEST", "/app/secrets/mobile_release.json"),
+                "./secrets/mobile_release.json",
+            ]
+
+            for path in manifest_paths:
+                try:
+                    if os.path.exists(path):
+                        with open(path, "r", encoding="utf-8") as f:
+                            manifest = json.load(f)
+                            manifest_path_used = path
+                            custom_log(f"SystemActions: Loaded mobile_release manifest from {path}", level="INFO", isOn=LOGGING_SWITCH)
+                            break
+                except Exception as e:
+                    custom_log(f"SystemActions: Failed to read mobile_release manifest at {path}: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+
+            # Determine mobile app versions from manifest (fallback to backend Config if missing)
+            if manifest:
+                server_version = str(manifest.get("latest_version", Config.APP_VERSION))
+                min_supported_version = str(manifest.get("min_supported_version", server_version))
+            else:
+                # Fallback: use backend config version when no manifest exists
+                server_version = str(Config.APP_VERSION)
+                min_supported_version = server_version
+
             # Get client's current version from query parameter (optional)
-            client_version = request.args.get('current_version', server_version)
-            
-            # Compare versions
+            client_version = request.args.get("current_version", server_version)
+
+            # Compare versions using simple semantic version tuples
             update_available = False
             update_required = False
-            
-            if client_version != server_version:
-                # Parse versions to compare major versions
-                try:
-                    client_major = int(client_version.split('.')[0]) if '.' in client_version else int(client_version)
-                    server_major = int(server_version.split('.')[0]) if '.' in server_version else int(server_version)
-                    
-                    update_available = True
-                    # Update is required if major version has changed
-                    update_required = server_major > client_major
-                    
-                    custom_log(f"SystemActions: Version comparison - Client: {client_version} (major: {client_major}), Server: {server_version} (major: {server_major}), Required: {update_required}", level="INFO", isOn=LOGGING_SWITCH)
-                except (ValueError, IndexError) as e:
-                    custom_log(f"SystemActions: Error parsing versions: {e}", level="WARNING", isOn=LOGGING_SWITCH)
-                    # If version parsing fails, assume update available but not required
-                    update_available = True
-                    update_required = False
-            
+
+            def _parse_version(v: str):
+                parts = []
+                for token in str(v).split("."):
+                    try:
+                        parts.append(int(token))
+                    except ValueError:
+                        break
+                return tuple(parts) if parts else (0,)
+
+            try:
+                client_tuple = _parse_version(client_version)
+                server_tuple = _parse_version(server_version)
+                min_supported_tuple = _parse_version(min_supported_version)
+
+                update_available = client_tuple < server_tuple
+                update_required = client_tuple < min_supported_tuple
+
+                version_msg = (
+                    "SystemActions: Version comparison - "
+                    f"Client: {client_version} ({client_tuple}), "
+                    f"Latest: {server_version} ({server_tuple}), "
+                    f"MinSupported: {min_supported_version} ({min_supported_tuple}), "
+                    f"UpdateAvailable: {update_available}, UpdateRequired: {update_required}"
+                )
+                custom_log(version_msg, level="INFO", isOn=LOGGING_SWITCH)
+            except Exception as e:
+                custom_log(f"SystemActions: Error comparing versions: {e}", level="WARNING", isOn=LOGGING_SWITCH)
+                # Safe fallback: only indicate that an update is available if versions differ
+                update_available = client_version != server_version
+                update_required = False
+
             # Generate download link (version-specific)
             download_link = ""
             if update_available:
-                # Construct version-specific download URL
-                # Format: {base_url}/v{version}/app.apk (or app.ipa for iOS)
+                # Format: {base_url}/v{version}/app.apk
                 download_link = f"{download_base_url}/v{server_version}/app.apk"
                 custom_log(f"SystemActions: Generated download link: {download_link}", level="INFO", isOn=LOGGING_SWITCH)
-            
-            # Return version information
+
+            # Build response payload
             response_data = {
                 "success": True,
                 "app_id": app_id,
@@ -270,16 +315,29 @@ class SystemActionsModule(BaseModule):
                 "update_available": update_available,
                 "update_required": update_required,
                 "download_link": download_link if update_available else "",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
-            
-            custom_log(f"SystemActions: Returning version info - Client: {client_version}, Server: {server_version}, Required: {update_required}", level="INFO", isOn=LOGGING_SWITCH)
+
+            # Include extra metadata when manifest is used
+            if manifest is not None:
+                response_data["min_supported_version"] = min_supported_version
+                if manifest_path_used:
+                    response_data["manifest_path"] = manifest_path_used
+
+            summary_msg = (
+                "SystemActions: Returning version info - "
+                f"Client: {client_version}, Latest: {server_version}, "
+                f"UpdateAvailable: {update_available}, UpdateRequired: {update_required}"
+            )
+            custom_log(summary_msg, level="INFO", isOn=LOGGING_SWITCH)
             return jsonify(response_data), 200
-            
+
         except Exception as e:
             custom_log(f"SystemActions: Error in check_updates: {e}", level="ERROR", isOn=LOGGING_SWITCH)
-            return jsonify({
-                "success": False,
-                "error": "Failed to check for updates",
-                "message": str(e)
-            }), 500 
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Failed to check for updates",
+                    "message": str(e),
+                }
+            ), 500

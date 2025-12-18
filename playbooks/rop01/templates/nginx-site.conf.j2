@@ -62,6 +62,14 @@ server {
     }
     {% endif %}
 
+    # Static downloads directory for app binaries (e.g. APK/IPA)
+    location /downloads/ {
+        alias {{ item.root_dir | default('/var/www/' + item.domain) }}/downloads/;
+        autoindex off;
+        default_type application/octet-stream;
+        add_header Content-Disposition "attachment";
+    }
+
     # Security: deny access to hidden files
     location ~ /\. {
         deny all;

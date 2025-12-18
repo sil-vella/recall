@@ -3,14 +3,14 @@
   hosts: localhost
   connection: local
   vars:
-    mongodb_container_name: "external_app_mongodb"
+    mongodb_container_name: "cleco_external_app_mongodb"
     database_name: "external_system"
     app_user: "external_app_user"
     app_password: "6R3jjsvVhIRP20zMiHdkBzNKx"
     
-    # MongoDB connection details for Docker
+    # MongoDB connection details for Docker (external host/port)
     mongodb_host: "localhost"
-    mongodb_port: "27017"
+    mongodb_port: "27018"
     mongodb_auth_db: "external_system"
 
   tasks:

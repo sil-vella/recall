@@ -74,6 +74,18 @@
         loop_var: item
       when: domains | length > 0
 
+    - name: Create downloads directory for each domain
+      file:
+        path: "{{ (item.root_dir | default('/var/www/' + item.domain)) }}/downloads"
+        state: directory
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: '0755'
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+      when: domains | length > 0
+
     - name: Create default index.html for each domain
       copy:
         content: |

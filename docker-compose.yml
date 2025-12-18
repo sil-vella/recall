@@ -49,7 +49,7 @@ services:
       - RATE_LIMIT_IP_WINDOW=60
       - CREDIT_SYSTEM_URL=http://cleco_flask-external:5001
     volumes:
-      - /opt/apps/reignofplay/cleco/secrets/mongodb_user_password:/app/secrets/mongodb_user_password:ro
+      - /opt/apps/reignofplay/cleco/secrets:/app/secrets:ro
     depends_on:
       - cleco_mongodb-external
       - cleco_redis-external

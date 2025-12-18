@@ -37,10 +37,28 @@
         mode: '0644'
       register: grafana_dashboards_sync
 
-    - name: Create MongoDB user password secret file for Flask app
+    - name: Ensure secrets directory exists on VPS
+      file:
+        path: "{{ app_dir }}/secrets"
+        state: directory
+        mode: '0700'
+
+    - name: Create MongoDB root user password secret file
       copy:
+        src: "{{ playbook_dir }}/../../python_base_04/secrets/mongodb_root_password"
+        dest: "{{ app_dir }}/secrets/mongodb_root_password"
+        mode: '0600'
+
+    - name: Create MongoDB app user password secret file
+      copy:
+        src: "{{ playbook_dir }}/../../python_base_04/secrets/mongodb_user_password"
         dest: "{{ app_dir }}/secrets/mongodb_user_password"
-        content: "6R3jjsvVhIRP20zMiHdkBzNKx\n"
+        mode: '0600'
+
+    - name: Create Redis password secret file
+      copy:
+        src: "{{ playbook_dir }}/../../python_base_04/secrets/redis_password"
+        dest: "{{ app_dir }}/secrets/redis_password"
         mode: '0600'
 
     - name: Create app_download_base_url secret file for Flask app

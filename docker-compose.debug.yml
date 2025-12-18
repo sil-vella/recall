@@ -5,14 +5,15 @@ services:
     container_name: cleco_external_app_mongodb
     environment:
       - MONGODB_ROOT_USER=mongodb_admin
-      - MONGODB_ROOT_PASSWORD=MongoAdmin123!@#SecurePass
       - MONGODB_DATABASE=external_system
       - MONGODB_USERNAME=external_app_user
-      - MONGODB_PASSWORD=6R3jjsvVhIRP20zMiHdkBzNKx
+      - MONGODB_ROOT_PASSWORD_FILE=/app/secrets/mongodb_root_password
+      - MONGODB_PASSWORD_FILE=/app/secrets/mongodb_user_password
     ports:
       - "27018:27017"
     volumes:
       - mongodb_external_data:/bitnami/mongodb
+      - ./python_base_04/secrets:/app/secrets:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -22,11 +23,12 @@ services:
     image: bitnami/redis:latest
     container_name: cleco_external_app_redis
     environment:
-      - REDIS_PASSWORD=7cNfJTOcyDxdhK5NZubMoE7KS
+      - REDIS_PASSWORD_FILE=/app/secrets/redis_password
     ports:
       - "6380:6379"
     volumes:
       - redis_external_data:/bitnami/redis
+      - ./python_base_04/secrets:/app/secrets:ro
     networks:
       - app-network
     restart: unless-stopped

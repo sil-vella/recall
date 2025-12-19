@@ -121,14 +121,18 @@ Use this script for **manual testing on the physical device** against either loc
 
 **What it does** (high level):
 
-1. **Resolve repo root**:
+1. **Disable logging**: 
+   - Sets `LOGGING_SWITCH = false` in all Flutter source files before build
+   - Ensures production builds don't include debug logging
+
+2. **Resolve repo root**:
    - `SCRIPT_DIR` = `tools/scripts`
    - `REPO_ROOT` = project root.
 
-2. **Read app version**:
+3. **Read app version**:
    - Reads `APP_VERSION` from `python_base_04/secrets/app_version`, or falls back to `2.0.0` if not present.
 
-3. **Compute build number**:
+4. **Compute build number**:
    - Parses `APP_VERSION` as `major.minor.patch`.
    - Computes:
 
@@ -138,7 +142,7 @@ Use this script for **manual testing on the physical device** against either loc
 
      (e.g., `2.1.0` → `20100`).
 
-4. **Select backend URLs**:
+5. **Select backend URLs**:
    - For `vps` (default):
 
      ```bash
@@ -148,7 +152,7 @@ Use this script for **manual testing on the physical device** against either loc
 
    - For `local`: uses the LAN IP for the backend services.
 
-5. **Build APK** from `flutter_base_05`:
+6. **Build APK** from `flutter_base_05`:
 
    ```bash
    flutter build apk \
@@ -167,7 +171,7 @@ Use this script for **manual testing on the physical device** against either loc
    flutter_base_05/build/app/outputs/flutter-apk/app-release.apk
    ```
 
-6. **If `BACKEND_TARGET=vps`**:
+7. **If `BACKEND_TARGET=vps`**:
    - Uploads the APK to the VPS via `scp` using `VPS_SSH_KEY` and `VPS_SSH_TARGET`.
    - Installs it to:
 

@@ -260,6 +260,148 @@
           print("  📊 Users with is_comp_player field: " + usersWithField + " / " + totalUsers);
           
           // ========================================
+          // 4. CREATE COMPUTER PLAYERS
+          // ========================================
+          print("\n🤖 Step 4: Creating computer players...");
+          
+          // Bcrypt hash for password "comp_player_pass"
+          var compPlayerPassword = "$2b$12$PHGvsjOG3/fjNuEZQP1Szu5/igAj8pppp8XoAFeVyzDbj2EBh3o82";
+          
+          // Check if comp players already exist
+          var existingCompPlayers = db.users.countDocuments({ "is_comp_player": true });
+          print("  Found " + existingCompPlayers + " existing computer player(s)");
+          
+          if (existingCompPlayers >= 5) {
+            print("  ✓ Already have 5+ computer players, skipping creation");
+          } else {
+            var compPlayersToCreate = 5 - existingCompPlayers;
+            print("  ➕ Creating " + compPlayersToCreate + " new computer player(s)...");
+            
+            // Predefined usernames for comp players
+            var compPlayerUsernames = [
+              "alex.morris87",
+              "lena_kay",
+              "jordanrivers",
+              "samuel.b",
+              "nina_holt"
+            ];
+            
+            var compPlayers = [];
+            for (var i = 0; i < compPlayersToCreate; i++) {
+              var usernameIndex = existingCompPlayers + i;
+              var username, email;
+              
+              if (usernameIndex >= compPlayerUsernames.length) {
+                print("  ⚠️  Not enough predefined usernames, using fallback naming");
+                username = "comp_player_" + (usernameIndex + 1);
+                email = username + "@cp.com";
+              } else {
+                username = compPlayerUsernames[usernameIndex];
+                email = username + "@cp.com";
+              }
+              
+              // Check if user already exists
+              var existingUser = db.users.findOne({ $or: [{ "email": email }, { "username": username }] });
+              if (existingUser) {
+                print("  ⚠️  User " + username + " already exists, skipping");
+                continue;
+              }
+              
+              // Extract first and last name from username for profile
+              var firstName = username.split('.')[0].split('_')[0];
+              firstName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+              var lastName = "";
+              if (username.includes('.')) {
+                var parts = username.split('.');
+                lastName = parts[1].replace(/\d+/g, ''); // Remove numbers like "87"
+                if (lastName.length > 0) {
+                  lastName = lastName.charAt(0).toUpperCase() + lastName.slice(1);
+                }
+              } else if (username.includes('_')) {
+                var parts = username.split('_');
+                lastName = parts[1];
+                if (lastName.length > 0) {
+                  lastName = lastName.charAt(0).toUpperCase() + lastName.slice(1);
+                }
+              }
+              
+              var playerData = {
+                "username": username,
+                "email": email,
+                "password": compPlayerPassword,
+                "status": "active",
+                "is_comp_player": true,
+                "created_at": currentTime,
+                "updated_at": currentTime,
+                "profile": {
+                  "first_name": firstName,
+                  "last_name": lastName,
+                  "timezone": "UTC",
+                  "language": "en"
+                },
+                "preferences": {
+                  "notifications": {
+                    "email": false,
+                    "sms": false,
+                    "push": false
+                  },
+                  "privacy": {
+                    "profile_visible": false,
+                    "activity_visible": false
+                  }
+                },
+                "modules": {
+                  "in_app_purchases": {
+                    "enabled": false,
+                    "active_purchases": [],
+                    "subscription_status": "none",
+                    "last_purchase_date": null,
+                    "total_spent": 0,
+                    "currency": "USD",
+                    "last_updated": currentTime
+                  },
+                  "cleco_game": {
+                    "enabled": true,
+                    "wins": 0,
+                    "losses": 0,
+                    "total_matches": 0,
+                    "points": 0,
+                    "coins": 1000,
+                    "level": 1,
+                    "rank": "beginner",
+                    "win_rate": 0.0,
+                    "subscription_tier": "promotional",
+                    "last_match_date": null,
+                    "last_updated": currentTime
+                  }
+                },
+                "audit": {
+                  "last_login": null,
+                  "login_count": 0,
+                  "password_changed_at": null,
+                  "profile_updated_at": null
+                }
+              };
+              
+              compPlayers.push(playerData);
+              print("  ➕ Prepared computer player: " + username + " (" + email + ")");
+            }
+            
+            if (compPlayers.length > 0) {
+              var insertResult = db.users.insertMany(compPlayers);
+              print("  ✅ Created " + insertResult.insertedIds.length + " computer player(s)");
+              print("  📋 Created players:");
+              for (var i = 0; i < compPlayers.length; i++) {
+                print("    - " + compPlayers[i].username + " (" + compPlayers[i].email + ") - " + compPlayers[i].modules.cleco_game.coins + " coins");
+              }
+            }
+          }
+          
+          // Verify comp players
+          var finalCompPlayersCount = db.users.countDocuments({ "is_comp_player": true });
+          print("  📊 Total computer players in database: " + finalCompPlayersCount);
+          
+          // ========================================
           // FINAL SUMMARY
           // ========================================
           print("\n🎉 MODULE UPDATE COMPLETE!");
@@ -269,7 +411,13 @@
           print("- Users in database: " + db.users.countDocuments());
           print("- Users updated: " + usersUpdated);
           print("- Users skipped (already up-to-date): " + usersSkipped);
+          
+          // Comp players summary
+          var compPlayersCount = db.users.countDocuments({ "is_comp_player": true });
+          print("- Computer players: " + compPlayersCount);
+          
           print("\n✅ All missing modules have been added to existing users!");
+          print("✅ Computer players have been created!");
         mode: '0644'
 
     - name: Copy update script to MongoDB container
@@ -313,6 +461,16 @@
           print('Computer players (is_comp_player: true): ' + compPlayersCount);
           print('Human players (is_comp_player: false): ' + humanPlayersCount);
           
+          // List comp players
+          if (compPlayersCount > 0) {
+            print('\\n🤖 Computer Players:');
+            db.users.find({ "is_comp_player": true }, { username: 1, email: 1, "modules.cleco_game.coins": 1 }).forEach(function(player) {
+              var coins = player.modules && player.modules.cleco_game ? player.modules.cleco_game.coins : 0;
+              var playerInfo = "  - " + player.username + " (" + player.email + ") - " + coins + " coins";
+              print(playerInfo);
+            });
+          }
+          
           // List registered modules
           print('\\n📋 Registered Modules:');
           db.user_modules.find({}, { module_name: 1, display_name: 1, status: 1 }).forEach(function(module) {
@@ -341,6 +499,7 @@
           - Updated existing users with missing modules (in_app_purchases, cleco_game)
           - Added is_comp_player field to all users (default: false)
           - Created index on is_comp_player field
+          - Created 5 computer players with 1000 coins each
           - Preserved all existing user data
           - No collections were dropped or erased
           
@@ -350,6 +509,11 @@
           
           🤖 New Field Added:
           - is_comp_player: Boolean field to identify computer players (default: false)
+          
+          🤖 Computer Players Created:
+          - alex.morris87@cp.com, lena_kay@cp.com, jordanrivers@cp.com, samuel.b@cp.com, nina_holt@cp.com
+          - Each with 1000 coins in cleco_game module
+          - Password: comp_player_pass (bcrypt hashed)
           
           📊 Database Status:
           - Container: {{ mongodb_container_name }}

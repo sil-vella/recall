@@ -12,7 +12,7 @@ import 'websocket_events.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for backend connection debugging
+const bool LOGGING_SWITCH = false; // Enabled for backend connection debugging
 
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();

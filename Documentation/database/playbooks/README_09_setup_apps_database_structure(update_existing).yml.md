@@ -53,9 +53,31 @@ docker-compose up -d mongodb-external
   - **in_app_purchases**: enabled, empty purchases, no subscription
   - **cleco_game**: enabled, 0 wins/losses, beginner rank, level 1
 
-### Step 3: Verification
+### Step 3: Add is_comp_player Field
+- Creates index on `is_comp_player` field for efficient queries
+- Adds `is_comp_player: false` to all existing users that don't have it
+- Verifies all users have the field
+
+### Step 4: Create Computer Players
+- Checks if computer players already exist (target: 5 players)
+- Creates 5 computer players with predefined usernames:
+  - `alex.morris87` (alex.morris87@cp.com)
+  - `lena_kay` (lena_kay@cp.com)
+  - `jordanrivers` (jordanrivers@cp.com)
+  - `samuel.b` (samuel.b@cp.com)
+  - `nina_holt` (nina_holt@cp.com)
+- Each computer player has:
+  - Initial coins: 1000 in `modules.cleco_game.coins`
+  - Status: `active`
+  - Password: `comp_player_pass` (bcrypt hashed)
+  - `is_comp_player: true`
+  - Full user structure with all modules enabled
+
+### Step 5: Verification
 - Counts users with each module
 - Lists all registered modules
+- Counts computer players vs human players
+- Lists all computer players with their details
 - Provides summary statistics
 
 ## 🚀 Usage
@@ -97,8 +119,49 @@ ansible-playbook 09_add_missing_modules.yml -vvv
   ✅ Users updated: 3
   ✓ Users already up-to-date: 0
 
+🤖 Step 3: Adding is_comp_player field to users...
+  ✅ Created index on is_comp_player field
+  ✅ Added is_comp_player: false to 3 users
+  📊 Users with is_comp_player field: 3 / 3
+
+🤖 Step 4: Creating computer players...
+  Found 0 existing computer player(s)
+  ➕ Creating 5 new computer player(s)...
+  ➕ Prepared computer player: alex.morris87 (alex.morris87@cp.com)
+  ➕ Prepared computer player: lena_kay (lena_kay@cp.com)
+  ➕ Prepared computer player: jordanrivers (jordanrivers@cp.com)
+  ➕ Prepared computer player: samuel.b (samuel.b@cp.com)
+  ➕ Prepared computer player: nina_holt (nina_holt@cp.com)
+  ✅ Created 5 computer player(s)
+  📊 Total computer players in database: 5
+
 🎉 MODULE UPDATE COMPLETE!
 ```
+
+## 📊 What Gets Added
+
+### Computer Player Field
+
+**is_comp_player** field:
+- Added to all users (default: `false`)
+- Index created for efficient queries
+- Used to identify computer-controlled players for multiplayer games
+
+### Computer Players Created
+
+Five predefined computer players are created:
+- `alex.morris87` (alex.morris87@cp.com) - 1000 coins
+- `lena_kay` (lena_kay@cp.com) - 1000 coins
+- `jordanrivers` (jordanrivers@cp.com) - 1000 coins
+- `samuel.b` (samuel.b@cp.com) - 1000 coins
+- `nina_holt` (nina_holt@cp.com) - 1000 coins
+
+Each computer player has:
+- Full user structure with all modules
+- Initial coins: 1000 in `modules.cleco_game.coins`
+- Status: `active`
+- `is_comp_player: true`
+- Password: `comp_player_pass` (bcrypt hashed)
 
 ## 📊 Modules Added
 

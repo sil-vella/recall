@@ -16,6 +16,7 @@ from flask import request, jsonify
 from datetime import datetime
 from bson import ObjectId
 import time
+import random
 
 # Logging switch for this module
 LOGGING_SWITCH = True
@@ -88,6 +89,9 @@ class ClecoGameMain(BaseModule):
 
             # Register the deduct-game-coins endpoint with JWT authentication
             self._register_route_helper("/userauth/cleco/deduct-game-coins", self.deduct_game_coins, methods=["POST"], auth="jwt")
+
+            # Register the get-comp-players endpoint as public (no authentication)
+            self._register_route_helper("/public/cleco/get-comp-players", self.get_comp_players, methods=["POST"])
 
             custom_log("🔐 ClecoGame: All routes registered successfully", level="INFO", isOn=LOGGING_SWITCH)
             return True
@@ -725,6 +729,112 @@ class ClecoGameMain(BaseModule):
                 "success": False,
                 "message": "Failed to deduct game coins",
                 "error": str(e)
+            }), 500
+    
+    def get_comp_players(self):
+        """Get computer players from database (public endpoint)"""
+        try:
+            custom_log("🤖 ClecoGame: Received get-comp-players request", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Get request body
+            data = request.get_json()
+            if not data:
+                custom_log("❌ ClecoGame: Missing request body", level="ERROR", isOn=LOGGING_SWITCH)
+                return jsonify({
+                    "success": False,
+                    "error": "Request body is required",
+                    "message": "Missing request body"
+                }), 400
+            
+            # Get count parameter
+            count = data.get('count')
+            if count is None or not isinstance(count, int) or count <= 0:
+                custom_log("❌ ClecoGame: Invalid count parameter", level="ERROR", isOn=LOGGING_SWITCH)
+                return jsonify({
+                    "success": False,
+                    "error": "Invalid count parameter",
+                    "message": "count must be a positive integer"
+                }), 400
+            
+            custom_log(f"🤖 ClecoGame: Requesting {count} comp player(s)", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Get database manager
+            db_manager = self.app_manager.get_db_manager(role="read_write")
+            if not db_manager:
+                custom_log("❌ ClecoGame: Database connection unavailable", level="ERROR", isOn=LOGGING_SWITCH)
+                return jsonify({
+                    "success": False,
+                    "error": "Database connection unavailable",
+                    "message": "Failed to connect to database"
+                }), 500
+            
+            # Query for active comp players
+            query = {
+                "is_comp_player": True,
+                "status": "active"
+            }
+            
+            custom_log(f"🤖 ClecoGame: Querying database for comp players with query: {query}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Find all comp players
+            comp_players = db_manager.find("users", query)
+            
+            if not comp_players:
+                custom_log("⚠️ ClecoGame: No comp players found in database", level="WARNING", isOn=LOGGING_SWITCH)
+                return jsonify({
+                    "success": True,
+                    "comp_players": [],
+                    "count": 0,
+                    "message": "No comp players available in database"
+                }), 200
+            
+            custom_log(f"🤖 ClecoGame: Found {len(comp_players)} comp player(s) in database", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Shuffle the list first to ensure random order (MongoDB may return in _id order)
+            random.shuffle(comp_players)
+            
+            # Randomly select requested count (or all if fewer available)
+            selected_count = min(count, len(comp_players))
+            selected_players = random.sample(comp_players, selected_count)
+            
+            # Shuffle the selected players to ensure random order when added to game
+            random.shuffle(selected_players)
+            
+            custom_log(f"🤖 ClecoGame: Selected {selected_count} comp player(s) randomly and shuffled", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Format response with user_id, username, email (preserve random order)
+            comp_players_list = []
+            for idx, player in enumerate(selected_players):
+                comp_players_list.append({
+                    "user_id": str(player.get("_id", "")),
+                    "username": player.get("username", ""),
+                    "email": player.get("email", "")
+                })
+                custom_log(f"🤖 ClecoGame: Added comp player [{idx+1}/{selected_count}] - user_id: {player.get('_id')}, username: {player.get('username')}", level="INFO", isOn=LOGGING_SWITCH)
+            
+            response_data = {
+                "success": True,
+                "comp_players": comp_players_list,
+                "count": len(comp_players_list),
+                "requested_count": count,
+                "available_count": len(comp_players)
+            }
+            
+            if selected_count < count:
+                response_data["message"] = f"Only {selected_count} comp player(s) available (requested {count})"
+                custom_log(f"⚠️ ClecoGame: Only {selected_count} comp player(s) available (requested {count})", level="WARNING", isOn=LOGGING_SWITCH)
+            else:
+                response_data["message"] = f"Successfully retrieved {selected_count} comp player(s)"
+                custom_log(f"✅ ClecoGame: Successfully retrieved {selected_count} comp player(s)", level="INFO", isOn=LOGGING_SWITCH)
+            
+            return jsonify(response_data), 200
+            
+        except Exception as e:
+            custom_log(f"❌ ClecoGame: Error in get_comp_players: {e}", level="ERROR", isOn=LOGGING_SWITCH)
+            return jsonify({
+                "success": False,
+                "error": "Failed to retrieve comp players",
+                "message": str(e)
             }), 500
     
     

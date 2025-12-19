@@ -5,7 +5,7 @@ import 'lib/server/websocket_server.dart';
 import 'lib/utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = false; // Enabled for local debugging
 
 void main(List<String> args) async {
   // Initialize logger first
@@ -15,10 +15,10 @@ void main(List<String> args) async {
   try {
     final port = int.tryParse(Platform.environment['PORT'] ?? '8080') ?? 8080;
     
-    logger.info('🎮 Initializing Dart Game Server...', isOn: LOGGING_SWITCH);
+    logger.info('🎮 Initializing Dart Game Server (DEBUG MODE - Local)...', isOn: LOGGING_SWITCH);
     
-    // Create WebSocket server with Docker service URL (for VPS)
-    final wsServer = WebSocketServer(pythonApiUrl: 'http://cleco_flask-external:5001');
+    // Create WebSocket server with localhost URL (for local development)
+    final wsServer = WebSocketServer(pythonApiUrl: 'http://localhost:5001');
     
     // WebSocket handler
     final handler = webSocketHandler((webSocket) {
@@ -29,6 +29,7 @@ void main(List<String> args) async {
     final server = await shelf_io.serve(handler, '0.0.0.0', port);
     
     logger.info('✅ Game server running on ws://${server.address.host}:${server.port}', isOn: LOGGING_SWITCH);
+    logger.info('🔗 Python API URL: http://localhost:5001', isOn: LOGGING_SWITCH);
     logger.info('📡 Waiting for connections...', isOn: LOGGING_SWITCH);
     
     // Handle shutdown signals

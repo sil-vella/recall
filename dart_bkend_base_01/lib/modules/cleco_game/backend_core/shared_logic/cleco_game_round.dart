@@ -42,6 +42,9 @@ class ClecoGameRound {
   // Used to determine when final round is complete
   Set<String> _finalRoundPlayersCompleted = {};
   
+  // Track if onGameEnded has already been called to prevent duplicate stats updates
+  bool _gameEndedCallbackCalled = false;
+  
   ClecoGameRound(this._stateCallback, this._gameId);
 
   /// Helper method to sanitize all players' drawnCard data to ID-only format before broadcasting
@@ -3224,6 +3227,12 @@ class ClecoGameRound {
   /// 3. Final round completion (after final round is called)
   void _checkGameEnding() {
     try {
+      // Prevent duplicate processing if onGameEnded has already been called
+      if (_gameEndedCallbackCalled) {
+        _logger.info('Cleco: Game ending callback already called, skipping duplicate processing', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       _logger.info('Cleco: Checking if game should end', isOn: LOGGING_SWITCH);
       
       // Check if winners list contains any players - if so, game is over
@@ -3270,6 +3279,9 @@ class ClecoGameRound {
           final matchPot = storedGameState?['match_pot'] as int? ?? 0;
           
           _logger.info('Cleco: Game ending - match_pot: $matchPot, winners: ${_winnersList.length}', isOn: LOGGING_SWITCH);
+          
+          // Mark that onGameEnded has been called to prevent duplicate processing
+          _gameEndedCallbackCalled = true;
           
           // Call onGameEnded callback to trigger stats update
           // Pass match_pot so it can be included in game_results for winner reward

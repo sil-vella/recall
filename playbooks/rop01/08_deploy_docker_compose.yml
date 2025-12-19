@@ -46,14 +46,35 @@
         owner: "{{ vps_user }}"
         group: "{{ vps_user }}"
 
-    - name: Copy all secret files to VPS
+    - name: Get list of secret files
+      find:
+        paths: "{{ playbook_dir }}/../../python_base_04/secrets"
+        patterns: "*"
+        file_type: file
+      register: secret_files_local
+
+    - name: Copy secret files to VPS (only if missing or different)
       copy:
-        src: "{{ playbook_dir }}/../../python_base_04/secrets/"
-        dest: "{{ app_dir }}/secrets/"
+        src: "{{ item.path }}"
+        dest: "{{ app_dir }}/secrets/{{ item.path | basename }}"
         mode: '0644'
         owner: "{{ vps_user }}"
         group: "{{ vps_user }}"
-        directory_mode: '0755'
+        force: no
+      loop: "{{ secret_files_local.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+      when: item.path is defined
+      register: secret_files_copy_result
+
+    - name: Display secret files copy summary
+      debug:
+        msg: |
+          Secret files sync summary:
+          - Total files checked: {{ secret_files_local.files | length }}
+          - Files copied: {{ secret_files_copy_result.results | selectattr('changed', 'equalto', true) | list | length }}
+          - Files skipped (unchanged): {{ secret_files_copy_result.results | selectattr('changed', 'equalto', false) | list | length }}
+      when: secret_files_copy_result is defined
 
     - name: Copy docker-compose.yml to server
       copy:

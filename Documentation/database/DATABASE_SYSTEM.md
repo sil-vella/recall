@@ -863,6 +863,24 @@ The `users` collection includes embedded module data for:
 
 Each module contains module-specific fields and settings. See the playbook documentation for complete module schemas.
 
+**Computer Players**:
+The `users` collection includes a special field `is_comp_player` to identify computer-controlled players:
+- `is_comp_player: false` - Human players (default for all users)
+- `is_comp_player: true` - Computer players used in multiplayer games
+
+**Predefined Computer Players** (created by database setup playbook):
+- `alex.morris87` (alex.morris87@cp.com)
+- `lena_kay` (lena_kay@cp.com)
+- `jordanrivers` (jordanrivers@cp.com)
+- `samuel.b` (samuel.b@cp.com)
+- `nina_holt` (nina_holt@cp.com)
+
+Each computer player has:
+- Initial coins: 1000 in `modules.cleco_game.coins`
+- Status: `active`
+- Password: `comp_player_pass` (bcrypt hashed)
+- Full user structure with all modules enabled
+
 **Additional Collections** (Created by Application):
 - `notifications` - User notifications
 - `wallets` - Wallet data (if separate from user documents)
@@ -882,6 +900,7 @@ db.users.createIndex({ "username": 1 });
 db.users.createIndex({ "status": 1 });
 db.users.createIndex({ "created_at": 1 });
 db.users.createIndex({ "updated_at": 1 });
+db.users.createIndex({ "is_comp_player": 1 });  // For computer player queries
 ```
 
 **user_modules Collection**:
@@ -1220,6 +1239,19 @@ db.users.createIndex({ "status": 1, "created_at": -1 });
 ---
 
 ## Changelog
+
+### Version 1.2.0 (December 2025)
+- Added `is_comp_player` field to users collection
+  - Boolean field to identify computer-controlled players
+  - Index created for efficient queries
+  - Default value: `false` for all existing users
+- Added computer player creation to database setup playbooks
+  - Creates 5 predefined computer players with realistic usernames
+  - Each with 1000 initial coins and full module structure
+  - Usernames: alex.morris87, lena_kay, jordanrivers, samuel.b, nina_holt
+- Updated game end logic to handle comp player statistics
+  - Comp players from database have their statistics updated
+  - Simulated CPU players (fallback) are still skipped
 
 ### Version 1.1.0 (December 2025)
 - Added Playbook 09 for non-destructive database updates

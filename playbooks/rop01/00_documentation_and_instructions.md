@@ -7,6 +7,12 @@ The playbooks and scripts live in `playbooks/rop01/` and `tools/scripts/`, and t
 - A non-root application user `rop01_user`
 - Application root directory: `/opt/apps/reignofplay/cleco`
 
+**Important Configuration Note**: 
+- **Local development** uses different secret values than **VPS deployment**:
+  - Local: Flask runs on host, uses host ports (`27018`, `6380`) and `localhost`
+  - VPS: Flask runs in Docker, uses internal Docker ports (`27017`, `6379`) and service names (`cleco_redis-external`)
+- Build scripts automatically handle this difference by updating secrets during Docker image builds
+
 ---
 
 ### 1. SSH Key and Inventory Setup (`01_setup_ssh_key.sh` + `inventory.ini`)
@@ -153,7 +159,13 @@ This serves `https://cleco.reignofplay.com/downloads/...` directly from the file
   - `app_download_base_url`: set to `https://cleco.reignofplay.com/downloads` (used by Flask `APP_DOWNLOAD_BASE_URL`)
   - `google_client_id`: Web OAuth Client ID (required for Google Sign-In token verification)
   - `mobile_release.json`: maintained by the APK build script (see section 7)
+  - **VPS-specific configuration** (different from local):
+    - `mongodb_port`: `27017` (internal Docker network port, not host port)
+    - `redis_host`: `cleco_redis-external` (Docker service name, not localhost)
+    - `redis_port`: `6379` (internal Docker network port, not host port)
   - All other secret files in the local `secrets/` directory
+
+**Important**: The playbook only copies secret files if they don't exist or have different content (checksum comparison), making deployments faster.
 
 **Docker Compose file**:
 - Copied from repo root `docker-compose.yml` to the VPS at `/opt/apps/reignofplay/cleco/docker-compose.yml`.
@@ -183,6 +195,11 @@ This makes all secret files from `python_base_04/secrets/` available inside the 
 **Playbook flow**:
 - Validates `docker compose` availability.
 - Validates `docker-compose.yml` syntax.
+- **Copies secret files** (only if missing or different - uses checksum comparison for efficiency):
+  - Finds all secret files in `python_base_04/secrets/`
+  - Compares checksums with existing files on VPS
+  - Only copies files that don't exist or have changed
+  - Provides summary of files copied vs skipped
 - Optionally pulls latest images and runs `docker compose up -d`.
 - Waits for Flask (5001), MongoDB (27018), and Redis (6380) to be reachable.
 - Optionally restarts Grafana if dashboards changed.
@@ -202,6 +219,14 @@ ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
 
 **What it does**:
 - Builds the Flask Docker image from `python_base_04/Dockerfile` with build context `python_base_04/`.
+- **Secret Management**: 
+  - Backs up local secret values (for local development)
+  - Updates secrets with VPS values from `.env` file:
+    - `mongodb_port`: `27017` (internal Docker port)
+    - `redis_host`: `cleco_redis-external` (Docker service name)
+    - `redis_port`: `6379` (internal Docker port)
+  - Builds Docker image with VPS configuration
+  - Restores local secret values after build
 - Temporarily comments out `custom_log(...)` calls (to avoid noisy logs or syntax traps), builds, then restores them.
 - Tags and pushes the image to Docker Hub as:
 
@@ -209,11 +234,49 @@ ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
   silvella/cleco_flask_app:latest
   ```
 
+**Configuration**:
+- VPS values are stored in `.env` file in project root:
+  ```
+  VPS_MONGODB_PORT=27017
+  VPS_REDIS_HOST=cleco_redis-external
+  VPS_REDIS_PORT=6379
+  ```
+- Local development uses different values in `python_base_04/secrets/`:
+  - `mongodb_port`: `27018` (host port)
+  - `redis_host`: `localhost`
+  - `redis_port`: `6380` (host port)
+
 **Usage**:
 
 ```bash
 cd /Users/sil/Documents/Work/reignofplay/Recall/app_dev
 python3 playbooks/rop01/06_build_and_push_docker.py
+```
+
+**Note**: The script automatically handles secret file updates and restoration, so local development remains unaffected.
+
+After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts the new image.
+
+---
+
+### 6.1 Dart Docker Image Build & Push (`07_build_and_push_dart_docker.py`)
+
+- **Script**: `playbooks/rop01/07_build_and_push_dart_docker.py`
+
+**What it does**:
+- Builds the Dart WebSocket server Docker image from `dart_bkend_base_01/Dockerfile`.
+- **Disables logging**: Sets `LOGGING_SWITCH = false` in all Dart source files before build
+- Tags and pushes the image to Docker Hub as:
+
+  ```
+  silvella/cleco_dart_game_server:latest
+  ```
+
+**Usage**:
+
+```bash
+cd /Users/sil/Documents/Work/reignofplay/Recall/app_dev
+python3 playbooks/rop01/07_build_and_push_dart_docker.py
 ```
 
 After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts the new image.
@@ -229,13 +292,14 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
 - Mobile app version: read from `python_base_04/secrets/app_version` (e.g. `2.1.0`).
 
 **What the script does**:
-1. **Resolve repo root** and read `APP_VERSION` from:
+1. **Disable logging**: Sets `LOGGING_SWITCH = false` in all Flutter source files before build
+2. **Resolve repo root** and read `APP_VERSION` from:
    - `python_base_04/secrets/app_version` (or falls back to `2.0.0`).
-2. **Derive build number** for Flutter:
+3. **Derive build number** for Flutter:
 
    - Splits `APP_VERSION` into `major.minor.patch`.
    - Computes `BUILD_NUMBER = major * 10000 + minor * 100 + patch`.
-3. **Sets backend URLs**:
+4. **Sets backend URLs**:
    - For `vps` (default):
 
      ```bash
@@ -244,7 +308,7 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
      ```
 
    - For `local`: uses your LAN IP for the Python and Dart services.
-4. **Builds the release APK** from `flutter_base_05`:
+5. **Builds the release APK** from `flutter_base_05`:
 
    ```bash
    flutter build apk \
@@ -259,7 +323,7 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
 
    Output: `flutter_base_05/build/app/outputs/flutter-apk/app-release.apk`.
 
-5. **If target is `vps`**:
+6. **If target is `vps`**:
    - Uses SSH (default `rop01_user@65.181.125.135`, key `~/.ssh/rop01_key`).
    - Uploads the APK to a temp path on the VPS and then moves it (with `sudo`) to:
 
@@ -421,11 +485,23 @@ There are two relevant playbooks for **remote** MongoDB structure:
      - Adds a default `modules.cleco_game` block if missing.
      - Adds or updates `coins` and `subscription_tier` for existing `cleco_game` entries, and normalizes `subscription_tier="free"` to `"promotional"`.
      - Updates `updated_at` timestamps as needed.
+   - **Adds `is_comp_player` field**:
+     - Creates index on `is_comp_player` field
+     - Adds `is_comp_player: false` to all existing users that don't have it
+   - **Creates computer players**:
+     - Creates 5 computer players with predefined usernames:
+       - `alex.morris87`
+       - `lena_kay`
+       - `jordanrivers`
+       - `samuel.b`
+       - `nina_holt`
+     - Each with 1000 coins, active status, and `is_comp_player: true`
 3. Copies the script into the MongoDB container and executes it via `mongosh`.
 4. Prints a detailed log of operations and a verification summary:
    - Total modules in `user_modules`.
    - Number of users.
    - Number of users with `in_app_purchases` and `cleco_game` modules.
+   - Number of computer players created.
 5. Cleans up the temporary script and prints a final, human-readable summary.
 
 **Guarantees**:
@@ -450,10 +526,14 @@ To perform a full **mobile app + backend** release with versioned updates:
    echo "2.2.0" > python_base_04/secrets/app_version
    ```
 
-3. **Build and push Flask image (if backend code changed)**:
+3. **Build and push Docker images (if backend code changed)**:
 
    ```bash
+   # Build and push Flask image
    python3 playbooks/rop01/06_build_and_push_docker.py
+   
+   # Build and push Dart WebSocket server image
+   python3 playbooks/rop01/07_build_and_push_dart_docker.py
    ```
 
 4. **Deploy updated stack**:
@@ -463,6 +543,8 @@ To perform a full **mobile app + backend** release with versioned updates:
    ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
    ```
 
+   **Note**: The deployment playbook now uses checksum comparison for secret files, only copying files that don't exist or have changed, making deployments faster.
+
 5. **Build and upload new APK + update manifest**:
 
    ```bash
@@ -471,6 +553,8 @@ To perform a full **mobile app + backend** release with versioned updates:
    ```
 
    This creates `/downloads/v2.2.0/app.apk` and updates `mobile_release.json` accordingly.
+   
+   **Note**: The build script automatically disables `LOGGING_SWITCH` in all Flutter source files before building the release APK.
 
 6. **Optionally update MongoDB structure** (if new modules/fields were introduced):
 

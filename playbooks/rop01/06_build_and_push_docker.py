@@ -34,6 +34,9 @@ BUILD_CONTEXT = PROJECT_ROOT / 'python_base_04'
 # Track modified files for restoration
 modified_files = []
 
+# Track secret file backups for restoration
+secret_backups = {}
+
 def get_indentation(line: str) -> str:
     """Get the leading whitespace (indentation) from a line."""
     match = re.match(r'^(\s*)', line)
@@ -255,6 +258,80 @@ def uncomment_custom_logs():
     
     print(f"{Colors.GREEN}✓ Restored {total_lines_count} custom_log() calls in {modified_files_count} files{Colors.NC}")
 
+def load_env_file(env_path: Path) -> dict:
+    """Load environment variables from .env file."""
+    env_vars = {}
+    if env_path.exists():
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    env_vars[key.strip()] = value.strip()
+    return env_vars
+
+def backup_and_update_secrets():
+    """Backup local secret values and update with VPS values from .env."""
+    print(f"\n{Colors.BLUE}Updating secrets for VPS Docker build...{Colors.NC}")
+    
+    secrets_dir = PROJECT_ROOT / 'python_base_04' / 'secrets'
+    env_file = PROJECT_ROOT / '.env'
+    
+    # Load VPS values from .env
+    vps_env = load_env_file(env_file)
+    
+    if not vps_env:
+        print(f"{Colors.YELLOW}⚠️  No .env file found or empty. Using default VPS values.{Colors.NC}")
+        vps_env = {
+            'VPS_MONGODB_PORT': '27017',
+            'VPS_REDIS_HOST': 'cleco_redis-external',
+            'VPS_REDIS_PORT': '6379'
+        }
+    
+    # Secret files to update
+    secrets_to_update = {
+        'mongodb_port': vps_env.get('VPS_MONGODB_PORT', '27017'),
+        'redis_host': vps_env.get('VPS_REDIS_HOST', 'cleco_redis-external'),
+        'redis_port': vps_env.get('VPS_REDIS_PORT', '6379')
+    }
+    
+    # Backup and update each secret file
+    for secret_name, vps_value in secrets_to_update.items():
+        secret_path = secrets_dir / secret_name
+        if secret_path.exists():
+            # Backup current value
+            with open(secret_path, 'r') as f:
+                secret_backups[secret_name] = f.read().strip()
+            
+            # Update with VPS value
+            with open(secret_path, 'w') as f:
+                f.write(vps_value + '\n')
+            
+            print(f"  {Colors.GREEN}✓{Colors.NC} Updated {secret_name}: {secret_backups[secret_name]} → {vps_value}")
+        else:
+            print(f"  {Colors.YELLOW}⚠️  {secret_name} not found, skipping{Colors.NC}")
+    
+    print(f"{Colors.GREEN}✓ Secrets updated for VPS Docker build{Colors.NC}")
+
+def restore_secrets():
+    """Restore local secret values from backup."""
+    if not secret_backups:
+        return
+    
+    print(f"\n{Colors.BLUE}Restoring local secret values...{Colors.NC}")
+    
+    secrets_dir = PROJECT_ROOT / 'python_base_04' / 'secrets'
+    
+    for secret_name, local_value in secret_backups.items():
+        secret_path = secrets_dir / secret_name
+        if secret_path.exists():
+            with open(secret_path, 'w') as f:
+                f.write(local_value + '\n')
+            print(f"  {Colors.GREEN}✓{Colors.NC} Restored {secret_name}: {local_value}")
+    
+    secret_backups.clear()
+    print(f"{Colors.GREEN}✓ Local secrets restored{Colors.NC}")
+
 def check_docker():
     """Check if Docker is running."""
     try:
@@ -344,6 +421,9 @@ def main():
         sys.exit(1)
     
     try:
+        # Backup and update secrets for VPS Docker build
+        backup_and_update_secrets()
+        
         # Comment out custom_log calls
         comment_custom_logs()
         
@@ -353,10 +433,14 @@ def main():
         if not success:
             # Restore even if build failed
             uncomment_custom_logs()
+            restore_secrets()
             sys.exit(1)
         
         # Restore custom_log calls after successful build and push
         uncomment_custom_logs()
+        
+        # Restore local secret values
+        restore_secrets()
         
         print(f"\n{Colors.GREEN}=== Build and Push Complete ==={Colors.NC}")
         print(f"Image available at: {Colors.BLUE}{DOCKER_USERNAME}/{IMAGE_NAME}:{IMAGE_TAG}{Colors.NC}")
@@ -365,12 +449,14 @@ def main():
         print()
     
     except KeyboardInterrupt:
-        print(f"\n{Colors.YELLOW}Interrupted. Restoring custom_log() calls...{Colors.NC}")
+        print(f"\n{Colors.YELLOW}Interrupted. Restoring files...{Colors.NC}")
         uncomment_custom_logs()
+        restore_secrets()
         sys.exit(1)
     except Exception as e:
         print(f"\n{Colors.RED}Error: {e}{Colors.NC}")
         uncomment_custom_logs()
+        restore_secrets()
         sys.exit(1)
 
 if __name__ == '__main__':

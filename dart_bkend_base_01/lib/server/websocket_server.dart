@@ -25,11 +25,12 @@ class WebSocketServer {
   // ignore: unused_field
   late ClecoGameModule _clecoGameModule;
 
-  WebSocketServer() {
+  WebSocketServer({required String pythonApiUrl}) {
     _logger.initialize();
     _messageHandler = MessageHandler(_roomManager, this);
-    // In Docker, use the Flask service name on the compose network
-    _pythonClient = PythonApiClient(baseUrl: 'http://cleco_flask-external:5001');
+    // Python API URL is passed from app.dart (VPS) or app.debug.dart (local)
+    _pythonClient = PythonApiClient(baseUrl: pythonApiUrl);
+    _logger.info('🔗 Python API client configured: $pythonApiUrl', isOn: LOGGING_SWITCH);
     
     // Wire up room closure hook
     _roomManager.onRoomClosed = (roomId, reason) {

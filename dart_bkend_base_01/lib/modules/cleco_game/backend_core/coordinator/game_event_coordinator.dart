@@ -5,7 +5,7 @@ import '../services/game_state_store.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for winner determination testing
+const bool LOGGING_SWITCH = false; // Enabled for comp player testing
 
 /// Coordinates WS game events to the ClecoGameRound logic per room.
 class GameEventCoordinator {
@@ -249,29 +249,136 @@ class GameEventCoordinator {
     if (needed < 0) needed = 0;
     
     _logger.info('GameEventCoordinator: CPU player creation - isPracticeMode: $isPracticeMode, isRandomJoin: $isRandomJoin, isAutoStart: $isAutoStart, currentPlayers: ${players.length}, needed: $needed, target: ${(isPracticeMode || isRandomJoin || isAutoStart) ? maxPlayers : minPlayers}', isOn: LOGGING_SWITCH);
-    int cpuIndexBase = 1;
-    // Find next CPU index not used
+    
+    // Get existing player names to avoid duplicates
     final existingNames = players.map((p) => (p['name'] ?? '').toString()).toSet();
-    while (needed > 0 && players.length < maxPlayers) {
-      String name;
-      do {
-        name = 'CPU ${cpuIndexBase++}';
-      } while (existingNames.contains(name));
-      final cpuId = 'cpu_${DateTime.now().microsecondsSinceEpoch}_$cpuIndexBase';
-      players.add({
-        'id': cpuId,
-        'name': name,
-        'isHuman': false,
-        'status': 'waiting',
-        'hand': <Map<String, dynamic>>[],
-        'visible_cards': <Map<String, dynamic>>[],
-        'points': 0,
-        'known_cards': <String, dynamic>{},
-        'collection_rank_cards': <String>[],
-        'isActive': true,  // Required for same rank play filtering
-        'difficulty': 'medium',  // Default difficulty for computer players
-      });
-      needed--;
+    int cpuIndexBase = 1;
+    
+    // Skip comp player fetching for practice mode - use simulated CPU players
+    if (isPracticeMode) {
+      _logger.info('GameEventCoordinator: Practice mode detected - using simulated CPU players', isOn: LOGGING_SWITCH);
+      // Create simulated CPU players (existing logic)
+      while (needed > 0 && players.length < maxPlayers) {
+        String name;
+        do {
+          name = 'CPU ${cpuIndexBase++}';
+        } while (existingNames.contains(name));
+        final cpuId = 'cpu_${DateTime.now().microsecondsSinceEpoch}_$cpuIndexBase';
+        players.add({
+          'id': cpuId,
+          'name': name,
+          'isHuman': false,
+          'status': 'waiting',
+          'hand': <Map<String, dynamic>>[],
+          'visible_cards': <Map<String, dynamic>>[],
+          'points': 0,
+          'known_cards': <String, dynamic>{},
+          'collection_rank_cards': <String>[],
+          'isActive': true,  // Required for same rank play filtering
+          'difficulty': 'medium',  // Default difficulty for computer players
+        });
+        existingNames.add(name);  // Track name to avoid duplicates
+        needed--;
+      }
+    } else {
+      // Multiplayer mode: Try to fetch comp players from Flask backend
+      _logger.info('GameEventCoordinator: Multiplayer mode - fetching comp players from Flask backend', isOn: LOGGING_SWITCH);
+      
+      int compPlayersAdded = 0;
+      int remainingNeeded = needed;
+      
+      try {
+        // Fetch comp players from Flask backend
+        final compPlayersResponse = await server.pythonClient.getCompPlayers(needed);
+        final success = compPlayersResponse['success'] as bool? ?? false;
+        final compPlayersList = compPlayersResponse['comp_players'] as List<dynamic>? ?? [];
+        final returnedCount = compPlayersResponse['count'] as int? ?? 0;
+        
+        if (success && compPlayersList.isNotEmpty) {
+          _logger.info('GameEventCoordinator: Retrieved $returnedCount comp player(s) from Flask backend', isOn: LOGGING_SWITCH);
+          
+          // Add comp players to players list
+          for (final compPlayerData in compPlayersList) {
+            if (compPlayerData is! Map<String, dynamic>) continue;
+            if (players.length >= maxPlayers) break;
+            
+            final userId = compPlayerData['user_id'] as String? ?? '';
+            final username = compPlayerData['username'] as String? ?? 'CompPlayer';
+            final email = compPlayerData['email'] as String? ?? '';
+            
+            // Generate a unique player ID (use userId as base, but ensure uniqueness)
+            // For comp players, we can use userId directly or create a sessionId-like ID
+            final playerId = 'comp_${userId}_${DateTime.now().microsecondsSinceEpoch}';
+            
+            // Ensure username is unique
+            String uniqueName = username;
+            int nameSuffix = 1;
+            while (existingNames.contains(uniqueName)) {
+              uniqueName = '$username$nameSuffix';
+              nameSuffix++;
+            }
+            existingNames.add(uniqueName);
+            
+            players.add({
+              'id': playerId,
+              'name': uniqueName,
+              'isHuman': false,
+              'status': 'waiting',
+              'hand': <Map<String, dynamic>>[],
+              'visible_cards': <Map<String, dynamic>>[],
+              'points': 0,
+              'known_cards': <String, dynamic>{},
+              'collection_rank_cards': <String>[],
+              'isActive': true,  // Required for same rank play filtering
+              'difficulty': 'medium',  // Default difficulty for computer players
+              'userId': userId,  // Store userId for coin deduction logic
+              'email': email,  // Store email for reference
+            });
+            
+            compPlayersAdded++;
+            remainingNeeded--;
+            
+            _logger.info('GameEventCoordinator: Added comp player - id: $playerId, name: $uniqueName, userId: $userId', isOn: LOGGING_SWITCH);
+          }
+          
+          _logger.info('GameEventCoordinator: Added $compPlayersAdded comp player(s) from database', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.warning('GameEventCoordinator: No comp players returned from Flask backend (success: $success, count: $returnedCount)', isOn: LOGGING_SWITCH);
+        }
+      } catch (e) {
+        _logger.error('GameEventCoordinator: Error fetching comp players from Flask backend: $e', isOn: LOGGING_SWITCH);
+        // Continue to fallback logic below
+      }
+      
+      // Fallback: Create simulated CPU players for any remaining slots
+      if (remainingNeeded > 0) {
+        _logger.info('GameEventCoordinator: Creating $remainingNeeded simulated CPU player(s) as fallback', isOn: LOGGING_SWITCH);
+        
+        while (remainingNeeded > 0 && players.length < maxPlayers) {
+          String name;
+          do {
+            name = 'CPU ${cpuIndexBase++}';
+          } while (existingNames.contains(name));
+          final cpuId = 'cpu_${DateTime.now().microsecondsSinceEpoch}_$cpuIndexBase';
+          players.add({
+            'id': cpuId,
+            'name': name,
+            'isHuman': false,
+            'status': 'waiting',
+            'hand': <Map<String, dynamic>>[],
+            'visible_cards': <Map<String, dynamic>>[],
+            'points': 0,
+            'known_cards': <String, dynamic>{},
+            'collection_rank_cards': <String>[],
+            'isActive': true,  // Required for same rank play filtering
+            'difficulty': 'medium',  // Default difficulty for computer players
+          });
+          existingNames.add(name);
+          remainingNeeded--;
+        }
+        
+        _logger.info('GameEventCoordinator: Created ${needed - remainingNeeded} simulated CPU player(s) as fallback', isOn: LOGGING_SWITCH);
+      }
     }
 
     // Build deck and deal 4 cards per player (as in practice)

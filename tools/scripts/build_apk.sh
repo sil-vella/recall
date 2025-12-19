@@ -88,6 +88,39 @@ echo "🔢 Using BUILD_NUMBER=$BUILD_NUMBER"
 # Navigate to Flutter project directory
 cd "$REPO_ROOT/flutter_base_05"
 
+# Disable LOGGING_SWITCH in all Dart files before build
+echo ""
+echo "🔇 Disabling LOGGING_SWITCH in Flutter sources..."
+FLUTTER_DIR="$REPO_ROOT/flutter_base_05"
+REPLACED_FILES=0
+REPLACED_OCCURRENCES=0
+
+while IFS= read -r -d '' dart_file; do
+    if grep -q "LOGGING_SWITCH = true" "$dart_file" 2>/dev/null; then
+        # Count occurrences before replacement
+        OCCURRENCES=$(grep -o "LOGGING_SWITCH = true" "$dart_file" | wc -l | tr -d ' ')
+        
+        # Use sed for in-place replacement (works on both macOS and Linux)
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' 's/LOGGING_SWITCH = true/LOGGING_SWITCH = false/g' "$dart_file"
+        else
+            sed -i 's/LOGGING_SWITCH = true/LOGGING_SWITCH = false/g' "$dart_file"
+        fi
+        
+        REPLACED_OCCURRENCES=$((REPLACED_OCCURRENCES + OCCURRENCES))
+        REPLACED_FILES=$((REPLACED_FILES + 1))
+        REL_PATH="${dart_file#$FLUTTER_DIR/}"
+        echo "  ✓ Updated $REL_PATH ($OCCURRENCES occurrence(s))"
+    fi
+done < <(find "$FLUTTER_DIR" -name "*.dart" -type f -print0)
+
+if [ "$REPLACED_FILES" -eq 0 ]; then
+    echo "  ℹ️  No LOGGING_SWITCH = true found in Flutter sources."
+else
+    echo "  ✅ Disabled LOGGING_SWITCH in $REPLACED_OCCURRENCES place(s) across $REPLACED_FILES file(s)"
+fi
+echo ""
+
 # Build the release APK
 flutter build apk \
   --release \

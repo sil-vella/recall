@@ -419,11 +419,16 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
           continue;
         }
         
-        // Get user_id from session (playerId = sessionId in this system)
-        final userId = server.getUserIdForSession(playerId);
+        // Get user_id from session (for human players) or from player object (for comp players)
+        var userId = server.getUserIdForSession(playerId);
         if (userId == null) {
-          _logger.warning('GameStateCallback: No user_id found for player $playerId, skipping stats update', isOn: LOGGING_SWITCH);
-          continue;
+          // Fallback: Check if player object has userId (for comp players from database)
+          userId = player['userId']?.toString();
+          if (userId == null || userId.isEmpty) {
+            _logger.warning('GameStateCallback: No user_id found for player $playerId (tried session and player object), skipping stats update', isOn: LOGGING_SWITCH);
+            continue;
+          }
+          _logger.info('GameStateCallback: Using userId from player object for comp player $playerId: $userId', isOn: LOGGING_SWITCH);
         }
         
         // Determine if this player is a winner

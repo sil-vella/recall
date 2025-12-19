@@ -101,6 +101,12 @@ class Config {
     defaultValue: '907176907209-q53b29haj3t690ol7kbtqrqo0hkt9ku7.apps.googleusercontent.com',
   );
 
+  // Google Sign-In Client ID (Android) - Separate OAuth 2.0 Client ID for Android
+  static const String googleClientIdAndroid = String.fromEnvironment(
+    'GOOGLE_CLIENT_ID_ANDROID',
+    defaultValue: '907176907209-u7cjeiousj1dd460730rgspf05u0fhic.apps.googleusercontent.com',
+  );
+
   // Diagnostics
   static const String platform = String.fromEnvironment('APP_PLATFORM', defaultValue: 'flutter');
   static const String buildMode = String.fromEnvironment('BUILD_MODE', defaultValue: 'debug');

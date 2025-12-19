@@ -940,6 +940,9 @@ class WebSocketManager:
 
     def run(self, app, **kwargs):
         """Run the WebSocket server."""
+        # Allow Werkzeug in debug/development mode
+        if kwargs.get('debug', False):
+            kwargs['allow_unsafe_werkzeug'] = True
         self.socketio.run(app, **kwargs)
 
     def _handle_message(self, sid: str, message: str):

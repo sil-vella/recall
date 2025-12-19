@@ -146,9 +146,14 @@ This serves `https://cleco.reignofplay.com/downloads/...` directly from the file
   - `grafana/` (Grafana data + provisioning + dashboards)
 
 **Secrets created** under `/opt/apps/reignofplay/cleco/secrets`:
-- `mongodb_user_password`: password for the MongoDB app user.
-- `app_download_base_url`: set to `https://cleco.reignofplay.com/downloads` (used by Flask `APP_DOWNLOAD_BASE_URL`).
-- `mobile_release.json`: maintained by the APK build script (see section 7).
+- **All secret files** from `python_base_04/secrets/` are automatically copied to the VPS, including:
+  - `mongodb_root_password`: MongoDB root user password
+  - `mongodb_user_password`: password for the MongoDB app user
+  - `redis_password`: Redis password
+  - `app_download_base_url`: set to `https://cleco.reignofplay.com/downloads` (used by Flask `APP_DOWNLOAD_BASE_URL`)
+  - `google_client_id`: Web OAuth Client ID (required for Google Sign-In token verification)
+  - `mobile_release.json`: maintained by the APK build script (see section 7)
+  - All other secret files in the local `secrets/` directory
 
 **Docker Compose file**:
 - Copied from repo root `docker-compose.yml` to the VPS at `/opt/apps/reignofplay/cleco/docker-compose.yml`.
@@ -169,7 +174,11 @@ cleco_flask-external:
     - /opt/apps/reignofplay/cleco/secrets:/app/secrets:ro
 ```
 
-This makes `app_download_base_url`, `mobile_release.json`, and any other secret files available inside the container at `/app/secrets/...`.
+This makes all secret files from `python_base_04/secrets/` available inside the container at `/app/secrets/...`, including:
+- `app_download_base_url`
+- `google_client_id` (for Google Sign-In token verification)
+- `mobile_release.json`
+- All other secret files (automatically copied by the deployment playbook)
 
 **Playbook flow**:
 - Validates `docker compose` availability.

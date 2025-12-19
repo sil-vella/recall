@@ -18,9 +18,17 @@ import requests as http_requests
 try:
     from core.services.google_auth_service import GoogleAuthService
     GOOGLE_AUTH_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     GOOGLE_AUTH_AVAILABLE = False
     GoogleAuthService = None
+    # Log at module level (before LOGGING_SWITCH is available)
+    print(f"⚠️ UserManagement: Failed to import GoogleAuthService - ImportError: {e}")
+except Exception as e:
+    GOOGLE_AUTH_AVAILABLE = False
+    GoogleAuthService = None
+    import traceback
+    print(f"⚠️ UserManagement: Failed to import GoogleAuthService - Unexpected error: {e}")
+    print(f"⚠️ Traceback: {traceback.format_exc()}")
 
 from core.services.analytics_service import AnalyticsService
 
@@ -820,7 +828,10 @@ class UserManagementModule(BaseModule):
             
             if id_token_string:
                 # Preferred: Verify ID token (requires GoogleAuthService)
+                custom_log(f"UserManagement: Google Sign-In - GOOGLE_AUTH_AVAILABLE={GOOGLE_AUTH_AVAILABLE}, GoogleAuthService={GoogleAuthService}", level="DEBUG", isOn=UserManagementModule.LOGGING_SWITCH)
+                
                 if not GOOGLE_AUTH_AVAILABLE or GoogleAuthService is None:
+                    custom_log(f"UserManagement: GoogleAuthService not available - GOOGLE_AUTH_AVAILABLE={GOOGLE_AUTH_AVAILABLE}, GoogleAuthService={GoogleAuthService}", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
                     return jsonify({
                         "success": False,
                         "error": "Google Sign-In with ID token requires google-auth package. Please install it."
@@ -828,7 +839,12 @@ class UserManagementModule(BaseModule):
                 
                 custom_log("UserManagement: Google Sign-In - Using ID token", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 google_auth_service = GoogleAuthService()
+                custom_log(f"UserManagement: GoogleAuthService initialized with client_id: {google_auth_service.client_id[:20] if google_auth_service.client_id else 'None'}...", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 user_info = google_auth_service.get_user_info(id_token_string)
+                if not user_info:
+                    custom_log("UserManagement: Google Sign-In - get_user_info returned None (token verification failed)", level="ERROR", isOn=UserManagementModule.LOGGING_SWITCH)
+                else:
+                    custom_log(f"UserManagement: Google Sign-In - User info obtained: email={user_info.get('email')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             elif access_token and user_info_from_client:
                 # Fallback for web: Verify access token and use provided user info
                 custom_log("UserManagement: Google Sign-In - Using access token (web fallback)", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)

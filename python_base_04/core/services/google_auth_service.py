@@ -61,11 +61,15 @@ class GoogleAuthService:
             
         except ValueError as e:
             # Invalid token
-            custom_log(f"GoogleAuthService: Token verification failed - Invalid token: {e}", level="WARNING")
+            custom_log(f"GoogleAuthService: Token verification failed - Invalid token: {e}", level="ERROR")
+            import traceback
+            custom_log(f"GoogleAuthService: ValueError traceback: {traceback.format_exc()}", level="ERROR")
             return None
         except Exception as e:
             # Other errors (network, etc.)
             custom_log(f"GoogleAuthService: Token verification error: {e}", level="ERROR")
+            import traceback
+            custom_log(f"GoogleAuthService: Exception traceback: {traceback.format_exc()}", level="ERROR")
             return None
     
     def get_user_info(self, id_token_string: str) -> Optional[Dict[str, Any]]:

@@ -603,15 +603,25 @@ class LoginModule extends ModuleBase {
       }
 
       // Initialize Google Sign-In
-      // On web, we need to provide the client ID
+      // Web uses clientId (Web OAuth client ID)
+      // Android uses serverClientId (Web OAuth client ID - for ID tokens to send to backend)
+      // Android OAuth client (with SHA-1) is automatically detected via package name + SHA-1
       // 'openid' scope is required for ID tokens on web
+      final String? webClientId = Config.googleClientId; // Web Client ID (same for both web and Android serverClientId)
+      
       final GoogleSignIn googleSignIn = GoogleSignIn(
         scopes: ['email', 'profile', 'openid'],
-        // Web requires explicit client ID
-        clientId: kIsWeb ? Config.googleClientId : null,
+        clientId: kIsWeb ? webClientId : null, // For web only
+        serverClientId: kIsWeb ? null : webClientId, // For Android: use Web Client ID to get ID tokens
       );
       
-      Logger().info("LoginModule: Google Sign-In initialized - Platform: ${kIsWeb ? 'Web' : 'Mobile'}, Client ID: ${kIsWeb ? Config.googleClientId.substring(0, 20) + '...' : 'Not needed'}", isOn: LOGGING_SWITCH);
+      final String clientIdDisplay = webClientId != null && webClientId.isNotEmpty
+          ? '${webClientId.substring(0, webClientId.length > 20 ? 20 : webClientId.length)}...'
+          : 'Not configured';
+      Logger().info("LoginModule: Google Sign-In initialized - Platform: ${kIsWeb ? 'Web' : 'Android'}, ${kIsWeb ? 'Client ID' : 'Server Client ID (Web)'}: $clientIdDisplay", isOn: LOGGING_SWITCH);
+      if (!kIsWeb) {
+        Logger().info("LoginModule: Android OAuth client is auto-detected via package name + SHA-1 fingerprint", isOn: LOGGING_SWITCH);
+      }
 
       // Trigger the authentication flow
       // On web, try signInSilently first, then fall back to signIn
@@ -628,7 +638,22 @@ class LoginModule extends ModuleBase {
       
       // If silent sign-in didn't work or not on web, prompt user
       if (googleUser == null) {
-        googleUser = await googleSignIn.signIn();
+        try {
+          googleUser = await googleSignIn.signIn();
+        } catch (e) {
+          Logger().error("LoginModule: Google Sign-In failed - Error: $e, Error Type: ${e.runtimeType}", isOn: LOGGING_SWITCH);
+          // Extract more details from PlatformException if available
+          if (e.toString().contains("sign_in_failed") || e.toString().contains("10")) {
+            Logger().error("LoginModule: This is error code 10 - likely SHA-1 fingerprint mismatch. Check Google Cloud Console Android OAuth client configuration.", isOn: LOGGING_SWITCH);
+            Logger().error("LoginModule: Current Server Client ID (Web): ${webClientId ?? 'Not set'}", isOn: LOGGING_SWITCH);
+            Logger().error("LoginModule: Platform: ${kIsWeb ? 'Web' : 'Android'}", isOn: LOGGING_SWITCH);
+            if (!kIsWeb) {
+              Logger().error("LoginModule: Verify Android OAuth client has SHA-1: 8F:60:94:F1:E5:ED:DD:FD:FF:4F:5A:79:FF:BB:B7:E9:33:AD:B2:76", isOn: LOGGING_SWITCH);
+              Logger().error("LoginModule: Verify package name: com.reignofplay.cleco", isOn: LOGGING_SWITCH);
+            }
+          }
+          return {"error": "Google Sign-In failed: $e"};
+        }
       }
 
       if (googleUser == null) {
@@ -638,9 +663,14 @@ class LoginModule extends ModuleBase {
       }
 
       // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      
-      Logger().info("LoginModule: Google authentication obtained - Email: ${googleUser.email}, Has ID Token: ${googleAuth.idToken != null}, Has Access Token: ${googleAuth.accessToken != null}", isOn: LOGGING_SWITCH);
+      GoogleSignInAuthentication googleAuth;
+      try {
+        googleAuth = await googleUser.authentication;
+        Logger().info("LoginModule: Google authentication obtained - Email: ${googleUser.email}, Has ID Token: ${googleAuth.idToken != null}, Has Access Token: ${googleAuth.accessToken != null}", isOn: LOGGING_SWITCH);
+      } catch (e) {
+        Logger().error("LoginModule: Failed to get Google authentication - Error: $e", isOn: LOGGING_SWITCH);
+        return {"error": "Failed to get authentication: $e"};
+      }
 
       // Get the ID token or access token
       final String? idToken = googleAuth.idToken;

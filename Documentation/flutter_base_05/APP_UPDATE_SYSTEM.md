@@ -35,18 +35,21 @@ Service responsible for:
 #### 2. UpdateRequiredScreen
 **Location**: `lib/screens/update_required_screen/update_required_screen.dart`
 
-Blocking screen that:
-- Prevents navigation (no app bar, no drawer, no back button)
+Update screen that:
 - Displays update required message
 - Shows current and server versions
 - Provides clickable download button
 - Uses `url_launcher` to open download links
+- Allows users to skip the update and return to account screen (optional)
 
 **Key Features**:
-- Uses `PopScope` with `canPop: false` to block back navigation
+- Uses `PopScope` with `canPop: true` to allow back navigation
+- Provides "Skip for Now" button to navigate back to account screen
 - Extracts download link from route query parameters
 - Handles URL launching errors gracefully
 - Follows app theme styling
+
+**Note**: While updates are recommended, users can skip and continue using the app. The update screen is informative rather than fully blocking.
 
 #### 3. AppManager Integration
 **Location**: `lib/core/managers/app_manager.dart`

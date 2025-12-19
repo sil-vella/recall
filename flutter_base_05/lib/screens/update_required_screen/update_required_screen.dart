@@ -4,8 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../utils/consts/theme_consts.dart';
 import '../../tools/logging/logger.dart';
 
-/// Blocking screen that shows when a mandatory app update is required
-/// This screen prevents navigation away (no app bar, no drawer, no back button)
+/// Screen that shows when a mandatory app update is required
+/// Users can download the update or skip and continue to the account screen
 class UpdateRequiredScreen extends StatefulWidget {
   const UpdateRequiredScreen({Key? key}) : super(key: key);
 
@@ -46,6 +46,11 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
         _logger.error('UpdateRequiredScreen: Error extracting download link: $e', isOn: LOGGING_SWITCH);
       }
     }
+  }
+
+  void _skipUpdate() {
+    _logger.info('UpdateRequiredScreen: User skipped update, navigating to account screen', isOn: LOGGING_SWITCH);
+    context.go('/account');
   }
 
   Future<void> _launchDownloadLink() async {
@@ -108,7 +113,7 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, // Prevent back navigation
+      canPop: true, // Allow back navigation
       child: Scaffold(
         backgroundColor: AppColors.scaffoldBackgroundColor,
         body: SafeArea(
@@ -182,6 +187,38 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
                                   ),
                                 ],
                               ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Skip Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: _skipUpdate,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: AppColors.white.withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.arrow_back, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Skip for Now',
+                              style: AppTextStyles.bodyMedium().copyWith(color: AppColors.white),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),

@@ -1318,17 +1318,23 @@ Future<void> _handleGoogleSignIn() async {
 
 **Platform-Specific Configuration**:
 ```dart
+final String? webClientId = Config.googleClientId; // Web Client ID (same for both web and Android serverClientId)
+
 final GoogleSignIn googleSignIn = GoogleSignIn(
   scopes: ['email', 'profile', 'openid'],
-  // Web requires explicit client ID
-  clientId: kIsWeb ? Config.googleClientId : null,
+  clientId: kIsWeb ? webClientId : null, // For web only
+  serverClientId: kIsWeb ? null : webClientId, // For Android: use Web Client ID to get ID tokens
 );
 ```
 
 **Configuration**:
 - **Scopes**: `['email', 'profile', 'openid']` - Required for ID token retrieval
 - **Web Client ID**: Required for web platform (from `Config.googleClientId`)
-- **Mobile**: Client ID not needed (uses app configuration)
+- **Android**: 
+  - `serverClientId`: Must be set to the **Web Client ID** to enable ID token retrieval
+  - Android OAuth Client ID is auto-detected via package name + SHA-1 fingerprint in Google Cloud Console
+  - Both the Android OAuth client (for authentication) and Web Client ID (for ID tokens) must be configured
+- **iOS**: Client ID configured in platform-specific files
 
 ##### Step 2: Sign-In Flow
 
@@ -1975,13 +1981,30 @@ static const String googleClientId = String.fromEnvironment(
 
 #### Mobile Platforms (Android/iOS)
 
-**Requirements**:
+**Android Requirements**:
+- **OAuth 2.0 Client ID for Android**: Created in Google Cloud Console with:
+  - Package name: `com.reignofplay.cleco`
+  - SHA-1 fingerprint (for debug and release keystores)
+- **Web Client ID**: Must be provided as `serverClientId` to enable ID token retrieval
+- Both client IDs are required:
+  - Android Client ID: Used for authentication flow
+  - Web Client ID (as `serverClientId`): Used to obtain ID tokens for backend verification
+
+**Android Configuration**:
+```dart
+GoogleSignIn(
+  scopes: ['email', 'profile', 'openid'],
+  serverClientId: Config.googleClientId, // Web Client ID for ID tokens
+  // Android Client ID is auto-detected via package name + SHA-1
+)
+```
+
+**iOS Requirements**:
 - Client ID configured in platform-specific files
-- Android: SHA fingerprints in Google Cloud Console
-- iOS: Reversed client ID in Info.plist
+- Reversed client ID in Info.plist
 
 **Token Handling**:
-- ID tokens are reliably available
+- ID tokens are reliably available on Android (when `serverClientId` is set)
 - No fallback needed
 
 ### API Endpoints
@@ -2166,6 +2189,13 @@ static const String googleClientId = String.fromEnvironment(
 - **Cause**: Token verification failed
 - **Fix**: User should try signing in again
 
+**6. "Session expired. Please log in again." (Android)**:
+- **Cause**: ID token verification failed on backend, often due to missing `serverClientId` or incorrect `GOOGLE_CLIENT_ID` configuration
+- **Fix**: 
+  - Ensure `serverClientId` is set to Web Client ID in Flutter code
+  - Verify `GOOGLE_CLIENT_ID` secret file exists on backend with correct Web Client ID
+  - Check backend logs for detailed token verification errors
+
 ### Configuration Requirements
 
 #### Google Cloud Console Setup
@@ -2190,11 +2220,19 @@ static const String googleClientId = String.fromEnvironment(
 3. Environment variables (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`)
 4. Default values (empty strings)
 
+**Deployment Note**:
+- The deployment playbook (`08_deploy_docker_compose.yml`) automatically copies all secret files from `python_base_04/secrets/` to the VPS, including `google_client_id`
+- Ensure `google_client_id` exists in the local secrets directory before deployment
+
 #### Frontend Configuration
 
 **Required**:
-- Web Client ID in `Config.googleClientId` (for web platform)
-- Platform-specific configurations (Android SHA, iOS bundle ID)
+- Web Client ID in `Config.googleClientId` (for web platform and Android `serverClientId`)
+- Platform-specific configurations:
+  - **Android**: 
+    - SHA-1 fingerprints registered in Google Cloud Console (for Android OAuth client)
+    - `serverClientId` must be set to Web Client ID in `GoogleSignIn` constructor
+  - **iOS**: Bundle ID and reversed client ID in Info.plist
 
 ### Related Files
 

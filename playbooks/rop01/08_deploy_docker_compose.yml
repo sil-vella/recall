@@ -6,6 +6,7 @@
     app_dir: "/opt/apps/reignofplay/cleco"
     data_dir: "/opt/apps/reignofplay/cleco/data"
     compose_file: "docker-compose.yml"
+    vps_user: "{{ vm_name }}_user"
   tasks:
     - name: Create application directory structure
       file:
@@ -41,31 +42,18 @@
       file:
         path: "{{ app_dir }}/secrets"
         state: directory
-        mode: '0700'
+        mode: '0755'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
 
-    - name: Create MongoDB root user password secret file
+    - name: Copy all secret files to VPS
       copy:
-        src: "{{ playbook_dir }}/../../python_base_04/secrets/mongodb_root_password"
-        dest: "{{ app_dir }}/secrets/mongodb_root_password"
-        mode: '0600'
-
-    - name: Create MongoDB app user password secret file
-      copy:
-        src: "{{ playbook_dir }}/../../python_base_04/secrets/mongodb_user_password"
-        dest: "{{ app_dir }}/secrets/mongodb_user_password"
-        mode: '0600'
-
-    - name: Create Redis password secret file
-      copy:
-        src: "{{ playbook_dir }}/../../python_base_04/secrets/redis_password"
-        dest: "{{ app_dir }}/secrets/redis_password"
-        mode: '0600'
-
-    - name: Create app_download_base_url secret file for Flask app
-      copy:
-        dest: "{{ app_dir }}/secrets/app_download_base_url"
-        content: "https://cleco.reignofplay.com/downloads\n"
+        src: "{{ playbook_dir }}/../../python_base_04/secrets/"
+        dest: "{{ app_dir }}/secrets/"
         mode: '0644'
+        owner: "{{ vps_user }}"
+        group: "{{ vps_user }}"
+        directory_mode: '0755'
 
     - name: Copy docker-compose.yml to server
       copy:

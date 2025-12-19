@@ -227,11 +227,11 @@ class SystemActionsModule(BaseModule):
         """
         try:
             custom_log("SystemActions: Check updates request received", level="INFO", isOn=LOGGING_SWITCH)
-
+            
             app_name = Config.APP_NAME
             app_id = Config.APP_ID
             download_base_url = Config.APP_DOWNLOAD_BASE_URL
-
+            
             # Try to load mobile release manifest from secrets (no restart required to update)
             manifest = None
             manifest_path_used = None
@@ -262,11 +262,11 @@ class SystemActionsModule(BaseModule):
 
             # Get client's current version from query parameter (optional)
             client_version = request.args.get("current_version", server_version)
-
+            
             # Compare versions using simple semantic version tuples
             update_available = False
             update_required = False
-
+            
             def _parse_version(v: str):
                 parts = []
                 for token in str(v).split("."):
@@ -280,7 +280,7 @@ class SystemActionsModule(BaseModule):
                 client_tuple = _parse_version(client_version)
                 server_tuple = _parse_version(server_version)
                 min_supported_tuple = _parse_version(min_supported_version)
-
+                    
                 update_available = client_tuple < server_tuple
                 update_required = client_tuple < min_supported_tuple
 
@@ -297,14 +297,14 @@ class SystemActionsModule(BaseModule):
                 # Safe fallback: only indicate that an update is available if versions differ
                 update_available = client_version != server_version
                 update_required = False
-
+            
             # Generate download link (version-specific)
             download_link = ""
             if update_available:
                 # Format: {base_url}/v{version}/app.apk
                 download_link = f"{download_base_url}/v{server_version}/app.apk"
                 custom_log(f"SystemActions: Generated download link: {download_link}", level="INFO", isOn=LOGGING_SWITCH)
-
+            
             # Build response payload
             response_data = {
                 "success": True,
@@ -317,7 +317,7 @@ class SystemActionsModule(BaseModule):
                 "download_link": download_link if update_available else "",
                 "timestamp": datetime.utcnow().isoformat(),
             }
-
+            
             # Include extra metadata when manifest is used
             if manifest is not None:
                 response_data["min_supported_version"] = min_supported_version
@@ -331,13 +331,13 @@ class SystemActionsModule(BaseModule):
             )
             custom_log(summary_msg, level="INFO", isOn=LOGGING_SWITCH)
             return jsonify(response_data), 200
-
+            
         except Exception as e:
             custom_log(f"SystemActions: Error in check_updates: {e}", level="ERROR", isOn=LOGGING_SWITCH)
             return jsonify(
                 {
-                    "success": False,
-                    "error": "Failed to check for updates",
+                "success": False,
+                "error": "Failed to check for updates",
                     "message": str(e),
                 }
             ), 500

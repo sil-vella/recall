@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -30,11 +33,49 @@ android {
         versionName = flutter.versionName
     }
 
+    // Load keystore properties for release signing
+    // Path: flutter_base_05/keystore.properties (from android/app/build.gradle.kts, go up 2 levels)
+    val keystorePropertiesFile = file("../../keystore.properties")
+    val keystoreProperties = Properties()
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                // Resolve keystore file path: upload-key.jks is in flutter_base_05/ (same dir as keystore.properties)
+                val keystoreFileName = keystoreProperties["storeFile"] as String
+                val keystoreFile = file("../../$keystoreFileName")
+                if (keystoreFile.exists()) {
+                    storeFile = keystoreFile
+                    storePassword = keystoreProperties["storePassword"] as String
+                } else {
+                    println("WARNING: Keystore file not found: ${keystoreFile.absolutePath}")
+                }
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            // Use release keystore for debug builds too (so debug and release share same SHA-1)
+            // This allows using the same OAuth client for both debug and release builds
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            // If keystore.properties doesn't exist, fall back to default debug signing
+        }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Use release keystore for production APKs
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // Fallback to debug if keystore.properties not found
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }

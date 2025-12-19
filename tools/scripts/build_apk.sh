@@ -28,17 +28,51 @@ fi
 
 # Determine app version from Python backend secrets (keeps APK and /public/check-updates in sync)
 APP_VERSION_FILE="$REPO_ROOT/python_base_04/secrets/app_version"
+
+# Prompt user if they want to bump the version
 if [ -f "$APP_VERSION_FILE" ]; then
-  APP_VERSION="$(tr -d '\r\n' < "$APP_VERSION_FILE")"
+  CURRENT_VERSION="$(tr -d '\r\n' < "$APP_VERSION_FILE")"
 else
-  APP_VERSION="2.0.0"
+  CURRENT_VERSION="2.0.0"
 fi
 
-if [ -z "$APP_VERSION" ]; then
-  APP_VERSION="2.0.0"
+if [ -z "$CURRENT_VERSION" ]; then
+  CURRENT_VERSION="2.0.0"
 fi
 
-echo "📦 Using APP_VERSION=$APP_VERSION"
+echo ""
+echo "📦 Current version in secrets: $CURRENT_VERSION"
+echo ""
+read -p "🤔 Bump version number? (y/n) [n]: " -n 1 -r
+echo ""
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+  # Parse current version
+  IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+  MAJOR=${MAJOR:-0}
+  MINOR=${MINOR:-0}
+  PATCH=${PATCH:-0}
+  
+  # Validate numbers
+  if ! [[ "$MAJOR" =~ ^[0-9]+$ ]]; then MAJOR=0; fi
+  if ! [[ "$MINOR" =~ ^[0-9]+$ ]]; then MINOR=0; fi
+  if ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then PATCH=0; fi
+  
+  # Increment patch version
+  PATCH=$((PATCH + 1))
+  NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+  
+  # Write new version to file
+  echo "$NEW_VERSION" > "$APP_VERSION_FILE"
+  echo "✅ Version bumped: $CURRENT_VERSION → $NEW_VERSION"
+  echo "📝 Updated $APP_VERSION_FILE"
+  APP_VERSION="$NEW_VERSION"
+else
+  APP_VERSION="$CURRENT_VERSION"
+  echo "ℹ️  Using existing version: $APP_VERSION"
+fi
+
+echo "📦 Building with APP_VERSION=$APP_VERSION"
 
 # Derive a numeric build number from APP_VERSION (e.g. 2.1.0 -> 20100)
 IFS='.' read -r APP_MAJOR APP_MINOR APP_PATCH <<< "$APP_VERSION"
@@ -71,6 +105,8 @@ flutter build apk \
   --dart-define=ADMOBS_INTERSTITIAL01=ca-app-pub-3940256099942544/1033173712 \
   --dart-define=ADMOBS_REWARDED01=ca-app-pub-3940256099942544/5224354917 \
   --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_51MXUtTADcEzB4rlRqLVPRhD0Ti3SRZGyTEQ1crO6YoeGyEfWYBgDxouHygPawog6kKTLVWhxP6DbK1MtBylX2Z6G00JTtIRdgZ \
+  --dart-define=GOOGLE_CLIENT_ID=907176907209-q53b29haj3t690ol7kbtqrqo0hkt9ku7.apps.googleusercontent.com \
+  --dart-define=GOOGLE_CLIENT_ID_ANDROID=907176907209-u7cjeiousj1dd460730rgspf05u0fhic.apps.googleusercontent.com \
   --dart-define=FLUTTER_KEEP_SCREEN_ON=true \
   --dart-define=DEBUG_MODE=true \
   --dart-define=ENABLE_REMOTE_LOGGING=true

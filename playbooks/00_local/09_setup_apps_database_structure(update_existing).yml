@@ -3,7 +3,7 @@
   hosts: localhost
   connection: local
   vars:
-    mongodb_container_name: "external_app_mongodb"
+    mongodb_container_name: "cleco_external_app_mongodb"
     database_name: "external_system"
     app_user: "external_app_user"
     app_password: "6R3jjsvVhIRP20zMiHdkBzNKx"
@@ -229,6 +229,37 @@
           print("  ✓ Users already up-to-date: " + usersSkipped);
           
           // ========================================
+          // 3. ADD is_comp_player FIELD TO USERS
+          // ========================================
+          print("\n🤖 Step 3: Adding is_comp_player field to users...");
+          
+          // Create index for is_comp_player field
+          try {
+            db.users.createIndex({ "is_comp_player": 1 });
+            print("  ✅ Created index on is_comp_player field");
+          } catch (e) {
+            // Index might already exist, that's okay
+            print("  ✓ Index on is_comp_player field already exists or created");
+          }
+          
+          // Update all users to add is_comp_player: false if missing
+          var compPlayerUpdateResult = db.users.updateMany(
+            { "is_comp_player": { $exists: false } },
+            { $set: { "is_comp_player": false, "updated_at": currentTime } }
+          );
+          
+          if (compPlayerUpdateResult.modifiedCount > 0) {
+            print("  ✅ Added is_comp_player: false to " + compPlayerUpdateResult.modifiedCount + " users");
+          } else {
+            print("  ✓ All users already have is_comp_player field");
+          }
+          
+          // Verify the field exists
+          var usersWithField = db.users.countDocuments({ "is_comp_player": { $exists: true } });
+          var totalUsers = db.users.countDocuments({});
+          print("  📊 Users with is_comp_player field: " + usersWithField + " / " + totalUsers);
+          
+          // ========================================
           // FINAL SUMMARY
           // ========================================
           print("\n🎉 MODULE UPDATE COMPLETE!");
@@ -272,6 +303,16 @@
           print('Users with in_app_purchases: ' + usersWithInApp);
           print('Users with cleco_game: ' + usersWithCleco);
           
+          // Verify is_comp_player field
+          var usersWithCompPlayerField = db.users.countDocuments({ 'is_comp_player': { \$exists: true } });
+          var compPlayersCount = db.users.countDocuments({ 'is_comp_player': true });
+          var humanPlayersCount = db.users.countDocuments({ 'is_comp_player': false });
+          
+          print('\\n🤖 Comp Player Field Status:');
+          print('Users with is_comp_player field: ' + usersWithCompPlayerField);
+          print('Computer players (is_comp_player: true): ' + compPlayersCount);
+          print('Human players (is_comp_player: false): ' + humanPlayersCount);
+          
           // List registered modules
           print('\\n📋 Registered Modules:');
           db.user_modules.find({}, { module_name: 1, display_name: 1, status: 1 }).forEach(function(module) {
@@ -298,12 +339,17 @@
           📋 What was done:
           - Added missing modules to user_modules registry (if needed)
           - Updated existing users with missing modules (in_app_purchases, cleco_game)
+          - Added is_comp_player field to all users (default: false)
+          - Created index on is_comp_player field
           - Preserved all existing user data
           - No collections were dropped or erased
           
           🔧 Modules Added:
           - in_app_purchases: In-app purchase and subscription management
           - cleco_game: Cleco card game statistics and progression
+          
+          🤖 New Field Added:
+          - is_comp_player: Boolean field to identify computer players (default: false)
           
           📊 Database Status:
           - Container: {{ mongodb_container_name }}

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for animation debugging
+const bool LOGGING_SWITCH = false; // Enabled for animation debugging
 
 /// Animation types
 enum AnimationType {
@@ -31,6 +31,22 @@ class CardAnimationTrigger {
     required this.endPosition,
     required this.startSize,
     required this.endSize,
+    this.playerId,
+  }) : timestamp = DateTime.now();
+}
+
+/// Animation completion event data
+class CardAnimationComplete {
+  final String cardId;
+  final String key;
+  final AnimationType animationType;
+  final String? playerId;
+  final DateTime timestamp;
+
+  CardAnimationComplete({
+    required this.cardId,
+    required this.key,
+    required this.animationType,
     this.playerId,
   }) : timestamp = DateTime.now();
 }
@@ -74,6 +90,9 @@ class CardPositionTracker {
 
   // ValueNotifier for animation triggers - animation layer can listen to this
   final ValueNotifier<CardAnimationTrigger?> cardAnimationTrigger = ValueNotifier<CardAnimationTrigger?>(null);
+  
+  // ValueNotifier for animation completion events - widgets can listen to this
+  final ValueNotifier<CardAnimationComplete?> cardAnimationComplete = ValueNotifier<CardAnimationComplete?>(null);
   
   // Track recently triggered animations to prevent duplicates
   // Map<key, AnimationType> - tracks which animations have been triggered for which cards
@@ -386,9 +405,43 @@ class CardPositionTracker {
     );
   }
 
+  /// Notify that an animation has completed
+  /// 
+  /// This is called by CardAnimationLayer when an animation finishes.
+  /// Widgets can listen to cardAnimationComplete to react to animation completion.
+  void notifyAnimationComplete({
+    required String cardId,
+    required String key,
+    required AnimationType animationType,
+    String? playerId,
+  }) {
+    final completion = CardAnimationComplete(
+      cardId: cardId,
+      key: key,
+      animationType: animationType,
+      playerId: playerId,
+    );
+    
+    _logger.info(
+      'CardPositionTracker.notifyAnimationComplete() - Animation completed:\n'
+      '  key: $key\n'
+      '  cardId: $cardId\n'
+      '  animationType: ${animationType.toString().split('.').last}',
+      isOn: LOGGING_SWITCH,
+    );
+    
+    cardAnimationComplete.value = completion;
+    
+    // Clear the completion event after notifying (similar to trigger pattern)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      cardAnimationComplete.value = null;
+    });
+  }
+
   /// Dispose resources (call when tracker is no longer needed)
   void dispose() {
     cardAnimationTrigger.dispose();
+    cardAnimationComplete.dispose();
   }
 
   /// Log all currently tracked positions

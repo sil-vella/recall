@@ -49,6 +49,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   bool _isCardsToPeekProtected = false;
   List<dynamic>? _protectedCardsToPeek;
   Timer? _cardsToPeekProtectionTimer;
+  
+  // Track drawn cards that should be visible after animation completes
+  // Map<cardId, bool> - tracks which drawn cards should be visible
+  final Map<String, bool> _visibleDrawnCards = {};
 
   /// Protect cardsToPeek data for 5 seconds
   void _protectCardsToPeek(List<dynamic> cardsToPeek) {
@@ -83,10 +87,39 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Listen to animation completion events
+    final tracker = CardPositionTracker.instance();
+    tracker.cardAnimationComplete.addListener(_onAnimationComplete);
+  }
+
+  @override
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _cardsToPeekProtectionTimer = null;
+    final tracker = CardPositionTracker.instance();
+    tracker.cardAnimationComplete.removeListener(_onAnimationComplete);
     super.dispose();
+  }
+
+  /// Handle animation completion events
+  void _onAnimationComplete() {
+    final tracker = CardPositionTracker.instance();
+    final completion = tracker.cardAnimationComplete.value;
+    
+    if (completion != null && completion.animationType == AnimationType.draw) {
+      // Show the drawn card when draw animation completes
+      if (mounted) {
+        setState(() {
+          _visibleDrawnCards[completion.cardId] = true;
+        });
+        _logger.info(
+          'MyHandWidget._onAnimationComplete() - Draw animation completed for cardId: ${completion.cardId}',
+          isOn: LOGGING_SWITCH,
+        );
+      }
+    }
   }
 
   @override
@@ -118,7 +151,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         _logger.info('🛡️ MyHandWidget: cardsToPeekFromState.length: ${cardsToPeekFromState.length}, protectedCardsToPeek.length: ${protectedCardsToPeek?.length ?? 0}, isProtectedDataValid: $isProtectedDataValid, isProtected: $_isCardsToPeekProtected', isOn: LOGGING_SWITCH);
         
         // If we have valid protected data from state sync, activate local protection
-        if (isProtectedDataValid && !_isCardsToPeekProtected && protectedCardsToPeek != null) {
+        if (isProtectedDataValid && !_isCardsToPeekProtected) {
           _protectCardsToPeek(protectedCardsToPeek);
           _logger.info('🛡️ MyHandWidget: Activated protection from state sync for ${protectedCardsToPeek.length} cards', isOn: LOGGING_SWITCH);
         }
@@ -391,6 +424,12 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
         final drawnCard = clecoGameState['myDrawnCard'] as Map<String, dynamic>?;
         final drawnCardId = drawnCard?['cardId']?.toString();
+        
+        // Initialize drawn card as hidden when it first appears
+        // It will be shown when the draw animation completes (handled by _onAnimationComplete)
+        if (drawnCard != null && drawnCardId != null && !_visibleDrawnCards.containsKey(drawnCardId)) {
+          _visibleDrawnCards[drawnCardId] = false;
+        }
         
         // Get current player's collection rank cards from games map
         final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
@@ -1051,38 +1090,22 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     // Use unified card dimensions to match regular cards
     final cardDimensions = CardDimensions.getUnifiedDimensions();
     
+    // Use card back color with saturation reduced to 0.2
+    final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
+        .withSaturation(0.2)
+        .toColor();
+
     return SizedBox(
       width: cardDimensions.width,
       height: cardDimensions.height,
       child: Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.borderDefault,
-          width: 2,
-          style: BorderStyle.solid,
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.space_bar,
-              size: 24,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Empty',
-              style: TextStyle(
-                fontSize: 10,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+        decoration: BoxDecoration(
+          color: cardBackColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: AppColors.borderDefault,
+            width: 2,
+            style: BorderStyle.solid,
           ),
         ),
       ),
@@ -1109,24 +1132,31 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     
     // Note: Collection rank cards no longer get a border - they're visually distinct through stacking + full data
     
-    // Wrap with drawn card glow if needed - explicit size constraints to prevent size changes
+    // Hide drawn card visually during animation, show after animation completes
+    // Card remains trackable for animation even when hidden
     if (isDrawnCard) {
+      final cardId = card['cardId']?.toString();
+      final shouldShowDrawnCard = cardId != null && _visibleDrawnCards[cardId] == true;
+      
       cardWidget = SizedBox(
         width: cardDimensions.width,
         height: cardDimensions.height,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
-                blurRadius: 12,
-                spreadRadius: 2,
-                offset: const Offset(0, 0),
-              ),
-            ],
+        child: Opacity(
+          opacity: shouldShowDrawnCard ? 1.0 : 0.0, // Show after animation completes, hide during animation
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: shouldShowDrawnCard ? [
+                BoxShadow(
+                  color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 0),
+                ),
+              ] : null,
+            ),
+            child: cardWidget,
           ),
-          child: cardWidget,
         ),
       );
     }

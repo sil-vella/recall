@@ -11,7 +11,7 @@ import '../../../managers/player_action.dart';
 import '../card_position_tracker.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for animation debugging
+const bool LOGGING_SWITCH = false; // Enabled for animation debugging
 
 /// Widget to display other players (opponents)
 /// 
@@ -47,7 +47,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   // Track drawn cards that should be visible after animation completes
   // Map<playerId_cardId, bool> - tracks which drawn cards should be visible
   final Map<String, bool> _visibleDrawnCards = {};
-  Timer? _drawnCardVisibilityTimer;
 
   /// Protect cardsToPeek data for 5 seconds
   void _protectCardsToPeek(List<dynamic> cardsToPeek) {
@@ -82,12 +81,40 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Listen to animation completion events
+    final tracker = CardPositionTracker.instance();
+    tracker.cardAnimationComplete.addListener(_onAnimationComplete);
+  }
+
+  @override
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _cardsToPeekProtectionTimer = null;
-    _drawnCardVisibilityTimer?.cancel();
-    _drawnCardVisibilityTimer = null;
+    final tracker = CardPositionTracker.instance();
+    tracker.cardAnimationComplete.removeListener(_onAnimationComplete);
     super.dispose();
+  }
+
+  /// Handle animation completion events
+  void _onAnimationComplete() {
+    final tracker = CardPositionTracker.instance();
+    final completion = tracker.cardAnimationComplete.value;
+    
+    if (completion != null && completion.animationType == AnimationType.draw) {
+      // Show the drawn card when draw animation completes
+      // Use the key (which is playerId_cardId for opponents) to identify the card
+      if (mounted) {
+        setState(() {
+          _visibleDrawnCards[completion.key] = true;
+        });
+        _logger.info(
+          'OpponentsPanelWidget._onAnimationComplete() - Draw animation completed for key: ${completion.key}',
+          isOn: LOGGING_SWITCH,
+        );
+      }
+    }
   }
 
   @override
@@ -422,23 +449,14 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
 
   /// Build cards row - horizontal layout with stacked collection rank cards
   Widget _buildCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, Map<String, dynamic> player) {
-    // Track drawn card visibility - show after animation completes (600ms)
+    // Initialize drawn card as hidden when it first appears
+    // It will be shown when the draw animation completes (handled by _onAnimationComplete)
     if (drawnCard != null) {
       final drawnCardId = drawnCard['cardId']?.toString();
       final drawnCardKey = '${playerId}_$drawnCardId';
       
       if (drawnCardId != null && !_visibleDrawnCards.containsKey(drawnCardKey)) {
-        // Cancel existing timer if any
-        _drawnCardVisibilityTimer?.cancel();
-        
-        // Start timer to show card after animation completes
-        _drawnCardVisibilityTimer = Timer(const Duration(milliseconds: 600), () {
-          if (mounted && drawnCardId != null) {
-            setState(() {
-              _visibleDrawnCards[drawnCardKey] = true;
-            });
-          }
-        });
+        _visibleDrawnCards[drawnCardKey] = false;
       }
     }
     
@@ -1007,12 +1025,17 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     // Use provided dimensions or fallback to unified dimensions
     final dimensions = cardDimensions ?? CardDimensions.getUnifiedDimensions();
     
+    // Use card back color with saturation reduced to 0.2
+    final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
+        .withSaturation(0.2)
+        .toColor();
+    
     return SizedBox(
       width: dimensions.width,
       height: dimensions.height,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
+          color: cardBackColor,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
             color: AppColors.borderDefault,

@@ -5,8 +5,9 @@ import '../../../models/card_model.dart';
 import '../../../models/card_display_config.dart';
 import '../../../widgets/card_widget.dart';
 import '../card_position_tracker.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for animation debugging
+const bool LOGGING_SWITCH = false; // Enabled for animation debugging
 
 /// Active animation data structure
 class ActiveAnimation {
@@ -39,6 +40,21 @@ class ActiveAnimation {
   });
 }
 
+/// Empty slot data structure for play/reposition animations
+class EmptySlotData {
+  final String slotId;
+  final Offset position;
+  final Size size;
+  final String? playerId;
+
+  EmptySlotData({
+    required this.slotId,
+    required this.position,
+    required this.size,
+    this.playerId,
+  });
+}
+
 /// Full-screen overlay widget for card animations
 /// 
 /// This widget displays animated card movements on top of the game screen.
@@ -54,6 +70,7 @@ class CardAnimationLayer extends StatefulWidget {
 class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProviderStateMixin {
   final Logger _logger = Logger();
   final Map<String, ActiveAnimation> _activeAnimations = {};
+  final Map<String, EmptySlotData> _emptySlots = {}; // Track empty slots during play/reposition animations
   int _animationCounter = 0;
 
   @override
@@ -265,6 +282,27 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
       _activeAnimations[animationId] = animation;
     });
 
+    // When a play animation starts, create an empty slot at the start position
+    // This slot will remain visible during both play and reposition animations
+    if (trigger.animationType == AnimationType.play) {
+      final slotId = 'empty_slot_${trigger.key}_${_animationCounter}';
+      final emptySlot = EmptySlotData(
+        slotId: slotId,
+        position: trigger.startPosition,
+        size: trigger.startSize,
+        playerId: trigger.playerId,
+      );
+      
+      setState(() {
+        _emptySlots[slotId] = emptySlot;
+      });
+      
+      _logger.info(
+        'CardAnimationLayer._startCardAnimation() - Created empty slot: $slotId at position (${trigger.startPosition.dx.toStringAsFixed(1)}, ${trigger.startPosition.dy.toStringAsFixed(1)})',
+        isOn: LOGGING_SWITCH,
+      );
+    }
+
     _logger.info(
       'CardAnimationLayer._startCardAnimation() - Started $animationTypeName animation: $animationId\n'
       '  cardId: ${trigger.cardId}\n'
@@ -279,6 +317,44 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
 
     // Start animation
     controller.forward().then((_) {
+      // Notify tracker that animation completed
+      final tracker = CardPositionTracker.instance();
+      tracker.notifyAnimationComplete(
+        cardId: trigger.cardId,
+        key: trigger.key,
+        animationType: trigger.animationType,
+        playerId: trigger.playerId,
+      );
+      
+      // When reposition animation completes, remove the empty slot
+      // The reposition's end position should match the play's start position (where empty slot is)
+      if (trigger.animationType == AnimationType.reposition) {
+        // Find and remove empty slot that matches this reposition's end position
+        String? slotToRemove;
+        for (final entry in _emptySlots.entries) {
+          final slot = entry.value;
+          // Check if positions match (within a small tolerance)
+          final positionMatch = (slot.position - trigger.endPosition).distance < 5.0;
+          final sizeMatch = (slot.size.width - trigger.endSize.width).abs() < 5.0 &&
+                           (slot.size.height - trigger.endSize.height).abs() < 5.0;
+          
+          if (positionMatch && sizeMatch) {
+            slotToRemove = entry.key;
+            break;
+          }
+        }
+        
+        if (slotToRemove != null) {
+          setState(() {
+            _emptySlots.remove(slotToRemove);
+          });
+          _logger.info(
+            'CardAnimationLayer._startCardAnimation() - Removed empty slot: $slotToRemove after reposition completed',
+            isOn: LOGGING_SWITCH,
+          );
+        }
+      }
+      
       // Cleanup after animation completes
       if (mounted) {
         setState(() {
@@ -306,8 +382,25 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
     // Total offset from screen top to Stack top (app bar + safe area top)
     final stackTopOffset = appBarHeight + safeAreaTop;
 
-    // If no active animations, return empty widget that doesn't block interactions
-    if (_activeAnimations.isEmpty) {
+    // Build list of widgets: animated cards + empty slots
+    final List<Widget> overlayChildren = [];
+    
+    // Add animated cards
+    overlayChildren.addAll(
+      _activeAnimations.values.map((animation) {
+        return _buildAnimatedCard(animation, stackTopOffset);
+      }),
+    );
+    
+    // Add empty slots
+    overlayChildren.addAll(
+      _emptySlots.values.map((slot) {
+        return _buildEmptySlot(slot, stackTopOffset);
+      }),
+    );
+
+    // If no active animations and no empty slots, return empty widget that doesn't block interactions
+    if (overlayChildren.isEmpty) {
       return IgnorePointer(
         child: SizedBox(
           width: screenSize.width,
@@ -316,16 +409,14 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
       );
     }
 
-    // Build overlay with animated cards
+    // Build overlay with animated cards and empty slots
     // Position at top: 0 since Stack is already in body (below app bar)
     return Positioned.fill(
       child: IgnorePointer(
         // Allow clicks to pass through to underlying widgets
         ignoring: true,
         child: Stack(
-          children: _activeAnimations.values.map((animation) {
-            return _buildAnimatedCard(animation, stackTopOffset);
-          }).toList(),
+          children: overlayChildren,
         ),
       ),
     );
@@ -362,6 +453,41 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
           ),
         );
       },
+    );
+  }
+
+  /// Build an empty slot widget
+  /// 
+  /// [stackTopOffset] - The offset from screen top to Stack top (app bar + safe area)
+  /// Used to convert screen coordinates (from localToGlobal) to Stack-relative coordinates
+  Widget _buildEmptySlot(EmptySlotData slot, double stackTopOffset) {
+    // Convert from screen coordinates (from localToGlobal) to Stack-relative coordinates
+    // Screen coordinates include app bar, but Stack is in body (below app bar)
+    final adjustedPosition = Offset(slot.position.dx, slot.position.dy - stackTopOffset);
+    
+    // Use card back color with saturation reduced to 0.2
+    final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
+        .withSaturation(0.2)
+        .toColor();
+
+    return Positioned(
+      left: adjustedPosition.dx,
+      top: adjustedPosition.dy,
+      child: SizedBox(
+        width: slot.size.width,
+        height: slot.size.height,
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBackColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: AppColors.borderDefault,
+              width: 2,
+              style: BorderStyle.solid,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

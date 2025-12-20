@@ -38,10 +38,10 @@ def disable_logging_switch() -> None:
     for dart_file in BUILD_CONTEXT.rglob("*.dart"):
         try:
             text = dart_file.read_text(encoding="utf-8")
-            if "LOGGING_SWITCH = true" in text:
-                new_text = text.replace("LOGGING_SWITCH = true", "LOGGING_SWITCH = false")
+            if "LOGGING_SWITCH = false" in text:
+                new_text = text.replace("LOGGING_SWITCH = false", "LOGGING_SWITCH = false")
                 dart_file.write_text(new_text, encoding="utf-8")
-                occurrences = text.count("LOGGING_SWITCH = true")
+                occurrences = text.count("LOGGING_SWITCH = false")
                 replaced_occurrences += occurrences
                 replaced_files += 1
                 rel = dart_file.relative_to(BUILD_CONTEXT)
@@ -51,7 +51,7 @@ def disable_logging_switch() -> None:
             print(f"  {Colors.RED}✗{Colors.NC} Error processing {rel}: {e}")
 
     if replaced_files == 0:
-        print(f"{Colors.YELLOW}No LOGGING_SWITCH = true found in Dart sources.{Colors.NC}")
+        print(f"{Colors.YELLOW}No LOGGING_SWITCH = false found in Dart sources.{Colors.NC}")
     else:
         print(
             f"{Colors.GREEN}✓ Disabled LOGGING_SWITCH in {replaced_occurrences} "

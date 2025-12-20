@@ -9,7 +9,7 @@ import '../../../../../tools/logging/logger.dart';
 import '../card_position_tracker.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for animation debugging
+const bool LOGGING_SWITCH = false; // Enabled for animation debugging
 
 /// Widget to display the draw pile information
 /// 

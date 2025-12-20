@@ -131,6 +131,24 @@ AppColors.infoColor            // Blue for informational messages
 AppColors.redAccent            // Alias for errorColor
 ```
 
+#### Player Status Colors
+
+```dart
+AppColors.statusWaiting        // Grey - waiting status
+AppColors.statusReady          // Blue - ready status
+AppColors.statusDrawing        // Orange - drawing card status
+AppColors.statusPlaying        // Green - playing card status
+AppColors.statusSameRank       // Purple - same rank window status
+AppColors.statusQueenPeek      // Pink - queen peek status
+AppColors.statusJackSwap       // Indigo - jack swap status
+AppColors.statusPeeking        // Cyan - peeking status
+AppColors.statusInitialPeek   // Teal - initial peek status
+AppColors.statusWinner         // Green - winner status
+AppColors.statusFinished       // Red - finished status
+```
+
+**Note**: These colors are used by `PlayerStatusChip` and for current player highlighting in the opponents panel. They provide consistent, theme-aware status indication throughout the game.
+
 #### State Colors
 
 ```dart

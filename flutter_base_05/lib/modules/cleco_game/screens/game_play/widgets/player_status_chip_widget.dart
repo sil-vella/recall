@@ -111,67 +111,67 @@ class PlayerStatusChip extends StatelessWidget {
     switch (status) {
       case 'waiting':
         return _StatusData(
-          color: Colors.grey,
+          color: AppColors.statusWaiting,
           text: 'Waiting',
           icon: Icons.schedule,
         );
       case 'ready':
         return _StatusData(
-          color: Colors.blue,
+          color: AppColors.statusReady,
           text: 'Ready',
           icon: Icons.check_circle,
         );
       case 'drawing_card':
         return _StatusData(
-          color: Colors.orange,
+          color: AppColors.statusDrawing,
           text: 'Drawing',
           icon: Icons.draw,
         );
       case 'playing_card':
         return _StatusData(
-          color: Colors.green,
+          color: AppColors.statusPlaying,
           text: 'Playing',
           icon: Icons.play_arrow,
         );
       case 'same_rank_window':
         return _StatusData(
-          color: Colors.purple,
+          color: AppColors.statusSameRank,
           text: 'Same Rank',
           icon: Icons.flash_on,
         );
       case 'queen_peek':
         return _StatusData(
-          color: Colors.pink,
+          color: AppColors.statusQueenPeek,
           text: 'Queen Peek',
           icon: Icons.visibility,
         );
       case 'jack_swap':
         return _StatusData(
-          color: Colors.indigo,
+          color: AppColors.statusJackSwap,
           text: 'Jack Swap',
           icon: Icons.swap_horiz,
         );
       case 'peeking':
         return _StatusData(
-          color: Colors.cyan,
+          color: AppColors.statusPeeking,
           text: 'Peeking',
           icon: Icons.visibility,
         );
       case 'initial_peek':
         return _StatusData(
-          color: Colors.teal,
+          color: AppColors.statusInitialPeek,
           text: 'Initial Peek',
           icon: Icons.visibility_outlined,
         );
       case 'winner':
         return _StatusData(
-          color: Colors.green,
+          color: AppColors.statusWinner,
           text: 'Winner',
           icon: Icons.emoji_events,
         );
       case 'finished':
         return _StatusData(
-          color: Colors.red,
+          color: AppColors.statusFinished,
           text: 'Finished',
           icon: Icons.stop,
         );

@@ -80,28 +80,37 @@ class CardWidget extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.max,
           children: [
-            // Top-left rank and suit (always shown)
-            Align(
-              alignment: Alignment.topLeft,
-              child: _buildCornerText(dimensions),
-            ),
-            
-            // Center suit symbol (always shown)
-            Expanded(
-              child: Center(
-                child: _buildCenterSuit(dimensions),
-              ),
-            ),
-            
-            // Bottom-right rank and suit (rotated) - only shown in fullCorners mode
-            if (config.displayMode == CardDisplayMode.fullCorners) ...[
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Transform.rotate(
-                  angle: 3.14159, // 180 degrees
-                  child: _buildCornerText(dimensions),
+            // Centered display mode: rank and suit in center, no corners
+            if (config.displayMode == CardDisplayMode.centeredOnly) ...[
+              Expanded(
+                child: Center(
+                  child: _buildCenteredRankAndSuit(dimensions),
                 ),
               ),
+            ] else ...[
+              // Top-left rank and suit (always shown for non-centered modes)
+              Align(
+                alignment: Alignment.topLeft,
+                child: _buildCornerText(dimensions),
+              ),
+              
+              // Center suit symbol (always shown for non-centered modes)
+              Expanded(
+                child: Center(
+                  child: _buildCenterSuit(dimensions),
+                ),
+              ),
+              
+              // Bottom-right rank and suit (rotated) - only shown in fullCorners mode
+              if (config.displayMode == CardDisplayMode.fullCorners) ...[
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: Transform.rotate(
+                    angle: 3.14159, // 180 degrees
+                    child: _buildCornerText(dimensions),
+                  ),
+                ),
+              ],
             ],
             
             // Special power indicator
@@ -148,6 +157,38 @@ class CardWidget extends StatelessWidget {
         fontSize: fontSize,
         color: card.color,
       ),
+    );
+  }
+
+  /// Build centered rank and suit (for opponent cards)
+  /// Shows rank and suit in the center, text size is 40% of card height
+  Widget _buildCenteredRankAndSuit(Size dimensions) {
+    final fontSize = dimensions.height * 0.4; // 40% of card height
+    
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Rank
+        Text(
+          card.rankSymbol,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            color: card.color,
+            height: 1.0,
+          ),
+        ),
+        // Suit
+        Text(
+          card.suitSymbol,
+          style: TextStyle(
+            fontSize: fontSize,
+            color: card.color,
+            height: 1.0,
+          ),
+        ),
+      ],
     );
   }
 
@@ -232,27 +273,32 @@ class CardWidget extends StatelessWidget {
             Column(
           mainAxisSize: MainAxisSize.max,
           children: [
-            // Top-left placeholder to match front face structure
-            Align(
-              alignment: Alignment.topLeft,
-              child: SizedBox(
-                width: dimensions.width * 0.12,
-                height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
-              ),
-            ),
-            
-                // Expanded spacer to match front face structure
-                Expanded(child: Container()),
-            
-            // Bottom-right placeholder to match front face structure (when fullCorners mode)
-            if (config.displayMode == CardDisplayMode.fullCorners) ...[
+            // Centered mode: no corner placeholders needed
+            if (config.displayMode == CardDisplayMode.centeredOnly) ...[
+              Expanded(child: Container()), // Spacer for centered content
+            ] else ...[
+              // Top-left placeholder to match front face structure
               Align(
-                alignment: Alignment.bottomRight,
+                alignment: Alignment.topLeft,
                 child: SizedBox(
                   width: dimensions.width * 0.12,
                   height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
                 ),
               ),
+              
+              // Expanded spacer to match front face structure
+              Expanded(child: Container()),
+              
+              // Bottom-right placeholder to match front face structure (when fullCorners mode)
+              if (config.displayMode == CardDisplayMode.fullCorners) ...[
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: SizedBox(
+                    width: dimensions.width * 0.12,
+                    height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
+                  ),
+                ),
+              ],
             ],
             
             // Special power indicator placeholder to match front face structure

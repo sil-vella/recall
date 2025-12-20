@@ -144,6 +144,19 @@ class ThemeConfig {
     }
   }
 
+  // Player status colors - theme-aware status colors
+  static Color get statusWaiting => const Color(0xFF9E9E9E); // Grey
+  static Color get statusReady => const Color(0xFF2196F3); // Blue (uses infoColor)
+  static Color get statusDrawing => const Color(0xFFFF9800); // Orange (uses warningColor)
+  static Color get statusPlaying => const Color(0xFF4CAF50); // Green (uses successColor)
+  static Color get statusSameRank => const Color(0xFF9C27B0); // Purple
+  static Color get statusQueenPeek => const Color(0xFFE91E63); // Pink
+  static Color get statusJackSwap => const Color(0xFF3F51B5); // Indigo
+  static Color get statusPeeking => const Color(0xFF00BCD4); // Cyan
+  static Color get statusInitialPeek => const Color(0xFF009688); // Teal
+  static Color get statusWinner => const Color(0xFF4CAF50); // Green (uses successColor)
+  static Color get statusFinished => const Color(0xFFE53935); // Red (uses errorColor)
+
   /// Calculate text color for a given background color
   static Color getTextColorForBackground(Color backgroundColor) {
     final luminance = backgroundColor.computeLuminance();
@@ -183,6 +196,19 @@ class AppColors {
   static Color get warningColor => ThemeConfig.warningColor;
   static Color get infoColor => ThemeConfig.infoColor;
   static Color get redAccent => ThemeConfig.errorColor;
+
+  // Player status colors (for status chips and player highlighting)
+  static Color get statusWaiting => ThemeConfig.statusWaiting;
+  static Color get statusReady => ThemeConfig.statusReady;
+  static Color get statusDrawing => ThemeConfig.statusDrawing;
+  static Color get statusPlaying => ThemeConfig.statusPlaying;
+  static Color get statusSameRank => ThemeConfig.statusSameRank;
+  static Color get statusQueenPeek => ThemeConfig.statusQueenPeek;
+  static Color get statusJackSwap => ThemeConfig.statusJackSwap;
+  static Color get statusPeeking => ThemeConfig.statusPeeking;
+  static Color get statusInitialPeek => ThemeConfig.statusInitialPeek;
+  static Color get statusWinner => ThemeConfig.statusWinner;
+  static Color get statusFinished => ThemeConfig.statusFinished;
 
   // State colors
   static Color get disabledColor => lightGray.withOpacity(0.5);

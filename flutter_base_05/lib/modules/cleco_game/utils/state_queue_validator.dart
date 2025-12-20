@@ -243,6 +243,8 @@ class StateQueueValidator {
         'topDraw': null,
         'canDrawFromDeck': false,
         'canTakeFromDiscard': false,
+        'matchPot': 0,
+        'playerStatus': 'unknown',
       },
       description: 'Center board widget state slice',
     ),

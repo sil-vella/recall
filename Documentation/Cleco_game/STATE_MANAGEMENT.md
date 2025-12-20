@@ -372,6 +372,7 @@ Widgets read from slices
    - `ClecoGameHelpers.updateUIState()` or `_updateMainGameState()` called
    - Goes through `ClecoGameStateUpdater.updateState()`
    - `StateQueueValidator.validateUpdate()` validates structure
+     - **⚠️ Important**: Validator checks against predefined schema - must update validator when adding new fields
    - Update queued for async processing
 
 6. **Widget Slice Computation**
@@ -589,6 +590,54 @@ static void handleGameStateUpdated(Map<String, dynamic> data) {
 - Consistent data structure
 - Dependency tracking
 - Efficient rebuilds (only affected widgets rebuild)
+
+### ⚠️ Important: Updating State Validator When Modifying State
+
+**CRITICAL**: When modifying state structure (adding/removing fields in state slices or main state), you **MUST** also update the state validator schema.
+
+**Why**: The `StateQueueValidator` validates all state updates against a predefined schema. If you add a new field to a state slice (e.g., `matchPot` in `centerBoard`), the validator must know about it to allow it in state updates.
+
+**What to Update**:
+
+1. **State Slice Computation** (`cleco_game_state_updater.dart`):
+   - Update the slice computation method (e.g., `_computeCenterBoardSlice()`)
+   - Add the new field to the returned map
+
+2. **State Validator Schema** (`state_queue_validator.dart`):
+   - Find the corresponding field spec in `_stateSchema`
+   - Update the `defaultValue` map to include the new field
+   - Example: If adding `matchPot` to `centerBoard` slice:
+     ```dart
+     'centerBoard': ClecoStateFieldSpec(
+       type: Map,
+       defaultValue: {
+         'drawPileCount': 0,
+         'topDiscard': null,
+         'topDraw': null,
+         'canDrawFromDeck': false,
+         'canTakeFromDiscard': false,
+         'matchPot': 0,  // ← NEW FIELD ADDED
+         'playerStatus': 'unknown',
+       },
+       description: 'Center board widget state slice',
+     ),
+     ```
+
+3. **Widget Dependencies** (if needed):
+   - Check if the new field should trigger slice recomputation
+   - Update `_widgetDependencies` if the field affects when slices should rebuild
+
+**Checklist When Modifying State**:
+- [ ] Update slice computation method to include new field
+- [ ] Update state validator schema `defaultValue` to include new field
+- [ ] Update widget dependencies if field affects rebuild triggers
+- [ ] Test that state updates work correctly
+- [ ] Verify widgets can read the new field from slice
+
+**Example**: Adding `matchPot` to `centerBoard` slice:
+1. ✅ Updated `_computeCenterBoardSlice()` to extract `match_pot` from `game_state` and add to result
+2. ✅ Updated `state_queue_validator.dart` `centerBoard` default value to include `'matchPot': 0`
+3. ✅ No dependency changes needed (field is part of `games` which is already a dependency)
 
 **Slice Dependencies:**
 
@@ -1123,6 +1172,53 @@ ClecoGameHelpers.updateUIState({
    - Check if game exists in games map
    - Check if currentGameId is valid
    - Handle missing data gracefully
+
+---
+
+## Modifying State Structure
+
+### ⚠️ Required Steps When Adding/Removing State Fields
+
+When modifying the state structure (adding or removing fields in state slices or main state), follow these steps:
+
+1. **Update Slice Computation** (`cleco_game_state_updater.dart`):
+   - Modify the appropriate `_compute*Slice()` method
+   - Add/remove fields in the returned map
+   - Ensure field values are extracted from SSOT (`game_state`)
+
+2. **Update State Validator Schema** (`state_queue_validator.dart`):
+   - Locate the field spec in `_stateSchema` (e.g., `'centerBoard'`, `'myHand'`, etc.)
+   - Update the `defaultValue` map to include/exclude the new field
+   - Ensure default value matches the type returned by slice computation
+
+3. **Update Widget Dependencies** (if needed):
+   - Check `_widgetDependencies` in `cleco_game_state_updater.dart`
+   - Add field to dependency set if it should trigger slice recomputation
+   - Example: If field is part of `games`, it's already covered
+
+4. **Update Widgets** (if needed):
+   - Update widgets that read from the slice to use the new field
+   - Ensure proper null handling and default values
+
+5. **Test**:
+   - Verify state updates work correctly
+   - Test that widgets can read the new field
+   - Check that validation doesn't reject valid updates
+
+**Example Workflow**:
+```
+Adding matchPot to centerBoard slice:
+1. Update _computeCenterBoardSlice() → Add 'matchPot': matchPot
+2. Update state_queue_validator.dart → Add 'matchPot': 0 to centerBoard defaultValue
+3. Create/update widget → Read matchPot from centerBoard slice
+4. Test → Verify pot displays correctly during gameplay
+```
+
+**Common Mistakes to Avoid**:
+- ❌ Adding field to slice but forgetting validator → Validation errors
+- ❌ Adding field to validator but not slice → Field always has default value
+- ❌ Mismatched field names → Field not found in slice
+- ❌ Wrong default value type → Type validation errors
 
 ---
 

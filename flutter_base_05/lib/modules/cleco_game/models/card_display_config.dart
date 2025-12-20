@@ -5,6 +5,9 @@ enum CardDisplayMode {
   
   /// Show only top-left corner (compact display for smaller cards)
   singleCorner,
+  
+  /// Show rank and suit centered (no corners) - for opponent cards
+  centeredOnly,
 }
 
 /// Card Display Configuration
@@ -43,10 +46,10 @@ class CardDisplayConfig {
   
   /// Factory constructor for opponent cards
   /// 
-  /// Single corner display (top-left only), selectable
+  /// Centered rank and suit display (no corners), selectable
   factory CardDisplayConfig.forOpponent() {
     return const CardDisplayConfig(
-      displayMode: CardDisplayMode.singleCorner,
+      displayMode: CardDisplayMode.centeredOnly,
       isSelectable: true,
     );
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Disabled to reduce log noise - only log errors
+const bool LOGGING_SWITCH = true; // Enabled for animation debugging
 
 /// Animation types
 enum AnimationType {
@@ -74,6 +74,10 @@ class CardPositionTracker {
 
   // ValueNotifier for animation triggers - animation layer can listen to this
   final ValueNotifier<CardAnimationTrigger?> cardAnimationTrigger = ValueNotifier<CardAnimationTrigger?>(null);
+  
+  // Track recently triggered animations to prevent duplicates
+  // Map<key, AnimationType> - tracks which animations have been triggered for which cards
+  final Map<String, AnimationType> _recentAnimations = {};
 
   CardPositionTracker._internal();
 
@@ -241,18 +245,38 @@ class CardPositionTracker {
       }
     }
     
-    // Trigger animation if detected
+    // Trigger animation if detected and not already triggered recently
     if (animationType != null && startPosition != null && startSize != null) {
-      _triggerCardAnimation(
-        cardId: cardId,
-        key: key,
-        animationType: animationType,
-        startPosition: startPosition,
-        endPosition: position,
-        startSize: startSize,
-        endSize: size,
-        playerId: playerId,
-      );
+      // Check if we've already triggered this animation for this card
+      final recentAnimation = _recentAnimations[key];
+      final isDuplicate = recentAnimation == animationType;
+      
+      if (!isDuplicate) {
+        // Mark this animation as triggered
+        _recentAnimations[key] = animationType;
+        
+        // Clear the recent animation after a delay (longer than animation duration)
+        // This prevents duplicate triggers while allowing re-triggers if card moves again
+        Future.delayed(const Duration(milliseconds: 800), () {
+          _recentAnimations.remove(key);
+        });
+        
+        _triggerCardAnimation(
+          cardId: cardId,
+          key: key,
+          animationType: animationType,
+          startPosition: startPosition,
+          endPosition: position,
+          startSize: startSize,
+          endSize: size,
+          playerId: playerId,
+        );
+      } else {
+        _logger.info(
+          'CardPositionTracker.updateCardPosition() - Skipping duplicate animation: $animationType for key: $key',
+          isOn: LOGGING_SWITCH,
+        );
+      }
     } else if (oldPositionData != null && (positionChanged || locationChanged || sizeChanged)) {
       // Position changed but no animation type detected
       _logger.info(
@@ -354,6 +378,7 @@ class CardPositionTracker {
   void clearAllPositions() {
     final count = _positions.length;
     _positions.clear();
+    _recentAnimations.clear(); // Clear recent animations tracking
     cardAnimationTrigger.value = null; // Clear any pending animation triggers
     _logger.info(
       'CardPositionTracker.clearAllPositions() - Cleared $count position(s)',

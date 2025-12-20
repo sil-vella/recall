@@ -6,7 +6,7 @@ import '../../../models/card_display_config.dart';
 import '../../../widgets/card_widget.dart';
 import '../card_position_tracker.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true; // Enabled for animation debugging
 
 /// Active animation data structure
 class ActiveAnimation {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import 'draw_pile_widget.dart';
 import 'discard_pile_widget.dart';
+import 'match_pot_widget.dart';
 
 /// Widget to display the game board section
 /// 
@@ -9,8 +10,9 @@ import 'discard_pile_widget.dart';
 /// - Game Board title
 /// - Draw Pile Widget
 /// - Discard Pile Widget
+/// - Match Pot Widget
 /// 
-/// The draw and discard pile widgets handle their own state subscriptions
+/// The draw, discard pile, and match pot widgets handle their own state subscriptions
 class GameBoardWidget extends StatelessWidget {
   const GameBoardWidget({Key? key}) : super(key: key);
 
@@ -34,6 +36,11 @@ class GameBoardWidget extends StatelessWidget {
             
             // Discard Pile Widget
             const DiscardPileWidget(),
+            
+            const SizedBox(width: 16),
+            
+            // Match Pot Widget
+            const MatchPotWidget(),
           ],
         ),
       ),

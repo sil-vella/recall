@@ -482,6 +482,7 @@ class ClecoGameStateUpdater {
         'canDrawFromDeck': false,
         'canTakeFromDiscard': false,
         'playerStatus': 'unknown', // Computed from SSOT
+        'matchPot': 0,
       };
     }
     
@@ -494,6 +495,9 @@ class ClecoGameStateUpdater {
     final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
     final drawPileCount = drawPile.length;
+    
+    // Get match pot from game state (stored at game start)
+    final matchPot = gameState['match_pot'] as int? ?? 0;
     
     // Get top draw card (convert ID-only to full data)
     Map<String, dynamic>? topDraw;
@@ -524,6 +528,7 @@ class ClecoGameStateUpdater {
       'canDrawFromDeck': drawPileCount > 0,
       'canTakeFromDiscard': discardPile.isNotEmpty,
       'playerStatus': playerStatus, // Computed from SSOT
+      'matchPot': matchPot, // Match pot amount (coins collected from all players)
     };
     
     return result;

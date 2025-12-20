@@ -11,7 +11,7 @@ import '../../../managers/player_action.dart';
 import '../card_position_tracker.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
+const bool LOGGING_SWITCH = true; // Enabled for animation debugging
 
 /// Widget to display other players (opponents)
 /// 
@@ -43,6 +43,11 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   bool _isCardsToPeekProtected = false;
   List<dynamic>? _protectedCardsToPeek;
   Timer? _cardsToPeekProtectionTimer;
+  
+  // Track drawn cards that should be visible after animation completes
+  // Map<playerId_cardId, bool> - tracks which drawn cards should be visible
+  final Map<String, bool> _visibleDrawnCards = {};
+  Timer? _drawnCardVisibilityTimer;
 
   /// Protect cardsToPeek data for 5 seconds
   void _protectCardsToPeek(List<dynamic> cardsToPeek) {
@@ -80,6 +85,8 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _cardsToPeekProtectionTimer = null;
+    _drawnCardVisibilityTimer?.cancel();
+    _drawnCardVisibilityTimer = null;
     super.dispose();
   }
 
@@ -281,6 +288,15 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     final hasCalledCleco = player['hasCalledCleco'] ?? false;
     final playerStatus = player['status']?.toString() ?? 'unknown';
     
+    // Get status chip color for current player border (only if status should be highlighted)
+    final shouldHighlight = isCurrentPlayer && _shouldHighlightCurrentPlayer(playerStatus);
+    final statusChipColor = shouldHighlight ? _getStatusChipColor(playerStatus) : null;
+    
+    // For same_rank_window, get the color for border even if not highlighted
+    final sameRankBorderColor = (isCurrentPlayer && playerStatus == 'same_rank_window')
+        ? _getStatusChipColor(playerStatus)
+        : null;
+    
     // 🔍 DEBUG: Log drawnCard data for opponents
     if (drawnCard != null) {
       final drawnCardId = drawnCard['cardId']?.toString() ?? 'unknown';
@@ -297,19 +313,34 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             ? constraints.maxWidth * 0.02 
             : 16.0; // Fallback to fixed padding if width is unbounded
         
+        // Calculate background color - ensure it's fully opaque white with slight darkening for current turn
+        final backgroundColor = shouldHighlight 
+            ? statusChipColor!.withOpacity(0.1) 
+            : (isCurrentTurn 
+                ? Color.lerp(AppColors.white, AppColors.black, 0.02) ?? AppColors.white
+                : AppColors.white);
+        
+        // For same_rank_window, show border even if not highlighted
+        final shouldShowBorder = shouldHighlight || (isCurrentPlayer && playerStatus == 'same_rank_window');
+        final borderColor = shouldShowBorder && (statusChipColor != null || sameRankBorderColor != null)
+            ? (statusChipColor ?? sameRankBorderColor!)
+            : (isCurrentTurn ? AppColors.accentColor2 : AppColors.borderDefault);
+        
         return Container(
           padding: EdgeInsets.all(containerPadding),
           decoration: BoxDecoration(
-            color: isCurrentPlayer ? AppColors.infoColor.withOpacity(0.1) : (isCurrentTurn ? AppColors.accentColor2.withOpacity(0.1) : AppColors.surface),
+            color: backgroundColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isCurrentPlayer ? AppColors.infoColor : (isCurrentTurn ? AppColors.accentColor2 : AppColors.borderDefault),
-              width: (isCurrentPlayer || isCurrentTurn) ? 2 : 1,
+              color: borderColor,
+              width: (shouldShowBorder || isCurrentTurn) ? 2 : 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: isCurrentPlayer ? AppColors.infoColor.withOpacity(0.1) : AppColors.black.withOpacity(0.05),
-                blurRadius: isCurrentPlayer ? 4 : 2,
+                color: shouldHighlight 
+                    ? statusChipColor!.withOpacity(0.1) 
+                    : AppColors.black.withOpacity(0.05),
+                blurRadius: shouldHighlight ? 4 : 2,
                 offset: const Offset(0, 1),
               ),
             ],
@@ -359,7 +390,9 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                             textAlign: TextAlign.right,
                             style: AppTextStyles.label().copyWith(
                               fontWeight: FontWeight.bold,
-                              color: isCurrentPlayer ? AppColors.infoColor : AppColors.textPrimary,
+                              color: isCurrentPlayer && statusChipColor != null 
+                                  ? statusChipColor 
+                                  : AppColors.textPrimary,
                             ),
                           ),
                         ),
@@ -373,7 +406,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                         alignment: Alignment.centerRight,
                         child: PlayerStatusChip(
                           playerId: player['id']?.toString() ?? '',
-                          size: PlayerStatusChipSize.small,
+                          size: shouldHighlight ? PlayerStatusChipSize.medium : PlayerStatusChipSize.small,
                         ),
                       ),
                     ],
@@ -389,15 +422,35 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
 
   /// Build cards row - horizontal layout with stacked collection rank cards
   Widget _buildCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, Map<String, dynamic> player) {
+    // Track drawn card visibility - show after animation completes (600ms)
+    if (drawnCard != null) {
+      final drawnCardId = drawnCard['cardId']?.toString();
+      final drawnCardKey = '${playerId}_$drawnCardId';
+      
+      if (drawnCardId != null && !_visibleDrawnCards.containsKey(drawnCardKey)) {
+        // Cancel existing timer if any
+        _drawnCardVisibilityTimer?.cancel();
+        
+        // Start timer to show card after animation completes
+        _drawnCardVisibilityTimer = Timer(const Duration(milliseconds: 600), () {
+          if (mounted && drawnCardId != null) {
+            setState(() {
+              _visibleDrawnCards[drawnCardKey] = true;
+            });
+          }
+        });
+      }
+    }
+    
     // Use LayoutBuilder to get available width for responsive card sizing
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Calculate card dimensions: 15% of container width, maintaining 5:7 aspect ratio
+        // Calculate card dimensions: 10% of container width, maintaining 5:7 aspect ratio
         // Handle unbounded constraints by using a fallback
         final containerWidth = constraints.maxWidth.isFinite 
             ? constraints.maxWidth 
             : MediaQuery.of(context).size.width * 0.5; // Fallback to 50% of screen width
-        final cardWidth = containerWidth * 0.15; // 15% of container width
+        final cardWidth = containerWidth * 0.10; // 10% of container width
         final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO; // Maintain 5:7 ratio
         final cardDimensions = Size(cardWidth, cardHeight);
         final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
@@ -718,23 +771,18 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     
     // Note: Collection rank cards no longer get a border - they're visually distinct through stacking + full data
     
-    // Wrap with drawn card glow if needed - explicit size constraints to prevent size changes
+    // Hide drawn card visually during animation, show after animation completes
+    // Card remains trackable for animation even when hidden
     if (isDrawnCard) {
+      final cardId = card['cardId']?.toString();
+      final drawnCardKey = '${playerId}_$cardId';
+      final shouldShowDrawnCard = _visibleDrawnCards[drawnCardKey] == true;
+      
       cardWidget = SizedBox(
         width: cardDimensions.width,
         height: cardDimensions.height,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
-                blurRadius: 12,
-                spreadRadius: 2,
-                offset: const Offset(0, 0),
-              ),
-            ],
-          ),
+        child: Opacity(
+          opacity: shouldShowDrawnCard ? 1.0 : 0.0, // Show after animation completes, hide during animation
           child: cardWidget,
         ),
       );
@@ -909,6 +957,49 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
 
+  /// Get status chip color for a given status (matches PlayerStatusChip logic)
+  /// Uses theme-aware colors from AppColors
+  Color _getStatusChipColor(String status) {
+    switch (status) {
+      case 'waiting':
+        return AppColors.statusWaiting;
+      case 'ready':
+        return AppColors.statusReady;
+      case 'drawing_card':
+        return AppColors.statusDrawing;
+      case 'playing_card':
+        return AppColors.statusPlaying;
+      case 'same_rank_window':
+        return AppColors.statusSameRank;
+      case 'queen_peek':
+        return AppColors.statusQueenPeek;
+      case 'jack_swap':
+        return AppColors.statusJackSwap;
+      case 'peeking':
+        return AppColors.statusPeeking;
+      case 'initial_peek':
+        return AppColors.statusInitialPeek;
+      case 'winner':
+        return AppColors.statusWinner;
+      case 'finished':
+        return AppColors.statusFinished;
+      case 'disconnected':
+        return AppColors.errorColor;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
+  /// Check if a status should trigger current player highlighting
+  /// Excludes "waiting" and "same_rank_window" statuses
+  bool _shouldHighlightCurrentPlayer(String status) {
+    // Exclude these statuses from current player highlighting
+    if (status == 'waiting' || status == 'same_rank_window') {
+      return false;
+    }
+    return true;
+  }
+
   /// Build a blank card slot for same-rank play empty spaces
   /// Note: This method is called from within LayoutBuilder context, so dimensions should be passed
   /// For now, we'll use a placeholder that will be replaced with dynamic dimensions
@@ -920,34 +1011,13 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       width: dimensions.width,
       height: dimensions.height,
       child: Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: AppColors.borderDefault,
-          width: 1,
-          style: BorderStyle.solid,
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.space_bar,
-              size: 16,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Empty',
-              style: AppTextStyles.overline().copyWith(
-                fontSize: 8,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: AppColors.borderDefault,
+            width: 1,
+            style: BorderStyle.solid,
           ),
         ),
       ),

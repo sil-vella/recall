@@ -697,6 +697,11 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
       final hand = opponent['hand'] as List<dynamic>? ?? [];
       final playerStatus = opponent['status']?.toString();
       
+      // Also get drawn card to ensure it's tracked even if hidden
+      final drawnCard = opponent['drawnCard'] as Map<String, dynamic>?;
+      // ignore: unused_local_variable - used in logging statement below
+      final drawnCardId = drawnCard?['cardId']?.toString();
+      
       for (final card in hand) {
         if (card == null || card is! Map<String, dynamic>) {
           continue;
@@ -748,6 +753,8 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         }
         
         // Update position in tracker with player status and suggested animation type
+        // This is critical for drawn cards - even if hidden, we need to track their position
+        // so that when they're played, the animation can find the start position
         tracker.updateCardPosition(
           cardId,
           position,
@@ -756,6 +763,11 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           playerId: playerId,
           playerStatus: playerStatus,
           suggestedAnimationType: suggestedAnimationType,
+        );
+        
+        _logger.info(
+          'OpponentsPanelWidget._updateCardPositions() - Tracked position for cardId: $cardId, playerId: $playerId, isDrawnCard: ${drawnCardId == cardId}',
+          isOn: LOGGING_SWITCH,
         );
       }
     }

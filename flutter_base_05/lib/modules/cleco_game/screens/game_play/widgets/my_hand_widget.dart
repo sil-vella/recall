@@ -13,7 +13,7 @@ import '../../../../cleco_game/managers/cleco_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = false; // Enabled for final round debugging
+const bool LOGGING_SWITCH = true; // Enabled for final round debugging
 
 /// Widget to display the player's hand
 /// 
@@ -115,7 +115,12 @@ class _MyHandWidgetState extends State<MyHandWidget> {
           _visibleDrawnCards[completion.cardId] = true;
         });
         _logger.info(
-          'MyHandWidget._onAnimationComplete() - Draw animation completed for cardId: ${completion.cardId}',
+          'MyHandWidget._onAnimationComplete() - Draw animation completed for cardId: ${completion.cardId}, visibility set to true. Current _visibleDrawnCards: $_visibleDrawnCards',
+          isOn: LOGGING_SWITCH,
+        );
+      } else {
+        _logger.info(
+          'MyHandWidget._onAnimationComplete() - Draw animation completed for cardId: ${completion.cardId}, but widget not mounted, skipping visibility update',
           isOn: LOGGING_SWITCH,
         );
       }
@@ -425,10 +430,44 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final drawnCard = clecoGameState['myDrawnCard'] as Map<String, dynamic>?;
         final drawnCardId = drawnCard?['cardId']?.toString();
         
+        // Clean up visibility states for cards that are no longer the drawn card
+        // This prevents old visibility states from persisting when a new card is drawn
+        // Only clean up if we have a current drawn card ID to compare against
+        if (drawnCardId != null) {
+          final keysToRemove = <String>[];
+          for (final key in _visibleDrawnCards.keys) {
+            if (key != drawnCardId) {
+              keysToRemove.add(key);
+            }
+          }
+          if (keysToRemove.isNotEmpty) {
+            for (final key in keysToRemove) {
+              _visibleDrawnCards.remove(key);
+            }
+            _logger.info(
+              'MyHandWidget._buildCardsGrid() - Cleaned up visibility states for old drawn cards: $keysToRemove, current drawnCardId: $drawnCardId',
+              isOn: LOGGING_SWITCH,
+            );
+          }
+        } else {
+          // If there's no drawn card, clear all visibility states
+          if (_visibleDrawnCards.isNotEmpty) {
+            _visibleDrawnCards.clear();
+            _logger.info(
+              'MyHandWidget._buildCardsGrid() - Cleared all visibility states (no drawn card)',
+              isOn: LOGGING_SWITCH,
+            );
+          }
+        }
+        
         // Initialize drawn card as hidden when it first appears
         // It will be shown when the draw animation completes (handled by _onAnimationComplete)
         if (drawnCard != null && drawnCardId != null && !_visibleDrawnCards.containsKey(drawnCardId)) {
           _visibleDrawnCards[drawnCardId] = false;
+          _logger.info(
+            'MyHandWidget._buildCardsGrid() - Initialized drawn card visibility to false for cardId: $drawnCardId',
+            isOn: LOGGING_SWITCH,
+          );
         }
         
         // Get current player's collection rank cards from games map
@@ -735,6 +774,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     final myHandSlice = clecoGameState['myHand'] as Map<String, dynamic>? ?? {};
     final turnEvents = myHandSlice['turn_events'] as List<dynamic>? ?? [];
     
+    // Also get drawn card to ensure it's tracked even if hidden
+    final drawnCard = clecoGameState['myDrawnCard'] as Map<String, dynamic>?;
+    final drawnCardId = drawnCard?['cardId']?.toString();
+    
     // Create a map of cardId -> actionType for quick lookup
     final Map<String, String> cardIdToActionType = {};
     for (final event in turnEvents) {
@@ -749,6 +792,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     
     final tracker = CardPositionTracker.instance();
     
+    // Track all cards in the hand, including drawn card if it exists
     for (final card in cards) {
       if (card == null || card is! Map<String, dynamic>) {
         continue;
@@ -763,13 +807,23 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       final cardKey = _cardKeys.putIfAbsent(cardId, () => GlobalKey(debugLabel: 'card_$cardId'));
       
       // Get RenderBox from GlobalKey
+      // Note: Even if card is hidden (opacity 0), RenderBox should still exist
       final renderObject = cardKey.currentContext?.findRenderObject();
       if (renderObject == null) {
+        // If RenderBox is null, try again in next frame - card might not be rendered yet
+        _logger.info(
+          'MyHandWidget._updateCardPositions() - RenderBox is null for cardId: $cardId, skipping position update',
+          isOn: LOGGING_SWITCH,
+        );
         continue;
       }
       
       final RenderBox? renderBox = renderObject as RenderBox?;
       if (renderBox == null) {
+        _logger.info(
+          'MyHandWidget._updateCardPositions() - RenderBox is not RenderBox for cardId: $cardId, skipping position update',
+          isOn: LOGGING_SWITCH,
+        );
         continue;
       }
       
@@ -799,6 +853,8 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       }
       
       // Update position in tracker with player status and suggested animation type
+      // This is critical for drawn cards - even if hidden, we need to track their position
+      // so that when they're played, the animation can find the start position
       tracker.updateCardPosition(
         cardId,
         position,
@@ -806,6 +862,11 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         'my_hand',
         playerStatus: playerStatus,
         suggestedAnimationType: suggestedAnimationType,
+      );
+      
+      _logger.info(
+        'MyHandWidget._updateCardPositions() - Tracked position for cardId: $cardId, isDrawnCard: ${drawnCardId == cardId}',
+        isOn: LOGGING_SWITCH,
       );
     }
     
@@ -1137,6 +1198,14 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     if (isDrawnCard) {
       final cardId = card['cardId']?.toString();
       final shouldShowDrawnCard = cardId != null && _visibleDrawnCards[cardId] == true;
+      
+      // Debug logging to track visibility state
+      if (LOGGING_SWITCH && cardId != null) {
+        _logger.info(
+          'MyHandWidget._buildCardWidget() - Drawn card visibility check: cardId=$cardId, shouldShow=$shouldShowDrawnCard, _visibleDrawnCards[$cardId]=${_visibleDrawnCards[cardId]}',
+          isOn: LOGGING_SWITCH,
+        );
+      }
       
       cardWidget = SizedBox(
         width: cardDimensions.width,

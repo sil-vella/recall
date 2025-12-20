@@ -23,6 +23,7 @@ class ActiveAnimation {
   final Animation<Size> sizeAnimation;
   final String? playerId;
   final bool showBack; // Whether to show card back (for privacy)
+  final AnimationType animationType; // Track animation type for empty slot management
 
   ActiveAnimation({
     required this.animationId,
@@ -37,6 +38,7 @@ class ActiveAnimation {
     required this.sizeAnimation,
     this.playerId,
     required this.showBack,
+    required this.animationType,
   });
 }
 
@@ -276,6 +278,7 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
       sizeAnimation: sizeAnimation,
       playerId: trigger.playerId,
       showBack: showBack,
+      animationType: trigger.animationType,
     );
 
     setState(() {
@@ -284,21 +287,25 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
 
     // When a play animation starts, create an empty slot at the start position
     // This slot will remain visible during both play and reposition animations
-    if (trigger.animationType == AnimationType.play) {
-      final slotId = 'empty_slot_${trigger.key}_${_animationCounter}';
+    // Store the slot ID with the animation so we can remove it when play completes if no reposition follows
+    final String? emptySlotId = trigger.animationType == AnimationType.play
+        ? 'empty_slot_${trigger.key}_${_animationCounter}'
+        : null;
+    
+    if (trigger.animationType == AnimationType.play && emptySlotId != null) {
       final emptySlot = EmptySlotData(
-        slotId: slotId,
+        slotId: emptySlotId,
         position: trigger.startPosition,
         size: trigger.startSize,
         playerId: trigger.playerId,
       );
       
       setState(() {
-        _emptySlots[slotId] = emptySlot;
+        _emptySlots[emptySlotId] = emptySlot;
       });
       
       _logger.info(
-        'CardAnimationLayer._startCardAnimation() - Created empty slot: $slotId at position (${trigger.startPosition.dx.toStringAsFixed(1)}, ${trigger.startPosition.dy.toStringAsFixed(1)})',
+        'CardAnimationLayer._startCardAnimation() - Created empty slot: $emptySlotId at position (${trigger.startPosition.dx.toStringAsFixed(1)}, ${trigger.startPosition.dy.toStringAsFixed(1)})',
         isOn: LOGGING_SWITCH,
       );
     }
@@ -352,6 +359,63 @@ class _CardAnimationLayerState extends State<CardAnimationLayer> with TickerProv
             'CardAnimationLayer._startCardAnimation() - Removed empty slot: $slotToRemove after reposition completed',
             isOn: LOGGING_SWITCH,
           );
+        }
+      }
+      
+      // When play animation completes, check if we need to remove the empty slot
+      // If no reposition animation follows (e.g., when playing a drawn card), remove it immediately
+      final slotIdToCheck = emptySlotId;
+      if (trigger.animationType == AnimationType.play && slotIdToCheck != null) {
+        // Check if there's a reposition animation in progress that will fill this slot
+        // A reposition animation would have the same end position as the play's start position
+        bool hasRepositionAnimation = false;
+        for (final animation in _activeAnimations.values) {
+          if (animation.animationType == AnimationType.reposition) {
+            // Check if reposition's end position matches the empty slot position
+            final positionMatch = (animation.endPosition - trigger.startPosition).distance < 5.0;
+            final sizeMatch = (animation.endSize.width - trigger.startSize.width).abs() < 5.0 &&
+                             (animation.endSize.height - trigger.startSize.height).abs() < 5.0;
+            if (positionMatch && sizeMatch) {
+              hasRepositionAnimation = true;
+              _logger.info(
+                'CardAnimationLayer._startCardAnimation() - Reposition animation in progress for empty slot: $emptySlotId, keeping slot',
+                isOn: LOGGING_SWITCH,
+              );
+              break;
+            }
+          }
+        }
+        
+        // If no reposition animation is coming, remove the empty slot immediately
+        if (!hasRepositionAnimation) {
+          // Wait a short delay to see if a reposition animation starts
+          // This handles the case where reposition might start slightly after play completes
+          final slotId = slotIdToCheck!; // Capture for closure (non-null because we're in null-checked block)
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted && _emptySlots.containsKey(slotId)) {
+              // Double-check that no reposition animation started
+              bool repositionStarted = false;
+              for (final animation in _activeAnimations.values) {
+                if (animation.animationType == AnimationType.reposition) {
+                  final positionMatch = (animation.endPosition - trigger.startPosition).distance < 5.0;
+                  if (positionMatch) {
+                    repositionStarted = true;
+                    break;
+                  }
+                }
+              }
+              
+              if (!repositionStarted) {
+                setState(() {
+                  _emptySlots.remove(slotId);
+                });
+                _logger.info(
+                  'CardAnimationLayer._startCardAnimation() - Removed empty slot: $slotId after play completed (no reposition animation)',
+                  isOn: LOGGING_SWITCH,
+                );
+              }
+            }
+          });
         }
       }
       

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for animation debugging
+const bool LOGGING_SWITCH = true; // Enabled for animation debugging
 
 /// Animation types
 enum AnimationType {
@@ -143,17 +143,36 @@ class CardPositionTracker {
       // Card moving to discard pile - check if it was in any player's hand
       // Search for existing position with this cardId but with a playerId prefix (opponent)
       // or just the cardId (my hand)
+      _logger.info(
+        'CardPositionTracker.updateCardPosition() - Searching for old position of card $cardId in discard pile. Total positions: ${_positions.length}',
+        isOn: LOGGING_SWITCH,
+      );
+      
       for (final entry in _positions.entries) {
         final isHandLocation = entry.value.location == 'my_hand' || entry.value.location == 'opponent_hand';
-        if (isHandLocation && (entry.key == cardId || entry.key.endsWith('_$cardId'))) {
+        final keyMatches = entry.key == cardId || entry.key.endsWith('_$cardId');
+        
+        _logger.info(
+          'CardPositionTracker.updateCardPosition() - Checking entry: key=${entry.key}, location=${entry.value.location}, isHandLocation=$isHandLocation, keyMatches=$keyMatches',
+          isOn: LOGGING_SWITCH,
+        );
+        
+        if (isHandLocation && keyMatches) {
           oldPositionData = entry.value;
           oldKey = entry.key; // Store the old key for proper cleanup
           _logger.info(
-            'CardPositionTracker.updateCardPosition() - Found old position for discard pile card: oldKey=$oldKey, oldLocation=${entry.value.location}',
+            'CardPositionTracker.updateCardPosition() - Found old position for discard pile card: oldKey=$oldKey, oldLocation=${entry.value.location}, oldPosition=(${entry.value.position.dx.toStringAsFixed(1)}, ${entry.value.position.dy.toStringAsFixed(1)})',
             isOn: LOGGING_SWITCH,
           );
           break;
         }
+      }
+      
+      if (oldPositionData == null) {
+        _logger.warning(
+          'CardPositionTracker.updateCardPosition() - Could not find old position for card $cardId when moving to discard pile. Available positions: ${_positions.keys.toList()}',
+          isOn: LOGGING_SWITCH,
+        );
       }
     }
     
@@ -224,6 +243,35 @@ class CardPositionTracker {
         // For play and reposition, use old position as start
         startPosition = oldPositionData.position;
         startSize = oldPositionData.size;
+      } else if (suggestedAnimationType == AnimationType.play) {
+        // For play animation, if old position not found, try to find it again
+        // This handles the case where a drawn card is played before its position is tracked
+        _logger.warning(
+          'CardPositionTracker.updateCardPosition() - Play animation suggested but old position not found for cardId: $cardId. Attempting to find position in my_hand...',
+          isOn: LOGGING_SWITCH,
+        );
+        
+        // Search for position in my_hand (for drawn cards that might not be tracked yet)
+        for (final entry in _positions.entries) {
+          if (entry.value.location == 'my_hand' && (entry.key == cardId || entry.key.endsWith('_$cardId'))) {
+            startPosition = entry.value.position;
+            startSize = entry.value.size;
+            oldPositionData = entry.value;
+            oldKey = entry.key;
+            _logger.info(
+              'CardPositionTracker.updateCardPosition() - Found position for play animation: oldKey=$oldKey, position=(${startPosition!.dx.toStringAsFixed(1)}, ${startPosition!.dy.toStringAsFixed(1)})',
+              isOn: LOGGING_SWITCH,
+            );
+            break;
+          }
+        }
+        
+        if (startPosition == null) {
+          _logger.warning(
+            'CardPositionTracker.updateCardPosition() - Could not find start position for play animation of cardId: $cardId. Animation will not be triggered.',
+            isOn: LOGGING_SWITCH,
+          );
+        }
       }
     } else {
       // PRIORITY 2: Position-based animation detection (fallback when no suggestion)

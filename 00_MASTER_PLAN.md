@@ -229,6 +229,21 @@ Python Backend (Auth)
   - Clear turn_events and animation data
   - Ensure cleanup happens on both explicit navigation and screen disposal
 
+### Penalty Card System
+- **Issue**: Penalty card system needs verification - playing a penalty card as a same rank to a different turn didn't work
+- **Status**: 🔄 **Needs Investigation** - System may not be handling penalty cards correctly in same rank play scenarios
+- **Current Behavior**: Attempted to play a penalty card as a same rank play to a different turn, but the action didn't work
+- **Expected Behavior**: Penalty cards should be playable as same rank plays when appropriate
+- **Location**: 
+  - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart` - Same rank play logic
+  - Penalty card validation and handling logic
+- **Impact**: Game functionality - penalty cards are a core game mechanic and must work correctly
+- **Action Items**:
+  - Verify penalty card validation logic in same rank play
+  - Check if penalty cards are being properly identified and allowed in same rank scenarios
+  - Test penalty card play across different turn scenarios
+  - Ensure penalty cards follow correct game rules for same rank plays
+
 ### Drawn Card Logic in Opponents Panel
 - **Issue**: Opponents were seeing full drawn card data (rank/suit) when they should only see ID-only format
 - **Status**: ✅ **Almost Fixed** - Sanitization logic implemented, needs final verification

@@ -7,7 +7,7 @@ import '../../utils/platform/shared_imports.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for final round debugging
+const bool LOGGING_SWITCH = true; // Enabled for final round debugging
 
 class ClecoGameRound {
   final Logger _logger = Logger();
@@ -2121,13 +2121,54 @@ class ClecoGameRound {
         _logger.info('Cleco: Applying penalty for wrong same rank play - drawing card from draw pile', isOn: LOGGING_SWITCH);
         
         final drawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
+        final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+        
+        // Check if draw pile is empty and reshuffle if needed (same logic as regular draw)
         if (drawPile.isEmpty) {
-          _logger.error('Cleco: Cannot apply penalty - draw pile is empty', isOn: LOGGING_SWITCH);
+          // Draw pile is empty - reshuffle discard pile (except top card) into draw pile
+          if (discardPile.length <= 1) {
+            _logger.error('Cleco: Cannot apply penalty - draw pile is empty and discard pile has ${discardPile.length} card(s)', isOn: LOGGING_SWITCH);
+            return false;
+          }
+          
+          // Keep the top card in discard pile, reshuffle the rest
+          final topCard = discardPile.last;
+          final cardsToReshuffle = discardPile.sublist(0, discardPile.length - 1);
+          
+          _logger.info('Cleco: Draw pile empty during penalty - reshuffling ${cardsToReshuffle.length} cards from discard pile (keeping top card: ${topCard['cardId']})', isOn: LOGGING_SWITCH);
+          
+          // Convert full card data to ID-only for reshuffled cards
+          final idOnlyCards = cardsToReshuffle.map((card) => <String, dynamic>{
+            'cardId': card['cardId'],
+            'suit': '?',
+            'rank': '?',
+            'points': 0,
+          }).toList();
+          
+          // Shuffle the cards
+          idOnlyCards.shuffle();
+          
+          // Add shuffled cards to draw pile
+          drawPile.addAll(idOnlyCards);
+          
+          // Keep only the top card in discard pile
+          gameState['discardPile'] = [topCard];
+          
+          // Update game state with reshuffled draw pile
+          gameState['drawPile'] = drawPile;
+          
+          _logger.info('Cleco: Reshuffled ${idOnlyCards.length} cards into draw pile for penalty. Draw pile now has ${drawPile.length} cards, discard pile has 1 card', isOn: LOGGING_SWITCH);
+        }
+        
+        // Re-fetch drawPile in case it was reshuffled above
+        final currentDrawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
+        if (currentDrawPile.isEmpty) {
+          _logger.error('Cleco: Draw pile is empty after reshuffle check - cannot apply penalty', isOn: LOGGING_SWITCH);
           return false;
         }
         
         // Draw a card from the draw pile (remove last card)
-        final penaltyCard = drawPile.removeLast();
+        final penaltyCard = currentDrawPile.removeLast();
         _logger.info('Cleco: Drew penalty card ${penaltyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
         
         // Add penalty card to player's hand as ID-only (same format as regular hand cards)
@@ -2144,7 +2185,7 @@ class ClecoGameRound {
         
         // CRITICAL: Persist changes to game state
         player['hand'] = hand;  // Update player's hand with the penalty card
-        gameState['drawPile'] = drawPile;  // Update draw pile after removing penalty card
+        gameState['drawPile'] = currentDrawPile;  // Update draw pile after removing penalty card (may have been reshuffled)
         
         // Update player state to reflect the new hand and draw pile
         // CRITICAL: Pass currentGames to avoid reading stale state

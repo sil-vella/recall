@@ -51,6 +51,7 @@ The deck configuration YAML files are located in different paths depending on th
   ```dart
   const String DECK_CONFIG_PATH = 'assets/deck_config.yaml';
   ```
+- **Important**: Flutter practice mode and all Flutter-based gameplay uses the `assets/deck_config.yaml` file. The `backend_core/config/deck_config.yaml` file is NOT used by Flutter - it is only for Dart backend implementations. Always modify `assets/deck_config.yaml` when making changes for Flutter practice mode.
 
 #### Dart Backend
 - **Primary Location**: `dart_bkend_base_01/lib/modules/cleco_game/backend_core/config/deck_config.yaml`
@@ -550,7 +551,8 @@ String _generateCardId(String gameId, String rank, String suit, int index) {
 ## Related Files
 
 ### Configuration Files
-- `flutter_base_05/assets/deck_config.yaml` - Flutter deck configuration
+- `flutter_base_05/assets/deck_config.yaml` - **Flutter deck configuration (used by Flutter practice mode and all Flutter gameplay)**
+- `flutter_base_05/lib/modules/cleco_game/backend_core/config/deck_config.yaml` - Backend config file (NOT used by Flutter, only for reference)
 - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/config/deck_config.yaml` - Dart backend deck configuration
 
 ### Implementation Files
@@ -627,10 +629,11 @@ testing_deck:
 ## Best Practices
 
 1. **Keep Configs Synchronized**: Ensure Flutter and Dart backend configs match
-2. **Update Stats**: When modifying deck composition, update `deck_stats` section
-3. **Test Both Modes**: Test with both `testing_mode: true` and `testing_mode: false`
-4. **Validate Configuration**: Use `validateConfig()` method to check configuration
-5. **Document Changes**: Update this documentation when making significant changes
+2. **Flutter Practice Mode**: Always modify `assets/deck_config.yaml` for Flutter practice mode changes. The `backend_core/config/deck_config.yaml` file is NOT used by Flutter runtime.
+3. **Update Stats**: When modifying deck composition, update `deck_stats` section
+4. **Test Both Modes**: Test with both `testing_mode: true` and `testing_mode: false`
+5. **Validate Configuration**: Use `validateConfig()` method to check configuration
+6. **Document Changes**: Update this documentation when making significant changes
 
 ---
 
@@ -642,6 +645,8 @@ testing_deck:
 
 **Solutions**:
 - Flutter: Ensure file is in `assets/` and declared in `pubspec.yaml`
+  - **Important**: Flutter practice mode uses `assets/deck_config.yaml`, NOT `backend_core/config/deck_config.yaml`
+  - Always modify `assets/deck_config.yaml` for Flutter changes
 - Dart Backend: Check file path exists in `backend_core/config/` or `config/`
 - Verify `DECK_CONFIG_PATH` constant is correctly defined
 
@@ -662,6 +667,34 @@ testing_deck:
 - Verify rank is defined in correct deck section (`standard_deck` or `testing_deck`)
 - Check `quantity_per_suit` is greater than 0
 - For jokers, verify `quantity_total` is greater than 0 and `include_jokers` is true
+
+### Draw Pile Reshuffling
+
+**Overview**: When the draw pile becomes empty during gameplay, the system automatically reshuffles the discard pile (except the top card) back into the draw pile.
+
+**When Reshuffling Occurs**:
+- **Regular Draw**: When a player attempts to draw a card and the draw pile is empty
+- **Penalty Draw**: When a penalty is applied (e.g., wrong same rank play) and the draw pile is empty
+
+**Reshuffle Process**:
+1. Check if draw pile is empty
+2. Verify discard pile has at least one card (the top card must remain)
+3. Take all cards from discard pile except the top card
+4. Convert cards to ID-only format (face-down)
+5. Shuffle the cards
+6. Add shuffled cards to draw pile
+7. Keep only the top card in discard pile
+
+**Implementation Location**:
+- `flutter_base_05/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart`
+  - Regular draw: `handleDrawCard()` method (lines ~1044-1080)
+  - Penalty draw: `handleSameRankPlay()` method (penalty section)
+
+**Important Notes**:
+- The top card of the discard pile is **never** reshuffled - it remains visible
+- All reshuffled cards are converted to ID-only format (face-down) before being added to draw pile
+- Reshuffling happens automatically and transparently to players
+- If both draw pile and discard pile are empty (shouldn't happen in normal gameplay), the action fails
 
 ---
 

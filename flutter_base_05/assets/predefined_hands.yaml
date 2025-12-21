@@ -1,31 +1,49 @@
 # Predefined Hands Configuration for Testing
 # Enable/disable predefined hands dealing
-enabled: false
+enabled: true
 
 # Predefined hands for each player
 # Players are indexed: 0 = first player (human in practice), 1+ = computer players
 hands:
   player_0:  # Human player in practice, first player in backend
     - rank: "queen"
-      suit: "diamonds"
-    - rank: "queen"
-      suit: "clubs"
-    - rank: "jack"
       suit: "hearts"
+    - rank: "2"
+      suit: "diamonds"
+    - rank: "3"
+      suit: "clubs"
     - rank: "ace"
       suit: "spades"
   
   player_1:  # First computer player
-    - rank: "queen"
-      suit: "hearts"
-    - rank: "queen"
-      suit: "diamonds"
-    - rank: "jack"
-      suit: "clubs"
     - rank: "king"
+      suit: "hearts"
+    - rank: "ace"
+      suit: "diamonds"
+    - rank: "2"
+      suit: "clubs"
+    - rank: "3"
       suit: "spades"
   
-  # Add more players as needed (player_2, player_3, etc.)
+  player_2:  # Second computer player
+    - rank: "king"
+      suit: "diamonds"
+    - rank: "4"
+      suit: "hearts"
+    - rank: "ace"
+      suit: "clubs"
+    - rank: "2"
+      suit: "spades"
+  
+  player_3:  # Third computer player
+    - rank: "king"
+      suit: "clubs"
+    - rank: "3"
+      suit: "hearts"
+    - rank: "4"
+      suit: "diamonds"
+    - rank: "ace"
+      suit: "spades"
 
 # Initial discard pile card (optional)
 # If not specified, a random card from the remaining deck will be used

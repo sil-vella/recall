@@ -137,6 +137,7 @@ You've drawn a card. Now choose what to play:
       return {
         'key': KEY_QUEEN_PEEK,
         'title': 'Queen Power - Peek at a Card',
+        'hasDemonstration': true,
         'content': '''👑 **Queen Power Activated**
 
 You played a Queen! You can now peek at any opponent's card.

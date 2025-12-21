@@ -6,6 +6,7 @@ import '../../../../../utils/consts/theme_consts.dart';
 import 'initial_peek_demonstration_widget.dart';
 import 'drawing_card_demonstration_widget.dart';
 import 'playing_card_demonstration_widget.dart';
+import 'queen_peek_demonstration_widget.dart';
 
 /// Instructions Widget for Cleco Game
 /// 
@@ -94,47 +95,58 @@ class InstructionsWidget extends StatelessWidget {
               customContent: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Demonstration container (only shown if hasDemonstration is true)
-                  if (hasDemonstration) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: AppPadding.defaultPadding,
-                      margin: EdgeInsets.only(
+                  // Scrollable content area (demonstration + text)
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.only(
                         top: AppPadding.defaultPadding.top,
                         left: AppPadding.defaultPadding.left,
                         right: AppPadding.defaultPadding.right,
                       ),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardVariant,
-                        borderRadius: AppBorderRadius.mediumRadius,
-                      ),
-                      child: instructionKey == 'initial_peek'
-                          ? const InitialPeekDemonstrationWidget()
-                          : instructionKey == 'drawing_card'
-                              ? const DrawingCardDemonstrationWidget()
-                              : instructionKey == 'playing_card'
-                                  ? const PlayingCardDemonstrationWidget()
-                                  : const SizedBox(
-                                      height: 150, // Placeholder for other demonstrations
-                                    ),
-                    ),
-                    SizedBox(height: AppPadding.defaultPadding.top),
-                  ],
-                  // Content area
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: AppPadding.defaultPadding,
-                      child: Text(
-                        content,
-                        style: AppTextStyles.bodyMedium(
-                          color: AppColors.textOnCard,
-                        ).copyWith(
-                          height: 1.5,
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Demonstration container (only shown if hasDemonstration is true)
+                          if (hasDemonstration) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: AppPadding.defaultPadding,
+                              decoration: BoxDecoration(
+                                color: AppColors.cardVariant,
+                                borderRadius: AppBorderRadius.mediumRadius,
+                              ),
+                              child: instructionKey == 'initial_peek'
+                                  ? const InitialPeekDemonstrationWidget()
+                                  : instructionKey == 'drawing_card'
+                                      ? const DrawingCardDemonstrationWidget()
+                                      : instructionKey == 'playing_card'
+                                          ? const PlayingCardDemonstrationWidget()
+                                          : instructionKey == 'queen_peek'
+                                              ? const QueenPeekDemonstrationWidget()
+                                              : const SizedBox(
+                                                  height: 150, // Placeholder for other demonstrations
+                                                ),
+                            ),
+                            SizedBox(height: AppPadding.defaultPadding.top),
+                          ],
+                          // Text content
+                          Padding(
+                            padding: AppPadding.defaultPadding,
+                            child: Text(
+                              content,
+                              style: AppTextStyles.bodyMedium(
+                                color: AppColors.textOnCard,
+                              ).copyWith(
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  // Footer with checkbox and close button on same line
+                  // Footer with checkbox and close button on same line (fixed at bottom)
                   Container(
                     padding: AppPadding.cardPadding,
                     decoration: BoxDecoration(

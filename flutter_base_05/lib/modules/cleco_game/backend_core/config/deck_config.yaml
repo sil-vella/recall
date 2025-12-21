@@ -101,6 +101,10 @@ testing_deck:
       points: 4
       special_power: null
       quantity_per_suit: 1
+    queen:
+      points: 10
+      special_power: "peek_at_card"
+      quantity_per_suit: 1
     king:
       points: 10
       special_power: null
@@ -158,9 +162,9 @@ deck_stats:
     special_cards: 8  # 4 queens + 4 jacks
   
   testing:
-    total_cards: 20
+    total_cards: 24
     suits: 4
-    special_cards: 0  # No special cards (jacks/queens removed)
+    special_cards: 4  # 4 queens (one per suit)
     numbered_cards: 16  # 2, 3, 4 of each suit (3×4 = 12) + ace counts as numbered
     face_cards: 4  # 4 kings
     jokers: 0

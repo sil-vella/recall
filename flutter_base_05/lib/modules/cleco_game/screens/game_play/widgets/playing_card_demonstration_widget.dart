@@ -21,14 +21,17 @@ class PlayingCardDemonstrationWidget extends StatefulWidget {
 
 class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstrationWidget>
     with TickerProviderStateMixin {
-  bool _animationStarted = false;
-  bool _animationComplete = false;
+  // Animation phases: 0 = idle, 1 = play animation, 2 = drawn card animation, 3 = flip
+  int _animationPhase = 0;
+  bool _drawnCardFlipped = false;
   late AnimationController _animationController;
-  late Animation<Offset> _cardAnimation;
+  late Animation<Offset> _playCardAnimation;
+  late Animation<Offset> _drawnCardAnimation;
   
   // GlobalKeys to track positions
   final GlobalKey _discardPileKey = GlobalKey(debugLabel: 'demo_discard_pile');
   final GlobalKey _thirdCardKey = GlobalKey(debugLabel: 'demo_hand_third_card');
+  final GlobalKey _drawnCardKey = GlobalKey(debugLabel: 'demo_hand_drawn_card');
   
   /// The card being played (3rd card in hand)
   Map<String, dynamic> get _playedCard => {
@@ -47,8 +50,17 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
     'points': 5,
   };
 
+  /// The drawn card data (from draw demo - 3 of Clubs)
+  Map<String, dynamic> get _drawnCard => {
+    'cardId': 'demo-drawn-0',
+    'rank': '3',
+    'suit': 'clubs',
+    'points': 3,
+  };
+
   /// Hand cards - one face up (Ace of Spades), others face down
   /// The 3rd card (index 2) will be played
+  /// The drawn card (3 of Clubs) is at the end, initially face up
   List<Map<String, dynamic>> get _handCards => [
     // Card 0: Ace of Spades (face up)
     {
@@ -78,24 +90,68 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
       'suit': '?',
       'points': 0,
     },
+    // Card 4: Drawn card (3 of Clubs) - initially face up, will flip after moving
+    {
+      'cardId': 'demo-drawn-0',
+      'rank': '3',
+      'suit': 'clubs',
+      'points': 3,
+    },
   ];
 
   @override
   void initState() {
     super.initState();
+    // Single animation controller for both animations (sequential)
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1600), // 800ms for each animation
       vsync: this,
     );
     
-    // Animation will be set up with actual positions after first frame
-    _cardAnimation = Tween<Offset>(
+    // Animations will be set up with actual positions after first frame
+    _playCardAnimation = Tween<Offset>(
       begin: Offset.zero,
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeInOut,
+      curve: const Interval(0.0, 0.5, curve: Curves.easeInOut), // First half: play animation
     ));
+    
+    _drawnCardAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.5, 1.0, curve: Curves.easeInOut), // Second half: drawn card animation
+    ));
+    
+    // Listen to animation controller to track phases
+    _animationController.addListener(() {
+      if (!mounted) return;
+      final value = _animationController.value;
+      if (value < 0.5) {
+        // Play animation phase
+        if (_animationPhase != 1) {
+          setState(() {
+            _animationPhase = 1;
+          });
+        }
+      } else if (value < 1.0) {
+        // Drawn card animation phase
+        if (_animationPhase != 2) {
+          setState(() {
+            _animationPhase = 2;
+          });
+        }
+      } else {
+        // Animation complete - both animations done
+        if (_animationPhase != 3) {
+          setState(() {
+            _animationPhase = 3;
+          });
+        }
+      }
+    });
     
     _startAnimation();
   }
@@ -116,68 +172,122 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
   void _runAnimationCycle() {
     if (!mounted) return;
     
+    // Reset all states for new cycle
+    setState(() {
+      _animationPhase = 0;
+      _drawnCardFlipped = false;
+    });
+    
     // Wait for next frame to ensure positions are calculated
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Add a small delay to ensure layout is fully settled
       Future.delayed(const Duration(milliseconds: 50), () {
         if (!mounted) return;
         
-        // Get actual positions from GlobalKeys
-        final thirdCardRenderBox = _thirdCardKey.currentContext?.findRenderObject() as RenderBox?;
-        final discardPileRenderBox = _discardPileKey.currentContext?.findRenderObject() as RenderBox?;
-        
-        if (thirdCardRenderBox != null && discardPileRenderBox != null) {
-          // Get positions relative to the Stack
-          final thirdCardPosition = thirdCardRenderBox.localToGlobal(Offset.zero);
-          final discardPilePosition = discardPileRenderBox.localToGlobal(Offset.zero);
-          
-          // Get the Stack's position to calculate relative positions
-          final stackContext = context.findRenderObject() as RenderBox?;
-          if (stackContext != null) {
-            final stackPosition = stackContext.localToGlobal(Offset.zero);
-            
-            // Calculate center positions relative to the Stack
-            final startOffset = Offset(
-              thirdCardPosition.dx - stackPosition.dx + thirdCardRenderBox.size.width / 2,
-              thirdCardPosition.dy - stackPosition.dy + thirdCardRenderBox.size.height / 2,
-            );
-            
-            final endOffset = Offset(
-              discardPilePosition.dx - stackPosition.dx + discardPileRenderBox.size.width / 2,
-              discardPilePosition.dy - stackPosition.dy + discardPileRenderBox.size.height / 2,
-            );
-            
-            // Update animation with actual positions
-            _cardAnimation = Tween<Offset>(
-              begin: startOffset,
-              end: endOffset,
-            ).animate(CurvedAnimation(
-              parent: _animationController,
-              curve: Curves.easeInOut,
-            ));
-            
-            setState(() {
-              _animationStarted = true;
-              _animationComplete = false;
-            });
-            
-            _animationController.forward(from: 0.0).then((_) {
-              if (mounted) {
-                setState(() {
-                  _animationComplete = true;
-                });
-                // Reset and repeat after 4 seconds total (including animation time)
-                Future.delayed(const Duration(milliseconds: 3200), () {
-                  if (mounted) {
-                    _runAnimationCycle();
-                  }
-                });
-              }
-            });
-          }
-        }
+        // Setup both animations with actual positions
+        _setupAnimations();
       });
     });
+  }
+
+  void _setupAnimations() {
+    if (!mounted) return;
+    
+    // Get actual positions from GlobalKeys
+    final thirdCardRenderBox = _thirdCardKey.currentContext?.findRenderObject() as RenderBox?;
+    final discardPileRenderBox = _discardPileKey.currentContext?.findRenderObject() as RenderBox?;
+    final drawnCardRenderBox = _drawnCardKey.currentContext?.findRenderObject() as RenderBox?;
+    
+    if (thirdCardRenderBox != null && discardPileRenderBox != null && drawnCardRenderBox != null) {
+      // Get positions relative to the Stack
+      final thirdCardPosition = thirdCardRenderBox.localToGlobal(Offset.zero);
+      final discardPilePosition = discardPileRenderBox.localToGlobal(Offset.zero);
+      final drawnCardPosition = drawnCardRenderBox.localToGlobal(Offset.zero);
+      
+      // Get the Stack's position to calculate relative positions
+      final stackContext = context.findRenderObject() as RenderBox?;
+      if (stackContext != null) {
+        final stackPosition = stackContext.localToGlobal(Offset.zero);
+        
+        // Calculate play card animation positions
+        final playStartOffset = Offset(
+          thirdCardPosition.dx - stackPosition.dx + thirdCardRenderBox.size.width / 2,
+          thirdCardPosition.dy - stackPosition.dy + thirdCardRenderBox.size.height / 2,
+        );
+        
+        final playEndOffset = Offset(
+          discardPilePosition.dx - stackPosition.dx + discardPileRenderBox.size.width / 2,
+          discardPilePosition.dy - stackPosition.dy + discardPileRenderBox.size.height / 2,
+        );
+        
+        // Calculate drawn card animation positions
+        // Calculate where the 3rd card slot is (after removing the played card)
+        final handRowContext = _drawnCardKey.currentContext?.findAncestorRenderObjectOfType<RenderFlex>();
+        
+        if (handRowContext != null) {
+          final cardDimensions = CardDimensions.getUnifiedDimensions();
+          final spacing = AppPadding.smallPadding.left;
+          
+          final handRowPosition = handRowContext.localToGlobal(Offset.zero);
+          final handRowSize = handRowContext.size;
+          final rowCenterX = handRowPosition.dx - stackPosition.dx + handRowSize.width / 2;
+          
+          // After removing played card, we have 4 cards
+          final totalWidth = (cardDimensions.width * 4) + (spacing * 3);
+          
+          // The 3rd card slot (index 2) center position
+          final thirdSlotCenterX = rowCenterX - (totalWidth / 2) + (cardDimensions.width * 2.5) + (spacing * 2);
+          
+          final drawnCardStartOffset = Offset(
+            drawnCardPosition.dx - stackPosition.dx + drawnCardRenderBox.size.width / 2,
+            drawnCardPosition.dy - stackPosition.dy + drawnCardRenderBox.size.height / 2,
+          );
+          
+          final drawnCardEndOffset = Offset(
+            thirdSlotCenterX,
+            drawnCardPosition.dy - stackPosition.dy + drawnCardRenderBox.size.height / 2,
+          );
+          
+          // Update animations with actual positions
+          _playCardAnimation = Tween<Offset>(
+            begin: playStartOffset,
+            end: playEndOffset,
+          ).animate(CurvedAnimation(
+            parent: _animationController,
+            curve: const Interval(0.0, 0.5, curve: Curves.easeInOut),
+          ));
+          
+          _drawnCardAnimation = Tween<Offset>(
+            begin: drawnCardStartOffset,
+            end: drawnCardEndOffset,
+          ).animate(CurvedAnimation(
+            parent: _animationController,
+            curve: const Interval(0.5, 1.0, curve: Curves.easeInOut),
+          ));
+          
+          // Start the combined animation
+          _animationController.forward(from: 0.0).then((_) {
+            if (mounted) {
+              // After both animations complete, wait 1 second, then flip the drawn card
+              Future.delayed(const Duration(seconds: 1), () {
+                if (mounted) {
+                  setState(() {
+                    _drawnCardFlipped = true;
+                  });
+                  // Reset and repeat after 4 seconds total
+                  Future.delayed(const Duration(milliseconds: 1400), () {
+                    if (mounted) {
+                      _animationController.reset();
+                      _runAnimationCycle();
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+      }
+    }
   }
 
   /// Build the game board section (draw pile and discard pile)
@@ -236,7 +346,8 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
                   children: [
                     CardWidget(
                       key: _discardPileKey,
-                      card: CardModel.fromMap(_animationComplete ? _playedCard : _topDiscardCard),
+                      // Show played card only after play animation completes (phase >= 2)
+                      card: CardModel.fromMap(_animationPhase >= 2 ? _playedCard : _topDiscardCard),
                       dimensions: cardDimensions,
                       config: CardDisplayConfig.forDiscardPile(),
                       showBack: false, // Face up
@@ -251,16 +362,72 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
     );
   }
 
+  /// Build empty slot widget (similar to my_hand_widget)
+  Widget _buildEmptySlot() {
+    final cardDimensions = CardDimensions.getUnifiedDimensions();
+    
+    return SizedBox(
+      width: cardDimensions.width,
+      height: cardDimensions.height,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: AppColors.borderDefault,
+            width: 2,
+            style: BorderStyle.solid,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.space_bar,
+                size: 24,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Empty',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Build the hand section
   Widget _buildHand() {
     final cardDimensions = CardDimensions.getUnifiedDimensions();
     final spacing = AppPadding.smallPadding.left;
     
-    // Remove played card from hand if animation is complete
+    // Remove played card from hand if play animation has started
+    // Move drawn card to 3rd position only after drawn card animation completes
     final cardsToShow = List<Map<String, dynamic>>.from(_handCards);
-    if (_animationComplete) {
-      // Remove the 3rd card (index 2) - the played card
+    
+    if (_animationPhase >= 1) {
+      // Remove the 3rd card (index 2) - the played card (show empty slot during animation)
       cardsToShow.removeAt(2);
+    }
+    
+    // If drawn card animation has completed, move it to the 3rd position (where played card was)
+    // Keep empty slot visible until drawn card animation completes
+    if (_animationPhase >= 3) {
+      // Find the drawn card (should be at the end)
+      final drawnCardIndex = cardsToShow.indexWhere((c) => c['cardId'] == _drawnCard['cardId']);
+      if (drawnCardIndex != -1) {
+        final drawnCardData = cardsToShow.removeAt(drawnCardIndex);
+        // Insert at position 2 (3rd card slot)
+        cardsToShow.insert(2, drawnCardData);
+      }
     }
 
     return SizedBox(
@@ -270,27 +437,52 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
         children: List.generate(cardsToShow.length, (index) {
           final cardData = cardsToShow[index];
           final cardModel = CardModel.fromMap(cardData);
-          // The 3rd card (index 2) should be face up (it has card data)
-          // Other cards except the first are face down
-          final isFaceUp = (cardModel.rank != '?' && cardModel.suit != '?');
+          final isDrawnCard = cardData['cardId'] == _drawnCard['cardId'];
           
-          // Use key for the 3rd card (index 2 in original list)
-          // Before animation completes, the 3rd card is at index 2
-          // After animation completes, we remove it
-          final isThirdCard = !_animationComplete && index == 2;
+          // Determine if card should be face up
+          // Drawn card: face up until flipped, then face down
+          bool isFaceUp;
+          if (isDrawnCard) {
+            isFaceUp = !_drawnCardFlipped && (cardModel.rank != '?' && cardModel.suit != '?');
+          } else {
+            isFaceUp = (cardModel.rank != '?' && cardModel.suit != '?');
+          }
+          
+          // Use key for the 3rd card (index 2) - the card to be played
+          // Before play animation starts, the 3rd card is at index 2
+          // After play animation starts, we show empty slot
+          final isThirdCard = _animationPhase == 0 && index == 2;
           final cardKey = isThirdCard ? _thirdCardKey : null;
+          
+          // Use key for drawn card (at end initially, then at index 2 after move)
+          final isDrawnCardAtEnd = isDrawnCard && _animationPhase < 3;
+          final isDrawnCardAtThird = isDrawnCard && _animationPhase >= 3 && index == 2;
+          final drawnCardKey = (isDrawnCardAtEnd || isDrawnCardAtThird) ? _drawnCardKey : null;
+          
+          // Show empty slot at 3rd position during play and drawn card animations
+          // Keep empty slot until drawn card animation completes (phase < 3)
+          final showEmptySlot = _animationPhase >= 1 && _animationPhase < 3 && index == 2;
 
           return Padding(
             padding: EdgeInsets.only(
               right: index < cardsToShow.length - 1 ? spacing : 0,
             ),
-            child: CardWidget(
-              key: cardKey,
-              card: cardModel,
-              dimensions: cardDimensions,
-              config: CardDisplayConfig.forMyHand(),
-              showBack: !isFaceUp, // Show back if card data is hidden
-            ),
+            child: showEmptySlot
+                ? _buildEmptySlot()
+                : CardWidget(
+                    key: cardKey ?? drawnCardKey,
+                    card: isDrawnCard && _drawnCardFlipped
+                        ? CardModel(
+                            cardId: _drawnCard['cardId'],
+                            rank: '?',
+                            suit: '?',
+                            points: 0,
+                          )
+                        : cardModel,
+                    dimensions: cardDimensions,
+                    config: CardDisplayConfig.forMyHand(),
+                    showBack: !isFaceUp || (isDrawnCard && _drawnCardFlipped), // Show back if card data is hidden or flipped
+                  ),
           );
         }),
       ),
@@ -314,16 +506,33 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
             _buildHand(),
           ],
         ),
-        // Animated card (only during animation) - positioned using exact coordinates
-        if (_animationStarted && !_animationComplete)
+        // Animated played card (only during play animation phase) - positioned using exact coordinates
+        if (_animationPhase == 1)
           AnimatedBuilder(
-            animation: _cardAnimation,
+            animation: _playCardAnimation,
             builder: (context, child) {
               return Positioned(
-                left: _cardAnimation.value.dx - cardDimensions.width / 2,
-                top: _cardAnimation.value.dy - cardDimensions.height / 2,
+                left: _playCardAnimation.value.dx - cardDimensions.width / 2,
+                top: _playCardAnimation.value.dy - cardDimensions.height / 2,
                 child: CardWidget(
                   card: CardModel.fromMap(_playedCard),
+                  dimensions: cardDimensions,
+                  config: CardDisplayConfig.forMyHand(),
+                  showBack: false, // Show face up during animation
+                ),
+              );
+            },
+          ),
+        // Animated drawn card (only during drawn card animation phase) - positioned using exact coordinates
+        if (_animationPhase == 2)
+          AnimatedBuilder(
+            animation: _drawnCardAnimation,
+            builder: (context, child) {
+              return Positioned(
+                left: _drawnCardAnimation.value.dx - cardDimensions.width / 2,
+                top: _drawnCardAnimation.value.dy - cardDimensions.height / 2,
+                child: CardWidget(
+                  card: CardModel.fromMap(_drawnCard),
                   dimensions: cardDimensions,
                   config: CardDisplayConfig.forMyHand(),
                   showBack: false, // Show face up during animation

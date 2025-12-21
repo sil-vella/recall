@@ -405,7 +405,7 @@ This ensures players have time to read instructions without timer pressure.
 
 ### Debugging
 
-Enable logging by setting `LOGGING_SWITCH = true` in:
+Enable logging by setting `LOGGING_SWITCH = false` in:
 - `InstructionsWidget.LOGGING_SWITCH`
 - `ClecoEventHandlerCallbacks.LOGGING_SWITCH`
 

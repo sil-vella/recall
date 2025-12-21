@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for animation debugging
+const bool LOGGING_SWITCH = false; // Enabled for animation debugging
 
 /// Animation types
 enum AnimationType {

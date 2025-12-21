@@ -19,6 +19,7 @@ class InitialPeekDemonstrationWidget extends StatefulWidget {
 
 class _InitialPeekDemonstrationWidgetState extends State<InitialPeekDemonstrationWidget> {
   final Set<int> _revealedIndices = {};
+  final Set<int> _highlightedIndices = {}; // Cards with bright border
   Timer? _animationTimer;
 
   /// Predefined card data for demonstration
@@ -67,11 +68,29 @@ class _InitialPeekDemonstrationWidgetState extends State<InitialPeekDemonstratio
 
   /// Start the animation sequence to simulate card reveals
   void _startAnimation() {
+    // Highlight card 0 slightly before reveal (at 0.8 seconds)
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() {
+          _highlightedIndices.add(0);
+        });
+      }
+    });
+    
     // Reveal card 0 after 1 second
     Future.delayed(const Duration(seconds: 1), () {
       if (mounted) {
         setState(() {
           _revealedIndices.add(0);
+        });
+      }
+    });
+    
+    // Highlight card 1 slightly before reveal (at 2.3 seconds)
+    Future.delayed(const Duration(milliseconds: 2300), () {
+      if (mounted) {
+        setState(() {
+          _highlightedIndices.add(1);
         });
       }
     });
@@ -103,14 +122,26 @@ class _InitialPeekDemonstrationWidgetState extends State<InitialPeekDemonstratio
   Widget _buildCard(int index) {
     final cardData = _getCardData(index);
     final isRevealed = _revealedIndices.contains(index);
+    final isHighlighted = _highlightedIndices.contains(index);
     final cardModel = CardModel.fromMap(cardData);
     final dimensions = CardDimensions.getUnifiedDimensions();
 
-    return CardWidget(
-      card: cardModel,
-      dimensions: dimensions,
-      config: CardDisplayConfig.forMyHand(),
-      showBack: !isRevealed, // Show back if not revealed
+    return Container(
+      decoration: isHighlighted || isRevealed
+          ? BoxDecoration(
+              border: Border.all(
+                color: AppColors.accentColor,
+                width: 3.0,
+              ),
+              borderRadius: BorderRadius.circular(8.0),
+            )
+          : null,
+      child: CardWidget(
+        card: cardModel,
+        dimensions: dimensions,
+        config: CardDisplayConfig.forMyHand(),
+        showBack: !isRevealed, // Show back if not revealed
+      ),
     );
   }
 

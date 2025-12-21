@@ -4,6 +4,7 @@ import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
 import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
+import '../../utils/platform/predefined_hands_loader.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for comp player testing
 
@@ -406,15 +407,87 @@ class GameEventCoordinator {
       'points': 0,      // Face-down: hide points
     };
 
+    // Load predefined hands configuration if available
+    final predefinedHandsLoader = PredefinedHandsLoader();
+    final predefinedHandsConfig = await predefinedHandsLoader.loadConfig();
+    final usePredefinedHands = predefinedHandsConfig['enabled'] == true;
+    
+    if (usePredefinedHands) {
+      _logger.info('GameEventCoordinator: Predefined hands enabled - using predefined hands for dealing', isOn: LOGGING_SWITCH);
+    } else {
+      _logger.info('GameEventCoordinator: Predefined hands disabled - using random dealing', isOn: LOGGING_SWITCH);
+    }
+
     // Deal 4 to each player in order
     final originalDeckMaps = fullDeck.map(_cardToMap).toList(); // Full data for lookup
     final drawStack = List<Card>.from(fullDeck);
-    for (final p in players) {
+    
+    for (int playerIndex = 0; playerIndex < players.length; playerIndex++) {
+      final p = players[playerIndex];
       final hand = <Map<String, dynamic>>[];
-      for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
-        final c = drawStack.removeAt(0);
-        hand.add(_cardToIdOnly(c)); // ID-only for hands (card backs)
+      
+      // Check if predefined hand exists for this player
+      if (usePredefinedHands) {
+        final predefinedHand = predefinedHandsLoader.getHandForPlayer(predefinedHandsConfig, playerIndex);
+        
+        if (predefinedHand != null && predefinedHand.length == 4) {
+          _logger.info('GameEventCoordinator: Using predefined hand for player $playerIndex: $predefinedHand', isOn: LOGGING_SWITCH);
+          
+          // Find and deal the predefined cards from the deck
+          for (final cardSpec in predefinedHand) {
+            final rank = cardSpec['rank']?.toString();
+            final suit = cardSpec['suit']?.toString();
+            
+            if (rank == null || suit == null) {
+              _logger.warning('GameEventCoordinator: Invalid card spec in predefined hand: $cardSpec', isOn: LOGGING_SWITCH);
+              continue;
+            }
+            
+            // Find the card in the draw stack
+            int cardIndex = -1;
+            for (int i = 0; i < drawStack.length; i++) {
+              if (drawStack[i].rank == rank && drawStack[i].suit == suit) {
+                cardIndex = i;
+                break;
+              }
+            }
+            
+            if (cardIndex >= 0) {
+              final c = drawStack.removeAt(cardIndex);
+              hand.add(_cardToIdOnly(c));
+              _logger.info('GameEventCoordinator: Dealt predefined card: $rank of $suit (${c.cardId}) to player $playerIndex', isOn: LOGGING_SWITCH);
+            } else {
+              _logger.warning('GameEventCoordinator: Predefined card not found in deck: $rank of $suit for player $playerIndex', isOn: LOGGING_SWITCH);
+              // Fallback: deal a random card if predefined card not found
+              if (drawStack.isNotEmpty) {
+                final c = drawStack.removeAt(0);
+                hand.add(_cardToIdOnly(c));
+              }
+            }
+          }
+          
+          // Ensure we have exactly 4 cards
+          while (hand.length < 4 && drawStack.isNotEmpty) {
+            final c = drawStack.removeAt(0);
+            hand.add(_cardToIdOnly(c));
+            _logger.warning('GameEventCoordinator: Added fallback card to player $playerIndex to complete hand', isOn: LOGGING_SWITCH);
+          }
+        } else {
+          // No predefined hand for this player, deal randomly
+          _logger.info('GameEventCoordinator: No predefined hand for player $playerIndex, dealing randomly', isOn: LOGGING_SWITCH);
+          for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
+            final c = drawStack.removeAt(0);
+            hand.add(_cardToIdOnly(c));
+          }
+        }
+      } else {
+        // Predefined hands disabled, deal randomly
+        for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
+          final c = drawStack.removeAt(0);
+          hand.add(_cardToIdOnly(c));
+        }
       }
+      
       p['hand'] = hand;
     }
 

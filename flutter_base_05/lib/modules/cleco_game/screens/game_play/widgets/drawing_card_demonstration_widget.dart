@@ -405,11 +405,20 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
               return Positioned(
                 left: _cardAnimation.value.dx - cardDimensions.width / 2,
                 top: _cardAnimation.value.dy - cardDimensions.height / 2,
-                child: CardWidget(
-                  card: CardModel.fromMap(_drawnCard),
-                  dimensions: cardDimensions,
-                  config: CardDisplayConfig.forMyHand(),
-                  showBack: true, // Show back during animation
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: AppColors.accentColor,
+                      width: 3.0,
+                    ),
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  child: CardWidget(
+                    card: CardModel.fromMap(_drawnCard),
+                    dimensions: cardDimensions,
+                    config: CardDisplayConfig.forMyHand(),
+                    showBack: true, // Show back during animation
+                  ),
                 ),
               );
             },

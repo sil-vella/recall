@@ -514,11 +514,20 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
               return Positioned(
                 left: _playCardAnimation.value.dx - cardDimensions.width / 2,
                 top: _playCardAnimation.value.dy - cardDimensions.height / 2,
-                child: CardWidget(
-                  card: CardModel.fromMap(_playedCard),
-                  dimensions: cardDimensions,
-                  config: CardDisplayConfig.forMyHand(),
-                  showBack: false, // Show face up during animation
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: AppColors.accentColor,
+                      width: 3.0,
+                    ),
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  child: CardWidget(
+                    card: CardModel.fromMap(_playedCard),
+                    dimensions: cardDimensions,
+                    config: CardDisplayConfig.forMyHand(),
+                    showBack: false, // Show face up during animation
+                  ),
                 ),
               );
             },
@@ -531,11 +540,20 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
               return Positioned(
                 left: _drawnCardAnimation.value.dx - cardDimensions.width / 2,
                 top: _drawnCardAnimation.value.dy - cardDimensions.height / 2,
-                child: CardWidget(
-                  card: CardModel.fromMap(_drawnCard),
-                  dimensions: cardDimensions,
-                  config: CardDisplayConfig.forMyHand(),
-                  showBack: false, // Show face up during animation
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: AppColors.accentColor,
+                      width: 3.0,
+                    ),
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  child: CardWidget(
+                    card: CardModel.fromMap(_drawnCard),
+                    dimensions: cardDimensions,
+                    config: CardDisplayConfig.forMyHand(),
+                    showBack: false, // Show face up during animation
+                  ),
                 ),
               );
             },

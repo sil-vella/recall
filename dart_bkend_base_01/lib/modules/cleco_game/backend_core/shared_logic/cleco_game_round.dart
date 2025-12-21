@@ -938,17 +938,40 @@ class ClecoGameRound {
     if (currentPlayerId == null) {
       _logger.info('Cleco: No current player ID - this is the first turn', isOn: LOGGING_SWITCH);
       
-      // First turn - randomly select any player (human or CPU)
-      final random = Random();
-      final randomIndex = random.nextInt(players.length);
-      final randomPlayer = players[randomIndex];
+      // Check if this is practice mode (practice rooms start with "practice_room_")
+      final isPracticeMode = _gameId.startsWith('practice_room_');
       
-      _logger.info('Cleco: Randomly selected starting player: ${randomPlayer['name']} (${randomPlayer['id']}, isHuman: ${randomPlayer['isHuman']})', isOn: LOGGING_SWITCH);
-      
-      // Check if computer players can collect from discard pile (first turn)
-      _checkComputerPlayerCollectionFromDiscard();
-      
-      return randomPlayer;
+      if (isPracticeMode) {
+        // Practice mode: always select the first opponent player (first non-human player)
+        final firstOpponent = players.firstWhere(
+          (p) => (p['isHuman'] as bool? ?? true) == false,
+          orElse: () => <String, dynamic>{},
+        );
+        
+        if (firstOpponent.isNotEmpty) {
+          _logger.info('Cleco: Practice mode - Selected first opponent as starting player: ${firstOpponent['name']} (${firstOpponent['id']}, isHuman: ${firstOpponent['isHuman']})', isOn: LOGGING_SWITCH);
+          // Check if computer players can collect from discard pile (first turn)
+          _checkComputerPlayerCollectionFromDiscard();
+          return firstOpponent;
+        } else {
+          // Fallback: if no opponent found, use first player
+          _logger.warning('Cleco: Practice mode - No opponent player found, using first player as fallback: ${players.first['name']}', isOn: LOGGING_SWITCH);
+          _checkComputerPlayerCollectionFromDiscard();
+          return players.first;
+        }
+      } else {
+        // Regular multiplayer mode: randomly select any player (human or CPU)
+        final random = Random();
+        final randomIndex = random.nextInt(players.length);
+        final randomPlayer = players[randomIndex];
+        
+        _logger.info('Cleco: Multiplayer mode - Randomly selected starting player: ${randomPlayer['name']} (${randomPlayer['id']}, isHuman: ${randomPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+        
+        // Check if computer players can collect from discard pile (first turn)
+        _checkComputerPlayerCollectionFromDiscard();
+        
+        return randomPlayer;
+      }
     }
     
     _logger.info('Cleco: Looking for current player with ID: $currentPlayerId', isOn: LOGGING_SWITCH);

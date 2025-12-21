@@ -1,6 +1,7 @@
 # Computer Player Configuration for Cleco Game
 # This file defines declarative behavior for computer players
-# Used by both Dart (frontend) and Python (backend) computer player logic
+# Used by both Dart (frontend) and Python (backend) computer player logic, however different directories.
+#  For the flutter side, this file is in the assets directory, and for the python side, this file is in the config directory.
 
 # Global computer player settings
 computer_settings:

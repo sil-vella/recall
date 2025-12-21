@@ -7,6 +7,7 @@ import 'initial_peek_demonstration_widget.dart';
 import 'drawing_card_demonstration_widget.dart';
 import 'playing_card_demonstration_widget.dart';
 import 'queen_peek_demonstration_widget.dart';
+import 'jack_swap_demonstration_widget.dart';
 
 /// Instructions Widget for Cleco Game
 /// 
@@ -116,17 +117,19 @@ class InstructionsWidget extends StatelessWidget {
                                 color: AppColors.cardVariant,
                                 borderRadius: AppBorderRadius.mediumRadius,
                               ),
-                              child: instructionKey == 'initial_peek'
-                                  ? const InitialPeekDemonstrationWidget()
-                                  : instructionKey == 'drawing_card'
-                                      ? const DrawingCardDemonstrationWidget()
-                                      : instructionKey == 'playing_card'
-                                          ? const PlayingCardDemonstrationWidget()
-                                          : instructionKey == 'queen_peek'
-                                              ? const QueenPeekDemonstrationWidget()
-                                              : const SizedBox(
-                                                  height: 150, // Placeholder for other demonstrations
-                                                ),
+                      child: instructionKey == 'initial_peek'
+                          ? const InitialPeekDemonstrationWidget()
+                          : instructionKey == 'drawing_card'
+                              ? const DrawingCardDemonstrationWidget()
+                              : instructionKey == 'playing_card'
+                                  ? const PlayingCardDemonstrationWidget()
+                                  : instructionKey == 'queen_peek'
+                                      ? const QueenPeekDemonstrationWidget()
+                                      : instructionKey == 'jack_swap'
+                                          ? const JackSwapDemonstrationWidget()
+                                          : const SizedBox(
+                                              height: 150, // Placeholder for other demonstrations
+                                            ),
                             ),
                             SizedBox(height: AppPadding.defaultPadding.top),
                           ],

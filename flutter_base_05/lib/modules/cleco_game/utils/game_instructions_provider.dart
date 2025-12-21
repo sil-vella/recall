@@ -156,6 +156,7 @@ You played a Queen! You can now peek at any opponent's card.
       return {
         'key': KEY_JACK_SWAP,
         'title': 'Jack Power - Swap Cards',
+        'hasDemonstration': true,
         'content': '''🃏 **Jack Power Activated**
 
 You played a Jack! You can now swap any two cards between players.

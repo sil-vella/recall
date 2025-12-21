@@ -1,6 +1,8 @@
 # Deck Configuration for Cleco Game
 # This file defines the composition and properties of playing cards
 # Used by both Dart and Python deck factories
+#  For the flutter side, this file is in the assets directory, and for the dart bkend side, this file is in the  bkend_core  config directory.
+
 
 # Global deck settings
 deck_settings:
@@ -101,9 +103,9 @@ testing_deck:
       points: 4
       special_power: null
       quantity_per_suit: 1
-    queen:
+    jack:
       points: 10
-      special_power: "peek_at_card"
+      special_power: "switch_cards"
       quantity_per_suit: 1
     king:
       points: 10
@@ -164,7 +166,7 @@ deck_stats:
   testing:
     total_cards: 24
     suits: 4
-    special_cards: 4  # 4 queens (one per suit)
+    special_cards: 4  # 4 jacks (one per suit)
     numbered_cards: 16  # 2, 3, 4 of each suit (3×4 = 12) + ace counts as numbered
     face_cards: 4  # 4 kings
     jokers: 0

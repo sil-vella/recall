@@ -235,14 +235,28 @@ class _QueenPeekDemonstrationWidgetState extends State<QueenPeekDemonstrationWid
                           ? 1.0 - _revealAnimation.value
                           : (shouldShowRevealed ? _revealAnimation.value : 1.0);
                       
+                      // Show bright border when card is being revealed
+                      final shouldShowBorder = isRevealingCard && (_revealAnimation.value > 0 || _cardRevealed);
+                      
                       return Opacity(
                         opacity: opacity,
-                        child: CardWidget(
-                          key: cardKey,
-                          card: CardModel.fromMap(cardToShow),
-                          dimensions: cardDimensions,
-                          config: CardDisplayConfig.forMyHand(),
-                          showBack: !isFaceUp && !shouldShowRevealed,
+                        child: Container(
+                          decoration: shouldShowBorder
+                              ? BoxDecoration(
+                                  border: Border.all(
+                                    color: AppColors.accentColor,
+                                    width: 3.0,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8.0),
+                                )
+                              : null,
+                          child: CardWidget(
+                            key: cardKey,
+                            card: CardModel.fromMap(cardToShow),
+                            dimensions: cardDimensions,
+                            config: CardDisplayConfig.forMyHand(),
+                            showBack: !isFaceUp && !shouldShowRevealed,
+                          ),
                         ),
                       );
                     },
@@ -325,14 +339,28 @@ class _QueenPeekDemonstrationWidgetState extends State<QueenPeekDemonstrationWid
                                 ? 1.0 - _revealAnimation.value
                                 : (shouldShowRevealed ? _revealAnimation.value : 1.0);
                             
+                            // Show bright border when card is being revealed
+                            final shouldShowBorder = isRevealingCard && (_revealAnimation.value > 0 || _cardRevealed);
+                            
                             return Opacity(
                               opacity: opacity,
-                              child: CardWidget(
-                                key: cardKey,
-                                card: CardModel.fromMap(cardToShow),
-                                dimensions: cardDimensions,
-                                config: CardDisplayConfig.forOpponent(),
-                                showBack: !shouldShowRevealed,
+                              child: Container(
+                                decoration: shouldShowBorder
+                                    ? BoxDecoration(
+                                        border: Border.all(
+                                          color: AppColors.accentColor,
+                                          width: 3.0,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8.0),
+                                      )
+                                    : null,
+                                child: CardWidget(
+                                  key: cardKey,
+                                  card: CardModel.fromMap(cardToShow),
+                                  dimensions: cardDimensions,
+                                  config: CardDisplayConfig.forOpponent(),
+                                  showBack: !shouldShowRevealed,
+                                ),
                               ),
                             );
                           },

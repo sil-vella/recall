@@ -229,6 +229,7 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                 'title': initialInstructions['title'] ?? 'Welcome to Cleco!',
                 'content': initialInstructions['content'] ?? '',
                 'key': initialInstructions['key'] ?? 'initial',
+                'hasDemonstration': initialInstructions['hasDemonstration'] ?? false,
                 'dontShowAgain': dontShowAgain,
               },
             });

@@ -100,41 +100,45 @@ class ModalTemplateWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
+    final modalBackgroundColor = backgroundColor ?? AppColors.card;
     
     return Material(
-      color: AppColors.black.withOpacity(0.54), // Semi-transparent background
+      color: AppColors.black.withOpacity(AppOpacity.barrier), // Semi-transparent background
       child: Center(
-        child: Container(
-          margin: const EdgeInsets.all(20),
-          constraints: BoxConstraints(
-            maxWidth: maxWidth ?? screenSize.width * 0.9, // 90% of screen width
-            maxHeight: maxHeight ?? screenSize.height * 0.9, // 90% of screen height
-          ),
-          decoration: BoxDecoration(
-            color: backgroundColor ?? Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.black.withOpacity(0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header (optional)
-              if (showHeader) _buildHeader(context),
-              
-              // Content area
-              Flexible(
-                child: _buildContent(context),
-              ),
-              
-              // Footer (optional)
-              if (showFooter) _buildFooter(context),
-            ],
+        child: Material(
+          color: Colors.transparent, // Transparent Material to avoid theme interference
+          child: Container(
+            margin: EdgeInsets.all(AppSizes.modalMargin),
+            constraints: BoxConstraints(
+              maxWidth: maxWidth ?? screenSize.width * AppSizes.modalMaxWidthPercent,
+              maxHeight: maxHeight ?? screenSize.height * AppSizes.modalMaxHeightPercent,
+            ),
+            decoration: BoxDecoration(
+              color: modalBackgroundColor, // Use white card background for better text visibility
+              borderRadius: AppBorderRadius.largeRadius,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.black.withOpacity(AppOpacity.shadow),
+                  blurRadius: AppSizes.shadowBlur,
+                  offset: AppSizes.shadowOffset,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header (optional)
+                if (showHeader) _buildHeader(context),
+                
+                // Content area
+                Flexible(
+                  child: _buildContent(context),
+                ),
+                
+                // Footer (optional)
+                if (showFooter) _buildFooter(context),
+              ],
+            ),
           ),
         ),
       ),
@@ -143,12 +147,12 @@ class ModalTemplateWidget extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: AppPadding.defaultPadding,
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor.withOpacity(0.1),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(12),
-          topRight: Radius.circular(12),
+        color: AppColors.cardVariant, // Use theme-aware subtle background
+        borderRadius: AppBorderRadius.only(
+          topLeft: AppBorderRadius.large,
+          topRight: AppBorderRadius.large,
         ),
       ),
       child: Row(
@@ -157,26 +161,27 @@ class ModalTemplateWidget extends StatelessWidget {
             Icon(
               icon,
               color: AppColors.accentColor,
-              size: 24,
+              size: AppSizes.iconMedium,
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: AppPadding.smallPadding.left),
           ],
           Expanded(
             child: Text(
               title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
+              style: AppTextStyles.headingSmall(
                 color: AppColors.accentColor,
               ),
             ),
           ),
           if (showCloseButton)
-                    IconButton(
-                      onPressed: onClose ?? () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close),
-                      color: AppColors.accentColor,
-                      tooltip: 'Close',
-                    ),
+            IconButton(
+              onPressed: onClose ?? () => Navigator.of(context).pop(),
+              icon: Icon(
+                Icons.close,
+                color: AppColors.accentColor,
+              ),
+              tooltip: 'Close',
+            ),
         ],
       ),
     );
@@ -189,20 +194,21 @@ class ModalTemplateWidget extends StatelessWidget {
 
     final contentWidget = Text(
       content,
-      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+      style: AppTextStyles.bodyMedium(
+        color: textColor ?? AppColors.textOnCard,
+      ).copyWith(
         height: 1.5,
-        color: textColor,
       ),
     );
 
     if (scrollable) {
       return SingleChildScrollView(
-        padding: padding ?? const EdgeInsets.all(16),
+        padding: padding ?? AppPadding.defaultPadding,
         child: contentWidget,
       );
     } else {
       return Padding(
-        padding: padding ?? const EdgeInsets.all(16),
+        padding: padding ?? AppPadding.defaultPadding,
         child: contentWidget,
       );
     }
@@ -210,12 +216,12 @@ class ModalTemplateWidget extends StatelessWidget {
 
   Widget _buildFooter(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: AppPadding.defaultPadding,
       decoration: BoxDecoration(
-        color: Theme.of(context).dividerColor.withOpacity(0.1),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(12),
-          bottomRight: Radius.circular(12),
+        color: AppColors.cardVariant, // Use theme-aware subtle background
+        borderRadius: AppBorderRadius.only(
+          bottomLeft: AppBorderRadius.large,
+          bottomRight: AppBorderRadius.large,
         ),
       ),
       child: Row(
@@ -224,12 +230,23 @@ class ModalTemplateWidget extends StatelessWidget {
           if (showCloseButton)
             TextButton.icon(
               onPressed: onClose ?? () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close),
-              label: Text(closeButtonText ?? 'Close'),
+              icon: Icon(
+                Icons.close,
+                color: AppColors.textOnAccent,
+              ),
+              label: Text(
+                closeButtonText ?? 'Close',
+                style: AppTextStyles.buttonText(
+                  color: AppColors.textOnAccent,
+                ),
+              ),
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.accentColor,
-                backgroundColor: AppColors.primaryColor,
+                foregroundColor: AppColors.textOnAccent,
+                backgroundColor: AppColors.accentColor,
                 padding: AppPadding.cardPadding,
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppBorderRadius.smallRadius,
+                ),
               ),
             ),
         ],
@@ -301,7 +318,7 @@ class ModalTypes {
       icon: Icons.check_circle_outline,
       closeButtonText: 'OK',
       onClose: onClose,
-      backgroundColor: AppColors.successColor.withOpacity(0.1),
+      backgroundColor: AppColors.successColor.withOpacity(AppOpacity.subtle),
       textColor: AppColors.successColor,
     );
   }
@@ -318,7 +335,7 @@ class ModalTypes {
       icon: Icons.error_outline,
       closeButtonText: 'OK',
       onClose: onClose,
-      backgroundColor: AppColors.errorColor.withOpacity(0.1),
+      backgroundColor: AppColors.errorColor.withOpacity(AppOpacity.subtle),
       textColor: AppColors.errorColor,
     );
   }
@@ -335,7 +352,7 @@ class ModalTypes {
       icon: Icons.warning_outlined,
       closeButtonText: 'OK',
       onClose: onClose,
-      backgroundColor: AppColors.warningColor.withOpacity(0.1),
+      backgroundColor: AppColors.warningColor.withOpacity(AppOpacity.subtle),
       textColor: AppColors.warningColor,
     );
   }
@@ -353,29 +370,43 @@ class ModalTypes {
       icon: Icons.help_outline,
       showFooter: true,
       customContent: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppPadding.defaultPadding,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               content,
-              style: const TextStyle(height: 1.5),
+              style: AppTextStyles.bodyMedium(
+                color: AppColors.textOnCard,
+              ).copyWith(
+                height: 1.5,
+              ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppPadding.largePadding.top),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
                   onPressed: onCancel,
-                  child: const Text('Cancel'),
+                  child: Text(
+                    'Cancel',
+                    style: AppTextStyles.buttonText(
+                      color: AppColors.accentColor,
+                    ),
+                  ),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.accentColor,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: AppPadding.smallPadding.left),
                 ElevatedButton(
                   onPressed: onConfirm,
-                  child: const Text('Confirm'),
+                  child: Text(
+                    'Confirm',
+                    style: AppTextStyles.buttonText(
+                      color: AppColors.textOnAccent,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentColor,
                     foregroundColor: AppColors.textOnAccent,

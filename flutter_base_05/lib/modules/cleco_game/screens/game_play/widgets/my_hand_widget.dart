@@ -13,7 +13,7 @@ import '../../../../cleco_game/managers/cleco_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = true; // Enabled for final round debugging
+const bool LOGGING_SWITCH = false; // Enabled for final round debugging
 
 /// Widget to display the player's hand
 /// 
@@ -49,10 +49,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   bool _isCardsToPeekProtected = false;
   List<dynamic>? _protectedCardsToPeek;
   Timer? _cardsToPeekProtectionTimer;
-  
-  // Track drawn cards that should be visible after animation completes
-  // Map<cardId, bool> - tracks which drawn cards should be visible
-  final Map<String, bool> _visibleDrawnCards = {};
 
   /// Protect cardsToPeek data for 5 seconds
   void _protectCardsToPeek(List<dynamic> cardsToPeek) {
@@ -87,44 +83,10 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    // Listen to animation completion events
-    final tracker = CardPositionTracker.instance();
-    tracker.cardAnimationComplete.addListener(_onAnimationComplete);
-  }
-
-  @override
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _cardsToPeekProtectionTimer = null;
-    final tracker = CardPositionTracker.instance();
-    tracker.cardAnimationComplete.removeListener(_onAnimationComplete);
     super.dispose();
-  }
-
-  /// Handle animation completion events
-  void _onAnimationComplete() {
-    final tracker = CardPositionTracker.instance();
-    final completion = tracker.cardAnimationComplete.value;
-    
-    if (completion != null && completion.animationType == AnimationType.draw) {
-      // Show the drawn card when draw animation completes
-      if (mounted) {
-        setState(() {
-          _visibleDrawnCards[completion.cardId] = true;
-        });
-        _logger.info(
-          'MyHandWidget._onAnimationComplete() - Draw animation completed for cardId: ${completion.cardId}, visibility set to true. Current _visibleDrawnCards: $_visibleDrawnCards',
-          isOn: LOGGING_SWITCH,
-        );
-      } else {
-        _logger.info(
-          'MyHandWidget._onAnimationComplete() - Draw animation completed for cardId: ${completion.cardId}, but widget not mounted, skipping visibility update',
-          isOn: LOGGING_SWITCH,
-        );
-      }
-    }
   }
 
   @override
@@ -156,7 +118,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         _logger.info('🛡️ MyHandWidget: cardsToPeekFromState.length: ${cardsToPeekFromState.length}, protectedCardsToPeek.length: ${protectedCardsToPeek?.length ?? 0}, isProtectedDataValid: $isProtectedDataValid, isProtected: $_isCardsToPeekProtected', isOn: LOGGING_SWITCH);
         
         // If we have valid protected data from state sync, activate local protection
-        if (isProtectedDataValid && !_isCardsToPeekProtected) {
+        if (isProtectedDataValid && !_isCardsToPeekProtected && protectedCardsToPeek != null) {
           _protectCardsToPeek(protectedCardsToPeek);
           _logger.info('🛡️ MyHandWidget: Activated protection from state sync for ${protectedCardsToPeek.length} cards', isOn: LOGGING_SWITCH);
         }
@@ -429,46 +391,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
         final drawnCard = clecoGameState['myDrawnCard'] as Map<String, dynamic>?;
         final drawnCardId = drawnCard?['cardId']?.toString();
-        
-        // Clean up visibility states for cards that are no longer the drawn card
-        // This prevents old visibility states from persisting when a new card is drawn
-        // Only clean up if we have a current drawn card ID to compare against
-        if (drawnCardId != null) {
-          final keysToRemove = <String>[];
-          for (final key in _visibleDrawnCards.keys) {
-            if (key != drawnCardId) {
-              keysToRemove.add(key);
-            }
-          }
-          if (keysToRemove.isNotEmpty) {
-            for (final key in keysToRemove) {
-              _visibleDrawnCards.remove(key);
-            }
-            _logger.info(
-              'MyHandWidget._buildCardsGrid() - Cleaned up visibility states for old drawn cards: $keysToRemove, current drawnCardId: $drawnCardId',
-              isOn: LOGGING_SWITCH,
-            );
-          }
-        } else {
-          // If there's no drawn card, clear all visibility states
-          if (_visibleDrawnCards.isNotEmpty) {
-            _visibleDrawnCards.clear();
-            _logger.info(
-              'MyHandWidget._buildCardsGrid() - Cleared all visibility states (no drawn card)',
-              isOn: LOGGING_SWITCH,
-            );
-          }
-        }
-        
-        // Initialize drawn card as hidden when it first appears
-        // It will be shown when the draw animation completes (handled by _onAnimationComplete)
-        if (drawnCard != null && drawnCardId != null && !_visibleDrawnCards.containsKey(drawnCardId)) {
-          _visibleDrawnCards[drawnCardId] = false;
-          _logger.info(
-            'MyHandWidget._buildCardsGrid() - Initialized drawn card visibility to false for cardId: $drawnCardId',
-            isOn: LOGGING_SWITCH,
-          );
-        }
         
         // Get current player's collection rank cards from games map
         final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
@@ -774,10 +696,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     final myHandSlice = clecoGameState['myHand'] as Map<String, dynamic>? ?? {};
     final turnEvents = myHandSlice['turn_events'] as List<dynamic>? ?? [];
     
-    // Also get drawn card to ensure it's tracked even if hidden
-    final drawnCard = clecoGameState['myDrawnCard'] as Map<String, dynamic>?;
-    final drawnCardId = drawnCard?['cardId']?.toString();
-    
     // Create a map of cardId -> actionType for quick lookup
     final Map<String, String> cardIdToActionType = {};
     for (final event in turnEvents) {
@@ -792,7 +710,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     
     final tracker = CardPositionTracker.instance();
     
-    // Track all cards in the hand, including drawn card if it exists
     for (final card in cards) {
       if (card == null || card is! Map<String, dynamic>) {
         continue;
@@ -807,23 +724,13 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       final cardKey = _cardKeys.putIfAbsent(cardId, () => GlobalKey(debugLabel: 'card_$cardId'));
       
       // Get RenderBox from GlobalKey
-      // Note: Even if card is hidden (opacity 0), RenderBox should still exist
       final renderObject = cardKey.currentContext?.findRenderObject();
       if (renderObject == null) {
-        // If RenderBox is null, try again in next frame - card might not be rendered yet
-        _logger.info(
-          'MyHandWidget._updateCardPositions() - RenderBox is null for cardId: $cardId, skipping position update',
-          isOn: LOGGING_SWITCH,
-        );
         continue;
       }
       
       final RenderBox? renderBox = renderObject as RenderBox?;
       if (renderBox == null) {
-        _logger.info(
-          'MyHandWidget._updateCardPositions() - RenderBox is not RenderBox for cardId: $cardId, skipping position update',
-          isOn: LOGGING_SWITCH,
-        );
         continue;
       }
       
@@ -853,8 +760,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       }
       
       // Update position in tracker with player status and suggested animation type
-      // This is critical for drawn cards - even if hidden, we need to track their position
-      // so that when they're played, the animation can find the start position
       tracker.updateCardPosition(
         cardId,
         position,
@@ -862,11 +767,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         'my_hand',
         playerStatus: playerStatus,
         suggestedAnimationType: suggestedAnimationType,
-      );
-      
-      _logger.info(
-        'MyHandWidget._updateCardPositions() - Tracked position for cardId: $cardId, isDrawnCard: ${drawnCardId == cardId}',
-        isOn: LOGGING_SWITCH,
       );
     }
     
@@ -1151,22 +1051,38 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     // Use unified card dimensions to match regular cards
     final cardDimensions = CardDimensions.getUnifiedDimensions();
     
-    // Use card back color with saturation reduced to 0.2
-    final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
-        .withSaturation(0.2)
-        .toColor();
-
     return SizedBox(
       width: cardDimensions.width,
       height: cardDimensions.height,
       child: Container(
-        decoration: BoxDecoration(
-          color: cardBackColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: AppColors.borderDefault,
-            width: 2,
-            style: BorderStyle.solid,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppColors.borderDefault,
+          width: 2,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.space_bar,
+              size: 24,
+              color: AppColors.textSecondary,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Empty',
+              style: TextStyle(
+                fontSize: 10,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
           ),
         ),
       ),
@@ -1193,39 +1109,24 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     
     // Note: Collection rank cards no longer get a border - they're visually distinct through stacking + full data
     
-    // Hide drawn card visually during animation, show after animation completes
-    // Card remains trackable for animation even when hidden
+    // Wrap with drawn card glow if needed - explicit size constraints to prevent size changes
     if (isDrawnCard) {
-      final cardId = card['cardId']?.toString();
-      final shouldShowDrawnCard = cardId != null && _visibleDrawnCards[cardId] == true;
-      
-      // Debug logging to track visibility state
-      if (LOGGING_SWITCH && cardId != null) {
-        _logger.info(
-          'MyHandWidget._buildCardWidget() - Drawn card visibility check: cardId=$cardId, shouldShow=$shouldShowDrawnCard, _visibleDrawnCards[$cardId]=${_visibleDrawnCards[cardId]}',
-          isOn: LOGGING_SWITCH,
-        );
-      }
-      
       cardWidget = SizedBox(
         width: cardDimensions.width,
         height: cardDimensions.height,
-        child: Opacity(
-          opacity: shouldShowDrawnCard ? 1.0 : 0.0, // Show after animation completes, hide during animation
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: shouldShowDrawnCard ? [
-                BoxShadow(
-                  color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
-                  blurRadius: 12,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 0),
-                ),
-              ] : null,
-            ),
-            child: cardWidget,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFBC02D).withOpacity(0.6), // Gold glow using theme color
+                blurRadius: 12,
+                spreadRadius: 2,
+                offset: const Offset(0, 0),
+              ),
+            ],
           ),
+          child: cardWidget,
         ),
       );
     }

@@ -370,6 +370,50 @@ class AppPadding {
   static const EdgeInsets largePadding = EdgeInsets.all(20.0);
 }
 
+class AppBorderRadius {
+  static const double small = 8.0;
+  static const double medium = 10.0;
+  static const double large = 12.0;
+  
+  static BorderRadius get smallRadius => BorderRadius.circular(small);
+  static BorderRadius get mediumRadius => BorderRadius.circular(medium);
+  static BorderRadius get largeRadius => BorderRadius.circular(large);
+  
+  static BorderRadius only({
+    double? topLeft,
+    double? topRight,
+    double? bottomLeft,
+    double? bottomRight,
+  }) {
+    return BorderRadius.only(
+      topLeft: Radius.circular(topLeft ?? 0),
+      topRight: Radius.circular(topRight ?? 0),
+      bottomLeft: Radius.circular(bottomLeft ?? 0),
+      bottomRight: Radius.circular(bottomRight ?? 0),
+    );
+  }
+}
+
+class AppSizes {
+  static const double iconSmall = 20.0;
+  static const double iconMedium = 24.0;
+  static const double iconLarge = 32.0;
+  
+  static const double shadowBlur = 10.0;
+  static const Offset shadowOffset = Offset(0, 4);
+  
+  static const double modalMargin = 20.0;
+  static const double modalMaxWidthPercent = 0.9;
+  static const double modalMaxHeightPercent = 0.9;
+}
+
+class AppOpacity {
+  static const double barrier = 0.54;
+  static const double shadow = 0.3;
+  static const double subtle = 0.1;
+  static const double selection = 0.5;
+}
+
 class AppTheme {
   static ThemeData get darkTheme {
     return ThemeData.dark().copyWith(

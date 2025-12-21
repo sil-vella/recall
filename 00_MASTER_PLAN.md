@@ -251,6 +251,104 @@ Python Backend (Auth)
   - Test edge cases: card replacement, card play, turn transitions
   - Verify with logging that sanitization is working correctly in all scenarios
 
+### Animation System Refactor
+- **Issue**: Current animation system relies on position tracking that happens asynchronously during widget rebuilds, which can cause timing issues and race conditions
+- **Status**: 🔄 **Planned** - Major refactor needed
+- **Current Behavior**: 
+  - Animations are triggered based on position changes detected during widget rebuilds
+  - Position tracking happens in post-frame callbacks, which can be delayed
+  - Game logic continues immediately after state updates, potentially before animations complete
+  - Race conditions can occur when cards are played before their positions are properly tracked
+- **Expected Behavior**: 
+  - Implement a "pause for animation" mechanism during game logic execution
+  - Game logic should pause after state updates that require animations
+  - System should:
+    1. Update game state (e.g., card played, card drawn)
+    2. Wait for position tracker to update with proper card positions
+    3. Trigger and wait for animation to complete
+    4. Continue with game logic (e.g., move to next player, check game end conditions)
+  - This ensures animations have proper timing and all positions are tracked before animations start
+- **Implementation Approach**:
+  - Add animation completion callbacks/promises to game logic flow
+  - Create animation queue system that game logic can wait on
+  - Modify game event handlers to pause execution until animations complete
+  - Ensure position tracking completes before animation starts
+  - Handle edge cases (e.g., multiple simultaneous animations, animation failures)
+- **Alternative Animation Approach - Animation ID System**:
+  - **Concept**: Declarative animation system using shared animation IDs
+  - **How it works**:
+    1. During gameplay, affected objects are assigned an `animationId` (e.g., draw pile gets `animationId: "draw_123"`)
+    2. When a second object receives the same `animationId` (e.g., card in hand gets `animationId: "draw_123"`), the system triggers a predefined animation
+    3. Animation type is determined by the ID pattern or explicit animation type in state
+    4. Card data can be passed as needed for the animation
+  - **Example Flow**:
+    - Draw action: Draw pile gets `animationId: "draw_card_abc123"`, card appears in hand with same `animationId: "draw_card_abc123"`
+    - System detects matching IDs and triggers draw animation from draw pile position to hand position
+    - After animation completes, animation IDs are cleared from both objects
+  - **Benefits**:
+    - More declarative - game logic sets animation IDs, animation system handles the rest
+    - Eliminates need for complex position tracking and comparison
+    - Clearer separation of concerns (game logic vs animation system)
+    - Easier to handle multiple simultaneous animations (each has unique ID)
+    - Can work with "pause for animation" mechanism - game logic sets IDs, waits for animation completion
+  - **Implementation Considerations**:
+    - Animation IDs should be unique per animation instance (e.g., timestamp-based or UUID)
+    - Animation type can be inferred from ID pattern or stored separately in state
+    - Objects need to store animation ID in their state/data structure
+    - Animation system listens for matching IDs and triggers appropriate animation
+    - IDs should be cleared after animation completes or after timeout
+  - **Location**: 
+    - Game state objects (cards, piles) need `animationId` field
+    - Animation system needs ID matching logic
+    - Game logic sets animation IDs when actions occur
+- **Immediate Animation from User Actions**:
+  - **Concept**: For animations triggered by user actions (e.g., playing a card, drawing a card), get positions immediately from the user interaction instead of waiting for state updates and position tracking
+  - **How it works**:
+    1. User performs action (e.g., taps card to play it)
+    2. Widget immediately knows:
+       - Source position: Card's current position (from GlobalKey/RenderBox or tap location)
+       - Target position: Destination position (e.g., discard pile position from tracker or known location)
+       - Card data: Already available in widget
+    3. Trigger animation immediately with known positions
+    4. State update happens in parallel/after animation starts
+    5. No need to wait for position tracking or state propagation
+  - **Example Flow**:
+    - User taps card in hand to play it
+    - Widget gets card position from GlobalKey immediately
+    - Widget gets discard pile position from CardPositionTracker (already tracked)
+    - Widget triggers play animation immediately with both positions
+    - Backend processes play action and updates state
+    - Animation completes before or during state update
+  - **Benefits**:
+    - Instant visual feedback - animation starts immediately on user action
+    - Eliminates delay from state update → widget rebuild → position tracking → animation trigger
+    - Better user experience - feels more responsive
+    - Reduces race conditions - animation uses known positions at action time
+    - Works well with "pause for animation" - animation can start immediately, game logic waits for completion
+  - **Implementation Considerations**:
+    - Widget needs access to CardPositionTracker to get target positions
+    - Source position available from card's GlobalKey/RenderBox
+    - Card data already available in widget
+    - Animation can be triggered directly from widget action handler
+    - State update can happen in parallel (doesn't block animation)
+    - Need to handle cases where target position isn't available yet (fallback to state-based animation)
+  - **Location**: 
+    - Widget action handlers (e.g., `_handleCardSelection` in MyHandWidget)
+    - CardPositionTracker for getting target positions
+    - CardAnimationLayer for immediate animation triggering
+- **Location**: 
+  - `flutter_base_05/lib/modules/cleco_game/screens/game_play/card_position_tracker.dart`
+  - `flutter_base_05/lib/modules/cleco_game/screens/game_play/widgets/card_animation_layer.dart`
+  - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart` (game logic coordination)
+  - `flutter_base_05/lib/modules/cleco_game/managers/cleco_event_handler_callbacks.dart` (event handling)
+- **Impact**: 
+  - Improves animation reliability and timing
+  - Eliminates race conditions with position tracking
+  - Provides better visual feedback and smoother gameplay experience
+  - Ensures game logic proceeds only after animations complete
+  - Animation ID approach offers cleaner, more maintainable architecture
+- **Related Documentation**: `Documentation/Cleco_game/ANIMATION_SYSTEM.md`
+
 ---
 
 ## 🚀 Future Enhancements

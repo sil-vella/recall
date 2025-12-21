@@ -307,6 +307,7 @@ class ClecoEventHandlerCallbacks {
                 'title': initialInstructions['title'] ?? 'Welcome to Cleco!',
                 'content': initialInstructions['content'] ?? '',
                 'key': initialInstructions['key'] ?? GameInstructionsProvider.KEY_INITIAL,
+                'hasDemonstration': initialInstructions['hasDemonstration'] ?? false,
                 'dontShowAgain': dontShowAgain,
               },
             });
@@ -395,6 +396,7 @@ class ClecoEventHandlerCallbacks {
                 'title': instructions['title'] ?? 'Game Instructions',
                 'content': instructions['content'] ?? '',
                 'key': instructionKey,
+                'hasDemonstration': instructions['hasDemonstration'] ?? false,
                 'dontShowAgain': dontShowAgain,
               },
             });

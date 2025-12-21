@@ -13,7 +13,7 @@ class GameInstructionsProvider {
   static const String KEY_SAME_RANK_WINDOW = 'same_rank_window';
 
   /// Get initial instructions (shown when game hasn't started yet)
-  static Map<String, String> getInitialInstructions() {
+  static Map<String, dynamic> getInitialInstructions() {
     return {
       'key': KEY_INITIAL,
       'title': 'Welcome to Cleco!',
@@ -48,8 +48,8 @@ You'll get helpful instructions as you play. You can mark any instruction as "Un
   /// [playerStatus] - Current player status (drawing_card, playing_card, initial_peek, etc.)
   /// [isMyTurn] - Whether it's the current user's turn
   /// 
-  /// Returns a map with 'key', 'title' and 'content' keys, or null if no instructions for this state
-  static Map<String, String>? getInstructions({
+  /// Returns a map with 'key', 'title', 'content', and optionally 'hasDemonstration' keys, or null if no instructions for this state
+  static Map<String, dynamic>? getInstructions({
     required String gamePhase,
     String? playerStatus,
     bool isMyTurn = false,
@@ -76,6 +76,7 @@ You have 4 cards face down. You can peek at **2 of them**.
 • Queens & Jacks: 10 points
 • Kings (Black): 10 points
 • Joker & Red King: 0 points (very valuable!)''',
+        'hasDemonstration': true,
       };
     }
 
@@ -98,6 +99,7 @@ It's your turn! You need to draw a card first.
 • Consider what opponents might need based on what they've discarded
 
 After drawing, you'll choose whether to play the drawn card or one from your hand.''',
+        'hasDemonstration': true,
       };
     }
 
@@ -106,6 +108,7 @@ After drawing, you'll choose whether to play the drawn card or one from your han
       return {
         'key': KEY_PLAYING_CARD,
         'title': 'Your Turn - Play a Card',
+        'hasDemonstration': true,
         'content': '''🎯 **Play a Card**
 
 You've drawn a card. Now choose what to play:

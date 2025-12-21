@@ -3,6 +3,9 @@ import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../utils/modal_template_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import 'initial_peek_demonstration_widget.dart';
+import 'drawing_card_demonstration_widget.dart';
+import 'playing_card_demonstration_widget.dart';
 
 /// Instructions Widget for Cleco Game
 /// 
@@ -33,7 +36,8 @@ class InstructionsWidget extends StatelessWidget {
         final title = instructionsData['title']?.toString() ?? 'Game Instructions';
         final content = instructionsData['content']?.toString() ?? '';
         final instructionKey = instructionsData['key']?.toString();
-        final isInitial = instructionKey == 'initial';
+        final hasDemonstration = instructionsData['hasDemonstration'] as bool? ?? false;
+        final isInitial = instructionKey == 'initial' || instructionKey == 'initial_peek';
         
         _logger.info('InstructionsWidget: isVisible=$isVisible, title=$title, key=$instructionKey, currentlyShowing=$_currentlyShowingKey', isOn: LOGGING_SWITCH);
         
@@ -57,7 +61,7 @@ class InstructionsWidget extends StatelessWidget {
         
         // Show modal using Flutter's official showDialog method
         WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showInstructionsModal(context, title, content, instructionKey, isInitial);
+            _showInstructionsModal(context, title, content, instructionKey, isInitial, hasDemonstration);
         });
         } else if (!shouldShow) {
           _logger.info('InstructionsWidget: Skipping duplicate modal for key=$instructionKey (already showing)', isOn: LOGGING_SWITCH);
@@ -69,7 +73,7 @@ class InstructionsWidget extends StatelessWidget {
   }
 
   /// Show the instructions modal with checkbox for "don't show again"
-  void _showInstructionsModal(BuildContext context, String title, String content, String? instructionKey, bool isInitial) {
+  void _showInstructionsModal(BuildContext context, String title, String content, String? instructionKey, bool isInitial, bool hasDemonstration) {
     // Use a StatefulBuilder to manage checkbox state
     showDialog(
       context: context,
@@ -80,21 +84,51 @@ class InstructionsWidget extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setState) {
             return ModalTemplateWidget(
-      title: title,
-      content: content,
-      icon: Icons.help_outline,
+              title: title,
+              content: content,
+              icon: Icons.help_outline,
               showCloseButton: false, // Remove X button in header
               showFooter: false, // Remove default footer
+              backgroundColor: AppColors.card, // Use white card background for better text visibility
+              textColor: AppColors.textOnCard, // Use text color for card backgrounds
               customContent: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Demonstration container (only shown if hasDemonstration is true)
+                  if (hasDemonstration) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: AppPadding.defaultPadding,
+                      margin: EdgeInsets.only(
+                        top: AppPadding.defaultPadding.top,
+                        left: AppPadding.defaultPadding.left,
+                        right: AppPadding.defaultPadding.right,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardVariant,
+                        borderRadius: AppBorderRadius.mediumRadius,
+                      ),
+                      child: instructionKey == 'initial_peek'
+                          ? const InitialPeekDemonstrationWidget()
+                          : instructionKey == 'drawing_card'
+                              ? const DrawingCardDemonstrationWidget()
+                              : instructionKey == 'playing_card'
+                                  ? const PlayingCardDemonstrationWidget()
+                                  : const SizedBox(
+                                      height: 150, // Placeholder for other demonstrations
+                                    ),
+                    ),
+                    SizedBox(height: AppPadding.defaultPadding.top),
+                  ],
                   // Content area
                   Flexible(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
+                      padding: AppPadding.defaultPadding,
                       child: Text(
                         content,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        style: AppTextStyles.bodyMedium(
+                          color: AppColors.textOnCard,
+                        ).copyWith(
                           height: 1.5,
                         ),
                       ),
@@ -102,18 +136,28 @@ class InstructionsWidget extends StatelessWidget {
                   ),
                   // Footer with checkbox and close button on same line
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: AppPadding.cardPadding,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).dividerColor.withOpacity(0.1),
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(12),
-                        bottomRight: Radius.circular(12),
+                      color: AppColors.cardVariant, // Use theme-aware subtle background
+                      borderRadius: AppBorderRadius.only(
+                        bottomLeft: AppBorderRadius.large,
+                        bottomRight: AppBorderRadius.large,
                       ),
                     ),
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        // Checkbox for "don't show again"
+                        // Checkbox for "don't show again" - aligned to the right
                         if (instructionKey != null) ...[
+                          // Text before checkbox
+                          Text(
+                            'Understood, don\'t show again',
+                            style: AppTextStyles.bodySmall(
+                              color: AppColors.textOnCard,
+                            ),
+                          ),
+                          SizedBox(width: AppPadding.smallPadding.left),
+                          // Checkbox
                           Checkbox(
                             value: dontShowAgain,
                             onChanged: (value) {
@@ -122,28 +166,30 @@ class InstructionsWidget extends StatelessWidget {
                               });
                             },
                             activeColor: AppColors.accentColor,
+                            checkColor: AppColors.textOnAccent,
                           ),
-                          Expanded(
-                            child: Text(
-                              'Understood, don\'t show again',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ),
-                        ] else
-                          const Spacer(),
-                        // Close button
-                        TextButton.icon(
+                          SizedBox(width: AppPadding.smallPadding.left),
+                        ],
+                        // Close button (text only, no icon)
+                        TextButton(
                           onPressed: () => _closeInstructions(
                             context,
                             instructionKey,
                             dontShowAgain,
                           ),
-                          icon: const Icon(Icons.close),
-                          label: const Text('Close'),
+                          child: Text(
+                            'Close',
+                            style: AppTextStyles.buttonText(
+                              color: AppColors.textOnAccent,
+                            ),
+                          ),
                           style: TextButton.styleFrom(
-                            foregroundColor: AppColors.accentColor,
-                            backgroundColor: AppColors.primaryColor,
+                            foregroundColor: AppColors.textOnAccent,
+                            backgroundColor: AppColors.accentColor,
                             padding: AppPadding.cardPadding,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: AppBorderRadius.smallRadius,
+                            ),
                           ),
                         ),
                       ],
@@ -151,7 +197,7 @@ class InstructionsWidget extends StatelessWidget {
                   ),
                 ],
               ),
-    );
+            );
           },
         );
       },
@@ -200,8 +246,11 @@ class InstructionsWidget extends StatelessWidget {
       );
       
       // Update dontShowAgain map if checkbox was checked
-      if (instructionKey != null && dontShowAgain) {
-        currentDontShowAgain[instructionKey] = true;
+      // For initial and initial_peek instructions, always mark as "don't show again" since checkbox is pre-checked
+      if (instructionKey != null) {
+        if (dontShowAgain || instructionKey == 'initial' || instructionKey == 'initial_peek') {
+          currentDontShowAgain[instructionKey] = true;
+        }
       }
       
       // Update state to hide instructions and save dontShowAgain preferences

@@ -27,6 +27,7 @@ class ModalTemplateWidget extends StatelessWidget {
   final bool showFooter;
   final Color? backgroundColor;
   final Color? textColor;
+  final Color? headerColor; // Color for header title and border
   final EdgeInsets? padding;
   final double? maxWidth;
   final double? maxHeight;
@@ -45,6 +46,7 @@ class ModalTemplateWidget extends StatelessWidget {
     this.showFooter = true,
     this.backgroundColor,
     this.textColor,
+    this.headerColor, // Optional: if provided, used for title and border
     this.padding,
     this.maxWidth,
     this.maxHeight,
@@ -65,6 +67,7 @@ class ModalTemplateWidget extends StatelessWidget {
     bool showFooter = true,
     Color? backgroundColor,
     Color? textColor,
+    Color? headerColor, // Optional: color for header title and border
     EdgeInsets? padding,
     double? maxWidth,
     double? maxHeight,
@@ -87,6 +90,7 @@ class ModalTemplateWidget extends StatelessWidget {
           showFooter: showFooter,
           backgroundColor: backgroundColor,
           textColor: textColor,
+          headerColor: headerColor,
           padding: padding,
           maxWidth: maxWidth,
           maxHeight: maxHeight,
@@ -146,6 +150,10 @@ class ModalTemplateWidget extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
+    // Use headerColor if provided, otherwise fall back to accentColor
+    final titleColor = headerColor ?? AppColors.accentColor;
+    final borderColor = headerColor ?? AppColors.borderDefault;
+    
     return Container(
       padding: AppPadding.defaultPadding,
       decoration: BoxDecoration(
@@ -154,13 +162,19 @@ class ModalTemplateWidget extends StatelessWidget {
           topLeft: AppBorderRadius.large,
           topRight: AppBorderRadius.large,
         ),
+        border: Border(
+          bottom: BorderSide(
+            color: borderColor,
+            width: 2.0,
+          ),
+        ),
       ),
       child: Row(
         children: [
           if (icon != null) ...[
             Icon(
               icon,
-              color: AppColors.accentColor,
+              color: titleColor,
               size: AppSizes.iconMedium,
             ),
             SizedBox(width: AppPadding.smallPadding.left),
@@ -169,7 +183,7 @@ class ModalTemplateWidget extends StatelessWidget {
             child: Text(
               title,
               style: AppTextStyles.headingSmall(
-                color: AppColors.accentColor,
+                color: titleColor,
               ),
             ),
           ),
@@ -178,7 +192,7 @@ class ModalTemplateWidget extends StatelessWidget {
                       onPressed: onClose ?? () => Navigator.of(context).pop(),
               icon: Icon(
                 Icons.close,
-                      color: AppColors.accentColor,
+                      color: titleColor,
               ),
                       tooltip: 'Close',
                     ),

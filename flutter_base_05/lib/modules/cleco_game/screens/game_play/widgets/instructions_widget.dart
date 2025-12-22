@@ -76,8 +76,36 @@ class InstructionsWidget extends StatelessWidget {
     );
   }
 
+  /// Get status color for instruction key (matches PlayerStatusChip colors)
+  /// Returns null for instructions without status colors (initial, collection_card)
+  Color? _getStatusColorForInstructionKey(String? instructionKey) {
+    if (instructionKey == null) return null;
+    
+    switch (instructionKey) {
+      case 'initial_peek':
+        return AppColors.statusInitialPeek; // Teal
+      case 'drawing_card':
+        return AppColors.statusDrawing; // Orange
+      case 'playing_card':
+        return AppColors.statusPlaying; // Green
+      case 'queen_peek':
+        return AppColors.statusQueenPeek; // Pink
+      case 'jack_swap':
+        return AppColors.statusJackSwap; // Indigo
+      case 'same_rank_window':
+        return AppColors.statusSameRank; // Purple
+      case 'initial':
+      case 'collection_card':
+      default:
+        return null; // No status color - use default accent color
+    }
+  }
+
   /// Show the instructions modal with checkbox for "don't show again"
   void _showInstructionsModal(BuildContext context, String title, String content, String? instructionKey, bool isInitial, bool hasDemonstration) {
+    // Get status color for this instruction key
+    final headerColor = _getStatusColorForInstructionKey(instructionKey);
+    
     // Use a StatefulBuilder to manage checkbox state
     showDialog(
       context: context,
@@ -95,6 +123,7 @@ class InstructionsWidget extends StatelessWidget {
               showFooter: false, // Remove default footer
               backgroundColor: AppColors.card, // Use white card background for better text visibility
               textColor: AppColors.textOnCard, // Use text color for card backgrounds
+              headerColor: headerColor, // Use status color for header title and border
               customContent: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

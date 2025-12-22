@@ -118,7 +118,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
         _logger.info('🛡️ MyHandWidget: cardsToPeekFromState.length: ${cardsToPeekFromState.length}, protectedCardsToPeek.length: ${protectedCardsToPeek?.length ?? 0}, isProtectedDataValid: $isProtectedDataValid, isProtected: $_isCardsToPeekProtected', isOn: LOGGING_SWITCH);
         
         // If we have valid protected data from state sync, activate local protection
-        if (isProtectedDataValid && !_isCardsToPeekProtected && protectedCardsToPeek != null) {
+        if (isProtectedDataValid && !_isCardsToPeekProtected) {
           _protectCardsToPeek(protectedCardsToPeek);
           _logger.info('🛡️ MyHandWidget: Activated protection from state sync for ${protectedCardsToPeek.length} cards', isOn: LOGGING_SWITCH);
         }
@@ -238,6 +238,46 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     );
   }
 
+  /// Get status chip color for a given status (matches PlayerStatusChip logic)
+  Color _getStatusChipColor(String status) {
+    switch (status) {
+      case 'waiting':
+        return AppColors.statusWaiting;
+      case 'ready':
+        return AppColors.statusReady;
+      case 'drawing_card':
+        return AppColors.statusDrawing;
+      case 'playing_card':
+        return AppColors.statusPlaying;
+      case 'same_rank_window':
+        return AppColors.statusSameRank;
+      case 'queen_peek':
+        return AppColors.statusQueenPeek;
+      case 'jack_swap':
+        return AppColors.statusJackSwap;
+      case 'peeking':
+        return AppColors.statusPeeking;
+      case 'initial_peek':
+        return AppColors.statusInitialPeek;
+      case 'winner':
+        return AppColors.statusWinner;
+      case 'finished':
+        return AppColors.statusFinished;
+      case 'disconnected':
+        return AppColors.errorColor;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
+  /// Check if a status should trigger highlighting (excludes "waiting" and "same_rank_window")
+  bool _shouldHighlightStatus(String status) {
+    if (status == 'waiting' || status == 'same_rank_window') {
+      return false;
+    }
+    return true;
+  }
+
   /// Build the my hand card widget
   Widget _buildMyHandCard({
     required List<dynamic> cards,
@@ -253,88 +293,121 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     required bool hasPlayerCalledFinalRound,
     required String currentGameId,
   }) {
+    // Get status chip color for background overlay
+    final shouldHighlight = _shouldHighlightStatus(playerStatus);
+    final statusChipColor = shouldHighlight ? _getStatusChipColor(playerStatus) : null;
+    
+    // Calculate background color - apply status color overlay if highlighting
+    final backgroundColor = shouldHighlight && statusChipColor != null
+        ? statusChipColor.withValues(alpha: 0.1)
+        : AppColors.widgetContainerBackground;
+    
     return Container(
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
       decoration: BoxDecoration(
-        color: AppColors.widgetContainerBackground,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
+        border: shouldHighlight && statusChipColor != null
+            ? Border.all(
+                color: statusChipColor,
+                width: 2,
+              )
+            : null,
+        boxShadow: shouldHighlight && statusChipColor != null
+            ? [
+                BoxShadow(
+                  color: statusChipColor.withValues(alpha: 0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ]
+            : null,
       ),
       child: Padding(
         padding: AppPadding.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title and Status
+            // Title and Status - aligned right
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    'My Hand',
-                    style: AppTextStyles.headingSmall(),
-                  ),
+                Text(
+                  'You',
+                  style: AppTextStyles.headingSmall(),
                 ),
-                const SizedBox(width: 12),
-                // Player status indicator
-                if (playerStatus != 'unknown') ...[
-                  PlayerStatusChip(
-                    playerId: _getCurrentUserId(),
-                    size: PlayerStatusChipSize.small,
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                // Call Final Round button
+                const Spacer(),
+                // Call Final Round chip (matches status chip styling)
                 if (isGameActive && isMyTurn && playerStatus == 'playing_card' && !finalRoundActive && !hasPlayerCalledFinalRound) ...[
-                  ElevatedButton.icon(
-                    onPressed: () => _handleCallFinalRound(context, currentGameId),
-                    icon: const Icon(Icons.flag, size: 16),
-                    label: Text(
-                      'Call Final Round',
-                      style: AppTextStyles.bodySmall().copyWith(
-                        fontWeight: FontWeight.bold,
+                  GestureDetector(
+                    onTap: () => _handleCallFinalRound(context, currentGameId),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.warningColor,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.warningColor,
-                      foregroundColor: AppColors.textOnAccent,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.flag,
+                            size: 12,
+                            color: AppColors.textOnAccent,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Call Final Round',
+                            style: AppTextStyles.bodySmall().copyWith(
+                              color: AppColors.textOnAccent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                 ] else if (finalRoundActive) ...[
-                  // Show indicator if final round is active
-                  Chip(
-                    avatar: Icon(
-                      finalRoundCalledBy == _getCurrentUserId() 
-                          ? Icons.flag 
-                          : Icons.flag_outlined,
-                      size: 16,
+                  // Show indicator if final round is active (matches status chip styling)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
                       color: AppColors.warningColor,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    label: Text(
-                      finalRoundCalledBy == _getCurrentUserId()
-                          ? 'You Called Final Round'
-                          : 'Final Round Active',
-                      style: AppTextStyles.bodySmall().copyWith(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          finalRoundCalledBy == _getCurrentUserId() 
+                              ? Icons.flag 
+                              : Icons.flag_outlined,
+                          size: 12,
+                          color: AppColors.textOnAccent,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          finalRoundCalledBy == _getCurrentUserId()
+                              ? 'You Called Final Round'
+                              : 'Final Round Active',
+                          style: AppTextStyles.bodySmall().copyWith(
+                            color: AppColors.textOnAccent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    backgroundColor: AppColors.warningColor.withOpacity(0.2),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
                   ),
                   const SizedBox(width: 8),
                 ],
-                const Spacer(),
-                Text(
-                  '${cards.length} cards',
-                  style: AppTextStyles.label().copyWith(
-                    color: AppColors.textSecondary,
+                // Player status indicator - aligned right
+                if (playerStatus != 'unknown')
+                  PlayerStatusChip(
+                    playerId: _getCurrentUserId(),
+                    size: PlayerStatusChipSize.small,
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 16),

@@ -331,57 +331,84 @@ class CardWidget extends StatelessWidget {
               child: ListenableBuilder(
                 listenable: StateManager(),
                 builder: (context, child) {
-                  // Get currentGameId for cache-busting
+                  // Get currentGameId to detect practice mode
                   final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
                   final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
                   
-                  // Build image URL with cache-busting query parameters
-                  // Version 2: Increment this when uploading a new image to force cache refresh
-                  const int imageVersion = 2;
-                  final imageUrl = currentGameId.isNotEmpty
-                      ? '${Config.apiUrl}/sponsors/images/card_back.png?gameId=$currentGameId&v=$imageVersion'
-                      : '${Config.apiUrl}/sponsors/images/card_back.png?v=$imageVersion';
+                  // Detect practice mode: practice games have IDs starting with "practice_room_"
+                  final isPracticeMode = currentGameId.startsWith('practice_room_');
                   
                   // Log image loading details
                   _logger.info('🖼️ CardWidget: Loading card back image', isOn: LOGGING_SWITCH);
-                  _logger.info('🖼️ CardWidget: apiUrl=${Config.apiUrl}', isOn: LOGGING_SWITCH);
                   _logger.info('🖼️ CardWidget: currentGameId=$currentGameId', isOn: LOGGING_SWITCH);
-                  _logger.info('🖼️ CardWidget: imageUrl=$imageUrl', isOn: LOGGING_SWITCH);
+                  _logger.info('🖼️ CardWidget: isPracticeMode=$isPracticeMode', isOn: LOGGING_SWITCH);
                   
-                  // Use Image.network which uses browser's native image loading on web
-                  // This avoids CORS issues that affect the http package
-                  return Image.network(
-                    imageUrl,
-                    width: dimensions.width * 0.9, // Leave some padding
-                    height: dimensions.height * 0.9,
-                    fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) {
-                        _logger.info('🖼️ CardWidget: Image loaded successfully', isOn: LOGGING_SWITCH);
-                        return child;
-                      }
-                      // Show placeholder while loading
-                      return Icon(
-                        Icons.image,
-                        size: dimensions.width * 0.4,
-                        color: AppColors.white.withOpacity(0.5),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      _logger.error('🖼️ CardWidget: Image load error for $imageUrl', isOn: LOGGING_SWITCH);
-                      _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
-                      _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
-                      if (error is Exception) {
-                        _logger.error('🖼️ CardWidget: Exception type: ${error.runtimeType}', isOn: LOGGING_SWITCH);
-                        _logger.error('🖼️ CardWidget: Exception message: ${error.toString()}', isOn: LOGGING_SWITCH);
-                      }
-                      return Icon(
-                        Icons.broken_image,
-                        size: dimensions.width * 0.4,
-                        color: AppColors.white.withOpacity(0.5),
-                      );
-                    },
-                  );
+                  // In practice mode, load from assets; otherwise load from server
+                  if (isPracticeMode) {
+                    // Load from assets for practice mode
+                    _logger.info('🖼️ CardWidget: Loading from assets: assets/images/card_back.png', isOn: LOGGING_SWITCH);
+                    return Image.asset(
+                      'assets/images/card_back.png',
+                      width: dimensions.width * 0.9, // Leave some padding
+                      height: dimensions.height * 0.9,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        _logger.error('🖼️ CardWidget: Asset load error for assets/images/card_back.png', isOn: LOGGING_SWITCH);
+                        _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
+                        return Icon(
+                          Icons.broken_image,
+                          size: dimensions.width * 0.4,
+                          color: AppColors.white.withOpacity(0.5),
+                        );
+                      },
+                    );
+                  } else {
+                    // Load from server for multiplayer games
+                    // Build image URL with cache-busting query parameters
+                    // Version 2: Increment this when uploading a new image to force cache refresh
+                    const int imageVersion = 2;
+                    final imageUrl = currentGameId.isNotEmpty
+                        ? '${Config.apiUrl}/sponsors/images/card_back.png?gameId=$currentGameId&v=$imageVersion'
+                        : '${Config.apiUrl}/sponsors/images/card_back.png?v=$imageVersion';
+                    
+                    _logger.info('🖼️ CardWidget: apiUrl=${Config.apiUrl}', isOn: LOGGING_SWITCH);
+                    _logger.info('🖼️ CardWidget: imageUrl=$imageUrl', isOn: LOGGING_SWITCH);
+                    
+                    // Use Image.network which uses browser's native image loading on web
+                    // This avoids CORS issues that affect the http package
+                    return Image.network(
+                      imageUrl,
+                      width: dimensions.width * 0.9, // Leave some padding
+                      height: dimensions.height * 0.9,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) {
+                          _logger.info('🖼️ CardWidget: Image loaded successfully', isOn: LOGGING_SWITCH);
+                          return child;
+                        }
+                        // Show placeholder while loading
+                        return Icon(
+                          Icons.image,
+                          size: dimensions.width * 0.4,
+                          color: AppColors.white.withOpacity(0.5),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        _logger.error('🖼️ CardWidget: Image load error for $imageUrl', isOn: LOGGING_SWITCH);
+                        _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
+                        _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
+                        if (error is Exception) {
+                          _logger.error('🖼️ CardWidget: Exception type: ${error.runtimeType}', isOn: LOGGING_SWITCH);
+                          _logger.error('🖼️ CardWidget: Exception message: ${error.toString()}', isOn: LOGGING_SWITCH);
+                        }
+                        return Icon(
+                          Icons.broken_image,
+                          size: dimensions.width * 0.4,
+                          color: AppColors.white.withOpacity(0.5),
+                        );
+                      },
+                    );
+                  }
                 },
               ),
             ),

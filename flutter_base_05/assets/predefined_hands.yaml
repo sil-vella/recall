@@ -35,11 +35,11 @@ hands:
     - rank: "2"
       suit: "spades"
   
-  player_3:  # Third computer player (no jacks - only player_0 has jack)
+  player_3:  # Third computer player (has jack)
     - rank: "king"
       suit: "clubs"
-    - rank: "3"
-      suit: "hearts"
+    - rank: "jack"
+      suit: "spades"
     - rank: "4"
       suit: "diamonds"
     - rank: "ace"

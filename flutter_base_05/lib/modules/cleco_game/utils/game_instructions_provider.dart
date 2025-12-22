@@ -152,7 +152,9 @@ You played a Queen! You can now peek at any opponent's card.
     }
 
     // Handle jack swap status
-    if (playerStatus == 'jack_swap' && isMyTurn) {
+    // Note: isMyTurn check removed - jack swap can be activated during same rank plays
+    // When playerStatus is 'jack_swap', it means the player has the power regardless of turn
+    if (playerStatus == 'jack_swap') {
       return {
         'key': KEY_JACK_SWAP,
         'title': 'Jack Power - Swap Cards',

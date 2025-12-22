@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../models/card_display_config.dart';
 import '../../../../utils/consts/theme_consts.dart';
+import '../../../../utils/consts/config.dart';
+import '../../../../core/managers/state_manager.dart';
+import '../../../../tools/logging/logger.dart';
 
 /// A reusable card widget for the Cleco game
 /// 
 /// Size is determined at the placement widget level and passed as dimensions.
 /// Config only controls appearance (displayMode, showPoints, etc.)
 class CardWidget extends StatelessWidget {
+  static const bool LOGGING_SWITCH = true; // Enable logging for card back image debugging
+  static final Logger _logger = Logger();
   final CardModel card;
   final Size dimensions; // Required - size determined at placement widget level
   final CardDisplayConfig config;
@@ -321,15 +326,63 @@ class CardWidget extends StatelessWidget {
               ],
             ),
             
-            // Center the "?" symbol absolutely centered in the entire card
+            // Center the card back image - loaded from server with cache-busting per match
             Center(
-              child: Text(
-                '?',
-                style: TextStyle(
-                  fontSize: dimensions.width * 0.4,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.white,
-                ),
+              child: ListenableBuilder(
+                listenable: StateManager(),
+                builder: (context, child) {
+                  // Get currentGameId for cache-busting
+                  final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+                  final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
+                  
+                  // Build image URL with cache-busting query parameters
+                  // Version 2: Increment this when uploading a new image to force cache refresh
+                  const int imageVersion = 2;
+                  final imageUrl = currentGameId.isNotEmpty
+                      ? '${Config.apiUrl}/sponsors/images/card_back.png?gameId=$currentGameId&v=$imageVersion'
+                      : '${Config.apiUrl}/sponsors/images/card_back.png?v=$imageVersion';
+                  
+                  // Log image loading details
+                  _logger.info('🖼️ CardWidget: Loading card back image', isOn: LOGGING_SWITCH);
+                  _logger.info('🖼️ CardWidget: apiUrl=${Config.apiUrl}', isOn: LOGGING_SWITCH);
+                  _logger.info('🖼️ CardWidget: currentGameId=$currentGameId', isOn: LOGGING_SWITCH);
+                  _logger.info('🖼️ CardWidget: imageUrl=$imageUrl', isOn: LOGGING_SWITCH);
+                  
+                  // Use Image.network which uses browser's native image loading on web
+                  // This avoids CORS issues that affect the http package
+                  return Image.network(
+                    imageUrl,
+                    width: dimensions.width * 0.9, // Leave some padding
+                    height: dimensions.height * 0.9,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) {
+                        _logger.info('🖼️ CardWidget: Image loaded successfully', isOn: LOGGING_SWITCH);
+                        return child;
+                      }
+                      // Show placeholder while loading
+                      return Icon(
+                        Icons.image,
+                        size: dimensions.width * 0.4,
+                        color: AppColors.white.withOpacity(0.5),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      _logger.error('🖼️ CardWidget: Image load error for $imageUrl', isOn: LOGGING_SWITCH);
+                      _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
+                      _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
+                      if (error is Exception) {
+                        _logger.error('🖼️ CardWidget: Exception type: ${error.runtimeType}', isOn: LOGGING_SWITCH);
+                        _logger.error('🖼️ CardWidget: Exception message: ${error.toString()}', isOn: LOGGING_SWITCH);
+                      }
+                      return Icon(
+                        Icons.broken_image,
+                        size: dimensions.width * 0.4,
+                        color: AppColors.white.withOpacity(0.5),
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ],

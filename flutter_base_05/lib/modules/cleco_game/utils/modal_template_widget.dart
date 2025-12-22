@@ -107,37 +107,37 @@ class ModalTemplateWidget extends StatelessWidget {
       child: Center(
         child: Material(
           color: Colors.transparent, // Transparent Material to avoid theme interference
-          child: Container(
+        child: Container(
             margin: EdgeInsets.all(AppSizes.modalMargin),
-            constraints: BoxConstraints(
+          constraints: BoxConstraints(
               maxWidth: maxWidth ?? screenSize.width * AppSizes.modalMaxWidthPercent,
               maxHeight: maxHeight ?? screenSize.height * AppSizes.modalMaxHeightPercent,
-            ),
-            decoration: BoxDecoration(
+          ),
+          decoration: BoxDecoration(
               color: modalBackgroundColor, // Use white card background for better text visibility
               borderRadius: AppBorderRadius.largeRadius,
-              boxShadow: [
-                BoxShadow(
+            boxShadow: [
+              BoxShadow(
                   color: AppColors.black.withOpacity(AppOpacity.shadow),
                   blurRadius: AppSizes.shadowBlur,
                   offset: AppSizes.shadowOffset,
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header (optional)
-                if (showHeader) _buildHeader(context),
-                
-                // Content area
-                Flexible(
-                  child: _buildContent(context),
-                ),
-                
-                // Footer (optional)
-                if (showFooter) _buildFooter(context),
-              ],
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header (optional)
+              if (showHeader) _buildHeader(context),
+              
+              // Content area
+              Flexible(
+                child: _buildContent(context),
+              ),
+              
+              // Footer (optional)
+              if (showFooter) _buildFooter(context),
+            ],
             ),
           ),
         ),
@@ -174,14 +174,14 @@ class ModalTemplateWidget extends StatelessWidget {
             ),
           ),
           if (showCloseButton)
-            IconButton(
-              onPressed: onClose ?? () => Navigator.of(context).pop(),
+                    IconButton(
+                      onPressed: onClose ?? () => Navigator.of(context).pop(),
               icon: Icon(
                 Icons.close,
-                color: AppColors.accentColor,
+                      color: AppColors.accentColor,
               ),
-              tooltip: 'Close',
-            ),
+                      tooltip: 'Close',
+                    ),
         ],
       ),
     );

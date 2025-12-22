@@ -961,16 +961,16 @@ class ClecoGameRound {
         }
       } else {
         // Regular multiplayer mode: randomly select any player (human or CPU)
-        final random = Random();
-        final randomIndex = random.nextInt(players.length);
-        final randomPlayer = players[randomIndex];
-        
+      final random = Random();
+      final randomIndex = random.nextInt(players.length);
+      final randomPlayer = players[randomIndex];
+      
         _logger.info('Cleco: Multiplayer mode - Randomly selected starting player: ${randomPlayer['name']} (${randomPlayer['id']}, isHuman: ${randomPlayer['isHuman']})', isOn: LOGGING_SWITCH);
-        
-        // Check if computer players can collect from discard pile (first turn)
-        _checkComputerPlayerCollectionFromDiscard();
-        
-        return randomPlayer;
+      
+      // Check if computer players can collect from discard pile (first turn)
+      _checkComputerPlayerCollectionFromDiscard();
+      
+      return randomPlayer;
       }
     }
     

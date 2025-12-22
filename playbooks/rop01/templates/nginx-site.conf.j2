@@ -30,6 +30,23 @@ server {
     error_log /var/log/nginx/{{ item.domain }}.error.log;
 
     {% if item.backend_port is defined %}
+    # Static sponsors directory for card back images and other sponsor content
+    # Must come BEFORE location / to ensure it matches first
+    location /sponsors/ {
+        alias {{ item.root_dir | default('/var/www/' + item.domain) }}/sponsors/;
+        autoindex off;
+        expires 7d;
+        add_header Cache-Control "public";
+        # CORS headers for Flutter web image loading
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "*" always;
+        # Handle OPTIONS preflight requests
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+    }
+
     # Reverse proxy to backend application (e.g. Flask in Docker)
     location / {
         proxy_pass http://127.0.0.1:{{ item.backend_port }};

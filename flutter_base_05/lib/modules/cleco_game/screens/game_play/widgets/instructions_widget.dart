@@ -88,9 +88,9 @@ class InstructionsWidget extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setState) {
             return ModalTemplateWidget(
-              title: title,
-              content: content,
-              icon: Icons.help_outline,
+      title: title,
+      content: content,
+      icon: Icons.help_outline,
               showCloseButton: false, // Remove X button in header
               showFooter: false, // Remove default footer
               backgroundColor: AppColors.card, // Use white card background for better text visibility
@@ -142,13 +142,13 @@ class InstructionsWidget extends StatelessWidget {
                           // Text content
                           Padding(
                             padding: AppPadding.defaultPadding,
-                            child: Text(
-                              content,
+                      child: Text(
+                        content,
                               style: AppTextStyles.bodyMedium(
                                 color: AppColors.textOnCard,
                               ).copyWith(
-                                height: 1.5,
-                              ),
+                          height: 1.5,
+                        ),
                             ),
                           ),
                         ],
@@ -188,7 +188,7 @@ class InstructionsWidget extends StatelessWidget {
                             },
                             activeColor: AppColors.accentColor,
                             checkColor: AppColors.textOnAccent,
-                          ),
+                            ),
                           SizedBox(width: AppPadding.smallPadding.left),
                         ],
                         // Close button (text only, no icon)
@@ -218,7 +218,7 @@ class InstructionsWidget extends StatelessWidget {
                   ),
                 ],
               ),
-            );
+    );
           },
         );
       },
@@ -270,7 +270,7 @@ class InstructionsWidget extends StatelessWidget {
       // For initial and initial_peek instructions, always mark as "don't show again" since checkbox is pre-checked
       if (instructionKey != null) {
         if (dontShowAgain || instructionKey == 'initial' || instructionKey == 'initial_peek') {
-          currentDontShowAgain[instructionKey] = true;
+        currentDontShowAgain[instructionKey] = true;
         }
       }
       

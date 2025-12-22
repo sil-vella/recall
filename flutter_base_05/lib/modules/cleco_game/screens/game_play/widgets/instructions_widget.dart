@@ -8,6 +8,8 @@ import 'drawing_card_demonstration_widget.dart';
 import 'playing_card_demonstration_widget.dart';
 import 'queen_peek_demonstration_widget.dart';
 import 'jack_swap_demonstration_widget.dart';
+import 'same_rank_window_demonstration_widget.dart';
+import 'collection_card_demonstration_widget.dart';
 
 /// Instructions Widget for Cleco Game
 /// 
@@ -127,9 +129,13 @@ class InstructionsWidget extends StatelessWidget {
                                       ? const QueenPeekDemonstrationWidget()
                                       : instructionKey == 'jack_swap'
                                           ? const JackSwapDemonstrationWidget()
-                                          : const SizedBox(
-                                              height: 150, // Placeholder for other demonstrations
-                                            ),
+                                          : instructionKey == 'same_rank_window'
+                                              ? const SameRankWindowDemonstrationWidget()
+                                              : instructionKey == 'collection_card'
+                                                  ? const CollectionCardDemonstrationWidget()
+                                                  : const SizedBox(
+                                                      height: 150, // Placeholder for other demonstrations
+                                                    ),
                             ),
                             SizedBox(height: AppPadding.defaultPadding.top),
                           ],

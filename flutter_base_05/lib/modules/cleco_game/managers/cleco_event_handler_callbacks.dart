@@ -10,7 +10,7 @@ import '../../../modules/analytics_module/analytics_module.dart';
 /// Dedicated event handlers for Cleco game events
 /// Contains all the business logic for processing specific event types
 class ClecoEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Enabled for final round debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging collection card instruction
   static final Logger _logger = Logger();
   
   // Analytics module cache
@@ -353,6 +353,83 @@ class ClecoEventHandlerCallbacks {
       final dontShowAgain = Map<String, bool>.from(
         (currentState['instructions'] as Map<String, dynamic>?)?['dontShowAgain'] as Map<String, dynamic>? ?? {},
       );
+
+      // Track same rank window triggers for collection card instruction
+      int sameRankTriggerCount = currentState['sameRankTriggerCount'] as int? ?? 0;
+      _logger.info('📚 _triggerInstructionsIfNeeded: Current sameRankTriggerCount=$sameRankTriggerCount, gamePhase=$gamePhase, previousPhase=$previousPhase', isOn: LOGGING_SWITCH);
+      
+      // Check if this is a same rank window phase
+      if (gamePhase == 'same_rank_window') {
+        // Increment counter ONLY when transitioning INTO same_rank_window (not when already in it)
+        // This happens when previousPhase was NOT same_rank_window
+        if (previousPhase != 'same_rank_window') {
+          sameRankTriggerCount++;
+          StateManager().updateModuleState('cleco_game', {
+            'sameRankTriggerCount': sameRankTriggerCount,
+          });
+          _logger.info('📚 _triggerInstructionsIfNeeded: Incremented same rank window trigger count=$sameRankTriggerCount (transitioned from $previousPhase to same_rank_window)', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.info('📚 _triggerInstructionsIfNeeded: Already in same_rank_window phase, not incrementing counter', isOn: LOGGING_SWITCH);
+        }
+        
+        // On 5th trigger, show collection card instruction instead of same rank window
+        if (sameRankTriggerCount >= 5) {
+          _logger.info('📚 _triggerInstructionsIfNeeded: Same rank trigger count >= 5, checking collection card instruction', isOn: LOGGING_SWITCH);
+          // Check if collection card instruction is already dismissed
+          if (dontShowAgain[GameInstructionsProvider.KEY_COLLECTION_CARD] != true) {
+            _logger.info('📚 _triggerInstructionsIfNeeded: Collection card instruction not dismissed, constructing instruction', isOn: LOGGING_SWITCH);
+            
+            // Construct collection card instruction directly (no playerStatus 'collection_card' exists)
+            final collectionInstructions = {
+              'key': GameInstructionsProvider.KEY_COLLECTION_CARD,
+              'title': 'Collection Cards',
+              'hasDemonstration': true,
+              'content': '''📚 **Collection Cards**
+
+When you play a card with the **same rank** as your **collection card** (the face-up card in your hand), it gets collected!
+
+**How it works:**
+• Your collection card is the face-up card in your hand
+• If the last played card matches your collection card's rank, you can collect it
+• The collected card is placed on top of your collection card (slightly offset to show stacking)
+• Collected cards help you build your collection and reduce your hand size
+
+**Example:** If your collection card is a 7 of Hearts and a 7 of Diamonds is played, you can collect it!
+
+**Strategy:** Building a collection helps you get rid of cards and reduces your point total!''',
+            };
+            
+            final instructionKey = collectionInstructions['key'] ?? '';
+            final currentInstructions = currentState['instructions'] as Map<String, dynamic>? ?? {};
+            final currentlyVisible = currentInstructions['isVisible'] == true;
+            final currentKey = currentInstructions['key']?.toString();
+            
+            _logger.info('📚 _triggerInstructionsIfNeeded: Collection instruction key=$instructionKey, currentlyVisible=$currentlyVisible, currentKey=$currentKey', isOn: LOGGING_SWITCH);
+            
+            // Only update if not already showing this instruction
+            if (!currentlyVisible || currentKey != instructionKey) {
+              StateManager().updateModuleState('cleco_game', {
+                'instructions': {
+                  'isVisible': true,
+                  'title': collectionInstructions['title'] ?? 'Collection Cards',
+                  'content': collectionInstructions['content'] ?? '',
+                  'key': instructionKey,
+                  'hasDemonstration': collectionInstructions['hasDemonstration'] ?? false,
+                  'dontShowAgain': dontShowAgain,
+                },
+              });
+              _logger.info('📚 Collection card instruction triggered (5th same rank window, count=$sameRankTriggerCount)', isOn: LOGGING_SWITCH);
+              return; // Exit early, don't show same rank window instruction
+            } else {
+              _logger.info('📚 Collection card instruction skipped - already showing', isOn: LOGGING_SWITCH);
+            }
+          } else {
+            _logger.info('📚 Collection card instruction already dismissed, showing same rank window instead', isOn: LOGGING_SWITCH);
+          }
+        } else {
+          _logger.info('📚 Same rank trigger count ($sameRankTriggerCount) < 5, showing same rank window instruction', isOn: LOGGING_SWITCH);
+        }
+      }
 
       _logger.info('📚 _triggerInstructionsIfNeeded: Current user status=$currentUserPlayerStatus, previous=$previousUserPlayerStatus, isMyTurn=$isMyTurn', isOn: LOGGING_SWITCH);
 
@@ -1061,6 +1138,19 @@ class ClecoEventHandlerCallbacks {
     if (isGameStarting) {
       _logger.info('💰 handleGameStateUpdated: Game starting - phase changed to initial_peek, checking for coin deduction', isOn: LOGGING_SWITCH);
       _handleCoinDeductionOnGameStart(gameId, gameState);
+    }
+    
+    // Track same rank window triggers BEFORE updating state
+    // Check if we're transitioning INTO same_rank_window (not already in it)
+    if (uiPhase == 'same_rank_window' && previousPhase != 'same_rank_window') {
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+      int sameRankTriggerCount = currentState['sameRankTriggerCount'] as int? ?? 0;
+      sameRankTriggerCount++;
+      _logger.info('📚 handleGameStateUpdated: Transitioning INTO same_rank_window - incrementing counter to $sameRankTriggerCount', isOn: LOGGING_SWITCH);
+      // Update counter in state (will be included in the main state update below)
+      StateManager().updateModuleState('cleco_game', {
+        'sameRankTriggerCount': sameRankTriggerCount,
+      });
     }
     
     // Then update main state with games map, discardPile, currentPlayer, turn_events (matches practice mode pattern)

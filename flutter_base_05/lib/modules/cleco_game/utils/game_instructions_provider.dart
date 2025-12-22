@@ -11,6 +11,7 @@ class GameInstructionsProvider {
   static const String KEY_QUEEN_PEEK = 'queen_peek';
   static const String KEY_JACK_SWAP = 'jack_swap';
   static const String KEY_SAME_RANK_WINDOW = 'same_rank_window';
+  static const String KEY_COLLECTION_CARD = 'collection_card';
 
   /// Get initial instructions (shown when game hasn't started yet)
   static Map<String, dynamic> getInitialInstructions() {
@@ -176,11 +177,35 @@ You played a Jack! You can now swap any two cards between players.
       };
     }
 
+    // Handle collection card (triggered separately on 5th same rank window)
+    // Check this FIRST before same_rank_window to ensure it takes precedence
+    if (gamePhase == 'same_rank_window' && playerStatus == 'collection_card') {
+      return {
+        'key': KEY_COLLECTION_CARD,
+        'title': 'Collection Cards',
+        'hasDemonstration': true,
+        'content': '''📚 **Collection Cards**
+
+When you play a card with the **same rank** as your **collection card** (the face-up card in your hand), it gets collected!
+
+**How it works:**
+• Your collection card is the face-up card in your hand
+• If the last played card matches your collection card's rank, you can collect it
+• The collected card is placed on top of your collection card (slightly offset to show stacking)
+• Collected cards help you build your collection and reduce your hand size
+
+**Example:** If your collection card is a 7 of Hearts and a 7 of Diamonds is played, you can collect it!
+
+**Strategy:** Building a collection helps you get rid of cards and reduces your point total!''',
+      };
+    }
+
     // Handle same rank window
     if (gamePhase == 'same_rank_window') {
       return {
         'key': KEY_SAME_RANK_WINDOW,
         'title': 'Same Rank Window',
+        'hasDemonstration': true,
         'content': '''⚡ **Same Rank Window**
 
 A card was just played! If you have a card with the **same rank** (number/face), you can play it **out of turn**!

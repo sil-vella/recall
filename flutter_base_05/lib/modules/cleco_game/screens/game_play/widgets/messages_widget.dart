@@ -62,21 +62,32 @@ class MessagesWidget extends StatelessWidget {
       });
     }
     
+    final messageTypeColor = _getMessageTypeColor(context, messageType);
+    // Blend message type color with widget container background for better contrast
+    // Use 15% message color + 85% container background to create a subtle tinted header
+    final headerBackgroundColor = Color.lerp(
+      AppColors.widgetContainerBackground,
+      messageTypeColor,
+      0.15,
+    ) ?? AppColors.widgetContainerBackground;
+    // Calculate text color based on the header background to ensure readability
+    final headerTextColor = ThemeConfig.getTextColorForBackground(headerBackgroundColor);
+    
     return Material(
-      color: AppColors.black.withOpacity(0.54), // Semi-transparent background
+      color: AppColors.black.withValues(alpha: 0.54), // Semi-transparent background
       child: Center(
         child: Container(
-          margin: const EdgeInsets.all(20),
+          margin: AppPadding.defaultPadding,
           constraints: const BoxConstraints(
             maxWidth: 500,
             maxHeight: 600,
           ),
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
+            color: AppColors.widgetContainerBackground,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: AppColors.black.withOpacity(0.3),
+                color: AppColors.black.withValues(alpha: 0.3),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -87,9 +98,9 @@ class MessagesWidget extends StatelessWidget {
             children: [
               // Header with title and close button
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: AppPadding.cardPadding,
                 decoration: BoxDecoration(
-                  color: _getMessageTypeColor(context, messageType).withOpacity(0.1),
+                  color: headerBackgroundColor,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12),
                     topRight: Radius.circular(12),
@@ -99,24 +110,25 @@ class MessagesWidget extends StatelessWidget {
                   children: [
                     Icon(
                       _getMessageTypeIcon(messageType),
-                      color: _getMessageTypeColor(context, messageType),
+                      color: messageTypeColor,
                       size: 24,
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: AppPadding.smallPadding.left),
                     Expanded(
                       child: Text(
                         title,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: _getMessageTypeColor(context, messageType),
+                        style: AppTextStyles.headingSmall().copyWith(
+                          color: headerTextColor,
                         ),
                       ),
                     ),
                     if (showCloseButton)
                       IconButton(
                         onPressed: () => _closeMessage(context),
-                        icon: const Icon(Icons.close),
-                        color: _getMessageTypeColor(context, messageType),
+                        icon: Icon(
+                          Icons.close,
+                          color: headerTextColor,
+                        ),
                         tooltip: 'Close message',
                       ),
                   ],
@@ -126,10 +138,11 @@ class MessagesWidget extends StatelessWidget {
               // Content area
               Flexible(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: AppPadding.cardPadding,
                   child: Text(
                     content,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    style: AppTextStyles.bodyMedium().copyWith(
+                      color: AppColors.textOnCard,
                       height: 1.5,
                     ),
                     textAlign: TextAlign.center,
@@ -140,9 +153,9 @@ class MessagesWidget extends StatelessWidget {
               // Footer with close button (if enabled)
               if (showCloseButton)
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: AppPadding.cardPadding,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).dividerColor.withOpacity(0.1),
+                    color: AppColors.cardVariant,
                     borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(12),
                       bottomRight: Radius.circular(12),
@@ -153,10 +166,18 @@ class MessagesWidget extends StatelessWidget {
                     children: [
                       TextButton.icon(
                         onPressed: () => _closeMessage(context),
-                        icon: const Icon(Icons.close),
-                        label: const Text('Close'),
+                        icon: Icon(
+                          Icons.close,
+                          color: AppColors.textOnCard,
+                        ),
+                        label: Text(
+                          'Close',
+                          style: AppTextStyles.buttonText().copyWith(
+                            color: AppColors.textOnCard,
+                          ),
+                        ),
                         style: TextButton.styleFrom(
-                          foregroundColor: _getMessageTypeColor(context, messageType),
+                          foregroundColor: AppColors.textOnCard,
                         ),
                       ),
                     ],

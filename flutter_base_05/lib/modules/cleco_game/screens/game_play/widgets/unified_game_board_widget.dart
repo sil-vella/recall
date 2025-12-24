@@ -10,6 +10,8 @@ import '../../../managers/player_action.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../cleco_game/managers/cleco_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../utils/card_position_scanner.dart';
+import '../../../utils/card_animation_detector.dart';
 
 const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
@@ -36,10 +38,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   
   // ========== Draw Pile State ==========
   String? _clickedPileType;
-  final GlobalKey _drawCardKey = GlobalKey(debugLabel: 'draw_pile_card');
   
   // ========== Discard Pile State ==========
-  final GlobalKey _discardCardKey = GlobalKey(debugLabel: 'discard_pile_card');
+  // (No state needed - using _cardKeys for all cards)
   
   // ========== My Hand State ==========
   int _initialPeekSelectionCount = 0;
@@ -48,11 +49,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   bool _isMyHandCardsToPeekProtected = false;
   List<dynamic>? _protectedMyHandCardsToPeek;
   Timer? _myHandCardsToPeekProtectionTimer;
+  
+  // ========== Animation System State ==========
+  /// Map of cardId -> GlobalKey for all cards (reused across rebuilds)
+  final Map<String, GlobalKey> _cardKeys = {};
+  
+  /// CardPositionScanner instance
+  final CardPositionScanner _positionScanner = CardPositionScanner();
+  
+  /// CardAnimationDetector instance
+  final CardAnimationDetector _animationDetector = CardAnimationDetector();
 
   @override
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
+    _positionScanner.clearPositions();
     super.dispose();
   }
 
@@ -61,6 +73,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
+        // Schedule position scanning after build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scanCardPositions();
+        });
+        
         return Column(
           children: [
             // Opponents Panel Section
@@ -79,6 +96,193 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         );
       },
     );
+  }
+  
+  // ========== Animation System Methods ==========
+  
+  /// Get or create GlobalKey for a card
+  GlobalKey _getOrCreateCardKey(String cardId, String keyType) {
+    final key = '${keyType}_$cardId';
+    if (!_cardKeys.containsKey(key)) {
+      _cardKeys[key] = GlobalKey(debugLabel: key);
+    }
+    return _cardKeys[key]!;
+  }
+  
+  /// Scan all card positions after build
+  void _scanCardPositions() {
+    if (!mounted) return;
+    
+    _logger.info('🎬 UnifiedGameBoardWidget: Starting position scan', isOn: LOGGING_SWITCH);
+    
+    final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+    final Map<String, CardKeyData> cardKeys = {};
+    
+    // Collect all card keys with metadata
+    
+    // 1. Draw Pile - Track all cards in draw pile
+    final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
+    final games = clecoGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+    
+    if (drawPile.isEmpty) {
+      // Empty draw pile - track placeholder
+      final emptyKey = _getOrCreateCardKey('draw_pile_empty', 'draw_pile');
+      cardKeys['draw_pile_empty'] = CardKeyData(
+        key: emptyKey,
+        location: 'draw_pile',
+        isFaceUp: false,
+      );
+    } else {
+      for (final cardData in drawPile) {
+        if (cardData is Map<String, dynamic>) {
+          final cardId = cardData['cardId']?.toString();
+          if (cardId != null && cardId.isNotEmpty) {
+            final cardKey = _getOrCreateCardKey(cardId, 'draw_pile');
+            cardKeys[cardId] = CardKeyData(
+              key: cardKey,
+              location: 'draw_pile',
+              isFaceUp: false,
+            );
+          }
+        }
+      }
+    }
+    
+    // 2. Discard Pile - Track all cards in discard pile
+    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+    
+    if (discardPile.isEmpty) {
+      // Empty discard pile
+      final emptyKey = _getOrCreateCardKey('discard_pile_empty', 'discard_pile');
+      cardKeys['discard_pile_empty'] = CardKeyData(
+        key: emptyKey,
+        location: 'discard_pile',
+        isFaceUp: true,
+      );
+    } else {
+      for (final cardData in discardPile) {
+        if (cardData is Map<String, dynamic>) {
+          final cardId = cardData['cardId']?.toString();
+          if (cardId != null && cardId.isNotEmpty) {
+            final cardKey = _getOrCreateCardKey(cardId, 'discard_pile');
+            cardKeys[cardId] = CardKeyData(
+              key: cardKey,
+              location: 'discard_pile',
+              isFaceUp: true,
+            );
+          }
+        }
+      }
+    }
+    
+    // 3. Opponent Cards
+    final opponentsPanel = clecoGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
+    final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
+    final cardsToPeekFromState = clecoGameState['myCardsToPeek'] as List<dynamic>? ?? [];
+    final cardsToPeek = _isCardsToPeekProtected && _protectedCardsToPeek != null
+        ? _protectedCardsToPeek!
+        : cardsToPeekFromState;
+    
+    for (final opponent in opponents) {
+      if (opponent is Map<String, dynamic>) {
+        final playerId = opponent['id']?.toString() ?? '';
+        final hand = opponent['hand'] as List<dynamic>? ?? [];
+        final drawnCard = opponent['drawnCard'] as Map<String, dynamic>?;
+        final playerCollectionRankCards = opponent['collection_rank_cards'] as List<dynamic>? ?? [];
+        
+        for (int i = 0; i < hand.length; i++) {
+          final card = hand[i];
+          if (card == null) continue;
+          final cardMap = card as Map<String, dynamic>;
+          final cardId = cardMap['cardId']?.toString();
+          if (cardId == null) continue;
+          
+          // Check if card is peeked (face up)
+          bool isFaceUp = false;
+          for (var peekedCard in cardsToPeek) {
+            if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
+              isFaceUp = true;
+              break;
+            }
+          }
+          
+          // Check if card is in collection rank cards (has full data)
+          bool hasFullData = false;
+          for (var collectionCard in playerCollectionRankCards) {
+            if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+              hasFullData = true;
+              break;
+            }
+          }
+          
+          // If drawn card, it has full data
+          if (drawnCard != null && drawnCard['cardId']?.toString() == cardId) {
+            hasFullData = true;
+          }
+          
+          // Face up if peeked or has full data
+          isFaceUp = isFaceUp || hasFullData;
+          
+          final key = _getOrCreateCardKey(cardId, 'opponent_$playerId');
+          cardKeys[cardId] = CardKeyData(
+            key: key,
+            location: 'opponent_hand_$playerId',
+            isFaceUp: isFaceUp,
+            playerId: playerId,
+            index: i,
+          );
+        }
+      }
+    }
+    
+    // 4. My Hand Cards
+    final myHand = clecoGameState['myHand'] as Map<String, dynamic>? ?? {};
+    final myHandCards = myHand['cards'] as List<dynamic>? ?? [];
+    
+    for (int i = 0; i < myHandCards.length; i++) {
+      final card = myHandCards[i];
+      if (card == null) continue;
+      final cardMap = card as Map<String, dynamic>;
+      final cardId = cardMap['cardId']?.toString();
+      if (cardId == null) continue;
+      
+      // My hand cards are always face up
+      bool isFaceUp = true;
+      
+      final key = _getOrCreateCardKey(cardId, 'my_hand');
+      cardKeys[cardId] = CardKeyData(
+        key: key,
+        location: 'my_hand',
+        isFaceUp: isFaceUp,
+        index: i,
+      );
+    }
+    
+    // Scan positions
+    final currentPositions = _positionScanner.scanAllCards(context, cardKeys);
+    
+    // Detect animations
+    _detectAndTriggerAnimations(currentPositions);
+  }
+  
+  /// Detect animations and trigger them
+  void _detectAndTriggerAnimations(Map<String, CardPosition> currentPositions) {
+    final previousPositions = _positionScanner.getAllPreviousPositions();
+    
+    // Detect animations
+    final animations = _animationDetector.detectAnimations(currentPositions, previousPositions);
+    
+    if (animations.isNotEmpty) {
+      _logger.info('🎬 UnifiedGameBoardWidget: Detected ${animations.length} animations', isOn: LOGGING_SWITCH);
+      // Animations are automatically triggered via CardAnimationDetector.animationTriggers ValueNotifier
+    }
+    
+    // Save current positions as previous for next comparison
+    _positionScanner.saveCurrentAsPrevious();
   }
 
   // ========== Opponents Panel Methods ==========
@@ -410,7 +614,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
             final cardDataToUse = isDrawnCard && drawnCard != null
                 ? drawnCard 
                 : (peekedCardData ?? collectionRankCardData);
-            final cardKey = GlobalKey(debugLabel: 'opponent_card_${playerId}_$cardId');
+            final cardKey = _getOrCreateCardKey(cardId, 'opponent_$playerId');
             final cardWidget = _buildOpponentCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey);
             collectionRankWidgets[cardId] = cardWidget;
           }
@@ -504,7 +708,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                   return const SizedBox.shrink();
                 }
               }
-              final cardKey = GlobalKey(debugLabel: 'opponent_card_${playerId}_$cardId');
+              if (cardId == null) {
+                return const SizedBox.shrink();
+              }
+              final cardKey = _getOrCreateCardKey(cardId, 'opponent_$playerId');
               final cardWidget = _buildOpponentCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey);
               return Padding(
                 padding: EdgeInsets.only(
@@ -773,8 +980,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
 
   Widget _buildDrawPile() {
     final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
-    final centerBoard = clecoGameState['centerBoard'] as Map<String, dynamic>? ?? {};
-    final drawPileCount = centerBoard['drawPileCount'] ?? 0;
+    final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
+    final games = clecoGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    // Get full draw pile list
+    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
     
     return Expanded(
       child: Column(
@@ -789,18 +1002,58 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
           Builder(
             builder: (context) {
               final cardDimensions = CardDimensions.getUnifiedDimensions();
-              return CardWidget(
-                key: _drawCardKey,
-                card: CardModel(
-                  cardId: 'draw_pile_${drawPileCount > 0 ? 'full' : 'empty'}',
-                  rank: '?',
-                  suit: '?',
-                  points: 0,
+              
+              if (drawPile.isEmpty) {
+                // Empty draw pile - render placeholder
+                final emptyKey = _getOrCreateCardKey('draw_pile_empty', 'draw_pile');
+                return CardWidget(
+                  key: emptyKey,
+                  card: CardModel(
+                    cardId: 'draw_pile_empty',
+                    rank: '?',
+                    suit: '?',
+                    points: 0,
+                  ),
+                  dimensions: cardDimensions,
+                  config: CardDisplayConfig.forDrawPile(),
+                  showBack: true,
+                  onTap: _handleDrawPileClick,
+                );
+              }
+              
+              // Render all cards in draw pile (stacked, all at same position)
+              // Only the top card is visible, but all are tracked for animation
+              return SizedBox(
+                width: cardDimensions.width,
+                height: cardDimensions.height,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: drawPile.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final cardData = entry.value as Map<String, dynamic>? ?? {};
+                    final cardId = cardData['cardId']?.toString() ?? 'draw_pile_empty';
+                    
+                    // Get or create key for this card
+                    final cardKey = _getOrCreateCardKey(cardId, 'draw_pile');
+                    
+                    // Only show the top card (last in list), but render all for tracking
+                    final isTopCard = index == drawPile.length - 1;
+                    
+                    return Positioned.fill(
+                      child: Opacity(
+                        opacity: isTopCard ? 1.0 : 0.0, // Only top card visible
+                        child: CardWidget(
+                          key: cardKey,
+                          card: CardModel.fromMap(cardData),
+                          dimensions: cardDimensions,
+                          config: CardDisplayConfig.forDrawPile(),
+                          showBack: true,
+                          onTap: isTopCard ? _handleDrawPileClick : null, // Only top card clickable
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
-                dimensions: cardDimensions,
-                config: CardDisplayConfig.forDrawPile(),
-                showBack: true,
-                onTap: _handleDrawPileClick,
               );
             },
           ),
@@ -878,10 +1131,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
 
   Widget _buildDiscardPile() {
     final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
-    final centerBoard = clecoGameState['centerBoard'] as Map<String, dynamic>? ?? {};
-    final topDiscard = centerBoard['topDiscard'] as Map<String, dynamic>?;
+    final currentGameId = clecoGameState['currentGameId']?.toString() ?? '';
+    final games = clecoGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     
-    final bool hasCards = topDiscard != null;
+    // Get full discard pile list
+    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+    final hasCards = discardPile.isNotEmpty;
     
     return Expanded(
       child: Column(
@@ -896,27 +1154,58 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
           Builder(
             builder: (context) {
               final cardDimensions = CardDimensions.getUnifiedDimensions();
-              return hasCards 
-                  ? CardWidget(
-                      key: _discardCardKey,
-                      card: CardModel.fromMap(topDiscard),
-                      dimensions: cardDimensions,
-                      config: CardDisplayConfig.forDiscardPile(),
-                      onTap: _handleDiscardPileClick,
-                    )
-                  : CardWidget(
-                      key: _discardCardKey,
-                      card: CardModel(
-                        cardId: 'discard_pile_empty',
-                        rank: '?',
-                        suit: '?',
-                        points: 0,
+              
+              if (!hasCards) {
+                // Empty discard pile
+                final emptyKey = _getOrCreateCardKey('discard_pile_empty', 'discard_pile');
+                return CardWidget(
+                  key: emptyKey,
+                  card: CardModel(
+                    cardId: 'discard_pile_empty',
+                    rank: '?',
+                    suit: '?',
+                    points: 0,
+                  ),
+                  dimensions: cardDimensions,
+                  config: CardDisplayConfig.forDiscardPile(),
+                  showBack: true,
+                  onTap: _handleDiscardPileClick,
+                );
+              }
+              
+              // Render all cards in discard pile (stacked, all at same position)
+              // Only the top card is visible, but all are tracked for animation
+              return SizedBox(
+                width: cardDimensions.width,
+                height: cardDimensions.height,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: discardPile.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final cardData = entry.value as Map<String, dynamic>? ?? {};
+                    final cardId = cardData['cardId']?.toString() ?? 'discard_pile_empty';
+                    
+                    // Get or create key for this card
+                    final cardKey = _getOrCreateCardKey(cardId, 'discard_pile');
+                    
+                    // Only show the top card (last in list), but render all for tracking
+                    final isTopCard = index == discardPile.length - 1;
+                    
+                    return Positioned.fill(
+                      child: Opacity(
+                        opacity: isTopCard ? 1.0 : 0.0, // Only top card visible
+                        child: CardWidget(
+                          key: cardKey,
+                          card: CardModel.fromMap(cardData),
+                          dimensions: cardDimensions,
+                          config: CardDisplayConfig.forDiscardPile(),
+                          onTap: isTopCard ? _handleDiscardPileClick : null, // Only top card clickable
+                        ),
                       ),
-                      dimensions: cardDimensions,
-                      config: CardDisplayConfig.forDiscardPile(),
-                      showBack: true,
-                      onTap: _handleDiscardPileClick,
                     );
+                  }).toList(),
+                ),
+              );
             },
           ),
         ],
@@ -1371,7 +1660,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
             final cardDataToUse = isDrawnCard && drawnCard != null
                 ? drawnCard 
                 : (peekedCardData ?? collectionRankCardData);
-            final cardKey = GlobalKey(debugLabel: 'card_$cardId');
+            final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
             final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey);
             collectionRankWidgets[cardId] = cardWidget;
           }
@@ -1469,7 +1758,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                   return const SizedBox.shrink();
                 }
               }
-              final cardKey = GlobalKey(debugLabel: 'card_$cardId');
+              if (cardId == null) {
+                return const SizedBox.shrink();
+              }
+              final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
               final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, index, cardMap, cardKey);
               return Padding(
                 padding: EdgeInsets.only(

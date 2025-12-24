@@ -9,6 +9,7 @@ import 'widgets/game_info_widget.dart';
 import 'widgets/unified_game_board_widget.dart';
 import 'widgets/instructions_widget.dart';
 import 'widgets/messages_widget.dart';
+import 'widgets/card_animation_layer.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../managers/feature_registry_manager.dart';
 import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
@@ -30,7 +31,10 @@ class GamePlayScreen extends BaseScreen {
 class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   final Logger _logger = Logger();
   final WebSocketManager _websocketManager = WebSocketManager.instance;
-  String? _previousGameId; // Track game ID to detect navigation away
+  String? _previousGameId;
+  
+  // GlobalKey for the main Stack to get exact position for animations
+  final GlobalKey _mainStackKey = GlobalKey(); // Track game ID to detect navigation away
 
   @override
   void initState() {
@@ -265,6 +269,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   @override
   Widget buildContent(BuildContext context) {
     return Stack(
+      key: _mainStackKey,
+      clipBehavior: Clip.none,
       children: [
         // Main game content
         SingleChildScrollView(
@@ -282,6 +288,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
             ],
           ),
         ),
+        
+        // Card Animation Layer - full-screen overlay for animated cards
+        CardAnimationLayer(stackKey: _mainStackKey),
         
         // Instructions Modal Widget - handles its own state subscription
         const InstructionsWidget(),

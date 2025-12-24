@@ -7,7 +7,7 @@ import '../../utils/platform/shared_imports.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for final round debugging
+const bool LOGGING_SWITCH = false; // Enabled for final round debugging
 
 class ClecoGameRound {
   final Logger _logger = Logger();

@@ -6,6 +6,7 @@ import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
 
 /// Demonstration widget for same rank window phase
 /// 
@@ -21,9 +22,13 @@ class SameRankWindowDemonstrationWidget extends StatefulWidget {
 
 class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemonstrationWidget>
     with TickerProviderStateMixin {
+  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
+  static final Logger _logger = Logger();
+  
   // Animation phases: 0 = idle, 1 = play animation, 2 = waiting for revert, 3 = revert animation, 4 = penalty draw animation
   int _animationPhase = 0;
   int _currentExample = 0; // 0 = successful, 1 = failed
+  bool _penaltyCardComplete = false; // Track when penalty card animation completes
   late AnimationController _animationController;
   late Animation<Offset> _playCardAnimation;
   late Animation<Offset> _revertCardAnimation;
@@ -119,9 +124,21 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
   /// Get the card being played (index 2)
   Map<String, dynamic> get _playCard => _handCards[2];
 
+  /// Penalty card data (drawn after failed same rank play)
+  Map<String, dynamic> get _penaltyCard => {
+    'cardId': 'demo-penalty',
+    'rank': '?',
+    'suit': '?',
+    'points': 0,
+  };
+
   @override
   void initState() {
     super.initState();
+    // Test log to verify logging is working - using forceLog to bypass any conditions
+    _logger.forceLog('🎴 SameRankDemo: Widget initialized - FORCE LOG TEST');
+    _logger.info('🎴 SameRankDemo: Widget initialized - logging test', isOn: LOGGING_SWITCH);
+    
     // Duration: 800ms play + 1000ms wait + 800ms revert + 800ms penalty = 3400ms total
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 3400),
@@ -176,14 +193,19 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
   void _setupAnimations() {
     if (!mounted) return;
     
+    _logger.info('🎴 SameRankDemo: _setupAnimations called - currentExample: $_currentExample', isOn: LOGGING_SWITCH);
+    
     final playCardRenderBox = _playCardKey.currentContext?.findRenderObject() as RenderBox?;
     final discardPileRenderBox = _discardPileKey.currentContext?.findRenderObject() as RenderBox?;
     final drawPileRenderBox = _drawPileKey.currentContext?.findRenderObject() as RenderBox?;
     final lastHandCardRenderBox = _lastHandCardKey.currentContext?.findRenderObject() as RenderBox?;
     final stackContext = _stackKey.currentContext?.findRenderObject() as RenderBox?;
     
+    _logger.debug('🎴 SameRankDemo: Render boxes - playCard: ${playCardRenderBox != null}, discard: ${discardPileRenderBox != null}, draw: ${drawPileRenderBox != null}, lastHand: ${lastHandCardRenderBox != null}, stack: ${stackContext != null}', isOn: LOGGING_SWITCH);
+    
     if (playCardRenderBox == null || discardPileRenderBox == null || stackContext == null) {
       // Retry after a short delay
+      _logger.debug('🎴 SameRankDemo: Missing required render boxes, retrying in 100ms', isOn: LOGGING_SWITCH);
       Future.delayed(const Duration(milliseconds: 100), () {
         if (mounted) _setupAnimations();
       });
@@ -210,9 +232,12 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
     _playStartOffset = playStartOffset;
     _playEndOffset = playEndOffset;
     
+    _logger.info('🎴 SameRankDemo: Starting animation setup for Example $_currentExample', isOn: LOGGING_SWITCH);
+    
     if (_currentExample == 0) {
       // Example 1: Successful same rank play
       // Just animate card to discard pile (800ms, same as other animations)
+      _logger.info('🎴 SameRankDemo: Setting up Example 1 (successful play)', isOn: LOGGING_SWITCH);
       setState(() {
         _animationPhase = 1; // Start play animation
       });
@@ -227,12 +252,15 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
       
       _animationController.forward(from: 0.0).then((_) {
         if (mounted) {
+          _logger.info('🎴 SameRankDemo: Example 1 animation complete, waiting 2s before Example 2', isOn: LOGGING_SWITCH);
           // Wait 2 seconds, then switch to example 2 (same as jack swap demo)
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) {
+              _logger.info('🎴 SameRankDemo: Switching to Example 2 (failed play with penalty)', isOn: LOGGING_SWITCH);
               setState(() {
                 _currentExample = 1;
                 _animationPhase = 0;
+                _penaltyCardComplete = false; // Reset for example 2
               });
               _animationController.reset();
               _runAnimationCycle();
@@ -243,7 +271,9 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
     } else {
       // Example 2: Failed same rank play
       // Animate to discard, wait 1 second, revert, then draw penalty
+      _logger.info('🎴 SameRankDemo: Setting up Example 2 (failed play with penalty)', isOn: LOGGING_SWITCH);
       if (drawPileRenderBox == null || lastHandCardRenderBox == null) {
+        _logger.debug('🎴 SameRankDemo: Missing drawPile or lastHandCard render boxes, retrying in 100ms', isOn: LOGGING_SWITCH);
         Future.delayed(const Duration(milliseconds: 100), () {
           if (mounted) _setupAnimations();
         });
@@ -277,26 +307,61 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
       ));
       
       // Penalty card animation (from draw pile to hand) - 0.764 to 1.0 (800ms)
+      _logger.info('🎴 SameRankDemo: Setting up penalty card animation', isOn: LOGGING_SWITCH);
+      
       final penaltyStartOffset = Offset(
         drawPilePosition.dx - stackPosition.dx + drawPileRenderBox.size.width / 2,
         drawPilePosition.dy - stackPosition.dy + drawPileRenderBox.size.height / 2,
       );
       
-      // Calculate position for the penalty card (after the last card in hand)
-      // Get the last card's right edge and add spacing + half card width for the new card's center
+      // Calculate position for the penalty card accounting for Row centering
+      // Use actual sizes from RenderBox for accuracy
       final cardDimensions = CardDimensions.getUnifiedDimensions();
       final spacing = AppPadding.smallPadding.left;
       
-      // Get the last card's right edge position (relative to Stack)
-      final lastCardRightEdge = lastHandCardPosition.dx - stackPosition.dx + lastHandCardRenderBox.size.width;
+      // Get the hand Row's RenderBox to understand the layout
+      final handRowContext = _lastHandCardKey.currentContext?.findAncestorRenderObjectOfType<RenderFlex>();
       
-      // Calculate the center of the new penalty card: last card's right edge + spacing + half card width
-      final penaltyCardCenterX = lastCardRightEdge + spacing + (cardDimensions.width / 2);
+      Offset penaltyEndOffset;
       
-      final penaltyEndOffset = Offset(
-        penaltyCardCenterX,
-        lastHandCardPosition.dy - stackPosition.dy + lastHandCardRenderBox.size.height / 2,
-      );
+      if (handRowContext != null) {
+        // Calculate where the new card will actually be positioned after Row centering
+        final currentCardsCount = _handCards.length; // Before penalty card is added
+        final totalCurrentWidth = (cardDimensions.width * currentCardsCount) + (spacing * (currentCardsCount - 1));
+        // New card is added at the end, so add card width + spacing (spacing before the new card)
+        final totalNewWidth = totalCurrentWidth + spacing + cardDimensions.width;
+        
+        // Get the Row's position and size
+        final handRowPosition = handRowContext.localToGlobal(Offset.zero);
+        final handRowSize = handRowContext.size;
+        
+        // Calculate the center of the Row (relative to Stack)
+        final rowCenterX = handRowPosition.dx - stackPosition.dx + handRowSize.width / 2;
+        
+        // Calculate where the rightmost card (new penalty card) will be after centering
+        // The rightmost card's center = row center + (total width / 2) - (card width / 2)
+        final newCardCenterX = rowCenterX + (totalNewWidth / 2) - (cardDimensions.width / 2);
+        
+        penaltyEndOffset = Offset(
+          newCardCenterX,
+          lastHandCardPosition.dy - stackPosition.dy + lastHandCardRenderBox.size.height / 2,
+        );
+        
+        _logger.info('🎴 SameRankDemo: Penalty card calculation (with Row centering) - currentCards: $currentCardsCount, totalNewWidth: $totalNewWidth, rowCenterX: $rowCenterX, newCardCenterX: $newCardCenterX', isOn: LOGGING_SWITCH);
+      } else {
+        // Fallback: simple calculation if Row context not available
+        final lastCardRightEdge = lastHandCardPosition.dx - stackPosition.dx + lastHandCardRenderBox.size.width;
+        final penaltyCardCenterX = lastCardRightEdge + spacing + (cardDimensions.width / 2);
+        
+        penaltyEndOffset = Offset(
+          penaltyCardCenterX,
+          lastHandCardPosition.dy - stackPosition.dy + lastHandCardRenderBox.size.height / 2,
+        );
+        
+        _logger.info('🎴 SameRankDemo: Penalty card calculation (fallback) - lastCardRightEdge: $lastCardRightEdge, spacing: $spacing, cardWidth: ${cardDimensions.width}, centerX: $penaltyCardCenterX', isOn: LOGGING_SWITCH);
+      }
+      
+      _logger.info('🎴 SameRankDemo: Penalty card positions - start: $penaltyStartOffset, end: $penaltyEndOffset', isOn: LOGGING_SWITCH);
       
       _penaltyCardAnimation = Tween<Offset>(
         begin: penaltyStartOffset,
@@ -306,19 +371,26 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
         curve: const Interval(0.764, 1.0, curve: Curves.easeInOut),
       ));
       
+      _logger.info('🎴 SameRankDemo: Penalty card animation created - interval: 0.764-1.0', isOn: LOGGING_SWITCH);
+      
       // Start animation
+      _logger.info('🎴 SameRankDemo: Starting animation cycle for Example 2 (failed play with penalty)', isOn: LOGGING_SWITCH);
       _animationController.forward(from: 0.0).then((_) {
         if (mounted) {
+          _logger.info('🎴 SameRankDemo: All animations complete - setting penalty card complete', isOn: LOGGING_SWITCH);
           setState(() {
             _animationPhase = 4; // All animations complete
+            _penaltyCardComplete = true; // Penalty card is now in hand
           });
           
           // Wait 2 seconds, then repeat from example 1
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) {
+              _logger.info('🎴 SameRankDemo: Resetting for next cycle - switching to Example 1', isOn: LOGGING_SWITCH);
               setState(() {
                 _currentExample = 0;
                 _animationPhase = 0;
+                _penaltyCardComplete = false; // Reset for next cycle
               });
               _animationController.reset();
               _runAnimationCycle();
@@ -338,7 +410,20 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
           } else if (value <= 0.764) {
             setState(() => _animationPhase = 3); // Revert animation
           } else {
+            // Penalty animation phase
+            if (_animationPhase != 4) {
+              _logger.info('🎴 SameRankDemo: Entering penalty animation phase - value: $value, phase: 4', isOn: LOGGING_SWITCH);
+            }
             setState(() => _animationPhase = 4); // Penalty animation
+            
+            // Log penalty animation progress at key points
+            if (value >= 0.764 && value < 0.80) {
+              // Just started penalty animation
+              _logger.debug('🎴 SameRankDemo: Penalty animation started - value: $value, position: ${_penaltyCardAnimation.value}', isOn: LOGGING_SWITCH);
+            } else if (value >= 0.90 && value < 0.95) {
+              // Near completion
+              _logger.debug('🎴 SameRankDemo: Penalty animation near completion - value: $value, position: ${_penaltyCardAnimation.value}', isOn: LOGGING_SWITCH);
+            }
           }
         }
       });
@@ -412,76 +497,143 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
     );
   }
 
+  /// Build a single card widget for the hand (without padding - padding is handled in parent)
+  /// Only adds wrappers when necessary (for play card animation), otherwise matches draw demo structure
+  Widget _buildHandCard(Map<String, dynamic> cardData, int index, Size cardDimensions, double spacing, List<Map<String, dynamic>> handCards, {Key? providedKey}) {
+    final cardModel = CardModel.fromMap(cardData);
+    final isFaceUp = cardModel.rank != '?' && cardModel.suit != '?';
+    
+    // Check if this is the card being played (index 2)
+    final isPlayCard = index == 2;
+    // Use key for play card, or use provided key (e.g., for last card)
+    final cardKey = providedKey ?? (isPlayCard ? _playCardKey : null);
+    
+    // During animation phases, hide the original card
+    // For Example 2, show card again after revert completes (phase 4+)
+    final shouldHide = isPlayCard && _animationPhase >= 1 && 
+        (_currentExample == 0 || _animationPhase < 4);
+    
+    // Only add wrappers if needed (for play card animation)
+    // Otherwise, use CardWidget directly like draw demo
+    if (shouldHide || (isPlayCard && _animationPhase >= 1)) {
+      return Opacity(
+        opacity: shouldHide ? 0.0 : 1.0,
+        child: Container(
+          decoration: isPlayCard && _animationPhase >= 1
+              ? BoxDecoration(
+                  border: Border.all(
+                    color: AppColors.accentColor,
+                    width: 3.0,
+                  ),
+                  borderRadius: BorderRadius.circular(8.0),
+                )
+              : null,
+          child: CardWidget(
+            key: cardKey,
+            card: cardModel,
+            dimensions: cardDimensions,
+            config: CardDisplayConfig.forMyHand(),
+            showBack: !isFaceUp,
+          ),
+        ),
+      );
+    }
+    
+    // For regular cards, use CardWidget directly (matching draw demo)
+    return CardWidget(
+      key: cardKey,
+      card: cardModel,
+      dimensions: cardDimensions,
+      config: CardDisplayConfig.forMyHand(),
+      showBack: !isFaceUp,
+    );
+  }
+
   /// Build the hand section
   Widget _buildHand() {
     final cardDimensions = CardDimensions.getUnifiedDimensions();
     final spacing = AppPadding.smallPadding.left;
-    final handCards = _handCards;
+    
+    // Add penalty card to hand if animation is complete (Example 2 only)
+    final cardsToShow = List<Map<String, dynamic>>.from(_handCards);
+    _logger.debug('🎴 SameRankDemo: _buildHand - _penaltyCardComplete: $_penaltyCardComplete, _currentExample: $_currentExample, _handCards.length: ${_handCards.length}', isOn: LOGGING_SWITCH);
+    if (_penaltyCardComplete && _currentExample == 1) {
+      cardsToShow.add(_penaltyCard);
+      _logger.debug('🎴 SameRankDemo: _buildHand - Added penalty card to cardsToShow, new length: ${cardsToShow.length}', isOn: LOGGING_SWITCH);
+    } else {
+      _logger.debug('🎴 SameRankDemo: _buildHand - NOT adding penalty card (penaltyCardComplete: $_penaltyCardComplete, currentExample: $_currentExample)', isOn: LOGGING_SWITCH);
+    }
 
-    return Container(
-      padding: AppPadding.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.widgetContainerBackground,
-        borderRadius: AppBorderRadius.mediumRadius,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'My Hand',
-            style: AppTextStyles.headingSmall(),
-          ),
-          SizedBox(height: AppPadding.smallPadding.top),
-          SizedBox(
-            height: cardDimensions.height,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(handCards.length, (index) {
-                final cardData = handCards[index];
-                final cardModel = CardModel.fromMap(cardData);
-                final isFaceUp = cardModel.rank != '?' && cardModel.suit != '?';
-                
-                // Check if this is the card being played (index 2)
-                final isPlayCard = index == 2;
-                final cardKey = isPlayCard ? _playCardKey : (index == handCards.length - 1 ? _lastHandCardKey : null);
-                
-                // During animation phases, hide the original card
-                // For Example 2, show card again after revert completes (phase 4+)
-                final shouldHide = isPlayCard && _animationPhase >= 1 && 
-                    (_currentExample == 0 || _animationPhase < 4);
-                
-                return Padding(
-                  padding: EdgeInsets.only(
-                    right: index < handCards.length - 1 ? spacing : 0,
-                  ),
-                  child: Opacity(
-                    opacity: shouldHide ? 0.0 : 1.0,
-                    child: Container(
-                      decoration: isPlayCard && _animationPhase >= 1
-                          ? BoxDecoration(
-                              border: Border.all(
-                                color: AppColors.accentColor,
-                                width: 3.0,
-                              ),
-                              borderRadius: BorderRadius.circular(8.0),
-                            )
-                          : null,
-                      child: CardWidget(
-                        key: cardKey,
-                        card: cardModel,
-                        dimensions: cardDimensions,
-                        config: CardDisplayConfig.forMyHand(),
-                        showBack: !isFaceUp,
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = (cardDimensions.width + spacing) * cardsToShow.length - spacing;
+        final availableWidth = constraints.maxWidth;
+        // Enable scroll if content exceeds or is very close to available width
+        // Use larger buffer (10px) to account for Center widget centering calculations and rounding
+        // Also always scroll if we have 5+ cards to prevent any overflow issues
+        final needsScroll = cardsToShow.length >= 5 || contentWidth >= (availableWidth - 10);
+        
+        _logger.debug('🎴 SameRankDemo: _buildHand - cardsToShow.length: ${cardsToShow.length}, cardDimensions: ${cardDimensions.width}x${cardDimensions.height}, spacing: $spacing', isOn: LOGGING_SWITCH);
+        _logger.debug('🎴 SameRankDemo: _buildHand - contentWidth: $contentWidth, availableWidth: $availableWidth, needsScroll: $needsScroll', isOn: LOGGING_SWITCH);
+        
+        final cardWidgets = List.generate(cardsToShow.length, (index) {
+          final cardData = cardsToShow[index];
+          final isPenaltyCard = _penaltyCardComplete && 
+                               _currentExample == 1 && 
+                               cardData['cardId'] == _penaltyCard['cardId'];
+          
+          // Use key for the last card (where the penalty card will be placed)
+          final isLastCard = index == cardsToShow.length - 1;
+          final cardKey = isLastCard ? _lastHandCardKey : null;
+          
+          final paddingRight = index < cardsToShow.length - 1 ? spacing : 0.0;
+          _logger.debug('🎴 SameRankDemo: _buildHand - card[$index]: isPenaltyCard=$isPenaltyCard, isLastCard=$isLastCard, paddingRight=$paddingRight', isOn: LOGGING_SWITCH);
+
+          // Build penalty card exactly like drawing card demo - no extra wrappers
+          final cardWidget = isPenaltyCard
+              ? CardWidget(
+                  key: cardKey,
+                  card: CardModel.fromMap(_penaltyCard),
+                  dimensions: cardDimensions,
+                  config: CardDisplayConfig.forMyHand(),
+                  showBack: true, // Penalty card is face down
+                )
+              : _buildHandCard(cardsToShow[index], index, cardDimensions, spacing, cardsToShow, providedKey: cardKey);
+          
+          _logger.debug('🎴 SameRankDemo: _buildHand - card[$index] widget type: ${isPenaltyCard ? "CardWidget (penalty)" : "_buildHandCard"}', isOn: LOGGING_SWITCH);
+          
+          return Padding(
+            padding: EdgeInsets.only(
+              right: paddingRight,
+            ),
+            child: cardWidget,
+          );
+        });
+        
+        _logger.debug('🎴 SameRankDemo: _buildHand - Returning SizedBox with height: ${cardDimensions.height}, needsScroll: $needsScroll', isOn: LOGGING_SWITCH);
+        
+        return SizedBox(
+          height: cardDimensions.height,
+          child: needsScroll
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: cardWidgets,
                     ),
                   ),
-                );
-              }),
-            ),
-          ),
-        ],
-      ),
+                )
+              : Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: cardWidgets,
+                  ),
+                ),
+        );
+      },
     );
   }
 
@@ -607,15 +759,30 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
               return const SizedBox.shrink();
             },
           ),
-        // Animated penalty card (Example 2 only, after revert starts)
-        if (_animationPhase >= 4 && _currentExample == 1)
+        // Animated penalty card (Example 2 only, during animation, before completion)
+        if (_currentExample == 1 && !_penaltyCardComplete)
           AnimatedBuilder(
-            animation: _penaltyCardAnimation,
+            animation: _animationController,
             builder: (context, child) {
-              // Show penalty card animation during phase 3 and 4 (0.5-1.0)
+              // Show penalty card animation during phase 4 (0.764-1.0)
+              // Hide once animation completes and card is added to hand
+              final animationValue = _animationController.value;
+              if (animationValue < 0.764 || animationValue >= 1.0) {
+                return const SizedBox.shrink();
+              }
+              
+              final penaltyPosition = _penaltyCardAnimation.value;
+              final left = penaltyPosition.dx - cardDimensions.width / 2;
+              final top = penaltyPosition.dy - cardDimensions.height / 2;
+              
+              // Log penalty card rendering (throttled to avoid spam)
+              if ((animationValue * 100).round() % 10 == 0) {
+                _logger.debug('🎴 SameRankDemo: Rendering penalty card - value: $animationValue, position: ($left, $top)', isOn: LOGGING_SWITCH);
+              }
+              
               return Positioned(
-                left: _penaltyCardAnimation.value.dx - cardDimensions.width / 2,
-                top: _penaltyCardAnimation.value.dy - cardDimensions.height / 2,
+                left: left,
+                top: top,
                 child: Container(
                   decoration: BoxDecoration(
                     border: Border.all(

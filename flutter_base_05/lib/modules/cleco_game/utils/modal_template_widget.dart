@@ -151,22 +151,22 @@ class ModalTemplateWidget extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     // Use headerColor if provided, otherwise fall back to accentColor
-    final titleColor = headerColor ?? AppColors.accentColor;
-    final borderColor = headerColor ?? AppColors.borderDefault;
+    final backgroundColor = headerColor ?? AppColors.accentColor;
+    
+    // Determine text color based on background brightness
+    // Use white text for dark backgrounds, dark text for light backgrounds
+    final backgroundColorBrightness = ThemeData.estimateBrightnessForColor(backgroundColor);
+    final textColor = backgroundColorBrightness == Brightness.dark 
+        ? AppColors.textOnAccent // White/light text for dark backgrounds
+        : AppColors.textPrimary; // Dark text for light backgrounds
     
     return Container(
       padding: AppPadding.defaultPadding,
       decoration: BoxDecoration(
-        color: AppColors.cardVariant, // Use theme-aware subtle background
+        color: backgroundColor, // Use status color as background
         borderRadius: AppBorderRadius.only(
           topLeft: AppBorderRadius.large,
           topRight: AppBorderRadius.large,
-        ),
-        border: Border(
-          bottom: BorderSide(
-            color: borderColor,
-            width: 2.0,
-          ),
         ),
       ),
       child: Row(
@@ -174,7 +174,7 @@ class ModalTemplateWidget extends StatelessWidget {
           if (icon != null) ...[
             Icon(
               icon,
-              color: titleColor,
+              color: textColor, // Use contrasting text color
               size: AppSizes.iconMedium,
             ),
             SizedBox(width: AppPadding.smallPadding.left),
@@ -183,7 +183,7 @@ class ModalTemplateWidget extends StatelessWidget {
             child: Text(
               title,
               style: AppTextStyles.headingSmall(
-                color: titleColor,
+                color: textColor, // Use contrasting text color
               ),
             ),
           ),
@@ -192,7 +192,7 @@ class ModalTemplateWidget extends StatelessWidget {
                       onPressed: onClose ?? () => Navigator.of(context).pop(),
               icon: Icon(
                 Icons.close,
-                      color: titleColor,
+                      color: textColor, // Use contrasting text color
               ),
                       tooltip: 'Close',
                     ),

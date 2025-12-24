@@ -6,6 +6,7 @@ import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
 
 /// Demonstration widget for playing card phase
 /// 
@@ -21,6 +22,9 @@ class PlayingCardDemonstrationWidget extends StatefulWidget {
 
 class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstrationWidget>
     with TickerProviderStateMixin {
+  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
+  static final Logger _logger = Logger();
+  
   // Animation phases: 0 = idle, 1 = play animation, 2 = drawn card animation, 3 = flip
   int _animationPhase = 0;
   bool _drawnCardFlipped = false;
@@ -76,12 +80,12 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
       'suit': '?',
       'points': 0,
     },
-    // Card 2: The card to be played (7 of Hearts)
+    // Card 2: The card to be played (7 of Hearts) - starts face down, turns face up when animation starts
     {
       'cardId': 'demo-hand-2',
-      'rank': '7',
-      'suit': 'hearts',
-      'points': 7,
+      'rank': '?', // Start face down
+      'suit': '?',
+      'points': 0,
     },
     // Card 3: Face down
     {
@@ -232,8 +236,8 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
           final handRowSize = handRowContext.size;
           final rowCenterX = handRowPosition.dx - stackPosition.dx + handRowSize.width / 2;
           
-          // After removing played card, we have 4 cards
-          final totalWidth = (cardDimensions.width * 4) + (spacing * 3);
+          // We have 5 cards total (including empty slot at index 2)
+          final totalWidth = (cardDimensions.width * 5) + (spacing * 4);
           
           // The 3rd card slot (index 2) center position
           final thirdSlotCenterX = rowCenterX - (totalWidth / 2) + (cardDimensions.width * 2.5) + (spacing * 2);
@@ -409,83 +413,139 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
     final cardDimensions = CardDimensions.getUnifiedDimensions();
     final spacing = AppPadding.smallPadding.left;
     
-    // Remove played card from hand if play animation has started
+    // Keep all 5 cards in the list - show empty slot at index 2 during animation
     // Move drawn card to 3rd position only after drawn card animation completes
     final cardsToShow = List<Map<String, dynamic>>.from(_handCards);
     
-    if (_animationPhase >= 1) {
-      // Remove the 3rd card (index 2) - the played card (show empty slot during animation)
-      cardsToShow.removeAt(2);
-    }
-    
     // If drawn card animation has completed, move it to the 3rd position (where played card was)
-    // Keep empty slot visible until drawn card animation completes
+    // Before phase 3, drawn card stays at the end (index 4)
     if (_animationPhase >= 3) {
-      // Find the drawn card (should be at the end)
+      // Find the drawn card (should be at the end, index 4)
       final drawnCardIndex = cardsToShow.indexWhere((c) => c['cardId'] == _drawnCard['cardId']);
-      if (drawnCardIndex != -1) {
+      if (drawnCardIndex != -1 && drawnCardIndex != 2) {
         final drawnCardData = cardsToShow.removeAt(drawnCardIndex);
-        // Insert at position 2 (3rd card slot)
+        // Insert at position 2 (3rd card slot, replacing the played card)
         cardsToShow.insert(2, drawnCardData);
       }
     }
 
-    return SizedBox(
-      height: cardDimensions.height,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(cardsToShow.length, (index) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = (cardDimensions.width + spacing) * cardsToShow.length - spacing;
+        final availableWidth = constraints.maxWidth;
+        final needsScroll = contentWidth > availableWidth;
+        
+        final cardWidgets = List.generate(cardsToShow.length, (index) {
           final cardData = cardsToShow[index];
           final cardModel = CardModel.fromMap(cardData);
           final isDrawnCard = cardData['cardId'] == _drawnCard['cardId'];
           
           // Determine if card should be face up
+          // Played card (index 2): starts face down, turns face up when animation starts (phase >= 1)
           // Drawn card: face up until flipped, then face down
+          final isPlayedCard = index == 2 && cardData['cardId'] == 'demo-hand-2';
           bool isFaceUp;
           if (isDrawnCard) {
             isFaceUp = !_drawnCardFlipped && (cardModel.rank != '?' && cardModel.suit != '?');
+          } else if (isPlayedCard) {
+            // Played card: face up when animation starts (phase >= 1), face down initially (phase 0)
+            isFaceUp = _animationPhase >= 1;
           } else {
             isFaceUp = (cardModel.rank != '?' && cardModel.suit != '?');
           }
           
           // Use key for the 3rd card (index 2) - the card to be played
-          // Before play animation starts, the 3rd card is at index 2
-          // After play animation starts, we show empty slot
-          final isThirdCard = _animationPhase == 0 && index == 2;
+          // Key must be on the card when it's visible (phase 0) so animation can find it
+          final isThirdCard = index == 2 && _animationPhase == 0;
           final cardKey = isThirdCard ? _thirdCardKey : null;
           
-          // Use key for drawn card (at end initially, then at index 2 after move)
-          final isDrawnCardAtEnd = isDrawnCard && _animationPhase < 3;
+          // Use key for drawn card (at end initially, index 4, then at index 2 after move)
+          final isDrawnCardAtEnd = isDrawnCard && _animationPhase < 3 && index == 4;
           final isDrawnCardAtThird = isDrawnCard && _animationPhase >= 3 && index == 2;
           final drawnCardKey = (isDrawnCardAtEnd || isDrawnCardAtThird) ? _drawnCardKey : null;
           
-          // Show empty slot at 3rd position during play and drawn card animations
+          // Show empty slot at 3rd position (index 2) during play and drawn card animations
           // Keep empty slot until drawn card animation completes (phase < 3)
-          final showEmptySlot = _animationPhase >= 1 && _animationPhase < 3 && index == 2;
+          // Hide the played card at index 2 when showing empty slot
+          final showEmptySlotAt2 = _animationPhase >= 1 && _animationPhase < 3 && index == 2;
+          final hidePlayedCard = showEmptySlotAt2; // Hide the played card when showing empty slot
+          
+          // Show empty slot at the last position (index 4) during drawn card animation (phase 2)
+          // and keep it empty in phase 3 until animation restarts
+          // This creates the effect of the card moving from its position to the empty slot
+          // In phase 3, the drawn card has moved to index 2, so the last position should remain empty
+          final isLastPosition = index == cardsToShow.length - 1;
+          final showEmptySlotAt4 = _animationPhase >= 2 && isLastPosition;
+          final hideDrawnCardAtOriginalPosition = showEmptySlotAt4;
 
+          // Show empty slot at index 2 (where played card was)
+          if (hidePlayedCard) {
+            return Padding(
+              padding: EdgeInsets.only(
+                right: index < cardsToShow.length - 1 ? spacing : 0,
+              ),
+              child: _buildEmptySlot(),
+            );
+          }
+          
+          // Show empty slot at index 4 (where drawn card was, during its animation)
+          if (hideDrawnCardAtOriginalPosition) {
+            return Padding(
+              padding: EdgeInsets.only(
+                right: index < cardsToShow.length - 1 ? spacing : 0,
+              ),
+              child: _buildEmptySlot(),
+            );
+          }
+          
+          // For played card, use actual card data when face up (animation started)
+          final cardToDisplay = isPlayedCard && _animationPhase >= 1
+              ? CardModel.fromMap(_playedCard) // Show actual card (7 of Hearts) when animation starts
+              : (isDrawnCard && _drawnCardFlipped
+                  ? CardModel(
+                      cardId: _drawnCard['cardId'],
+                      rank: '?',
+                      suit: '?',
+                      points: 0,
+                    )
+                  : cardModel);
+          
           return Padding(
             padding: EdgeInsets.only(
               right: index < cardsToShow.length - 1 ? spacing : 0,
             ),
-            child: showEmptySlot
-                ? _buildEmptySlot()
-                : CardWidget(
-                    key: cardKey ?? drawnCardKey,
-                    card: isDrawnCard && _drawnCardFlipped
-                        ? CardModel(
-                            cardId: _drawnCard['cardId'],
-                            rank: '?',
-                            suit: '?',
-                            points: 0,
-                          )
-                        : cardModel,
-                    dimensions: cardDimensions,
-                    config: CardDisplayConfig.forMyHand(),
-                    showBack: !isFaceUp || (isDrawnCard && _drawnCardFlipped), // Show back if card data is hidden or flipped
-                  ),
+            child: CardWidget(
+              key: cardKey ?? drawnCardKey,
+              card: cardToDisplay,
+              dimensions: cardDimensions,
+              config: CardDisplayConfig.forMyHand(),
+              showBack: !isFaceUp || (isDrawnCard && _drawnCardFlipped), // Show back if card data is hidden or flipped
+            ),
           );
-        }),
-      ),
+        });
+        
+        return SizedBox(
+          height: cardDimensions.height,
+          child: needsScroll
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: cardWidgets,
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: cardWidgets,
+                  ),
+                ),
+        );
+      },
     );
   }
 

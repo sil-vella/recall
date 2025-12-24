@@ -17,17 +17,20 @@ enum ThemePreset {
   purple,
   orange,
   teal,
+  magenta, // New magenta/purple theme (#7C3358)
 }
 
 /// Theme configuration that generates colors based on preset
 class ThemeConfig {
-  static ThemePreset currentTheme = ThemePreset.blue;
+  static ThemePreset currentTheme = ThemePreset.magenta;
 
   /// Get primary color based on current theme
   static Color get primaryColor {
     switch (currentTheme) {
       case ThemePreset.blue:
         return const Color(0xFF1E3A5F);
+      case ThemePreset.magenta:
+        return const Color(0xFF7C3358);
       case ThemePreset.red:
         return const Color(0xFF5F1E1E);
       case ThemePreset.green:
@@ -58,6 +61,8 @@ class ThemeConfig {
         return const Color(0xFFE2904A);
       case ThemePreset.teal:
         return const Color(0xFF4AE2E2);
+      case ThemePreset.magenta:
+        return const Color(0xFFF4A147); // Orange accent
       case ThemePreset.defaultTheme:
         return const Color.fromARGB(255, 120, 67, 82); // Current
     }
@@ -78,6 +83,8 @@ class ThemeConfig {
         return const Color(0xFFFFB66B);
       case ThemePreset.teal:
         return const Color(0xFF6BFFFF);
+      case ThemePreset.magenta:
+        return const Color(0xFFD47BA3); // Even lighter magenta for secondary accent
       case ThemePreset.defaultTheme:
         return const Color(0xFFFBC02D); // Current gold
     }
@@ -98,6 +105,8 @@ class ThemeConfig {
         return const Color(0xFF2A251F);
       case ThemePreset.teal:
         return const Color(0xFF1F2A2A);
+      case ThemePreset.magenta:
+        return const Color(0xFF2A1F25); // Dark background with magenta tint
       case ThemePreset.defaultTheme:
         return const Color(0xFF1F1A1A); // Dark background
     }

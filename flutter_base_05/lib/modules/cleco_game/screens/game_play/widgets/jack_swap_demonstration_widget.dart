@@ -24,7 +24,7 @@ class JackSwapDemonstrationWidget extends StatefulWidget {
 
 class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidget>
     with TickerProviderStateMixin {
-  static const bool LOGGING_SWITCH = true; // Enable for debugging swap animation
+  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
   static final Logger _logger = Logger();
   
   int _currentExample = 0; // 0 = opponent-opponent, 1 = my hand-opponent, 2 = my hand-my hand
@@ -484,99 +484,105 @@ class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidge
     final cardDimensions = CardDimensions.getUnifiedDimensions();
     final spacing = AppPadding.smallPadding.left;
     
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
-      padding: AppPadding.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.widgetContainerBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'My Hand',
-            style: AppTextStyles.headingSmall(),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: cardDimensions.height,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(_myHandCards.length, (index) {
-                final cardData = _myHandCards[index];
-                final cardModel = CardModel.fromMap(cardData);
-                final isFaceUp = cardModel.rank != '?' && cardModel.suit != '?';
-                
-                // Check if this card is involved in swap
-                final isFirstCard = _isFirstCardMyHand() && 
-                                   index == _getFirstCardIndex() &&
-                                   (_currentExample == 1 || _currentExample == 2);
-                final isSecondCard = _isSecondCardMyHand() && 
-                                     index == _getSecondCardIndex() &&
-                                     _currentExample == 2;
-                
-                final isSwappingCard = isFirstCard || isSecondCard;
-                final cardKey = isFirstCard ? _firstCardKey : (isSecondCard ? _secondCardKey : null);
-                
-                // Determine if card should be face down
-                // Only cards that were swapped should turn face down at the end
-                // In example 3, only the two swapped cards (collection card and the other card) turn face down
-                final wasSwapped = isSwappingCard;
-                final showBack = wasSwapped && _animationPhase >= 4 ? true : (!isFaceUp);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = (cardDimensions.width + spacing) * _myHandCards.length - spacing;
+        final availableWidth = constraints.maxWidth;
+        final needsScroll = contentWidth > availableWidth;
+        
+        final cardWidgets = List.generate(_myHandCards.length, (index) {
+          final cardData = _myHandCards[index];
+          final cardModel = CardModel.fromMap(cardData);
+          final isFaceUp = cardModel.rank != '?' && cardModel.suit != '?';
+          
+          // Check if this card is involved in swap
+          final isFirstCard = _isFirstCardMyHand() && 
+                             index == _getFirstCardIndex() &&
+                             (_currentExample == 1 || _currentExample == 2);
+          final isSecondCard = _isSecondCardMyHand() && 
+                               index == _getSecondCardIndex() &&
+                               _currentExample == 2;
+          
+          final isSwappingCard = isFirstCard || isSecondCard;
+          final cardKey = isFirstCard ? _firstCardKey : (isSecondCard ? _secondCardKey : null);
+          
+          // Determine if card should be face down
+          // Only cards that were swapped should turn face down at the end
+          // In example 3, only the two swapped cards (collection card and the other card) turn face down
+          final wasSwapped = isSwappingCard;
+          final showBack = wasSwapped && _animationPhase >= 4 ? true : (!isFaceUp);
 
-                return Padding(
-                  padding: EdgeInsets.only(
-                    right: index < _myHandCards.length - 1 ? spacing : 0,
-                  ),
-                  child: AnimatedBuilder(
-                    animation: _tapAnimationController,
-                    builder: (context, child) {
-                      // Tap animation (pulse)
-                      double tapScale = 1.0;
-                      if (isFirstCard && _animationPhase >= 1) {
-                        tapScale = _firstTapAnimation.value;
-                      } else if (isSecondCard && _animationPhase >= 2) {
-                        tapScale = _secondTapAnimation.value;
-                      }
-                      
-                      // Determine if card should have bright border (during tap or swap)
-                      final shouldShowBorder = (isFirstCard && _animationPhase >= 1) || 
-                                               (isSecondCard && _animationPhase >= 2) ||
-                                               (isSwappingCard && _animationPhase >= 3);
-                      
-                      return Transform.scale(
-                        scale: tapScale,
-                        child: Opacity(
-                          opacity: isSwappingCard && _animationPhase >= 3 ? 0.0 : 1.0,
-                          child: Container(
-                            decoration: shouldShowBorder
-                                ? BoxDecoration(
-                                    border: Border.all(
-                                      color: AppColors.accentColor,
-                                      width: 3.0,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8.0),
-                                  )
-                                : null,
-                            child: CardWidget(
-                              key: cardKey,
-                              card: CardModel.fromMap(cardData),
-                              dimensions: cardDimensions,
-                              config: CardDisplayConfig.forMyHand(),
-                              showBack: showBack,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+          return Padding(
+            padding: EdgeInsets.only(
+              right: index < _myHandCards.length - 1 ? spacing : 0,
+            ),
+            child: AnimatedBuilder(
+              animation: _tapAnimationController,
+              builder: (context, child) {
+                // Tap animation (pulse)
+                double tapScale = 1.0;
+                if (isFirstCard && _animationPhase >= 1) {
+                  tapScale = _firstTapAnimation.value;
+                } else if (isSecondCard && _animationPhase >= 2) {
+                  tapScale = _secondTapAnimation.value;
+                }
+                
+                // Determine if card should have bright border (during tap or swap)
+                final shouldShowBorder = (isFirstCard && _animationPhase >= 1) || 
+                                         (isSecondCard && _animationPhase >= 2) ||
+                                         (isSwappingCard && _animationPhase >= 3);
+                
+                return Transform.scale(
+                  scale: tapScale,
+                  child: Opacity(
+                    opacity: isSwappingCard && _animationPhase >= 3 ? 0.0 : 1.0,
+                    child: Container(
+                      decoration: shouldShowBorder
+                          ? BoxDecoration(
+                              border: Border.all(
+                                color: AppColors.accentColor,
+                                width: 3.0,
+                              ),
+                              borderRadius: BorderRadius.circular(8.0),
+                            )
+                          : null,
+                      child: CardWidget(
+                        key: cardKey,
+                        card: CardModel.fromMap(cardData),
+                        dimensions: cardDimensions,
+                        config: CardDisplayConfig.forMyHand(),
+                        showBack: showBack,
+                      ),
+                    ),
                   ),
                 );
-              }),
+              },
             ),
-          ),
-        ],
-      ),
+          );
+        });
+        
+        return SizedBox(
+          height: cardDimensions.height,
+          child: needsScroll
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: cardWidgets,
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: cardWidgets,
+                  ),
+                ),
+        );
+      },
     );
   }
 
@@ -593,7 +599,7 @@ class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidge
       padding: AppPadding.cardPadding,
       decoration: BoxDecoration(
         color: AppColors.widgetContainerBackground,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppBorderRadius.mediumRadius,
         border: Border.all(
           color: AppColors.borderDefault,
           width: 1,

@@ -315,14 +315,14 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     final hasCalledCleco = player['hasCalledCleco'] ?? false;
     final playerStatus = player['status']?.toString() ?? 'unknown';
     
-    // Get status chip color for current player border (only if status should be highlighted)
-    final shouldHighlight = isCurrentPlayer && _shouldHighlightCurrentPlayer(playerStatus);
-    final statusChipColor = shouldHighlight ? _getStatusChipColor(playerStatus) : null;
+    // Background highlighting: applies to any player based on status (no isCurrentPlayer condition)
+    // Exception: same_rank_window requires isCurrentPlayer condition
+    final shouldHighlightBackground = _shouldHighlightCurrentPlayer(playerStatus) 
+        || (isCurrentPlayer && playerStatus == 'same_rank_window');
+    final statusChipColor = shouldHighlightBackground ? _getStatusChipColor(playerStatus) : null;
     
-    // For same_rank_window, get the color for border even if not highlighted
-    final sameRankBorderColor = (isCurrentPlayer && playerStatus == 'same_rank_window')
-        ? _getStatusChipColor(playerStatus)
-        : null;
+    // Border highlighting: only for current player (keep existing logic)
+    final shouldHighlight = isCurrentPlayer && _shouldHighlightCurrentPlayer(playerStatus);
     
     // 🔍 DEBUG: Log drawnCard data for opponents
     if (drawnCard != null) {
@@ -340,17 +340,18 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             ? constraints.maxWidth * 0.02 
             : 16.0; // Fallback to fixed padding if width is unbounded
         
-        // Calculate background color - ensure it's fully opaque white with slight darkening for current turn
-        final backgroundColor = shouldHighlight 
-            ? statusChipColor!.withOpacity(0.1) 
+        // Calculate background color - highlight based on status for any player
+        // same_rank_window requires isCurrentPlayer condition (handled in shouldHighlightBackground)
+        final backgroundColor = shouldHighlightBackground && statusChipColor != null
+            ? statusChipColor.withOpacity(0.1) 
             : (isCurrentTurn 
                 ? Color.lerp(AppColors.white, AppColors.black, 0.02) ?? AppColors.white
                 : AppColors.white);
         
-        // For same_rank_window, show border even if not highlighted
-        final shouldShowBorder = shouldHighlight || (isCurrentPlayer && playerStatus == 'same_rank_window');
-        final borderColor = shouldShowBorder && (statusChipColor != null || sameRankBorderColor != null)
-            ? (statusChipColor ?? sameRankBorderColor!)
+        // Border highlighting: only for current player (keep existing logic)
+        final shouldShowBorder = shouldHighlight;
+        final borderColor = shouldShowBorder && statusChipColor != null
+            ? statusChipColor
             : (isCurrentTurn ? AppColors.accentColor2 : AppColors.borderDefault);
         
         return Container(
@@ -364,10 +365,10 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
             ),
             boxShadow: [
               BoxShadow(
-                color: shouldHighlight 
-                    ? statusChipColor!.withOpacity(0.1) 
+                color: shouldHighlightBackground && statusChipColor != null
+                    ? statusChipColor.withOpacity(0.1) 
                     : AppColors.black.withOpacity(0.05),
-                blurRadius: shouldHighlight ? 4 : 2,
+                blurRadius: shouldHighlightBackground ? 4 : 2,
                 offset: const Offset(0, 1),
               ),
             ],

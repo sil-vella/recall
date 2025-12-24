@@ -5,6 +5,7 @@ import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
 
 /// Demonstration widget for initial peek phase
 /// 
@@ -18,6 +19,9 @@ class InitialPeekDemonstrationWidget extends StatefulWidget {
 }
 
 class _InitialPeekDemonstrationWidgetState extends State<InitialPeekDemonstrationWidget> {
+  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
+  static final Logger _logger = Logger();
+  
   final Set<int> _revealedIndices = {};
   final Set<int> _highlightedIndices = {}; // Cards with bright border
   Timer? _animationTimer;

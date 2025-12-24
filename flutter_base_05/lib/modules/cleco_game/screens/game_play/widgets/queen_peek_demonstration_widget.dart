@@ -6,6 +6,7 @@ import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
 
 /// Demonstration widget for queen peek phase
 /// 
@@ -22,6 +23,9 @@ class QueenPeekDemonstrationWidget extends StatefulWidget {
 
 class _QueenPeekDemonstrationWidgetState extends State<QueenPeekDemonstrationWidget>
     with TickerProviderStateMixin {
+  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
+  static final Logger _logger = Logger();
+  
   int _currentExample = 0; // 0 = my hand example, 1 = opponent example
   bool _cardRevealed = false;
   late AnimationController _animationController;
@@ -188,85 +192,91 @@ class _QueenPeekDemonstrationWidgetState extends State<QueenPeekDemonstrationWid
     final cardDimensions = CardDimensions.getUnifiedDimensions();
     final spacing = AppPadding.smallPadding.left;
     
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
-      padding: AppPadding.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.widgetContainerBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'My Hand',
-            style: AppTextStyles.headingSmall(),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: cardDimensions.height,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(_myHandCards.length, (index) {
-                final cardData = _myHandCards[index];
-                final cardModel = CardModel.fromMap(cardData);
-                final isFaceUp = cardModel.rank != '?' && cardModel.suit != '?';
-                
-                // Check if this is the card being revealed in example 1
-                final isRevealingCard = _currentExample == 0 && 
-                                       cardData['cardId'] == _myHandRevealedCard['cardId'];
-                final cardKey = isRevealingCard ? _myHandCardKey : null;
-                
-                // Determine if card should show revealed data
-                final shouldShowRevealed = isRevealingCard && _cardRevealed;
-                final cardToShow = shouldShowRevealed 
-                    ? _myHandRevealedCard 
-                    : cardData;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = (cardDimensions.width + spacing) * _myHandCards.length - spacing;
+        final availableWidth = constraints.maxWidth;
+        final needsScroll = contentWidth > availableWidth;
+        
+        final cardWidgets = List.generate(_myHandCards.length, (index) {
+          final cardData = _myHandCards[index];
+          final cardModel = CardModel.fromMap(cardData);
+          final isFaceUp = cardModel.rank != '?' && cardModel.suit != '?';
+          
+          // Check if this is the card being revealed in example 1
+          final isRevealingCard = _currentExample == 0 && 
+                                 cardData['cardId'] == _myHandRevealedCard['cardId'];
+          final cardKey = isRevealingCard ? _myHandCardKey : null;
+          
+          // Determine if card should show revealed data
+          final shouldShowRevealed = isRevealingCard && _cardRevealed;
+          final cardToShow = shouldShowRevealed 
+              ? _myHandRevealedCard 
+              : cardData;
 
-                return Padding(
-                  padding: EdgeInsets.only(
-                    right: index < _myHandCards.length - 1 ? spacing : 0,
-                  ),
-                  child: AnimatedBuilder(
-                    animation: _revealAnimation,
-                    builder: (context, child) {
-                      // Fade in the revealed card
-                      final opacity = isRevealingCard && !_cardRevealed
-                          ? 1.0 - _revealAnimation.value
-                          : (shouldShowRevealed ? _revealAnimation.value : 1.0);
-                      
-                      // Show bright border when card is being revealed
-                      final shouldShowBorder = isRevealingCard && (_revealAnimation.value > 0 || _cardRevealed);
-                      
-                      return Opacity(
-                        opacity: opacity,
-                        child: Container(
-                          decoration: shouldShowBorder
-                              ? BoxDecoration(
-                                  border: Border.all(
-                                    color: AppColors.accentColor,
-                                    width: 3.0,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8.0),
-                                )
-                              : null,
-                          child: CardWidget(
-                            key: cardKey,
-                            card: CardModel.fromMap(cardToShow),
-                            dimensions: cardDimensions,
-                            config: CardDisplayConfig.forMyHand(),
-                            showBack: !isFaceUp && !shouldShowRevealed,
-                          ),
-                        ),
-                      );
-                    },
+          return Padding(
+            padding: EdgeInsets.only(
+              right: index < _myHandCards.length - 1 ? spacing : 0,
+            ),
+            child: AnimatedBuilder(
+              animation: _revealAnimation,
+              builder: (context, child) {
+                // Fade in the revealed card
+                final opacity = isRevealingCard && !_cardRevealed
+                    ? 1.0 - _revealAnimation.value
+                    : (shouldShowRevealed ? _revealAnimation.value : 1.0);
+                
+                // Show bright border when card is being revealed
+                final shouldShowBorder = isRevealingCard && (_revealAnimation.value > 0 || _cardRevealed);
+                
+                return Opacity(
+                  opacity: opacity,
+                  child: Container(
+                    decoration: shouldShowBorder
+                        ? BoxDecoration(
+                            border: Border.all(
+                              color: AppColors.accentColor,
+                              width: 3.0,
+                            ),
+                            borderRadius: BorderRadius.circular(8.0),
+                          )
+                        : null,
+                    child: CardWidget(
+                      key: cardKey,
+                      card: CardModel.fromMap(cardToShow),
+                      dimensions: cardDimensions,
+                      config: CardDisplayConfig.forMyHand(),
+                      showBack: !isFaceUp && !shouldShowRevealed,
+                    ),
                   ),
                 );
-              }),
+              },
             ),
-          ),
-        ],
-      ),
+          );
+        });
+        
+        return SizedBox(
+          height: cardDimensions.height,
+          child: needsScroll
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: cardWidgets,
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: cardWidgets,
+                  ),
+                ),
+        );
+      },
     );
   }
 
@@ -286,7 +296,7 @@ class _QueenPeekDemonstrationWidgetState extends State<QueenPeekDemonstrationWid
       padding: AppPadding.cardPadding,
       decoration: BoxDecoration(
         color: AppColors.widgetContainerBackground,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppBorderRadius.mediumRadius,
         border: Border.all(
           color: AppColors.borderDefault,
           width: 1,

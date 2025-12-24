@@ -6,6 +6,7 @@ import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
 
 /// Demonstration widget for collection card phase
 /// 
@@ -22,6 +23,9 @@ class CollectionCardDemonstrationWidget extends StatefulWidget {
 
 class _CollectionCardDemonstrationWidgetState extends State<CollectionCardDemonstrationWidget>
     with TickerProviderStateMixin {
+  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
+  static final Logger _logger = Logger();
+  
   int _animationPhase = 0; // 0 = idle, 1 = animating
   late AnimationController _animationController;
   late Animation<Offset> _collectionCardAnimation;
@@ -241,51 +245,57 @@ class _CollectionCardDemonstrationWidgetState extends State<CollectionCardDemons
     final spacing = AppPadding.smallPadding.left;
     final handCards = _handCards;
 
-    return Container(
-      padding: AppPadding.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.widgetContainerBackground,
-        borderRadius: AppBorderRadius.mediumRadius,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'My Hand',
-            style: AppTextStyles.headingSmall(),
-          ),
-          SizedBox(height: AppPadding.smallPadding.top),
-          SizedBox(
-            height: cardDimensions.height,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(handCards.length, (index) {
-                final cardData = handCards[index];
-                final cardModel = CardModel.fromMap(cardData);
-                final isFaceUp = cardModel.rank != '?' && cardModel.suit != '?';
-                
-                // First card (index 0) is the collection card
-                final isCollectionCard = index == 0;
-                final cardKey = isCollectionCard ? _collectionCardKey : null;
-                
-                return Padding(
-                  padding: EdgeInsets.only(
-                    right: index < handCards.length - 1 ? spacing : 0,
-                  ),
-                  child: CardWidget(
-                    key: cardKey,
-                    card: cardModel,
-                    dimensions: cardDimensions,
-                    config: CardDisplayConfig.forMyHand(),
-                    showBack: !isFaceUp,
-                  ),
-                );
-              }),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = (cardDimensions.width + spacing) * handCards.length - spacing;
+        final availableWidth = constraints.maxWidth;
+        final needsScroll = contentWidth > availableWidth;
+        
+        final cardWidgets = List.generate(handCards.length, (index) {
+          final cardData = handCards[index];
+          final cardModel = CardModel.fromMap(cardData);
+          final isFaceUp = cardModel.rank != '?' && cardModel.suit != '?';
+          
+          // First card (index 0) is the collection card
+          final isCollectionCard = index == 0;
+          final cardKey = isCollectionCard ? _collectionCardKey : null;
+          
+          return Padding(
+            padding: EdgeInsets.only(
+              right: index < handCards.length - 1 ? spacing : 0,
             ),
-          ),
-        ],
-      ),
+            child: CardWidget(
+              key: cardKey,
+              card: cardModel,
+              dimensions: cardDimensions,
+              config: CardDisplayConfig.forMyHand(),
+              showBack: !isFaceUp,
+            ),
+          );
+        });
+        
+        return SizedBox(
+          height: cardDimensions.height,
+          child: needsScroll
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: cardWidgets,
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: cardWidgets,
+                  ),
+                ),
+        );
+      },
     );
   }
 

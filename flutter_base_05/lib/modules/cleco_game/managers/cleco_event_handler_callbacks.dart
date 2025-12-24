@@ -10,7 +10,7 @@ import '../../../modules/analytics_module/analytics_module.dart';
 /// Dedicated event handlers for Cleco game events
 /// Contains all the business logic for processing specific event types
 class ClecoEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = true; // Enabled for debugging collection card instruction
+  static const bool LOGGING_SWITCH = false; // Enabled for debugging collection card instruction
   static final Logger _logger = Logger();
   
   // Analytics module cache

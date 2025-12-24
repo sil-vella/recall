@@ -6,6 +6,7 @@ import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
+import '../../../../../tools/logging/logger.dart';
 
 /// Demonstration widget for drawing card phase
 /// 
@@ -22,6 +23,9 @@ class DrawingCardDemonstrationWidget extends StatefulWidget {
 
 class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstrationWidget>
     with TickerProviderStateMixin {
+  static const bool LOGGING_SWITCH = false; // Enabled for demo animation debugging
+  static final Logger _logger = Logger();
+  
   bool _animationStarted = false;
   bool _animationComplete = false;
   bool _cardRevealed = false;
@@ -345,11 +349,16 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
       cardsToShow.add(_drawnCard);
     }
 
-    return SizedBox(
-      height: cardDimensions.height,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(cardsToShow.length, (index) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = (cardDimensions.width + spacing) * cardsToShow.length - spacing;
+        final availableWidth = constraints.maxWidth;
+        final needsScroll = contentWidth > availableWidth;
+        
+        _logger.debug('🎴 DrawDemo: _buildHand - cardsToShow.length: ${cardsToShow.length}, cardDimensions: ${cardDimensions.width}x${cardDimensions.height}, spacing: $spacing', isOn: LOGGING_SWITCH);
+        _logger.debug('🎴 DrawDemo: _buildHand - contentWidth: $contentWidth, availableWidth: $availableWidth, needsScroll: $needsScroll', isOn: LOGGING_SWITCH);
+        
+        final cardWidgets = List.generate(cardsToShow.length, (index) {
           final cardData = cardsToShow[index];
           final cardModel = CardModel.fromMap(cardData);
           final isDrawnCard = cardData['cardId'] == _drawnCard['cardId'];
@@ -360,10 +369,13 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
           // The key is always on the last card in the current list
           final isLastCard = index == cardsToShow.length - 1;
           final cardKey = isLastCard ? _lastHandCardKey : null;
+          
+          final paddingRight = index < cardsToShow.length - 1 ? spacing : 0.0;
+          _logger.debug('🎴 DrawDemo: _buildHand - card[$index]: isDrawnCard=$isDrawnCard, isLastCard=$isLastCard, paddingRight=$paddingRight', isOn: LOGGING_SWITCH);
 
           return Padding(
             padding: EdgeInsets.only(
-              right: index < cardsToShow.length - 1 ? spacing : 0,
+              right: paddingRight,
             ),
             child: CardWidget(
               key: cardKey,
@@ -375,8 +387,32 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
               showBack: !isFaceUp, // Show back if card data is hidden
             ),
           );
-        }),
-      ),
+        });
+        
+        _logger.debug('🎴 DrawDemo: _buildHand - Returning SizedBox with height: ${cardDimensions.height}, needsScroll: $needsScroll', isOn: LOGGING_SWITCH);
+        
+        return SizedBox(
+          height: cardDimensions.height,
+          child: needsScroll
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: cardWidgets,
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: cardWidgets,
+                  ),
+                ),
+        );
+      },
     );
   }
 

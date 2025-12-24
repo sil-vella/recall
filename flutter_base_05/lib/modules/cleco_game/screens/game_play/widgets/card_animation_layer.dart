@@ -7,7 +7,7 @@ import '../../../widgets/card_widget.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
 /// Full-screen overlay widget that renders animated cards
 class CardAnimationLayer extends StatefulWidget {

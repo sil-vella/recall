@@ -95,16 +95,28 @@ FLUTTER_DIR="$REPO_ROOT/flutter_base_05"
 REPLACED_FILES=0
 REPLACED_OCCURRENCES=0
 
+# Predefined variable value to avoid accidentally replacing other 'true' values
+logging_switch_variable_value="true"
+
 while IFS= read -r -d '' dart_file; do
-    if grep -q "LOGGING_SWITCH = false" "$dart_file" 2>/dev/null; then
+    # Check if file contains LOGGING_SWITCH = true pattern
+    if grep -q "LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" 2>/dev/null || \
+       grep -q "const bool LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" 2>/dev/null || \
+       grep -q "static const bool LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" 2>/dev/null; then
         # Count occurrences before replacement
-        OCCURRENCES=$(grep -o "LOGGING_SWITCH = false" "$dart_file" | wc -l | tr -d ' ')
+        OCCURRENCES=$(grep -o "LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" | wc -l | tr -d ' ')
+        OCCURRENCES=$((OCCURRENCES + $(grep -o "const bool LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" | wc -l | tr -d ' ')))
+        OCCURRENCES=$((OCCURRENCES + $(grep -o "static const bool LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" | wc -l | tr -d ' ')))
         
         # Use sed for in-place replacement (works on both macOS and Linux)
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' 's/LOGGING_SWITCH = false/LOGGING_SWITCH = false/g' "$dart_file"
+            sed -i '' "s/LOGGING_SWITCH = ${logging_switch_variable_value}/LOGGING_SWITCH = false/g" "$dart_file"
+            sed -i '' "s/const bool LOGGING_SWITCH = ${logging_switch_variable_value}/const bool LOGGING_SWITCH = false/g" "$dart_file"
+            sed -i '' "s/static const bool LOGGING_SWITCH = ${logging_switch_variable_value}/static const bool LOGGING_SWITCH = false/g" "$dart_file"
         else
-            sed -i 's/LOGGING_SWITCH = false/LOGGING_SWITCH = false/g' "$dart_file"
+            sed -i "s/LOGGING_SWITCH = ${logging_switch_variable_value}/LOGGING_SWITCH = false/g" "$dart_file"
+            sed -i "s/const bool LOGGING_SWITCH = ${logging_switch_variable_value}/const bool LOGGING_SWITCH = false/g" "$dart_file"
+            sed -i "s/static const bool LOGGING_SWITCH = ${logging_switch_variable_value}/static const bool LOGGING_SWITCH = false/g" "$dart_file"
         fi
         
         REPLACED_OCCURRENCES=$((REPLACED_OCCURRENCES + OCCURRENCES))
@@ -115,7 +127,7 @@ while IFS= read -r -d '' dart_file; do
 done < <(find "$FLUTTER_DIR" -name "*.dart" -type f -print0)
 
 if [ "$REPLACED_FILES" -eq 0 ]; then
-    echo "  ℹ️  No LOGGING_SWITCH = false found in Flutter sources."
+    echo "  ℹ️  No LOGGING_SWITCH = ${logging_switch_variable_value} found in Flutter sources (already disabled or not present)."
 else
     echo "  ✅ Disabled LOGGING_SWITCH in $REPLACED_OCCURRENCES place(s) across $REPLACED_FILES file(s)"
 fi

@@ -66,27 +66,27 @@ class NavigationManager extends ChangeNotifier {
     registerRoute(
       path: '/account',
       screen: (context) => AccountScreen(),
-      drawerTitle: 'Account',
+      drawerTitle: 'My Account',
       drawerIcon: Icons.account_circle,
-      drawerPosition: 2,
+      drawerPosition: 2, // After Play
     );
     
-    // Register WebSocket test screen
+    // Register WebSocket test screen (hidden from drawer)
     registerRoute(
       path: '/websocket',
       screen: (context) => const WebSocketScreen(),
-      drawerTitle: 'WebSocket Test',
-      drawerIcon: Icons.wifi,
-      drawerPosition: 3,
+      drawerTitle: null, // Hidden from drawer
+      drawerIcon: null,
+      drawerPosition: 999,
     );
         
-    // Register Auth Test screen
+    // Register Auth Test screen (hidden from drawer)
     registerRoute(
       path: '/auth-test',
       screen: (context) => const AuthTestScreen(),
-      drawerTitle: 'Auth Test',
-      drawerIcon: Icons.security,
-      drawerPosition: 5,
+      drawerTitle: null, // Hidden from drawer
+      drawerIcon: null,
+      drawerPosition: 999,
     );
     
     // Register Update Required screen (no drawer entry - blocking screen)

@@ -223,9 +223,9 @@ class ClecoGameMain extends ModuleBase {
     navigationManager.registerRoute(
       path: '/cleco/lobby',
       screen: (context) => const LobbyScreen(),
-      drawerTitle: 'Cleco Game',
+      drawerTitle: 'Play',
       drawerIcon: Icons.games,
-      drawerPosition: 6, // After existing screens
+      drawerPosition: 1, // After Home
     );
 
     // Register Game Play Screen

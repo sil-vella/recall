@@ -386,17 +386,15 @@ class ClecoEventHandlerCallbacks {
               'hasDemonstration': true,
               'content': '''📚 **Collection Cards**
 
-When you play a card with the **same rank** as your **collection card** (the face-up card in your hand), it gets collected!
+When anyone has played a card with the **same rank** as your **collection card** (the face-up card in your hand), you can collect it!
 
 **How it works:**
 • Your collection card is the face-up card in your hand
 • If the last played card matches your collection card's rank, you can collect it
 • The collected card is placed on top of your collection card (slightly offset to show stacking)
-• Collected cards help you build your collection and reduce your hand size
+• Collected cards help you build your collection in attempt to collect all 4 cards of your rank and win the game.
 
-**Example:** If your collection card is a 7 of Hearts and a 7 of Diamonds is played, you can collect it!
-
-**Strategy:** Building a collection helps you get rid of cards and reduces your point total!''',
+**Example:** If your collection card is a 7 of Hearts and a 7 of Diamonds has just played, you can collect it!''',
             };
             
             final instructionKey = collectionInstructions['key'] ?? '';

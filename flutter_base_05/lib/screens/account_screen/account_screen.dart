@@ -5,6 +5,7 @@ import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../modules/login_module/login_module.dart';
 import '../../modules/analytics_module/analytics_module.dart';
+import '../../modules/cleco_game/utils/cleco_game_helpers.dart';
 import '../../core/services/shared_preferences.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
@@ -20,7 +21,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = false; // Enabled for guest account conversion testing
+  static const bool LOGGING_SWITCH = false; // Enable for debugging
   static final Logger _logger = Logger();
   
   // Form controllers
@@ -211,97 +212,6 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     setState(() {
       _obscureConfirmPassword = !_obscureConfirmPassword;
     });
-  }
-  
-  // State Management Methods
-  String _getCurrentAppState() {
-    final stateManager = StateManager();
-    final mainState = stateManager.getMainAppState<String>("main_state");
-    return mainState ?? "unknown";
-  }
-  
-  void _showStateSelectionDialog() {
-    final List<String> availableStates = [
-      'active_game',
-      'pre_game', 
-      'post_game',
-      'idle'
-    ];
-    
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Select App State', style: AppTextStyles.headingSmall()),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: availableStates.map((state) {
-              final isCurrentState = state == _getCurrentAppState();
-              return ListTile(
-                leading: Icon(
-                  isCurrentState ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                  color: isCurrentState ? AppColors.primaryColor : AppColors.textSecondary,
-                ),
-                title: Text(
-                  state.replaceAll('_', ' ').toUpperCase(),
-                  style: AppTextStyles.bodyMedium().copyWith(
-                    fontWeight: isCurrentState ? FontWeight.bold : FontWeight.normal,
-                    color: isCurrentState ? AppColors.primaryColor : AppColors.textPrimary,
-                  ),
-                ),
-                subtitle: Text(
-                  _getStateDescription(state),
-                  style: AppTextStyles.bodySmall().copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _updateAppState(state);
-                },
-              );
-            }).toList(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancel', style: AppTextStyles.bodyMedium()),
-            ),
-          ],
-        );
-      },
-    );
-  }
-  
-  String _getStateDescription(String state) {
-    switch (state) {
-      case 'active_game':
-        return 'Game is currently in progress';
-      case 'pre_game':
-        return 'Game is about to start';
-      case 'post_game':
-        return 'Game has just ended';
-      case 'idle':
-        return 'App is in idle state';
-      default:
-        return 'Unknown state';
-    }
-  }
-  
-  void _updateAppState(String newState) {
-    final stateManager = StateManager();
-    stateManager.updateMainAppState("main_state", newState);
-    
-    _logger.info('📱 App state updated to: $newState', isOn: LOGGING_SWITCH);
-    
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('App state changed to: ${newState.replaceAll('_', ' ').toUpperCase()}'),
-        backgroundColor: AppColors.successColor,
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
   
   Future<void> _handleLogin() async {
@@ -683,6 +593,214 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       ),
     );
   }
+
+  Widget _buildGameStatisticsCard() {
+    // Get user stats from cleco_game state
+    final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+    final userStats = clecoGameState['userStats'] as Map<String, dynamic>?;
+    
+    // If no stats available, show empty state or fetch button
+    if (userStats == null) {
+      return Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.cardVariant,
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Game Statistics',
+              style: AppTextStyles.headingMedium(),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Statistics not available. Play a game to see your stats!',
+              style: AppTextStyles.bodyMedium().copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _isLoading ? null : () async {
+                setState(() {
+                  _isLoading = true;
+                });
+                await ClecoGameHelpers.fetchAndUpdateUserClecoGameData();
+                setState(() {
+                  _isLoading = false;
+                });
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh Stats'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context).primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // Extract stats with defaults
+    final wins = userStats['wins'] as int? ?? 0;
+    final losses = userStats['losses'] as int? ?? 0;
+    final totalMatches = userStats['total_matches'] as int? ?? 0;
+    final points = userStats['points'] as int? ?? 0;
+    final coins = userStats['coins'] as int? ?? 0;
+    final level = userStats['level'] as int? ?? 1;
+    final rank = userStats['rank'] as String? ?? 'beginner';
+    final winRate = userStats['win_rate'] as double? ?? 0.0;
+    final subscriptionTier = userStats['subscription_tier'] as String? ?? 'promotional';
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.cardVariant,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Game Statistics',
+                style: AppTextStyles.headingMedium(),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _isLoading ? null : () async {
+                  setState(() {
+                    _isLoading = true;
+                  });
+                  await ClecoGameHelpers.fetchAndUpdateUserClecoGameData();
+                  setState(() {
+                    _isLoading = false;
+                  });
+                },
+                tooltip: 'Refresh Stats',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Stats Grid
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem('Wins', wins.toString(), Icons.emoji_events, AppColors.successColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatItem('Losses', losses.toString(), Icons.trending_down, AppColors.errorColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem('Total Matches', totalMatches.toString(), Icons.games, AppColors.infoColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatItem('Win Rate', '${(winRate * 100).toStringAsFixed(1)}%', Icons.percent, AppColors.accentColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem('Coins', coins.toString(), Icons.monetization_on, AppColors.warningColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatItem('Points', points.toString(), Icons.stars, AppColors.accentColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem('Level', level.toString(), Icons.trending_up, AppColors.primaryColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatItem('Rank', rank.toUpperCase(), Icons.military_tech, AppColors.accentColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildInfoRow('Subscription Tier', subscriptionTier.toUpperCase()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTextStyles.label().copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: AppTextStyles.headingSmall().copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   
   @override
   Widget buildContent(BuildContext context) {
@@ -691,29 +809,34 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     return AnimatedBuilder(
       animation: StateManager(),
       builder: (context, child) {
-        // Get login state from StateManager
-        final stateManager = StateManager();
-        final loginState = stateManager.getModuleState("login");
-        final isLoggedIn = loginState?["isLoggedIn"] ?? false;
-        final username = loginState?["username"] ?? "";
-        final email = loginState?["email"] ?? "";
-        
-        // Update guest account status only when login state actually changes (prevents rebuild loop)
-        if (isLoggedIn != _lastLoggedInState) {
-          _lastLoggedInState = isLoggedIn;
-          if (isLoggedIn) {
-            // Use WidgetsBinding to schedule the check after the current build completes
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _checkGuestAccountStatus();
-            });
+        try {
+          // Get login state from StateManager
+          final stateManager = StateManager();
+          final loginState = stateManager.getModuleState("login");
+          final isLoggedIn = loginState?["isLoggedIn"] ?? false;
+          final username = loginState?["username"] ?? "";
+          final email = loginState?["email"] ?? "";
+          
+          // Update guest account status only when login state actually changes (prevents rebuild loop)
+          if (isLoggedIn != _lastLoggedInState) {
+            _lastLoggedInState = isLoggedIn;
+            if (isLoggedIn) {
+              // Use WidgetsBinding to schedule the check after the current build completes
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                try {
+                  _checkGuestAccountStatus();
+                } catch (e, stackTrace) {
+                  _logger.error('AccountScreen: Error in postFrameCallback for guest account check', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+                }
+              });
+            }
           }
-        }
-        
-        _logger.info('🔍 AccountScreen - isLoggedIn: $isLoggedIn, username: $username, isGuestAccount: $_isGuestAccount, showRegistrationForm: $_showRegistrationForm', isOn: LOGGING_SWITCH);
-        
-        // If user is logged in and not showing registration form, show user profile
-        if (isLoggedIn && !_showRegistrationForm) {
-          return SafeArea(
+          
+          _logger.info('🔍 AccountScreen - isLoggedIn: $isLoggedIn, username: $username, isGuestAccount: $_isGuestAccount, showRegistrationForm: $_showRegistrationForm', isOn: LOGGING_SWITCH);
+          
+          // If user is logged in and not showing registration form, show user profile
+          if (isLoggedIn && !_showRegistrationForm) {
+            return SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Column(
@@ -784,6 +907,11 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   
                   const SizedBox(height: 24),
                   
+                  // Game Statistics Card
+                  _buildGameStatisticsCard(),
+                  
+                  const SizedBox(height: 24),
+                  
                   // Convert Guest Account Section (if guest account)
                   if (_isGuestAccount)
                     Container(
@@ -842,100 +970,6 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                         ],
                       ),
                     ),
-                  
-                  // Register Option (for all logged-in users, but less prominent if not guest)
-                  if (!_isGuestAccount) ...[
-                    const SizedBox(height: 24),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.cardVariant,
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Account Options',
-                            style: AppTextStyles.headingMedium(),
-                          ),
-                          const SizedBox(height: 16),
-                          OutlinedButton.icon(
-                            onPressed: _isLoading ? null : () async {
-                              _logger.info('AccountScreen: Register Another Account button pressed', isOn: LOGGING_SWITCH);
-                              await _checkForGuestAccountForConversion();
-                              setState(() {
-                                _isLoginMode = false; // Switch to registration mode
-                                _showRegistrationForm = true; // Show registration form even when logged in
-                              });
-                              _logger.info('AccountScreen: Switched to registration mode, showRegistrationForm: $_showRegistrationForm', isOn: LOGGING_SWITCH);
-                            },
-                            icon: const Icon(Icons.person_add),
-                            label: const Text('Register Another Account'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Theme.of(context).primaryColor,
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  
-                  const SizedBox(height: 24),
-                  
-                  // State Management Section
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.cardVariant,
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'App State Management',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildInfoRow('Current State', _getCurrentAppState()),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _showStateSelectionDialog,
-                          icon: const Icon(Icons.settings),
-                          label: const Text('Change App State'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).primaryColor,
-                            foregroundColor: AppColors.textOnAccent,
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   
                   const SizedBox(height: 24),
                   
@@ -1020,10 +1054,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
         }
         
         // If user is not logged in, or showing registration form while logged in, show login/register forms
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Back button (if showing registration form while logged in)
@@ -1274,7 +1308,18 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               identifier: 'account_submit',
               button: true,
               child: ElevatedButton(
-              onPressed: _isLoading ? null : (_isLoginMode ? _handleLogin : _handleRegister),
+              onPressed: _isLoading ? null : () {
+                _logger.info('AccountScreen: Main action button pressed - mode: ${_isLoginMode ? "login" : "register"}', isOn: LOGGING_SWITCH);
+                try {
+                  if (_isLoginMode) {
+                    _handleLogin();
+                  } else {
+                    _handleRegister();
+                  }
+                } catch (e, stackTrace) {
+                  _logger.error('AccountScreen: Error in main action button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).primaryColor,
                 foregroundColor: AppColors.textOnAccent,
@@ -1310,7 +1355,14 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   const Divider(),
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _handleGuestRegister,
+                    onPressed: _isLoading ? null : () {
+                      _logger.info('AccountScreen: Guest Registration button pressed', isOn: LOGGING_SWITCH);
+                      try {
+                        _handleGuestRegister();
+                      } catch (e, stackTrace) {
+                        _logger.error('AccountScreen: Error in guest registration button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+                      }
+                    },
                     icon: const Icon(Icons.person_outline),
                     label: const Text('Continue as Guest'),
                     style: OutlinedButton.styleFrom(
@@ -1336,40 +1388,66 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               FutureBuilder<bool>(
                 future: _hasGuestCredentials(),
                 builder: (context, snapshot) {
-                  if (snapshot.data == true) {
-                    return Column(
-                      children: [
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        OutlinedButton.icon(
-                          onPressed: _isLoading ? null : _handleGuestLogin,
-                          icon: const Icon(Icons.person_outline),
-                          label: const Text('Continue as Guest'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                  try {
+                    _logger.debug('AccountScreen: Guest credentials check - hasData: ${snapshot.hasData}, data: ${snapshot.data}, error: ${snapshot.error}', isOn: LOGGING_SWITCH);
+                    
+                    if (snapshot.hasError) {
+                      _logger.error('AccountScreen: Error checking guest credentials', error: snapshot.error, isOn: LOGGING_SWITCH);
+                      return const SizedBox.shrink(); // Return empty widget on error
+                    }
+                    
+                    if (snapshot.data == true) {
+                      return Column(
+                        children: [
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          OutlinedButton.icon(
+                            onPressed: _isLoading ? null : () {
+                              _logger.info('AccountScreen: Guest Login button pressed', isOn: LOGGING_SWITCH);
+                              try {
+                                _handleGuestLogin();
+                              } catch (e, stackTrace) {
+                                _logger.error('AccountScreen: Error in guest login button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+                              }
+                            },
+                            icon: const Icon(Icons.person_outline),
+                            label: const Text('Continue as Guest'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Use your saved guest account',
-                          style: AppTextStyles.bodySmall().copyWith(
-                            color: AppColors.textSecondary,
+                          const SizedBox(height: 8),
+                          Text(
+                            'Use your saved guest account',
+                            style: AppTextStyles.bodySmall().copyWith(
+                              color: AppColors.textSecondary,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    );
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  } catch (e, stackTrace) {
+                    _logger.error('AccountScreen: Error in FutureBuilder builder for guest credentials', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+                    return const SizedBox.shrink(); // Return empty widget on error
                   }
-                  return const SizedBox.shrink();
                 },
               ),
             
             // Mode Switch
             TextButton(
-              onPressed: _isLoading ? null : _toggleMode,
+              onPressed: _isLoading ? null : () {
+                _logger.info('AccountScreen: Mode switch button pressed - current mode: ${_isLoginMode ? "login" : "register"}', isOn: LOGGING_SWITCH);
+                try {
+                  _toggleMode();
+                } catch (e, stackTrace) {
+                  _logger.error('AccountScreen: Error in mode switch button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+                }
+              },
               child: Text(
                 _isLoginMode 
                   ? "Don't have an account? Sign up" 
@@ -1383,7 +1461,35 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           ],
         ),
       ),
-        );
+    );
+        } catch (e, stackTrace) {
+          _logger.error('AccountScreen: Error in AnimatedBuilder builder', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+          // Return a safe fallback widget to prevent red screen
+          return SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, color: AppColors.errorColor, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error loading account screen',
+                    style: AppTextStyles.headingMedium().copyWith(
+                      color: AppColors.errorColor,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please try again',
+                    style: AppTextStyles.bodyMedium().copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
       },
     );
   }

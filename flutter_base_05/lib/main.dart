@@ -11,6 +11,9 @@ import 'modules/analytics_module/analytics_module.dart';
 import 'tools/logging/logger.dart';
 import 'utils/consts/theme_consts.dart';
 
+// Logging switch for main.dart - enable for debugging
+const bool LOGGING_SWITCH = false;
+
 void main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,8 +57,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool _isInitializing = false;
-  final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static final Logger _logger = Logger();
 
   @override
   void initState() {
@@ -155,9 +157,28 @@ class _MyAppState extends State<MyApp> {
 
 /// Set up global error handlers for analytics tracking
 void _setupErrorHandlers() {
+  final logger = Logger();
+  
   // Handle Flutter framework errors
   FlutterError.onError = (FlutterErrorDetails details) {
+    // Log to our logger system
+    logger.error(
+      'Flutter Framework Error: ${details.exception}',
+      error: details.exception,
+      stackTrace: details.stack,
+      isOn: LOGGING_SWITCH,
+    );
+    
+    // Log additional context
+    logger.debug(
+      'Flutter Error Details - Library: ${details.library}, Context: ${details.context}',
+      isOn: LOGGING_SWITCH,
+    );
+    
+    // Present error (shows red screen in debug mode)
     FlutterError.presentError(details);
+    
+    // Track in analytics
     _trackError(
       error: details.exception.toString(),
       stackTrace: details.stack?.toString(),
@@ -171,6 +192,15 @@ void _setupErrorHandlers() {
   
   // Handle platform errors (async errors not caught by Flutter)
   PlatformDispatcher.instance.onError = (error, stack) {
+    // Log to our logger system
+    logger.error(
+      'Platform Error: $error',
+      error: error,
+      stackTrace: stack,
+      isOn: LOGGING_SWITCH,
+    );
+    
+    // Track in analytics
     _trackError(
       error: error.toString(),
       stackTrace: stack.toString(),

@@ -20,24 +20,26 @@ class GameInstructionsProvider {
       'title': 'Welcome to Cleco!',
       'content': '''🎯 **How to Play Cleco**
 
-**Objective:**
-Finish with no cards OR have the fewest points when someone calls "Cleco".
+**Main Goal:**
+Clear all cards **OR** Collect all 4 cards of your rank. Hence **Cle Co** = **Cleco**.
 
-**Card Values:**
-• Numbered cards (2-10): Points equal to card number
-• Ace: 1 point
-• Queens & Jacks: 10 points
-• Kings (Black): 10 points
-• Joker & Red King: 0 points (very valuable!)
+**Gameplay:**
+• Tap the draw pile to draw a card
+• Select a card from your hand to play (excluding collection card)
+• Collect cards from discard pile if they match your collection rank
+• Play cards with same rank as last played card (out of turn)
+• Queens let you peek at face down cards
+• Jacks let you swap any 2 cards, including collection cards
 
-**Game Flow:**
-1. **Initial Peek**: Look at 2 of your 4 cards
-2. **Your Turn**: Draw a card, then play a card
-3. **Special Cards**: Queens let you peek, Jacks let you swap cards
-4. **Same Rank**: Play matching cards out of turn
-5. **Call Cleco**: When you think you can win!
+**Final Round:**
+If you think you have the least points during your turn, you can call **final round** just before you play a card. This will trigger the final round - this was your final round so you won't play again.
 
-**Strategy:** Get rid of high-value cards first to minimize your points!
+**Winning:**
+• Player with **no cards** wins
+• Player that collects all 4 cards of their rank wins
+• Player with **least points** wins
+• If same points, player with **least cards** wins
+• If same points and same cards, player who **called final round** wins
 
 You'll get helpful instructions as you play. You can mark any instruction as "Understood, don't show again" if you don't need to see it anymore.''',
     };
@@ -62,21 +64,9 @@ You'll get helpful instructions as you play. You can mark any instruction as "Un
         'title': 'Initial Peek Phase',
         'content': '''🎯 **Initial Peek Phase**
 
-You have 4 cards face down. You can peek at **2 of them**.
+Tap on any **2 cards** from your hand to reveal them.
 
-**How to peek:**
-1. Tap on a card to flip it and see its value
-2. Choose which 2 cards you want to peek at
-3. After peeking at 2 cards, you'll need to decide which rank you want to collect
-
-**Strategy Tip:** Choose cards that help you decide which rank to collect. Low-value cards (Aces, 2s, 3s) or special cards (Jokers, Red Kings) are often good choices!
-
-**Card Values:**
-• Numbered cards (2-10): Points equal to card number
-• Ace: 1 point
-• Queens & Jacks: 10 points
-• Kings (Black): 10 points
-• Joker & Red King: 0 points (very valuable!)''',
+The **lowest rank** among the revealed cards will automatically be selected as your collection rank.''',
         'hasDemonstration': true,
       };
     }
@@ -88,18 +78,7 @@ You have 4 cards face down. You can peek at **2 of them**.
         'title': 'Your Turn - Draw a Card',
         'content': '''🎯 **Draw a Card**
 
-It's your turn! You need to draw a card first.
-
-**Options:**
-1. **Draw from Draw Pile** (face down) - Tap the draw pile to draw a random card
-2. **Take from Discard Pile** (face up) - Tap the top card of the discard pile to take it
-
-**Strategy Tips:**
-• Taking from discard pile reveals information to opponents
-• Draw pile is random - you won't know what you get
-• Consider what opponents might need based on what they've discarded
-
-After drawing, you'll choose whether to play the drawn card or one from your hand.''',
+Tap the **draw pile** to draw a card to your hand.''',
         'hasDemonstration': true,
       };
     }
@@ -112,24 +91,7 @@ After drawing, you'll choose whether to play the drawn card or one from your han
         'hasDemonstration': true,
         'content': '''🎯 **Play a Card**
 
-You've drawn a card. Now choose what to play:
-
-**Options:**
-1. **Play the drawn card** - Discard it to the discard pile
-2. **Play a card from your hand** - Choose a card from your hand to discard
-
-**Card Values (Points):**
-• Numbered cards (2-10): Points equal to card number
-• Ace: 1 point
-• Queens & Jacks: 10 points
-• Kings (Black): 10 points
-• Joker & Red King: 0 points (very valuable - keep these!)
-
-**Special Cards:**
-• **Queens**: When played, let you peek at any opponent's card
-• **Jacks**: When played, let you swap any two cards between players
-
-**Strategy:** Get rid of high-value cards first to minimize your points!''',
+Select a card from your hand to play, including the newly drawn card, but **excluding the collection card**.''',
       };
     }
 
@@ -141,14 +103,7 @@ You've drawn a card. Now choose what to play:
         'hasDemonstration': true,
         'content': '''👑 **Queen Power Activated**
 
-You played a Queen! You can now peek at any opponent's card.
-
-**How to use:**
-1. Tap on an opponent's card to see its value
-2. This information will help you make better decisions
-3. The peeked card will be revealed to you
-
-**Strategy Tip:** Use this to see what high-value cards opponents have, or to check if they're collecting a specific rank!''',
+You have a chance to peek at any **face down card** from any player's hand, including your own.''',
       };
     }
 
@@ -162,18 +117,11 @@ You played a Queen! You can now peek at any opponent's card.
         'hasDemonstration': true,
         'content': '''🃏 **Jack Power Activated**
 
-You played a Jack! You can now swap any two cards between players.
+You can swap any **2 cards** from any hand, including your own.
 
-**How to use:**
-1. Select the first card (from any player, including yourself)
-2. Select the second card (from any player, including yourself)
-3. The two cards will be swapped
+Jack swap also enables you to swap out **collection cards** from any hand. You can swap your collection cards with another card from your own hand.
 
-**Strategy Tips:**
-• Swap high-value cards from opponents to yourself
-• Give opponents high-value cards you don't want
-• Swap cards to help you collect a specific rank
-• You can swap your own cards to reorganize your hand!''',
+**Important:** If you swap out the last collection card, you no longer have a collection and the swapped out card is now playable. Same applies to opponents' hands.''',
       };
     }
 
@@ -186,17 +134,9 @@ You played a Jack! You can now swap any two cards between players.
         'hasDemonstration': true,
         'content': '''📚 **Collection Cards**
 
-When you play a card with the **same rank** as your **collection card** (the face-up card in your hand), it gets collected!
+You can collect cards from the **discard pile** if they are the same rank as your collection rank at any time, **except during same rank play**.
 
-**How it works:**
-• Your collection card is the face-up card in your hand
-• If the last played card matches your collection card's rank, you can collect it
-• The collected card is placed on top of your collection card (slightly offset to show stacking)
-• Collected cards help you build your collection and reduce your hand size
-
-**Example:** If your collection card is a 7 of Hearts and a 7 of Diamonds is played, you can collect it!
-
-**Strategy:** Building a collection helps you get rid of cards and reduces your point total!''',
+**Important:** Collecting all **4 cards** of your rank will win you the game, but keep in mind collection also adds points.''',
       };
     }
 
@@ -208,16 +148,9 @@ When you play a card with the **same rank** as your **collection card** (the fac
         'hasDemonstration': true,
         'content': '''⚡ **Same Rank Window**
 
-A card was just played! If you have a card with the **same rank** (number/face), you can play it **out of turn**!
+If you know you have a card in hand with the **same rank** as the last played card, you can play it.
 
-**How it works:**
-• Match the rank of the card just played
-• You can play before the next player's turn
-• Rank matching ignores card color (e.g., red 5 matches black 5)
-
-**Example:** If a 7 was just played, you can play any 7 (red or black) immediately!
-
-**Strategy:** Use this to get rid of cards quickly, especially high-value ones!''',
+**Warning:** Attempting to play a wrong rank will get you a **penalty card**.''',
       };
     }
 

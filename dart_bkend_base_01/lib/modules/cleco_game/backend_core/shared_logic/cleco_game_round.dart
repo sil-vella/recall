@@ -286,13 +286,6 @@ class ClecoGameRound {
     };
   }
 
-  /// Generate a unique animation ID for an action
-  String _generateAnimationId(String actionType) {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = Random().nextInt(10000);
-    return '${actionType}_${timestamp}_$random';
-  }
-
   /// Add a card to the discard pile
   /// 
   /// NOTE: This method does NOT trigger a state update. The caller is responsible
@@ -968,16 +961,16 @@ class ClecoGameRound {
         }
       } else {
         // Regular multiplayer mode: randomly select any player (human or CPU)
-        final random = Random();
-        final randomIndex = random.nextInt(players.length);
-        final randomPlayer = players[randomIndex];
-        
+      final random = Random();
+      final randomIndex = random.nextInt(players.length);
+      final randomPlayer = players[randomIndex];
+      
         _logger.info('Cleco: Multiplayer mode - Randomly selected starting player: ${randomPlayer['name']} (${randomPlayer['id']}, isHuman: ${randomPlayer['isHuman']})', isOn: LOGGING_SWITCH);
-        
-        // Check if computer players can collect from discard pile (first turn)
-        _checkComputerPlayerCollectionFromDiscard();
-        
-        return randomPlayer;
+      
+      // Check if computer players can collect from discard pile (first turn)
+      _checkComputerPlayerCollectionFromDiscard();
+      
+      return randomPlayer;
       }
     }
     
@@ -1254,13 +1247,6 @@ class ClecoGameRound {
       );
       _logger.info('Cleco: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
-      // Generate animation ID for draw action
-      final drawAnimationId = _generateAnimationId('draw');
-      // Set animation ID on draw pile
-      gameState['drawPileAnimationId'] = drawAnimationId;
-      // Set animation ID on drawn card in hand
-      idOnlyCard['animationId'] = drawAnimationId;
-      _logger.info('Cleco: Set animation ID $drawAnimationId for draw action (cardId: $drawnCardId)', isOn: LOGGING_SWITCH);
       
       // STEP 1: Broadcast ID-only drawnCard to all players EXCEPT the drawing player
       // This shows other players that a card was drawn without revealing sensitive details
@@ -1638,16 +1624,6 @@ class ClecoGameRound {
       // Get updated discard pile from game state (card has been removed)
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
-      // Generate animation ID for collect action
-      final collectAnimationId = _generateAnimationId('collect');
-      // Set animation ID on card in discard pile (before removal)
-      collectedCard['animationId'] = collectAnimationId;
-      // Set animation ID on card in hand (after addition)
-      final lastCardInHand = hand.last;
-      if (lastCardInHand is Map<String, dynamic>) {
-        lastCardInHand['animationId'] = collectAnimationId;
-      }
-      _logger.info('Cleco: Set animation ID $collectAnimationId for collect action (cardId: $collectedCardId)', isOn: LOGGING_SWITCH);
       
       // Add turn event for collect action
       final currentTurnEvents = _getCurrentTurnEvents();
@@ -1853,15 +1829,6 @@ class ClecoGameRound {
       final currentGamesForPlay = currentGames;
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
-      // Generate animation ID for play action
-      final playAnimationId = _generateAnimationId('play');
-      // Set animation ID on card in hand (before removal)
-      if (cardToPlay != null) {
-        cardToPlay['animationId'] = playAnimationId;
-      }
-      // Set animation ID on card in discard pile
-      cardToPlayFullData['animationId'] = playAnimationId;
-      _logger.info('Cleco: Set animation ID $playAnimationId for play action (cardId: $cardId)', isOn: LOGGING_SWITCH);
       
       // Add turn events for play action and potential reposition
       final currentTurnEvents = _getCurrentTurnEvents();
@@ -1873,20 +1840,6 @@ class ClecoGameRound {
       // If drawn card is repositioned, also add reposition event
       if (drawnCard != null && drawnCard['cardId'] != cardId) {
         final drawnCardId = drawnCard['cardId']?.toString() ?? '';
-        // Generate animation ID for reposition action
-        final repositionAnimationId = _generateAnimationId('reposition');
-        // Set animation ID on drawn card
-        if (drawnCard is Map<String, dynamic>) {
-          drawnCard['animationId'] = repositionAnimationId;
-        }
-        // Find the drawn card in hand and set animation ID
-        for (final card in hand) {
-          if (card is Map<String, dynamic> && card['cardId'] == drawnCardId) {
-            card['animationId'] = repositionAnimationId;
-            break;
-          }
-        }
-        _logger.info('Cleco: Set animation ID $repositionAnimationId for reposition action (cardId: $drawnCardId)', isOn: LOGGING_SWITCH);
         turnEvents.add(_createTurnEvent(drawnCardId, 'reposition'));
         _logger.info('Cleco: 🔍 TURN_EVENTS DEBUG - Added reposition event for drawn card: $drawnCardId', isOn: LOGGING_SWITCH);
       }
@@ -2307,15 +2260,6 @@ class ClecoGameRound {
       final currentGamesForSameRank = currentGames;
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
-      // Generate animation ID for same rank play action
-      final sameRankPlayAnimationId = _generateAnimationId('play');
-      // Set animation ID on card in hand (before removal)
-      if (playedCard != null) {
-        playedCard['animationId'] = sameRankPlayAnimationId;
-      }
-      // Set animation ID on card in discard pile
-      playedCardFullData['animationId'] = sameRankPlayAnimationId;
-      _logger.info('Cleco: Set animation ID $sameRankPlayAnimationId for same rank play action (cardId: $cardId)', isOn: LOGGING_SWITCH);
       
       // Add turn event for same rank play (actionType is 'play' - same as regular play)
       final currentTurnEvents = _getCurrentTurnEvents();
@@ -2515,13 +2459,6 @@ class ClecoGameRound {
         'points': 0,      // Face-down: hide points
       };
 
-      // Generate animation ID for jack swap action (same ID for both cards)
-      final jackSwapAnimationId = _generateAnimationId('jack_swap');
-      // Set animation ID on both cards being swapped
-      firstCardIdOnly['animationId'] = jackSwapAnimationId;
-      secondCardIdOnly['animationId'] = jackSwapAnimationId;
-      _logger.info('Cleco: Set animation ID $jackSwapAnimationId for jack swap action (cards: $firstCardId <-> $secondCardId)', isOn: LOGGING_SWITCH);
-      
       // Perform the swap with ID-only format
       firstPlayerHand[firstCardIndex] = secondCardIdOnly;
       secondPlayerHand[secondCardIndex] = firstCardIdOnly;
@@ -2559,6 +2496,7 @@ class ClecoGameRound {
 
       // Update game state to trigger UI updates
       // Use the games map we're working with (currentGames already has modifications)
+      
       
       // Add turn events for jack swap (both cards are repositioned)
       final currentTurnEvents = _getCurrentTurnEvents();

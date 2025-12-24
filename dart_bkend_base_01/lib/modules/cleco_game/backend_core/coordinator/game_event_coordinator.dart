@@ -475,8 +475,8 @@ class GameEventCoordinator {
         } else {
           // No predefined hand for this player, deal randomly
           _logger.info('GameEventCoordinator: No predefined hand for player $playerIndex, dealing randomly', isOn: LOGGING_SWITCH);
-          for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
-            final c = drawStack.removeAt(0);
+      for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
+        final c = drawStack.removeAt(0);
             hand.add(_cardToIdOnly(c));
           }
         }

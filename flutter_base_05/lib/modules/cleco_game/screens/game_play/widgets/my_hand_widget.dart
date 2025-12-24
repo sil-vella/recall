@@ -12,7 +12,7 @@ import '../../../../cleco_game/managers/cleco_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = true; // Enabled for animation debugging - Animation ID system
+const bool LOGGING_SWITCH = false; // Enabled for animation debugging - Animation ID system
 
 /// Widget to display the player's hand
 /// 

@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/app_manager.dart';
 import '../../core/managers/navigation_manager.dart';
-import '../../core/managers/websockets/websocket_manager.dart';
 import '../../utils/consts/theme_consts.dart';
+import '../../tools/logging/logger.dart';
 
 class HomeScreen extends BaseScreen {
   const HomeScreen({Key? key}) : super(key: key);
@@ -17,152 +17,101 @@ class HomeScreen extends BaseScreen {
 }
 
 class _HomeScreenState extends BaseScreenState<HomeScreen> {
-  final WebSocketManager _websocketManager = WebSocketManager.instance;
-  bool _isConnected = false;
-
+  static const bool LOGGING_SWITCH = false; // Enable for debugging
+  static final Logger _logger = Logger();
+  
   @override
   void initState() {
     super.initState();
+    _logger.info('HomeScreen: initState called', isOn: LOGGING_SWITCH);
     // Trigger home screen main hook
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final appManager = Provider.of<AppManager>(context, listen: false);
-      appManager.triggerHomeScreenMainHook(context);
-      
-      // Update connection status for UI display
-      _updateConnectionStatus();
+      try {
+        _logger.debug('HomeScreen: Triggering home screen main hook', isOn: LOGGING_SWITCH);
+        final appManager = Provider.of<AppManager>(context, listen: false);
+        appManager.triggerHomeScreenMainHook(context);
+        _logger.debug('HomeScreen: Home screen main hook triggered successfully', isOn: LOGGING_SWITCH);
+      } catch (e, stackTrace) {
+        _logger.error('HomeScreen: Error triggering home screen main hook', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      }
     });
   }
-
-  void _updateConnectionStatus() {
-    setState(() {
-      _isConnected = _websocketManager.isConnected;
-    });
-  }
-
-  // Note: Global app bar features are now handled automatically by GlobalAppBarManager
-  // Individual screen features can still be added here if needed
 
   @override
   void dispose() {
-    // Clean up app bar features when screen is disposed
-    clearAppBarActions();
-    super.dispose();
+    _logger.debug('HomeScreen: dispose called', isOn: LOGGING_SWITCH);
+    try {
+      // Clean up app bar features when screen is disposed
+      clearAppBarActions();
+      super.dispose();
+      _logger.debug('HomeScreen: dispose completed successfully', isOn: LOGGING_SWITCH);
+    } catch (e, stackTrace) {
+      _logger.error('HomeScreen: Error in dispose', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      super.dispose();
+    }
   }
 
   @override
   Widget buildContent(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Welcome text with app title
-          Text(
-            'Welcome to Cleco',
-            style: AppTextStyles.headingLarge(),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Check out the new app bar action buttons!',
-            style: AppTextStyles.bodyLarge().copyWith(
-              color: AppColors.textSecondary,
+    _logger.debug('HomeScreen: buildContent called', isOn: LOGGING_SWITCH);
+    
+    try {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Welcome text with app title
+            Text(
+              'Welcome to Cleco',
+              style: AppTextStyles.headingLarge(),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          // Connection status indicator
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _isConnected ? AppColors.successColor : AppColors.errorColor,
-                width: 2,
+            const SizedBox(height: 48),
+            // Play button - navigates to lobby
+            ElevatedButton(
+              onPressed: () {
+                _logger.info('HomeScreen: Play button pressed', isOn: LOGGING_SWITCH);
+                try {
+                  final navigationManager = Provider.of<NavigationManager>(context, listen: false);
+                  _logger.debug('HomeScreen: NavigationManager obtained, navigating to /cleco/lobby', isOn: LOGGING_SWITCH);
+                  navigationManager.navigateTo('/cleco/lobby');
+                  _logger.debug('HomeScreen: Navigation to /cleco/lobby initiated', isOn: LOGGING_SWITCH);
+                } catch (e, stackTrace) {
+                  _logger.error('HomeScreen: Error in Play button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+                foregroundColor: AppColors.textOnPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                minimumSize: const Size(200, 56),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.play_arrow, size: 28),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Play',
+                    style: AppTextStyles.headingMedium(),
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _isConnected ? Icons.wifi : Icons.wifi_off,
-                  color: _isConnected ? AppColors.successColor : AppColors.errorColor,
-                  size: 24,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _isConnected ? 'WebSocket Connected' : 'WebSocket Disconnected',
-                  style: AppTextStyles.bodyMedium().copyWith(
-                    color: _isConnected ? AppColors.successColor : AppColors.errorColor,
-                  ),
-                ),
-              ],
-            ),
+          ],
+        ),
+      );
+    } catch (e, stackTrace) {
+      _logger.error('HomeScreen: Error in buildContent', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      // Return a fallback widget to prevent red screen
+      return Center(
+        child: Text(
+          'Error loading home screen',
+          style: AppTextStyles.bodyMedium().copyWith(
+            color: AppColors.errorColor,
           ),
-          const SizedBox(height: 24),
-          // Connect/Disconnect button for testing
-          ElevatedButton(
-            onPressed: () async {
-              if (_isConnected) {
-                // Disconnect
-                _websocketManager.disconnect();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Disconnected from WebSocket'),
-                    backgroundColor: AppColors.warningColor,
-                  ),
-                );
-              } else {
-                // Connect
-                final success = await _websocketManager.connect();
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Connected to WebSocket'),
-                      backgroundColor: AppColors.successColor,
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Failed to connect to WebSocket'),
-                      backgroundColor: AppColors.errorColor,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _isConnected ? AppColors.errorColor : AppColors.successColor,
-              foregroundColor: AppColors.textOnAccent,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(_isConnected ? Icons.link_off : Icons.link),
-                const SizedBox(width: 8),
-                Text(_isConnected ? 'Disconnect' : 'Connect'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Profile navigation button for testing
-          ElevatedButton.icon(
-            onPressed: () {
-              final navigationManager = Provider.of<NavigationManager>(context, listen: false);
-              navigationManager.navigateTo('/account');
-            },
-            icon: const Icon(Icons.account_circle),
-            label: const Text('Go to Account'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accentColor,
-              foregroundColor: AppColors.textOnAccent,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-          ),
-        ],
-      ),
-    );
+        ),
+      );
+    }
   }
 } 

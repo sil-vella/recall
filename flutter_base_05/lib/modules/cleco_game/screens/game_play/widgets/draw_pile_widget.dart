@@ -8,7 +8,7 @@ import '../../../widgets/card_widget.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for animation debugging - Animation ID system
+const bool LOGGING_SWITCH = false; // Enabled for animation debugging - Animation ID system
 
 /// Widget to display the draw pile information
 /// 

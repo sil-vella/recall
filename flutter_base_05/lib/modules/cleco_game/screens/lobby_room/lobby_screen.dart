@@ -16,6 +16,7 @@ import 'widgets/create_join_game_widget.dart';
 import 'widgets/join_random_game_widget.dart';
 import 'widgets/current_games_widget.dart';
 import 'widgets/practice_match_widget.dart';
+import 'widgets/collapsible_section_widget.dart';
 import 'features/lobby_features.dart';
 
 
@@ -369,32 +370,46 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Quick Actions Section
-          JoinRandomGameWidget(
-            onJoinRandomGame: () {
-              // Callback after successful random game join
-            },
+          // Quick Actions Section (Collapsible)
+          CollapsibleSectionWidget(
+            title: 'Join Random Game',
+            icon: Icons.flash_on,
+            initiallyExpanded: true,
+            child: JoinRandomGameWidget(
+              onJoinRandomGame: () {
+                // Callback after successful random game join
+              },
+            ),
           ),
-          SizedBox(height: AppPadding.smallPadding.top),
           
-          // Practice Match Section
-          PracticeMatchWidget(
-            onStartPractice: _startPracticeMatch,
+          // Practice Match Section (Collapsible)
+          CollapsibleSectionWidget(
+            title: 'Practice Match',
+            icon: Icons.school,
+            child: PracticeMatchWidget(
+              onStartPractice: _startPracticeMatch,
+            ),
           ),
-          SizedBox(height: AppPadding.smallPadding.top),
           
-          // Create and Join Room Section (Unified Widget)
-          CreateJoinGameWidget(
-            onCreateRoom: _createRoom,
-            onJoinRoom: () {
-              // Callback after successful join request
-            },
+          // Create and Join Room Section (Collapsible)
+          CollapsibleSectionWidget(
+            title: 'Create & Join Room',
+            icon: Icons.group_add,
+            child: CreateJoinGameWidget(
+              onCreateRoom: _createRoom,
+              onJoinRoom: () {
+                // Callback after successful join request
+              },
+            ),
           ),
-          SizedBox(height: AppPadding.smallPadding.top),
           
-          // Current Room Section
-          CurrentRoomWidget(
-            onJoinRoom: _joinRoom,
+          // Current Room Section (Collapsible)
+          CollapsibleSectionWidget(
+            title: 'Current Rooms',
+            icon: Icons.meeting_room,
+            child: CurrentRoomWidget(
+              onJoinRoom: _joinRoom,
+            ),
           ),
         ],
       ),

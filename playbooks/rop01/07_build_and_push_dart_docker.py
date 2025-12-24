@@ -34,14 +34,24 @@ def disable_logging_switch() -> None:
     print(f"\n{Colors.BLUE}Disabling LOGGING_SWITCH in Dart sources...{Colors.NC}")
     replaced_files = 0
     replaced_occurrences = 0
+    
+    # Predefined variable value to avoid accidentally replacing other 'true' values
+    logging_switch_variable_value = "true"
 
     for dart_file in BUILD_CONTEXT.rglob("*.dart"):
         try:
             text = dart_file.read_text(encoding="utf-8")
-            if "LOGGING_SWITCH = false" in text:
-                new_text = text.replace("LOGGING_SWITCH = false", "LOGGING_SWITCH = false")
+            original_text = text
+            # Replace LOGGING_SWITCH = true with LOGGING_SWITCH = false
+            new_text = text.replace(f"LOGGING_SWITCH = {logging_switch_variable_value}", "LOGGING_SWITCH = false")
+            # Also handle const bool LOGGING_SWITCH = true
+            new_text = new_text.replace(f"const bool LOGGING_SWITCH = {logging_switch_variable_value}", "const bool LOGGING_SWITCH = false")
+            # Also handle static const bool LOGGING_SWITCH = true
+            new_text = new_text.replace(f"static const bool LOGGING_SWITCH = {logging_switch_variable_value}", "static const bool LOGGING_SWITCH = false")
+            
+            if new_text != original_text:
                 dart_file.write_text(new_text, encoding="utf-8")
-                occurrences = text.count("LOGGING_SWITCH = false")
+                occurrences = original_text.count(f"LOGGING_SWITCH = {logging_switch_variable_value}") + original_text.count(f"const bool LOGGING_SWITCH = {logging_switch_variable_value}") + original_text.count(f"static const bool LOGGING_SWITCH = {logging_switch_variable_value}")
                 replaced_occurrences += occurrences
                 replaced_files += 1
                 rel = dart_file.relative_to(BUILD_CONTEXT)
@@ -51,7 +61,7 @@ def disable_logging_switch() -> None:
             print(f"  {Colors.RED}✗{Colors.NC} Error processing {rel}: {e}")
 
     if replaced_files == 0:
-        print(f"{Colors.YELLOW}No LOGGING_SWITCH = false found in Dart sources.{Colors.NC}")
+        print(f"{Colors.YELLOW}No LOGGING_SWITCH = {logging_switch_variable_value} found in Dart sources (already disabled or not present).{Colors.NC}")
     else:
         print(
             f"{Colors.GREEN}✓ Disabled LOGGING_SWITCH in {replaced_occurrences} "

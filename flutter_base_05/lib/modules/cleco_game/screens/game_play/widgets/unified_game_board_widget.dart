@@ -13,7 +13,7 @@ import '../../../../../utils/consts/theme_consts.dart';
 import '../../../utils/card_position_scanner.dart';
 import '../../../utils/card_animation_detector.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -78,21 +78,32 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
           _scanCardPositions();
         });
         
-        return Column(
-          children: [
-            // Opponents Panel Section
-            _buildOpponentsPanel(),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            // Get the viewport height from MediaQuery
+            final viewportHeight = MediaQuery.of(context).size.height;
+            final appBarHeight = MediaQuery.of(context).padding.top + kToolbarHeight;
+            final availableHeight = viewportHeight - appBarHeight;
             
-            SizedBox(height: AppPadding.smallPadding.top),
-            
-            // Game Board Section (draw pile, discard pile, match pot)
-            _buildGameBoard(),
-            
-            SizedBox(height: AppPadding.smallPadding.top),
-            
-            // My Hand Section
-            _buildMyHand(),
-          ],
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: availableHeight,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Opponents Panel Section - at the top
+                  _buildOpponentsPanel(),
+                  
+                  // Game Board Section - centered vertically between opponents and my hand
+                  _buildGameBoard(),
+                  
+                  // My Hand Section - aligned to bottom
+                  _buildMyHand(),
+                ],
+              ),
+            );
+          },
         );
       },
     );

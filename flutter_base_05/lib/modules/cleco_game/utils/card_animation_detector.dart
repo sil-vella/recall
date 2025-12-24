@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'card_position_scanner.dart';
 import '../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
 /// Animation types for different card movements
 enum AnimationType {

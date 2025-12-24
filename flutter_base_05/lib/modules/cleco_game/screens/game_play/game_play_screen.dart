@@ -6,20 +6,16 @@ import '../../../../utils/consts/theme_consts.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../../../tools/logging/logger.dart';
 import 'widgets/game_info_widget.dart';
-import 'widgets/opponents_panel_widget.dart';
-import 'widgets/game_board_widget.dart';
-import 'widgets/my_hand_widget.dart';
+import 'widgets/unified_game_board_widget.dart';
 import 'widgets/instructions_widget.dart';
 import 'widgets/messages_widget.dart';
-import 'widgets/card_animation_layer.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../managers/feature_registry_manager.dart';
 import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
-import 'card_position_tracker.dart';
 import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for cleanup testing
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);
@@ -39,9 +35,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // Initialize card position tracker (singleton, initialized on first access)
-    CardPositionTracker.instance();
     
     // Register game phase chip feature in app bar
     _registerGamePhaseChipFeature();
@@ -144,9 +137,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
       scopeKey: featureScopeKey,
       featureId: 'game_phase_chip',
     );
-    
-    // Clear card position tracker
-    CardPositionTracker.instance().clearAllPositions();
     
     // Clean up any game-specific resources
     super.dispose();
@@ -287,18 +277,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
               
               SizedBox(height: AppPadding.smallPadding.top),
               
-              // Opponents Panel Section
-              const OpponentsPanelWidget(),
-              
-              SizedBox(height: AppPadding.smallPadding.top),
-              
-              // Game Board Section
-              const GameBoardWidget(),
-              
-              SizedBox(height: AppPadding.smallPadding.top),
-              
-              // My Hand Section
-              const MyHandWidget(),
+              // Unified Game Board Widget (combines OpponentsPanel, GameBoard, and MyHand)
+              const UnifiedGameBoardWidget(),
             ],
           ),
         ),
@@ -308,9 +288,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
         
         // Messages Modal Widget - handles its own state subscription
         const MessagesWidget(),
-        
-        // Card Animation Layer - overlay for card animations (topmost layer)
-        CardAnimationLayer(),
       ],
     );
   }

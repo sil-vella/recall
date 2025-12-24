@@ -8,7 +8,6 @@ import '../../../widgets/card_widget.dart';
 import 'player_status_chip_widget.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../managers/player_action.dart';
-import '../card_position_tracker.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for animation debugging
@@ -36,17 +35,11 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   // Internal state to store clicked card information
   String? _clickedCardId;
   
-  // Map<playerId_cardId, GlobalKey>
-  final Map<String, GlobalKey> _cardKeys = {};
-  
   // Protection mechanism for cardsToPeek
   bool _isCardsToPeekProtected = false;
   List<dynamic>? _protectedCardsToPeek;
   Timer? _cardsToPeekProtectionTimer;
   
-  // Track drawn cards that should be visible after animation completes
-  // Map<playerId_cardId, bool> - tracks which drawn cards should be visible
-  final Map<String, bool> _visibleDrawnCards = {};
 
   /// Protect cardsToPeek data for 5 seconds
   void _protectCardsToPeek(List<dynamic> cardsToPeek) {
@@ -81,40 +74,10 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    // Listen to animation completion events
-    final tracker = CardPositionTracker.instance();
-    tracker.cardAnimationComplete.addListener(_onAnimationComplete);
-  }
-
-  @override
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _cardsToPeekProtectionTimer = null;
-    final tracker = CardPositionTracker.instance();
-    tracker.cardAnimationComplete.removeListener(_onAnimationComplete);
     super.dispose();
-  }
-
-  /// Handle animation completion events
-  void _onAnimationComplete() {
-    final tracker = CardPositionTracker.instance();
-    final completion = tracker.cardAnimationComplete.value;
-    
-    if (completion != null && completion.animationType == AnimationType.draw) {
-      // Show the drawn card when draw animation completes
-      // Use the key (which is playerId_cardId for opponents) to identify the card
-      if (mounted) {
-        setState(() {
-          _visibleDrawnCards[completion.key] = true;
-        });
-        _logger.info(
-          'OpponentsPanelWidget._onAnimationComplete() - Draw animation completed for key: ${completion.key}',
-          isOn: LOGGING_SWITCH,
-        );
-      }
-    }
   }
 
   @override
@@ -166,10 +129,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
         final isMyTurn = clecoGameState['isMyTurn'] ?? false;
         final playerStatus = clecoGameState['playerStatus']?.toString() ?? 'unknown';
         
-        // Update card positions on rebuild (after cards are rendered)
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _updateCardPositions(otherPlayers);
-        });
         
         return _buildOpponentsPanel(
           opponents: otherPlayers,
@@ -454,11 +413,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     // It will be shown when the draw animation completes (handled by _onAnimationComplete)
     if (drawnCard != null) {
       final drawnCardId = drawnCard['cardId']?.toString();
-      final drawnCardKey = '${playerId}_$drawnCardId';
       
-      if (drawnCardId != null && !_visibleDrawnCards.containsKey(drawnCardKey)) {
-        _visibleDrawnCards[drawnCardKey] = false;
-      }
     }
     
     // Use LayoutBuilder to get available width for responsive card sizing
@@ -528,8 +483,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
                 : (peekedCardData ?? collectionRankCardData);
             
             // Build the collection rank card widget with dynamic dimensions
-            final cardKeyName = '${playerId}_$cardId';
-            final cardKey = _cardKeys.putIfAbsent(cardKeyName, () => GlobalKey(debugLabel: 'opponent_card_$cardKeyName'));
+            final cardKey = GlobalKey(debugLabel: 'opponent_card_${playerId}_$cardId');
             final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey);
             collectionRankWidgets[cardId] = cardWidget;
           }
@@ -648,8 +602,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
           
           // Normal card rendering (non-collection rank)
           // CardWidget uses dynamic dimensions based on container width
-          final cardKeyName = '${playerId}_$cardId';
-          final cardKey = _cardKeys.putIfAbsent(cardKeyName, () => GlobalKey(debugLabel: 'opponent_card_$cardKeyName'));
+          final cardKey = GlobalKey(debugLabel: 'opponent_card_${playerId}_$cardId');
           final cardWidget = _buildCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey);
           
           return Padding(
@@ -666,116 +619,6 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     );
   }
 
-  /// Update card positions in animation manager
-  void _updateCardPositions(List<dynamic> opponents) {
-    // Verbose logging disabled to reduce log noise
-    
-    // Get turn_events from opponentsPanel slice to determine animation types
-    final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
-    final opponentsPanelSlice = clecoGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-    final turnEvents = opponentsPanelSlice['turn_events'] as List<dynamic>? ?? [];
-    
-    // Create a map of cardId -> actionType for quick lookup
-    final Map<String, String> cardIdToActionType = {};
-    for (final event in turnEvents) {
-      if (event is Map<String, dynamic>) {
-        final eventCardId = event['cardId']?.toString();
-        final actionType = event['actionType']?.toString();
-        if (eventCardId != null && actionType != null) {
-          cardIdToActionType[eventCardId] = actionType;
-        }
-      }
-    }
-    
-    final tracker = CardPositionTracker.instance();
-    
-    for (final opponent in opponents) {
-      final playerId = opponent['id']?.toString() ?? '';
-      if (playerId.isEmpty) {
-        continue;
-      }
-
-      final hand = opponent['hand'] as List<dynamic>? ?? [];
-      final playerStatus = opponent['status']?.toString();
-      
-      // Also get drawn card to ensure it's tracked even if hidden
-      final drawnCard = opponent['drawnCard'] as Map<String, dynamic>?;
-      // ignore: unused_local_variable - used in logging statement below
-      final drawnCardId = drawnCard?['cardId']?.toString();
-      
-      for (final card in hand) {
-        if (card == null || card is! Map<String, dynamic>) {
-          continue;
-        }
-        
-        final cardId = card['cardId']?.toString();
-        if (cardId == null) {
-          continue;
-        }
-        
-        // Get or create GlobalKey for this card
-        final cardKeyName = '${playerId}_$cardId';
-        final cardKey = _cardKeys.putIfAbsent(cardKeyName, () => GlobalKey(debugLabel: 'opponent_card_$cardKeyName'));
-        
-        // Get RenderBox from GlobalKey
-        final renderObject = cardKey.currentContext?.findRenderObject();
-        if (renderObject == null) {
-          continue;
-        }
-        
-        final RenderBox? renderBox = renderObject as RenderBox?;
-        if (renderBox == null) {
-          continue;
-        }
-        
-        // Get screen position and size
-        final position = renderBox.localToGlobal(Offset.zero);
-        final size = renderBox.size;
-        
-        // Get animation type from turn_events if available
-        final actionType = cardIdToActionType[cardId];
-        AnimationType? suggestedAnimationType;
-        if (actionType != null) {
-          // Map actionType string to AnimationType enum
-          switch (actionType) {
-            case 'draw':
-              suggestedAnimationType = AnimationType.draw;
-              break;
-            case 'play':
-              suggestedAnimationType = AnimationType.play;
-              break;
-            case 'collect':
-              suggestedAnimationType = AnimationType.collect;
-              break;
-            case 'reposition':
-              suggestedAnimationType = AnimationType.reposition;
-              break;
-          }
-        }
-        
-        // Update position in tracker with player status and suggested animation type
-        // This is critical for drawn cards - even if hidden, we need to track their position
-        // so that when they're played, the animation can find the start position
-        tracker.updateCardPosition(
-          cardId,
-          position,
-          size,
-          'opponent_hand',
-          playerId: playerId,
-          playerStatus: playerStatus,
-          suggestedAnimationType: suggestedAnimationType,
-        );
-        
-        _logger.info(
-          'OpponentsPanelWidget._updateCardPositions() - Tracked position for cardId: $cardId, playerId: $playerId, isDrawnCard: ${drawnCardId == cardId}',
-          isOn: LOGGING_SWITCH,
-        );
-      }
-    }
-    
-    // Verbose logging removed to reduce log noise
-    // tracker.logAllPositions(); // Disabled - too verbose
-  }
 
 
   /// Build individual card widget for opponents using the new CardWidget system
@@ -802,22 +645,7 @@ class _OpponentsPanelWidgetState extends State<OpponentsPanelWidget> {
     
     // Note: Collection rank cards no longer get a border - they're visually distinct through stacking + full data
     
-    // Hide drawn card visually during animation, show after animation completes
-    // Card remains trackable for animation even when hidden
-    if (isDrawnCard) {
-      final cardId = card['cardId']?.toString();
-      final drawnCardKey = '${playerId}_$cardId';
-      final shouldShowDrawnCard = _visibleDrawnCards[drawnCardKey] == true;
-      
-      cardWidget = SizedBox(
-        width: cardDimensions.width,
-        height: cardDimensions.height,
-        child: Opacity(
-          opacity: shouldShowDrawnCard ? 1.0 : 0.0, // Show after animation completes, hide during animation
-          child: cardWidget,
-        ),
-      );
-    }
+    // Drawn card is always shown (no animation)
     
     return cardWidget;
   }

@@ -6,10 +6,9 @@ import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../../../tools/logging/logger.dart';
-import '../card_position_tracker.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for animation debugging
+const bool LOGGING_SWITCH = true; // Enabled for animation debugging - Animation ID system
 
 /// Widget to display the draw pile information
 /// 
@@ -110,15 +109,6 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
             },
           ),
           
-          // Update position on rebuild (after card is rendered)
-          Builder(
-            builder: (context) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _updateDrawPilePosition();
-              });
-              return const SizedBox.shrink();
-            },
-          ),
         ],
       ),
     );
@@ -136,51 +126,6 @@ class _DrawPileWidgetState extends State<DrawPileWidget> {
     });
   }
 
-  /// Update draw pile position in animation manager
-  void _updateDrawPilePosition() {
-    _logger.info(
-      'DrawPileWidget._updateDrawPilePosition() called',
-      isOn: LOGGING_SWITCH,
-    );
-    
-    // Check if key is attached
-    final renderObject = _drawCardKey.currentContext?.findRenderObject();
-    if (renderObject == null) {
-      _logger.info(
-        'DrawPileWidget._updateDrawPilePosition() - renderObject is null (widget not yet rendered)',
-        isOn: LOGGING_SWITCH,
-      );
-      return;
-    }
-    
-    // Get position and size
-    final RenderBox? renderBox = renderObject as RenderBox?;
-    if (renderBox == null) {
-      _logger.info(
-        'DrawPileWidget._updateDrawPilePosition() - renderBox is null',
-        isOn: LOGGING_SWITCH,
-      );
-      return;
-    }
-
-    // Get screen position and size
-    final position = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-    
-    // Verbose logging disabled to reduce log noise
-    
-    // Update position in tracker
-    final tracker = CardPositionTracker.instance();
-    tracker.updateCardPosition(
-      'draw_pile',
-      position,
-      size,
-      'draw_pile',
-    );
-    
-    // Verbose logging removed to reduce log noise
-    // tracker.logAllPositions(); // Disabled - too verbose
-  }
 
   /// Handle pile click for card drawing
   void _handlePileClick() async {

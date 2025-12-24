@@ -1247,6 +1247,7 @@ class ClecoGameRound {
       );
       _logger.info('Cleco: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
       
+      
       // STEP 1: Broadcast ID-only drawnCard to all players EXCEPT the drawing player
       // This shows other players that a card was drawn without revealing sensitive details
       // The drawing player will receive the complete update in STEP 2
@@ -1623,6 +1624,7 @@ class ClecoGameRound {
       // Get updated discard pile from game state (card has been removed)
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
+      
       // Add turn event for collect action
       final currentTurnEvents = _getCurrentTurnEvents();
       _logger.info('Cleco: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding collect event: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
@@ -1826,6 +1828,7 @@ class ClecoGameRound {
       // Use the games map we're working with (currentGames already has modifications)
       final currentGamesForPlay = currentGames;
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
+      
       
       // Add turn events for play action and potential reposition
       final currentTurnEvents = _getCurrentTurnEvents();
@@ -2257,6 +2260,7 @@ class ClecoGameRound {
       final currentGamesForSameRank = currentGames;
       final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       
+      
       // Add turn event for same rank play (actionType is 'play' - same as regular play)
       final currentTurnEvents = _getCurrentTurnEvents();
       _logger.info('Cleco: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding same rank play event: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
@@ -2492,6 +2496,7 @@ class ClecoGameRound {
 
       // Update game state to trigger UI updates
       // Use the games map we're working with (currentGames already has modifications)
+      
       
       // Add turn events for jack swap (both cards are repositioned)
       final currentTurnEvents = _getCurrentTurnEvents();

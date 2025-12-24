@@ -8,12 +8,11 @@ import '../../../widgets/card_widget.dart';
 import 'player_status_chip_widget.dart';
 import '../../../managers/player_action.dart';
 import '../../../../../tools/logging/logger.dart';
-import '../card_position_tracker.dart';
 import '../../../../cleco_game/managers/cleco_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 // Logging switch
-const bool LOGGING_SWITCH = false; // Enabled for final round debugging
+const bool LOGGING_SWITCH = true; // Enabled for animation debugging - Animation ID system
 
 /// Widget to display the player's hand
 /// 
@@ -41,9 +40,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
   
   // Local flag to prevent rapid action execution (frontend-only, doesn't update backend state)
   bool _isProcessingAction = false;
-  
-  // GlobalKeys for each card to get positions
-  final Map<String, GlobalKey> _cardKeys = {};
   
   // Protection mechanism for cardsToPeek
   bool _isCardsToPeekProtected = false;
@@ -172,10 +168,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                     p['hasCalledFinalRound'] == true) ?? false
             : false;
         
-        // Update card positions on rebuild (after cards are rendered)
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _updateCardPositions(cards, playerStatus);
-        });
         
         // Check for action errors and display snackbar
         final actionError = clecoGameState['actionError'] as Map<String, dynamic>?;
@@ -538,7 +530,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 : (peekedCardData ?? collectionRankCardData);
             
             // Build the collection rank card widget with SAME BUILD PROCESS as normal cards
-            final cardKey = _cardKeys.putIfAbsent(cardId, () => GlobalKey(debugLabel: 'card_$cardId'));
+            final cardKey = GlobalKey(debugLabel: 'card_$cardId');
             final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey);
             collectionRankWidgets[cardId] = cardWidget;
           }
@@ -661,7 +653,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
               
               // Normal card rendering (non-collection rank)
               // CardWidget already uses exact dimensions from CardDimensions SSOT
-              final cardKey = _cardKeys.putIfAbsent(cardId!, () => GlobalKey(debugLabel: 'card_$cardId'));
+              final cardKey = GlobalKey(debugLabel: 'card_$cardId');
               final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, index, cardMap, cardKey);
               
               return Padding(
@@ -759,93 +751,6 @@ class _MyHandWidgetState extends State<MyHandWidget> {
     }
   }
 
-  /// Detect state changes and create animation triggers
-  /// Update card positions in animation manager
-  void _updateCardPositions(List<dynamic> cards, String playerStatus) {
-    // Verbose logging disabled to reduce log noise
-    
-    // Get turn_events from myHand slice to determine animation types
-    final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
-    final myHandSlice = clecoGameState['myHand'] as Map<String, dynamic>? ?? {};
-    final turnEvents = myHandSlice['turn_events'] as List<dynamic>? ?? [];
-    
-    // Create a map of cardId -> actionType for quick lookup
-    final Map<String, String> cardIdToActionType = {};
-    for (final event in turnEvents) {
-      if (event is Map<String, dynamic>) {
-        final eventCardId = event['cardId']?.toString();
-        final actionType = event['actionType']?.toString();
-        if (eventCardId != null && actionType != null) {
-          cardIdToActionType[eventCardId] = actionType;
-        }
-      }
-    }
-    
-    final tracker = CardPositionTracker.instance();
-    
-    for (final card in cards) {
-      if (card == null || card is! Map<String, dynamic>) {
-        continue;
-      }
-      
-      final cardId = card['cardId']?.toString();
-      if (cardId == null) {
-        continue;
-      }
-      
-      // Get or create GlobalKey for this card
-      final cardKey = _cardKeys.putIfAbsent(cardId, () => GlobalKey(debugLabel: 'card_$cardId'));
-      
-      // Get RenderBox from GlobalKey
-      final renderObject = cardKey.currentContext?.findRenderObject();
-      if (renderObject == null) {
-        continue;
-      }
-      
-      final RenderBox? renderBox = renderObject as RenderBox?;
-      if (renderBox == null) {
-        continue;
-      }
-      
-      // Get screen position and size
-      final position = renderBox.localToGlobal(Offset.zero);
-      final size = renderBox.size;
-      
-      // Get animation type from turn_events if available
-      final actionType = cardIdToActionType[cardId];
-      AnimationType? suggestedAnimationType;
-      if (actionType != null) {
-        // Map actionType string to AnimationType enum
-        switch (actionType) {
-          case 'draw':
-            suggestedAnimationType = AnimationType.draw;
-            break;
-          case 'play':
-            suggestedAnimationType = AnimationType.play;
-            break;
-          case 'collect':
-            suggestedAnimationType = AnimationType.collect;
-            break;
-          case 'reposition':
-            suggestedAnimationType = AnimationType.reposition;
-            break;
-        }
-      }
-      
-      // Update position in tracker with player status and suggested animation type
-      tracker.updateCardPosition(
-        cardId,
-        position,
-        size,
-        'my_hand',
-        playerStatus: playerStatus,
-        suggestedAnimationType: suggestedAnimationType,
-      );
-    }
-    
-    // Verbose logging removed to reduce log noise
-    // tracker.logAllPositions(); // Disabled - too verbose
-  }
 
 
   /// Handle card selection with status validation
@@ -1161,6 +1066,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
       ),
     );
   }
+
 
   /// Build card widget with optional drawn card glow and collection rank border
   Widget _buildCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey) {

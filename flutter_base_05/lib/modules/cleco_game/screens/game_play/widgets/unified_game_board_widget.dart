@@ -80,43 +80,43 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         
         return LayoutBuilder(
           builder: (context, constraints) {
-            // Get the viewport height from MediaQuery
-            final viewportHeight = MediaQuery.of(context).size.height;
-            final appBarHeight = MediaQuery.of(context).padding.top + kToolbarHeight;
+            // This is the full available space in the content area
+            final availableHeight = constraints.maxHeight;
             
-            // Account for snack bar height (typically 48-56px, using 56px for safety)
-            // Also account for system bottom padding (safe area)
-            const snackBarHeight = 56.0;
-            final bottomPadding = MediaQuery.of(context).padding.bottom;
-            final totalBottomSpace = snackBarHeight + bottomPadding;
+            _logger.info(
+              'UnifiedGameBoardWidget: LayoutBuilder - maxHeight=$availableHeight, '
+              'maxWidth=${constraints.maxWidth}',
+              isOn: LOGGING_SWITCH,
+            );
             
-            // Available height accounts for both app bar and bottom space (snack bar + safe area)
-            // This ensures my hand is positioned higher to account for snack bar
-            final availableHeight = viewportHeight - appBarHeight - totalBottomSpace;
-            
-            return ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: availableHeight,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Opponents Panel Section - at the top
-                  _buildOpponentsPanel(),
-                  
-                  // Game Board and My Hand grouped together at the bottom
-                  // Game board sits directly on top of my hand
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Game Board Section - sits directly above my hand
-                      _buildGameBoard(),
-                      
-                      // My Hand Section - at the bottom
-                      _buildMyHand(),
-                    ],
-                  ),
-                ],
+            // Make it scrollable with my hand aligned to bottom
+            return SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: availableHeight,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Opponents Panel Section - at the top
+                    _buildOpponentsPanel(),
+                    
+                    // Game Board and My Hand grouped together at the bottom
+                    // Game board sits directly on top of my hand
+                    // My hand aligned to bottom of UnifiedGameBoardWidget
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Game Board Section - sits directly above my hand
+                        _buildGameBoard(),
+                        
+                        // My Hand Section - at the bottom
+                        _buildMyHand(),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -1687,32 +1687,119 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
             final cardDataToUse = isDrawnCard && drawnCard != null
                 ? drawnCard 
                 : (peekedCardData ?? collectionRankCardData);
+            // Use default dimensions here - will be rebuilt with calculated dimensions in LayoutBuilder
             final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
-            final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey);
+            final defaultDimensions = CardDimensions.getUnifiedDimensions();
+            final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey, defaultDimensions);
             collectionRankWidgets[cardId] = cardWidget;
           }
         }
         
-        final cardHeight = CardDimensions.getUnifiedHeight();
-        final stackOffset = CardDimensions.getUnifiedStackOffset();
-        
-        return SizedBox(
-          height: cardHeight,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: cards.length,
-            itemBuilder: (context, index) {
-              final card = cards[index];
-              if (card == null) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _buildMyHandBlankCardSlot(),
-                );
+        // Use LayoutBuilder to get container width and calculate card dimensions
+        // Auto-rescale cards if they would overflow, maintaining 5:7 aspect ratio
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            // Get container width - prioritize constraints, but ensure we have a value immediately
+            // If constraints are not yet available, use a reasonable default based on screen width
+            double containerWidth;
+            if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
+              containerWidth = constraints.maxWidth;
+            } else {
+              // Fallback: use screen width minus padding as estimate
+              // This ensures we have a value immediately, even if constraints aren't ready
+              final screenWidth = MediaQuery.of(context).size.width;
+              containerWidth = screenWidth > 0 ? screenWidth : 500; // Final fallback
+            }
+            
+            // Get default unified dimensions
+            final defaultDimensions = CardDimensions.getUnifiedDimensions();
+            final defaultCardWidth = defaultDimensions.width; // 70px
+            const cardPadding = 8.0; // Padding between cards
+            const drawnCardExtraPadding = 16.0; // Extra left padding for drawn card
+            
+            // Count non-null cards (excluding blank slots)
+            int nonNullCardCount = 0;
+            bool hasDrawnCard = false;
+            for (var card in cards) {
+              if (card != null) {
+                nonNullCardCount++;
+                final cardMap = card as Map<String, dynamic>;
+                final cardId = cardMap['cardId']?.toString();
+                if (drawnCardId != null && cardId == drawnCardId) {
+                  hasDrawnCard = true;
+                }
               }
+            }
+            
+            // Calculate total width needed with default size
+            // Count total items (cards + blank slots) for padding calculation
+            int totalItems = cards.length;
+            double totalWidthNeeded = 0;
+            for (int i = 0; i < cards.length; i++) {
+              final card = cards[i];
+              if (card != null) {
+                final cardMap = card as Map<String, dynamic>;
+                final cardId = cardMap['cardId']?.toString();
+                final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
+                totalWidthNeeded += defaultCardWidth;
+                if (isDrawnCard) {
+                  totalWidthNeeded += drawnCardExtraPadding;
+                }
+              } else {
+                // Blank slot still takes space
+                totalWidthNeeded += defaultCardWidth;
+              }
+              // Add padding after each item except the last
+              if (i < cards.length - 1) {
+                totalWidthNeeded += cardPadding;
+              }
+            }
+            
+            // Calculate card dimensions - rescale if needed
+            // Add safety margin (8px) to prevent rounding errors and small overflows
+            const safetyMargin = 8.0;
+            Size cardDimensions;
+            if (totalWidthNeeded > (containerWidth - safetyMargin) && nonNullCardCount > 0) {
+              // Need to rescale - calculate new width that fits all cards
+              // Account for padding between all items and drawn card extra padding
+              final totalPadding = (totalItems - 1) * cardPadding;
+              final drawnCardPadding = hasDrawnCard ? drawnCardExtraPadding : 0;
+              final availableWidth = containerWidth - totalPadding - drawnCardPadding - safetyMargin;
+              final newCardWidth = availableWidth / totalItems;
+              
+              // Maintain 5:7 aspect ratio
+              final newCardHeight = newCardWidth / CardDimensions.CARD_ASPECT_RATIO;
+              cardDimensions = Size(newCardWidth, newCardHeight);
+            } else {
+              // Use default unified dimensions
+              cardDimensions = defaultDimensions;
+            }
+            
+            final cardHeight = cardDimensions.height;
+            final stackOffset = CardDimensions.getUnifiedStackOffset();
+            
+            // Build all card widgets with calculated dimensions
+            List<Widget> cardWidgets = [];
+            for (int index = 0; index < cards.length; index++) {
+              final card = cards[index];
+              
+              // Handle null cards (blank slots from same-rank plays)
+              if (card == null) {
+                cardWidgets.add(
+                  Padding(
+                    padding: const EdgeInsets.only(right: cardPadding),
+                    child: _buildMyHandBlankCardSlot(),
+                  ),
+                );
+                continue;
+              }
+              
               final cardMap = card as Map<String, dynamic>;
               final cardId = cardMap['cardId']?.toString();
               final isSelected = index == selectedIndex;
               final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
+              
+              // Check if this card is in cardsToPeek (peeked cards have full data)
               Map<String, dynamic>? peekedCardData;
               if (cardId != null && cardsToPeek.isNotEmpty) {
                 for (var peekedCard in cardsToPeek) {
@@ -1722,6 +1809,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                   }
                 }
               }
+              
+              // Check if this card is in player's collection_rank_cards
               Map<String, dynamic>? collectionRankCardData;
               bool isCollectionRankCard = false;
               if (cardId != null && myCollectionRankCards.isNotEmpty) {
@@ -1733,11 +1822,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                   }
                 }
               }
+              
+              // Determine which data to use (priority: drawn card > peeked card > collection rank card > ID-only hand card)
               final cardDataToUse = isDrawnCard && drawnCard != null 
                   ? drawnCard 
                   : (peekedCardData ?? collectionRankCardData ?? cardMap);
               
+              // If this is a collection rank card, render the stack (only once, at the first collection card)
               if (isCollectionRankCard && collectionRankWidgets.containsKey(cardId)) {
+                // Check if this is the first collection card in the hand
                 bool isFirstCollectionCard = true;
                 for (int i = 0; i < index; i++) {
                   final prevCard = cards[i];
@@ -1749,26 +1842,43 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                     }
                   }
                 }
+                
                 if (isFirstCollectionCard) {
+                  // This is the first collection card, render the entire stack
+                  // Get all collection rank widgets in order
                   List<Widget> orderedCollectionWidgets = [];
                   for (var collectionCard in myCollectionRankCards) {
                     if (collectionCard is Map<String, dynamic>) {
                       final collectionCardId = collectionCard['cardId']?.toString();
                       if (collectionCardId != null && collectionRankWidgets.containsKey(collectionCardId)) {
-                        orderedCollectionWidgets.add(collectionRankWidgets[collectionCardId]!);
+                        // Rebuild collection widgets with new dimensions
+                        final collectionCardKey = _getOrCreateCardKey(collectionCardId, 'my_hand');
+                        final collectionCardWidget = _buildMyHandCardWidget(
+                          collectionCard, 
+                          false, 
+                          false, 
+                          false, 
+                          index, 
+                          collectionCard, 
+                          collectionCardKey,
+                          cardDimensions,
+                        );
+                        orderedCollectionWidgets.add(collectionCardWidget);
                       }
                     }
                   }
-                  final cardDimensions = CardDimensions.getUnifiedDimensions();
+                  
+                  // Stack needs size constraint to render
                   final cardWidth = cardDimensions.width;
-                  final cardHeight = cardDimensions.height;
                   final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
+                  
                   final stackWidget = SizedBox(
                     width: cardWidth,
                     height: stackHeight,
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: orderedCollectionWidgets.asMap().entries.map((entry) {
+                        // Stack cards perfectly on top of each other with offset
                         return Positioned(
                           left: 0,
                           top: entry.key * stackOffset,
@@ -1777,28 +1887,59 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                       }).toList(),
                     ),
                   );
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: stackWidget,
+                  
+                  cardWidgets.add(
+                    Padding(
+                      padding: EdgeInsets.only(
+                        right: cardPadding,
+                        left: isDrawnCard ? drawnCardExtraPadding : 0,
+                      ),
+                      child: stackWidget,
+                    ),
                   );
                 } else {
-                  return const SizedBox.shrink();
+                  // Not the first collection card, skip rendering (already handled in stack)
+                  // Don't add anything to cardWidgets
                 }
+              } else {
+                // Normal card rendering (non-collection rank)
+                if (cardId == null) {
+                  continue;
+                }
+                final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
+                final cardWidget = _buildMyHandCardWidget(
+                  cardDataToUse, 
+                  isSelected, 
+                  isDrawnCard, 
+                  false, 
+                  index, 
+                  cardMap, 
+                  cardKey,
+                  cardDimensions,
+                );
+                
+                cardWidgets.add(
+                  Padding(
+                    padding: EdgeInsets.only(
+                      right: cardPadding,
+                      left: isDrawnCard ? drawnCardExtraPadding : 0,
+                    ),
+                    child: cardWidget,
+                  ),
+                );
               }
-              if (cardId == null) {
-                return const SizedBox.shrink();
-              }
-              final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
-              final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, index, cardMap, cardKey);
-              return Padding(
-                padding: EdgeInsets.only(
-                  right: 8,
-                  left: isDrawnCard ? 16 : 0,
-                ),
-                child: cardWidget,
-              );
-            },
-          ),
+            }
+            
+            return SizedBox(
+              width: containerWidth,
+              height: cardHeight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: cardWidgets,
+              ),
+            );
+          },
         );
       },
     );
@@ -2121,11 +2262,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     );
   }
 
-  Widget _buildMyHandCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey) {
+  Widget _buildMyHandCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey, Size cardDimensions) {
     final cardModel = CardModel.fromMap(card);
     final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
-    final cardDimensions = CardDimensions.getUnifiedDimensions();
     
+    // Use provided cardDimensions (may be rescaled to fit container)
     Widget cardWidget = CardWidget(
       key: cardKey,
       card: updatedCardModel,

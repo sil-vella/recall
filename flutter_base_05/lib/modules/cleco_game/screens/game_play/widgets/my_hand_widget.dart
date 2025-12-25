@@ -530,31 +530,118 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 : (peekedCardData ?? collectionRankCardData);
             
             // Build the collection rank card widget with SAME BUILD PROCESS as normal cards
+            // Use default dimensions here - will be rebuilt with calculated dimensions in LayoutBuilder
             final cardKey = GlobalKey(debugLabel: 'card_$cardId');
-            final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey);
+            final defaultDimensions = CardDimensions.getUnifiedDimensions();
+            final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey, defaultDimensions);
             collectionRankWidgets[cardId] = cardWidget;
           }
         }
         
-        // ListView needs height constraint when inside Column - use exact card height
-        // This constrains the ListView container to match card height exactly
-        final cardHeight = CardDimensions.getUnifiedHeight();
-        final stackOffset = CardDimensions.getUnifiedStackOffset();
-        
-        return SizedBox(
-          height: cardHeight,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: cards.length,
-            itemBuilder: (context, index) {
+        // Use LayoutBuilder to get container width and calculate card dimensions
+        // Auto-rescale cards if they would overflow, maintaining 5:7 aspect ratio
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            // Get container width - prioritize constraints, but ensure we have a value immediately
+            // If constraints are not yet available, use a reasonable default based on screen width
+            double containerWidth;
+            if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
+              containerWidth = constraints.maxWidth;
+            } else {
+              // Fallback: use screen width minus padding as estimate
+              // This ensures we have a value immediately, even if constraints aren't ready
+              final screenWidth = MediaQuery.of(context).size.width;
+              containerWidth = screenWidth > 0 ? screenWidth : 500; // Final fallback
+            }
+            
+            // Get default unified dimensions
+            final defaultDimensions = CardDimensions.getUnifiedDimensions();
+            final defaultCardWidth = defaultDimensions.width; // 70px
+            const cardPadding = 8.0; // Padding between cards
+            const drawnCardExtraPadding = 16.0; // Extra left padding for drawn card
+            
+            // Count non-null cards (excluding blank slots)
+            int nonNullCardCount = 0;
+            bool hasDrawnCard = false;
+            for (var card in cards) {
+              if (card != null) {
+                nonNullCardCount++;
+                final cardMap = card as Map<String, dynamic>;
+                final cardId = cardMap['cardId']?.toString();
+                if (drawnCardId != null && cardId == drawnCardId) {
+                  hasDrawnCard = true;
+                }
+              }
+            }
+            
+            // Calculate total width needed with default size
+            // Count total items (cards + blank slots) for padding calculation
+            int totalItems = cards.length;
+            double totalWidthNeeded = 0;
+            for (int i = 0; i < cards.length; i++) {
+              final card = cards[i];
+              if (card != null) {
+                final cardMap = card as Map<String, dynamic>;
+                final cardId = cardMap['cardId']?.toString();
+                final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
+                totalWidthNeeded += defaultCardWidth;
+                if (isDrawnCard) {
+                  totalWidthNeeded += drawnCardExtraPadding;
+                }
+              } else {
+                // Blank slot still takes space
+                totalWidthNeeded += defaultCardWidth;
+              }
+              // Add padding after each item except the last
+              if (i < cards.length - 1) {
+                totalWidthNeeded += cardPadding;
+              }
+            }
+            
+            // Calculate card dimensions - rescale if needed
+            // Add safety margin (8px) to prevent rounding errors and small overflows
+            const safetyMargin = 8.0;
+            Size cardDimensions;
+            if (totalWidthNeeded > (containerWidth - safetyMargin) && nonNullCardCount > 0) {
+              // Need to rescale - calculate new width that fits all cards
+              // Account for padding between all items and drawn card extra padding
+              final totalPadding = (totalItems - 1) * cardPadding;
+              final drawnCardPadding = hasDrawnCard ? drawnCardExtraPadding : 0;
+              final availableWidth = containerWidth - totalPadding - drawnCardPadding - safetyMargin;
+              final newCardWidth = availableWidth / totalItems;
+              
+              // Maintain 5:7 aspect ratio
+              final newCardHeight = newCardWidth / CardDimensions.CARD_ASPECT_RATIO;
+              cardDimensions = Size(newCardWidth, newCardHeight);
+              
+              _logger.info(
+                'MyHandWidget: Rescaling cards - containerWidth=$containerWidth, '
+                'totalWidthNeeded=$totalWidthNeeded, cardCount=$nonNullCardCount, '
+                'newCardWidth=${cardDimensions.width}, newCardHeight=${cardDimensions.height}',
+                isOn: LOGGING_SWITCH,
+              );
+            } else {
+              // Use default unified dimensions
+              cardDimensions = defaultDimensions;
+            }
+            
+            final cardHeight = cardDimensions.height;
+            final stackOffset = CardDimensions.getUnifiedStackOffset();
+            
+            // Build all card widgets with calculated dimensions
+            List<Widget> cardWidgets = [];
+            for (int index = 0; index < cards.length; index++) {
               final card = cards[index];
               
               // Handle null cards (blank slots from same-rank plays)
               if (card == null) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _buildBlankCardSlot(),
+                cardWidgets.add(
+                  Padding(
+                    padding: const EdgeInsets.only(right: cardPadding),
+                    child: _buildBlankCardSlot(),
+                  ),
                 );
+                continue;
               }
               
               final cardMap = card as Map<String, dynamic>;
@@ -614,15 +701,25 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                     if (collectionCard is Map<String, dynamic>) {
                       final collectionCardId = collectionCard['cardId']?.toString();
                       if (collectionCardId != null && collectionRankWidgets.containsKey(collectionCardId)) {
-                        orderedCollectionWidgets.add(collectionRankWidgets[collectionCardId]!);
+                        // Rebuild collection widgets with new dimensions
+                        final collectionCardKey = GlobalKey(debugLabel: 'collection_card_$collectionCardId');
+                        final collectionCardWidget = _buildCardWidget(
+                          collectionCard, 
+                          false, 
+                          false, 
+                          false, 
+                          index, 
+                          collectionCard, 
+                          collectionCardKey,
+                          cardDimensions,
+                        );
+                        orderedCollectionWidgets.add(collectionCardWidget);
                       }
                     }
                   }
                   
-                  // Stack needs size constraint to render - constrain container, NOT individual cards
-                  final cardDimensions = CardDimensions.getUnifiedDimensions();
+                  // Stack needs size constraint to render
                   final cardWidth = cardDimensions.width;
-                  final cardHeight = cardDimensions.height;
                   final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
                   
                   final stackWidget = SizedBox(
@@ -634,37 +731,62 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                         // Stack cards perfectly on top of each other with offset
                         return Positioned(
                           left: 0,
-                          top: entry.key * stackOffset, // First card at top (0), subsequent cards offset downward
-                          child: entry.value, // CardWidget already has exact dimensions
+                          top: entry.key * stackOffset,
+                          child: entry.value,
                         );
                       }).toList(),
                     ),
                   );
                   
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: stackWidget,
+                  cardWidgets.add(
+                    Padding(
+                      padding: EdgeInsets.only(
+                        right: cardPadding,
+                        left: isDrawnCard ? drawnCardExtraPadding : 0,
+                      ),
+                      child: stackWidget,
+                    ),
                   );
                 } else {
                   // Not the first collection card, skip rendering (already handled in stack)
-                  return const SizedBox.shrink();
+                  // Don't add anything to cardWidgets
                 }
+              } else {
+                // Normal card rendering (non-collection rank)
+                final cardKey = GlobalKey(debugLabel: 'card_$cardId');
+                final cardWidget = _buildCardWidget(
+                  cardDataToUse, 
+                  isSelected, 
+                  isDrawnCard, 
+                  false, 
+                  index, 
+                  cardMap, 
+                  cardKey,
+                  cardDimensions,
+                );
+                
+                cardWidgets.add(
+                  Padding(
+                    padding: EdgeInsets.only(
+                      right: cardPadding,
+                      left: isDrawnCard ? drawnCardExtraPadding : 0,
+                    ),
+                    child: cardWidget,
+                  ),
+                );
               }
-              
-              // Normal card rendering (non-collection rank)
-              // CardWidget already uses exact dimensions from CardDimensions SSOT
-              final cardKey = GlobalKey(debugLabel: 'card_$cardId');
-              final cardWidget = _buildCardWidget(cardDataToUse, isSelected, isDrawnCard, false, index, cardMap, cardKey);
-              
-              return Padding(
-                padding: EdgeInsets.only(
-                  right: 8,
-                  left: isDrawnCard ? 16 : 0, // Extra left margin for drawn card
-                ),
-                child: cardWidget,
-              );
-            },
-          ),
+            }
+            
+            return SizedBox(
+              width: containerWidth,
+              height: cardHeight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: cardWidgets,
+              ),
+            );
+          },
         );
       },
     );
@@ -1069,14 +1191,12 @@ class _MyHandWidgetState extends State<MyHandWidget> {
 
 
   /// Build card widget with optional drawn card glow and collection rank border
-  Widget _buildCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey) {
+  Widget _buildCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey, Size cardDimensions) {
     // Convert to CardModel
     final cardModel = CardModel.fromMap(card);
     final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
     
-    // Size determined at widget level using CardDimensions
-    final cardDimensions = CardDimensions.getUnifiedDimensions();
-    
+    // Use provided cardDimensions (may be rescaled to fit container)
     Widget cardWidget = CardWidget(
       key: cardKey,
       card: updatedCardModel,

@@ -268,26 +268,36 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
-    return Stack(
-      key: _mainStackKey,
-      clipBehavior: Clip.none,
-      children: [
-        // Main game content
-        SingleChildScrollView(
-          padding: EdgeInsets.zero,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Game Information Widget
-              const GameInfoWidget(),
-              
-              SizedBox(height: AppPadding.smallPadding.top),
-              
-              // Unified Game Board Widget (combines OpponentsPanel, GameBoard, and MyHand)
-              const UnifiedGameBoardWidget(),
-            ],
-          ),
-        ),
+    _logger.info('GamePlayScreen: buildContent called', isOn: LOGGING_SWITCH);
+    
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _logger.info(
+          'GamePlayScreen: LayoutBuilder - maxHeight=${constraints.maxHeight}, '
+          'maxWidth=${constraints.maxWidth}',
+          isOn: LOGGING_SWITCH,
+        );
+        
+        return Stack(
+          key: _mainStackKey,
+          clipBehavior: Clip.none,
+          children: [
+            // Main game content - takes full size of content area
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Game Information Widget - takes natural height
+                const GameInfoWidget(),
+                
+                SizedBox(height: AppPadding.smallPadding.top),
+                
+                // Unified Game Board Widget - takes all remaining available space
+                // It will be scrollable internally with my hand aligned to bottom
+                Expanded(
+                  child: const UnifiedGameBoardWidget(),
+                ),
+              ],
+            ),
         
         // Card Animation Layer - full-screen overlay for animated cards
         CardAnimationLayer(stackKey: _mainStackKey),
@@ -295,9 +305,11 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
         // Instructions Modal Widget - handles its own state subscription
         const InstructionsWidget(),
         
-        // Messages Modal Widget - handles its own state subscription
-        const MessagesWidget(),
-      ],
+            // Messages Modal Widget - handles its own state subscription
+            const MessagesWidget(),
+          ],
+        );
+      },
     );
   }
 }

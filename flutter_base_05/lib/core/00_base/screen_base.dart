@@ -3,17 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../managers/app_manager.dart';
 import '../managers/module_manager.dart';
-import '../managers/navigation_manager.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
 import '../widgets/feature_slot.dart';
 import '../../modules/cleco_game/managers/feature_contracts.dart';
 import '../../modules/cleco_game/managers/feature_registry_manager.dart';
 import '../widgets/state_aware_features/index.dart';
-import '../managers/websockets/websocket_manager.dart';
-import '../managers/websockets/websocket_events.dart';
-import 'dart:async';
+import '../../tools/logging/logger.dart';
 // Note: Do not import cleco game types here to keep BaseScreen generic.
+
+const bool LOGGING_SWITCH = false; // Enabled for debugging layout issues
 
 abstract class BaseScreen extends StatefulWidget {
   const BaseScreen({Key? key}) : super(key: key);
@@ -59,9 +58,7 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
   late final AppManager appManager;
   final ModuleManager _moduleManager = ModuleManager();
   BannerAdModule? bannerAdModule;
-  
-  // WebSocket connection monitoring for global features
-  StreamSubscription<ConnectionStatusEvent>? _connectionSubscription;
+  final Logger _logger = Logger();
 
   /// Get the scope key for this screen's feature registry
   String get featureScopeKey => widget.runtimeType.toString();
@@ -387,7 +384,6 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
 
   @override
   Widget build(BuildContext context) {
-    final navigationManager = Provider.of<NavigationManager>(context);
     final appBar = widget.getAppBar(context) ?? AppBar(
       title: Text(
         widget.computeTitle(context),
@@ -448,54 +444,74 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
             // ),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              return SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight,
-                    maxHeight: double.infinity,
+              // Account for snack bar height (typically 48-56px, using 56px for safety)
+              // Also account for system bottom padding (safe area)
+              const snackBarHeight = 56.0;
+              final bottomPadding = MediaQuery.of(context).padding.bottom;
+              final totalBottomSpace = snackBarHeight + bottomPadding;
+              
+              // Calculate banner heights
+              final topBannerHeight = bannerAdModule != null ? 50.0 : 0.0;
+              final bottomBannerHeight = bannerAdModule != null ? 50.0 : 0.0;
+              
+              _logger.info(
+                'BaseScreen LayoutBuilder: maxHeight=${constraints.maxHeight}, '
+                'maxWidth=${constraints.maxWidth}, bottomPadding=$bottomPadding, '
+                'totalBottomSpace=$totalBottomSpace, bannerAdModule=${bannerAdModule != null}',
+                isOn: LOGGING_SWITCH,
+              );
+              
+              return Column(
+                mainAxisSize: MainAxisSize.max,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Global header slot at the top (fixed, takes natural height)
+                  // Nothing behind it - this takes its space
+                  FeatureSlot(
+                    scopeKey: widget.runtimeType.toString(),
+                    slotId: 'header',
+                    title: 'Notices',
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Global header slot, rendered just under the AppBar
-                      FeatureSlot(
-                        scopeKey: widget.runtimeType.toString(),
-                        slotId: 'header',
-                        title: 'Notices',
+
+                  // Top banner (fixed)
+                  if (bannerAdModule != null)
+                    SizedBox(
+                      height: topBannerHeight,
+                      child: Center(
+                        child: bannerAdModule!.getTopBannerWidget(context),
                       ),
+                    ),
 
-                      if (bannerAdModule != null)
-                        SizedBox(
-                          height: 50,
-                          child: Center(
-                            child: bannerAdModule!.getTopBannerWidget(context),
-                          ),
-                        ),
-
-                      SizedBox(
-                        height: constraints.maxHeight - (bannerAdModule != null ? 100 : 0),
-                        child: SingleChildScrollView(
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: constraints.maxHeight - (bannerAdModule != null ? 100 : 0),
-                            ),
-                            child: buildContent(context),
-                          ),
-                        ),
-                      ),
-
-                      if (bannerAdModule != null)
-                        SizedBox(
-                          height: 50,
-                          child: Center(
-                            child: bannerAdModule!.getBottomBannerWidget(context),
-                          ),
-                        ),
-                    ],
+                  // Main content area - takes ALL remaining space
+                  // This is the middle part for content, all that is available
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, contentConstraints) {
+                        _logger.info(
+                          'BaseScreen: Content area for ${widget.runtimeType}, '
+                          'contentConstraints.maxHeight=${contentConstraints.maxHeight}, '
+                          'contentConstraints.maxWidth=${contentConstraints.maxWidth}',
+                          isOn: LOGGING_SWITCH,
+                        );
+                        // Pass full constraints to content - screens take full size
+                        return buildContent(context);
+                      },
+                    ),
                   ),
-                ),
+
+                  // Bottom banner (fixed)
+                  if (bannerAdModule != null)
+                    SizedBox(
+                      height: bottomBannerHeight,
+                      child: Center(
+                        child: bannerAdModule!.getBottomBannerWidget(context),
+                      ),
+                    ),
+                  
+                  // Reserved space at the bottom for snack bars (fixed)
+                  // Nothing behind it - this takes its space
+                  SizedBox(height: totalBottomSpace),
+                ],
               );
             },
           ),

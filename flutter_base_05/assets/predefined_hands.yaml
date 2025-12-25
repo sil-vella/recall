@@ -6,13 +6,13 @@ enabled: true
 # Players are indexed: 0 = first player (human in practice), 1+ = computer players
 hands:
   player_0:  # Human player in practice, first player in backend
-    - rank: "jack"
-      suit: "hearts"
-    - rank: "2"
-      suit: "diamonds"
-    - rank: "3"
-      suit: "clubs"
     - rank: "ace"
+      suit: "hearts"
+    - rank: "3"
+      suit: "diamonds"
+    - rank: "queen"
+      suit: "clubs"
+    - rank: "jack"
       suit: "spades"
   
   player_1:  # First computer player (no jacks - only player_0 has jack)
@@ -39,7 +39,7 @@ hands:
     - rank: "king"
       suit: "clubs"
     - rank: "jack"
-      suit: "spades"
+      suit: "hearts"
     - rank: "4"
       suit: "diamonds"
     - rank: "ace"

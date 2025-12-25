@@ -490,10 +490,10 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
           
           // Show empty slot at index 4 (where drawn card was, during its animation)
           if (hideDrawnCardAtOriginalPosition) {
-            return Padding(
-              padding: EdgeInsets.only(
-                right: index < cardsToShow.length - 1 ? spacing : 0,
-              ),
+          return Padding(
+            padding: EdgeInsets.only(
+              right: index < cardsToShow.length - 1 ? spacing : 0,
+            ),
               child: _buildEmptySlot(),
             );
           }
@@ -502,12 +502,12 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
           final cardToDisplay = isPlayedCard && _animationPhase >= 1
               ? CardModel.fromMap(_playedCard) // Show actual card (7 of Hearts) when animation starts
               : (isDrawnCard && _drawnCardFlipped
-                  ? CardModel(
-                      cardId: _drawnCard['cardId'],
-                      rank: '?',
-                      suit: '?',
-                      points: 0,
-                    )
+                        ? CardModel(
+                            cardId: _drawnCard['cardId'],
+                            rank: '?',
+                            suit: '?',
+                            points: 0,
+                          )
                   : cardModel);
           
           return Padding(
@@ -517,10 +517,10 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
             child: CardWidget(
               key: cardKey ?? drawnCardKey,
               card: cardToDisplay,
-              dimensions: cardDimensions,
-              config: CardDisplayConfig.forMyHand(),
-              showBack: !isFaceUp || (isDrawnCard && _drawnCardFlipped), // Show back if card data is hidden or flipped
-            ),
+                    dimensions: cardDimensions,
+                    config: CardDisplayConfig.forMyHand(),
+                    showBack: !isFaceUp || (isDrawnCard && _drawnCardFlipped), // Show back if card data is hidden or flipped
+                  ),
           );
         });
         
@@ -543,7 +543,7 @@ class _PlayingCardDemonstrationWidgetState extends State<PlayingCardDemonstratio
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: cardWidgets,
                   ),
-                ),
+      ),
         );
       },
     );

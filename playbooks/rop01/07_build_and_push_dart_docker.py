@@ -34,7 +34,7 @@ def disable_logging_switch() -> None:
     print(f"\n{Colors.BLUE}Disabling LOGGING_SWITCH in Dart sources...{Colors.NC}")
     replaced_files = 0
     replaced_occurrences = 0
-    
+
     # Predefined variable value to avoid accidentally replacing other 'true' values
     logging_switch_variable_value = "true"
 

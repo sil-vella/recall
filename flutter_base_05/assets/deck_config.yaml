@@ -78,7 +78,7 @@ standard_deck:
       quantity_total: 2
       suit: "joker"
 
-# Testing deck configuration (modified for easier testing - reduced to 20 cards for reshuffle testing)
+# Testing deck configuration (same as standard deck for now)
 testing_deck:
   suits:
     - hearts
@@ -103,9 +103,37 @@ testing_deck:
       points: 4
       special_power: null
       quantity_per_suit: 1
+    "5":
+      points: 5
+      special_power: null
+      quantity_per_suit: 1
+    "6":
+      points: 6
+      special_power: null
+      quantity_per_suit: 1
+    "7":
+      points: 7
+      special_power: null
+      quantity_per_suit: 1
+    "8":
+      points: 8
+      special_power: null
+      quantity_per_suit: 1
+    "9":
+      points: 9
+      special_power: null
+      quantity_per_suit: 1
+    "10":
+      points: 10
+      special_power: null
+      quantity_per_suit: 1
     jack:
       points: 10
       special_power: "switch_cards"
+      quantity_per_suit: 1
+    queen:
+      points: 10
+      special_power: "peek_at_card"
       quantity_per_suit: 1
     king:
       points: 10
@@ -116,7 +144,7 @@ testing_deck:
     joker:
       points: 0
       special_power: null
-      quantity_total: 0  # No jokers for smaller deck
+      quantity_total: 2
       suit: "joker"
 
 # Card display symbols and names
@@ -164,9 +192,8 @@ deck_stats:
     special_cards: 8  # 4 queens + 4 jacks
   
   testing:
-    total_cards: 24
+    total_cards: 54
     suits: 4
-    special_cards: 4  # 4 jacks (one per suit)
-    numbered_cards: 16  # 2, 3, 4 of each suit (3×4 = 12) + ace counts as numbered
-    face_cards: 4  # 4 kings
-    jokers: 0
+    ranks_per_suit: 13
+    jokers: 2
+    special_cards: 8  # 4 queens + 4 jacks

@@ -382,9 +382,31 @@ class GameEventCoordinator {
       }
     }
 
+    // Extract showInstructions from data (practice mode) or default to false
+    // This is extracted early so we can use it for deck selection
+    final showInstructions = data['showInstructions'] as bool? ?? false;
+    
     // Build deck and deal 4 cards per player (as in practice)
-    // Use YamlDeckFactory to respect testing_mode setting from YAML config
-    final deckFactory = await YamlDeckFactory.fromFile(roomId, DECK_CONFIG_PATH);
+    // In practice mode: showInstructions=true uses test deck, showInstructions=false uses standard deck
+    // For multiplayer games, use YAML config default
+    final bool? testingModeOverride;
+    if (showInstructions) {
+      // Instructions ON → use test deck (testing_mode = true)
+      testingModeOverride = true;
+      _logger.info('GameEventCoordinator: Practice mode with instructions ON - using test deck', isOn: LOGGING_SWITCH);
+    } else {
+      // Instructions OFF → use standard deck (testing_mode = false)
+      // Only override for practice mode (when showInstructions is explicitly set)
+      // For multiplayer, use YAML config default (null = no override)
+      testingModeOverride = data.containsKey('showInstructions') ? false : null;
+      if (testingModeOverride != null) {
+        _logger.info('GameEventCoordinator: Practice mode with instructions OFF - using standard deck', isOn: LOGGING_SWITCH);
+      } else {
+        _logger.info('GameEventCoordinator: Multiplayer mode - using YAML config default deck', isOn: LOGGING_SWITCH);
+      }
+    }
+    
+    final deckFactory = await YamlDeckFactory.fromFile(roomId, DECK_CONFIG_PATH, testingModeOverride: testingModeOverride);
     final List<Card> fullDeck = deckFactory.buildDeck();
     
     _logger.info('GameEventCoordinator: Built deck with ${fullDeck.length} cards (testing_mode: ${deckFactory.getSummary()['testing_mode']})', isOn: LOGGING_SWITCH);
@@ -408,9 +430,50 @@ class GameEventCoordinator {
     };
 
     // Load predefined hands configuration if available
+    // Predefined hands are only enabled when instructions are ON (for learning/testing)
     final predefinedHandsLoader = PredefinedHandsLoader();
     final predefinedHandsConfig = await predefinedHandsLoader.loadConfig();
-    final usePredefinedHands = predefinedHandsConfig['enabled'] == true;
+    bool usePredefinedHands = predefinedHandsConfig['enabled'] == true && showInstructions;
+    
+    if (usePredefinedHands) {
+      _logger.info('GameEventCoordinator: Predefined hands enabled (instructions ON)', isOn: LOGGING_SWITCH);
+    } else if (predefinedHandsConfig['enabled'] == true && !showInstructions) {
+      _logger.info('GameEventCoordinator: Predefined hands disabled (instructions OFF)', isOn: LOGGING_SWITCH);
+    }
+    
+    // Validate predefined hands compatibility with current deck
+    if (usePredefinedHands) {
+      // Get all ranks available in the current deck
+      final availableRanks = fullDeck.map((card) => card.rank).toSet();
+      
+      // Check if all predefined hands use only cards that exist in the current deck
+      final hands = predefinedHandsConfig['hands'] as Map<dynamic, dynamic>?;
+      if (hands != null) {
+        bool allCardsCompatible = true;
+        for (final playerHand in hands.values) {
+          if (playerHand is List) {
+            for (final cardSpec in playerHand) {
+              if (cardSpec is Map) {
+                final rank = cardSpec['rank']?.toString();
+                if (rank != null && !availableRanks.contains(rank)) {
+                  allCardsCompatible = false;
+                  _logger.warning('GameEventCoordinator: Predefined hands contain card ($rank) not in current deck - disabling predefined hands', isOn: LOGGING_SWITCH);
+                  break;
+                }
+              }
+            }
+            if (!allCardsCompatible) break;
+          }
+        }
+        
+        if (!allCardsCompatible) {
+          usePredefinedHands = false;
+          _logger.info('GameEventCoordinator: Predefined hands incompatible with current deck - falling back to random dealing', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.info('GameEventCoordinator: Predefined hands validated - compatible with current deck (testing_mode: ${deckFactory.getSummary()['testing_mode']})', isOn: LOGGING_SWITCH);
+        }
+      }
+    }
     
     if (usePredefinedHands) {
       _logger.info('GameEventCoordinator: Predefined hands enabled - using predefined hands for dealing', isOn: LOGGING_SWITCH);
@@ -503,8 +566,7 @@ class GameEventCoordinator {
     // Remaining draw pile as ID-only card maps (matches cleco game format)
     final drawPileIds = drawStack.map((c) => _cardToIdOnly(c)).toList();
 
-    // Extract showInstructions from data (practice mode) or default to false
-    final showInstructions = data['showInstructions'] as bool? ?? false;
+    // showInstructions was already extracted earlier for deck selection
     
     // Get turnTimeLimit from room config (reuse roomInfo from earlier in method)
     final turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;

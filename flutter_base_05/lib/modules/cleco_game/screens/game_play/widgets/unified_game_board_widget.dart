@@ -83,7 +83,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
             // Get the viewport height from MediaQuery
             final viewportHeight = MediaQuery.of(context).size.height;
             final appBarHeight = MediaQuery.of(context).padding.top + kToolbarHeight;
-            final availableHeight = viewportHeight - appBarHeight;
+            
+            // Account for snack bar height (typically 48-56px, using 56px for safety)
+            // Also account for system bottom padding (safe area)
+            const snackBarHeight = 56.0;
+            final bottomPadding = MediaQuery.of(context).padding.bottom;
+            final totalBottomSpace = snackBarHeight + bottomPadding;
+            
+            // Available height accounts for both app bar and bottom space (snack bar + safe area)
+            // This ensures my hand is positioned higher to account for snack bar
+            final availableHeight = viewportHeight - appBarHeight - totalBottomSpace;
             
             return ConstrainedBox(
               constraints: BoxConstraints(
@@ -95,11 +104,18 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                   // Opponents Panel Section - at the top
                   _buildOpponentsPanel(),
                   
-                  // Game Board Section - centered vertically between opponents and my hand
-                  _buildGameBoard(),
-                  
-                  // My Hand Section - aligned to bottom
-                  _buildMyHand(),
+                  // Game Board and My Hand grouped together at the bottom
+                  // Game board sits directly on top of my hand
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Game Board Section - sits directly above my hand
+                      _buildGameBoard(),
+                      
+                      // My Hand Section - at the bottom
+                      _buildMyHand(),
+                    ],
+                  ),
                 ],
               ),
             );

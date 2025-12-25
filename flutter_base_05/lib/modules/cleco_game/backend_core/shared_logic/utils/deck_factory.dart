@@ -194,9 +194,13 @@ class YamlDeckFactory {
   YamlDeckFactory(this.gameId, this.config);
 
   /// Create factory from YAML file
-  static Future<YamlDeckFactory> fromFile(String gameId, String configPath) async {
+  /// [testingModeOverride] if provided, overrides the testing_mode from YAML config
+  static Future<YamlDeckFactory> fromFile(String gameId, String configPath, {bool? testingModeOverride}) async {
     final config = await DeckConfig.fromFile(configPath);
-    return YamlDeckFactory(gameId, config);
+    final finalConfig = testingModeOverride != null 
+        ? config.withTestingMode(testingModeOverride)
+        : config;
+    return YamlDeckFactory(gameId, finalConfig);
   }
 
   /// Create factory from YAML string

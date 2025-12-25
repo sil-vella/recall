@@ -376,10 +376,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
             icon: Icons.flash_on,
             initiallyExpanded: true,
             child: JoinRandomGameWidget(
-              onJoinRandomGame: () {
-                // Callback after successful random game join
-              },
-            ),
+            onJoinRandomGame: () {
+              // Callback after successful random game join
+            },
+          ),
           ),
           
           // Practice Match Section (Collapsible)
@@ -387,8 +387,8 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
             title: 'Practice Match',
             icon: Icons.school,
             child: PracticeMatchWidget(
-              onStartPractice: _startPracticeMatch,
-            ),
+            onStartPractice: _startPracticeMatch,
+          ),
           ),
           
           // Create and Join Room Section (Collapsible)
@@ -396,11 +396,11 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
             title: 'Create & Join Room',
             icon: Icons.group_add,
             child: CreateJoinGameWidget(
-              onCreateRoom: _createRoom,
-              onJoinRoom: () {
-                // Callback after successful join request
-              },
-            ),
+            onCreateRoom: _createRoom,
+            onJoinRoom: () {
+              // Callback after successful join request
+            },
+          ),
           ),
           
           // Current Room Section (Collapsible)
@@ -408,7 +408,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
             title: 'Current Rooms',
             icon: Icons.meeting_room,
             child: CurrentRoomWidget(
-              onJoinRoom: _joinRoom,
+            onJoinRoom: _joinRoom,
             ),
           ),
         ],

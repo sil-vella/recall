@@ -238,6 +238,18 @@ class DeckConfig {
     };
   }
   
+  /// Create a copy of this config with modified testing_mode
+  DeckConfig withTestingMode(bool testingMode) {
+    final modifiedConfig = Map<String, dynamic>.from(_config);
+    if (!modifiedConfig.containsKey('deck_settings')) {
+      modifiedConfig['deck_settings'] = <String, dynamic>{};
+    }
+    final deckSettings = Map<String, dynamic>.from(modifiedConfig['deck_settings'] as Map);
+    deckSettings['testing_mode'] = testingMode;
+    modifiedConfig['deck_settings'] = deckSettings;
+    return DeckConfig(modifiedConfig);
+  }
+
   /// Get configuration summary
   Map<String, dynamic> getSummary() {
     final stats = currentDeckStats;

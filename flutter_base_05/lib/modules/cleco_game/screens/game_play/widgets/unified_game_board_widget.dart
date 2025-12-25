@@ -1013,9 +1013,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
     _logger.info('UnifiedGameBoardWidget: Current player ID: $currentPlayerId, status: $currentPlayerStatus', isOn: LOGGING_SWITCH);
     
+    // Get current user ID to check if current player is the app user
+    final currentUserId = _getCurrentUserId();
+    final isCurrentUser = currentPlayerId == currentUserId;
+    
     // Get player name from currentPlayer data (same source as opponents widget)
-    final playerName = currentPlayerData?['name']?.toString() ?? 'You';
-    _logger.info('UnifiedGameBoardWidget: Player name: $playerName', isOn: LOGGING_SWITCH);
+    // If it's the current user, show "Your Turn" instead
+    final displayText = isCurrentUser ? 'Your Turn' : (currentPlayerData?['name']?.toString() ?? 'You');
+    _logger.info('UnifiedGameBoardWidget: Player name: $displayText (isCurrentUser: $isCurrentUser)', isOn: LOGGING_SWITCH);
     
     if (currentPlayerData == null) {
       _logger.warning('UnifiedGameBoardWidget: Current player data not found in clecoGameState', isOn: LOGGING_SWITCH);
@@ -1026,21 +1031,23 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Player username
+          // Player username or "Your Turn" - always use accent color
           Text(
-            playerName,
+            displayText,
             style: AppTextStyles.headingMedium().copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: AppColors.accentColor,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
-          // Status chip - uses playerId to get status from state
-          PlayerStatusChip(
-            playerId: currentPlayerId,
-            size: PlayerStatusChipSize.medium,
-          ),
+          // Status chip - only show if NOT the current user
+          if (!isCurrentUser) ...[
+            const SizedBox(height: 8),
+            PlayerStatusChip(
+              playerId: currentPlayerId,
+              size: PlayerStatusChipSize.medium,
+            ),
+          ],
         ],
       ),
     );

@@ -107,7 +107,7 @@ class VersionCheckService extends ServicesBase {
     // Get current app version once
     final currentVersion = await getCurrentAppVersion();
     _logger.info('VersionCheck: Starting version check (current version: $currentVersion)', isOn: LOGGING_SWITCH);
-    
+      
     final route = '/public/check-updates?current_version=$currentVersion';
     int attempt = 0;
     
@@ -115,23 +115,23 @@ class VersionCheckService extends ServicesBase {
       attempt++;
       try {
         _logger.info('VersionCheck: Attempt $attempt of $maxRetries', isOn: LOGGING_SWITCH);
-        
-        // Call API to get server version with current version as query parameter
-        final response = await apiModule.sendGetRequest(route);
-        
-        if (response == null || response is! Map<String, dynamic>) {
+      
+      // Call API to get server version with current version as query parameter
+      final response = await apiModule.sendGetRequest(route);
+      
+      if (response == null || response is! Map<String, dynamic>) {
           _logger.warning('VersionCheck: Invalid API response (attempt $attempt)', isOn: LOGGING_SWITCH);
           if (attempt < maxRetries) {
             _logger.info('VersionCheck: Retrying in $retryDelay seconds...', isOn: LOGGING_SWITCH);
             await Future.delayed(Duration(seconds: retryDelay));
             continue;
           }
-          return {
-            'success': false,
-            'error': 'Invalid API response',
-            'current_version': currentVersion,
-          };
-        }
+        return {
+          'success': false,
+          'error': 'Invalid API response',
+          'current_version': currentVersion,
+        };
+      }
         
         // Check if response indicates connection error (should retry)
         final errorMessage = response['error']?.toString() ?? '';
@@ -146,54 +146,54 @@ class VersionCheckService extends ServicesBase {
           await Future.delayed(Duration(seconds: retryDelay));
           continue;
         }
-        
-        if (response['success'] != true) {
-          _logger.warning('VersionCheck: API returned error: ${response['error']}', isOn: LOGGING_SWITCH);
-          return {
-            'success': false,
-            'error': response['error'] ?? 'Unknown error',
-            'current_version': currentVersion,
-          };
-        }
-        
-        final serverVersion = response['server_version']?.toString() ?? response['current_version']?.toString() ?? response['latest_version']?.toString();
-        if (serverVersion == null) {
-          _logger.warning('VersionCheck: No version in API response', isOn: LOGGING_SWITCH);
-          return {
-            'success': false,
-            'error': 'No version in API response',
-            'current_version': currentVersion,
-          };
-        }
-        
-        _logger.info('VersionCheck: Server version: $serverVersion (succeeded on attempt $attempt)', isOn: LOGGING_SWITCH);
-        
-        // Extract update information from API response
-        final updateAvailable = response['update_available'] == true;
-        final updateRequired = response['update_required'] == true;
-        final downloadLink = response['download_link']?.toString() ?? '';
-        
-        _logger.info('VersionCheck: Update available: $updateAvailable, Update required: $updateRequired', isOn: LOGGING_SWITCH);
-        if (downloadLink.isNotEmpty) {
-          _logger.info('VersionCheck: Download link: $downloadLink', isOn: LOGGING_SWITCH);
-        }
-        
-        // Save last checked version
-        await saveLastCheckedVersion(currentVersion);
-        
+      
+      if (response['success'] != true) {
+        _logger.warning('VersionCheck: API returned error: ${response['error']}', isOn: LOGGING_SWITCH);
         return {
-          'success': true,
+          'success': false,
+          'error': response['error'] ?? 'Unknown error',
           'current_version': currentVersion,
-          'server_version': serverVersion,
-          'update_available': updateAvailable,
-          'update_required': updateRequired,
-          'download_link': downloadLink,
-          'last_checked': DateTime.now().toIso8601String(),
-          'app_id': response['app_id'],
-          'app_name': response['app_name'],
         };
-        
-      } catch (e) {
+      }
+      
+      final serverVersion = response['server_version']?.toString() ?? response['current_version']?.toString() ?? response['latest_version']?.toString();
+      if (serverVersion == null) {
+        _logger.warning('VersionCheck: No version in API response', isOn: LOGGING_SWITCH);
+        return {
+          'success': false,
+          'error': 'No version in API response',
+          'current_version': currentVersion,
+        };
+      }
+      
+        _logger.info('VersionCheck: Server version: $serverVersion (succeeded on attempt $attempt)', isOn: LOGGING_SWITCH);
+      
+      // Extract update information from API response
+      final updateAvailable = response['update_available'] == true;
+      final updateRequired = response['update_required'] == true;
+      final downloadLink = response['download_link']?.toString() ?? '';
+      
+      _logger.info('VersionCheck: Update available: $updateAvailable, Update required: $updateRequired', isOn: LOGGING_SWITCH);
+      if (downloadLink.isNotEmpty) {
+        _logger.info('VersionCheck: Download link: $downloadLink', isOn: LOGGING_SWITCH);
+      }
+      
+      // Save last checked version
+      await saveLastCheckedVersion(currentVersion);
+      
+      return {
+        'success': true,
+        'current_version': currentVersion,
+        'server_version': serverVersion,
+        'update_available': updateAvailable,
+        'update_required': updateRequired,
+        'download_link': downloadLink,
+        'last_checked': DateTime.now().toIso8601String(),
+        'app_id': response['app_id'],
+        'app_name': response['app_name'],
+      };
+      
+    } catch (e) {
         _logger.error('VersionCheck: Error on attempt $attempt: $e', isOn: LOGGING_SWITCH);
         
         // Check if it's a connection-related error that we should retry
@@ -210,12 +210,12 @@ class VersionCheckService extends ServicesBase {
         }
         
         // If not a connection error or max retries reached, return error
-        return {
-          'success': false,
-          'error': e.toString(),
+      return {
+        'success': false,
+        'error': e.toString(),
           'current_version': currentVersion,
-        };
-      }
+      };
+    }
     }
     
     // If we get here, all retries failed

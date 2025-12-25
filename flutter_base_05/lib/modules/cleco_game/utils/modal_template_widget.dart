@@ -126,39 +126,39 @@ class ModalTemplateWidget extends StatelessWidget {
       child: Center(
         child: Material(
           color: Colors.transparent, // Transparent Material to avoid theme interference
-          child: Container(
+        child: Container(
             margin: modalMargin,
             width: modalWidth,
             height: modalHeight,
-            constraints: BoxConstraints(
+          constraints: BoxConstraints(
               maxWidth: modalWidth,
               maxHeight: modalHeight,
-            ),
-            decoration: BoxDecoration(
+          ),
+          decoration: BoxDecoration(
               color: modalBackgroundColor, // Use white card background for better text visibility
               borderRadius: AppBorderRadius.largeRadius,
-              boxShadow: [
-                BoxShadow(
+            boxShadow: [
+              BoxShadow(
                   color: AppColors.black.withOpacity(AppOpacity.shadow),
                   blurRadius: AppSizes.shadowBlur,
                   offset: AppSizes.shadowOffset,
-                ),
-              ],
-            ),
-            child: Column(
+              ),
+            ],
+          ),
+          child: Column(
               mainAxisSize: MainAxisSize.max,
-              children: [
-                // Header (optional)
-                if (showHeader) _buildHeader(context),
-                
+            children: [
+              // Header (optional)
+              if (showHeader) _buildHeader(context),
+              
                 // Content area - use Expanded to take all available space
                 Expanded(
-                  child: _buildContent(context),
-                ),
-                
+                child: _buildContent(context),
+              ),
+              
                 // Footer (optional) - always visible and tappable
-                if (showFooter) _buildFooter(context),
-              ],
+              if (showFooter) _buildFooter(context),
+            ],
             ),
           ),
         ),

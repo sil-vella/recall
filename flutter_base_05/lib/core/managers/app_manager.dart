@@ -84,13 +84,14 @@ class AppManager extends ChangeNotifier {
         // Mark app as initialized in HooksManager to process pending hooks
         _hooksManager.markAppInitialized();
         
-        // Check for app updates (non-blocking, fire-and-forget)
-        _checkForAppUpdates(context);
-        
       } catch (e) {
         rethrow;
       }
     }
+    
+    // Always check for app updates on every app start (not just first initialization)
+    // This ensures version check runs even if app was previously initialized
+    _checkForAppUpdates(context);
   }
   
   /// Check for app updates after initialization (non-blocking)

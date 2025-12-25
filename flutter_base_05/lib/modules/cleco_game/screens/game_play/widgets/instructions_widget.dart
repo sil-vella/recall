@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
+import '../../../../../core/managers/navigation_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../utils/modal_template_widget.dart';
 import '../../../../../utils/consts/theme_consts.dart';
@@ -102,33 +103,47 @@ class InstructionsWidget extends StatelessWidget {
   }
 
   /// Show the instructions modal with checkbox for "don't show again"
+  /// Uses root navigator to be independent of screen constraints
   void _showInstructionsModal(BuildContext context, String title, String content, String? instructionKey, bool isInitial, bool hasDemonstration) {
     // Get status color for this instruction key
     final headerColor = _getStatusColorForInstructionKey(instructionKey);
     
+    // Get root navigator context - independent of screen constraints
+    final navigationManager = NavigationManager();
+    final rootNavigator = navigationManager.navigatorKey.currentContext;
+    
+    // Use root context if available, otherwise fall back to provided context
+    final dialogContext = rootNavigator ?? context;
+    
+    _logger.info('InstructionsWidget: Showing modal with rootNavigator=${rootNavigator != null}', isOn: LOGGING_SWITCH);
+    
     // Use a StatefulBuilder to manage checkbox state
+    // Use root navigator to ensure modal is independent of screen constraints
     showDialog(
-      context: context,
+      context: dialogContext,
       barrierDismissible: true,
-      builder: (BuildContext dialogContext) {
+      useRootNavigator: true, // Always use root navigator for independence
+      barrierColor: AppColors.black.withOpacity(AppOpacity.barrier), // Ensure barrier is visible
+      builder: (BuildContext builderContext) {
         bool dontShowAgain = isInitial; // Initial message auto-checks the box
         
         return StatefulBuilder(
           builder: (context, setState) {
             return ModalTemplateWidget(
-      title: title,
-      content: content,
-      icon: Icons.help_outline,
+              title: title,
+              content: content,
+              icon: Icons.help_outline,
               showCloseButton: false, // Remove X button in header
               showFooter: false, // Remove default footer
               backgroundColor: AppColors.card, // Use white card background for better text visibility
               textColor: AppColors.textOnCard, // Use text color for card backgrounds
               headerColor: headerColor, // Use status color for header title and border
+              fullScreen: true, // Use full screen for independence from screen constraints
               customContent: Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: MainAxisSize.max, // Use max to fill available space
                 children: [
-                  // Scrollable content area (demonstration + text)
-                  Flexible(
+                  // Scrollable content area (demonstration + text) - takes all available space
+                  Expanded(
                     child: SingleChildScrollView(
                       padding: EdgeInsets.only(
                         top: AppPadding.defaultPadding.top,
@@ -148,36 +163,36 @@ class InstructionsWidget extends StatelessWidget {
                                 color: AppColors.cardVariant,
                                 borderRadius: AppBorderRadius.mediumRadius,
                               ),
-                      child: instructionKey == 'initial_peek'
-                          ? const InitialPeekDemonstrationWidget()
-                          : instructionKey == 'drawing_card'
-                              ? const DrawingCardDemonstrationWidget()
-                              : instructionKey == 'playing_card'
-                                  ? const PlayingCardDemonstrationWidget()
-                                  : instructionKey == 'queen_peek'
-                                      ? const QueenPeekDemonstrationWidget()
-                                      : instructionKey == 'jack_swap'
-                                          ? const JackSwapDemonstrationWidget()
-                                          : instructionKey == 'same_rank_window'
-                                              ? const SameRankWindowDemonstrationWidget()
-                                              : instructionKey == 'collection_card'
-                                                  ? const CollectionCardDemonstrationWidget()
-                                                  : const SizedBox(
-                                                      height: 150, // Placeholder for other demonstrations
-                                                    ),
+                              child: instructionKey == 'initial_peek'
+                                  ? const InitialPeekDemonstrationWidget()
+                                  : instructionKey == 'drawing_card'
+                                      ? const DrawingCardDemonstrationWidget()
+                                      : instructionKey == 'playing_card'
+                                          ? const PlayingCardDemonstrationWidget()
+                                          : instructionKey == 'queen_peek'
+                                              ? const QueenPeekDemonstrationWidget()
+                                              : instructionKey == 'jack_swap'
+                                                  ? const JackSwapDemonstrationWidget()
+                                                  : instructionKey == 'same_rank_window'
+                                                      ? const SameRankWindowDemonstrationWidget()
+                                                      : instructionKey == 'collection_card'
+                                                          ? const CollectionCardDemonstrationWidget()
+                                                          : const SizedBox(
+                                                              height: 150, // Placeholder for other demonstrations
+                                                            ),
                             ),
                             SizedBox(height: AppPadding.defaultPadding.top),
                           ],
                           // Text content
                           Padding(
                             padding: AppPadding.defaultPadding,
-                      child: Text(
-                        content,
+                            child: Text(
+                              content,
                               style: AppTextStyles.bodyMedium(
                                 color: AppColors.textOnCard,
                               ).copyWith(
-                          height: 1.5,
-                        ),
+                                height: 1.5,
+                              ),
                             ),
                           ),
                         ],
@@ -217,13 +232,13 @@ class InstructionsWidget extends StatelessWidget {
                             },
                             activeColor: AppColors.accentColor,
                             checkColor: AppColors.textOnAccent,
-                            ),
+                          ),
                           SizedBox(width: AppPadding.smallPadding.left),
                         ],
                         // Close button (text only, no icon)
                         TextButton(
                           onPressed: () => _closeInstructions(
-                            context,
+                            builderContext,
                             instructionKey,
                             dontShowAgain,
                           ),

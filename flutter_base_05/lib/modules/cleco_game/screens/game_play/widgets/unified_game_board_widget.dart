@@ -102,6 +102,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                     // Opponents Panel Section - at the top
                     _buildOpponentsPanel(),
                     
+                    // Current Player Info Section - use SizedBox with minimum height instead of Expanded
+                    SizedBox(
+                      height: availableHeight * 0.2, // Fixed height for player info
+                      child: _buildCurrentPlayerInfo(),
+                    ),
+                    
                     // Game Board and My Hand grouped together at the bottom
                     // Game board sits directly on top of my hand
                     // My hand aligned to bottom of UnifiedGameBoardWidget
@@ -976,6 +982,68 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
       return false;
     }
     return true;
+  }
+
+  // ========== Current Player Info Methods ==========
+
+  /// Build widget showing current player username and status chip
+  /// Takes up available space and centers content
+  /// Uses the same data source as opponents widget: currentPlayer from clecoGameState and currentPlayerStatus from opponentsPanel
+  Widget _buildCurrentPlayerInfo() {
+    _logger.info('UnifiedGameBoardWidget: Building current player info widget', isOn: LOGGING_SWITCH);
+    
+    final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+    
+    // Get current player data (same as opponents widget)
+    final currentPlayerRaw = clecoGameState['currentPlayer'];
+    Map<String, dynamic>? currentPlayerData;
+    if (currentPlayerRaw == null || currentPlayerRaw == 'null' || currentPlayerRaw == '') {
+      currentPlayerData = null;
+    } else if (currentPlayerRaw is Map<String, dynamic>) {
+      currentPlayerData = currentPlayerRaw;
+    } else {
+      currentPlayerData = null;
+    }
+    
+    // Get current player status from opponentsPanel slice (same as opponents widget)
+    final opponentsPanelSlice = clecoGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
+    final currentPlayerStatus = opponentsPanelSlice['currentPlayerStatus']?.toString() ?? 'unknown';
+    
+    // Get current player ID
+    final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
+    _logger.info('UnifiedGameBoardWidget: Current player ID: $currentPlayerId, status: $currentPlayerStatus', isOn: LOGGING_SWITCH);
+    
+    // Get player name from currentPlayer data (same source as opponents widget)
+    final playerName = currentPlayerData?['name']?.toString() ?? 'You';
+    _logger.info('UnifiedGameBoardWidget: Player name: $playerName', isOn: LOGGING_SWITCH);
+    
+    if (currentPlayerData == null) {
+      _logger.warning('UnifiedGameBoardWidget: Current player data not found in clecoGameState', isOn: LOGGING_SWITCH);
+    }
+    
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Player username
+          Text(
+            playerName,
+            style: AppTextStyles.headingMedium().copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          // Status chip - uses playerId to get status from state
+          PlayerStatusChip(
+            playerId: currentPlayerId,
+            size: PlayerStatusChipSize.medium,
+          ),
+        ],
+      ),
+    );
   }
 
   // ========== Game Board Methods ==========

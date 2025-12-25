@@ -641,13 +641,17 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
   Widget build(BuildContext context) {
     final cardDimensions = CardDimensions.getUnifiedDimensions();
     
-    return Stack(
-      key: _stackKey,
-      clipBehavior: Clip.none,
-      children: [
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+    _logger.info('🎴 SameRankDemo: build() called - animationPhase: $_animationPhase, currentExample: $_currentExample', isOn: LOGGING_SWITCH);
+    
+    return SizedBox(
+      width: double.infinity,
+      child: Stack(
+        key: _stackKey,
+        clipBehavior: Clip.none,
+        children: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             // Example label
             Container(
               padding: AppPadding.smallPadding,
@@ -806,7 +810,8 @@ class _SameRankWindowDemonstrationWidgetState extends State<SameRankWindowDemons
               );
             },
           ),
-      ],
+        ],
+      ),
     );
   }
 }

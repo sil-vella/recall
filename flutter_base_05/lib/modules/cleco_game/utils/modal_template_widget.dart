@@ -33,6 +33,7 @@ class ModalTemplateWidget extends StatelessWidget {
   final double? maxHeight;
   final bool scrollable;
   final Widget? customContent;
+  final bool fullScreen; // If true, modal takes full screen space
 
   const ModalTemplateWidget({
     Key? key,
@@ -52,6 +53,7 @@ class ModalTemplateWidget extends StatelessWidget {
     this.maxHeight,
     this.scrollable = true,
     this.customContent,
+    this.fullScreen = false, // Default to false for backward compatibility
   }) : super(key: key);
 
   /// Show the modal using Flutter's official showDialog method
@@ -74,10 +76,13 @@ class ModalTemplateWidget extends StatelessWidget {
     bool scrollable = true,
     Widget? customContent,
     bool barrierDismissible = true,
+    bool fullScreen = false,
+    bool useRootNavigator = false,
   }) {
     return showDialog<T>(
       context: context,
       barrierDismissible: barrierDismissible,
+      useRootNavigator: useRootNavigator,
       builder: (BuildContext context) {
         return ModalTemplateWidget(
           title: title,
@@ -96,6 +101,7 @@ class ModalTemplateWidget extends StatelessWidget {
           maxHeight: maxHeight,
           scrollable: scrollable,
           customContent: customContent,
+          fullScreen: fullScreen,
         );
       },
     );
@@ -106,42 +112,53 @@ class ModalTemplateWidget extends StatelessWidget {
     final screenSize = MediaQuery.of(context).size;
     final modalBackgroundColor = backgroundColor ?? AppColors.card;
     
+    // If fullScreen, use full screen dimensions with minimal margins
+    final modalMargin = fullScreen ? EdgeInsets.all(8.0) : EdgeInsets.all(AppSizes.modalMargin);
+    final modalWidth = fullScreen 
+        ? screenSize.width - 16.0  // Full width minus small margins
+        : (maxWidth ?? screenSize.width * AppSizes.modalMaxWidthPercent);
+    final modalHeight = fullScreen
+        ? screenSize.height - 16.0  // Full height minus small margins
+        : (maxHeight ?? screenSize.height * AppSizes.modalMaxHeightPercent);
+    
     return Material(
       color: AppColors.black.withOpacity(AppOpacity.barrier), // Semi-transparent background
       child: Center(
         child: Material(
           color: Colors.transparent, // Transparent Material to avoid theme interference
-        child: Container(
-            margin: EdgeInsets.all(AppSizes.modalMargin),
-          constraints: BoxConstraints(
-              maxWidth: maxWidth ?? screenSize.width * AppSizes.modalMaxWidthPercent,
-              maxHeight: maxHeight ?? screenSize.height * AppSizes.modalMaxHeightPercent,
-          ),
-          decoration: BoxDecoration(
+          child: Container(
+            margin: modalMargin,
+            width: modalWidth,
+            height: modalHeight,
+            constraints: BoxConstraints(
+              maxWidth: modalWidth,
+              maxHeight: modalHeight,
+            ),
+            decoration: BoxDecoration(
               color: modalBackgroundColor, // Use white card background for better text visibility
               borderRadius: AppBorderRadius.largeRadius,
-            boxShadow: [
-              BoxShadow(
+              boxShadow: [
+                BoxShadow(
                   color: AppColors.black.withOpacity(AppOpacity.shadow),
                   blurRadius: AppSizes.shadowBlur,
                   offset: AppSizes.shadowOffset,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header (optional)
-              if (showHeader) _buildHeader(context),
-              
-              // Content area
-              Flexible(
-                child: _buildContent(context),
-              ),
-              
-              // Footer (optional)
-              if (showFooter) _buildFooter(context),
-            ],
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                // Header (optional)
+                if (showHeader) _buildHeader(context),
+                
+                // Content area - use Expanded to take all available space
+                Expanded(
+                  child: _buildContent(context),
+                ),
+                
+                // Footer (optional) - always visible and tappable
+                if (showFooter) _buildFooter(context),
+              ],
             ),
           ),
         ),
@@ -203,7 +220,14 @@ class ModalTemplateWidget extends StatelessWidget {
 
   Widget _buildContent(BuildContext context) {
     if (customContent != null) {
-      return customContent!;
+      // For custom content, ensure it's properly constrained and doesn't block pointer events
+      // When fullScreen, content should take all available space
+      return Material(
+        color: Colors.transparent,
+        child: fullScreen 
+            ? SizedBox.expand(child: customContent!)
+            : customContent!,
+      );
     }
 
     final contentWidget = Text(

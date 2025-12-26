@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:yaml/yaml.dart';
 // Platform-specific import for file loading
 import 'package:flutter/services.dart' show rootBundle;
@@ -11,7 +10,6 @@ import 'package:flutter/services.dart' show rootBundle;
 
 class ComputerPlayerConfig {
   final Map<String, dynamic> _config;
-  final Random _random = Random();
   
   ComputerPlayerConfig(this._config);
   
@@ -101,8 +99,12 @@ class ComputerPlayerConfig {
   
   /// Get decision delay for a difficulty level
   double getDecisionDelay(String difficulty) {
-    // Random delay between 1-3 seconds (no difficulty dependence)
-    return 1.0 + (_random.nextDouble() * 2.0);
+    final config = getDifficultyConfig(difficulty);
+    // Get delay from difficulty config, fallback to default, then to 1.0
+    final delay = config['decision_delay_seconds'] ?? 
+                  computerSettings['decision_delay_seconds'] ?? 
+                  1.0;
+    return delay.toDouble();
   }
   
   /// Get error rate for a difficulty level

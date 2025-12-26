@@ -626,8 +626,8 @@ class _MyHandWidgetState extends State<MyHandWidget> {
             }
             
             final cardHeight = cardDimensions.height;
-            final stackOffset = CardDimensions.getUnifiedStackOffset();
-            
+        final stackOffset = CardDimensions.getUnifiedStackOffset();
+        
             // Build all card widgets with calculated dimensions
             List<Widget> cardWidgets = [];
             for (int index = 0; index < cards.length; index++) {
@@ -638,7 +638,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 cardWidgets.add(
                   Padding(
                     padding: const EdgeInsets.only(right: cardPadding),
-                    child: _buildBlankCardSlot(),
+                  child: _buildBlankCardSlot(),
                   ),
                 );
                 continue;
@@ -744,7 +744,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                         right: cardPadding,
                         left: isDrawnCard ? drawnCardExtraPadding : 0,
                       ),
-                      child: stackWidget,
+                    child: stackWidget,
                     ),
                   );
                 } else {
@@ -752,7 +752,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                   // Don't add anything to cardWidgets
                 }
               } else {
-                // Normal card rendering (non-collection rank)
+              // Normal card rendering (non-collection rank)
                 final cardKey = GlobalKey(debugLabel: 'card_$cardId');
                 final cardWidget = _buildCardWidget(
                   cardDataToUse, 
@@ -764,16 +764,16 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                   cardKey,
                   cardDimensions,
                 );
-                
+              
                 cardWidgets.add(
                   Padding(
-                    padding: EdgeInsets.only(
+                padding: EdgeInsets.only(
                       right: cardPadding,
                       left: isDrawnCard ? drawnCardExtraPadding : 0,
-                    ),
-                    child: cardWidget,
+                ),
+                child: cardWidget,
                   ),
-                );
+              );
               }
             }
             
@@ -784,7 +784,7 @@ class _MyHandWidgetState extends State<MyHandWidget> {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: cardWidgets,
-              ),
+          ),
             );
           },
         );

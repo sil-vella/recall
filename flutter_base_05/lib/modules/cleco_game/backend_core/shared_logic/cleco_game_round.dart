@@ -3912,7 +3912,12 @@ class ClecoGameRound {
 
   Future<void> _moveToNextPlayer() async {
     try {
-      _logger.info('Cleco: Moving to next player', isOn: LOGGING_SWITCH);
+      _logger.info('Cleco: Moving to next player (with 2 second delay)', isOn: LOGGING_SWITCH);
+      
+      // Add 2 second delay before moving to next player
+      await Future.delayed(const Duration(seconds: 2));
+      
+      _logger.info('Cleco: Delay complete, proceeding with move to next player', isOn: LOGGING_SWITCH);
       
       // Cancel all action timers at start of move to next player
       _cancelActionTimers();

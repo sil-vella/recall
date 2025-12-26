@@ -59,11 +59,28 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   
   /// CardAnimationDetector instance
   final CardAnimationDetector _animationDetector = CardAnimationDetector();
+  
+  // ========== Position Scanning Optimization State ==========
+  /// Previous card-related state snapshot for change detection
+  Map<String, dynamic>? _previousCardState;
+  
+  /// Flag to prevent multiple scans in the same frame
+  bool _isScanScheduled = false;
+  
+  /// Timer for throttling scans (max once per 100ms)
+  Timer? _scanThrottleTimer;
+  
+  /// Last scan timestamp for throttling
+  DateTime _lastScanTime = DateTime(0);
+  
+  /// Minimum time between scans (100ms)
+  static const Duration _minScanInterval = Duration(milliseconds: 100);
 
   @override
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
+    _scanThrottleTimer?.cancel();
     _positionScanner.clearPositions();
     super.dispose();
   }
@@ -73,10 +90,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        // Schedule position scanning after build
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scanCardPositions();
-        });
+        // Check if card-related state changed and schedule scan if needed
+        _checkAndScheduleScan();
         
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -140,6 +155,204 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
       _cardKeys[key] = GlobalKey(debugLabel: key);
     }
     return _cardKeys[key]!;
+  }
+  
+  /// Check if card-related state changed and schedule scan if needed
+  /// Optimization 1: Only scan when card-related state changes
+  void _checkAndScheduleScan() {
+    if (!mounted) return;
+    
+    final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+    
+    // Extract card-related state for comparison
+    final currentCardState = _extractCardRelatedState(clecoGameState);
+    
+    // Check if game changed (new game started/ended)
+    if (_previousCardState != null && 
+        _previousCardState!['currentGameId'] != currentCardState['currentGameId']) {
+      // Game changed - clear previous state and positions
+      _logger.info('🎬 UnifiedGameBoardWidget: Game changed, clearing previous state', isOn: LOGGING_SWITCH);
+      _previousCardState = null;
+      _positionScanner.clearPositions();
+    }
+    
+    // Check if card-related state actually changed
+    if (_previousCardState != null && _statesAreEqual(_previousCardState!, currentCardState)) {
+      // No card-related changes, skip scan
+      _logger.debug('🎬 UnifiedGameBoardWidget: Card state unchanged, skipping scan', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
+    // State changed, update previous and schedule scan
+    _previousCardState = currentCardState;
+    
+    // Optimization 2 & 3: Throttle scans and use dirty flag
+    _scheduleThrottledScan();
+  }
+  
+  /// Extract only card-related state for change detection
+  Map<String, dynamic> _extractCardRelatedState(Map<String, dynamic> fullState) {
+    final currentGameId = fullState['currentGameId']?.toString() ?? '';
+    final games = fullState['games'] as Map<String, dynamic>? ?? {};
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    // Extract card-related fields
+    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+    
+    // Extract my hand
+    final myHand = fullState['myHand'] as Map<String, dynamic>? ?? {};
+    final myHandCards = myHand['cards'] as List<dynamic>? ?? [];
+    
+    // Extract opponents hands
+    final opponentsPanel = fullState['opponentsPanel'] as Map<String, dynamic>? ?? {};
+    final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
+    final opponentsHands = opponents.map((opponent) {
+      if (opponent is Map<String, dynamic>) {
+        final hand = opponent['hand'] as List<dynamic>? ?? [];
+        return {
+          'id': opponent['id']?.toString(),
+          'hand': hand.map((card) {
+            if (card is Map<String, dynamic>) {
+              return card['cardId']?.toString();
+            }
+            return null;
+          }).where((id) => id != null).toList(),
+        };
+      }
+      return null;
+    }).where((o) => o != null).toList();
+    
+    return {
+      'currentGameId': currentGameId,
+      'drawPile': drawPile.map((card) {
+        if (card is Map<String, dynamic>) {
+          return card['cardId']?.toString();
+        }
+        return null;
+      }).where((id) => id != null).toList(),
+      'discardPile': discardPile.map((card) {
+        if (card is Map<String, dynamic>) {
+          return card['cardId']?.toString();
+        }
+        return null;
+      }).where((id) => id != null).toList(),
+      'myHand': myHandCards.map((card) {
+        if (card is Map<String, dynamic>) {
+          return card['cardId']?.toString();
+        }
+        return null;
+      }).where((id) => id != null).toList(),
+      'opponentsHands': opponentsHands,
+    };
+  }
+  
+  /// Compare two state maps for equality
+  bool _statesAreEqual(Map<String, dynamic> state1, Map<String, dynamic> state2) {
+    // Compare currentGameId
+    if (state1['currentGameId'] != state2['currentGameId']) {
+      return false;
+    }
+    
+    // Compare drawPile
+    final drawPile1 = state1['drawPile'] as List? ?? [];
+    final drawPile2 = state2['drawPile'] as List? ?? [];
+    if (!_listsEqual(drawPile1, drawPile2)) {
+      return false;
+    }
+    
+    // Compare discardPile
+    final discardPile1 = state1['discardPile'] as List? ?? [];
+    final discardPile2 = state2['discardPile'] as List? ?? [];
+    if (!_listsEqual(discardPile1, discardPile2)) {
+      return false;
+    }
+    
+    // Compare myHand
+    final myHand1 = state1['myHand'] as List? ?? [];
+    final myHand2 = state2['myHand'] as List? ?? [];
+    if (!_listsEqual(myHand1, myHand2)) {
+      return false;
+    }
+    
+    // Compare opponentsHands
+    final opponents1 = state1['opponentsHands'] as List? ?? [];
+    final opponents2 = state2['opponentsHands'] as List? ?? [];
+    if (opponents1.length != opponents2.length) {
+      return false;
+    }
+    
+    for (int i = 0; i < opponents1.length; i++) {
+      final opp1 = opponents1[i] as Map<String, dynamic>?;
+      final opp2 = opponents2[i] as Map<String, dynamic>?;
+      if (opp1 == null || opp2 == null) {
+        if (opp1 != opp2) return false;
+        continue;
+      }
+      if (opp1['id'] != opp2['id']) {
+        return false;
+      }
+      final hand1 = opp1['hand'] as List? ?? [];
+      final hand2 = opp2['hand'] as List? ?? [];
+      if (!_listsEqual(hand1, hand2)) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+  
+  /// Compare two lists for equality (order-sensitive)
+  bool _listsEqual(List list1, List list2) {
+    if (list1.length != list2.length) {
+      return false;
+    }
+    for (int i = 0; i < list1.length; i++) {
+      if (list1[i] != list2[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+  
+  /// Schedule a throttled scan (Optimization 2: Throttle scans)
+  void _scheduleThrottledScan() {
+    // Cancel any pending throttle timer
+    _scanThrottleTimer?.cancel();
+    
+    final now = DateTime.now();
+    final timeSinceLastScan = now.difference(_lastScanTime);
+    
+    // If enough time has passed, scan immediately
+    if (timeSinceLastScan >= _minScanInterval) {
+      _lastScanTime = now;
+      _scheduleScan();
+      return;
+    }
+    
+    // Otherwise, schedule scan after remaining time
+    final remainingTime = _minScanInterval - timeSinceLastScan;
+    _scanThrottleTimer = Timer(remainingTime, () {
+      _lastScanTime = DateTime.now();
+      _scheduleScan();
+    });
+  }
+  
+  /// Schedule scan using PostFrameCallback (Optimization 3: Dirty flag)
+  void _scheduleScan() {
+    // Prevent multiple scans in the same frame
+    if (_isScanScheduled) {
+      _logger.debug('🎬 UnifiedGameBoardWidget: Scan already scheduled for this frame', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
+    _isScanScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _isScanScheduled = false;
+      _scanCardPositions();
+    });
   }
   
   /// Scan all card positions after build
@@ -988,13 +1201,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
 
   /// Build widget showing current player username and status chip
   /// Takes up available space and centers content
-  /// Uses the same data source as opponents widget: currentPlayer from clecoGameState and currentPlayerStatus from opponentsPanel
+  /// For current user: uses isMyTurn and myHand data source (same as my hand section)
+  /// For opponents: uses currentPlayer from clecoGameState and currentPlayerStatus from opponentsPanel
   Widget _buildCurrentPlayerInfo() {
     _logger.info('UnifiedGameBoardWidget: Building current player info widget', isOn: LOGGING_SWITCH);
     
     final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
     
-    // Get current player data (same as opponents widget)
+    // Check if it's the user's turn (same check as my hand section)
+    final isMyTurn = clecoGameState['isMyTurn'] ?? false;
+    
+    // Get current player data (for opponents)
     final currentPlayerRaw = clecoGameState['currentPlayer'];
     Map<String, dynamic>? currentPlayerData;
     if (currentPlayerRaw == null || currentPlayerRaw == 'null' || currentPlayerRaw == '') {
@@ -1005,24 +1222,36 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
       currentPlayerData = null;
     }
     
-    // Get current player status from opponentsPanel slice (same as opponents widget)
-    final opponentsPanelSlice = clecoGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-    final currentPlayerStatus = opponentsPanelSlice['currentPlayerStatus']?.toString() ?? 'unknown';
-    
     // Get current player ID
     final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
-    _logger.info('UnifiedGameBoardWidget: Current player ID: $currentPlayerId, status: $currentPlayerStatus', isOn: LOGGING_SWITCH);
     
-    // Get current user ID to check if current player is the app user
+    // Get current user ID
     final currentUserId = _getCurrentUserId();
-    final isCurrentUser = currentPlayerId == currentUserId;
     
-    // Get player name from currentPlayer data (same source as opponents widget)
-    // If it's the current user, show "Your Turn" instead
-    final displayText = isCurrentUser ? 'Your Turn' : (currentPlayerData?['name']?.toString() ?? 'You');
-    _logger.info('UnifiedGameBoardWidget: Player name: $displayText (isCurrentUser: $isCurrentUser)', isOn: LOGGING_SWITCH);
+    // Get status and display text based on whether it's the user's turn
+    String currentPlayerStatus;
+    String displayText;
+    String playerIdForChip;
     
-    if (currentPlayerData == null) {
+    if (isMyTurn) {
+      // For current user: use myHand data source (same as my hand section)
+      final myHand = clecoGameState['myHand'] as Map<String, dynamic>? ?? {};
+      currentPlayerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
+      displayText = 'Your Turn';
+      playerIdForChip = currentUserId;
+      _logger.info('UnifiedGameBoardWidget: User\'s turn - status from myHand: $currentPlayerStatus', isOn: LOGGING_SWITCH);
+    } else {
+      // For opponents: use opponentsPanel slice (same as opponents widget)
+      final opponentsPanelSlice = clecoGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
+      currentPlayerStatus = opponentsPanelSlice['currentPlayerStatus']?.toString() ?? 'unknown';
+      displayText = currentPlayerData?['name']?.toString() ?? 'Unknown Player';
+      playerIdForChip = currentPlayerId;
+      _logger.info('UnifiedGameBoardWidget: Opponent\'s turn - status from opponentsPanel: $currentPlayerStatus, player: $displayText', isOn: LOGGING_SWITCH);
+    }
+    
+    _logger.info('UnifiedGameBoardWidget: isMyTurn: $isMyTurn, status: $currentPlayerStatus, displayText: $displayText', isOn: LOGGING_SWITCH);
+    
+    if (currentPlayerData == null && !isMyTurn) {
       _logger.warning('UnifiedGameBoardWidget: Current player data not found in clecoGameState', isOn: LOGGING_SWITCH);
     }
     
@@ -1040,11 +1269,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
             ),
             textAlign: TextAlign.center,
           ),
-          // Status chip - only show if NOT the current user
-          if (!isCurrentUser) ...[
+          // Status chip - show when status is not unknown
+          if (currentPlayerStatus != 'unknown') ...[
             const SizedBox(height: 8),
             PlayerStatusChip(
-              playerId: currentPlayerId,
+              playerId: playerIdForChip,
               size: PlayerStatusChipSize.medium,
             ),
           ],

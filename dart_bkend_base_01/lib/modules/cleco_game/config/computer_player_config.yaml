@@ -13,7 +13,7 @@ difficulties:
   easy:
     name: "Easy"
     description: "Beginner-friendly AI with simple decision making"
-    decision_delay_seconds: 2.0
+    decision_delay_seconds: 3.0
     error_rate: 0.1  # 10% chance of making suboptimal decisions
     
     # Card selection strategy
@@ -39,7 +39,7 @@ difficulties:
   medium:
     name: "Medium"
     description: "Balanced AI with moderate decision making"
-    decision_delay_seconds: 1.5
+    decision_delay_seconds: 2.5
     error_rate: 0.05  # 5% chance of making suboptimal decisions
     
     card_selection:
@@ -62,7 +62,7 @@ difficulties:
   hard:
     name: "Hard"
     description: "Advanced AI with strategic decision making"
-    decision_delay_seconds: 1.0
+    decision_delay_seconds: 2.0
     error_rate: 0.02  # 2% chance of making suboptimal decisions
     
     card_selection:
@@ -85,7 +85,7 @@ difficulties:
   expert:
     name: "Expert"
     description: "Master-level AI with optimal decision making"
-    decision_delay_seconds: 0.5
+    decision_delay_seconds: 1.5
     error_rate: 0.0  # No errors
     
     card_selection:

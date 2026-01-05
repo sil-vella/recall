@@ -3,8 +3,8 @@
   hosts: "{{ vm_name }}_user"
   become: true
   vars:
-    app_dir: "/opt/apps/reignofplay/cleco"
-    data_dir: "/opt/apps/reignofplay/cleco/data"
+    app_dir: "/opt/apps/reignofplay/dutch"
+    data_dir: "/opt/apps/reignofplay/dutch/data"
     compose_file: "docker-compose.yml"
     vps_user: "{{ vm_name }}_user"
   tasks:
@@ -93,7 +93,7 @@
           scrape_configs:
             - job_name: 'flask-app'
               static_configs:
-                - targets: ['cleco_flask-external:5001']
+                - targets: ['dutch_flask-external:5001']
               metrics_path: '/metrics'
         dest: "{{ data_dir }}/prometheus/config/prometheus.yml"
         mode: '0644'
@@ -201,7 +201,7 @@
       when: compose_up_result is defined and compose_up_result.changed | default(false)
 
     - name: Restart Grafana container if provisioning changed
-      shell: sg docker -c "cd {{ app_dir }} && docker compose -f {{ compose_file }} restart cleco_grafana"
+      shell: sg docker -c "cd {{ app_dir }} && docker compose -f {{ compose_file }} restart dutch_grafana"
       when:
         - compose_up_result is defined and compose_up_result.changed | default(false)
         - grafana_provisioning_sync is defined and grafana_provisioning_sync.changed | default(false) or

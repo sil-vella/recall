@@ -56,7 +56,7 @@ serverClientId: webClientId, // ✅ Correct!
 
 - [ ] Android OAuth Client created in Google Cloud Console
 - [ ] Android OAuth Client has correct SHA-1: `8F:60:94:F1:E5:ED:DD:FD:FF:4F:5A:79:FF:BB:B7:E9:33:AD:B2:76`
-- [ ] Android OAuth Client has correct package name: `com.reignofplay.cleco`
+- [ ] Android OAuth Client has correct package name: `com.reignofplay.dutch`
 - [ ] Web OAuth Client ID configured in `Config.googleClientId`
 - [ ] Code uses Web Client ID as `serverClientId` for Android
 - [ ] APK is signed with release keystore (matching SHA-1)

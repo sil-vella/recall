@@ -1,16 +1,16 @@
 ### Overview
 
-This document summarizes the full VPS setup and deployment flow for the Cleco stack, from SSH key provisioning through Docker, Nginx, database setup, and the mobile app update pipeline.
+This document summarizes the full VPS setup and deployment flow for the Dutch stack, from SSH key provisioning through Docker, Nginx, database setup, and the mobile app update pipeline.
 
 The playbooks and scripts live in `playbooks/rop01/` and `tools/scripts/`, and target a single VPS at `65.181.125.135` with:
 - **Initial root access** via SSH
 - A non-root application user `rop01_user`
-- Application root directory: `/opt/apps/reignofplay/cleco`
+- Application root directory: `/opt/apps/reignofplay/dutch`
 
 **Important Configuration Note**: 
 - **Local development** uses different secret values than **VPS deployment**:
   - Local: Flask runs on host, uses host ports (`27018`, `6380`) and `localhost`
-  - VPS: Flask runs in Docker, uses internal Docker ports (`27017`, `6379`) and service names (`cleco_redis-external`)
+  - VPS: Flask runs in Docker, uses internal Docker ports (`27017`, `6379`) and service names (`dutch_redis-external`)
 - Build scripts automatically handle this difference by updating secrets during Docker image builds
 
 ---
@@ -86,7 +86,7 @@ This ensures the VPS exposes only the necessary services.
 
 **Domains configuration** (default when `vm_name=rop01`):
 - `reignofplay.com` and `www.reignofplay.com` → static root `/var/www/reignofplay.com`.
-- `cleco.reignofplay.com` → app root `/var/www/cleco.reignofplay.com`, backed by:
+- `dutch.reignofplay.com` → app root `/var/www/dutch.reignofplay.com`, backed by:
   - Flask backend on **port 5001** (`backend_port: 5001`)
   - Dart WebSocket server on **port 8080** (`backend_ws_port: 8080`).
 
@@ -98,7 +98,7 @@ This ensures the VPS exposes only the necessary services.
 - Adds security headers into `nginx.conf`.
 - Sets up a daily Certbot renewal cron job.
 
-**Key Nginx behavior for `cleco.reignofplay.com`** (from `nginx-site.conf.j2`):
+**Key Nginx behavior for `dutch.reignofplay.com`** (from `nginx-site.conf.j2`):
 - Reverse proxy API requests:
 
   ```nginx
@@ -126,7 +126,7 @@ This ensures the VPS exposes only the necessary services.
   }
   ```
 
-This serves `https://cleco.reignofplay.com/downloads/...` directly from the filesystem.
+This serves `https://dutch.reignofplay.com/downloads/...` directly from the filesystem.
 
 ---
 
@@ -143,47 +143,47 @@ This serves `https://cleco.reignofplay.com/downloads/...` directly from the file
 - **Hosts**: `{{ vm_name }}_user`
 
 **Directory layout** created:
-- `app_dir`: `/opt/apps/reignofplay/cleco`
+- `app_dir`: `/opt/apps/reignofplay/dutch`
   - `secrets/` (Flask secrets directory, mounted into the container)
-- `data_dir`: `/opt/apps/reignofplay/cleco/data`
+- `data_dir`: `/opt/apps/reignofplay/dutch/data`
   - `mongodb/` (MongoDB data volume)
   - `redis/` (Redis data volume)
   - `prometheus/config` + `prometheus/storage`
   - `grafana/` (Grafana data + provisioning + dashboards)
 
-**Secrets created** under `/opt/apps/reignofplay/cleco/secrets`:
+**Secrets created** under `/opt/apps/reignofplay/dutch/secrets`:
 - **All secret files** from `python_base_04/secrets/` are automatically copied to the VPS, including:
   - `mongodb_root_password`: MongoDB root user password
   - `mongodb_user_password`: password for the MongoDB app user
   - `redis_password`: Redis password
-  - `app_download_base_url`: set to `https://cleco.reignofplay.com/downloads` (used by Flask `APP_DOWNLOAD_BASE_URL`)
+  - `app_download_base_url`: set to `https://dutch.reignofplay.com/downloads` (used by Flask `APP_DOWNLOAD_BASE_URL`)
   - `google_client_id`: Web OAuth Client ID (required for Google Sign-In token verification)
   - `mobile_release.json`: maintained by the APK build script (see section 7)
   - **VPS-specific configuration** (different from local):
     - `mongodb_port`: `27017` (internal Docker network port, not host port)
-    - `redis_host`: `cleco_redis-external` (Docker service name, not localhost)
+    - `redis_host`: `dutch_redis-external` (Docker service name, not localhost)
     - `redis_port`: `6379` (internal Docker network port, not host port)
   - All other secret files in the local `secrets/` directory
 
 **Important**: The playbook only copies secret files if they don't exist or have different content (checksum comparison), making deployments faster.
 
 **Docker Compose file**:
-- Copied from repo root `docker-compose.yml` to the VPS at `/opt/apps/reignofplay/cleco/docker-compose.yml`.
+- Copied from repo root `docker-compose.yml` to the VPS at `/opt/apps/reignofplay/dutch/docker-compose.yml`.
 - Services:
-  - `cleco_mongodb-external` (Bitnami MongoDB, `27018:27017`)
-  - `cleco_redis-external` (Bitnami Redis, `6380:6379`)
-  - `cleco_flask-external` (Flask app, `5001:5001`)
-  - `cleco_prometheus` (Prometheus, `9090:9090`)
-  - `cleco_grafana` (Grafana, `3001:3000`)
-  - `cleco_dart-game-server` (Dart WebSocket server, `8080:8080`)
+  - `dutch_mongodb-external` (Bitnami MongoDB, `27018:27017`)
+  - `dutch_redis-external` (Bitnami Redis, `6380:6379`)
+  - `dutch_flask-external` (Flask app, `5001:5001`)
+  - `dutch_prometheus` (Prometheus, `9090:9090`)
+  - `dutch_grafana` (Grafana, `3001:3000`)
+  - `dutch_dart-game-server` (Dart WebSocket server, `8080:8080`)
 
 **Important mount for Flask secrets**:
 
 ```yaml
-cleco_flask-external:
-  image: silvella/cleco_flask_app:latest
+dutch_flask-external:
+  image: silvella/dutch_flask_app:latest
   volumes:
-    - /opt/apps/reignofplay/cleco/secrets:/app/secrets:ro
+    - /opt/apps/reignofplay/dutch/secrets:/app/secrets:ro
 ```
 
 This makes all secret files from `python_base_04/secrets/` available inside the container at `/app/secrets/...`, including:
@@ -223,7 +223,7 @@ ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
   - Backs up local secret values (for local development)
   - Updates secrets with VPS values from `.env` file:
     - `mongodb_port`: `27017` (internal Docker port)
-    - `redis_host`: `cleco_redis-external` (Docker service name)
+    - `redis_host`: `dutch_redis-external` (Docker service name)
     - `redis_port`: `6379` (internal Docker port)
   - Builds Docker image with VPS configuration
   - Restores local secret values after build
@@ -231,14 +231,14 @@ ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
 - Tags and pushes the image to Docker Hub as:
 
   ```
-  silvella/cleco_flask_app:latest
+  silvella/dutch_flask_app:latest
   ```
 
 **Configuration**:
 - VPS values are stored in `.env` file in project root:
   ```
   VPS_MONGODB_PORT=27017
-  VPS_REDIS_HOST=cleco_redis-external
+  VPS_REDIS_HOST=dutch_redis-external
   VPS_REDIS_PORT=6379
   ```
 - Local development uses different values in `python_base_04/secrets/`:
@@ -269,7 +269,7 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
 - Tags and pushes the image to Docker Hub as:
 
   ```
-  silvella/cleco_dart_game_server:latest
+  silvella/dutch_dart_game_server:latest
   ```
 
 **Usage**:
@@ -303,8 +303,8 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
    - For `vps` (default):
 
      ```bash
-     API_URL="https://cleco.reignofplay.com"
-     WS_URL="wss://cleco.reignofplay.com/ws"
+     API_URL="https://dutch.reignofplay.com"
+     WS_URL="wss://dutch.reignofplay.com/ws"
      ```
 
    - For `local`: uses your LAN IP for the Python and Dart services.
@@ -328,14 +328,14 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
    - Uploads the APK to a temp path on the VPS and then moves it (with `sudo`) to:
 
      ```bash
-     /var/www/cleco.reignofplay.com/downloads/v$APP_VERSION/app.apk
+     /var/www/dutch.reignofplay.com/downloads/v$APP_VERSION/app.apk
      ```
 
    - Fixes ownership and permissions (`www-data:www-data`, `0644`).
    - Generates/updates the mobile release manifest on the VPS:
 
      ```bash
-     /opt/apps/reignofplay/cleco/secrets/mobile_release.json
+     /opt/apps/reignofplay/dutch/secrets/mobile_release.json
 
      {
        "latest_version": "<APP_VERSION>",
@@ -349,7 +349,7 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
 - A new APK is available at:
 
   ```
-  https://cleco.reignofplay.com/downloads/v<APP_VERSION>/app.apk
+  https://dutch.reignofplay.com/downloads/v<APP_VERSION>/app.apk
   ```
 
 - The backend’s update endpoint `/public/check-updates` will advertise this version and download link without needing a Flask restart.
@@ -412,7 +412,7 @@ echo "2.1.0" > python_base_04/secrets/app_version
     "current_version": "2.0.0",
     "update_available": true,
     "update_required": true,
-    "download_link": "https://cleco.reignofplay.com/downloads/v2.1.0/app.apk",
+    "download_link": "https://dutch.reignofplay.com/downloads/v2.1.0/app.apk",
     "manifest_path": "/app/secrets/mobile_release.json",
     ...
   }
@@ -447,7 +447,7 @@ This is what the Flutter `VersionCheckService` calls on startup.
 - Empties the `external_system` database (drops existing collections).
 - Creates and populates:
   - `users` collection with modular user documents (profile, preferences, modules, audit data).
-  - `user_modules` registry describing available modules (`wallet`, `subscription`, `referrals`, `in_app_purchases`, `cleco_game`).
+  - `user_modules` registry describing available modules (`wallet`, `subscription`, `referrals`, `in_app_purchases`, `dutch_game`).
   - `user_audit_logs` collection with sample audit events.
 - Prints a detailed summary of collections and documents.
 
@@ -465,10 +465,10 @@ There are two relevant playbooks for **remote** MongoDB structure:
 #### 10.1 `10_setup_apps_database_structure(update_existing).yml`
 
 - **Hosts**: `{{ vm_name }}_user`
-- **Mongo target**: remote container `cleco_external_app_mongodb` on the VPS.
+- **Mongo target**: remote container `dutch_external_app_mongodb` on the VPS.
 
 **Key variables**:
-- `mongodb_container_name`: `cleco_external_app_mongodb`
+- `mongodb_container_name`: `dutch_external_app_mongodb`
 - `database_name`: `external_system`
 - `app_user`: `external_app_user`
 - `app_password`: `6R3jjsvVhIRP20zMiHdkBzNKx`
@@ -479,11 +479,11 @@ There are two relevant playbooks for **remote** MongoDB structure:
 2. Creates `/tmp/add_missing_modules.js` locally containing a Mongo script that:
    - Ensures `user_modules` includes:
      - `in_app_purchases` module definition.
-     - `cleco_game` module definition (and updates its schema to include `coins` and `subscription_tier` if missing).
+     - `dutch_game` module definition (and updates its schema to include `coins` and `subscription_tier` if missing).
    - Iterates all users in `users` collection and:
      - Adds a default `modules.in_app_purchases` block if missing.
-     - Adds a default `modules.cleco_game` block if missing.
-     - Adds or updates `coins` and `subscription_tier` for existing `cleco_game` entries, and normalizes `subscription_tier="free"` to `"promotional"`.
+     - Adds a default `modules.dutch_game` block if missing.
+     - Adds or updates `coins` and `subscription_tier` for existing `dutch_game` entries, and normalizes `subscription_tier="free"` to `"promotional"`.
      - Updates `updated_at` timestamps as needed.
    - **Adds `is_comp_player` field**:
      - Creates index on `is_comp_player` field
@@ -500,7 +500,7 @@ There are two relevant playbooks for **remote** MongoDB structure:
 4. Prints a detailed log of operations and a verification summary:
    - Total modules in `user_modules`.
    - Number of users.
-   - Number of users with `in_app_purchases` and `cleco_game` modules.
+   - Number of users with `in_app_purchases` and `dutch_game` modules.
    - Number of computer players created.
 5. Cleans up the temporary script and prints a final, human-readable summary.
 
@@ -566,7 +566,7 @@ To perform a full **mobile app + backend** release with versioned updates:
 7. **Sanity-check version endpoint**:
 
    ```bash
-   curl "https://cleco.reignofplay.com/public/check-updates?current_version=2.1.0"
+   curl "https://dutch.reignofplay.com/public/check-updates?current_version=2.1.0"
    ```
 
    - Expect `server_version: "2.2.0"`.

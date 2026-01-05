@@ -4,7 +4,7 @@ class Config {
 
   static const bool loggerOn = true;
 
-  static const String appTitle = "Cleco";
+  static const String appTitle = "Dutch";
 
   // API URL
   // Single source of truth – always use API_URL (set per launch config)

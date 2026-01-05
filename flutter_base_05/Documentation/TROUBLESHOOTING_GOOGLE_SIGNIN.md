@@ -25,10 +25,10 @@ cd flutter_base_05
 
 **Check your app's package name:**
 - File: `flutter_base_05/android/app/build.gradle.kts`
-- Line 24: `applicationId = "com.reignofplay.cleco"`
+- Line 24: `applicationId = "com.reignofplay.dutch"`
 
 **Verify in Google Cloud Console:**
-- The OAuth client's package name must be: `com.reignofplay.cleco`
+- The OAuth client's package name must be: `com.reignofplay.dutch`
 - Must match **exactly** (case-sensitive)
 
 ## 3. Verify Client ID is Being Used
@@ -66,7 +66,7 @@ In Google Cloud Console:
 
 ### Issue: "Package name mismatch"
 - **Cause:** Package name in OAuth client doesn't match `applicationId` in `build.gradle.kts`
-- **Fix:** Update OAuth client with correct package name: `com.reignofplay.cleco`
+- **Fix:** Update OAuth client with correct package name: `com.reignofplay.dutch`
 
 ### Issue: "SHA-1 fingerprint mismatch"
 - **Cause:** APK was signed with a different keystore than registered

@@ -1,4 +1,4 @@
-# Deck Configuration for Cleco Game
+# Deck Configuration for Dutch Game
 # This file defines the composition and properties of playing cards
 # Used by both Dart and Python deck factories
 #  For the flutter side, this file is in the assets directory, and for the dart bkend side, this file is in the  bkend_core  config directory.

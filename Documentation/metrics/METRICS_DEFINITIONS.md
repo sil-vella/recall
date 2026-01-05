@@ -69,25 +69,25 @@ This document provides a complete reference of all metrics collected by the Reca
 
 ## Game Metrics
 
-### `cleco_games_created_total`
+### `dutch_games_created_total`
 - **Type**: Counter
 - **Labels**: `game_mode`
-- **Description**: Total number of Cleco games created
+- **Description**: Total number of Dutch games created
 - **Triggered**: `game_created` event (currently not implemented in codebase)
 - **Label Values**:
   - `game_mode`: `"practice"`, `"multiplayer"`, `"tournament"`
 
-### `cleco_games_completed_total`
+### `dutch_games_completed_total`
 - **Type**: Counter
 - **Labels**: `game_mode`, `result`
-- **Description**: Total number of Cleco games completed (per player)
+- **Description**: Total number of Dutch games completed (per player)
 - **Triggered**: `game_completed` event via AnalyticsService
 - **Label Values**:
   - `game_mode`: `"practice"`, `"multiplayer"`, `"tournament"`
   - `result`: `"win"`, `"loss"`
 - **Note**: One game completion creates one metric per player (1 winner = 1 win, 3 losers = 3 losses)
 
-### `cleco_game_duration_seconds`
+### `dutch_game_duration_seconds`
 - **Type**: Histogram
 - **Labels**: `game_mode`
 - **Description**: Distribution of game duration in seconds
@@ -95,17 +95,17 @@ This document provides a complete reference of all metrics collected by the Reca
 - **Label Values**:
   - `game_mode`: `"practice"`, `"multiplayer"`, `"tournament"`
 
-### `cleco_coin_transactions_total`
+### `dutch_coin_transactions_total`
 - **Type**: Counter
 - **Labels**: `transaction_type`, `direction`
-- **Description**: Total number of Cleco coin transactions
+- **Description**: Total number of Dutch coin transactions
 - **Triggered**: `coin_transaction` event via AnalyticsService
 - **Label Values**:
   - `transaction_type`: `"game_reward"`, `"purchase"`, `"refund"`, `"bonus"`
   - `direction`: `"credit"` (coins added), `"debit"` (coins spent)
 - **Increment Amount**: Can be incremented by amount (e.g., `inc(amount)`)
 
-### `cleco_special_card_used_total`
+### `dutch_special_card_used_total`
 - **Type**: Counter
 - **Labels**: `card_type`
 - **Description**: Total number of special card uses
@@ -113,11 +113,11 @@ This document provides a complete reference of all metrics collected by the Reca
 - **Label Values**:
   - `card_type`: `"queen"`, `"jack"`, `"joker"`, `"red_king"`
 
-### `cleco_calls_total`
+### `dutch_calls_total`
 - **Type**: Counter
 - **Labels**: `game_mode`
-- **Description**: Total number of "Cleco" calls (final round triggers)
-- **Triggered**: `cleco_called` event (currently not implemented in codebase)
+- **Description**: Total number of "Dutch" calls (final round triggers)
+- **Triggered**: `dutch_called` event (currently not implemented in codebase)
 - **Label Values**:
   - `game_mode`: `"practice"`, `"multiplayer"`, `"tournament"`
 
@@ -169,7 +169,7 @@ Each metric type has a corresponding handler in `MetricsCollector`:
 - `_handle_game_completed()` - Game completion
 - `_handle_coin_transaction()` - Coin transactions
 - `_handle_special_card_used()` - Special card usage
-- `_handle_cleco_called()` - Cleco calls
+- `_handle_dutch_called()` - Dutch calls
 - `_handle_credit_transaction()` - Credit transactions
 - `_handle_credit_balance()` - Credit balance
 - `_handle_mongodb_connections()` - MongoDB connections
@@ -188,7 +188,7 @@ The `AnalyticsService` automatically maps events to metrics:
 | `game_completed` | `game_completed` | `_handle_game_completed()` |
 | `coin_transaction` | `coin_transaction` | `_handle_coin_transaction()` |
 | `special_card_used` | `special_card_used` | `_handle_special_card_used()` |
-| `cleco_called` | `cleco_called` | `_handle_cleco_called()` |
+| `dutch_called` | `dutch_called` | `_handle_dutch_called()` |
 
 ## Query Examples
 
@@ -202,7 +202,7 @@ sum(user_logins_total)
 sum by (auth_method) (user_logins_total)
 
 # Win/Loss ratio
-sum by (result) (cleco_games_completed_total)
+sum by (result) (dutch_games_completed_total)
 
 # Active users (daily)
 active_users_current{time_period="daily"}
@@ -211,7 +211,7 @@ active_users_current{time_period="daily"}
 rate(flask_app_requests_total[5m])
 
 # Average game duration
-rate(cleco_game_duration_seconds_sum[5m]) / rate(cleco_game_duration_seconds_count[5m])
+rate(dutch_game_duration_seconds_sum[5m]) / rate(dutch_game_duration_seconds_count[5m])
 ```
 
 ## Notes

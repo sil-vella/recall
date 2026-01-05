@@ -1,6 +1,6 @@
 ### Tools Scripts Overview
 
-This directory contains helper scripts for running and building the Cleco Flutter app and integrating it with the Python backend and the VPS.
+This directory contains helper scripts for running and building the Dutch Flutter app and integrating it with the Python backend and the VPS.
 
 Scripts:
 - `launch_chrome.sh` – run the Flutter web app in Chrome, pointing at either LOCAL or VPS backend.
@@ -34,8 +34,8 @@ Scripts:
   - `API_URL="http://localhost:5001"`
   - `WS_URL="ws://localhost:8080"`
 - `vps`:
-  - `API_URL="https://cleco.reignofplay.com"`
-  - `WS_URL="wss://cleco.reignofplay.com/ws"`
+  - `API_URL="https://dutch.reignofplay.com"`
+  - `WS_URL="wss://dutch.reignofplay.com/ws"`
 
 **What it runs**:
 - `cd flutter_base_05`
@@ -77,8 +77,8 @@ This is the recommended way to run the **web** version against either the local 
 
 **Local vs VPS behavior**:
 - `vps`:
-  - `API_URL="https://cleco.reignofplay.com"`
-  - `WS_URL="wss://cleco.reignofplay.com/ws"`
+  - `API_URL="https://dutch.reignofplay.com"`
+  - `WS_URL="wss://dutch.reignofplay.com/ws"`
 - `local`:
   - Uses your LAN IP for the Python/Dart backend (currently `192.168.178.81:5001` for Flask and `:8080` for WebSockets).
 
@@ -104,7 +104,7 @@ Use this script for **manual testing on the physical device** against either loc
 ### 3. `build_apk.sh`
 
 **Purpose**:
-- Automates building the **Android release APK** for Cleco.
+- Automates building the **Android release APK** for Dutch.
 - Keeps the app version in sync across:
   - The backend’s update logic (`/public/check-updates`),
   - Flutter’s `build-name`/`build-number` (Android/iOS),
@@ -146,8 +146,8 @@ Use this script for **manual testing on the physical device** against either loc
    - For `vps` (default):
 
      ```bash
-     API_URL="https://cleco.reignofplay.com"
-     WS_URL="wss://cleco.reignofplay.com/ws"
+     API_URL="https://dutch.reignofplay.com"
+     WS_URL="wss://dutch.reignofplay.com/ws"
      ```
 
    - For `local`: uses the LAN IP for the backend services.
@@ -176,7 +176,7 @@ Use this script for **manual testing on the physical device** against either loc
    - Installs it to:
 
      ```bash
-     /var/www/cleco.reignofplay.com/downloads/v$APP_VERSION/app.apk
+     /var/www/dutch.reignofplay.com/downloads/v$APP_VERSION/app.apk
      ```
 
      (owned by `www-data`, mode `0644`).
@@ -184,7 +184,7 @@ Use this script for **manual testing on the physical device** against either loc
    - Regenerates the mobile release manifest on the VPS at:
 
      ```bash
-     /opt/apps/reignofplay/cleco/secrets/mobile_release.json
+     /opt/apps/reignofplay/dutch/secrets/mobile_release.json
      ```
 
      with content like:
@@ -204,7 +204,7 @@ Use this script for **manual testing on the physical device** against either loc
   - Returns `update_available` / `update_required` and a `download_link` pointing at:
 
     ```
-    https://cleco.reignofplay.com/downloads/v<latest_version>/app.apk
+    https://dutch.reignofplay.com/downloads/v<latest_version>/app.apk
     ```
 
 **Usage examples**:

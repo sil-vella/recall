@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Dart WebSocket Server (`dart_bkend_base_01`) provides a lightweight, high-performance WebSocket server for the Cleco card game multiplayer functionality. This server handles real-time communication between game clients and manages game rooms.
+The Dart WebSocket Server (`dart_bkend_base_01`) provides a lightweight, high-performance WebSocket server for the Dutch card game multiplayer functionality. This server handles real-time communication between game clients and manages game rooms.
 
 ## Architecture
 
@@ -252,7 +252,7 @@ MessageHandler(RoomManager roomManager, WebSocketServer server)
 
 1. **Clone/Navigate to Directory**
    ```bash
-   cd /Users/sil/Documents/Work/reignofplay/Cleco/app_dev/dart_bkend_base_01
+   cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev/dart_bkend_base_01
    ```
 
 2. **Install Dependencies**

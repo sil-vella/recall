@@ -28,8 +28,8 @@ Since Google Cloud Console doesn't allow multiple SHA-1s in one client, create a
 3. Click **+ CREATE CREDENTIALS** → **OAuth client ID**
 4. Select **Application type**: **Android**
 5. Fill in:
-   - **Name**: Cleco Android Debug
-   - **Package name**: `com.reignofplay.cleco` (same as release)
+   - **Name**: Dutch Android Debug
+   - **Package name**: `com.reignofplay.dutch` (same as release)
    - **SHA-1 certificate fingerprint**: `44:FF:5B:9F:94:9D:33:23:CD:B8:7A:C3:8E:39:61:0F:71:22:1B:5C` (debug SHA-1)
 6. Click **Create**
 7. **Copy the Debug Client ID** (will be different from release)

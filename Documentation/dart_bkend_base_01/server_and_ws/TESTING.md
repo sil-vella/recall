@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers testing the Dart WebSocket server for the Cleco card game. It includes manual testing, automated testing, and integration testing approaches.
+This guide covers testing the Dart WebSocket server for the Dutch card game. It includes manual testing, automated testing, and integration testing approaches.
 
 ## Manual Testing
 

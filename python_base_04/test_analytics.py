@@ -115,12 +115,12 @@ def test_phase1_game_metrics(metrics_text):
         return False
     
     required_metrics = [
-        "cleco_games_created_total",
-        "cleco_games_completed_total",
-        "cleco_game_duration_seconds",
+        "dutch_games_created_total",
+        "dutch_games_completed_total",
+        "dutch_game_duration_seconds",
         "coin_transactions_total",
         "special_card_used_total",
-        "cleco_calls_total"
+        "dutch_calls_total"
     ]
     
     found = []

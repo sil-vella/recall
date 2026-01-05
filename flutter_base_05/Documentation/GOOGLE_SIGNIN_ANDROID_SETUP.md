@@ -45,7 +45,7 @@ This will output:
 1. Click **+ CREATE CREDENTIALS** → **OAuth client ID**
 2. If prompted, configure the OAuth consent screen first:
    - User Type: **External** (or Internal if using Google Workspace)
-   - App name: **Cleco**
+   - App name: **Dutch**
    - User support email: Your email
    - Developer contact: Your email
    - Click **Save and Continue** through the scopes (defaults are fine)
@@ -55,8 +55,8 @@ This will output:
 3. Back in Credentials, click **+ CREATE CREDENTIALS** → **OAuth client ID**
 4. Select **Application type**: **Android**
 5. Fill in the details:
-   - **Name**: Cleco Android (or any descriptive name)
-   - **Package name**: `com.reignofplay.cleco` (must match `applicationId` in `build.gradle.kts`)
+   - **Name**: Dutch Android (or any descriptive name)
+   - **Package name**: `com.reignofplay.dutch` (must match `applicationId` in `build.gradle.kts`)
    - **SHA-1 certificate fingerprint**: Paste your **Release SHA-1** from Step 1
 6. Click **Create**
 
@@ -130,7 +130,7 @@ The Google Sign-In should now work in the APK.
 
 **Solutions:**
 1. Verify SHA-1 fingerprints are added to the Android OAuth client in Google Cloud Console
-2. Check package name matches: `com.reignofplay.cleco`
+2. Check package name matches: `com.reignofplay.dutch`
 3. Ensure `GOOGLE_CLIENT_ID` (Web Client ID) is configured - this is used as `serverClientId` on Android
 4. Verify the Android OAuth Client exists with correct SHA-1 and package name (it's auto-detected)
 
@@ -139,7 +139,7 @@ The Google Sign-In should now work in the APK.
 **Error:** `The package name does not match the client ID`
 
 **Solution:**
-- Verify `applicationId` in `android/app/build.gradle.kts` is `com.reignofplay.cleco`
+- Verify `applicationId` in `android/app/build.gradle.kts` is `com.reignofplay.dutch`
 - Verify the Android OAuth client in Google Cloud Console has the same package name
 - Recreate the OAuth client if needed
 
@@ -161,7 +161,7 @@ The Google Sign-In should now work in the APK.
 flutter_base_05/
 ├── android/
 │   ├── app/
-│   │   └── build.gradle.kts          # Package name: com.reignofplay.cleco
+│   │   └── build.gradle.kts          # Package name: com.reignofplay.dutch
 │   └── settings.gradle.kts
 ├── lib/
 │   ├── utils/consts/

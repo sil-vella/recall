@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Card size options for the Cleco game
+/// Card size options for the Dutch game
 enum CardSize {
   small,
   medium,

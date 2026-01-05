@@ -148,7 +148,7 @@ class _MyAppState extends State<MyApp> {
     navigationManager.setRouterInstance(router);
     
     return MaterialApp.router(
-      title: "Cleco App",
+      title: "Dutch App",
       theme: AppTheme.darkTheme,
       routerConfig: router,
     );

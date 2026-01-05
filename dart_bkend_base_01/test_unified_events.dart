@@ -38,7 +38,7 @@ void main() async {
       'play_card',
       'discard_card',
       'take_from_discard',
-      'call_cleco',
+      'call_dutch',
       'same_rank_play',
       'jack_swap',
       'queen_peek',

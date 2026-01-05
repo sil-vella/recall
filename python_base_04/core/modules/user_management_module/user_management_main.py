@@ -285,7 +285,7 @@ class UserManagementModule(BaseModule):
                         'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
                         'referrals_count': 0
                     },
-                    'cleco_game': {
+                    'dutch_game': {
                         'enabled': True,
                         'wins': 0,
                         'losses': 0,
@@ -499,7 +499,7 @@ class UserManagementModule(BaseModule):
                         'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
                         'referrals_count': 0
                     },
-                    'cleco_game': {
+                    'dutch_game': {
                         'enabled': True,
                         'wins': 0,
                         'losses': 0,
@@ -1141,7 +1141,7 @@ class UserManagementModule(BaseModule):
                                 'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
                                 'referrals_count': 0
                             },
-                            'cleco_game': {
+                            'dutch_game': {
                                 'enabled': True,
                                 'wins': 0,
                                 'losses': 0,

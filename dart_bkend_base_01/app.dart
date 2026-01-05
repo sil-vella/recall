@@ -18,7 +18,7 @@ void main(List<String> args) async {
     logger.info('🎮 Initializing Dart Game Server...', isOn: LOGGING_SWITCH);
     
     // Create WebSocket server with Docker service URL (for VPS)
-    final wsServer = WebSocketServer(pythonApiUrl: 'http://cleco_flask-external:5001');
+    final wsServer = WebSocketServer(pythonApiUrl: 'http://dutch_flask-external:5001');
     
     // WebSocket handler
     final handler = webSocketHandler((webSocket) {

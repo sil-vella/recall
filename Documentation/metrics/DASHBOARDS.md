@@ -45,52 +45,52 @@ providers:
 
 #### 1. Games Created Over Time
 - **Type**: Time series
-- **Query**: `cleco_games_completed_total`
+- **Query**: `dutch_games_completed_total`
 - **Legend**: `{{game_mode}} - {{result}}`
 - **Unit**: `short` (count)
 - **Description**: Shows cumulative games completed over time, grouped by game mode and result
 
 #### 2. Games Completed Over Time
 - **Type**: Time series
-- **Query**: `cleco_games_completed_total`
+- **Query**: `dutch_games_completed_total`
 - **Legend**: `{{game_mode}} - {{result}}`
 - **Unit**: `short` (count)
 - **Description**: Same as above (duplicate panel, can be customized)
 
 #### 3. Win/Loss Ratio
 - **Type**: Pie chart
-- **Query**: `sum by (result) (cleco_games_completed_total)`
+- **Query**: `sum by (result) (dutch_games_completed_total)`
 - **Legend**: `{{result}}`
 - **Description**: Shows aggregate win/loss ratio across all games and users
 - **Note**: Aggregates all player results (1 game with 1 winner, 3 losers = 1 win, 3 losses)
 
 #### 4. Game Duration Distribution
 - **Type**: Histogram
-- **Query**: `cleco_game_duration_seconds`
+- **Query**: `dutch_game_duration_seconds`
 - **Legend**: `{{game_mode}}`
 - **Unit**: `s` (seconds)
 - **Description**: Distribution of game durations by game mode
 
 #### 5. Coin Transactions
 - **Type**: Time series
-- **Query**: `cleco_coin_transactions_total`
+- **Query**: `dutch_coin_transactions_total`
 - **Legend**: `{{transaction_type}} - {{direction}}`
 - **Unit**: `short` (count)
 - **Description**: Total coin transactions over time, grouped by type and direction
 
 #### 6. Special Card Usage
 - **Type**: Time series
-- **Query**: `cleco_special_card_used_total`
+- **Query**: `dutch_special_card_used_total`
 - **Legend**: `{{card_type}}`
 - **Unit**: `short` (count)
 - **Description**: Special card usage over time
 
-#### 7. Cleco Calls
+#### 7. Dutch Calls
 - **Type**: Time series
-- **Query**: `cleco_calls_total`
+- **Query**: `dutch_calls_total`
 - **Legend**: `{{game_mode}}`
 - **Unit**: `short` (count)
-- **Description**: Total Cleco calls (final round triggers) over time
+- **Description**: Total Dutch calls (final round triggers) over time
 
 ### Query Notes
 
@@ -214,16 +214,16 @@ providers:
 
 ```promql
 # Total games completed
-sum(cleco_games_completed_total)
+sum(dutch_games_completed_total)
 
 # Games by result
-sum by (result) (cleco_games_completed_total)
+sum by (result) (dutch_games_completed_total)
 
 # Win rate (percentage)
-sum(cleco_games_completed_total{result="win"}) / sum(cleco_games_completed_total) * 100
+sum(dutch_games_completed_total{result="win"}) / sum(dutch_games_completed_total) * 100
 
 # Average game duration
-rate(cleco_game_duration_seconds_sum[5m]) / rate(cleco_game_duration_seconds_count[5m])
+rate(dutch_game_duration_seconds_sum[5m]) / rate(dutch_game_duration_seconds_count[5m])
 
 # Request rate (requests per second)
 rate(flask_app_requests_total[5m])
@@ -249,7 +249,7 @@ sum(rate(flask_app_requests_total{status=~"5.."}[5m]))
 
 1. **Check Prometheus has data**:
    ```bash
-   curl 'http://localhost:9090/api/v1/query?query=cleco_games_completed_total'
+   curl 'http://localhost:9090/api/v1/query?query=dutch_games_completed_total'
    ```
 
 2. **Check time range**:
@@ -284,7 +284,7 @@ sum(rate(flask_app_requests_total{status=~"5.."}[5m]))
 
 1. **Verify metrics exist**:
    ```bash
-   curl http://localhost:5001/metrics | grep cleco_games_completed_total
+   curl http://localhost:5001/metrics | grep dutch_games_completed_total
    ```
 
 2. **Check label values**:

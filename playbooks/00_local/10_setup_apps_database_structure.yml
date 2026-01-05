@@ -3,7 +3,7 @@
   hosts: localhost
   connection: local
   vars:
-    mongodb_container_name: "cleco_external_app_mongodb"
+    mongodb_container_name: "dutch_external_app_mongodb"
     database_name: "external_system"
     app_user: "external_app_user"
     app_password: "6R3jjsvVhIRP20zMiHdkBzNKx"
@@ -134,7 +134,7 @@
                   "currency": "USD",
                   "last_updated": new Date("2024-03-01T12:00:00Z")
                 },
-                "cleco_game": {
+                "dutch_game": {
                   "enabled": true,
                   "wins": 0,
                   "losses": 0,
@@ -213,7 +213,7 @@
                   "currency": "USD",
                   "last_updated": new Date("2024-03-01T12:00:00Z")
                 },
-                "cleco_game": {
+                "dutch_game": {
                   "enabled": true,
                   "wins": 0,
                   "losses": 0,
@@ -291,7 +291,7 @@
                   "currency": "USD",
                   "last_updated": new Date("2024-03-01T12:00:00Z")
                 },
-                "cleco_game": {
+                "dutch_game": {
                   "enabled": true,
                   "wins": 0,
                   "losses": 0,
@@ -397,9 +397,9 @@
             },
             {
               "_id": ObjectId("507f1f77bcf86cd799439105"),
-              "module_name": "cleco_game",
-              "display_name": "Cleco Game Module",
-              "description": "Cleco card game statistics and progression",
+              "module_name": "dutch_game",
+              "display_name": "Dutch Game Module",
+              "description": "Dutch card game statistics and progression",
               "status": "active",
               "version": "1.0.0",
               "schema": {

@@ -10,7 +10,7 @@ The app bar action feature slot system provides a flexible, state-aware way to d
 
 ### Core Components
 
-1. **FeatureRegistryManager** (`lib/modules/cleco_game/managers/feature_registry_manager.dart`)
+1. **FeatureRegistryManager** (`lib/modules/dutch_game/managers/feature_registry_manager.dart`)
    - Central registry for all features across the app
    - Manages feature registration, unregistration, and scope clearing
    - Provides change notifications via streams
@@ -46,7 +46,7 @@ lib/
 │   └── 00_base/
 │       └── screen_base.dart                     # BaseScreen with feature integration
 └── modules/
-    └── cleco_game/
+    └── dutch_game/
         └── managers/
             ├── feature_registry_manager.dart     # Feature registry
             └── feature_contracts.dart            # Feature descriptors

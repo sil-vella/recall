@@ -322,7 +322,7 @@ GF_SERVER_ROOT_URL=http://localhost:3001
 
 3. **Check Prometheus has data**:
    ```bash
-   curl 'http://localhost:9090/api/v1/query?query=cleco_games_completed_total'
+   curl 'http://localhost:9090/api/v1/query?query=dutch_games_completed_total'
    ```
 
 ### Port Conflicts

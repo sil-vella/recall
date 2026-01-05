@@ -437,7 +437,7 @@ user_data = {
             'referral_code': f"{username.upper()}{current_time.strftime('%Y%m')}",
             'referrals_count': 0
         },
-        'cleco_game': {
+        'dutch_game': {
             'enabled': True,
             'wins': 0,
             'losses': 0,
@@ -1879,7 +1879,7 @@ User Logged In with Google Account (All Progress Preserved)
       "auth_providers": ["google"],
       "created_at": "2025-12-12T21:59:32.000Z",  // Preserved from guest account
       "modules": {
-        "cleco_game": {
+        "dutch_game": {
           "wins": 5,  // Preserved from guest account
           "losses": 2,  // Preserved from guest account
           "coins": 100,  // Preserved from guest account
@@ -1918,7 +1918,7 @@ User Logged In with Google Account (All Progress Preserved)
 #### Data Preservation
 
 **What Gets Preserved**:
-- ✅ All module data (cleco_game, wallet, subscription, referrals)
+- ✅ All module data (dutch_game, wallet, subscription, referrals)
 - ✅ Game statistics (wins, losses, coins, points, level, rank)
 - ✅ Original account creation date
 - ✅ Login count and last login timestamp
@@ -1983,7 +1983,7 @@ static const String googleClientId = String.fromEnvironment(
 
 **Android Requirements**:
 - **OAuth 2.0 Client ID for Android**: Created in Google Cloud Console with:
-  - Package name: `com.reignofplay.cleco`
+  - Package name: `com.reignofplay.dutch`
   - SHA-1 fingerprint (for debug and release keystores)
 - **Web Client ID**: Must be provided as `serverClientId` to enable ID token retrieval
 - Both client IDs are required:
@@ -2365,7 +2365,7 @@ GoogleSignIn(
       "referral_code": "string (format: '{USERNAME}{YYYYMM}')",
       "referrals_count": "integer (default: 0)"
     },
-    "cleco_game": {
+    "dutch_game": {
       "enabled": "boolean (default: true)",
       "wins": "integer (default: 0)",
       "losses": "integer (default: 0)",
@@ -2390,8 +2390,8 @@ GoogleSignIn(
 }
 ```
 
-**Subscription Tier System (cleco_game module):**
-- **subscription_tier**: Determines coin requirements for Cleco game
+**Subscription Tier System (dutch_game module):**
+- **subscription_tier**: Determines coin requirements for Dutch game
   - `'promotional'` (default): Free play - no coin check required, no coins deducted during gameplay
   - `'free'`: Requires coins - coin check and deduction applies
   - `'regular'`: Requires coins - coin check and deduction applies
@@ -3132,7 +3132,7 @@ The user registration process is a comprehensive system that handles user accoun
 - **Automatic data encryption** (email, username, phone encrypted at rest)
 - **Duplicate prevention** (email and username uniqueness)
 - **Comprehensive user data structure** (profile, preferences, modules, audit)
-- **Cleco game module initialization** (subscription_tier: 'promotional', coins: 0)
+- **Dutch game module initialization** (subscription_tier: 'promotional', coins: 0)
 - **Hook system** for post-registration actions
 - **Error handling** with security-conscious messages
 - **Rate limiting** protection
@@ -3146,7 +3146,7 @@ The user registration process is a comprehensive system that handles user accoun
 - **Full account functionality** (same features as regular accounts)
 - **Secure credential generation** (cryptographically secure randomness)
 - **Account type distinction** (marked as 'guest' in database)
-- **Cleco game module initialization** (subscription_tier: 'promotional', coins: 0)
+- **Dutch game module initialization** (subscription_tier: 'promotional', coins: 0)
 
 ### Google Sign-In Registration
 - **One-click authentication** with Google account
@@ -3158,13 +3158,13 @@ The user registration process is a comprehensive system that handles user accoun
 - **Same JWT token system** as email/password login
 - **Auth providers tracking** (auth_providers field in user document)
 - **Data preservation** - all guest account data (modules, stats, coins) preserved during conversion
-- **Cleco game module initialization** (subscription_tier: 'promotional', coins: 0)
+- **Dutch game module initialization** (subscription_tier: 'promotional', coins: 0)
 
 ### Subscription Tier System
 - **Default tier**: All new users (guest and regular) start with `subscription_tier: 'promotional'`
 - **Promotional tier**: Free play - no coin check required, no coins deducted
 - **Free/Regular tier**: Requires coins - coin check and deduction applies
-- **Location**: Stored in `modules.cleco_game.subscription_tier`
+- **Location**: Stored in `modules.dutch_game.subscription_tier`
 - **Impact**: Affects coin validation before game creation/join and coin deduction when games start
 
 The system is designed to be secure, scalable, and extensible, with clear separation of concerns between frontend and backend components. Guest registration provides a low-friction entry point while maintaining the same security and functionality standards as regular registration. All sensitive user data (email, username, phone) is automatically encrypted at rest using deterministic encryption for searchable fields and Fernet encryption for other sensitive data.

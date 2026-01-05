@@ -31,8 +31,8 @@ class WSEventListeners:
             if event in core_events:
                 return None
             
-            # Allow cleco events to pass through to their custom listeners
-            if str(event).startswith('cleco_'):
+            # Allow dutch events to pass through to their custom listeners
+            if str(event).startswith('dutch_'):
                 return None
             return self.event_handlers.handle_unified_event(event, event, data or {})
 

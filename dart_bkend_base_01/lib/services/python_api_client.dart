@@ -43,11 +43,11 @@ class PythonApiClient {
   /// Update game statistics for players after a game ends
   Future<Map<String, dynamic>> updateGameStats(List<Map<String, dynamic>> gameResults) async {
     _logger.info('📊 Dart: Updating game statistics for ${gameResults.length} player(s)', isOn: LOGGING_SWITCH);
-    _logger.info('🌐 Dart: Calling $baseUrl/public/cleco/update-game-stats', isOn: LOGGING_SWITCH);
+    _logger.info('🌐 Dart: Calling $baseUrl/public/dutch/update-game-stats', isOn: LOGGING_SWITCH);
     
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/public/cleco/update-game-stats'),
+        Uri.parse('$baseUrl/public/dutch/update-game-stats'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'game_results': gameResults,
@@ -82,11 +82,11 @@ class PythonApiClient {
   /// Get computer players from Flask backend
   Future<Map<String, dynamic>> getCompPlayers(int count) async {
     _logger.info('🤖 Dart: Requesting $count comp player(s) from Python API', isOn: LOGGING_SWITCH);
-    _logger.info('🌐 Dart: Calling $baseUrl/public/cleco/get-comp-players', isOn: LOGGING_SWITCH);
+    _logger.info('🌐 Dart: Calling $baseUrl/public/dutch/get-comp-players', isOn: LOGGING_SWITCH);
     
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/public/cleco/get-comp-players'),
+        Uri.parse('$baseUrl/public/dutch/get-comp-players'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'count': count}),
       );

@@ -154,8 +154,8 @@ class AnalyticsService:
                     'card_type': event_data.get('card_type', 'unknown')
                 }
             },
-            'cleco_called': {
-                'metric_type': 'cleco_called',
+            'dutch_called': {
+                'metric_type': 'dutch_called',
                 'payload': {
                     'game_mode': event_data.get('game_mode', 'unknown')
                 }

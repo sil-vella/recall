@@ -1,8 +1,8 @@
 services:
   # MongoDB Service (for external app)
-  cleco_mongodb-external:
+  dutch_mongodb-external:
     image: bitnami/mongodb:latest
-    container_name: cleco_external_app_mongodb
+    container_name: dutch_external_app_mongodb
     environment:
       - MONGODB_ROOT_USER=mongodb_admin
       - MONGODB_DATABASE=external_system
@@ -19,9 +19,9 @@ services:
     restart: unless-stopped
 
   # Redis Service (for external app)
-  cleco_redis-external:
+  dutch_redis-external:
     image: bitnami/redis:latest
-    container_name: cleco_external_app_redis
+    container_name: dutch_external_app_redis
     environment:
       - REDIS_PASSWORD_FILE=/app/secrets/redis_password
     ports:
@@ -34,9 +34,9 @@ services:
     restart: unless-stopped
 
   # Prometheus Service (for metrics collection)
-  cleco_prometheus:
+  dutch_prometheus:
     image: prom/prometheus:latest
-    container_name: cleco_prometheus
+    container_name: dutch_prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -52,9 +52,9 @@ services:
     restart: unless-stopped
 
   # Grafana Service (for metrics visualization)
-  cleco_grafana:
+  dutch_grafana:
     image: grafana/grafana:latest
-    container_name: cleco_grafana
+    container_name: dutch_grafana
     ports:
       - "3001:3000"
     environment:
@@ -67,7 +67,7 @@ services:
       - ./python_base_04/grafana/provisioning:/etc/grafana/provisioning
       - ./python_base_04/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
-      - cleco_prometheus
+      - dutch_prometheus
     networks:
       - app-network
     restart: unless-stopped

@@ -1,8 +1,8 @@
 import '../state_manager.dart';
 import '../module_manager.dart';
 import '../hooks_manager.dart';
-import '../../../modules/cleco_game/utils/cleco_game_helpers.dart';
-import '../../../modules/cleco_game/managers/cleco_game_state_updater.dart';
+import '../../../modules/dutch_game/utils/dutch_game_helpers.dart';
+import '../../../modules/dutch_game/managers/dutch_game_state_updater.dart';
 import 'ws_event_manager.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
@@ -164,21 +164,21 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // Also reflect ownership in Cleco game main state so UI (GameInfoWidget) can gate Start button
+      // Also reflect ownership in Dutch game main state so UI (GameInfoWidget) can gate Start button
       // Note: isInGame is only stored within games map structure, not as top-level field
-      ClecoGameHelpers.updateUIState({
+      DutchGameHelpers.updateUIState({
         'isRoomOwner': isRoomOwner,
       });
       
       // Ensure games map entry reflects ownership immediately
       try {
-        final clecoState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
-        final games = Map<String, dynamic>.from(clecoState['games'] as Map<String, dynamic>? ?? {});
+        final dutchState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final games = Map<String, dynamic>.from(dutchState['games'] as Map<String, dynamic>? ?? {});
         final current = Map<String, dynamic>.from(games[roomId] as Map<String, dynamic>? ?? {'gameData': {}});
         current['isRoomOwner'] = isRoomOwner;
         current['isInGame'] = true;
         games[roomId] = current;
-        ClecoGameHelpers.updateUIState({'games': games});
+        DutchGameHelpers.updateUIState({'games': games});
       } catch (_) {}
       
       // Trigger event callbacks for room management screen
@@ -379,7 +379,7 @@ class WSEventHandler {
         roomInfo: roomData,
       );
       
-      // Set room ownership and game state in cleco game state
+      // Set room ownership and game state in dutch game state
       final maxSize = roomData['max_size']; // Extract max_size from room data
       final minSize = roomData['min_players']; // Extract min_players from room data
       
@@ -597,7 +597,7 @@ class WSEventHandler {
           : <String, dynamic>{};
       final timestamp = data['timestamp']?.toString() ?? '';
       
-      // Note: State updates are handled by Cleco module via hooks
+      // Note: State updates are handled by Dutch module via hooks
       
       // Trigger event callbacks for game management
       _eventManager.triggerCallbacks('new_player_joined', {
@@ -634,7 +634,7 @@ class WSEventHandler {
       final totalGames = data['total_games'] ?? 0;
       final timestamp = data['timestamp']?.toString() ?? '';
       
-      // Note: State updates are handled by Cleco module via hooks
+      // Note: State updates are handled by Dutch module via hooks
       
       // Trigger event callbacks for game management
       _eventManager.triggerCallbacks('joined_games', {
@@ -773,9 +773,9 @@ class WSEventHandler {
         };
       }).whereType<Map<String, dynamic>>().toList();
       
-      // Update cleco game state with available games
-      final clecoStateUpdater = ClecoGameStateUpdater.instance;
-      clecoStateUpdater.updateState({
+      // Update dutch game state with available games
+      final dutchStateUpdater = DutchGameStateUpdater.instance;
+      dutchStateUpdater.updateState({
         'availableGames': availableGames,
         'isLoading': false,
         'lastUpdated': DateTime.now().toIso8601String(),

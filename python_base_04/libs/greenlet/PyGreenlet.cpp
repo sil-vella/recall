@@ -79,7 +79,7 @@ green_init(PyGreenlet* self, PyObject* args, PyObject* kwargs)
         NULL
     };
 
-    // cleco: The O specifier does NOT increase the reference count.
+    // dutch: The O specifier does NOT increase the reference count.
     if (!PyArg_ParseTupleAndKeywords(
              args, kwargs, "|OO:green", (char**)kwlist, &run, &nparent)) {
         return -1;

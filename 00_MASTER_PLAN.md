@@ -1,7 +1,7 @@
-# Master Plan - Cleco Game Development
+# Master Plan - Dutch Game Development
 
 ## Overview
-This document tracks high-level development plans, todos, and architectural decisions for the Cleco game application.
+This document tracks high-level development plans, todos, and architectural decisions for the Dutch game application.
 
 ---
 
@@ -46,8 +46,8 @@ This document tracks high-level development plans, todos, and architectural deci
     - `collect_from_discard` - verify player exists in game state players list
     - Any other game action events
   - **Location**: 
-    - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/coordinator/game_event_coordinator.dart` - Add validation in `handle()` method before routing to game logic
-    - Or in individual action handlers in `cleco_game_round.dart` (draw, play, etc.)
+    - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart` - Add validation in `handle()` method before routing to game logic
+    - Or in individual action handlers in `dutch_game_round.dart` (draw, play, etc.)
   - **Implementation**: 
     - Get current game state
     - Check if playerId (sessionId) exists in `gameState['players']` list
@@ -57,7 +57,7 @@ This document tracks high-level development plans, todos, and architectural deci
 
 #### JWT Authentication Between Dart Backend and Python
 - [ ] **Create JWT token system for Dart backend to Python API communication**
-  - **Current State**: Dart backend calls Python API endpoints (e.g., `/public/cleco/update-game-stats`) without authentication
+  - **Current State**: Dart backend calls Python API endpoints (e.g., `/public/dutch/update-game-stats`) without authentication
   - **Issue**: Public endpoints are vulnerable to unauthorized access
   - **Expected Behavior**: Dart backend should authenticate with Python backend using JWT tokens
   - **Implementation Steps**:
@@ -75,23 +75,23 @@ This document tracks high-level development plans, todos, and architectural deci
        - Implement token forwarding/storage mechanism
   - **Location**: 
     - `dart_bkend_base_01/lib/services/python_api_client.dart` - Add JWT token handling
-    - `python_base_04/core/modules/cleco_game/cleco_game_main.py` - Add JWT validation to endpoints
+    - `python_base_04/core/modules/dutch_game/dutch_game_main.py` - Add JWT validation to endpoints
     - `python_base_04/core/managers/jwt_manager.py` - Use existing JWT manager for validation
   - **Impact**: Security improvement - prevents unauthorized API calls and ensures proper user identification
 
 - [ ] **Modify game statistics update endpoint to use JWT authentication**
-  - **Current State**: `/public/cleco/update-game-stats` endpoint is public (no authentication)
+  - **Current State**: `/public/dutch/update-game-stats` endpoint is public (no authentication)
   - **Expected Behavior**: Endpoint should require JWT authentication and extract user_id from token
   - **Implementation**:
-    - Change endpoint from `/public/cleco/update-game-stats` to `/cleco/update-game-stats` (remove public prefix)
+    - Change endpoint from `/public/dutch/update-game-stats` to `/dutch/update-game-stats` (remove public prefix)
     - Add JWT validation decorator/middleware to endpoint
     - Extract `user_id` from JWT token instead of relying on request body
     - Validate that JWT user_id matches the user_id in the game results
     - Update Dart backend to send JWT token in Authorization header
   - **Location**: 
-    - `python_base_04/core/modules/cleco_game/cleco_game_main.py` - Modify `update_game_stats()` method
+    - `python_base_04/core/modules/dutch_game/dutch_game_main.py` - Modify `update_game_stats()` method
     - `dart_bkend_base_01/lib/services/python_api_client.dart` - Add JWT token to requests
-    - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/services/game_registry.dart` - Pass JWT token when calling API
+    - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/services/game_registry.dart` - Pass JWT token when calling API
   - **Impact**: Security improvement - ensures only authenticated requests can update game statistics, prevents unauthorized data manipulation
 
 ### Medium Priority
@@ -109,20 +109,20 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Status**: Partially implemented - initial peek phase exists but needs completion
   - **Current State**: Game enters `initial_peek` phase on match start, players can peek at 2 cards
   - **Needs**: Complete the flow from initial peek to game start, ensure all players complete peek before proceeding, handle timeout/auto-complete scenarios
-  - **Location**: `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart` and related event handlers
+  - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` and related event handlers
   - **Impact**: Core game feature - players must complete initial peek before game can start
 - [ ] **Complete instructions logic**
   - **Status**: Partially implemented - `showInstructions` flag is stored and passed through, timer logic checks it
   - **Current State**: `showInstructions` is stored in game state, timer logic respects it (timers disabled when `showInstructions == true`), value is passed from practice widget to game logic
   - **Needs**: Complete UI implementation to show/hide instructions based on flag, ensure instructions are displayed correctly in practice mode, verify timer behavior matches instructions visibility
-  - **Location**: Flutter UI components (practice match widget, game play screen), timer logic in `cleco_game_round.dart`
+  - **Location**: Flutter UI components (practice match widget, game play screen), timer logic in `dutch_game_round.dart`
   - **Impact**: User experience - players need clear instructions in practice mode
 - [ ] **Fix CPU player Jack swap decision logic to validate cards exist in hand**
   - **Issue**: CPU players sometimes attempt Jack swaps with cards that are no longer in their hand
   - **Root Cause**: CPU decision logic uses `known_cards` (which may contain "forgotten" played cards due to difficulty-based remember probability), but by execution time the card has already been played and removed from hand
   - **Current Behavior**: Decision is made based on stale `known_cards` data, validation correctly catches invalid swaps but wastes decision attempts
   - **Solution**: Before making Jack swap decision, validate that selected cards actually exist in the player's current hand, not just in `known_cards`
-  - **Location**: `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getJackSwapDecision()` and related selection methods
+  - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getJackSwapDecision()` and related selection methods
   - **Impact**: Improves CPU player decision accuracy, reduces failed swap attempts
 
 ### Low Priority
@@ -212,14 +212,14 @@ Python Backend (Auth)
 - **Issue**: Queen peek timer should stop after the player has peeked at a card
 - **Current Behavior**: Timer may continue running even after peek action is completed
 - **Expected Behavior**: Timer should be cancelled/stopped immediately when player completes the peek action
-- **Location**: Timer logic in game round/event handlers, likely in `cleco_game_round.dart` or related timer management code
+- **Location**: Timer logic in game round/event handlers, likely in `dutch_game_round.dart` or related timer management code
 - **Impact**: User experience - prevents confusion and ensures timer accurately reflects available time
 
 ### Game State Cleanup on Navigation
 - **Issue**: Game data persists in state and game maps when navigating away from game play screen
 - **Current Behavior**: Game state, games map, and related data remain in memory when user navigates to other screens
 - **Expected Behavior**: All game data should be completely cleared from state and all game maps when leaving the game play screen
-- **Location**: Navigation logic, game play screen lifecycle (dispose/onExit), state management in `cleco_event_handler_callbacks.dart` and `cleco_game_state_updater.dart`
+- **Location**: Navigation logic, game play screen lifecycle (dispose/onExit), state management in `dutch_event_handler_callbacks.dart` and `dutch_game_state_updater.dart`
 - **Impact**: Memory management and state consistency - prevents stale game data from affecting new games or causing memory leaks
 - **Action Items**:
   - Clear `games` map in state manager
@@ -235,7 +235,7 @@ Python Backend (Auth)
 - **Current Behavior**: Attempted to play a penalty card as a same rank play to a different turn, but the action didn't work
 - **Expected Behavior**: Penalty cards should be playable as same rank plays when appropriate
 - **Location**: 
-  - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart` - Same rank play logic
+  - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` - Same rank play logic
   - Penalty card validation and handling logic
 - **Impact**: Game functionality - penalty cards are a core game mechanic and must work correctly
 - **Action Items**:
@@ -249,15 +249,15 @@ Python Backend (Auth)
 - **Status**: ✅ **Almost Fixed** - Sanitization logic implemented, needs final verification
 - **Current Behavior**: 
   - Fixed: Sanitization function `_sanitizeDrawnCardsInGamesMap()` now converts full card data to ID-only format before broadcasting
-  - Implemented in both Flutter and Dart backend versions of `cleco_game_round.dart`
+  - Implemented in both Flutter and Dart backend versions of `dutch_game_round.dart`
   - Sanitization added before all critical `onGameStateChanged()` broadcasts (play_card, same_rank_play, jack_swap, collect_from_discard, etc.)
 - **Expected Behavior**: 
   - Opponents should only see ID-only format (`{'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}`) for drawn cards
   - Only the drawing player should see full card data
   - **CRITICAL**: When sanitizing, preserve the card ID in ID-only format - do NOT completely remove the `drawnCard` property, especially during play actions since the draw data would still be there
 - **Location**: 
-  - `flutter_base_05/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart`
-  - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart`
+  - `flutter_base_05/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart`
+  - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart`
   - Helper function: `_sanitizeDrawnCardsInGamesMap()` (lines ~40-76 in both files)
 - **Impact**: Game integrity and fairness - prevents opponents from seeing sensitive card information
 - **Remaining Action Items**:
@@ -352,17 +352,17 @@ Python Backend (Auth)
     - CardPositionTracker for getting target positions
     - CardAnimationLayer for immediate animation triggering
 - **Location**: 
-  - `flutter_base_05/lib/modules/cleco_game/screens/game_play/card_position_tracker.dart`
-  - `flutter_base_05/lib/modules/cleco_game/screens/game_play/widgets/card_animation_layer.dart`
-  - `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart` (game logic coordination)
-  - `flutter_base_05/lib/modules/cleco_game/managers/cleco_event_handler_callbacks.dart` (event handling)
+  - `flutter_base_05/lib/modules/dutch_game/screens/game_play/card_position_tracker.dart`
+  - `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/card_animation_layer.dart`
+  - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` (game logic coordination)
+  - `flutter_base_05/lib/modules/dutch_game/managers/dutch_event_handler_callbacks.dart` (event handling)
 - **Impact**: 
   - Improves animation reliability and timing
   - Eliminates race conditions with position tracking
   - Provides better visual feedback and smoother gameplay experience
   - Ensures game logic proceeds only after animations complete
   - Animation ID approach offers cleaner, more maintainable architecture
-- **Related Documentation**: `Documentation/Cleco_game/ANIMATION_SYSTEM.md`
+- **Related Documentation**: `Documentation/Dutch_game/ANIMATION_SYSTEM.md`
 
 ---
 
@@ -378,9 +378,9 @@ Python Backend (Auth)
 
 ## 📚 Related Documentation
 
-- `Documentation/Cleco_game/ROOM_GAME_CREATION_COMPARISON.md` - Python vs Dart backend comparison
-- `Documentation/Cleco_game/COMPLETE_STATE_STRUCTURE.md` - Game state structure
-- `.cursor/rules/cleco-game-state-rules.mdc` - Game system rules
+- `Documentation/Dutch_game/ROOM_GAME_CREATION_COMPARISON.md` - Python vs Dart backend comparison
+- `Documentation/Dutch_game/COMPLETE_STATE_STRUCTURE.md` - Game state structure
+- `.cursor/rules/dutch-game-state-rules.mdc` - Game system rules
 
 ---
 

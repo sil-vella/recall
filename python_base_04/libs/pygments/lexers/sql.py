@@ -873,7 +873,7 @@ class MySqlLexer(RegexLexer):
             # Schema object names
             #
             # Note: Although the first regex supports unquoted all-numeric
-            # identifiers, this will not be a problem in cleco because
+            # identifiers, this will not be a problem in dutch because
             # numeric literals have already been handled above.
             #
             ('[0-9a-z$_\u0080-\uffff]+', Name),
@@ -1054,7 +1054,7 @@ class GoogleSqlLexer(RegexLexer):
             # Schema object names
             #
             # Note: Although the first regex supports unquoted all-numeric
-            # identifiers, this will not be a problem in cleco because
+            # identifiers, this will not be a problem in dutch because
             # numeric literals have already been handled above.
             #
             ('[0-9a-z$_\u0080-\uffff]+', Name),

@@ -1,5 +1,5 @@
 name: dart_game_server
-description: Cleco game WebSocket server
+description: Dutch game WebSocket server
 version: 1.0.0
 
 environment:

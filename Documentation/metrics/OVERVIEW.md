@@ -85,7 +85,7 @@ Grafana Dashboards (visualization)
 
 - `AppManager.METRICS_SWITCH = True`
 - `UserManagementModule.METRICS_SWITCH = True`
-- `ClecoGameModule.METRICS_SWITCH = True`
+- `DutchGameModule.METRICS_SWITCH = True`
 
 ## Metric Types
 

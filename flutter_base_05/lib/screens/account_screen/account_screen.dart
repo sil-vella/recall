@@ -5,7 +5,7 @@ import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
 import '../../modules/login_module/login_module.dart';
 import '../../modules/analytics_module/analytics_module.dart';
-import '../../modules/cleco_game/utils/cleco_game_helpers.dart';
+import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../core/services/shared_preferences.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
@@ -595,9 +595,9 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   }
 
   Widget _buildGameStatisticsCard() {
-    // Get user stats from cleco_game state
-    final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
-    final userStats = clecoGameState['userStats'] as Map<String, dynamic>?;
+    // Get user stats from dutch_game state
+    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final userStats = dutchGameState['userStats'] as Map<String, dynamic>?;
     
     // If no stats available, show empty state or fetch button
     if (userStats == null) {
@@ -634,7 +634,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 setState(() {
                   _isLoading = true;
                 });
-                await ClecoGameHelpers.fetchAndUpdateUserClecoGameData();
+                await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
                 setState(() {
                   _isLoading = false;
                 });
@@ -694,7 +694,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   setState(() {
                     _isLoading = true;
                   });
-                  await ClecoGameHelpers.fetchAndUpdateUserClecoGameData();
+                  await DutchGameHelpers.fetchAndUpdateUserDutchGameData();
                   setState(() {
                     _isLoading = false;
                   });

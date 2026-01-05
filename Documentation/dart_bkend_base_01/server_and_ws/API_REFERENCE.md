@@ -3,7 +3,7 @@
 ## WebSocketServer Class
 
 ### Overview
-The `WebSocketServer` class manages WebSocket connections, session handling, and message routing for the Cleco game server.
+The `WebSocketServer` class manages WebSocket connections, session handling, and message routing for the Dutch game server.
 
 ### Constructor
 ```dart

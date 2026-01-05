@@ -26,7 +26,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 
 # Configuration
 DOCKER_USERNAME = os.environ.get('DOCKER_USERNAME', 'silvella')
-IMAGE_NAME = 'cleco_flask_app'
+IMAGE_NAME = 'dutch_flask_app'
 IMAGE_TAG = os.environ.get('IMAGE_TAG', 'latest')
 DOCKERFILE_PATH = PROJECT_ROOT / 'python_base_04' / 'Dockerfile'
 BUILD_CONTEXT = PROJECT_ROOT / 'python_base_04'
@@ -284,14 +284,14 @@ def backup_and_update_secrets():
         print(f"{Colors.YELLOW}⚠️  No .env file found or empty. Using default VPS values.{Colors.NC}")
         vps_env = {
             'VPS_MONGODB_PORT': '27017',
-            'VPS_REDIS_HOST': 'cleco_redis-external',
+            'VPS_REDIS_HOST': 'dutch_redis-external',
             'VPS_REDIS_PORT': '6379'
         }
     
     # Secret files to update
     secrets_to_update = {
         'mongodb_port': vps_env.get('VPS_MONGODB_PORT', '27017'),
-        'redis_host': vps_env.get('VPS_REDIS_HOST', 'cleco_redis-external'),
+        'redis_host': vps_env.get('VPS_REDIS_HOST', 'dutch_redis-external'),
         'redis_port': vps_env.get('VPS_REDIS_PORT', '6379')
     }
     

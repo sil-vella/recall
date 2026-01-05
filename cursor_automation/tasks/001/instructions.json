@@ -12,7 +12,7 @@
     },
     {
       "step": "test the feature",
-      "description": "Use silvester.vella@gmail.com as username and 12345678 as password if you need to login. Tnavigate to the cleco game screen and create a test room. then notice how the public rooms widget gets blank, although it should at least list the newly creted room. find the issue and fix."
+      "description": "Use silvester.vella@gmail.com as username and 12345678 as password if you need to login. Tnavigate to the dutch game screen and create a test room. then notice how the public rooms widget gets blank, although it should at least list the newly creted room. find the issue and fix."
     },
     {
       "step": "end",
@@ -25,9 +25,9 @@
     "created": "2024-08-05",
     "priority": "high",
     "relevant_files": {
-      "rules": "/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/cursor_automation/tasks/001/rule.md",
-      "architecture_docs": "/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/Documentation/flutter_base_05/ARCHITECTURE.md",
-      "managers_docs": "/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/Documentation/flutter_base_05/MANAGERS.md",
+      "rules": "/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/cursor_automation/tasks/001/rule.md",
+      "architecture_docs": "/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/Documentation/flutter_base_05/ARCHITECTURE.md",
+      "managers_docs": "/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/Documentation/flutter_base_05/MANAGERS.md",
       "launch_configs": [
                 "--web-port=3000",
                 "--web-hostname=localhost",
@@ -50,19 +50,19 @@
 
       },
     "logs": {
-      "backend_main": "/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/python_base_04/tools/logger/server.log"
+      "backend_main": "/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log"
     }
   },
   "requirements": {
     "rule_file": "rule.md",
     "core_files": {
-      "managers": "/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/lib/core/managers/*",
-      "base_classes": "/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/lib/core/00_base/*",
-      "services": "/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/lib/core/services/*"
+      "managers": "/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/lib/core/managers/*",
+      "base_classes": "/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/lib/core/00_base/*",
+      "services": "/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/lib/core/services/*"
     },
     "documentation_paths": {
-      "architecture": "/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/Documentation/flutter_base_05/",
-      "api_reference": "/Users/sil/Documents/Work/reignofplay/Cleco/app_dev/Documentation/flutter_base_05/API_REFERENCE.md"
+      "architecture": "/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/Documentation/flutter_base_05/",
+      "api_reference": "/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/Documentation/flutter_base_05/API_REFERENCE.md"
     }
   },
   "success_criteria": [

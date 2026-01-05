@@ -664,7 +664,7 @@ Once the MongoDB container is running, use one of the **Ansible playbooks** to s
 **Playbook 09 - Update Existing Database (Non-Destructive)**:
 - **Location**: `playbooks/00_local/09_setup_apps_database_structure(update_existing).yml`
 - **Purpose**: Adds missing modules to existing users without erasing data
-- **Use Case**: Update existing database with new modules (cleco_game, in_app_purchases)
+- **Use Case**: Update existing database with new modules (dutch_game, in_app_purchases)
 - **Safety**: ✅ Preserves all existing data
 
 **Playbook 10 - Fresh Database Setup**:
@@ -678,7 +678,7 @@ Once the MongoDB container is running, use one of the **Ansible playbooks** to s
 **What Playbook 09 Does**:
 1. ✅ Waits for MongoDB container to be ready
 2. ✅ Adds missing modules to `user_modules` registry
-3. ✅ Updates existing users with missing modules (cleco_game, in_app_purchases)
+3. ✅ Updates existing users with missing modules (dutch_game, in_app_purchases)
 4. ✅ Preserves all existing user data
 5. ✅ Provides detailed update summary
 
@@ -859,7 +859,7 @@ The `users` collection includes embedded module data for:
 2. **subscription** - Premium subscription management
 3. **referrals** - User referral system
 4. **in_app_purchases** - In-app purchase and subscription management
-5. **cleco_game** - Cleco card game statistics and progression
+5. **dutch_game** - Dutch card game statistics and progression
 
 Each module contains module-specific fields and settings. See the playbook documentation for complete module schemas.
 
@@ -876,7 +876,7 @@ The `users` collection includes a special field `is_comp_player` to identify com
 - `nina_holt` (nina_holt@cp.com)
 
 Each computer player has:
-- Initial coins: 1000 in `modules.cleco_game.coins`
+- Initial coins: 1000 in `modules.dutch_game.coins`
 - Status: `active`
 - Password: `comp_player_pass` (bcrypt hashed)
 - Full user structure with all modules enabled
@@ -1255,12 +1255,12 @@ db.users.createIndex({ "status": 1, "created_at": -1 });
 
 ### Version 1.1.0 (December 2025)
 - Added Playbook 09 for non-destructive database updates
-- Added `cleco_game` module to user schema
+- Added `dutch_game` module to user schema
   - Tracks game statistics: wins, losses, total_matches, points, level, rank, win_rate
 - Added `in_app_purchases` module to user schema
   - Manages in-app purchases and subscriptions
 - Updated all existing users with new modules via Playbook 09
-- Enhanced module registry with 5 total modules (wallet, subscription, referrals, in_app_purchases, cleco_game)
+- Enhanced module registry with 5 total modules (wallet, subscription, referrals, in_app_purchases, dutch_game)
 - Improved documentation for database update workflows
 
 ### Version 1.0.0 (2024)

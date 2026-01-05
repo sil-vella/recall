@@ -1,6 +1,6 @@
 # Dart Game Server
 
-Simple WebSocket server for Cleco card game multiplayer.
+Simple WebSocket server for Dutch card game multiplayer.
 
 ## Setup
 

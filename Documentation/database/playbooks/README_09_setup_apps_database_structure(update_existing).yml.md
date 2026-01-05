@@ -41,17 +41,17 @@ docker-compose up -d mongodb-external
 
 ### Step 1: Update Module Registry
 - Checks if `in_app_purchases` module exists in `user_modules` collection
-- Checks if `cleco_game` module exists in `user_modules` collection
+- Checks if `dutch_game` module exists in `user_modules` collection
 - Adds missing modules to the registry with proper schema definitions
 
 ### Step 2: Update Existing Users
 - Finds all users in the database
 - For each user, checks if they have:
   - `modules.in_app_purchases` module
-  - `modules.cleco_game` module
+  - `modules.dutch_game` module
 - Adds missing modules with default values:
   - **in_app_purchases**: enabled, empty purchases, no subscription
-  - **cleco_game**: enabled, 0 wins/losses, beginner rank, level 1
+  - **dutch_game**: enabled, 0 wins/losses, beginner rank, level 1
 
 ### Step 3: Add is_comp_player Field
 - Creates index on `is_comp_player` field for efficient queries
@@ -67,7 +67,7 @@ docker-compose up -d mongodb-external
   - `samuel.b` (samuel.b@cp.com)
   - `nina_holt` (nina_holt@cp.com)
 - Each computer player has:
-  - Initial coins: 1000 in `modules.cleco_game.coins`
+  - Initial coins: 1000 in `modules.dutch_game.coins`
   - Status: `active`
   - Password: `comp_player_pass` (bcrypt hashed)
   - `is_comp_player: true`
@@ -107,13 +107,13 @@ ansible-playbook 09_add_missing_modules.yml -vvv
 📋 Step 1: Updating user_modules registry...
   ➕ Adding in_app_purchases module to registry...
   ✅ in_app_purchases module added to registry
-  ➕ Adding cleco_game module to registry...
-  ✅ cleco_game module added to registry
+  ➕ Adding dutch_game module to registry...
+  ✅ dutch_game module added to registry
 
 👥 Step 2: Updating existing users with missing modules...
   Found 3 users to check
   ➕ Adding in_app_purchases to user: johndoe (john.doe@example.com)
-  ➕ Adding cleco_game to user: johndoe (john.doe@example.com)
+  ➕ Adding dutch_game to user: johndoe (john.doe@example.com)
   ...
 
   ✅ Users updated: 3
@@ -158,7 +158,7 @@ Five predefined computer players are created:
 
 Each computer player has:
 - Full user structure with all modules
-- Initial coins: 1000 in `modules.cleco_game.coins`
+- Initial coins: 1000 in `modules.dutch_game.coins`
 - Status: `active`
 - `is_comp_player: true`
 - Password: `comp_player_pass` (bcrypt hashed)
@@ -178,7 +178,7 @@ Each computer player has:
 }
 ```
 
-### 2. cleco_game Module
+### 2. dutch_game Module
 ```javascript
 {
   "enabled": true,

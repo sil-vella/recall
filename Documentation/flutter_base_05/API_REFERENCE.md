@@ -571,7 +571,7 @@ Generates HTTP and app deep links for a given path.
 **Example**:
 ```dart
 final links = ConnectionsApiModule.generateLinks("/profile");
-// Returns: {"http": "https://example.com/profile", "app": "cleco://profile"}
+// Returns: {"http": "https://example.com/profile", "app": "dutch://profile"}
 ```
 
 ##### `static Future<bool> launchUrl(String url)`
@@ -752,7 +752,7 @@ Application title.
 
 **Example**:
 ```dart
-final title = Config.appTitle; // Returns "cleco"
+final title = Config.appTitle; // Returns "dutch"
 ```
 
 ##### `static const String apiUrl`

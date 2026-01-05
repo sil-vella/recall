@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../modules/cleco_game/managers/feature_registry_manager.dart';
+import '../../../../modules/dutch_game/managers/feature_registry_manager.dart';
 import 'connection_status_feature.dart';
 import 'coins_display_feature.dart';
 import '../../../tools/logging/logger.dart';

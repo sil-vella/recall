@@ -36,7 +36,7 @@ else:
         origins=[
             "https://reignofplay.com",
             "https://www.reignofplay.com",
-            "https://cleco.reignofplay.com",
+            "https://dutch.reignofplay.com",
             "http://localhost:3002",
             "http://127.0.0.1:3002",
         ],
@@ -398,7 +398,7 @@ def list_authenticated_actions():
     except Exception as e:
         return jsonify({'error': f'Failed to list actions: {str(e)}'}), 500
 
-# Test endpoints removed - Cleco game is now managed through ModuleRegistry
+# Test endpoints removed - Dutch game is now managed through ModuleRegistry
     
 
 # Production mode: Let gunicorn handle the app

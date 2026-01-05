@@ -7,7 +7,7 @@ import 'random_join_timer_manager.dart';
 import '../services/python_api_client.dart';
 import '../utils/server_logger.dart';
 import '../managers/hooks_manager.dart';
-import '../modules/cleco_game/cleco_game_main.dart';
+import '../modules/dutch_game/dutch_game_main.dart';
 
 // Logging switch for this file
 const bool LOGGING_SWITCH = false;
@@ -23,7 +23,7 @@ class WebSocketServer {
   final Logger _logger = Logger();
   final HooksManager _hooksManager = HooksManager();
   // ignore: unused_field
-  late ClecoGameModule _clecoGameModule;
+  late DutchGameModule _dutchGameModule;
 
   WebSocketServer({required String pythonApiUrl}) {
     _logger.initialize();
@@ -50,8 +50,8 @@ class WebSocketServer {
     // Initialize hooks for room events
     _initializeHooks();
     
-    // Initialize Cleco Game module (registers hooks for game lifecycle)
-    _clecoGameModule = ClecoGameModule(this, _roomManager, _hooksManager);
+    // Initialize Dutch Game module (registers hooks for game lifecycle)
+    _dutchGameModule = DutchGameModule(this, _roomManager, _hooksManager);
     
     _logger.info('📡 WebSocket server initialized', isOn: LOGGING_SWITCH);
   }
@@ -119,7 +119,7 @@ class WebSocketServer {
     sendToSession(sessionId, {
       'event': 'connected',
       'session_id': sessionId,
-      'message': 'Welcome to Cleco Game Server',
+      'message': 'Welcome to Dutch Game Server',
       'authenticated': false,
     });
     _logger.connection('✅ Connected event sent to session: $sessionId', isOn: LOGGING_SWITCH);

@@ -23,7 +23,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 
 # Configuration
 DOCKER_USERNAME = os.environ.get("DOCKER_USERNAME", "silvella")
-IMAGE_NAME = "cleco_dart_game_server"
+IMAGE_NAME = "dutch_dart_game_server"
 IMAGE_TAG = os.environ.get("IMAGE_TAG", "latest")
 DOCKERFILE_PATH = PROJECT_ROOT / "dart_bkend_base_01" / "Dockerfile"
 BUILD_CONTEXT = PROJECT_ROOT / "dart_bkend_base_01"

@@ -226,7 +226,7 @@ Note that the pool creation parameters ``threaded``, ``encoding`` and
 Using Oracle Database Resident Connection Pooling (DRCP)
 --------------------------------------------------------
 
-When using Oracle Database's DRCP, the best cleco is to pass a connection
+When using Oracle Database's DRCP, the best dutch is to pass a connection
 class and "purity" when acquiring a connection from the SessionPool.  Refer to
 the `cx_Oracle DRCP documentation
 <https://cx-oracle.readthedocs.io/en/latest/user_guide/connection_handling.html#database-resident-connection-pooling-drcp>`_.

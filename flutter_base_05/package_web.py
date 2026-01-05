@@ -43,7 +43,7 @@ def convert_png_to_icns(png_path):
 def package_web():
     # Source and destination paths
     source_dir = os.path.join('build', 'web')
-    dest_dir = 'cleco_web'
+    dest_dir = 'dutch_web'
     
     # Check if web build exists
     if not os.path.exists(source_dir):
@@ -92,7 +92,7 @@ def main():
     webbrowser.open('http://localhost:8000')
     
     # Show message
-    messagebox.showinfo("cleco Web App", "App is running at http://localhost:8000\\n\\nClick OK to close the app.")
+    messagebox.showinfo("dutch Web App", "App is running at http://localhost:8000\\n\\nClick OK to close the app.")
     
     # Cleanup
     server.shutdown()
@@ -103,7 +103,7 @@ if __name__ == "__main__":
 ''')
     
     # Create spec file for PyInstaller
-    with open(os.path.join(dest_dir, 'cleco.spec'), 'w') as f:
+    with open(os.path.join(dest_dir, 'dutch.spec'), 'w') as f:
         f.write(f'''# -*- mode: python ; coding: utf-8 -*-
 
 block_cipher = None
@@ -133,7 +133,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='cleco',
+    name='dutch',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -150,9 +150,9 @@ exe = EXE(
 
 app = BUNDLE(
     exe,
-    name='cleco.app',
+    name='dutch.app',
     icon={repr(icns_icon) if icns_icon else None},
-    bundle_identifier='com.cleco.app',
+    bundle_identifier='com.dutch.app',
     info_plist={{
         'CFBundleShortVersionString': '1.0.0',
         'CFBundleVersion': '1.0.0',
@@ -173,27 +173,27 @@ app = BUNDLE(
             "PyInstaller",
             "--clean",
             "--noconfirm",
-            os.path.join(dest_dir, 'cleco.spec')
+            os.path.join(dest_dir, 'dutch.spec')
         ], check=True)
         
         # Move app to dist folder
         shutil.move(
-            os.path.join('dist', 'cleco.app'),
-            os.path.join(dest_dir, 'cleco.app')
+            os.path.join('dist', 'dutch.app'),
+            os.path.join(dest_dir, 'dutch.app')
         )
         
         # Cleanup
         shutil.rmtree('build', ignore_errors=True)
         shutil.rmtree('dist', ignore_errors=True)
-        os.remove(os.path.join(dest_dir, 'cleco.spec'))
+        os.remove(os.path.join(dest_dir, 'dutch.spec'))
         os.remove(os.path.join(dest_dir, 'run.py'))
         if icns_icon:
             os.remove(icns_icon)
         
-        print(f"✅ macOS app created: {os.path.join(dest_dir, 'cleco.app')}")
+        print(f"✅ macOS app created: {os.path.join(dest_dir, 'dutch.app')}")
         print("\nTo distribute:")
-        print("1. Copy the 'cleco_web' folder")
-        print("2. Share the 'cleco.app' file")
+        print("1. Copy the 'dutch_web' folder")
+        print("2. Share the 'dutch.app' file")
         print("3. Users can just double-click to run!")
         
     except Exception as e:

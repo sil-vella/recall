@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Upload Card Back Image Script
-This script uploads a card back image to the VPS at /var/www/cleco.reignofplay.com/sponsors/images/card_back.png
+This script uploads a card back image to the VPS at /var/www/dutch.reignofplay.com/sponsors/images/card_back.png
 It creates the directory structure if it doesn't exist.
 """
 
@@ -25,7 +25,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 # Configuration
 VPS_SSH_TARGET = os.environ.get('VPS_SSH_TARGET', 'rop01_user@65.181.125.135')
 VPS_SSH_KEY = os.environ.get('VPS_SSH_KEY', os.path.expanduser('~/.ssh/rop01_key'))
-REMOTE_IMAGE_DIR = '/var/www/cleco.reignofplay.com/sponsors/images'
+REMOTE_IMAGE_DIR = '/var/www/dutch.reignofplay.com/sponsors/images'
 REMOTE_IMAGE_PATH = f'{REMOTE_IMAGE_DIR}/card_back.png'
 REMOTE_TMP_IMAGE = '/tmp/card_back.png'
 DEFAULT_LOCAL_IMAGE_PATH = PROJECT_ROOT / 'sponsors' / 'images' / 'card_back.png'
@@ -133,7 +133,7 @@ def upload_image(local_image_path: Path):
     
     print(f"\n{Colors.GREEN}=== Upload Complete ==={Colors.NC}")
     print(f"Image available at: {Colors.BLUE}{REMOTE_IMAGE_PATH}{Colors.NC}")
-    print(f"Expected URL: {Colors.BLUE}https://cleco.reignofplay.com/sponsors/images/card_back.png{Colors.NC}")
+    print(f"Expected URL: {Colors.BLUE}https://dutch.reignofplay.com/sponsors/images/card_back.png{Colors.NC}")
     print()
     
     return True

@@ -19,8 +19,8 @@ echo "🎯 Launching Flutter app with Chrome web configuration..."
 BACKEND_TARGET="${1:-local}"
 
 if [ "$BACKEND_TARGET" = "vps" ]; then
-    API_URL="https://cleco.reignofplay.com"
-    WS_URL="wss://cleco.reignofplay.com/ws"
+    API_URL="https://dutch.reignofplay.com"
+    WS_URL="wss://dutch.reignofplay.com/ws"
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 else
     API_URL="http://localhost:5001"
@@ -74,8 +74,8 @@ filter_logs() {
             esac
             
             # Write clean formatted log to Python server log file
-            # Filter out ClecoGameStateUpdater debug/validation logs to reduce noise
-            if ! echo "$message" | grep -qE "(ClecoGameStateUpdater|Validating field|validation successful|Rebuilding slice)"; then
+            # Filter out DutchGameStateUpdater debug/validation logs to reduce noise
+            if ! echo "$message" | grep -qE "(DutchGameStateUpdater|Validating field|validation successful|Rebuilding slice)"; then
                 echo "[$timestamp] [$level] $message" >> "$SERVER_LOG_FILE"
             fi
             

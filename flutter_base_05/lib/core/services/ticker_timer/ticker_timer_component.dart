@@ -1,4 +1,4 @@
-import 'package:cleco/utils/consts/theme_consts.dart';
+import 'package:dutch/utils/consts/theme_consts.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../managers/services_manager.dart';

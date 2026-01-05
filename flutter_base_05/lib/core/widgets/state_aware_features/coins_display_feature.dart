@@ -8,7 +8,7 @@ const bool LOGGING_SWITCH = false;
 
 /// State-aware coins display feature widget
 /// 
-/// This widget subscribes to the cleco_game state slice and displays
+/// This widget subscribes to the dutch_game state slice and displays
 /// the user's coin count in the app bar. It automatically updates
 /// when the coins value changes.
 class StateAwareCoinsDisplayFeature extends StatelessWidget {
@@ -21,11 +21,11 @@ class StateAwareCoinsDisplayFeature extends StatelessWidget {
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        // Get cleco game state from StateManager
-        final clecoGameState = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
-        final userStats = clecoGameState['userStats'] as Map<String, dynamic>?;
+        // Get dutch game state from StateManager
+        final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final userStats = dutchGameState['userStats'] as Map<String, dynamic>?;
         
-        _logger.info('🔍 Coins Display: Building widget - clecoGameState keys: ${clecoGameState.keys.toList()}', isOn: LOGGING_SWITCH);
+        _logger.info('🔍 Coins Display: Building widget - dutchGameState keys: ${dutchGameState.keys.toList()}', isOn: LOGGING_SWITCH);
         _logger.info('🔍 Coins Display: userStats=$userStats', isOn: LOGGING_SWITCH);
         
         // Get coins from userStats, default to 0 if not available

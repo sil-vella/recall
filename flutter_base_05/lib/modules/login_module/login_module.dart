@@ -649,7 +649,7 @@ class LoginModule extends ModuleBase {
             Logger().error("LoginModule: Platform: ${kIsWeb ? 'Web' : 'Android'}", isOn: LOGGING_SWITCH);
             if (!kIsWeb) {
               Logger().error("LoginModule: Verify Android OAuth client has SHA-1: 8F:60:94:F1:E5:ED:DD:FD:FF:4F:5A:79:FF:BB:B7:E9:33:AD:B2:76", isOn: LOGGING_SWITCH);
-              Logger().error("LoginModule: Verify package name: com.reignofplay.cleco", isOn: LOGGING_SWITCH);
+              Logger().error("LoginModule: Verify package name: com.reignofplay.dutch", isOn: LOGGING_SWITCH);
             }
           }
           return {"error": "Google Sign-In failed: $e"};

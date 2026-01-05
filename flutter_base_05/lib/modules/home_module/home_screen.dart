@@ -62,7 +62,7 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
           children: [
             // Welcome text with app title
             Text(
-              'Welcome to Cleco',
+              'Welcome to Dutch',
               style: AppTextStyles.headingLarge(),
               textAlign: TextAlign.center,
             ),
@@ -73,9 +73,9 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
                 _logger.info('HomeScreen: Play button pressed', isOn: LOGGING_SWITCH);
                 try {
                   final navigationManager = Provider.of<NavigationManager>(context, listen: false);
-                  _logger.debug('HomeScreen: NavigationManager obtained, navigating to /cleco/lobby', isOn: LOGGING_SWITCH);
-                  navigationManager.navigateTo('/cleco/lobby');
-                  _logger.debug('HomeScreen: Navigation to /cleco/lobby initiated', isOn: LOGGING_SWITCH);
+                  _logger.debug('HomeScreen: NavigationManager obtained, navigating to /dutch/lobby', isOn: LOGGING_SWITCH);
+                  navigationManager.navigateTo('/dutch/lobby');
+                  _logger.debug('HomeScreen: Navigation to /dutch/lobby initiated', isOn: LOGGING_SWITCH);
                 } catch (e, stackTrace) {
                   _logger.error('HomeScreen: Error in Play button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
                 }

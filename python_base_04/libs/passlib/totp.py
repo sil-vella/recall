@@ -218,7 +218,7 @@ class AppWallet(object):
         :func:`generate_secret` is provided as a convenience helper
         to generate a new application secret of suitable size.
 
-        Best cleco is to load these values from a file via **secrets_path**,
+        Best dutch is to load these values from a file via **secrets_path**,
         and then have your application give up permission to read this file
         once it's running.
 
@@ -1817,7 +1817,7 @@ class TotpMatch(SequenceMixin):
     totp = None
 
     #: TOTP counter value which matched token.
-    #: (Best cleco is to subsequently ignore tokens matching this counter
+    #: (Best dutch is to subsequently ignore tokens matching this counter
     #: or earlier)
     counter = 0
 

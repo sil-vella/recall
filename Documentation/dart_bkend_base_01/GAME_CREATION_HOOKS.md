@@ -10,7 +10,7 @@ The Dart backend uses the `HooksManager` system to respond to room lifecycle eve
 
 ### Key Components
 
-1. **ClecoGameModule** (`lib/modules/cleco_game/cleco_game_main.dart`)
+1. **DutchGameModule** (`lib/modules/dutch_game/dutch_game_main.dart`)
    - Registers hook callbacks for room lifecycle events
    - Manages game creation, player addition, and cleanup
 
@@ -18,11 +18,11 @@ The Dart backend uses the `HooksManager` system to respond to room lifecycle eve
    - Event-driven system for registering and triggering callbacks
    - Allows multiple callbacks per hook with priority ordering
 
-3. **GameStateStore** (`lib/modules/cleco_game/services/game_state_store.dart`)
+3. **GameStateStore** (`lib/modules/dutch_game/services/game_state_store.dart`)
    - In-memory storage for game state per room
    - Provides mutable state access for GameRound instances
 
-4. **GameRegistry** (`lib/modules/cleco_game/services/game_registry.dart`)
+4. **GameRegistry** (`lib/modules/dutch_game/services/game_registry.dart`)
    - Manages GameRound instances per room
    - Provides ServerGameStateCallback for GameRound-to-server communication
 
@@ -67,11 +67,11 @@ The Dart backend uses the `HooksManager` system to respond to room lifecycle eve
 2. Checks if player already exists (skip if duplicate)
 3. Adds new player to `players` array with initial state
 4. Sends `game_state_updated` snapshot to the joining player
-5. Broadcasts `cleco_new_player_joined` event to all players in the room
+5. Broadcasts `dutch_new_player_joined` event to all players in the room
 
 **Events sent**:
 - To joiner: `game_state_updated` (full snapshot)
-- To room: `cleco_new_player_joined` (player info + current state)
+- To room: `dutch_new_player_joined` (player info + current state)
 
 ### 3. leave_room Hook
 
@@ -95,16 +95,16 @@ The Dart backend uses the `HooksManager` system to respond to room lifecycle eve
 ### Similarities
 - Both use hook systems for automatic game creation
 - Both create game on `room_created` and add players on `room_joined`
-- Both send `game_state_updated` and `cleco_new_player_joined` events
+- Both send `game_state_updated` and `dutch_new_player_joined` events
 - Both clean up on `room_closed`
 
 ### Differences
 
 | Aspect | Python Backend | Dart Backend |
 |--------|----------------|--------------|
-| Game Logic Location | `GameState` class | `ClecoGameRound` class |
+| Game Logic Location | `GameState` class | `DutchGameRound` class |
 | State Storage | `GameStateManager.active_games` | `GameStateStore` singleton |
-| Hook Registration | `GameStateManager._register_hook_callbacks()` | `ClecoGameModule._registerHooks()` |
+| Hook Registration | `GameStateManager._register_hook_callbacks()` | `DutchGameModule._registerHooks()` |
 | Session Mapping | `GameState.player_sessions` | `WebSocketServer._sessionToUser` |
 | Hook System | `HooksManager` (Python) | `HooksManager` (Dart) |
 
@@ -119,7 +119,7 @@ RoomManager.createRoom()
     ↓
 MessageHandler triggers 'room_created' hook
     ↓
-ClecoGameModule._onRoomCreated()
+DutchGameModule._onRoomCreated()
     ↓
 GameRegistry.getOrCreate(roomId)  ← Creates GameRound instance
     ↓
@@ -137,13 +137,13 @@ RoomManager.joinRoom()
     ↓
 MessageHandler triggers 'room_joined' hook
     ↓
-ClecoGameModule._onRoomJoined()
+DutchGameModule._onRoomJoined()
     ↓
 Add player to GameStateStore
     ↓
 Send 'game_state_updated' snapshot to joiner
     ↓
-Broadcast 'cleco_new_player_joined' to room
+Broadcast 'dutch_new_player_joined' to room
 ```
 
 ## Flutter Client Expectations
@@ -159,7 +159,7 @@ The Flutter client expects the following events after room creation and joining:
 1. `join_room_success` (from MessageHandler)
 2. `room_joined` (confirmation)
 3. `game_state_updated` (full snapshot)
-4. `cleco_new_player_joined` (broadcast to all)
+4. `dutch_new_player_joined` (broadcast to all)
 
 ## Testing
 
@@ -195,7 +195,7 @@ To test the hook system:
    // 1. join_room_success
    // 2. room_joined
    // 3. game_state_updated (snapshot)
-   // 4. cleco_new_player_joined (broadcast)
+   // 4. dutch_new_player_joined (broadcast)
    ```
 
 3. **Leave a room**:
@@ -221,10 +221,10 @@ To test the hook system:
 
 ## Related Files
 
-- `lib/modules/cleco_game/cleco_game_main.dart` - Hook registration and callbacks
+- `lib/modules/dutch_game/dutch_game_main.dart` - Hook registration and callbacks
 - `lib/server/message_handler.dart` - Hook triggers
-- `lib/server/websocket_server.dart` - ClecoGameModule initialization
+- `lib/server/websocket_server.dart` - DutchGameModule initialization
 - `lib/managers/hooks_manager.dart` - Hook system implementation
-- `lib/modules/cleco_game/services/game_state_store.dart` - State storage
-- `lib/modules/cleco_game/services/game_registry.dart` - GameRound management
+- `lib/modules/dutch_game/services/game_state_store.dart` - State storage
+- `lib/modules/dutch_game/services/game_registry.dart` - GameRound management
 

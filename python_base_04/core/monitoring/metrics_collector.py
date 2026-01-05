@@ -6,7 +6,7 @@ from tools.logger.custom_logging import custom_log
 METRICS_COLLECTION_ENABLED = True
 
 class MetricsCollector:
-    LOGGING_SWITCH = True
+    LOGGING_SWITCH = False  # Disabled to reduce log noise
     _instance = None
     
     def __new__(cls, port: int = 8000):
@@ -40,7 +40,7 @@ class MetricsCollector:
             'game_completed': self._handle_game_completed,
             'coin_transaction': self._handle_coin_transaction,
             'special_card_used': self._handle_special_card_used,
-            'cleco_called': self._handle_cleco_called,
+            'dutch_called': self._handle_dutch_called,
         }
         custom_log(f"MetricsCollector: Registered {len(self._metric_handlers)} metric handlers: {list(self._metric_handlers.keys())}", level="DEBUG", isOn=MetricsCollector.LOGGING_SWITCH)
         
@@ -175,12 +175,12 @@ class MetricsCollector:
         self.guest_conversions = _get_or_create_metric('guest_account_conversions_total', Counter, 'Total number of guest account conversions', ['conversion_method'])
         
         # Game Metrics
-        self.games_created = _get_or_create_metric('cleco_games_created_total', Counter, 'Total number of Cleco games created', ['game_mode'])
-        self.games_completed = _get_or_create_metric('cleco_games_completed_total', Counter, 'Total number of Cleco games completed', ['game_mode', 'result'])
-        self.game_duration = _get_or_create_metric('cleco_game_duration_seconds', Histogram, 'Cleco game duration in seconds', ['game_mode'])
-        self.coin_transactions = _get_or_create_metric('cleco_coin_transactions_total', Counter, 'Total number of Cleco coin transactions', ['transaction_type', 'direction'])
-        self.special_card_used = _get_or_create_metric('cleco_special_card_used_total', Counter, 'Total number of special card uses', ['card_type'])
-        self.cleco_calls = _get_or_create_metric('cleco_calls_total', Counter, 'Total number of Cleco calls', ['game_mode'])
+        self.games_created = _get_or_create_metric('dutch_games_created_total', Counter, 'Total number of Dutch games created', ['game_mode'])
+        self.games_completed = _get_or_create_metric('dutch_games_completed_total', Counter, 'Total number of Dutch games completed', ['game_mode', 'result'])
+        self.game_duration = _get_or_create_metric('dutch_game_duration_seconds', Histogram, 'Dutch game duration in seconds', ['game_mode'])
+        self.coin_transactions = _get_or_create_metric('dutch_coin_transactions_total', Counter, 'Total number of Dutch coin transactions', ['transaction_type', 'direction'])
+        self.special_card_used = _get_or_create_metric('dutch_special_card_used_total', Counter, 'Total number of special card uses', ['card_type'])
+        self.dutch_calls = _get_or_create_metric('dutch_calls_total', Counter, 'Total number of Dutch calls', ['game_mode'])
         
         custom_log("MetricsCollector._create_metrics: Completed metric creation", level="DEBUG", isOn=MetricsCollector.LOGGING_SWITCH)
     
@@ -459,12 +459,12 @@ class MetricsCollector:
         self.special_card_used.labels(card_type=card_type).inc()
         custom_log(f"MetricsCollector: Tracked special card used - card_type={card_type}", level="INFO", isOn=MetricsCollector.LOGGING_SWITCH)
     
-    def _handle_cleco_called(self, payload: Dict[str, Any]):
-        """Handle Cleco call metrics."""
+    def _handle_dutch_called(self, payload: Dict[str, Any]):
+        """Handle Dutch call metrics."""
         game_mode = payload.get('game_mode')
         
-        self.cleco_calls.labels(game_mode=game_mode).inc()
-        custom_log(f"MetricsCollector: Tracked Cleco called - mode={game_mode}", level="INFO", isOn=MetricsCollector.LOGGING_SWITCH)
+        self.dutch_calls.labels(game_mode=game_mode).inc()
+        custom_log(f"MetricsCollector: Tracked Dutch called - mode={game_mode}", level="INFO", isOn=MetricsCollector.LOGGING_SWITCH)
 
 
 # Note: metrics_collector instance is now managed by AppManager

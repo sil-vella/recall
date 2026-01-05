@@ -79,7 +79,7 @@
       },
       "targets": [
         {
-          "expr": "cleco_games_completed_total",
+          "expr": "dutch_games_completed_total",
           "interval": "",
           "legendFormat": "{{game_mode}} - {{result}}",
           "refId": "A"
@@ -150,7 +150,7 @@
       "targets": [
         {
           "datasource": "Prometheus",
-          "expr": "cleco_games_completed_total",
+          "expr": "dutch_games_completed_total",
           "interval": "",
           "legendFormat": "{{game_mode}} - {{result}}",
           "refId": "A"
@@ -204,7 +204,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, rate(cleco_game_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.5, rate(dutch_game_duration_seconds_bucket[5m]))",
           "interval": "",
           "legendFormat": "Median Duration",
           "refId": "A"
@@ -259,7 +259,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (result) (cleco_games_completed_total)",
+          "expr": "sum by (result) (dutch_games_completed_total)",
           "interval": "",
           "legendFormat": "{{result}}",
           "refId": "A"
@@ -329,7 +329,7 @@
       },
       "targets": [
         {
-          "expr": "increase(cleco_coin_transactions_total[5m])",
+          "expr": "increase(dutch_coin_transactions_total[5m])",
           "interval": "",
           "legendFormat": "{{transaction_type}} - {{direction}}",
           "refId": "A"
@@ -399,7 +399,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (card_type) (cleco_special_card_used_total)",
+          "expr": "sum by (card_type) (dutch_special_card_used_total)",
           "interval": "",
           "legendFormat": "{{card_type}}",
           "refId": "A"
@@ -453,13 +453,13 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rate(cleco_calls_total[5m])",
+          "expr": "rate(dutch_calls_total[5m])",
           "interval": "",
-          "legendFormat": "Cleco Calls",
+          "legendFormat": "Dutch Calls",
           "refId": "A"
         }
       ],
-      "title": "Cleco Calls Rate",
+      "title": "Dutch Calls Rate",
       "type": "stat"
     },
     {
@@ -523,13 +523,13 @@
       },
       "targets": [
         {
-          "expr": "rate(cleco_calls_total[5m])",
+          "expr": "rate(dutch_calls_total[5m])",
           "interval": "",
           "legendFormat": "{{game_mode}}",
           "refId": "A"
         }
       ],
-      "title": "Cleco Calls by Game Mode",
+      "title": "Dutch Calls by Game Mode",
       "type": "timeseries"
     }
   ],
@@ -539,7 +539,7 @@
   "tags": [
     "game",
     "analytics",
-    "cleco"
+    "dutch"
   ],
   "templating": {
     "list": []

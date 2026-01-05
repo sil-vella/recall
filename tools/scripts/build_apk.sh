@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Flutter APK build script
-# Builds an Android APK for Cleco with the same dart-define envs
+# Builds an Android APK for Dutch with the same dart-define envs
 # used by the OnePlus launcher script, targeting either LOCAL or VPS backend.
 
 set -e
 
-echo "🚀 Building Flutter APK for Cleco..."
+echo "🚀 Building Flutter APK for Dutch..."
 
 # Resolve repository root (two levels up from this script)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -21,8 +21,8 @@ if [ "$BACKEND_TARGET" = "local" ]; then
     WS_URL="ws://192.168.178.81:8080"
     echo "💻 Using LOCAL backend: API_URL=$API_URL, WS_URL=$WS_URL"
 else
-    API_URL="https://cleco.reignofplay.com"
-    WS_URL="wss://cleco.reignofplay.com/ws"
+    API_URL="https://dutch.reignofplay.com"
+    WS_URL="wss://dutch.reignofplay.com/ws"
     echo "🌐 Using VPS backend: API_URL=$API_URL, WS_URL=$WS_URL"
 fi
 
@@ -172,10 +172,10 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   VPS_SSH_TARGET="${VPS_SSH_TARGET:-rop01_user@65.181.125.135}"
   # SSH key to use for uploads (defaults to same key as inventory.ini / 01_setup_ssh_key.sh)
   VPS_SSH_KEY="${VPS_SSH_KEY:-$HOME/.ssh/rop01_key}"
-  REMOTE_DOWNLOAD_ROOT="/var/www/cleco.reignofplay.com/downloads"
+  REMOTE_DOWNLOAD_ROOT="/var/www/dutch.reignofplay.com/downloads"
   REMOTE_VERSION_DIR="$REMOTE_DOWNLOAD_ROOT/v$APP_VERSION"
   REMOTE_APK_PATH="$REMOTE_VERSION_DIR/app.apk"
-  REMOTE_TMP_APK="/tmp/cleco-app-$APP_VERSION.apk"
+  REMOTE_TMP_APK="/tmp/dutch-app-$APP_VERSION.apk"
 
   echo "🌐 Uploading APK to VPS ($VPS_SSH_TARGET)..."
   echo "📂 Remote path: $REMOTE_APK_PATH"
@@ -185,11 +185,11 @@ if [ "$BACKEND_TARGET" = "vps" ]; then
   ssh -i "$VPS_SSH_KEY" "$VPS_SSH_TARGET" "sudo mkdir -p '$REMOTE_VERSION_DIR' && sudo mv '$REMOTE_TMP_APK' '$REMOTE_APK_PATH' && sudo chown www-data:www-data '$REMOTE_APK_PATH' && sudo chmod 644 '$REMOTE_APK_PATH'"
 
   echo "✅ APK uploaded to VPS: $REMOTE_APK_PATH"
-  echo "🔗 Expected download URL: https://cleco.reignofplay.com/downloads/v$APP_VERSION/app.apk"
+  echo "🔗 Expected download URL: https://dutch.reignofplay.com/downloads/v$APP_VERSION/app.apk"
 
   # Update mobile_release.json manifest on the VPS so Flask can serve
   # correct version info without needing a restart.
-  REMOTE_SECRETS_DIR="/opt/apps/reignofplay/cleco/secrets"
+  REMOTE_SECRETS_DIR="/opt/apps/reignofplay/dutch/secrets"
   REMOTE_MANIFEST_PATH="$REMOTE_SECRETS_DIR/mobile_release.json"
   REMOTE_TMP_MANIFEST="/tmp/mobile_release.json"
 

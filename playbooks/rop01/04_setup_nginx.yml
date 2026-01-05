@@ -11,8 +11,8 @@
         'root_dir': '/var/www/reignofplay.com'
       },
       {
-        'domain': 'cleco.reignofplay.com',
-        'root_dir': '/var/www/cleco.reignofplay.com',
+        'domain': 'dutch.reignofplay.com',
+        'root_dir': '/var/www/dutch.reignofplay.com',
         'backend_port': 5001,
         'backend_ws_port': 8080
       }

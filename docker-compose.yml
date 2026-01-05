@@ -1,8 +1,8 @@
 services:
   # MongoDB Service (for external app)
-  cleco_mongodb-external:
+  dutch_mongodb-external:
     image: bitnami/mongodb:latest
-    container_name: cleco_external_app_mongodb
+    container_name: dutch_external_app_mongodb
     environment:
       - MONGODB_ROOT_USER=mongodb_admin
       - MONGODB_DATABASE=external_system
@@ -12,61 +12,61 @@ services:
     ports:
       - "27018:27017"
     volumes:
-      - /opt/apps/reignofplay/cleco/data/mongodb:/bitnami/mongodb
-      - /opt/apps/reignofplay/cleco/secrets:/app/secrets:ro
+      - /opt/apps/reignofplay/dutch/data/mongodb:/bitnami/mongodb
+      - /opt/apps/reignofplay/dutch/secrets:/app/secrets:ro
     networks:
       - app-network
     restart: unless-stopped
 
   # Redis Service (for external app)
-  cleco_redis-external:
+  dutch_redis-external:
     image: bitnami/redis:latest
-    container_name: cleco_external_app_redis
+    container_name: dutch_external_app_redis
     environment:
       - REDIS_PASSWORD_FILE=/app/secrets/redis_password
     ports:
       - "6380:6379"
     volumes:
-      - /opt/apps/reignofplay/cleco/data/redis:/bitnami/redis
-      - /opt/apps/reignofplay/cleco/secrets:/app/secrets:ro
+      - /opt/apps/reignofplay/dutch/data/redis:/bitnami/redis
+      - /opt/apps/reignofplay/dutch/secrets:/app/secrets:ro
     networks:
       - app-network
     restart: unless-stopped
 
   # External Flask Application (Production)
-  cleco_flask-external:
-    image: silvella/cleco_flask_app:latest  # Pull from Docker Hub
-    container_name: cleco_external_app_flask
+  dutch_flask-external:
+    image: silvella/dutch_flask_app:latest  # Pull from Docker Hub
+    container_name: dutch_external_app_flask
     ports:
       - "5001:5001"
     environment:
       - DEBUG_MODE=false
       - APP_URL=https://reignofplay.com
-      - MONGODB_SERVICE_NAME=cleco_mongodb-external
-      - REDIS_HOST=cleco_redis-external
+      - MONGODB_SERVICE_NAME=dutch_mongodb-external
+      - REDIS_HOST=dutch_redis-external
       - REDIS_PORT=6379
       - RATE_LIMIT_ENABLED=false
       - RATE_LIMIT_IP_REQUESTS=1000
       - RATE_LIMIT_IP_WINDOW=60
-      - CREDIT_SYSTEM_URL=http://cleco_flask-external:5001
+      - CREDIT_SYSTEM_URL=http://dutch_flask-external:5001
     volumes:
-      - /opt/apps/reignofplay/cleco/secrets:/app/secrets:ro
+      - /opt/apps/reignofplay/dutch/secrets:/app/secrets:ro
     depends_on:
-      - cleco_mongodb-external
-      - cleco_redis-external
+      - dutch_mongodb-external
+      - dutch_redis-external
     networks:
       - app-network
     restart: unless-stopped
 
   # Prometheus Service (for metrics collection)
-  cleco_prometheus:
+  dutch_prometheus:
     image: prom/prometheus:latest
-    container_name: cleco_prometheus
+    container_name: dutch_prometheus
     ports:
       - "9090:9090"
     volumes:
-      - /opt/apps/reignofplay/cleco/data/prometheus/config:/etc/prometheus
-      - /opt/apps/reignofplay/cleco/data/prometheus/storage:/prometheus
+      - /opt/apps/reignofplay/dutch/data/prometheus/config:/etc/prometheus
+      - /opt/apps/reignofplay/dutch/data/prometheus/storage:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -77,9 +77,9 @@ services:
     restart: unless-stopped
 
   # Grafana Service (for metrics visualization)
-  cleco_grafana:
+  dutch_grafana:
     image: grafana/grafana:latest
-    container_name: cleco_grafana
+    container_name: dutch_grafana
     ports:
       - "3001:3000"
     environment:
@@ -88,19 +88,19 @@ services:
       - GF_INSTALL_PLUGINS=
       - GF_SERVER_ROOT_URL=http://localhost:3001
     volumes:
-      - /opt/apps/reignofplay/cleco/data/grafana:/var/lib/grafana
-      - /opt/apps/reignofplay/cleco/data/grafana/provisioning:/etc/grafana/provisioning
-      - /opt/apps/reignofplay/cleco/data/grafana/dashboards:/var/lib/grafana/dashboards
+      - /opt/apps/reignofplay/dutch/data/grafana:/var/lib/grafana
+      - /opt/apps/reignofplay/dutch/data/grafana/provisioning:/etc/grafana/provisioning
+      - /opt/apps/reignofplay/dutch/data/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
-      - cleco_prometheus
+      - dutch_prometheus
     networks:
       - app-network
     restart: unless-stopped
 
   # Dart Game WebSocket Server
-  cleco_dart-game-server:
-    image: silvella/cleco_dart_game_server:latest
-    container_name: cleco_dart_game_server
+  dutch_dart-game-server:
+    image: silvella/dutch_dart_game_server:latest
+    container_name: dutch_dart_game_server
     environment:
       - PORT=8080
     ports:

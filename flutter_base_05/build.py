@@ -2,7 +2,7 @@ import subprocess
 
 # Define environment variables dynamically
 api_url_local = "http://127.0.0.1:5000"
-api_url = "https://cleco.reignofplay.com"
+api_url = "https://dutch.reignofplay.com"
 admob_top_banner = "ca-app-pub-3940256099942544/9214589741"
 admob_bottom_banner = "ca-app-pub-3940256099942544/9214589741"
 admob_interstitial = "ca-app-pub-3940256099942544/1033173712"

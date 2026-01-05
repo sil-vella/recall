@@ -1,4 +1,4 @@
-import 'package:cleco/modules/admobs/banner/banner_ad.dart';
+import 'package:dutch/modules/admobs/banner/banner_ad.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../managers/app_manager.dart';
@@ -6,11 +6,11 @@ import '../managers/module_manager.dart';
 import '../../utils/consts/theme_consts.dart';
 import 'drawer_base.dart';
 import '../widgets/feature_slot.dart';
-import '../../modules/cleco_game/managers/feature_contracts.dart';
-import '../../modules/cleco_game/managers/feature_registry_manager.dart';
+import '../../modules/dutch_game/managers/feature_contracts.dart';
+import '../../modules/dutch_game/managers/feature_registry_manager.dart';
 import '../widgets/state_aware_features/index.dart';
 import '../../tools/logging/logger.dart';
-// Note: Do not import cleco game types here to keep BaseScreen generic.
+// Note: Do not import dutch game types here to keep BaseScreen generic.
 
 const bool LOGGING_SWITCH = false; // Enabled for debugging layout issues
 

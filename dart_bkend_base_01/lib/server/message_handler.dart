@@ -4,9 +4,9 @@ import 'websocket_server.dart';
 import '../utils/server_logger.dart';
 import '../utils/config.dart';
 import 'random_join_timer_manager.dart';
-import '../modules/cleco_game/backend_core/coordinator/game_event_coordinator.dart';
-import '../modules/cleco_game/backend_core/services/game_state_store.dart';
-import '../modules/cleco_game/utils/platform/shared_imports.dart';
+import '../modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart';
+import '../modules/dutch_game/backend_core/services/game_state_store.dart';
+import '../modules/dutch_game/utils/platform/shared_imports.dart';
 
 // Logging switch for this file
 const bool LOGGING_SWITCH = false; // Enabled for winner determination testing
@@ -68,7 +68,7 @@ class MessageHandler {
       case 'play_card':
       case 'discard_card':
       case 'take_from_discard':
-      case 'call_cleco':
+      case 'call_dutch':
       case 'call_final_round':
       case 'same_rank_play':
       case 'jack_swap':
@@ -413,7 +413,10 @@ class MessageHandler {
     // Get userId from server's session mapping (more reliable than data)
     final userId = _server.getUserIdForSession(sessionId) ?? sessionId;
     
-    _logger.room('🔍 _handleJoinRandomGame: sessionId=$sessionId, userId=$userId', isOn: LOGGING_SWITCH);
+    // Extract isClearAndCollect from event data (default to true for backward compatibility)
+    final isClearAndCollect = data['isClearAndCollect'] as bool? ?? true;
+    
+    _logger.room('🔍 _handleJoinRandomGame: sessionId=$sessionId, userId=$userId, isClearAndCollect=$isClearAndCollect', isOn: LOGGING_SWITCH);
     
     try {
       // Get available rooms for random join
@@ -433,6 +436,9 @@ class MessageHandler {
           'user_id': userId,
         });
         
+        // Note: When joining an existing room, the isClearAndCollect setting is already
+        // determined by the room creator. We don't override it here.
+        
         return;
       }
       
@@ -449,6 +455,11 @@ class MessageHandler {
         permission: 'public',
         autoStart: true,
       );
+      
+      // Store isClearAndCollect in game state store for later use when starting match
+      final store = GameStateStore.instance;
+      final roomState = store.ensure(roomId);
+      roomState['isClearAndCollect'] = isClearAndCollect;
       
       // Get room info
       final room = _roomManager.getRoomInfo(roomId);
@@ -513,7 +524,7 @@ class MessageHandler {
       
       // Schedule delayed match start instead of immediate start
       final delaySeconds = Config.RANDOM_JOIN_DELAY_SECONDS;
-      _logger.room('⏱️  Scheduling delayed match start for random join room: $roomId (delay: ${delaySeconds}s)', isOn: LOGGING_SWITCH);
+      _logger.room('⏱️  Scheduling delayed match start for random join room: $roomId (delay: ${delaySeconds}s, isClearAndCollect=$isClearAndCollect)', isOn: LOGGING_SWITCH);
       
       RandomJoinTimerManager.instance.scheduleStartMatch(
         roomId,
@@ -557,9 +568,9 @@ class MessageHandler {
       }
 
       // Check if game already started (check phase)
-      final store = GameStateStore.instance;
+      final stateStore = GameStateStore.instance;
       try {
-        final gameState = store.getGameState(roomId);
+        final gameState = stateStore.getGameState(roomId);
         final phase = gameState['phase'] as String?;
         if (phase != null && phase != 'waiting_for_players') {
           _logger.game('⚠️  Game already started for room: $roomId (phase: $phase)', isOn: LOGGING_SWITCH);
@@ -580,12 +591,17 @@ class MessageHandler {
 
       final sessionId = sessions.first;
       
+      // Get isClearAndCollect from game state store (stored when room was created)
+      final roomState = stateStore.getState(roomId);
+      final isClearAndCollect = roomState['isClearAndCollect'] as bool? ?? true; // Default to true for backward compatibility
+      
       // Start the match
-      _logger.game('🎮 Starting match for random join room: $roomId', isOn: LOGGING_SWITCH);
+      _logger.game('🎮 Starting match for random join room: $roomId (isClearAndCollect=$isClearAndCollect)', isOn: LOGGING_SWITCH);
       _gameCoordinator.handle(sessionId, 'start_match', {
         'game_id': roomId,
         'min_players': room.minPlayers,
         'max_players': room.maxSize,
+        'isClearAndCollect': isClearAndCollect,
       });
 
       // Cleanup timer state

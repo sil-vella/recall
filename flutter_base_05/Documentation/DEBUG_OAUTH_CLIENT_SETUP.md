@@ -17,8 +17,8 @@
 4. Click **+ CREATE CREDENTIALS** → **OAuth client ID**
 5. Select **Application type**: **Android**
 6. Fill in:
-   - **Name**: `Cleco Android Debug` (or any name)
-   - **Package name**: `com.reignofplay.cleco` (same as release)
+   - **Name**: `Dutch Android Debug` (or any name)
+   - **Package name**: `com.reignofplay.dutch` (same as release)
    - **SHA-1 certificate fingerprint**: `44:FF:5B:9F:94:9D:33:23:CD:B8:7A:C3:8E:39:61:0F:71:22:1B:5C`
 7. Click **Create**
 8. **Copy the Debug Client ID** (will be different from release)
@@ -48,10 +48,10 @@ GOOGLE_CLIENT_ID_ANDROID="${GOOGLE_CLIENT_ID_ANDROID:-your-debug-client-id.apps.
 - **Release OAuth Client**: SHA-1 `8F:60:94:F1:...` → Used for production APKs
 - **Debug OAuth Client**: SHA-1 `44:FF:5B:9F:...` → Used for local testing with `flutter run`
 
-Both clients use the same package name (`com.reignofplay.cleco`) but different SHA-1 fingerprints.
+Both clients use the same package name (`com.reignofplay.dutch`) but different SHA-1 fingerprints.
 
 ## Quick Reference
 
 **Debug SHA-1:** `44:FF:5B:9F:94:9D:33:23:CD:B8:7A:C3:8E:39:61:0F:71:22:1B:5C`  
 **Release SHA-1:** `8F:60:94:F1:E5:ED:DD:FD:FF:4F:5A:79:FF:BB:B7:E9:33:AD:B2:76`  
-**Package Name:** `com.reignofplay.cleco` (same for both)
+**Package Name:** `com.reignofplay.dutch` (same for both)

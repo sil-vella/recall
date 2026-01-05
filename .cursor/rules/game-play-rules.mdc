@@ -1,15 +1,15 @@
 ---
-description: Cleco Game play rules.
+description: Dutch Game play rules.
 alwaysApply: true
 ---
 
-# Cleco Card Game Rules
+# Dutch Card Game Rules
 
 ## 🎯 Game Objective
 
 The aim of the game is to:
 1. Finish with no cards, OR
-2. Have the fewest points with the least number of cards when 'Cleco' is called
+2. Have the fewest points with the least number of cards when 'Dutch' is called
 
 ## 💯 Card Points System
 
@@ -66,9 +66,9 @@ The aim of the game is to:
   - Must play before next player's turn
   - Rank matching ignores card color
 
-### Cleco Phase
-- **Triggering Cleco**:
-  - Player can call 'Cleco' after their play
+### Dutch Phase
+- **Triggering Dutch**:
+  - Player can call 'Dutch' after their play
   - Signals final round of game
   - All other players get one last turn
 
@@ -77,15 +77,15 @@ The aim of the game is to:
 1. **Primary Victory**:
    - First player to have no cards
 
-2. **After Cleco**:
+2. **After Dutch**:
    - Lowest points wins
    - If points tie, fewer cards wins
    - If points and cards tie:
-     - Cleco caller wins if involved in tie
+     - Dutch caller wins if involved in tie
      - Otherwise, it's a draw
 
 ## 📋 Game End Conditions
 
 Game ends when either:
 1. A player has no cards remaining, OR
-2. A player calls 'Cleco' and final round completes
+2. A player calls 'Dutch' and final round completes

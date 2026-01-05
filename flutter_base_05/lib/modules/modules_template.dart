@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cleco/core/managers/navigation_manager.dart';
-import 'package:cleco/core/managers/state_manager.dart';
-import 'package:cleco/core/services/shared_preferences.dart';
-import 'package:cleco/modules/cleco_game/screens/game_play/game_play_screen.dart';
-import 'package:cleco/modules/cleco_game/screens/lobby_room/lobby_screen.dart';
+import 'package:dutch/core/managers/navigation_manager.dart';
+import 'package:dutch/core/managers/state_manager.dart';
+import 'package:dutch/core/services/shared_preferences.dart';
+import 'package:dutch/modules/dutch_game/screens/game_play/game_play_screen.dart';
+import 'package:dutch/modules/dutch_game/screens/lobby_room/lobby_screen.dart';
 import '../core/00_base/module_base.dart';
 import '../core/managers/module_manager.dart';
 import '../core/managers/services_manager.dart';
@@ -17,7 +17,7 @@ import '../tools/logging/logger.dart';
 /// 2. Rename the class to your module name
 /// 3. Implement required methods
 /// 4. Add your module-specific functionality
-class ClecoGameMain extends ModuleBase {
+class DutchGameMain extends ModuleBase {
   static final Logger _logger = Logger();
   late ModuleManager _localModuleManager;
   late ServicesManager _servicesManager;
@@ -25,7 +25,7 @@ class ClecoGameMain extends ModuleBase {
   final navigationManager = NavigationManager();
 
   /// ✅ Constructor with module key and dependencies
-  ClecoGameMain() : super("cleco_game_module", dependencies: []);
+  DutchGameMain() : super("dutch_game_module", dependencies: []);
 
   /// ✅ Initialize module with context and module manager
   @override
@@ -33,7 +33,7 @@ class ClecoGameMain extends ModuleBase {
     super.initialize(context, moduleManager);
     _localModuleManager = moduleManager;
     _initDependencies(context);
-    _logger.info('✅ ClecoGameMain initialized with context.');
+    _logger.info('✅ DutchGameMain initialized with context.');
     _registerState();
 
   }
@@ -51,9 +51,9 @@ class ClecoGameMain extends ModuleBase {
   void _registerState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final stateManager = StateManager();
-      if (!stateManager.isModuleStateRegistered('cleco_game')) {
-        _logger.info('📊 Creating new cleco_game state registration...');
-        stateManager.registerModuleState('cleco_game', {
+      if (!stateManager.isModuleStateRegistered('dutch_game')) {
+        _logger.info('📊 Creating new dutch_game state registration...');
+        stateManager.registerModuleState('dutch_game', {
           // Connection state
           'isLoading': false,
           'isConnected': false,
@@ -69,7 +69,7 @@ class ClecoGameMain extends ModuleBase {
           'actionBar': {
             'showStartButton': false,
             'canPlayCard': false,
-            'canCallCleco': false,
+            'canCallDutch': false,
             'isGameStarted': false,
           },
           'statusBar': {
@@ -100,24 +100,24 @@ class ClecoGameMain extends ModuleBase {
           // Metadata
           'lastUpdated': DateTime.now().toIso8601String(),
         });
-        _logger.info('✅ Cleco game state registered with widget slices');
+        _logger.info('✅ Dutch game state registered with widget slices');
       } else {
-        _logger.info('📊 Cleco game state already registered');
+        _logger.info('📊 Dutch game state already registered');
       }
     });
   }
 
-    /// Register all Cleco game screens with NavigationManager
+    /// Register all Dutch game screens with NavigationManager
   void _registerScreens() {
     // Screens no longer require a notifier – nothing to guard here
     
     final navigationManager = NavigationManager();
     _logger.info('🗺️ NavigationManager obtained for screen registration');
 
-    // Register Cleco Game Lobby Screen (Room Management)
-    _logger.info('🗺️ Registering LobbyScreen route: /cleco/lobby');
+    // Register Dutch Game Lobby Screen (Room Management)
+    _logger.info('🗺️ Registering LobbyScreen route: /dutch/lobby');
     navigationManager.registerRoute(
-      path: '/cleco/lobby',
+      path: '/dutch/lobby',
       screen: (context) => const LobbyScreen(),
       drawerTitle: 'Play',
       drawerIcon: Icons.games,
@@ -126,9 +126,9 @@ class ClecoGameMain extends ModuleBase {
     _logger.info('✅ LobbyScreen route registered');
 
     // Register Game Play Screen - ALWAYS with notifier
-    _logger.info('🗺️ Registering GamePlayScreen route: /cleco/game-play');
+    _logger.info('🗺️ Registering GamePlayScreen route: /dutch/game-play');
     navigationManager.registerRoute(
-      path: '/cleco/game-play',
+      path: '/dutch/game-play',
       screen: (BuildContext context) => const GamePlayScreen(),
       drawerTitle: null, // Hidden from drawer
       drawerIcon: null,
@@ -137,27 +137,27 @@ class ClecoGameMain extends ModuleBase {
     _logger.info('✅ GamePlayScreen route registered');
 
     // navigationManager.registerRoute(
-    //   path: '/cleco/game-results',
+    //   path: '/dutch/game-results',
     //   screen: (context) => const GameResultsScreen(),
     //   drawerTitle: null, // Don't show in drawer
     //   drawerIcon: null,
     //   drawerPosition: 999,
     // );
 
-    _logger.info('✅ Cleco game screens registered with NavigationManager');
+    _logger.info('✅ Dutch game screens registered with NavigationManager');
   }
 
   /// ✅ Cleanup resources when module is disposed
   @override
   void dispose() {
-    _logger.info('🗑 ClecoGameMain disposed.');
+    _logger.info('🗑 DutchGameMain disposed.');
     super.dispose();
   }
 
   /// ✅ Example method - add your module-specific methods below
   Future<Map<String, dynamic>> exampleMethod(BuildContext context) async {
     try {
-      _logger.info('🔧 ClecoGameMain example method called');
+      _logger.info('🔧 DutchGameMain example method called');
       return {"success": "Example method executed successfully"};
     } catch (e) {
       _logger.error('❌ Error in example method: $e');
@@ -171,7 +171,7 @@ class ClecoGameMain extends ModuleBase {
     return {
       'module': moduleKey,
       'status': isInitialized ? 'healthy' : 'not_initialized',
-      'details': isInitialized ? 'ClecoGameMain is functioning normally' : 'ClecoGameMain not initialized',
+      'details': isInitialized ? 'DutchGameMain is functioning normally' : 'DutchGameMain not initialized',
       'custom_metric': 'example_value'
     };
   }

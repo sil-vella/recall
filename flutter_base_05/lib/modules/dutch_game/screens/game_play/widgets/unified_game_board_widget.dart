@@ -678,7 +678,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                   isCurrentPlayer, 
                   currentPlayerStatus,
                   knownCards,
-                  isInitialPeekPhase
+                  isInitialPeekPhase,
+                  opponentIndex: index, // Pass index for alignment
                 ),
               );
           }).toList(),
@@ -687,7 +688,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     );
   }
 
-  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, {required int opponentIndex}) {
     final playerName = player['name']?.toString() ?? 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
@@ -698,6 +699,35 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         || (isCurrentPlayer && playerStatus == 'same_rank_window');
     final statusChipColor = shouldHighlightBackground ? _getStatusChipColor(playerStatus) : null;
     final shouldHighlight = isCurrentPlayer && _shouldHighlightCurrentPlayer(playerStatus);
+    
+    // Determine alignment based on opponent index
+    // Opponent 0: center, Opponent 1: left, Opponent 2: right
+    final Alignment cardAlignment;
+    final MainAxisAlignment nameAlignment;
+    final CrossAxisAlignment columnAlignment;
+    
+    switch (opponentIndex) {
+      case 0:
+        cardAlignment = Alignment.center;
+        nameAlignment = MainAxisAlignment.center;
+        columnAlignment = CrossAxisAlignment.center;
+        break;
+      case 1:
+        cardAlignment = Alignment.centerLeft;
+        nameAlignment = MainAxisAlignment.start;
+        columnAlignment = CrossAxisAlignment.start;
+        break;
+      case 2:
+        cardAlignment = Alignment.centerRight;
+        nameAlignment = MainAxisAlignment.end;
+        columnAlignment = CrossAxisAlignment.end;
+        break;
+      default:
+        // Fallback to center for any additional opponents
+        cardAlignment = Alignment.center;
+        nameAlignment = MainAxisAlignment.center;
+        columnAlignment = CrossAxisAlignment.center;
+    }
     
     if (drawnCard != null) {
       final drawnCardId = drawnCard['cardId']?.toString() ?? 'unknown';
@@ -741,67 +771,58 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
               ),
             ],
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            crossAxisAlignment: columnAlignment,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                flex: 2,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: hand.isNotEmpty
-                      ? _buildOpponentsCardsRow(hand, cardsToPeek, playerCollectionRankCards, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase, player)
-                      : _buildEmptyHand(),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        if (hasCalledDutch) ...[
-                          Icon(
-                            Icons.flag,
-                            size: 16,
-                            color: AppColors.errorColor,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        if (isCurrentTurn && !isCurrentPlayer) ...[
-                          Icon(
-                            Icons.play_arrow,
-                            size: 16,
-                            color: AppColors.accentColor2,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Expanded(
-                          child: Text(
-                            playerName,
-                            textAlign: TextAlign.right,
-                            style: AppTextStyles.label().copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: isCurrentPlayer && statusChipColor != null 
-                                  ? statusChipColor 
-                                  : AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
+              // Top row: Name and status chip on same level
+              Row(
+                mainAxisAlignment: nameAlignment,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasCalledDutch) ...[
+                    Icon(
+                      Icons.flag,
+                      size: 16,
+                      color: AppColors.errorColor,
                     ),
-                    if (playerStatus != 'unknown') ...[
-                      const SizedBox(height: 4),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: PlayerStatusChip(
-                          playerId: player['id']?.toString() ?? '',
-                          size: shouldHighlight ? PlayerStatusChipSize.medium : PlayerStatusChipSize.small,
-                        ),
-                      ),
-                    ],
+                    const SizedBox(width: 4),
                   ],
-                ),
+                  if (isCurrentTurn && !isCurrentPlayer) ...[
+                    Icon(
+                      Icons.play_arrow,
+                      size: 16,
+                      color: AppColors.accentColor2,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Text(
+                    playerName,
+                    style: AppTextStyles.label().copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isCurrentPlayer && statusChipColor != null 
+                          ? statusChipColor 
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                  if (playerStatus != 'unknown') ...[
+                    const SizedBox(width: 8),
+                    PlayerStatusChip(
+                      playerId: player['id']?.toString() ?? '',
+                      size: shouldHighlight ? PlayerStatusChipSize.medium : PlayerStatusChipSize.small,
+                    ),
+                  ],
+                ],
+              ),
+              
+              // Bottom: Cards aligned based on opponent index
+              const SizedBox(height: 8),
+              Align(
+                alignment: cardAlignment,
+                child: hand.isNotEmpty
+                    ? _buildOpponentsCardsRow(hand, cardsToPeek, playerCollectionRankCards, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase, player, nameAlignment: nameAlignment)
+                    : _buildEmptyHand(),
               ),
             ],
           ),
@@ -810,7 +831,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     );
   }
 
-  Widget _buildOpponentsCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, Map<String, dynamic> player) {
+  Widget _buildOpponentsCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, Map<String, dynamic> player, {MainAxisAlignment? nameAlignment}) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final containerWidth = constraints.maxWidth.isFinite 
@@ -866,10 +887,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
           }
         }
         
+        // Calculate total width needed for all cards
+        final totalCardsWidth = (cards.length * (cardWidth + cardPadding));
+        
         return SizedBox(
           height: cardHeight,
+          width: totalCardsWidth,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
+            physics: totalCardsWidth > constraints.maxWidth 
+                ? const ClampingScrollPhysics() 
+                : const NeverScrollableScrollPhysics(),
             itemCount: cards.length,
             itemBuilder: (context, index) {
               final card = cards[index];

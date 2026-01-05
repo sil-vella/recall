@@ -763,10 +763,10 @@ class ComputerPlayerFactory {
     final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
     final actingPlayerCollectionCards = <Map<String, dynamic>>[];
     if (isClearAndCollect) {
-      final collectionRankCards = actingPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-      for (final card in collectionRankCards) {
-        if (card is Map<String, dynamic>) {
-          actingPlayerCollectionCards.add(Map<String, dynamic>.from(card));
+    final collectionRankCards = actingPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+    for (final card in collectionRankCards) {
+      if (card is Map<String, dynamic>) {
+        actingPlayerCollectionCards.add(Map<String, dynamic>.from(card));
         }
       }
     }
@@ -808,10 +808,10 @@ class ComputerPlayerFactory {
       // Extract collection cards (full data) - only if collection mode is enabled
       final collectionCards = <Map<String, dynamic>>[];
       if (isClearAndCollect) {
-        final playerCollectionCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
-        for (final card in playerCollectionCards) {
-          if (card is Map<String, dynamic>) {
-            collectionCards.add(Map<String, dynamic>.from(card));
+      final playerCollectionCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      for (final card in playerCollectionCards) {
+        if (card is Map<String, dynamic>) {
+          collectionCards.add(Map<String, dynamic>.from(card));
           }
         }
       }

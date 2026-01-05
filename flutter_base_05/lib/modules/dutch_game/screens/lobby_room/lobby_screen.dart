@@ -104,13 +104,13 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
           return;
         }
         if (mounted) {
-          _showSnackBar('WebSocket connected successfully!');
+        _showSnackBar('WebSocket connected successfully!');
         }
       } else {
         _logger.info('LobbyScreen: WebSocket already connected', isOn: LOGGING_SWITCH);
         if (mounted) {
-          _showSnackBar('WebSocket already connected!');
-        }
+        _showSnackBar('WebSocket already connected!');
+      }
       }
     } catch (e, stackTrace) {
       _logger.error('LobbyScreen: WebSocket initialization error: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);

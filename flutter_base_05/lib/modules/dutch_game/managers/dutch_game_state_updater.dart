@@ -809,4 +809,16 @@ class DutchGameStateAccessor {
     if (currentGameId.isEmpty) return false;
     return isPracticeGame(currentGameId);
   }
+
+  /// Check if a specific game is a demo game
+  bool isDemoGame(String gameId) {
+    return gameId.startsWith('demo_game_');
+  }
+
+  /// Check if the current active game is a demo game
+  bool isCurrentGameDemo() {
+    final currentGameId = getCurrentGameId();
+    if (currentGameId.isEmpty) return false;
+    return isDemoGame(currentGameId);
+  }
 }

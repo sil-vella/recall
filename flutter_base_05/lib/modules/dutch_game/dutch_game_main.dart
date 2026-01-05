@@ -3,6 +3,7 @@ import 'package:dutch/core/managers/navigation_manager.dart';
 import 'package:dutch/core/managers/state_manager.dart';
 import 'package:dutch/modules/dutch_game/screens/game_play/game_play_screen.dart';
 import 'package:dutch/modules/dutch_game/screens/lobby_room/lobby_screen.dart';
+import 'package:dutch/modules/dutch_game/screens/demo/demo_screen.dart';
 import '../../core/00_base/module_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/hooks_manager.dart';
@@ -203,6 +204,7 @@ class DutchGameMain extends ModuleBase {
     try {
       final featureRegistrar = HomeScreenFeatureRegistrar();
       featureRegistrar.registerDutchGamePlayButton(context);
+      featureRegistrar.registerDutchGameDemoButton(context);
       _logger.info('✅ DutchGameMain: Home screen features registered successfully', isOn: LOGGING_SWITCH);
     } catch (e) {
       _logger.error('❌ DutchGameMain: Error registering home screen features: $e', isOn: LOGGING_SWITCH);
@@ -259,6 +261,15 @@ class DutchGameMain extends ModuleBase {
       drawerIcon: null,
       drawerPosition: 999,
     );
+
+    // Register Demo Screen
+    navigationManager.registerRoute(
+      path: '/dutch/demo',
+      screen: (BuildContext context) => const DemoScreen(),
+      drawerTitle: null, // Hidden from drawer
+      drawerIcon: null,
+      drawerPosition: 999,
+    );
   }
 
   /// ✅ Cleanup resources when module is disposed
@@ -288,6 +299,7 @@ class DutchGameMain extends ModuleBase {
       'screens_registered': [
         '/dutch/lobby',
         '/dutch/game-play',
+        '/dutch/demo',
       ],
       'initialization_time': DateTime.now().toIso8601String(),
     };

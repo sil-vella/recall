@@ -234,13 +234,13 @@ class LoginModule extends ModuleBase {
     Logger().info('LoginModule: _navigateToAccountScreen called - reason: $reason, message: $message', isOn: LOGGING_SWITCH);
     Logger().info('LoginModule: Current context: ${_currentContext != null ? "available" : "null"}', isOn: LOGGING_SWITCH);
     try {
-      final navigationManager = NavigationManager();
+    final navigationManager = NavigationManager();
       Logger().info('LoginModule: NavigationManager obtained, navigating to /account', isOn: LOGGING_SWITCH);
-      // Use NavigationManager's queuing system to ensure router is ready
-      navigationManager.navigateToWithDelay('/account', parameters: {
-        'auth_reason': reason,
-        'auth_message': message,
-      });
+    // Use NavigationManager's queuing system to ensure router is ready
+    navigationManager.navigateToWithDelay('/account', parameters: {
+      'auth_reason': reason,
+      'auth_message': message,
+    });
       Logger().info('LoginModule: Navigation to /account initiated', isOn: LOGGING_SWITCH);
     } catch (e, stackTrace) {
       Logger().error('LoginModule: Error navigating to account screen: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);

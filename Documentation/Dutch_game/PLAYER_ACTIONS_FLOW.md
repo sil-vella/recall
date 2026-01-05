@@ -594,9 +594,9 @@ switch (event) {
      - No collection rank selected
      - No collection card added
    - **If `isClearAndCollect: true` (Collection Mode)**:
-     - Selects collection rank card (least points, priority order)
-     - Stores non-collection card in `known_cards`
-     - Adds collection card to `collection_rank_cards`
+   - Selects collection rank card (least points, priority order)
+   - Stores non-collection card in `known_cards`
+   - Adds collection card to `collection_rank_cards`
    - Updates player status
    - Checks if all players completed peek
    - Starts first turn if all completed
@@ -825,9 +825,9 @@ switch (event) {
      - No collection rank selected
      - No collection card added
    - **If `isClearAndCollect: true` (Collection Mode)**:
-     - Selects collection rank card (least points, priority)
-     - Stores non-collection card in `known_cards`
-     - Adds collection card to `collection_rank_cards`
+   - Selects collection rank card (least points, priority)
+   - Stores non-collection card in `known_cards`
+   - Adds collection card to `collection_rank_cards`
    - Checks if all players completed
    - Starts first turn if all completed
 6. State update broadcasts

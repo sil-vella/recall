@@ -719,22 +719,22 @@ class GameEventCoordinator {
 
     if (isClearAndCollect) {
       // Collection mode: Select one card for collection, store other in known_cards
-      // Decide collection rank card using priority logic
-      final selectedCardForCollection = _selectCardForCollection(card1, card2, random);
+    // Decide collection rank card using priority logic
+    final selectedCardForCollection = _selectCardForCollection(card1, card2, random);
 
-      // Determine which card is NOT the collection card
-      final nonCollectionCard = selectedCardForCollection['cardId'] == card1['cardId'] ? card2 : card1;
+    // Determine which card is NOT the collection card
+    final nonCollectionCard = selectedCardForCollection['cardId'] == card1['cardId'] ? card2 : card1;
 
-      // Store only the non-collection card in known_cards with card-ID-based structure
-      final cardId = nonCollectionCard['cardId'] as String;
-      (knownCards[playerId] as Map<String, dynamic>)[cardId] = nonCollectionCard;
-      computerPlayer['known_cards'] = knownCards;
+    // Store only the non-collection card in known_cards with card-ID-based structure
+    final cardId = nonCollectionCard['cardId'] as String;
+    (knownCards[playerId] as Map<String, dynamic>)[cardId] = nonCollectionCard;
+    computerPlayer['known_cards'] = knownCards;
 
-      // Add the selected card full data to player's collection_rank_cards list
-      final collectionRankCards = computerPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-      collectionRankCards.add(selectedCardForCollection);
-      computerPlayer['collection_rank_cards'] = collectionRankCards;
-      computerPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
+    // Add the selected card full data to player's collection_rank_cards list
+    final collectionRankCards = computerPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+    collectionRankCards.add(selectedCardForCollection);
+    computerPlayer['collection_rank_cards'] = collectionRankCards;
+    computerPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
 
       _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} peeked at cards at positions $indices', isOn: LOGGING_SWITCH);
       _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
@@ -995,37 +995,37 @@ class GameEventCoordinator {
 
       if (isClearAndCollect) {
         // Collection mode: Select one card for collection, store other in known_cards
-        // Auto-select collection rank card for human player (same logic as AI)
-        // IMPORTANT: Must select collection card BEFORE storing in known_cards
-        // so we can exclude it from known_cards (just like computer players)
-        final selectedCardForCollection = _selectCardForCollection(cardsToPeek[0], cardsToPeek[1], Random());
-        
-        // Determine which card is NOT the collection card
-        final nonCollectionCard = selectedCardForCollection['cardId'] == cardsToPeek[0]['cardId'] 
-            ? cardsToPeek[1] 
-            : cardsToPeek[0];
+      // Auto-select collection rank card for human player (same logic as AI)
+      // IMPORTANT: Must select collection card BEFORE storing in known_cards
+      // so we can exclude it from known_cards (just like computer players)
+      final selectedCardForCollection = _selectCardForCollection(cardsToPeek[0], cardsToPeek[1], Random());
+      
+      // Determine which card is NOT the collection card
+      final nonCollectionCard = selectedCardForCollection['cardId'] == cardsToPeek[0]['cardId'] 
+          ? cardsToPeek[1] 
+          : cardsToPeek[0];
 
-        // Store only the non-collection card in known_cards with card-ID-based structure
-        // (same logic as computer players - collection cards should NOT be in known_cards)
-        final nonCollectionCardId = nonCollectionCard['cardId'] as String;
-        (humanKnownCards[playerId] as Map<String, dynamic>)[nonCollectionCardId] = nonCollectionCard;
-        humanPlayer['known_cards'] = humanKnownCards;
+      // Store only the non-collection card in known_cards with card-ID-based structure
+      // (same logic as computer players - collection cards should NOT be in known_cards)
+      final nonCollectionCardId = nonCollectionCard['cardId'] as String;
+      (humanKnownCards[playerId] as Map<String, dynamic>)[nonCollectionCardId] = nonCollectionCard;
+      humanPlayer['known_cards'] = humanKnownCards;
+      // Also update in games map for consistency
+      playerInGamesMap['known_cards'] = humanKnownCards;
+
+      final fullCardData = _getCardById(gameState, selectedCardForCollection['cardId'] as String);
+      if (fullCardData != null) {
+        final collectionRankCards = humanPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+        collectionRankCards.add(fullCardData);
+        humanPlayer['collection_rank_cards'] = collectionRankCards;
+        humanPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
         // Also update in games map for consistency
-        playerInGamesMap['known_cards'] = humanKnownCards;
+        playerInGamesMap['collection_rank_cards'] = collectionRankCards;
+        playerInGamesMap['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
 
-        final fullCardData = _getCardById(gameState, selectedCardForCollection['cardId'] as String);
-        if (fullCardData != null) {
-          final collectionRankCards = humanPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-          collectionRankCards.add(fullCardData);
-          humanPlayer['collection_rank_cards'] = collectionRankCards;
-          humanPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
-          // Also update in games map for consistency
-          playerInGamesMap['collection_rank_cards'] = collectionRankCards;
-          playerInGamesMap['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
-
-          _logger.info('GameEventCoordinator: Human player selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
-        } else {
-          _logger.error('GameEventCoordinator: Failed to get full card data for human collection rank card', isOn: LOGGING_SWITCH);
+        _logger.info('GameEventCoordinator: Human player selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
+      } else {
+        _logger.error('GameEventCoordinator: Failed to get full card data for human collection rank card', isOn: LOGGING_SWITCH);
         }
       } else {
         // Clear mode: Store BOTH cards in known_cards (no collection)

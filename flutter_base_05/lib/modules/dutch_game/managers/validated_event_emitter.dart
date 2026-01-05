@@ -3,11 +3,13 @@ import 'package:dutch/tools/logging/logger.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../utils/field_specifications.dart';
 import '../practice/practice_mode_bridge.dart';
+import '../screens/demo/demo_mode_bridge.dart';
 
 /// Transport mode for event emission
 enum EventTransportMode {
   websocket,
   practice,
+  demo,
 }
 
 /// Validated event emitter for dutch game WebSocket events
@@ -25,6 +27,7 @@ class DutchGameEventEmitter {
   // Dependencies
   final WebSocketManager _wsManager = WebSocketManager.instance;
   final PracticeModeBridge _practiceBridge = PracticeModeBridge.instance;
+  final DemoModeBridge _demoBridge = DemoModeBridge.instance;
   final Logger _logger = Logger();
   static const bool LOGGING_SWITCH = true; // Enabled for practice match debugging
   
@@ -139,8 +142,8 @@ class DutchGameEventEmitter {
     // Game fields
     'game_id': DutchEventFieldSpec(
       type: String,
-      pattern: r'^(room_|practice_room_)[a-zA-Z0-9_]+$',
-      description: 'Game/Room ID in format: room_xxxxx or practice_room_xxxxx',
+      pattern: r'^(room_|practice_room_|demo_game_)[a-zA-Z0-9_]+$',
+      description: 'Game/Room ID in format: room_xxxxx, practice_room_xxxxx, or demo_game_xxxxx',
     ),
     'player_name': DutchEventFieldSpec(
       type: String,
@@ -279,6 +282,12 @@ class DutchGameEventEmitter {
         await _practiceBridge.handleEvent(eventType, eventPayload);
         _logger.info('✅ EventEmitter: PracticeModeBridge handled event', isOn: LOGGING_SWITCH);
         return {'success': true, 'mode': 'practice'};
+      } else if (_transportMode == EventTransportMode.demo) {
+        _logger.info('🎯 EventEmitter: Routing to DemoModeBridge', isOn: LOGGING_SWITCH);
+        // Route to demo bridge
+        final result = await _demoBridge.handleEvent(eventType, eventPayload);
+        _logger.info('✅ EventEmitter: DemoModeBridge handled event', isOn: LOGGING_SWITCH);
+        return result;
       } else {
         _logger.info('🎯 EventEmitter: Routing to WebSocket', isOn: LOGGING_SWITCH);
         // Send via WebSocket (default)

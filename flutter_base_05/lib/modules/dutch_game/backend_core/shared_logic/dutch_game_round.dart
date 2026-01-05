@@ -1765,22 +1765,22 @@ class DutchGameRound {
       // Check if card is in player's collection_rank_cards (cannot be played) - only if collection mode is enabled
       final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
       if (isClearAndCollect) {
-        final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
-        for (var collectionCard in collectionRankCards) {
-          if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-            _logger.info('Dutch: Card $cardId is a collection rank card and cannot be played', isOn: LOGGING_SWITCH);
-            
-            // Show error message to user
-            _stateCallback.onActionError(
-              'This card is your collection rank and cannot be played. Choose another card.',
-              data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
-            );
-            
-            // CRITICAL: Restore player status to playing_card so they can retry
-            _updatePlayerStatusInGamesMap('playing_card', playerId: playerId);
-            _logger.info('Dutch: Restored player $playerId status to playing_card after failed collection rank play', isOn: LOGGING_SWITCH);
-            
-            return false;
+      final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      for (var collectionCard in collectionRankCards) {
+        if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+          _logger.info('Dutch: Card $cardId is a collection rank card and cannot be played', isOn: LOGGING_SWITCH);
+          
+          // Show error message to user
+          _stateCallback.onActionError(
+            'This card is your collection rank and cannot be played. Choose another card.',
+            data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+          );
+          
+          // CRITICAL: Restore player status to playing_card so they can retry
+          _updatePlayerStatusInGamesMap('playing_card', playerId: playerId);
+          _logger.info('Dutch: Restored player $playerId status to playing_card after failed collection rank play', isOn: LOGGING_SWITCH);
+          
+          return false;
           }
         }
       }
@@ -2138,21 +2138,21 @@ class DutchGameRound {
       // Check if card is in player's collection_rank_cards (cannot be played for same rank) - only if collection mode is enabled
       final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
       if (isClearAndCollect) {
-        final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
-        for (var collectionCard in collectionRankCards) {
-          if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-            _logger.info('Dutch: Card $cardId is a collection rank card and cannot be played for same rank', isOn: LOGGING_SWITCH);
-            
-            // Show error message to user via actionError state
-            _stateCallback.onActionError(
-              'This card is in your collection and cannot be played for same rank.',
-              data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
-            );
-            
-            // No status change needed - status will change automatically when same rank window expires
-            _logger.info('Dutch: Collection rank card rejected - status will auto-expire with same rank window', isOn: LOGGING_SWITCH);
-            
-            return false;
+      final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      for (var collectionCard in collectionRankCards) {
+        if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+          _logger.info('Dutch: Card $cardId is a collection rank card and cannot be played for same rank', isOn: LOGGING_SWITCH);
+          
+          // Show error message to user via actionError state
+          _stateCallback.onActionError(
+            'This card is in your collection and cannot be played for same rank.',
+            data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+          );
+          
+          // No status change needed - status will change automatically when same rank window expires
+          _logger.info('Dutch: Collection rank card rejected - status will auto-expire with same rank window', isOn: LOGGING_SWITCH);
+          
+          return false;
           }
         }
       }
@@ -2484,31 +2484,31 @@ class DutchGameRound {
       // Remove swapped cards from their original owner's collection_rank_cards - only if collection mode is enabled
       final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
       if (isClearAndCollect) {
-        // Check if firstCardId is in firstPlayer's collection_rank_cards
-        final firstPlayerCollectionCards = firstPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-        firstPlayerCollectionCards.removeWhere((card) {
-          if (card is Map<String, dynamic>) {
-            final cardId = card['cardId']?.toString() ?? '';
-            if (cardId == firstCardId) {
-              _logger.info('Dutch: Removed card $firstCardId from player $firstPlayerId collection_rank_cards (swapped out)', isOn: LOGGING_SWITCH);
-              return true;
-            }
+      // Check if firstCardId is in firstPlayer's collection_rank_cards
+      final firstPlayerCollectionCards = firstPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+      firstPlayerCollectionCards.removeWhere((card) {
+        if (card is Map<String, dynamic>) {
+          final cardId = card['cardId']?.toString() ?? '';
+          if (cardId == firstCardId) {
+            _logger.info('Dutch: Removed card $firstCardId from player $firstPlayerId collection_rank_cards (swapped out)', isOn: LOGGING_SWITCH);
+            return true;
           }
-          return false;
-        });
+        }
+        return false;
+      });
 
-        // Check if secondCardId is in secondPlayer's collection_rank_cards
-        final secondPlayerCollectionCards = secondPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-        secondPlayerCollectionCards.removeWhere((card) {
-          if (card is Map<String, dynamic>) {
-            final cardId = card['cardId']?.toString() ?? '';
-            if (cardId == secondCardId) {
-              _logger.info('Dutch: Removed card $secondCardId from player $secondPlayerId collection_rank_cards (swapped out)', isOn: LOGGING_SWITCH);
-              return true;
-            }
+      // Check if secondCardId is in secondPlayer's collection_rank_cards
+      final secondPlayerCollectionCards = secondPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+      secondPlayerCollectionCards.removeWhere((card) {
+        if (card is Map<String, dynamic>) {
+          final cardId = card['cardId']?.toString() ?? '';
+          if (cardId == secondCardId) {
+            _logger.info('Dutch: Removed card $secondCardId from player $secondPlayerId collection_rank_cards (swapped out)', isOn: LOGGING_SWITCH);
+            return true;
           }
-          return false;
-        });
+        }
+        return false;
+      });
       }
 
       _logger.info('Dutch: Successfully swapped cards: $firstCardId <-> $secondCardId', isOn: LOGGING_SWITCH);
@@ -3602,8 +3602,8 @@ class DutchGameRound {
       final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
       final collectionCardIds = isClearAndCollect
         ? collectionRankCards
-            .map((c) => c is Map ? (c['cardId']?.toString() ?? '') : '')
-            .where((id) => id.isNotEmpty)
+        .map((c) => c is Map ? (c['cardId']?.toString() ?? '') : '')
+        .where((id) => id.isNotEmpty)
             .toSet()
         : <String>{};
       

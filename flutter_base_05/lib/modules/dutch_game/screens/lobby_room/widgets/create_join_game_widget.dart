@@ -138,7 +138,7 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
             DutchGameHelpers.navigateToAccountScreen('auth_required', 'Please log in to find games.');
           }
         } else {
-          throw Exception(errorMessage);
+        throw Exception(errorMessage);
         }
       }
     } catch (e) {
@@ -148,12 +148,12 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         if (errorStr.contains('websocket') || errorStr.contains('not ready') || errorStr.contains('not connected') || errorStr.contains('authentication') || errorStr.contains('unauthorized')) {
           DutchGameHelpers.navigateToAccountScreen('auth_error', 'Please log in to find games.');
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to find game: $e'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to find game: $e'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
         }
       }
     } finally {
@@ -220,18 +220,18 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
       final result = await DutchGameHelpers.joinRoom(roomId: roomId);
       
       if (result['success'] == true) {
-        _roomIdController.clear();
-        _passwordController.clear();
+      _roomIdController.clear();
+      _passwordController.clear();
 
-        widget.onJoinRoom?.call();
+      widget.onJoinRoom?.call();
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Join game request sent successfully'),
-              backgroundColor: AppColors.successColor,
-            ),
-          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Join game request sent successfully'),
+            backgroundColor: AppColors.successColor,
+          ),
+        );
         }
       } else {
         final errorMessage = result['error'] ?? 'Failed to join game';
@@ -252,12 +252,12 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         if (errorStr.contains('websocket') || errorStr.contains('not ready') || errorStr.contains('not connected')) {
           DutchGameHelpers.navigateToAccountScreen('ws_error', 'Unable to connect to game server. Please log in to continue.');
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to join game: $e'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to join game: $e'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
         }
       }
     } finally {

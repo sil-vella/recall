@@ -56,6 +56,43 @@ class HomeScreenFeatureRegistrar {
     _logger.info('✅ HomeScreenFeatureRegistrar: Dutch game play button registered', isOn: LOGGING_SWITCH);
   }
 
+  /// Register Dutch game demo button
+  void registerDutchGameDemoButton(BuildContext context) {
+    _logger.info('🎮 HomeScreenFeatureRegistrar: Registering Dutch game demo button', isOn: LOGGING_SWITCH);
+    
+    final feature = HomeScreenButtonFeatureDescriptor(
+      featureId: 'dutch_game_demo',
+      slotId: HomeScreenFeatureSlots.slotButtons,
+      text: 'Take a quick demo',
+      onTap: () {
+        _logger.info('HomeScreen: Dutch game demo button pressed', isOn: LOGGING_SWITCH);
+        try {
+          final navigationManager = Provider.of<NavigationManager>(context, listen: false);
+          _logger.debug('HomeScreen: NavigationManager obtained, navigating to /dutch/demo', isOn: LOGGING_SWITCH);
+          navigationManager.navigateTo('/dutch/demo');
+          _logger.debug('HomeScreen: Navigation to /dutch/demo initiated', isOn: LOGGING_SWITCH);
+        } catch (e, stackTrace) {
+          _logger.error('HomeScreen: Error in Dutch game demo button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+        }
+      },
+      backgroundColor: AppColors.accentColor,
+      heightPercentage: 0.5, // 50% of available height
+      priority: 90, // Lower priority than play button (appears after)
+      textStyle: AppTextStyles.headingMedium().copyWith(
+        color: AppColors.textOnPrimary,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+    
+    _registry.register(
+      scopeKey: HomeScreenFeatureSlots.scopeKey,
+      feature: feature,
+      context: context,
+    );
+    
+    _logger.info('✅ HomeScreenFeatureRegistrar: Dutch game demo button registered', isOn: LOGGING_SWITCH);
+  }
+
   /// Unregister all home screen features
   void unregisterAll() {
     _registry.clearScope(HomeScreenFeatureSlots.scopeKey);

@@ -41,24 +41,24 @@ class DutchGameHelpers {
         };
       }
       
-      final data = {
-        'permission': permission,
-        'max_players': maxPlayers,
-        'min_players': minPlayers,
-        'game_type': gameType,
-        'turn_time_limit': turnTimeLimit,
-        'auto_start': autoStart,
-      };
-      
-      // Add password for private rooms
-      if (permission == 'private' && password != null) {
-        data['password'] = password;
-      }
-      
+    final data = {
+      'permission': permission,
+      'max_players': maxPlayers,
+      'min_players': minPlayers,
+      'game_type': gameType,
+      'turn_time_limit': turnTimeLimit,
+      'auto_start': autoStart,
+    };
+    
+    // Add password for private rooms
+    if (permission == 'private' && password != null) {
+      data['password'] = password;
+    }
+    
       return await _eventEmitter.emit(
-        eventType: 'create_room',
-        data: data,
-      );
+      eventType: 'create_room',
+      data: data,
+    );
     } catch (e) {
       _logger.error('DutchGameHelpers: Error creating room: $e', isOn: LOGGING_SWITCH);
       return {
@@ -82,14 +82,14 @@ class DutchGameHelpers {
         };
       }
       
-      final data = {
-        'room_id': roomId,
-      };
-      
+    final data = {
+      'room_id': roomId,
+    };
+    
       return await _eventEmitter.emit(
-        eventType: 'join_room',
-        data: data,
-      );
+      eventType: 'join_room',
+      data: data,
+    );
     } catch (e) {
       _logger.error('DutchGameHelpers: Error joining room: $e', isOn: LOGGING_SWITCH);
       return {

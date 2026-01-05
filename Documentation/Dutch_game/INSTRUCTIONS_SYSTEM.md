@@ -35,7 +35,7 @@ The instructions system consists of three main components:
 
 ### State Management
 
-Instructions are managed through the `StateManager` under the `cleco_game` module state:
+Instructions are managed through the `StateManager` under the `dutch_game` module state:
 
 ```dart
 {
@@ -178,15 +178,17 @@ The system supports 8 different instruction types, each triggered by specific ga
 - Counter tracks how many times same rank window is triggered
 - Counter increments only when transitioning INTO `same_rank_window` phase
 
-### 8. Collection Card Instructions (`KEY_COLLECTION_CARD`)
+### 8. Collection Card Instructions (`KEY_COLLECTION_CARD`) ⚠️ **Collection Mode Only**
 
-**Trigger**: On the **5th time** the `same_rank_window` phase is entered
+**Trigger**: On the **5th time** the `same_rank_window` phase is entered (only in collection mode)
 
 **Content**: Instructions for collecting cards:
 - How collection cards work
 - Matching rank with face-up collection card
 - Stacking effect when collecting
 - Strategy tips
+
+**Note**: This instruction only appears when `isClearAndCollect: true` (Play Dutch: Clear and Collect mode). In clear mode (`isClearAndCollect: false`), collection mechanics are disabled and this instruction will not trigger.
 
 **Demonstration**: `CollectionCardDemonstrationWidget`
 - Shows game board with discard pile
@@ -346,7 +348,7 @@ Widget buildContent(BuildContext context) {
 
 ### GameInstructionsProvider
 
-**Location**: `lib/modules/cleco_game/utils/game_instructions_provider.dart`
+**Location**: `lib/modules/dutch_game/utils/game_instructions_provider.dart`
 
 **Key Methods**:
 
@@ -370,7 +372,7 @@ static const String KEY_COLLECTION_CARD = 'collection_card';
 
 ### InstructionsWidget
 
-**Location**: `lib/modules/cleco_game/screens/game_play/widgets/instructions_widget.dart`
+**Location**: `lib/modules/dutch_game/screens/game_play/widgets/instructions_widget.dart`
 
 **Key Features**:
 
@@ -404,7 +406,7 @@ ModalTemplateWidget
 
 **Demonstration Widgets**:
 
-All demonstration widgets are located in `lib/modules/cleco_game/screens/game_play/widgets/`:
+All demonstration widgets are located in `lib/modules/dutch_game/screens/game_play/widgets/`:
 
 - `initial_peek_demonstration_widget.dart` - Shows card peeking interaction
 - `drawing_card_demonstration_widget.dart` - Shows drawing from draw/discard piles
@@ -416,7 +418,7 @@ All demonstration widgets are located in `lib/modules/cleco_game/screens/game_pl
 
 ### Event Handler Integration
 
-**Location**: `lib/modules/cleco_game/managers/cleco_event_handler_callbacks.dart`
+**Location**: `lib/modules/dutch_game/managers/dutch_event_handler_callbacks.dart`
 
 **Key Method**: `_triggerInstructionsIfNeeded()`
 
@@ -432,7 +434,7 @@ All demonstration widgets are located in `lib/modules/cleco_game/screens/game_pl
 
 **Same Rank Window Counter Logic**:
 
-- Counter (`sameRankTriggerCount`) is stored in `StateManager` under `cleco_game` module state
+- Counter (`sameRankTriggerCount`) is stored in `StateManager` under `dutch_game` module state
 - Counter increments **only when transitioning INTO** `same_rank_window` phase
 - Counter increment happens **before** state update in `handleGameStateUpdated()` to properly detect phase transitions
 - When counter reaches 5 and `KEY_COLLECTION_CARD` instruction hasn't been dismissed:
@@ -500,7 +502,7 @@ Instructions are controlled by the `showInstructions` flag:
 When instructions are enabled, timers are disabled:
 
 ```dart
-// In cleco_game_round.dart
+// In dutch_game_round.dart
 bool shouldStartTimer() {
   return !(config['showInstructions'] as bool? ?? false);
 }

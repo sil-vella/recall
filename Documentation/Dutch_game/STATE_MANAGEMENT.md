@@ -6,9 +6,43 @@ This document describes the complete state management system for the Dutch game 
 
 ---
 
+## Game Modes
+
+The Dutch game supports two distinct game modes, controlled by the `isClearAndCollect` flag in the game state:
+
+### 1. **Play Dutch** (Clear Mode)
+- **Flag**: `isClearAndCollect: false`
+- **Description**: A simplified game mode without collection mechanics
+- **Features**:
+  - No collection rank selection during initial peek
+  - Both peeked cards are stored as ID-only (face-down) in `known_cards`
+  - Collection from discard pile is disabled
+  - Collection cards cannot be played (validation skipped)
+  - Four-of-a-kind win condition is disabled
+  - AI players do not attempt to collect cards
+  - Collection-related UI elements are hidden
+
+### 2. **Play Dutch: Clear and Collect** (Collection Mode)
+- **Flag**: `isClearAndCollect: true`
+- **Description**: The full game mode with collection mechanics enabled
+- **Features**:
+  - Collection rank selection during initial peek
+  - One peeked card becomes the collection rank card (face-up)
+  - Other peeked card stored in `known_cards` (face-down)
+  - Collection from discard pile is enabled
+  - Collection cards cannot be played (validation active)
+  - Four-of-a-kind win condition is enabled
+  - AI players attempt to collect matching cards
+  - Collection-related UI elements are visible
+
+**Important**: The `isClearAndCollect` flag is set when the game is initiated (via lobby screen buttons) and remains constant throughout the game session. It cannot be changed mid-game.
+
+---
+
 ## Table of Contents
 
-1. [State Architecture](#state-architecture)
+1. [Game Modes](#game-modes)
+2. [State Architecture](#state-architecture)
 2. [State Structure](#state-structure)
 3. [State Update Flow](#state-update-flow)
 4. [Player Actions Flow](#player-actions-flow)
@@ -39,31 +73,31 @@ The state management system consists of several key components:
 2. **DutchGameStateUpdater** (Singleton)
    - Validates and applies state updates
    - Computes widget slices based on dependencies
-   - Location: `flutter_base_05/lib/modules/cleco_game/managers/cleco_game_state_updater.dart`
+   - Location: `flutter_base_05/lib/modules/dutch_game/managers/dutch_game_state_updater.dart`
    - Uses `StateQueueValidator` for validation
 
 3. **StateQueueValidator** (Singleton)
    - Validates state updates before applying
    - Ensures state structure consistency
-   - Location: `flutter_base_05/lib/modules/cleco_game/utils/state_queue_validator.dart`
+   - Location: `flutter_base_05/lib/modules/dutch_game/utils/state_queue_validator.dart`
    - Queues updates and applies them asynchronously
 
 4. **DutchEventHandlerCallbacks** (Static methods)
    - Processes game events and updates state
    - Handles all game-related events
-   - Location: `flutter_base_05/lib/modules/cleco_game/managers/cleco_event_handler_callbacks.dart`
+   - Location: `flutter_base_05/lib/modules/dutch_game/managers/dutch_event_handler_callbacks.dart`
    - Main entry point for event-driven state updates
 
 5. **DutchEventManager** (Singleton)
    - Receives and routes events
    - Delegates to `DutchEventHandlerCallbacks`
-   - Location: `flutter_base_05/lib/modules/cleco_game/managers/cleco_event_manager.dart`
+   - Location: `flutter_base_05/lib/modules/dutch_game/managers/dutch_event_manager.dart`
    - Registers WebSocket event listeners
 
 6. **DutchGameHelpers** (Static methods)
    - Convenient helper methods for state updates
    - Wraps `DutchGameStateUpdater` calls
-   - Location: `flutter_base_05/lib/modules/cleco_game/utils/cleco_game_helpers.dart`
+   - Location: `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart`
    - Provides high-level state update API
 
 ### State Flow Diagram
@@ -95,7 +129,7 @@ DutchGameStateUpdater._applyValidatedUpdates()
     ↓
 _updateWidgetSlices() - Recompute slices
     ↓
-StateManager.updateModuleState('cleco_game', newState)
+StateManager.updateModuleState('dutch_game', newState)
     ↓
 StateManager.notifyListeners() (via Future.microtask)
     ↓
@@ -106,9 +140,9 @@ All ListenableBuilder widgets rebuild
 
 ## State Structure
 
-### Module State: `cleco_game`
+### Module State: `dutch_game`
 
-The Dutch game module state is stored under the key `'cleco_game'` in `StateManager`. The complete structure is:
+The Dutch game module state is stored under the key `'dutch_game'` in `StateManager`. The complete structure is:
 
 ```dart
 {
@@ -143,6 +177,7 @@ The Dutch game module state is stored under the key `'cleco_game'` in `StateMana
           'gameType': String,    // 'normal' | 'practice'
           'roundNumber': int,
           'turnNumber': int,
+          'isClearAndCollect': bool,  // Game mode flag: false = clear mode (no collection), true = collection mode
           
           // Players (full data for current user, ID-only for others)
           'players': [
@@ -176,7 +211,8 @@ The Dutch game module state is stored under the key `'cleco_game'` in `StateMana
           'maxPlayers': int,
           'minPlayers': int,
           'showInstructions': bool,
-          'clecoCalledBy': String?,
+          'isClearAndCollect': bool,  // Game mode flag: false = clear mode (no collection), true = collection mode
+          'dutchCalledBy': String?,   // Player ID who called Dutch (final round)
           'winners': List<Player>?,
         },
       },
@@ -381,7 +417,7 @@ Widgets read from slices
    - Only slices with changed dependencies are recomputed
 
 7. **State Manager Update**
-   - `StateManager.updateModuleState('cleco_game', newState)` called
+   - `StateManager.updateModuleState('dutch_game', newState)` called
    - State merged with existing state
    - `StateManager.notifyListeners()` called (via `Future.microtask`)
 
@@ -1208,7 +1244,7 @@ When modifying the state structure (adding or removing fields in state slices or
 **Example Workflow**:
 ```
 Adding matchPot to centerBoard slice:
-1. Update _computeCenterBoardSlice() → Add 'matchPot': matchPot
+1. Update _computeCenterBoardSlice() in dutch_game_state_updater.dart → Add 'matchPot': matchPot
 2. Update state_queue_validator.dart → Add 'matchPot': 0 to centerBoard defaultValue
 3. Create/update widget → Read matchPot from centerBoard slice
 4. Test → Verify pot displays correctly during gameplay
@@ -1220,26 +1256,81 @@ Adding matchPot to centerBoard slice:
 - ❌ Mismatched field names → Field not found in slice
 - ❌ Wrong default value type → Type validation errors
 
+**Note**: When modifying state structure, update both Flutter and Dart backend validators:
+- Flutter: `flutter_base_05/lib/modules/dutch_game/utils/state_queue_validator.dart`
+- Dart Backend: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/utils/state_queue_validator.dart`
+
 ---
+
+## WebSocket Connection and Authentication
+
+### Connection Behavior
+
+WebSocket connections are **not** automatically established when entering the lobby screen. Instead, connections are attempted **on-demand** when game actions are initiated:
+
+1. **Random Join**: When user clicks "Play Dutch" or "Play Dutch: Clear and Collect" buttons
+2. **Create Room**: When user creates a new game room
+3. **Join Room**: When user joins an existing room
+
+### ensureWebSocketReady() Helper
+
+**Location**: `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart`
+
+**Purpose**: Centralized WebSocket readiness check before game actions
+
+**Behavior**:
+1. Checks login status from `StateManager`
+2. Initializes WebSocket if not initialized
+3. Connects WebSocket if not connected
+4. Navigates to account screen if login/connection fails
+5. Returns `true` if ready, `false` otherwise
+
+**Usage**:
+```dart
+final isReady = await DutchGameHelpers.ensureWebSocketReady();
+if (!isReady) {
+  // Navigation to account screen already handled
+  return;
+}
+// Proceed with game action
+```
+
+### Navigation to Account Screen
+
+**Important**: Navigation to the account screen is handled by the **Dutch game module**, not the WebSocket module.
+
+**Triggered when**:
+- User is not logged in
+- WebSocket initialization fails
+- WebSocket connection fails
+
+**Method**: `DutchGameHelpers.navigateToAccountScreen(reason, message)`
+
+**Location**: `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart`
+
+**Implementation**:
+- Uses `NavigationManager` to navigate to `/account`
+- Passes `auth_reason` and `auth_message` as route parameters
+- Handles errors gracefully with logging
 
 ## Related Files
 
 ### Backend (Dart)
-- `dart_bkend_base_01/lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart` - Game logic and state generation
-- `dart_bkend_base_01/lib/modules/cleco_game/backend_core/services/game_registry.dart` - Game state callback implementation
-- `dart_bkend_base_01/lib/modules/cleco_game/backend_core/cleco_game_main.dart` - Event handlers and hooks
+- `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart` - Game logic and state generation
+- `dart_bkend_base_01/lib/modules/dutch_game/backend_core/services/game_registry.dart` - Game state callback implementation
+- `dart_bkend_base_01/lib/modules/dutch_game/backend_core/dutch_game_main.dart` - Event handlers and hooks
 - `dart_bkend_base_01/lib/server/websocket_server.dart` - WebSocket event broadcasting
 
 ### Frontend (Flutter)
 - `flutter_base_05/lib/core/managers/state_manager.dart` - Core state management
-- `flutter_base_05/lib/modules/cleco_game/managers/cleco_game_state_updater.dart` - State updater and slice computation
-- `flutter_base_05/lib/modules/cleco_game/managers/cleco_event_handler_callbacks.dart` - Event processing and state updates
-- `flutter_base_05/lib/modules/cleco_game/managers/cleco_event_manager.dart` - Event routing
-- `flutter_base_05/lib/modules/cleco_game/utils/cleco_game_helpers.dart` - Helper methods
-- `flutter_base_05/lib/modules/cleco_game/utils/state_queue_validator.dart` - State validation
-- `flutter_base_05/lib/modules/cleco_game/managers/player_action.dart` - Player action execution
-- `flutter_base_05/lib/modules/cleco_game/managers/validated_event_emitter.dart` - Event emission
-- `flutter_base_05/lib/modules/cleco_game/screens/game_play/widgets/*.dart` - Game widgets (read from state)
+- `flutter_base_05/lib/modules/dutch_game/managers/dutch_game_state_updater.dart` - State updater and slice computation
+- `flutter_base_05/lib/modules/dutch_game/managers/dutch_event_handler_callbacks.dart` - Event processing and state updates
+- `flutter_base_05/lib/modules/dutch_game/managers/dutch_event_manager.dart` - Event routing
+- `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart` - Helper methods (including `ensureWebSocketReady()` and `navigateToAccountScreen()`)
+- `flutter_base_05/lib/modules/dutch_game/utils/state_queue_validator.dart` - State validation
+- `flutter_base_05/lib/modules/dutch_game/managers/player_action.dart` - Player action execution
+- `flutter_base_05/lib/modules/dutch_game/managers/validated_event_emitter.dart` - Event emission
+- `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/*.dart` - Game widgets (read from state)
 
 ---
 

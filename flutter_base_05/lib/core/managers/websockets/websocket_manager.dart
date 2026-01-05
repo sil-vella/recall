@@ -12,7 +12,7 @@ import 'websocket_events.dart';
 import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for backend connection debugging
+const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
 
 class WebSocketManager {
   static final WebSocketManager _instance = WebSocketManager._internal();
@@ -129,12 +129,14 @@ class WebSocketManager {
       // Check if user has valid JWT token
       final hasToken = await loginModule.hasValidToken();
       if (!hasToken) {
+        // Return false - navigation handled by calling module (e.g., Dutch game module)
         return false;
       }
       
       // Get the JWT token
       final authToken = await loginModule.getCurrentToken();
       if (authToken == null) {
+        // Return false - navigation handled by calling module (e.g., Dutch game module)
         return false;
       }
       

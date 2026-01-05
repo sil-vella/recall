@@ -8,9 +8,27 @@ This document comprehensively details all player actions available in the Dutch 
 
 ---
 
+## Game Modes and Collection Actions
+
+The Dutch game supports two game modes (see [State Management Documentation](./STATE_MANAGEMENT.md#game-modes) for details):
+
+- **Play Dutch** (`isClearAndCollect: false`): Collection mechanics are **disabled**
+- **Play Dutch: Clear and Collect** (`isClearAndCollect: true`): Collection mechanics are **enabled**
+
+**Collection-related actions** (marked with ⚠️ below) are only available when `isClearAndCollect: true`:
+- ⚠️ **Collect from Discard**: Only works in collection mode
+- ⚠️ **Collection Rank Selection**: Only happens in collection mode during initial peek
+- ⚠️ **Collection Card Validation**: Only enforced in collection mode
+- ⚠️ **Four-of-a-Kind Win Condition**: Only checked in collection mode
+
+All other actions (draw card, play card, same rank play, queen peek, jack swap, call final round) work in both modes.
+
+---
+
 ## Table of Contents
 
-1. [Action Entry Points](#action-entry-points)
+1. [Game Modes and Collection Actions](#game-modes-and-collection-actions)
+2. [Action Entry Points](#action-entry-points)
 2. [Action Types](#action-types)
 3. [Complete Action Flow](#complete-action-flow)
 4. [Practice vs Multiplayer Differences](#practice-vs-multiplayer-differences)
@@ -38,7 +56,7 @@ All player actions originate from the **Game Play Screen** (`game_play_screen.da
    - Draw card from draw pile
 
 3. **DiscardPileWidget** (`discard_pile_widget.dart`)
-   - Collect card from discard pile (if matches collection rank)
+   - ⚠️ Collect card from discard pile (only in collection mode, if matches collection rank)
 
 4. **OpponentsPanelWidget** (`opponents_panel_widget.dart`)
    - Queen peek on opponent cards
@@ -58,7 +76,7 @@ All player actions originate from the **Game Play Screen** (`game_play_screen.da
 | **Draw Card** | `draw_card` | DrawPileWidget | `drawing_card` |
 | **Play Card** | `play_card` | MyHandWidget | `playing_card` |
 | **Same Rank Play** | `same_rank_play` | MyHandWidget | `same_rank_window` |
-| **Collect from Discard** | `collect_from_discard` | DiscardPileWidget | Any (except `same_rank_window`, `initial_peek`) |
+| ⚠️ **Collect from Discard** | `collect_from_discard` | DiscardPileWidget | Any (except `same_rank_window`, `initial_peek`) - **Collection mode only** |
 
 ### Special Actions
 
@@ -279,6 +297,52 @@ All player actions originate from the **Game Play Screen** (`game_play_screen.da
 - Dart backend processes gameplay and broadcasts to all players
 - Network latency considerations
 - State synced via WebSocket
+
+### WebSocket Connection Behavior
+
+**Important**: WebSocket connections are **not** automatically established when entering the lobby screen. Instead, connections are attempted **on-demand** when game actions are initiated:
+
+1. **Random Join**: When user clicks "Play Dutch" or "Play Dutch: Clear and Collect" buttons
+2. **Create Room**: When user creates a new game room
+3. **Join Room**: When user joins an existing room
+
+**Connection Flow:**
+```
+User Action (Random Join/Create/Join Room)
+    ↓
+DutchGameHelpers.ensureWebSocketReady()
+    ↓
+Checks:
+  - User is logged in (via StateManager)
+  - WebSocket is initialized
+  - WebSocket is connected
+    ↓
+If any check fails:
+  - Navigate to account screen with appropriate message
+  - Return false (action aborted)
+    ↓
+If all checks pass:
+  - Return true (action proceeds)
+```
+
+**Helper Method**: `DutchGameHelpers.ensureWebSocketReady()`
+- Location: `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart`
+- Purpose: Centralized WebSocket readiness check before game actions
+- Behavior:
+  - Checks login status from `StateManager`
+  - Initializes WebSocket if not initialized
+  - Connects WebSocket if not connected
+  - Navigates to account screen if login/connection fails
+  - Returns `true` if ready, `false` otherwise
+
+**Navigation to Account Screen:**
+- Navigation is handled by the **Dutch game module**, not the WebSocket module
+- Triggered when:
+  - User is not logged in
+  - WebSocket initialization fails
+  - WebSocket connection fails
+- Method: `DutchGameHelpers.navigateToAccountScreen(reason, message)`
+- Location: `flutter_base_05/lib/modules/dutch_game/utils/dutch_game_helpers.dart`
 - Player ID format: `sessionId` (UUID)
 
 ### Event Flow Differences
@@ -335,7 +399,7 @@ PlayerAction.execute()
 
 ### PlayerAction Class
 
-**Location:** `lib/modules/cleco_game/managers/player_action.dart`
+**Location:** `lib/modules/dutch_game/managers/player_action.dart`
 
 **Purpose:** Centralized action creation and execution
 
@@ -359,7 +423,7 @@ PlayerAction.execute()
 
 ### DutchGameEventEmitter
 
-**Location:** `lib/modules/cleco_game/managers/validated_event_emitter.dart`
+**Location:** `lib/modules/dutch_game/managers/validated_event_emitter.dart`
 
 **Purpose:** Validates and routes events to appropriate transport
 
@@ -427,7 +491,7 @@ PlayerAction.execute()
 
 ### GameEventCoordinator
 
-**Location:** `lib/modules/cleco_game/backend_core/coordinator/game_event_coordinator.dart`
+**Location:** `lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart`
 
 **Purpose:** Routes events to appropriate game round handlers
 
@@ -469,7 +533,7 @@ switch (event) {
 
 ### DutchGameRound
 
-**Location:** `lib/modules/cleco_game/backend_core/shared_logic/cleco_game_round.dart`
+**Location:** `lib/modules/dutch_game/backend_core/shared_logic/dutch_game_round.dart`
 
 **Purpose:** Core game logic and state management
 
@@ -485,7 +549,7 @@ switch (event) {
 
 2. **handlePlayCard()**
    - Validates card exists in player's hand
-   - Checks if card is collection rank (cannot be played)
+   - ⚠️ Checks if card is collection rank (cannot be played) - **Only in collection mode**
    - Handles drawn card repositioning (smart blank slot system)
    - Moves card to discard pile
    - Processes special cards (Queen, Jack, etc.)
@@ -500,7 +564,8 @@ switch (event) {
    - Does NOT move to next player (same rank window timer handles it)
    - Broadcasts state update
 
-4. **handleCollectFromDiscard()**
+4. **handleCollectFromDiscard()** ⚠️ **Collection Mode Only**
+   - **Early return if `isClearAndCollect: false`** - Collection is disabled
    - Validates discard pile has cards
    - Checks if top card matches player's collection rank
    - Moves card to `collection_rank_cards` list
@@ -524,9 +589,14 @@ switch (event) {
 7. **handleCompletedInitialPeek()**
    - Validates exactly 2 card IDs provided
    - Gets full card data from `originalDeck`
-   - Selects collection rank card (least points, priority order)
-   - Stores non-collection card in `known_cards`
-   - Adds collection card to `collection_rank_cards`
+   - **If `isClearAndCollect: false` (Clear Mode)**:
+     - Both cards stored as ID-only (face-down) in `known_cards`
+     - No collection rank selected
+     - No collection card added
+   - **If `isClearAndCollect: true` (Collection Mode)**:
+     - Selects collection rank card (least points, priority order)
+     - Stores non-collection card in `known_cards`
+     - Adds collection card to `collection_rank_cards`
    - Updates player status
    - Checks if all players completed peek
    - Starts first turn if all completed
@@ -619,7 +689,7 @@ switch (event) {
 
 ```dart
 {
-  'cleco_game': {
+  'dutch_game': {
     'games': {
       'gameId': {
         'gameData': {
@@ -686,7 +756,8 @@ switch (event) {
 2. `MyHandWidget._handleCardSelection()` creates `PlayerAction.playerPlayCard()`
 3. Action executes and emits `play_card` event
 4. Backend `handlePlayCard()` processes:
-   - Validates card exists and is not collection rank
+   - Validates card exists
+   - ⚠️ Checks if card is collection rank (cannot be played) - **Only in collection mode**
    - Handles drawn card repositioning (fills blank slots intelligently)
    - Moves card to discard pile
    - Processes special cards (Queen, Jack, etc.)
@@ -695,7 +766,7 @@ switch (event) {
 6. UI removes card from hand, shows in discard pile
 
 **Special Handling:**
-- Collection rank cards cannot be played
+- ⚠️ Collection rank cards cannot be played - **Only validated in collection mode**
 - Drawn card repositioning uses smart blank slot system
 - Special cards trigger additional windows (same rank, special cards)
 
@@ -719,13 +790,15 @@ switch (event) {
 - Multiple players can play same rank cards
 - Timer automatically ends window and moves to next player
 
-### 4. Collect from Discard Action
+### 4. Collect from Discard Action ⚠️ **Collection Mode Only**
 
 **Flow:**
 1. User clicks discard pile (when top card matches collection rank)
 2. `DiscardPileWidget._handlePileClick()` creates `PlayerAction.collectFromDiscard()`
+   - ⚠️ UI checks `isClearAndCollect` - silently ignores click if `false`
 3. Action executes and emits `collect_from_discard` event
 4. Backend `handleCollectFromDiscard()` processes:
+   - **Early return if `isClearAndCollect: false`** - Collection is disabled
    - Validates top card matches collection rank
    - Moves card to `collection_rank_cards` list
    - Updates collection rank if not set
@@ -733,9 +806,10 @@ switch (event) {
 6. UI shows card in collection rank cards (stacked display)
 
 **Special Handling:**
+- ⚠️ **Only available in collection mode** (`isClearAndCollect: true`)
 - Only works if top discard card matches player's collection rank
-- Blocked during `same_rank_window` and `initial_peek` phases
-- Computer players automatically check and collect when possible
+- Blocked during `same_rank_window` and `initial_peek` phases (only in collection mode)
+- Computer players automatically check and collect when possible (only in collection mode)
 
 ### 5. Initial Peek Action
 
@@ -746,13 +820,18 @@ switch (event) {
 4. Action executes and emits `completed_initial_peek` event
 5. Backend `_handleCompletedInitialPeek()` processes:
    - Gets full card data from `originalDeck`
-   - Selects collection rank card (least points, priority)
-   - Stores non-collection card in `known_cards`
-   - Adds collection card to `collection_rank_cards`
+   - **If `isClearAndCollect: false` (Clear Mode)**:
+     - Both cards stored as ID-only (face-down) in `known_cards`
+     - No collection rank selected
+     - No collection card added
+   - **If `isClearAndCollect: true` (Collection Mode)**:
+     - Selects collection rank card (least points, priority)
+     - Stores non-collection card in `known_cards`
+     - Adds collection card to `collection_rank_cards`
    - Checks if all players completed
    - Starts first turn if all completed
 6. State update broadcasts
-7. UI shows collection rank card (stacked)
+7. UI shows collection rank card (stacked) - **Only in collection mode**
 
 **Special Handling:**
 - Exactly 2 cards must be selected

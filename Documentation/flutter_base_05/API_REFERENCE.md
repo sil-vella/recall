@@ -1261,6 +1261,65 @@ try {
 - Add context to error messages
 - Use structured logging for debugging
 
+## Dutch Game Helpers
+
+### DutchGameHelpers
+
+**File**: `lib/modules/dutch_game/utils/dutch_game_helpers.dart`
+
+#### Class Definition
+```dart
+class DutchGameHelpers
+```
+
+#### Key Methods
+
+##### `static Future<bool> ensureWebSocketReady()`
+Ensures WebSocket is ready before game actions. Checks login status, initializes WebSocket if needed, and connects if not connected. Navigates to account screen if any check fails.
+
+**Returns**: `true` if WebSocket is ready, `false` otherwise
+
+**Behavior**:
+1. Checks if user is logged in (via `StateManager`)
+2. Initializes WebSocket if not initialized
+3. Connects WebSocket if not connected
+4. Navigates to account screen if login/connection fails
+5. Returns `true` if all checks pass, `false` otherwise
+
+**Example**:
+```dart
+final isReady = await DutchGameHelpers.ensureWebSocketReady();
+if (!isReady) {
+  // Navigation to account screen already handled
+  return;
+}
+// Proceed with game action (random join, create room, join room)
+```
+
+**Usage**: Called before game actions that require WebSocket connection:
+- Random game join
+- Create room
+- Join room
+
+##### `static void navigateToAccountScreen(String reason, String message)`
+Navigates to the account screen with authentication reason and message.
+
+**Parameters**:
+- `reason` (String): Authentication reason code (e.g., 'not_logged_in', 'ws_init_failed', 'ws_connect_failed')
+- `message` (String): User-friendly message to display
+
+**Example**:
+```dart
+DutchGameHelpers.navigateToAccountScreen(
+  'not_logged_in',
+  'Please log in to play games.'
+);
+```
+
+**Usage**: Called when authentication or WebSocket connection fails. The account screen will display the message to guide the user.
+
+**Note**: This method is used by the Dutch game module, not the WebSocket module. Navigation to account screen is handled at the module level, not at the WebSocket manager level.
+
 ## Conclusion
 
 This API reference provides comprehensive documentation for all components in the Flutter Base 05 application. The modular architecture, comprehensive state management, and robust authentication system make it suitable for building enterprise-level Flutter applications.

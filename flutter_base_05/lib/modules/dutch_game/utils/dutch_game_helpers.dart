@@ -1,5 +1,6 @@
 import '../../../core/managers/module_manager.dart';
 import '../../../core/managers/state_manager.dart';
+import '../../../core/managers/navigation_manager.dart';
 import '../../connections_api_module/connections_api_module.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../tools/logging/logger.dart';
@@ -14,7 +15,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for debugging coins display
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
   
   // ========================================
   // EVENT EMISSION HELPERS
@@ -29,39 +30,73 @@ class DutchGameHelpers {
     int turnTimeLimit = 30,
     bool autoStart = false,
     String? password,
-  }) {
-    final data = {
-      'permission': permission,
-      'max_players': maxPlayers,
-      'min_players': minPlayers,
-      'game_type': gameType,
-      'turn_time_limit': turnTimeLimit,
-      'auto_start': autoStart,
-    };
-    
-    // Add password for private rooms
-    if (permission == 'private' && password != null) {
-      data['password'] = password;
+  }) async {
+    try {
+      // Ensure WebSocket is ready (logged in, initialized, and connected)
+      final isReady = await ensureWebSocketReady();
+      if (!isReady) {
+        return {
+          'success': false,
+          'error': 'WebSocket not ready - cannot create room. Please ensure you are logged in.',
+        };
+      }
+      
+      final data = {
+        'permission': permission,
+        'max_players': maxPlayers,
+        'min_players': minPlayers,
+        'game_type': gameType,
+        'turn_time_limit': turnTimeLimit,
+        'auto_start': autoStart,
+      };
+      
+      // Add password for private rooms
+      if (permission == 'private' && password != null) {
+        data['password'] = password;
+      }
+      
+      return await _eventEmitter.emit(
+        eventType: 'create_room',
+        data: data,
+      );
+    } catch (e) {
+      _logger.error('DutchGameHelpers: Error creating room: $e', isOn: LOGGING_SWITCH);
+      return {
+        'success': false,
+        'error': 'Failed to create room: $e',
+      };
     }
-    
-    return _eventEmitter.emit(
-      eventType: 'create_room',
-      data: data,
-    );
   }
 
   /// Join an existing room with validation
   static Future<Map<String, dynamic>> joinRoom({
     required String roomId,
-  }) {
-    final data = {
-      'room_id': roomId,
-    };
-    
-    return _eventEmitter.emit(
-      eventType: 'join_room',
-      data: data,
-    );
+  }) async {
+    try {
+      // Ensure WebSocket is ready (logged in, initialized, and connected)
+      final isReady = await ensureWebSocketReady();
+      if (!isReady) {
+        return {
+          'success': false,
+          'error': 'WebSocket not ready - cannot join room. Please ensure you are logged in.',
+        };
+      }
+      
+      final data = {
+        'room_id': roomId,
+      };
+      
+      return await _eventEmitter.emit(
+        eventType: 'join_room',
+        data: data,
+      );
+    } catch (e) {
+      _logger.error('DutchGameHelpers: Error joining room: $e', isOn: LOGGING_SWITCH);
+      return {
+        'success': false,
+        'error': 'Failed to join room: $e',
+      };
+    }
   }
 
   /// Fetch available games from the Dart backend via WebSocket
@@ -73,6 +108,8 @@ class DutchGameHelpers {
       if (!wsManager.isConnected) {
         final connected = await wsManager.connect();
         if (!connected) {
+          // Don't navigate here - let the calling screen handle navigation
+          // This prevents navigation when called from background or during app init
           throw Exception('WebSocket not connected - cannot fetch games');
         }
       }
@@ -110,6 +147,71 @@ class DutchGameHelpers {
   // STATE UPDATE HELPERS
   // ========================================
   
+  /// Navigate to account screen when WebSocket authentication fails
+  static void navigateToAccountScreen(String reason, String message) {
+    _logger.info('DutchGameHelpers: navigateToAccountScreen called - reason: $reason, message: $message', isOn: LOGGING_SWITCH);
+    try {
+      final navigationManager = NavigationManager();
+      _logger.info('DutchGameHelpers: NavigationManager obtained, navigating to /account', isOn: LOGGING_SWITCH);
+      navigationManager.navigateToWithDelay('/account', parameters: {
+        'auth_reason': reason,
+        'auth_message': message,
+      });
+      _logger.info('DutchGameHelpers: Navigation to /account initiated', isOn: LOGGING_SWITCH);
+    } catch (e, stackTrace) {
+      _logger.error('DutchGameHelpers: Error navigating to account screen: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Ensure WebSocket is ready (user logged in, initialized, and connected)
+  /// Returns true if ready, false otherwise
+  static Future<bool> ensureWebSocketReady() async {
+    _logger.info('DutchGameHelpers: ensureWebSocketReady called', isOn: LOGGING_SWITCH);
+    
+    // Check if user is logged in
+    final stateManager = StateManager();
+    final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+    final isLoggedIn = loginState['isLoggedIn'] == true;
+    _logger.info('DutchGameHelpers: User login status - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
+    
+    if (!isLoggedIn) {
+      _logger.warning('DutchGameHelpers: User is not logged in, cannot ensure WebSocket ready', isOn: LOGGING_SWITCH);
+      return false;
+    }
+    
+    // Get WebSocket manager
+    final wsManager = WebSocketManager.instance;
+    
+    // Initialize if not already initialized
+    if (!wsManager.isInitialized) {
+      _logger.info('DutchGameHelpers: WebSocket not initialized, initializing...', isOn: LOGGING_SWITCH);
+      final initialized = await wsManager.initialize();
+      _logger.info('DutchGameHelpers: WebSocket initialization result: $initialized', isOn: LOGGING_SWITCH);
+      if (!initialized) {
+        _logger.warning('DutchGameHelpers: WebSocket initialization failed', isOn: LOGGING_SWITCH);
+        return false;
+      }
+    } else {
+      _logger.info('DutchGameHelpers: WebSocket already initialized', isOn: LOGGING_SWITCH);
+    }
+    
+    // Connect if not already connected
+    if (!wsManager.isConnected) {
+      _logger.info('DutchGameHelpers: WebSocket not connected, connecting...', isOn: LOGGING_SWITCH);
+      final connected = await wsManager.connect();
+      _logger.info('DutchGameHelpers: WebSocket connection result: $connected', isOn: LOGGING_SWITCH);
+      if (!connected) {
+        _logger.warning('DutchGameHelpers: WebSocket connection failed', isOn: LOGGING_SWITCH);
+        return false;
+      }
+    } else {
+      _logger.info('DutchGameHelpers: WebSocket already connected', isOn: LOGGING_SWITCH);
+    }
+    
+    _logger.info('DutchGameHelpers: WebSocket is ready', isOn: LOGGING_SWITCH);
+    return true;
+  }
+  
   /// Update connection status
   static void updateConnectionStatus({
     required bool isConnected,
@@ -135,13 +237,10 @@ class DutchGameHelpers {
   /// Uses join_random_game WebSocket event
   static Future<Map<String, dynamic>> joinRandomGame({bool isClearAndCollect = true}) async {
     try {
-      // Ensure WebSocket is connected
-      final wsManager = WebSocketManager.instance;
-      if (!wsManager.isConnected) {
-        final connected = await wsManager.connect();
-        if (!connected) {
-          throw Exception('WebSocket not connected - cannot join random game');
-        }
+      // Ensure WebSocket is ready (logged in, initialized, and connected)
+      final isReady = await ensureWebSocketReady();
+      if (!isReady) {
+        throw Exception('WebSocket not ready - cannot join random game. Please ensure you are logged in.');
       }
       
       // Set flag to indicate we're in a random join flow (for navigation)
@@ -183,6 +282,8 @@ class DutchGameHelpers {
 
   /// Find a specific game by room ID via API call
   static Future<Map<String, dynamic>> findRoom(String roomId) async {
+    // Note: findRoom uses HTTP API, not WebSocket, so we only need to check login status
+    // The API call will handle authentication via JWT token in headers
     try {
       // Get the ConnectionsApiModule instance from the global module manager
       final moduleManager = ModuleManager();

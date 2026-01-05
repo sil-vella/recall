@@ -22,7 +22,7 @@ enum AuthStatus {
 
 class AuthManager extends ChangeNotifier {
   // Logging switch for guest registration testing
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
   
   static final AuthManager _instance = AuthManager._internal();
   
@@ -446,19 +446,8 @@ class AuthManager extends ChangeNotifier {
         return null;
       }
     } else {
-      
-      // Trigger auth required hook when no tokens are available
-      if (!_hasTriggeredAuthHook) {
-        _hasTriggeredAuthHook = true;
-        final hooksManager = HooksManager();
-        hooksManager.triggerHookWithData('auth_required', {
-          'status': 'auth_required',
-          'reason': 'no_tokens_available',
-          'message': 'No authentication tokens available. Please log in.',
-        });
-      } else {
-
-      }
+      // No tokens available - navigation will be handled by WebSocket connection failure
+      // Don't trigger auth_required hook here to avoid premature navigation during app init
       return null;
     }
   }

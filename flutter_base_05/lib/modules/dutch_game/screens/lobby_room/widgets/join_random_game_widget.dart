@@ -84,6 +84,15 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
         return;
       }
       
+      // Ensure WebSocket is ready before attempting to join
+      final isReady = await DutchGameHelpers.ensureWebSocketReady();
+      if (!isReady) {
+        if (mounted) {
+          DutchGameHelpers.navigateToAccountScreen('ws_not_ready', 'Unable to connect to game server. Please log in to continue.');
+        }
+        return;
+      }
+      
       // Use the helper method to join random game with isClearAndCollect flag
       final result = await DutchGameHelpers.joinRandomGame(isClearAndCollect: isClearAndCollect);
       
@@ -106,12 +115,18 @@ class _JoinRandomGameWidgetState extends State<JoinRandomGameWidget> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to join random game: $e'),
-            backgroundColor: AppColors.errorColor,
-          ),
-        );
+        // Check if error is related to WebSocket connection
+        final errorStr = e.toString().toLowerCase();
+        if (errorStr.contains('websocket') || errorStr.contains('not ready') || errorStr.contains('not connected')) {
+          DutchGameHelpers.navigateToAccountScreen('ws_error', 'Unable to connect to game server. Please log in to continue.');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to join random game: $e'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {

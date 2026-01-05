@@ -8,7 +8,7 @@ import 'websocket_state_validator.dart';
 import 'native_websocket_adapter.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for final round debugging
+const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
 
 /// WebSocket Event Handler
 /// Centralized event processing logic for all WebSocket events
@@ -819,6 +819,8 @@ class WSEventHandler {
         isAuthenticated: false,
         error: data is Map ? data['message'] : 'Authentication failed',
       );
+      
+      // Authentication failure - navigation handled by calling module (e.g., Dutch game module)
     } catch (e) {
       _logger.error('Error handling authentication failure: $e', isOn: LOGGING_SWITCH);
     }
@@ -833,11 +835,12 @@ class WSEventHandler {
         isAuthenticated: false,
         error: data is Map ? data['message'] : 'Authentication error',
       );
+      
+      // Authentication error - navigation handled by calling module (e.g., Dutch game module)
     } catch (e) {
       _logger.error('Error handling authentication error: $e', isOn: LOGGING_SWITCH);
     }
   }
-  
   /// Handle custom events (like game event acknowledgments)
   void handleCustomEvent(String eventType, dynamic data) {
     try {

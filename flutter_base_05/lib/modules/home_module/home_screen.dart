@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/app_manager.dart';
-import '../../core/managers/navigation_manager.dart';
+import '../../core/widgets/feature_slot.dart';
 import '../../utils/consts/theme_consts.dart';
 import '../../tools/logging/logger.dart';
 
@@ -17,7 +17,7 @@ class HomeScreen extends BaseScreen {
 }
 
 class _HomeScreenState extends BaseScreenState<HomeScreen> {
-  static const bool LOGGING_SWITCH = false; // Enable for debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
   static final Logger _logger = Logger();
   
   @override
@@ -43,6 +43,8 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
     try {
       // Clean up app bar features when screen is disposed
       clearAppBarActions();
+      // Clean up home screen button features
+      unregisterHomeScreenButton('dutch_game_play');
       super.dispose();
       _logger.debug('HomeScreen: dispose completed successfully', isOn: LOGGING_SWITCH);
     } catch (e, stackTrace) {
@@ -57,48 +59,29 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
     
     try {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Welcome text with app title
-            Text(
-              'Welcome to Dutch',
-              style: AppTextStyles.headingLarge(),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 48),
-            // Play button - navigates to lobby
-            ElevatedButton(
-              onPressed: () {
-                _logger.info('HomeScreen: Play button pressed', isOn: LOGGING_SWITCH);
-                try {
-                  final navigationManager = Provider.of<NavigationManager>(context, listen: false);
-                  _logger.debug('HomeScreen: NavigationManager obtained, navigating to /dutch/lobby', isOn: LOGGING_SWITCH);
-                  navigationManager.navigateTo('/dutch/lobby');
-                  _logger.debug('HomeScreen: Navigation to /dutch/lobby initiated', isOn: LOGGING_SWITCH);
-                } catch (e, stackTrace) {
-                  _logger.error('HomeScreen: Error in Play button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryColor,
-                foregroundColor: AppColors.textOnPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                minimumSize: const Size(200, 56),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Welcome text with app title
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+                child: Text(
+                  'Welcome to Dutch',
+                  style: AppTextStyles.headingLarge(),
+                  textAlign: TextAlign.center,
+                ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.play_arrow, size: 28),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Play',
-                    style: AppTextStyles.headingMedium(),
-                  ),
-                ],
+              const SizedBox(height: 24),
+              // Home screen button features slot - full-width buttons registered by modules
+              FeatureSlot(
+                scopeKey: featureScopeKey,
+                slotId: 'home_screen_buttons',
+                contract: 'home_screen_button',
+                useTemplate: false,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     } catch (e, stackTrace) {

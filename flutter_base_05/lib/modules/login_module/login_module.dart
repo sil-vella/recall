@@ -18,7 +18,7 @@ import '../../utils/consts/config.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;
@@ -86,19 +86,25 @@ class LoginModule extends ModuleBase {
 
   /// ✅ Handle refresh token expiration
   void _handleRefreshTokenExpired() {
+    Logger().info('LoginModule: _handleRefreshTokenExpired called', isOn: LOGGING_SWITCH);
     if (_currentContext != null) {
       // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
+      Logger().info('LoginModule: _handleRefreshTokenExpired - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
       
       if (isLoggedIn) {
+        Logger().info('LoginModule: User is logged in, performing logout and navigating', isOn: LOGGING_SWITCH);
         _performSynchronousLogout();
         _navigateToAccountScreen('refresh_token_expired', 'Refresh token has expired. Please log in again.');
       } else {
+        Logger().info('LoginModule: User is already logged out, navigating to account screen', isOn: LOGGING_SWITCH);
         // Still navigate to account screen even if already logged out
         _navigateToAccountScreen('refresh_token_expired', 'Refresh token has expired. Please log in again.');
       }
+    } else {
+      Logger().warning('LoginModule: _handleRefreshTokenExpired called but _currentContext is null, skipping navigation', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -148,19 +154,25 @@ class LoginModule extends ModuleBase {
 
   /// ✅ Handle token refresh failure
   void _handleTokenRefreshFailed() {
+    Logger().info('LoginModule: _handleTokenRefreshFailed called', isOn: LOGGING_SWITCH);
     if (_currentContext != null) {
       // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
+      Logger().info('LoginModule: _handleTokenRefreshFailed - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
       
       if (isLoggedIn) {
+        Logger().info('LoginModule: User is logged in, performing logout and navigating', isOn: LOGGING_SWITCH);
         _performSynchronousLogout();
         _navigateToAccountScreen('token_refresh_failed', 'Token refresh failed. Please log in again.');
       } else {
+        Logger().info('LoginModule: User is already logged out, navigating to account screen', isOn: LOGGING_SWITCH);
         // Still navigate to account screen even if already logged out
         _navigateToAccountScreen('token_refresh_failed', 'Token refresh failed. Please log in again.');
       }
+    } else {
+      Logger().warning('LoginModule: _handleTokenRefreshFailed called but _currentContext is null, skipping navigation', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -168,38 +180,50 @@ class LoginModule extends ModuleBase {
   void _handleAuthRequired(Map<String, dynamic> data) {
     final reason = data['reason'] ?? 'unknown';
     final message = data['message'] ?? 'Authentication required';
+    Logger().info('LoginModule: _handleAuthRequired called - reason: $reason, message: $message', isOn: LOGGING_SWITCH);
     
     if (_currentContext != null) {
       // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
+      Logger().info('LoginModule: _handleAuthRequired - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
       
       if (isLoggedIn) {
+        Logger().info('LoginModule: User is logged in, performing logout and navigating', isOn: LOGGING_SWITCH);
         _performSynchronousLogout();
         _navigateToAccountScreen(reason, message);
       } else {
+        Logger().info('LoginModule: User is already logged out, navigating to account screen', isOn: LOGGING_SWITCH);
         // Still navigate to account screen even if already logged out
         _navigateToAccountScreen(reason, message);
       }
+    } else {
+      Logger().warning('LoginModule: _handleAuthRequired called but _currentContext is null, skipping navigation', isOn: LOGGING_SWITCH);
     }
   }
 
   /// ✅ Handle general auth error
   void _handleAuthError() {
+    Logger().info('LoginModule: _handleAuthError called', isOn: LOGGING_SWITCH);
     if (_currentContext != null) {
       // Only logout and navigate if not already logged out
       final stateManager = StateManager();
       final loginState = stateManager.getModuleState<Map<String, dynamic>>("login");
       final isLoggedIn = loginState?["isLoggedIn"] ?? false;
+      Logger().info('LoginModule: _handleAuthError - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
       
       if (isLoggedIn) {
+        Logger().info('LoginModule: User is logged in, performing logout and navigating', isOn: LOGGING_SWITCH);
         _performSynchronousLogout();
         _navigateToAccountScreen('auth_error', 'Authentication error occurred. Please log in again.');
       } else {
+        Logger().info('LoginModule: User is already logged out, navigating to account screen', isOn: LOGGING_SWITCH);
         // Still navigate to account screen even if already logged out
         _navigateToAccountScreen('auth_error', 'Authentication error occurred. Please log in again.');
       }
+    } else {
+      Logger().warning('LoginModule: _handleAuthError called but _currentContext is null, skipping navigation', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -207,13 +231,20 @@ class LoginModule extends ModuleBase {
 
   /// ✅ Navigate to account screen with auth parameters
   void _navigateToAccountScreen(String reason, String message) {
-    final navigationManager = NavigationManager();
-    
-    // Use NavigationManager's queuing system to ensure router is ready
-    navigationManager.navigateToWithDelay('/account', parameters: {
-      'auth_reason': reason,
-      'auth_message': message,
-    });
+    Logger().info('LoginModule: _navigateToAccountScreen called - reason: $reason, message: $message', isOn: LOGGING_SWITCH);
+    Logger().info('LoginModule: Current context: ${_currentContext != null ? "available" : "null"}', isOn: LOGGING_SWITCH);
+    try {
+      final navigationManager = NavigationManager();
+      Logger().info('LoginModule: NavigationManager obtained, navigating to /account', isOn: LOGGING_SWITCH);
+      // Use NavigationManager's queuing system to ensure router is ready
+      navigationManager.navigateToWithDelay('/account', parameters: {
+        'auth_reason': reason,
+        'auth_message': message,
+      });
+      Logger().info('LoginModule: Navigation to /account initiated', isOn: LOGGING_SWITCH);
+    } catch (e, stackTrace) {
+      Logger().error('LoginModule: Error navigating to account screen: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+    }
   }
 
   Future<Map<String, dynamic>> getUserStatus(BuildContext context) async {

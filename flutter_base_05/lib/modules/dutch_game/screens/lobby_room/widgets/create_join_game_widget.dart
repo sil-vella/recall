@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../core/managers/websockets/websocket_manager.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
-import '../../../managers/validated_event_emitter.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
 /// Unified widget for creating and joining games
@@ -132,16 +131,30 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         }
       } else {
         final errorMessage = result['error'] ?? 'Failed to find game';
-        throw Exception(errorMessage);
+        // Check if error is related to authentication
+        final errorStr = errorMessage.toLowerCase();
+        if (errorStr.contains('websocket') || errorStr.contains('not ready') || errorStr.contains('not connected') || errorStr.contains('logged in') || errorStr.contains('authentication') || errorStr.contains('unauthorized')) {
+          if (mounted) {
+            DutchGameHelpers.navigateToAccountScreen('auth_required', 'Please log in to find games.');
+          }
+        } else {
+          throw Exception(errorMessage);
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to find game: $e'),
-            backgroundColor: AppColors.errorColor,
-          ),
-        );
+        // Check if error is related to authentication
+        final errorStr = e.toString().toLowerCase();
+        if (errorStr.contains('websocket') || errorStr.contains('not ready') || errorStr.contains('not connected') || errorStr.contains('authentication') || errorStr.contains('unauthorized')) {
+          DutchGameHelpers.navigateToAccountScreen('auth_error', 'Please log in to find games.');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to find game: $e'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {
@@ -183,9 +196,16 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         throw Exception('Password is required for private games');
       }
 
-      final wsManager = WebSocketManager.instance;
-      if (!wsManager.isConnected) {
-        throw Exception('Not connected to server');
+      // Ensure WebSocket is ready before attempting to join
+      final isReady = await DutchGameHelpers.ensureWebSocketReady();
+      if (!isReady) {
+        if (mounted) {
+          DutchGameHelpers.navigateToAccountScreen('ws_not_ready', 'Unable to connect to game server. Please log in to continue.');
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
       }
 
       final joinData = <String, dynamic>{
@@ -196,33 +216,49 @@ class _CreateJoinGameWidgetState extends State<CreateJoinGameWidget> {
         joinData['password'] = password;
       }
 
-      final eventEmitter = DutchGameEventEmitter.instance;
-      await eventEmitter.emit(
-        eventType: 'join_room',
-        data: joinData,
-      );
+      // Use joinRoom helper which will ensure WebSocket is ready
+      final result = await DutchGameHelpers.joinRoom(roomId: roomId);
+      
+      if (result['success'] == true) {
+        _roomIdController.clear();
+        _passwordController.clear();
 
-      _roomIdController.clear();
-      _passwordController.clear();
+        widget.onJoinRoom?.call();
 
-      widget.onJoinRoom?.call();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Join game request sent successfully'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Join game request sent successfully'),
+              backgroundColor: AppColors.successColor,
+            ),
+          );
+        }
+      } else {
+        final errorMessage = result['error'] ?? 'Failed to join game';
+        // Check if error is related to WebSocket connection
+        final errorStr = errorMessage.toLowerCase();
+        if (errorStr.contains('websocket') || errorStr.contains('not ready') || errorStr.contains('not connected') || errorStr.contains('logged in')) {
+          if (mounted) {
+            DutchGameHelpers.navigateToAccountScreen('ws_not_ready', 'Unable to connect to game server. Please log in to continue.');
+          }
+        } else {
+          throw Exception(errorMessage);
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to join game: $e'),
-            backgroundColor: AppColors.errorColor,
-          ),
-        );
+        // Check if error is related to WebSocket connection
+        final errorStr = e.toString().toLowerCase();
+        if (errorStr.contains('websocket') || errorStr.contains('not ready') || errorStr.contains('not connected')) {
+          DutchGameHelpers.navigateToAccountScreen('ws_error', 'Unable to connect to game server. Please log in to continue.');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to join game: $e'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {

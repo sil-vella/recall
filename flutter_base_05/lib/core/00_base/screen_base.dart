@@ -114,6 +114,48 @@ abstract class BaseScreenState<T extends BaseScreen> extends State<T> {
     FeatureRegistryManager.instance.clearScope(featureScopeKey);
   }
 
+  /// Register a home screen button feature (for HomeScreen only)
+  void registerHomeScreenButton({
+    required String featureId,
+    required String text,
+    required VoidCallback onTap,
+    Color? backgroundColor,
+    String? imagePath,
+    double? height,
+    EdgeInsetsGeometry? padding,
+    TextStyle? textStyle,
+    int priority = 100,
+    Map<String, dynamic>? metadata,
+  }) {
+    final feature = HomeScreenButtonFeatureDescriptor(
+      featureId: featureId,
+      slotId: 'home_screen_buttons',
+      text: text,
+      onTap: onTap,
+      backgroundColor: backgroundColor,
+      imagePath: imagePath,
+      height: height,
+      padding: padding,
+      textStyle: textStyle,
+      priority: priority,
+      metadata: metadata,
+    );
+    
+    FeatureRegistryManager.instance.register(
+      scopeKey: featureScopeKey,
+      feature: feature,
+      context: context,
+    );
+  }
+
+  /// Unregister a home screen button feature
+  void unregisterHomeScreenButton(String featureId) {
+    FeatureRegistryManager.instance.unregister(
+      scopeKey: featureScopeKey,
+      featureId: featureId,
+    );
+  }
+
   // Layout components with automatic theme application
   Widget buildHeader(BuildContext context, {required Widget child}) {
     return Container(

@@ -76,6 +76,7 @@
 import 'dart:async';
 
 import '../../../core/managers/websockets/websocket_manager.dart';
+import '../utils/dutch_game_helpers.dart';
 
 /// Dutch Module Manager
 /// Main orchestrator for the Dutch game functionality
@@ -119,6 +120,8 @@ class DutchModuleManager {
     if (connected) {
       return true;
     } else {
+      // Navigate to account screen when WebSocket connection fails due to auth
+      DutchGameHelpers.navigateToAccountScreen('ws_connect_failed', 'Unable to connect to game server. Please log in to continue.');
       return false;
     }
   }

@@ -107,6 +107,8 @@ class _FeatureSlotState extends State<FeatureSlot> {
     final widgets = features.map((feature) {
       if (feature is IconActionFeatureDescriptor) {
         return _buildIconActionFeature(feature);
+      } else if (feature is HomeScreenButtonFeatureDescriptor) {
+        return _buildHomeScreenButtonFeature(feature);
       } else {
         return _buildGenericFeature(feature);
       }
@@ -115,6 +117,14 @@ class _FeatureSlotState extends State<FeatureSlot> {
     if (widget.useTemplate && widget.title != null) {
       return SlotTemplate(
         title: widget.title!,
+        children: widgets,
+      );
+    }
+
+    // For home screen buttons, return as column (full-width buttons stacked vertically)
+    if (widget.contract == 'home_screen_button') {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
         children: widgets,
       );
     }
@@ -140,6 +150,61 @@ class _FeatureSlotState extends State<FeatureSlot> {
         tooltip: feature.tooltip,
         style: IconButton.styleFrom(
           foregroundColor: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeScreenButtonFeature(HomeScreenButtonFeatureDescriptor feature) {
+    // Calculate height: use percentage if provided, otherwise use fixed height or default
+    double? calculatedHeight;
+    if (feature.heightPercentage != null) {
+      final mediaQuery = MediaQuery.of(context);
+      final availableHeight = mediaQuery.size.height - mediaQuery.padding.top - mediaQuery.padding.bottom;
+      calculatedHeight = availableHeight * feature.heightPercentage!;
+    } else {
+      calculatedHeight = feature.height ?? 80;
+    }
+    
+    return Container(
+      width: double.infinity,
+      height: calculatedHeight,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: feature.backgroundColor ?? AppColors.primaryColor,
+        borderRadius: BorderRadius.circular(12),
+        image: feature.imagePath != null
+            ? DecorationImage(
+                image: AssetImage(feature.imagePath!),
+                fit: BoxFit.cover,
+              )
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: feature.onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: feature.padding ?? const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Center(
+              child: Text(
+                feature.text,
+                style: feature.textStyle ?? AppTextStyles.headingMedium().copyWith(
+                  color: AppColors.textOnPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
         ),
       ),
     );

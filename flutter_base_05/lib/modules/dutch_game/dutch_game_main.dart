@@ -13,11 +13,12 @@ import '../dutch_game/managers/dutch_module_manager.dart';
 import '../dutch_game/managers/dutch_event_manager.dart';
 import '../dutch_game/managers/dutch_game_state_updater.dart';
 import '../dutch_game/utils/dutch_game_helpers.dart';
+import '../dutch_game/screens/home_screen/features/home_screen_features.dart';
 
 /// Dutch Game Module
 /// Main module for the Dutch card game functionality
 class DutchGameMain extends ModuleBase {
-  static const bool LOGGING_SWITCH = false; // Enabled for debugging user stats fetching
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
   final Logger _logger = Logger();
   
   final navigationManager = NavigationManager();
@@ -81,7 +82,7 @@ class DutchGameMain extends ModuleBase {
         return;
       }
       
-      // Step 5: Register hooks for user stats fetching
+      // Step 5: Register hooks for user stats fetching and home screen features
       _registerHooks();
       
       // Step 6: Register screens with NavigationManager
@@ -173,7 +174,7 @@ class DutchGameMain extends ModuleBase {
     });
   }
 
-  /// Register hooks for fetching user stats
+  /// Register hooks for fetching user stats and home screen features
   void _registerHooks() {
     final hooksManager = HooksManager();
     
@@ -183,7 +184,29 @@ class DutchGameMain extends ModuleBase {
       _fetchUserStats();
     });
     
-    _logger.info('🎬 DutchGameMain: Registered auth_login_complete hook for user stats', isOn: LOGGING_SWITCH);
+    // Register hook for home screen to register play button feature
+    hooksManager.registerHookWithData('home_screen_main', (data) {
+      _logger.info('🎬 DutchGameMain: home_screen_main hook triggered - registering play button feature', isOn: LOGGING_SWITCH);
+      final context = data['context'] as BuildContext?;
+      if (context != null) {
+        _registerHomeScreenFeatures(context);
+      } else {
+        _logger.warning('⚠️ DutchGameMain: home_screen_main hook triggered but no context provided', isOn: LOGGING_SWITCH);
+      }
+    });
+    
+    _logger.info('🎬 DutchGameMain: Registered auth_login_complete and home_screen_main hooks', isOn: LOGGING_SWITCH);
+  }
+  
+  /// Register home screen features (play button, etc.)
+  void _registerHomeScreenFeatures(BuildContext context) {
+    try {
+      final featureRegistrar = HomeScreenFeatureRegistrar();
+      featureRegistrar.registerDutchGamePlayButton(context);
+      _logger.info('✅ DutchGameMain: Home screen features registered successfully', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('❌ DutchGameMain: Error registering home screen features: $e', isOn: LOGGING_SWITCH);
+    }
   }
 
   /// Fetch user stats if user is already logged in (on module initialization)

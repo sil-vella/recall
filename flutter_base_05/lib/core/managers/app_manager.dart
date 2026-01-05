@@ -27,7 +27,7 @@ class AppManager extends ChangeNotifier {
   final AuthManager _authManager = AuthManager();
   final AdaptersManager _adaptersManager = AdaptersManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
 
   Future<void> _initializeModules(BuildContext context) async {
     final moduleManager = Provider.of<ModuleManager>(context, listen: false);
@@ -62,21 +62,30 @@ class AppManager extends ChangeNotifier {
         _registerGlobalHooks();
         
         // Validate session on startup
+        _logger.info('AppManager: Validating session on startup', isOn: LOGGING_SWITCH);
         final authStatus = await _authManager.validateSessionOnStartup();
+        _logger.info('AppManager: Session validation result: $authStatus', isOn: LOGGING_SWITCH);
         
         // Initialize WebSocketManager after authentication (if user is authenticated)
-        if (authStatus == 'authenticated') {
+        // Note: authStatus is an AuthStatus enum, not a string
+        if (authStatus == AuthStatus.loggedIn) {
+          _logger.info('AppManager: User is authenticated, initializing WebSocketManager', isOn: LOGGING_SWITCH);
           try {
             // Initialize WebSocketManager
             final webSocketManager = WebSocketManager.instance;
-            await webSocketManager.initialize();
+            final initialized = await webSocketManager.initialize();
+            _logger.info('AppManager: WebSocketManager initialization result: $initialized', isOn: LOGGING_SWITCH);
           } catch (e) {
-            // Error initializing WebSocketManager
+            _logger.error('AppManager: Error initializing WebSocketManager: $e', isOn: LOGGING_SWITCH);
           }
+        } else {
+          _logger.info('AppManager: User is not authenticated (status: $authStatus), skipping WebSocket initialization', isOn: LOGGING_SWITCH);
         }
         
         // Handle authentication state
+        _logger.info('AppManager: Handling authentication state', isOn: LOGGING_SWITCH);
         await _authManager.handleAuthState(context, authStatus);
+        _logger.info('AppManager: Authentication state handled', isOn: LOGGING_SWITCH);
         
         _isInitialized = true;
         notifyListeners();

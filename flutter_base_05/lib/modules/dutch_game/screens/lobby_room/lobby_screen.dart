@@ -31,7 +31,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -47,29 +47,81 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   }
 
   Future<void> _initializeWebSocket() async {
+    final Logger _logger = Logger();
+    _logger.info('LobbyScreen: _initializeWebSocket called, mounted: $mounted', isOn: LOGGING_SWITCH);
+    
+    // Check if user is logged in before attempting WebSocket connection
+    final stateManager = StateManager();
+    final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+    final isLoggedIn = loginState['isLoggedIn'] == true;
+    _logger.info('LobbyScreen: User login status - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
+    
+    if (!isLoggedIn) {
+      _logger.warning('LobbyScreen: User is not logged in, navigating to account screen', isOn: LOGGING_SWITCH);
+      if (mounted) {
+        DutchGameHelpers.navigateToAccountScreen('not_logged_in', 'Please log in to play games.');
+      }
+      return;
+    }
+    
     try {
       // Initialize WebSocket manager if not already initialized
       if (!_websocketManager.isInitialized) {
+        _logger.info('LobbyScreen: WebSocket not initialized, initializing...', isOn: LOGGING_SWITCH);
         final initialized = await _websocketManager.initialize();
+        _logger.info('LobbyScreen: WebSocket initialization result: $initialized', isOn: LOGGING_SWITCH);
         if (!initialized) {
-          _showSnackBar('Failed to initialize WebSocket', isError: true);
+          _logger.warning('LobbyScreen: WebSocket initialization failed, mounted: $mounted', isOn: LOGGING_SWITCH);
+          // Only navigate if we're still on this screen (mounted)
+          if (mounted) {
+            _logger.info('LobbyScreen: Navigating to account screen due to WebSocket init failure', isOn: LOGGING_SWITCH);
+            // Navigate to account screen when WebSocket initialization fails due to auth
+            DutchGameHelpers.navigateToAccountScreen('ws_init_failed', 'Unable to initialize game connection. Please log in to continue.');
+          } else {
+            _logger.warning('LobbyScreen: Screen not mounted, skipping navigation', isOn: LOGGING_SWITCH);
+          }
           return;
         }
+      } else {
+        _logger.info('LobbyScreen: WebSocket already initialized', isOn: LOGGING_SWITCH);
       }
       
       // Connect to WebSocket if not already connected
       if (!_websocketManager.isConnected) {
+        _logger.info('LobbyScreen: WebSocket not connected, connecting...', isOn: LOGGING_SWITCH);
         final connected = await _websocketManager.connect();
+        _logger.info('LobbyScreen: WebSocket connection result: $connected', isOn: LOGGING_SWITCH);
         if (!connected) {
-          _showSnackBar('Failed to connect to WebSocket', isError: true);
+          _logger.warning('LobbyScreen: WebSocket connection failed, mounted: $mounted', isOn: LOGGING_SWITCH);
+          // Only navigate if we're still on this screen (mounted)
+          if (mounted) {
+            _logger.info('LobbyScreen: Navigating to account screen due to WebSocket connection failure', isOn: LOGGING_SWITCH);
+            // Navigate to account screen when WebSocket connection fails due to auth
+            DutchGameHelpers.navigateToAccountScreen('ws_connect_failed', 'Unable to connect to game server. Please log in to continue.');
+          } else {
+            _logger.warning('LobbyScreen: Screen not mounted, skipping navigation', isOn: LOGGING_SWITCH);
+          }
           return;
         }
-        _showSnackBar('WebSocket connected successfully!');
+        if (mounted) {
+          _showSnackBar('WebSocket connected successfully!');
+        }
       } else {
-        _showSnackBar('WebSocket already connected!');
+        _logger.info('LobbyScreen: WebSocket already connected', isOn: LOGGING_SWITCH);
+        if (mounted) {
+          _showSnackBar('WebSocket already connected!');
+        }
       }
-    } catch (e) {
-      _showSnackBar('WebSocket initialization error: $e', isError: true);
+    } catch (e, stackTrace) {
+      _logger.error('LobbyScreen: WebSocket initialization error: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      // Only navigate if we're still on this screen (mounted)
+      if (mounted) {
+        _logger.info('LobbyScreen: Navigating to account screen due to WebSocket error', isOn: LOGGING_SWITCH);
+        // Navigate to account screen when WebSocket initialization error occurs
+        DutchGameHelpers.navigateToAccountScreen('ws_error', 'WebSocket connection error. Please log in to continue.');
+      } else {
+        _logger.warning('LobbyScreen: Screen not mounted, skipping navigation', isOn: LOGGING_SWITCH);
+      }
     }
   }
   
@@ -101,15 +153,14 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final eventEmitter = DutchGameEventEmitter.instance;
       eventEmitter.setTransportMode(EventTransportMode.websocket);
       
-      // First ensure WebSocket is connected
-      if (!_websocketManager.isConnected) {
-        _showSnackBar('Connecting to WebSocket...', isError: false);
-        final connected = await _websocketManager.connect();
-        if (!connected) {
-          _showSnackBar('Failed to connect to WebSocket. Cannot create room.', isError: true);
-          return;
+      // Ensure WebSocket is ready (logged in, initialized, and connected)
+      final isReady = await DutchGameHelpers.ensureWebSocketReady();
+      if (!isReady) {
+        if (mounted) {
+          _showSnackBar('Unable to connect to game server. Please log in to continue.', isError: true);
+          DutchGameHelpers.navigateToAccountScreen('ws_not_ready', 'Unable to connect to game server. Please log in to continue.');
         }
-        _showSnackBar('WebSocket connected! Creating room...', isError: false);
+        return;
       }
       
       // Now proceed with room creation - bypass RoomService and call helper directly
@@ -152,15 +203,14 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final eventEmitter = DutchGameEventEmitter.instance;
       eventEmitter.setTransportMode(EventTransportMode.websocket);
       
-      // First ensure WebSocket is connected
-      if (!_websocketManager.isConnected) {
-        _showSnackBar('Connecting to WebSocket...', isError: false);
-        final connected = await _websocketManager.connect();
-        if (!connected) {
-          _showSnackBar('Failed to connect to WebSocket. Cannot join room.', isError: true);
-          return;
+      // Ensure WebSocket is ready (logged in, initialized, and connected)
+      final isReady = await DutchGameHelpers.ensureWebSocketReady();
+      if (!isReady) {
+        if (mounted) {
+          _showSnackBar('Unable to connect to game server. Please log in to continue.', isError: true);
+          DutchGameHelpers.navigateToAccountScreen('ws_not_ready', 'Unable to connect to game server. Please log in to continue.');
         }
-        _showSnackBar('WebSocket connected! Joining room...', isError: false);
+        return;
       }
       
       // Now proceed with room joining using GameCoordinator

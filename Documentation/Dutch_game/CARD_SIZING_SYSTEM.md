@@ -84,8 +84,8 @@ return LayoutBuilder(
         ? constraints.maxWidth 
         : MediaQuery.of(context).size.width * 0.5; // Fallback
     
-    // Calculate card dimensions: 10% of container width
-    final cardWidth = containerWidth * 0.10; // 10% of container width
+    // Calculate card dimensions: 6% of container width
+    final cardWidth = containerWidth * 0.06; // 6% of container width
     final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO; // Maintain 5:7 ratio
     final cardDimensions = Size(cardWidth, cardHeight);
     
@@ -99,7 +99,7 @@ return LayoutBuilder(
 
 **Characteristics**:
 - ✅ Responsive: Scales based on container width
-- ✅ Percentage-based: 15% of container width per card
+- ✅ Percentage-based: 6% of container width per card
 - ✅ Maintains aspect ratio: Always 5:7 (width:height)
 - ✅ Adaptive spacing: 2% of container width between cards
 - ✅ Better for fitting multiple opponent cards in limited space
@@ -114,7 +114,7 @@ Widget _buildCardsRow(...) {
           : MediaQuery.of(context).size.width * 0.5;
       
       // Calculate responsive dimensions
-      final cardWidth = containerWidth * 0.10; // 10% of container
+      final cardWidth = containerWidth * 0.06; // 6% of container
       final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
       final cardDimensions = Size(cardWidth, cardHeight);
       
@@ -143,7 +143,7 @@ Widget _buildCardsRow(...) {
 | **Player's Hand** | Fixed Unified | 70px | 98px | 5:7 | ❌ No |
 | **Draw Pile** | Fixed Unified | 70px | 98px | 5:7 | ❌ No |
 | **Discard Pile** | Fixed Unified | 70px | 98px | 5:7 | ❌ No |
-| **Opponents Panel** | Responsive | 10% of container | Calculated (5:7) | 5:7 | ✅ Yes |
+| **Opponents Panel** | Responsive | 6% of container | Calculated (5:7) | 5:7 | ✅ Yes |
 
 ---
 
@@ -234,13 +234,13 @@ final containerWidth = constraints.maxWidth.isFinite
 ### Card Width Calculation
 
 ```dart
-final cardWidth = containerWidth * 0.10; // 10% of container width
+final cardWidth = containerWidth * 0.06; // 6% of container width
 ```
 
 **Examples**:
-- Container width: 300px → Card width: 30px
-- Container width: 400px → Card width: 40px
-- Container width: 500px → Card width: 50px
+- Container width: 300px → Card width: 18px
+- Container width: 400px → Card width: 24px
+- Container width: 500px → Card width: 30px
 
 ### Card Height Calculation
 
@@ -250,9 +250,9 @@ final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
 ```
 
 **Examples**:
+- Card width: 18px → Card height: 25.2px (18 / 0.714)
+- Card width: 24px → Card height: 33.6px (24 / 0.714)
 - Card width: 30px → Card height: 42px (30 / 0.714)
-- Card width: 40px → Card height: 56px (40 / 0.714)
-- Card width: 50px → Card height: 70px (50 / 0.714)
 
 ### Card Padding Calculation
 
@@ -385,7 +385,7 @@ Widget _buildCenteredRankAndSuit(Size dimensions) {
 ```
 
 **Why Centered Display**:
-- Better visibility on smaller cards (10% of container width)
+- Better visibility on smaller cards (6% of container width)
 - Cleaner appearance without corner clutter
 - Easier to read rank and suit at a glance
 - More space-efficient for opponent displays
@@ -416,7 +416,7 @@ The card sizing system uses two strategies:
    - Better for interaction and visibility
    - Consistent size regardless of screen size
 
-2. **Responsive Container-Based** (15% of container width):
+2. **Responsive Container-Based** (6% of container width):
    - Opponents panel
    - Scales with available space
    - Maintains aspect ratio (5:7)

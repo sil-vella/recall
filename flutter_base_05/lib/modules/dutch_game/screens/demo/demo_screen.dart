@@ -9,6 +9,8 @@ import '../game_play/widgets/unified_game_board_widget.dart';
 import '../game_play/widgets/instructions_widget.dart';
 import '../game_play/widgets/messages_widget.dart';
 import '../game_play/widgets/card_animation_layer.dart';
+import 'demo_instructions_widget.dart';
+import 'select_cards_prompt_widget.dart';
 import '../../managers/dutch_game_state_updater.dart';
 import '../../managers/validated_event_emitter.dart';
 
@@ -17,6 +19,13 @@ class DemoScreen extends BaseScreen {
 
   @override
   String computeTitle(BuildContext context) => 'Dutch Game Demo';
+
+  @override
+  Decoration? getBackground(BuildContext context) {
+    return BoxDecoration(
+      color: AppColors.pokerTableGreen,
+    );
+  }
 
   @override
   DemoScreenState createState() => DemoScreenState();
@@ -141,6 +150,24 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
                     child: const UnifiedGameBoardWidget(),
                   ),
                 ],
+              ),
+        
+            // Demo Instructions Widget - overlay at top (only when mode selected)
+            if (_modeSelected)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: const DemoInstructionsWidget(),
+              ),
+        
+            // Select Cards Prompt Widget - overlay above myhand section (only when mode selected)
+            if (_modeSelected)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: const SelectCardsPromptWidget(),
               ),
         
             // Card Animation Layer - full-screen overlay for animated cards (only when mode selected)
@@ -392,10 +419,16 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         'status': 'initial_peek',
       };
       
-      // 10. Set game phase to initial_peek
+      // 10. Set game phase to initial_peek (for actual game state)
       _gamePhase = 'initial_peek';
       _roundNumber = 1;
       _turnNumber = 1;
+      
+      // Set demo instructions phase to 'initial' (separate from game phase)
+      final stateManager = StateManager();
+      stateManager.updateModuleState('dutch_game', {
+        'demoInstructionsPhase': 'initial',
+      });
       
       // 11. Switch event emitter to demo mode (intercepts all actions)
       final eventEmitter = DutchGameEventEmitter.instance;
@@ -674,6 +707,12 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         'discardPileCount': 0,
         'turn_events': <Map<String, dynamic>>[],
         'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      // Clear demo instructions phase
+      final stateManager = StateManager();
+      stateManager.updateModuleState('dutch_game', {
+        'demoInstructionsPhase': '',
       });
       
       _logger.info('🧹 DemoScreen: Demo state cleaned up', isOn: LOGGING_SWITCH);

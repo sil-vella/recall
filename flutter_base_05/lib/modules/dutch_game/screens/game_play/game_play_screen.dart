@@ -25,6 +25,13 @@ class GamePlayScreen extends BaseScreen {
   String computeTitle(BuildContext context) => 'Dutch Game';
 
   @override
+  Decoration? getBackground(BuildContext context) {
+    return BoxDecoration(
+      color: AppColors.pokerTableGreen,
+    );
+  }
+
+  @override
   GamePlayScreenState createState() => GamePlayScreenState();
 }
 

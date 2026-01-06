@@ -22,9 +22,23 @@ The Demo Mode System provides a self-contained demo experience for the Dutch car
 3. **DemoFunctionality** (`screens/demo/demo_functionality.dart`)
    - Handles all demo-specific game logic
    - Contains action handlers for all player actions
-   - Currently stubbed (ready for implementation)
+   - Manages initial peek card selection and state updates
+   - Handles demo phase transitions and instructions
+   - Tracks selected cards and updates `myCardsToPeek` in StateManager
 
-4. **Event Transport System**
+4. **DemoInstructionsWidget** (`screens/demo/demo_instructions_widget.dart`)
+   - Displays phase-specific instructions at the top of the demo screen
+   - Overlay widget that doesn't take up layout space
+   - Shows title and paragraph for each demo phase
+   - Includes "Let's go" button for initial phase
+
+5. **SelectCardsPromptWidget** (`screens/demo/select_cards_prompt_widget.dart`)
+   - Displays flashing "Select two cards" text above myhand section
+   - Overlay widget positioned dynamically based on myhand height
+   - Only visible during initial peek phase when 0-1 cards selected
+   - Uses animated glow effect with accent color
+
+6. **Event Transport System**
    - `EventTransportMode.demo` - New transport mode for demo
    - Routes all actions through `DemoModeBridge` instead of WebSocket/PracticeBridge
 
@@ -74,13 +88,23 @@ Demo mode uses manually created cards (no `YamlDeckFactory`):
 
 ### Card Format
 
-All cards in demo mode are ID-only (face-down):
+**Initial State:**
+All cards in demo mode start as ID-only (face-down):
 - `cardId`: Unique identifier
 - `suit`: `'?'` (hidden)
 - `rank`: `'?'` (hidden)
 - `points`: `0` (hidden)
 
-This ensures consistent face-down display for all players, including the current user.
+**During Initial Peek:**
+- When user selects cards during initial peek, full card data is retrieved from `originalDeck`
+- Cards are added to `myCardsToPeek` in StateManager with full data (suit, rank, points)
+- Both cards are shown simultaneously when second card is selected
+- After 5-second timer, cards are converted back to ID-only format (face-down)
+
+**Card Data Lookup:**
+- Full card data is retrieved from `originalDeck` stored in game state
+- `_getCardById()` method looks up cards by `cardId` in the original deck
+- This allows showing card details during peek phases
 
 ## Event Interception
 
@@ -106,14 +130,25 @@ All player actions are intercepted and routed to demo functionality:
 - `play_card`
 - `replace_drawn_card`
 - `play_drawn_card`
-- `initial_peek`
-- `completed_initial_peek`
+- `initial_peek` - **Implemented**: Handles card selection, shows card details
+- `completed_initial_peek` - **Implemented**: Completes initial peek, starts timer
 - `call_final_round`
 - `collect_from_discard`
 - `use_special_power`
 - `jack_swap`
 - `queen_peek`
 - `play_out_of_turn`
+
+### Initial Peek Implementation
+
+**Card Selection Flow:**
+1. User clicks first card → Card ID tracked, instructions hidden
+2. User clicks second card → Both cards retrieved from `originalDeck` with full data
+3. Both cards added to `myCardsToPeek` simultaneously (batched update)
+4. Cards displayed with full details (suit, rank, points visible)
+5. 5-second timer starts automatically
+6. After timer expires → Cards converted back to ID-only format (face-down)
+7. Drawing phase instructions appear
 
 ## Game Initialization
 
@@ -151,6 +186,34 @@ Users select demo mode via two buttons:
 
 6. **Switch Event Transport**
    - Set `EventTransportMode.demo` to intercept all actions
+
+## Demo Instructions System
+
+### Phase-Based Instructions
+
+The demo uses a phase-based instruction system to guide users through different game phases:
+
+**Demo Phases:**
+- `initial` - Welcome message with "Let's go" button
+- `initial_peek` - Instructions for selecting 2 cards to peek at
+- `drawing` - Instructions for drawing a card
+- `playing` - Instructions for playing a card
+- `same_rank` - Instructions for same rank window
+- `jack_swap` - Instructions for Jack special power
+- `queen_peek` - Instructions for Queen special power
+
+**Instruction Widget Behavior:**
+- Overlay positioned at top of screen (doesn't take layout space)
+- Dark semi-transparent background matching theme
+- Automatically hides when first card is selected during initial peek
+- Transitions between phases based on user actions and timers
+
+**Select Cards Prompt:**
+- Flashing "Select two cards" text above myhand section
+- Positioned dynamically using GlobalKey to measure actual myhand height
+- Only visible during initial peek when 0-1 cards selected
+- Animated glow effect using accent color
+- Same background styling as instructions widget
 
 ## Widget Slices
 
@@ -234,16 +297,23 @@ When leaving the demo screen:
 - [x] Transport mode routing (`EventTransportMode.demo`)
 - [x] Game ID validation (accepts `demo_game_` prefix)
 - [x] Initial peek phase setup
+- [x] Demo instructions widget with phase-based messages
+- [x] Select cards prompt widget with animated glow
+- [x] Initial peek card selection with full card data display
+- [x] Batched state updates (both cards shown simultaneously)
+- [x] Timer-based phase transitions (5-second delay after initial peek)
+- [x] Card visibility management (full data → ID-only conversion)
+- [x] Dynamic positioning using GlobalKey for myhand height measurement
 
 ### 🚧 Pending Implementation
 
 - [ ] Demo-specific action handlers in `DemoFunctionality`
+  - [x] `_handleInitialPeek()` - Initial peek logic (shows card details)
+  - [x] `_handleCompletedInitialPeek()` - Complete initial peek logic (starts timer)
   - [ ] `_handleDrawCard()` - Draw card logic
   - [ ] `_handlePlayCard()` - Play card logic
   - [ ] `_handleReplaceDrawnCard()` - Replace drawn card logic
   - [ ] `_handlePlayDrawnCard()` - Play drawn card logic
-  - [ ] `_handleInitialPeek()` - Initial peek logic
-  - [ ] `_handleCompletedInitialPeek()` - Complete initial peek logic
   - [ ] `_handleCallFinalRound()` - Call final round logic
   - [ ] `_handleCollectFromDiscard()` - Collect from discard logic
   - [ ] `_handleUseSpecialPower()` - Special power logic
@@ -252,7 +322,7 @@ When leaving the demo screen:
   - [ ] `_handlePlayOutOfTurn()` - Play out of turn logic
 
 - [ ] Turn progression logic
-- [ ] Card reveal mechanics (for initial peek)
+- [x] Card reveal mechanics (for initial peek) - **Implemented**
 - [ ] Game end conditions
 - [ ] Score calculation
 - [ ] Animation support (if needed)
@@ -289,12 +359,14 @@ When leaving the demo screen:
 flutter_base_05/lib/modules/dutch_game/
 ├── screens/
 │   └── demo/
-│       ├── demo_screen.dart          # Main demo screen
-│       ├── demo_mode_bridge.dart     # Event routing bridge
-│       └── demo_functionality.dart   # Demo action handlers
+│       ├── demo_screen.dart              # Main demo screen
+│       ├── demo_mode_bridge.dart         # Event routing bridge
+│       ├── demo_functionality.dart       # Demo action handlers
+│       ├── demo_instructions_widget.dart # Phase-based instructions overlay
+│       └── select_cards_prompt_widget.dart # Flashing prompt above myhand
 ├── managers/
-│   ├── validated_event_emitter.dart # Event routing (supports demo mode)
-│   └── dutch_game_state_updater.dart # State accessor (isCurrentGameDemo)
+│   ├── validated_event_emitter.dart     # Event routing (supports demo mode)
+│   └── dutch_game_state_updater.dart    # State accessor (isCurrentGameDemo)
 ```
 
 ## Related Documentation
@@ -310,4 +382,8 @@ flutter_base_05/lib/modules/dutch_game/
 - All game logic should be implemented in `DemoFunctionality`
 - State updates use `setState()` for local state, `StateManager` for widget display
 - Widget slices are manually computed (not auto-computed like in normal flow)
+- Demo instructions use separate `demoInstructionsPhase` field (independent from `gamePhase`)
+- Card visibility is managed through `myCardsToPeek` in StateManager
+- GlobalKey is used to measure myhand height for dynamic overlay positioning
+- Timer-based transitions provide smooth user experience between phases
 

@@ -18,11 +18,12 @@ enum ThemePreset {
   orange,
   teal,
   magenta, // New magenta/purple theme (#7C3358)
+  dutch, // Dutch game branding theme (olive-green #6B9950)
 }
 
 /// Theme configuration that generates colors based on preset
 class ThemeConfig {
-  static ThemePreset currentTheme = ThemePreset.magenta;
+  static ThemePreset currentTheme = ThemePreset.dutch;
 
   /// Get primary color based on current theme
   static Color get primaryColor {
@@ -43,6 +44,8 @@ class ThemeConfig {
         return const Color(0xFF1E5F5F);
       case ThemePreset.defaultTheme:
         return const Color(0xFF41282F); // Current brown
+      case ThemePreset.dutch:
+        return const Color(0xFF6B9950); // Dutch branding olive-green
     }
   }
 
@@ -65,6 +68,8 @@ class ThemeConfig {
         return const Color(0xFFF4A147); // Orange accent
       case ThemePreset.defaultTheme:
         return const Color.fromARGB(255, 120, 67, 82); // Current
+      case ThemePreset.dutch:
+        return const Color(0xFF8BC34A); // Lighter green accent for Dutch theme
     }
   }
 
@@ -87,6 +92,8 @@ class ThemeConfig {
         return const Color(0xFFD47BA3); // Even lighter magenta for secondary accent
       case ThemePreset.defaultTheme:
         return const Color(0xFFFBC02D); // Current gold
+      case ThemePreset.dutch:
+        return const Color(0xFFAED581); // Light green secondary accent for Dutch theme
     }
   }
 
@@ -109,6 +116,8 @@ class ThemeConfig {
         return const Color(0xFF2A1F25); // Dark background with magenta tint
       case ThemePreset.defaultTheme:
         return const Color(0xFF1F1A1A); // Dark background
+      case ThemePreset.dutch:
+        return const Color(0xFF2A3A1F); // Dark green-tinted background for Dutch theme
     }
   }
 
@@ -241,6 +250,9 @@ class AppColors {
     Colors.white,
     0.05,
   ) ?? scaffoldBackgroundColor;
+  
+  // Poker table green for game screens
+  static const Color pokerTableGreen = Color(0xFF0F5132); // Dark green similar to poker table felt
 
   // Text color variants
   static Color get textPrimary => darkGray;

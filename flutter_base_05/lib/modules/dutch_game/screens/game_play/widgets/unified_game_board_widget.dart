@@ -12,6 +12,7 @@ import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 import '../../../utils/card_position_scanner.dart';
 import '../../../utils/card_animation_detector.dart';
+import '../../demo/demo_functionality.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
@@ -53,6 +54,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   // ========== Animation System State ==========
   /// Map of cardId -> GlobalKey for all cards (reused across rebuilds)
   final Map<String, GlobalKey> _cardKeys = {};
+  
+  /// GlobalKey for myhand section (used for measuring height in overlays)
+  final GlobalKey _myHandKey = GlobalKey(debugLabel: 'my_hand_section');
   
   /// CardPositionScanner instance
   final CardPositionScanner _positionScanner = CardPositionScanner();
@@ -586,24 +590,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     final isGameActive = dutchGameState['isGameActive'] ?? false;
     final playerStatus = dutchGameState['playerStatus']?.toString() ?? 'unknown';
     
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
-      decoration: BoxDecoration(
-        color: AppColors.widgetContainerBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: AppPadding.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (opponents.isEmpty)
-              _buildEmptyOpponents()
-            else
-              _buildOpponentsGrid(otherPlayers, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
-          ],
-        ),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (opponents.isEmpty)
+          _buildEmptyOpponents()
+        else
+          _buildOpponentsGrid(otherPlayers, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
+      ],
     );
   }
 
@@ -737,97 +731,75 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
       _logger.info('🔍 OpponentsPanel: Player $playerName (${player['id']}) drawnCard - cardId: $drawnCardId, rank: $drawnCardRank, suit: $drawnCardSuit, isIdOnly: $isIdOnly', isOn: LOGGING_SWITCH);
     }
     
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final containerPadding = constraints.maxWidth.isFinite 
-            ? constraints.maxWidth * 0.02 
-            : 16.0;
-        final backgroundColor = shouldHighlightBackground && statusChipColor != null
-            ? statusChipColor.withOpacity(0.1) 
-            : (isCurrentTurn 
-                ? Color.lerp(AppColors.white, AppColors.black, 0.02) ?? AppColors.white
-                : AppColors.white);
-        final shouldShowBorder = shouldHighlight;
-        final borderColor = shouldShowBorder && statusChipColor != null
-            ? statusChipColor
-            : (isCurrentTurn ? AppColors.accentColor2 : AppColors.borderDefault);
-        
-        return Container(
-          padding: EdgeInsets.all(containerPadding),
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: borderColor,
-              width: (shouldShowBorder || isCurrentTurn) ? 2 : 1,
+    return Column(
+      crossAxisAlignment: columnAlignment,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Top row: Name and status chip on same level
+        Row(
+          mainAxisAlignment: nameAlignment,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasCalledDutch) ...[
+              Icon(
+                Icons.flag,
+                size: 16,
+                color: AppColors.errorColor,
+              ),
+              const SizedBox(width: 4),
+            ],
+            if (isCurrentTurn && !isCurrentPlayer) ...[
+              Icon(
+                Icons.play_arrow,
+                size: 16,
+                color: AppColors.accentColor2,
+              ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              playerName,
+              style: AppTextStyles.label().copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.white,
+                // Add glow effect when isCurrentPlayer is true
+                shadows: isCurrentPlayer && statusChipColor != null
+                    ? [
+                        Shadow(
+                          color: statusChipColor,
+                          blurRadius: 8,
+                        ),
+                        Shadow(
+                          color: statusChipColor.withOpacity(0.6),
+                          blurRadius: 12,
+                        ),
+                        Shadow(
+                          color: statusChipColor.withOpacity(0.3),
+                          blurRadius: 16,
+                        ),
+                      ]
+                    : null,
+              ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: shouldHighlightBackground && statusChipColor != null
-                    ? statusChipColor.withOpacity(0.1) 
-                    : AppColors.black.withOpacity(0.05),
-                blurRadius: shouldHighlightBackground ? 4 : 2,
-                offset: const Offset(0, 1),
+            if (playerStatus != 'unknown') ...[
+              const SizedBox(width: 8),
+              PlayerStatusChip(
+                playerId: player['id']?.toString() ?? '',
+                size: shouldHighlight ? PlayerStatusChipSize.medium : PlayerStatusChipSize.small,
               ),
             ],
-          ),
-          child: Column(
-            crossAxisAlignment: columnAlignment,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Top row: Name and status chip on same level
-              Row(
-                mainAxisAlignment: nameAlignment,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (hasCalledDutch) ...[
-                    Icon(
-                      Icons.flag,
-                      size: 16,
-                      color: AppColors.errorColor,
-                    ),
-                    const SizedBox(width: 4),
-                  ],
-                  if (isCurrentTurn && !isCurrentPlayer) ...[
-                    Icon(
-                      Icons.play_arrow,
-                      size: 16,
-                      color: AppColors.accentColor2,
-                    ),
-                    const SizedBox(width: 4),
-                  ],
-                  Text(
-                    playerName,
-                    style: AppTextStyles.label().copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: isCurrentPlayer && statusChipColor != null 
-                          ? statusChipColor 
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                  if (playerStatus != 'unknown') ...[
-                    const SizedBox(width: 8),
-                    PlayerStatusChip(
-                      playerId: player['id']?.toString() ?? '',
-                      size: shouldHighlight ? PlayerStatusChipSize.medium : PlayerStatusChipSize.small,
-                    ),
-                  ],
-                ],
-              ),
-              
-              // Bottom: Cards aligned based on opponent index
-              const SizedBox(height: 8),
-              Align(
-                alignment: cardAlignment,
-                child: hand.isNotEmpty
-                    ? _buildOpponentsCardsRow(hand, cardsToPeek, playerCollectionRankCards, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase, player, nameAlignment: nameAlignment)
-                    : _buildEmptyHand(),
-              ),
-            ],
-          ),
-        );
-      },
+          ],
+        ),
+        
+        // Bottom: Cards aligned based on opponent index
+        const SizedBox(height: 8),
+        Align(
+          alignment: cardAlignment,
+          child: hand.isNotEmpty
+              ? _buildOpponentsCardsRow(hand, cardsToPeek, playerCollectionRankCards, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase, player, nameAlignment: nameAlignment)
+              : _buildEmptyHand(),
+        ),
+      ],
     );
   }
 
@@ -837,7 +809,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         final containerWidth = constraints.maxWidth.isFinite 
             ? constraints.maxWidth 
             : MediaQuery.of(context).size.width * 0.5;
-        final cardWidth = containerWidth * 0.10;
+        final cardWidth = containerWidth * 0.06;
         final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
         final cardDimensions = Size(cardWidth, cardHeight);
         final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
@@ -1313,24 +1285,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   // ========== Game Board Methods ==========
 
   Widget _buildGameBoard() {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
-      decoration: BoxDecoration(
-        color: AppColors.widgetContainerBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: AppPadding.cardPadding,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            _buildDrawPile(),
-            const SizedBox(width: 16),
-            _buildDiscardPile(),
-            const SizedBox(width: 16),
-            _buildMatchPot(),
-          ],
-        ),
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          _buildDrawPile(),
+          const SizedBox(width: 16),
+          _buildDiscardPile(),
+          const SizedBox(width: 16),
+          _buildMatchPot(),
+        ],
       ),
     );
   }
@@ -1819,9 +1784,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     final statusChipColor = shouldHighlight ? _getStatusChipColor(playerStatus) : null;
     final backgroundColor = shouldHighlight && statusChipColor != null
         ? statusChipColor.withValues(alpha: 0.1)
-        : AppColors.widgetContainerBackground;
+        : Colors.transparent;
+    
+    // Update myhand height in state after build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateMyHandHeight();
+    });
     
     return Container(
+      key: _myHandKey,
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
       decoration: BoxDecoration(
         color: backgroundColor,
@@ -2290,6 +2261,23 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     return loginState['userId']?.toString() ?? '';
   }
 
+  /// Update myhand section height in state (for overlay positioning)
+  void _updateMyHandHeight() {
+    if (!mounted) return;
+    
+    final context = _myHandKey.currentContext;
+    if (context != null) {
+      final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+      if (renderBox != null && renderBox.hasSize) {
+        final height = renderBox.size.height;
+        StateManager().updateModuleState('dutch_game', {
+          'myHandHeight': height,
+        });
+        _logger.info('📏 UnifiedGameBoardWidget: Updated myHandHeight to $height', isOn: LOGGING_SWITCH);
+      }
+    }
+  }
+
   Future<void> _handleCallFinalRound(BuildContext context, String gameId) async {
     _logger.info('🎯 MyHandWidget - _handleCallFinalRound called with gameId: $gameId', isOn: LOGGING_SWITCH);
     if (_isProcessingAction) {
@@ -2463,33 +2451,51 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
             );
             return;
           }
-          if (_initialPeekSelectedCardIds.contains(cardId)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Card already selected'),
-                backgroundColor: AppColors.warningColor,
-                duration: Duration(seconds: 2),
-              ),
-            );
-            return;
-          }
-          if (_initialPeekSelectionCount < 2) {
-            _initialPeekSelectedCardIds.add(cardId);
-            _initialPeekSelectionCount++;
+
+          // Check if we're in demo mode
+          final games = currentState['games'] as Map<String, dynamic>? ?? {};
+          final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+          final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+          final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+          final gameType = gameState['gameType']?.toString() ?? 'normal';
+          final isDemoMode = gameType == 'demo';
+
+          if (isDemoMode) {
+            // Demo mode: use DemoFunctionality to show card details
+            _logger.info('🎮 MyHandWidget: Demo mode - adding card to initial peek via DemoFunctionality', isOn: LOGGING_SWITCH);
+            
+            // Check if already selected (using DemoFunctionality's tracking)
+            final demoSelectedIds = DemoFunctionality.instance.getInitialPeekSelectedCardIds();
+            if (demoSelectedIds.contains(cardId)) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Card already selected'),
+                  backgroundColor: AppColors.warningColor,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+              return;
+            }
+
+            // Add card to initial peek (this will update myCardsToPeek in state)
+            final selectedCount = await DemoFunctionality.instance.addCardToInitialPeek(cardId);
+            
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Card ${_initialPeekSelectionCount}/2 selected'
+                  'Card $selectedCount/2 selected'
                 ),
                 backgroundColor: AppColors.infoColor,
                 duration: Duration(seconds: 2),
               ),
             );
-            if (_initialPeekSelectionCount == 2) {
+
+            // If 2 cards selected, complete the initial peek
+            if (selectedCount == 2) {
               await Future.delayed(Duration(milliseconds: 500));
               final completedInitialPeekAction = PlayerAction.completedInitialPeek(
                 gameId: currentGameId,
-                cardIds: _initialPeekSelectedCardIds,
+                cardIds: DemoFunctionality.instance.getInitialPeekSelectedCardIds(),
               );
               await completedInitialPeekAction.execute();
               ScaffoldMessenger.of(context).showSnackBar(
@@ -2501,19 +2507,63 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                   duration: Duration(seconds: 3),
                 ),
               );
-              _initialPeekSelectionCount = 0;
-              _initialPeekSelectedCardIds.clear();
+              // Note: DemoFunctionality._handleCompletedInitialPeek already clears the tracking set
+              // Cards remain visible in myCardsToPeek so user can see both cards they peeked at
             }
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'You have already peeked at 2 cards. Initial peek is complete.'
+            // Normal mode: use existing logic
+            if (_initialPeekSelectedCardIds.contains(cardId)) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Card already selected'),
+                  backgroundColor: AppColors.warningColor,
+                  duration: Duration(seconds: 2),
                 ),
-                backgroundColor: AppColors.warningColor,
-                duration: Duration(seconds: 2),
-              ),
-            );
+              );
+              return;
+            }
+            if (_initialPeekSelectionCount < 2) {
+              _initialPeekSelectedCardIds.add(cardId);
+              _initialPeekSelectionCount++;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Card ${_initialPeekSelectionCount}/2 selected'
+                  ),
+                  backgroundColor: AppColors.infoColor,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+              if (_initialPeekSelectionCount == 2) {
+                await Future.delayed(Duration(milliseconds: 500));
+                final completedInitialPeekAction = PlayerAction.completedInitialPeek(
+                  gameId: currentGameId,
+                  cardIds: _initialPeekSelectedCardIds,
+                );
+                await completedInitialPeekAction.execute();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Initial peek completed! You have looked at 2 cards.'
+                    ),
+                    backgroundColor: AppColors.successColor,
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+                _initialPeekSelectionCount = 0;
+                _initialPeekSelectedCardIds.clear();
+              }
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'You have already peeked at 2 cards. Initial peek is complete.'
+                  ),
+                  backgroundColor: AppColors.warningColor,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
           }
         } else {
           setState(() {

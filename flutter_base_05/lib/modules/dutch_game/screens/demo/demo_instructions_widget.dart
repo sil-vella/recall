@@ -9,7 +9,7 @@ import 'demo_functionality.dart';
 /// Displays instructions for the current demo phase at the top of the demo screen.
 /// Shows title and paragraph text based on the current game phase.
 class DemoInstructionsWidget extends StatelessWidget {
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   static final Logger _logger = Logger();
   
   const DemoInstructionsWidget({Key? key}) : super(key: key);

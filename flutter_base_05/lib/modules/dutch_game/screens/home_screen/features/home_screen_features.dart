@@ -17,7 +17,7 @@ class HomeScreenFeatureSlots {
 class HomeScreenFeatureRegistrar {
   final FeatureRegistryManager _registry = FeatureRegistryManager.instance;
   static final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
+  static const bool LOGGING_SWITCH = false; // Enabled for debugging navigation issues
 
   /// Register Dutch game play button
   void registerDutchGamePlayButton(BuildContext context) {

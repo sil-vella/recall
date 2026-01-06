@@ -14,7 +14,7 @@ import '../../../utils/card_position_scanner.dart';
 import '../../../utils/card_animation_detector.dart';
 import '../../demo/demo_functionality.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -57,6 +57,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   
   /// GlobalKey for myhand section (used for measuring height in overlays)
   final GlobalKey _myHandKey = GlobalKey(debugLabel: 'my_hand_section');
+  
+  /// GlobalKey for game board section (used for measuring height in overlays)
+  final GlobalKey _gameBoardKey = GlobalKey(debugLabel: 'game_board_section');
   
   /// CardPositionScanner instance
   final CardPositionScanner _positionScanner = CardPositionScanner();
@@ -1285,7 +1288,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   // ========== Game Board Methods ==========
 
   Widget _buildGameBoard() {
-    return Padding(
+    // Update game board height in state after build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateGameBoardHeight();
+    });
+    
+    return Container(
+      key: _gameBoardKey,
       padding: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
@@ -1298,6 +1307,23 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         ],
       ),
     );
+  }
+  
+  /// Update game board height in StateManager (for overlay positioning)
+  void _updateGameBoardHeight() {
+    if (_gameBoardKey.currentContext != null) {
+      final RenderBox renderBox = _gameBoardKey.currentContext!.findRenderObject() as RenderBox;
+      final height = renderBox.size.height;
+      final stateManager = StateManager();
+      final currentGameBoardHeight = stateManager.getModuleState<Map<String, dynamic>>('dutch_game')?['gameBoardHeight'] as double?;
+      
+      if (currentGameBoardHeight == null || currentGameBoardHeight != height) {
+        _logger.info('📐 UnifiedGameBoardWidget: Updating gameBoardHeight in StateManager to $height', isOn: LOGGING_SWITCH);
+        stateManager.updateModuleState('dutch_game', {
+          'gameBoardHeight': height,
+        });
+      }
+    }
   }
 
   // ========== Draw Pile Methods ==========

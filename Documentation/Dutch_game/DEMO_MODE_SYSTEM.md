@@ -69,6 +69,15 @@ While game logic uses local state, widgets still read from `StateManager`. The d
 - Computes widget slices manually (`gameInfo`, `myHand`, `opponentsPanel`)
 - Uses `updateStateSync()` for immediate synchronous updates
 
+**State Fields Updated During Demo:**
+- `demoInstructionsPhase` - Controls which instruction phase is visible (independent from `gamePhase`)
+- `myCardsToPeek` - Cards selected during initial peek (full data → ID-only after timer)
+- `myDrawnCard` - Currently drawn card (cleared when added to hand)
+- `myHandHeight` - Dynamic height of myhand section (measured via GlobalKey)
+- `playerStatus` - Current player status (`'initial_peek'` → `'drawing_card'` → `'playing_card'`)
+- `myHand['playerStatus']` - Status in myHand slice (for status chip display)
+- `centerBoard['playerStatus']` - Status in centerBoard slice (for draw pile interaction)
+
 ### State Structure
 
 The demo state follows the same structure as production games:
@@ -126,7 +135,7 @@ eventEmitter.setTransportMode(EventTransportMode.demo);
 ### Supported Actions
 
 All player actions are intercepted and routed to demo functionality:
-- `draw_card`
+- `draw_card` - **Implemented**: Handles drawing from draw pile or discard pile, adds card to hand, updates status
 - `play_card`
 - `replace_drawn_card`
 - `play_drawn_card`
@@ -149,6 +158,47 @@ All player actions are intercepted and routed to demo functionality:
 5. 5-second timer starts automatically
 6. After timer expires → Cards converted back to ID-only format (face-down)
 7. Drawing phase instructions appear
+8. Player status updated to `'drawing_card'` (enables draw pile interaction)
+9. Widget slices updated (`myHand`, `centerBoard`) to show correct status
+
+### Drawing Implementation
+
+**Action Interception:**
+- `PlayerAction.playerDraw()` sends event `'draw_card'` with payload:
+  - `source`: `'deck'` (for draw pile) or `'discard'` (for discard pile)
+  - `game_id`: Current game ID
+  - `player_id`: Auto-added by event emitter
+- Event intercepted by `DemoModeBridge` when `EventTransportMode.demo`
+- Routed to `DemoFunctionality._handleDrawCard()`
+
+**Drawing Flow:**
+1. User taps draw pile or discard pile
+2. `PlayerAction.playerDraw()` executed → Event `'draw_card'` sent
+3. Event intercepted by demo mode bridge
+4. `_handleDrawCard()` processes the action:
+   - **Draw Pile**: Removes ID-only card, converts to full data via `originalDeck` lookup
+   - **Discard Pile**: Removes full-data card directly
+5. Card added to player's hand:
+   - Converted to ID-only format: `{'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}`
+   - Added to **end of hand** (not in blank slots, matching practice mode behavior)
+6. Player status updated to `'playing_card'`
+7. State synchronized:
+   - `myHandCards` updated in games map
+   - `myHand` slice updated with new cards and status
+   - `centerBoard` slice updated with new status
+   - `playerStatus` and `currentPlayerStatus` updated in main state
+   - `myDrawnCard` cleared (card is now in hand)
+   - `demoInstructionsPhase` updated to `'playing'`
+8. Widgets automatically rebuild via `ListenableBuilder` listening to `StateManager`
+9. Status chip in myHand widget shows "Playing Card"
+10. Playing phase instructions appear
+
+**Key Implementation Details:**
+- Drawn cards always go to the end of the hand (matches practice mode)
+- Cards stored as ID-only in hand (face-down)
+- Full card data only used temporarily during drawing process
+- Status transitions: `'drawing_card'` → `'playing_card'`
+- All widget slices manually updated for immediate UI feedback
 
 ## Game Initialization
 
@@ -209,9 +259,13 @@ The demo uses a phase-based instruction system to guide users through different 
 - Transitions between phases based on user actions and timers
 
 **Select Cards Prompt:**
-- Flashing "Select two cards" text above myhand section
+- Flashing "Select two cards" text above myhand section (initial peek phase)
+- Changes to "Tap the draw pile" text during drawing phase
 - Positioned dynamically using GlobalKey to measure actual myhand height
-- Only visible during initial peek when 0-1 cards selected
+- Only visible during:
+  - Initial peek phase when 0-1 cards selected
+  - Drawing phase when no card has been drawn yet (`myDrawnCard == null`)
+- Automatically hides when card is drawn
 - Animated glow effect using accent color
 - Same background styling as instructions widget
 
@@ -304,13 +358,17 @@ When leaving the demo screen:
 - [x] Timer-based phase transitions (5-second delay after initial peek)
 - [x] Card visibility management (full data → ID-only conversion)
 - [x] Dynamic positioning using GlobalKey for myhand height measurement
+- [x] Drawing functionality (draw from draw pile or discard pile)
+- [x] Card addition to hand (ID-only format, added to end)
+- [x] Status transition from drawing to playing phase
+- [x] Widget slice synchronization for status updates
 
 ### 🚧 Pending Implementation
 
 - [ ] Demo-specific action handlers in `DemoFunctionality`
   - [x] `_handleInitialPeek()` - Initial peek logic (shows card details)
   - [x] `_handleCompletedInitialPeek()` - Complete initial peek logic (starts timer)
-  - [ ] `_handleDrawCard()` - Draw card logic
+  - [x] `_handleDrawCard()` - Draw card logic (adds card to hand, updates status to playing)
   - [ ] `_handlePlayCard()` - Play card logic
   - [ ] `_handleReplaceDrawnCard()` - Replace drawn card logic
   - [ ] `_handlePlayDrawnCard()` - Play drawn card logic

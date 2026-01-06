@@ -67,7 +67,7 @@ class DemoFunctionality {
     DemoPhaseInstruction(
       phase: 'playing',
       title: 'Playing Phase',
-      paragraph: 'After drawing, you can play a card from your hand. Select a card to play, or you can choose to keep the drawn card and discard one from your hand.',
+      paragraph: 'After drawing, you can play a card from your hand. You can choose to play any card including the new draw card.',
     ),
     DemoPhaseInstruction(
       phase: 'same_rank',
@@ -95,6 +95,7 @@ class DemoFunctionality {
     try {
       _logger.info('🎮 DemoFunctionality: Handling action $actionType', isOn: LOGGING_SWITCH);
       _logger.info('🎮 DemoFunctionality: Payload: $payload', isOn: LOGGING_SWITCH);
+      _logger.info('🎮 DemoFunctionality: Action type check - play_card match: ${actionType == 'play_card'}', isOn: LOGGING_SWITCH);
 
       // Route to specific action handlers
       switch (actionType) {
@@ -133,17 +134,407 @@ class DemoFunctionality {
   }
 
   /// Handle draw card action in demo mode
+  /// Intercepts PlayerAction.playerDraw() which sends event 'draw_card' with payload:
+  /// - source: 'deck' (for draw_pile) or 'discard' (for discard_pile)
+  /// - game_id: gameId
+  /// - player_id: auto-added by event emitter
   Future<Map<String, dynamic>> _handleDrawCard(Map<String, dynamic> payload) async {
-    _logger.info('🎮 DemoFunctionality: Draw card action (demo mode - no-op)', isOn: LOGGING_SWITCH);
-    // TODO: Implement demo draw card logic
-    return {'success': true, 'mode': 'demo'};
+    _logger.info('🎮 DemoFunctionality: Draw card action intercepted', isOn: LOGGING_SWITCH);
+    _logger.info('🎮 DemoFunctionality: Payload: $payload', isOn: LOGGING_SWITCH);
+    
+    // PlayerAction.playerDraw() sends 'source' as 'deck' or 'discard'
+    // Also check for 'pile_type' or 'pileType' for backward compatibility
+    final source = payload['source']?.toString() ?? '';
+    final pileType = payload['pile_type']?.toString() ?? payload['pileType']?.toString() ?? '';
+    
+    // Map source to pileType (or use pileType if provided)
+    String actualPileType;
+    if (source == 'deck' || pileType == 'draw_pile' || pileType == 'deck') {
+      actualPileType = 'draw_pile';
+    } else if (source == 'discard' || pileType == 'discard_pile' || pileType == 'discard') {
+      actualPileType = 'discard_pile';
+    } else {
+      actualPileType = 'draw_pile'; // Default to draw pile
+    }
+    
+    _logger.info('🎮 DemoFunctionality: Drawing from pile: $actualPileType (source: $source, pileType: $pileType)', isOn: LOGGING_SWITCH);
+    
+    final stateManager = StateManager();
+    final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    
+    if (currentGameId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: No currentGameId found', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'No active game'};
+    }
+    
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    Map<String, dynamic>? drawnCard;
+    
+    if (actualPileType == 'draw_pile') {
+      // Draw from draw pile
+      final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+      if (drawPile.isEmpty) {
+        _logger.error('❌ DemoFunctionality: Draw pile is empty', isOn: LOGGING_SWITCH);
+        return {'success': false, 'error': 'Draw pile is empty'};
+      }
+      
+      // Remove last card from draw pile (top of stack)
+      final idOnlyCard = drawPile.removeLast() as Map<String, dynamic>;
+      final cardId = idOnlyCard['cardId']?.toString() ?? '';
+      
+      _logger.info('🎮 DemoFunctionality: Drew ID-only card $cardId from draw pile', isOn: LOGGING_SWITCH);
+      
+      // Get full card data from originalDeck
+      drawnCard = _getCardById(cardId);
+      if (drawnCard == null) {
+        _logger.error('❌ DemoFunctionality: Failed to get full card data for $cardId', isOn: LOGGING_SWITCH);
+        return {'success': false, 'error': 'Failed to get card data'};
+      }
+      
+      // Update draw pile in game state
+      gameState['drawPile'] = drawPile;
+      
+    } else if (actualPileType == 'discard_pile') {
+      // Take from discard pile
+      final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+      if (discardPile.isEmpty) {
+        _logger.error('❌ DemoFunctionality: Discard pile is empty', isOn: LOGGING_SWITCH);
+        return {'success': false, 'error': 'Discard pile is empty'};
+      }
+      
+      // Remove last card from discard pile (top of stack) - already has full data
+      drawnCard = Map<String, dynamic>.from(discardPile.removeLast() as Map<String, dynamic>);
+      final cardId = drawnCard['cardId']?.toString() ?? '';
+      
+      _logger.info('🎮 DemoFunctionality: Drew card $cardId from discard pile', isOn: LOGGING_SWITCH);
+      
+      // Update discard pile in game state
+      gameState['discardPile'] = discardPile;
+    } else {
+      _logger.error('❌ DemoFunctionality: Invalid pile type: $actualPileType', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Invalid pile type'};
+    }
+    
+    // At this point, drawnCard is guaranteed to be non-null:
+    // - Draw pile branch: validated and returned early if null
+    // - Discard pile branch: removeLast() always returns a Map
+    
+    // Find current player in game state and add card to hand
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    
+    // Find human player (demo mode always has one human player)
+    int playerIndex = -1;
+    Map<String, dynamic>? player;
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      if (p is Map<String, dynamic> && p['isHuman'] == true) {
+        playerIndex = i;
+        player = p;
+        break;
+      }
+    }
+    
+    if (playerIndex == -1 || player == null) {
+      _logger.error('❌ DemoFunctionality: Human player not found in players list', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Human player not found'};
+    }
+    final hand = player['hand'] as List<dynamic>? ?? [];
+    
+    // Convert drawn card to ID-only format (player hands always store ID-only cards)
+    // Format matches practice mode: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
+    final idOnlyCard = {
+      'cardId': drawnCard['cardId'],
+      'suit': '?',      // Face-down: hide suit
+      'rank': '?',      // Face-down: hide rank
+      'points': 0,      // Face-down: hide points
+    };
+    
+    // IMPORTANT: Drawn cards ALWAYS go to the end of the hand (not in blank slots)
+    // This matches practice mode logic
+    hand.add(idOnlyCard);
+    player['hand'] = hand;
+    
+    // Update player status to 'playing_card' (matches practice mode)
+    player['status'] = 'playing_card';
+    
+    // Update myHandCards in games map (widgets read from this)
+    final myHandCards = List<Map<String, dynamic>>.from(hand.map((c) {
+      if (c is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(c);
+      }
+      return <String, dynamic>{};
+    }));
+    currentGame['myHandCards'] = myHandCards;
+    
+    // Update widget slices
+    final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+    centerBoard['playerStatus'] = 'playing_card';
+    
+    final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+    myHand['playerStatus'] = 'playing_card';
+    myHand['cards'] = myHandCards; // Update cards in myHand slice
+    
+    // Update state with all changes
+    // NOTE: Keep myDrawnCard in state - the unified widget uses it to show full data for the drawn card in hand
+    // The card in hand is ID-only, but the widget will use myDrawnCard full data if IDs match
+    stateManager.updateModuleState('dutch_game', {
+      'myDrawnCard': drawnCard, // Keep drawn card with full data (widget uses it to show card face-up in hand)
+      'demoInstructionsPhase': 'playing', // Transition to playing phase
+      'playerStatus': 'playing_card', // Update main state
+      'currentPlayerStatus': 'playing_card',
+      'centerBoard': centerBoard, // Update centerBoard slice
+      'myHand': myHand, // Update myHand slice with new status and cards
+      'games': games, // Update games map with modified game state
+    });
+    
+    _logger.info('✅ DemoFunctionality: Card drawn successfully: ${drawnCard['rank']} of ${drawnCard['suit']}', isOn: LOGGING_SWITCH);
+    _logger.info('✅ DemoFunctionality: Added card to hand (now ${hand.length} cards)', isOn: LOGGING_SWITCH);
+    _logger.info('✅ DemoFunctionality: Updated player status to playing_card', isOn: LOGGING_SWITCH);
+    _logger.info('✅ DemoFunctionality: Transitioned to playing phase', isOn: LOGGING_SWITCH);
+    
+    return {'success': true, 'mode': 'demo', 'drawnCard': drawnCard};
   }
 
   /// Handle play card action in demo mode
+  /// Intercepts PlayerAction.playerPlayCard() which sends event 'play_card' with payload:
+  /// - card_id: Card ID to play
+  /// - game_id: Current game ID
+  /// - player_id: Auto-added by event emitter
   Future<Map<String, dynamic>> _handlePlayCard(Map<String, dynamic> payload) async {
-    _logger.info('🎮 DemoFunctionality: Play card action (demo mode - no-op)', isOn: LOGGING_SWITCH);
-    // TODO: Implement demo play card logic
-    return {'success': true, 'mode': 'demo'};
+    _logger.info('🎮 DemoFunctionality: Play card action intercepted', isOn: LOGGING_SWITCH);
+    _logger.info('🎮 DemoFunctionality: Payload: $payload', isOn: LOGGING_SWITCH);
+    
+    final cardId = payload['card_id']?.toString() ?? '';
+    if (cardId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: Invalid card_id in play card payload', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Invalid card_id'};
+    }
+    
+    final stateManager = StateManager();
+    final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    
+    if (currentGameId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: No currentGameId found', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'No active game'};
+    }
+    
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    // Find human player
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    int playerIndex = -1;
+    Map<String, dynamic>? player;
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      if (p is Map<String, dynamic> && p['isHuman'] == true) {
+        playerIndex = i;
+        player = p;
+        break;
+      }
+    }
+    
+    if (playerIndex == -1 || player == null) {
+      _logger.error('❌ DemoFunctionality: Human player not found', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Human player not found'};
+    }
+    
+    // Get hand and convert to mutable list (matches practice mode)
+    final handRaw = player['hand'] as List<dynamic>? ?? [];
+    final hand = List<dynamic>.from(handRaw); // Convert to mutable list to allow nulls
+    
+    // Get drawnCard from state (same as draw handler) - it's stored in myDrawnCard, not in player object
+    final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
+    
+    // Find card index in hand (matches practice mode logic)
+    _logger.info('🎮 DemoFunctionality: Searching for card $cardId in hand (hand length: ${hand.length})', isOn: LOGGING_SWITCH);
+    int cardIndex = -1;
+    for (int i = 0; i < hand.length; i++) {
+      final card = hand[i];
+      if (card != null && card is Map<String, dynamic>) {
+        final cardIdInHand = card['cardId']?.toString() ?? '';
+        _logger.info('🎮 DemoFunctionality: Hand[$i]: cardId=$cardIdInHand, searching for=$cardId, match=${cardIdInHand == cardId}', isOn: LOGGING_SWITCH);
+        // Check for null first (blank slots), then check if it's a map, then compare cardId
+        // Matches practice mode: if (card != null && card is Map<String, dynamic> && card['cardId'] == cardId)
+        if (cardIdInHand == cardId) {
+          cardIndex = i;
+          _logger.info('✅ DemoFunctionality: Found card $cardId at index $cardIndex', isOn: LOGGING_SWITCH);
+          break;
+        }
+      } else if (card == null) {
+        _logger.info('🎮 DemoFunctionality: Hand[$i]: null (blank slot)', isOn: LOGGING_SWITCH);
+      }
+    }
+    
+    if (cardIndex == -1) {
+      _logger.error('❌ DemoFunctionality: Card $cardId not found in hand', isOn: LOGGING_SWITCH);
+      _logger.error('❌ DemoFunctionality: Hand contents: ${hand.map((c) => c is Map ? c['cardId'] : 'null').toList()}', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Card not found in hand'};
+    }
+    
+    // Get full card data for discard pile
+    final cardToPlayFullData = _getCardById(cardId);
+    if (cardToPlayFullData == null) {
+      _logger.error('❌ DemoFunctionality: Failed to get full card data for $cardId', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Failed to get card data'};
+    }
+    
+    // Check if played card is the drawn card
+    final isDrawnCard = drawnCard != null && drawnCard['cardId']?.toString() == cardId;
+    
+    // Determine if we should create a blank slot or remove the card entirely
+    // Matches practice mode logic: blank slots for indices 0-3, remove for index 4+ (if no cards after)
+    bool shouldCreateBlankSlot = cardIndex <= 3;
+    if (cardIndex > 3) {
+      // For index 4+, only create blank slot if there are cards after this index
+      for (int i = cardIndex + 1; i < hand.length; i++) {
+        if (hand[i] != null) {
+          shouldCreateBlankSlot = true;
+          break;
+        }
+      }
+    }
+    
+    // Remove card from hand (matches practice mode behavior)
+    if (shouldCreateBlankSlot) {
+      hand[cardIndex] = null; // Create blank slot to maintain structure
+      _logger.info('✅ DemoFunctionality: Created blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+    } else {
+      hand.removeAt(cardIndex); // Remove entirely and shift remaining cards
+      _logger.info('✅ DemoFunctionality: Removed card entirely from index $cardIndex', isOn: LOGGING_SWITCH);
+    }
+    
+    // Handle drawn card repositioning if it wasn't played
+    if (drawnCard != null && !isDrawnCard) {
+      // Find drawn card in hand and remove it
+      int? drawnCardOriginalIndex;
+      for (int i = 0; i < hand.length; i++) {
+        final card = hand[i];
+        if (card is Map<String, dynamic> && card['cardId']?.toString() == drawnCard['cardId']?.toString()) {
+          drawnCardOriginalIndex = i;
+          break;
+        }
+      }
+      
+      if (drawnCardOriginalIndex != null) {
+        // Apply smart blank slot logic to the original position (matches practice mode)
+        bool shouldKeepOriginalSlot = drawnCardOriginalIndex <= 3;
+        if (drawnCardOriginalIndex > 3) {
+          for (int i = drawnCardOriginalIndex + 1; i < hand.length; i++) {
+            if (hand[i] != null) {
+              shouldKeepOriginalSlot = true;
+              break;
+            }
+          }
+        }
+        
+        if (shouldKeepOriginalSlot) {
+          hand[drawnCardOriginalIndex] = null; // Create blank slot
+          _logger.info('✅ DemoFunctionality: Created blank slot at original position $drawnCardOriginalIndex', isOn: LOGGING_SWITCH);
+        } else {
+          hand.removeAt(drawnCardOriginalIndex); // Remove entirely
+          _logger.info('✅ DemoFunctionality: Removed drawn card entirely from original position $drawnCardOriginalIndex', isOn: LOGGING_SWITCH);
+          // Adjust cardIndex if we removed a card before it
+          if (drawnCardOriginalIndex < cardIndex) {
+            cardIndex -= 1;
+          }
+        }
+        
+        // Place drawn card in blank slot left by played card (convert to ID-only)
+        final drawnCardIdOnly = {
+          'cardId': drawnCard['cardId'],
+          'suit': '?',
+          'rank': '?',
+          'points': 0,
+        };
+        
+        // Apply smart blank slot logic to the target position (matches practice mode)
+        bool shouldPlaceInSlot = cardIndex <= 3;
+        if (cardIndex > 3) {
+          for (int i = cardIndex + 1; i < hand.length; i++) {
+            if (hand[i] != null) {
+              shouldPlaceInSlot = true;
+              break;
+            }
+          }
+        }
+        
+        if (shouldPlaceInSlot) {
+          // Place in blank slot left by played card
+          if (cardIndex < hand.length) {
+            hand[cardIndex] = drawnCardIdOnly;
+            _logger.info('✅ DemoFunctionality: Placed drawn card in blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+          } else {
+            hand.insert(cardIndex, drawnCardIdOnly);
+            _logger.info('✅ DemoFunctionality: Inserted drawn card at index $cardIndex', isOn: LOGGING_SWITCH);
+          }
+        } else {
+          // Append to end if slot shouldn't exist
+          hand.add(drawnCardIdOnly);
+          _logger.info('✅ DemoFunctionality: Appended drawn card to end of hand', isOn: LOGGING_SWITCH);
+        }
+      }
+    }
+    
+    // Remove drawnCard property (card is now in hand or discarded)
+    player.remove('drawnCard');
+    
+    // Update player's hand
+    player['hand'] = hand;
+    
+    // Add card to discard pile
+    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+    discardPile.add(cardToPlayFullData);
+    gameState['discardPile'] = discardPile;
+    
+    // Update all players' status to 'same_rank_window' (matches practice mode)
+    for (var p in players) {
+      if (p is Map<String, dynamic>) {
+        p['status'] = 'same_rank_window';
+      }
+    }
+    
+    // Update myHandCards in games map
+    final myHandCards = List<Map<String, dynamic>>.from(hand.map((c) {
+      if (c is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(c);
+      }
+      return <String, dynamic>{};
+    }));
+    currentGame['myHandCards'] = myHandCards;
+    
+    // Update widget slices
+    final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+    centerBoard['playerStatus'] = 'same_rank_window';
+    
+    final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+    myHand['playerStatus'] = 'same_rank_window';
+    myHand['cards'] = myHandCards;
+    
+    // Update state with all changes
+    stateManager.updateModuleState('dutch_game', {
+      'myDrawnCard': null, // Clear drawn card (it's now repositioned in hand or discarded)
+      'demoInstructionsPhase': 'same_rank', // Transition to same rank phase
+      'playerStatus': 'same_rank_window', // Update main state
+      'currentPlayerStatus': 'same_rank_window',
+      'centerBoard': centerBoard,
+      'myHand': myHand,
+      'games': games, // Update games map with modified game state
+    });
+    
+    _logger.info('✅ DemoFunctionality: Card $cardId played successfully', isOn: LOGGING_SWITCH);
+    _logger.info('✅ DemoFunctionality: Updated all players status to same_rank_window', isOn: LOGGING_SWITCH);
+    _logger.info('✅ DemoFunctionality: Transitioned to same_rank phase', isOn: LOGGING_SWITCH);
+    
+    return {'success': true, 'mode': 'demo', 'cardId': cardId};
   }
 
   /// Handle replace drawn card action in demo mode
@@ -397,6 +788,8 @@ class DemoFunctionality {
         final stateManager = StateManager();
         final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final currentCardsToPeek = dutchGameState['myCardsToPeek'] as List<dynamic>? ?? [];
+        final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+        final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
         
         // Convert full card data back to ID-only format (face-down)
         final idOnlyCards = currentCardsToPeek.map((card) {
@@ -412,13 +805,43 @@ class DemoFunctionality {
           return card;
         }).toList();
         
-        // Update state with ID-only cards and drawing phase
+        // Update player status to 'drawing_card' so draw pile is clickable
+        if (currentGameId.isNotEmpty && games.containsKey(currentGameId)) {
+          final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+          final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+          final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+          final players = gameState['players'] as List<dynamic>? ?? [];
+          
+          // Find current player and update status
+          for (var player in players) {
+            if (player is Map<String, dynamic> && player['isHuman'] == true) {
+              player['status'] = 'drawing_card';
+              break;
+            }
+          }
+        }
+        
+        // Update centerBoard slice with playerStatus
+        final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+        centerBoard['playerStatus'] = 'drawing_card';
+        
+        // Update myHand slice with playerStatus (widgets read from this slice)
+        final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+        myHand['playerStatus'] = 'drawing_card';
+        
+        // Update state with ID-only cards, drawing phase, and player status
         stateManager.updateModuleState('dutch_game', {
           'myCardsToPeek': idOnlyCards,
           'demoInstructionsPhase': 'drawing',
+          'playerStatus': 'drawing_card', // Set player status for draw pile click
+          'currentPlayerStatus': 'drawing_card',
+          'centerBoard': centerBoard, // Update centerBoard slice
+          'myHand': myHand, // Update myHand slice so widget shows correct status chip
+          'games': games, // Update games map with modified player status
         });
         
-        _logger.info('✅ DemoFunctionality: Converted ${idOnlyCards.length} cards to ID-only format', isOn: LOGGING_SWITCH);
+        _logger.info('✅ DemoFunctionality: Converted ${idOnlyCards.length} cards to ID-only format and set player status to drawing_card', isOn: LOGGING_SWITCH);
+        _logger.info('✅ DemoFunctionality: Updated myHand slice with playerStatus=drawing_card for status chip display', isOn: LOGGING_SWITCH);
       });
       
       // Update state with both cards

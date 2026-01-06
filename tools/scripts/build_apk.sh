@@ -99,7 +99,7 @@ REPLACED_OCCURRENCES=0
 logging_switch_variable_value="true"
 
 while IFS= read -r -d '' dart_file; do
-    # Check if file contains LOGGING_SWITCH = true pattern
+    # Check if file contains LOGGING_SWITCH = false pattern
     if grep -q "LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" 2>/dev/null || \
        grep -q "const bool LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" 2>/dev/null || \
        grep -q "static const bool LOGGING_SWITCH = ${logging_switch_variable_value}" "$dart_file" 2>/dev/null; then

@@ -17,7 +17,7 @@ class HomeScreen extends BaseScreen {
 }
 
 class _HomeScreenState extends BaseScreenState<HomeScreen> {
-  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
+  static const bool LOGGING_SWITCH = false; // Enabled for debugging navigation issues
   static final Logger _logger = Logger();
   
   @override

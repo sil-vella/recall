@@ -42,11 +42,11 @@ def disable_logging_switch() -> None:
         try:
             text = dart_file.read_text(encoding="utf-8")
             original_text = text
-            # Replace LOGGING_SWITCH = true with LOGGING_SWITCH = false
+            # Replace LOGGING_SWITCH = false with LOGGING_SWITCH = false
             new_text = text.replace(f"LOGGING_SWITCH = {logging_switch_variable_value}", "LOGGING_SWITCH = false")
-            # Also handle const bool LOGGING_SWITCH = true
+            # Also handle const bool LOGGING_SWITCH = false
             new_text = new_text.replace(f"const bool LOGGING_SWITCH = {logging_switch_variable_value}", "const bool LOGGING_SWITCH = false")
-            # Also handle static const bool LOGGING_SWITCH = true
+            # Also handle static const bool LOGGING_SWITCH = false
             new_text = new_text.replace(f"static const bool LOGGING_SWITCH = {logging_switch_variable_value}", "static const bool LOGGING_SWITCH = false")
             
             if new_text != original_text:

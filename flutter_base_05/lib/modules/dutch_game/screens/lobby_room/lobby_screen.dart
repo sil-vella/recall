@@ -31,7 +31,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
+  static const bool LOGGING_SWITCH = false; // Enabled for debugging navigation issues
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 

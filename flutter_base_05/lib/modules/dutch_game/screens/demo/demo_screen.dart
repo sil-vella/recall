@@ -94,7 +94,11 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
     int cardIndex = 0;
     for (final suit in suits) {
       for (final rankData in ranks) {
-        final cardId = 'demo_card_${cardIndex++}';
+        // Use card_ prefix to match validation pattern: ^card_[a-zA-Z0-9_]+$
+        // Format: card_demo_{rank}_{suit}_{index} (consistent with practice mode pattern)
+        final rankStr = rankData['rank'].toString().replaceAll(' ', '_');
+        final cardId = 'card_demo_${rankStr}_${suit}_$cardIndex';
+        cardIndex++;
         cards.add({
           'cardId': cardId,
           'rank': rankData['rank'],
@@ -107,13 +111,14 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
     
     // Add 2 jokers
     cards.add({
-      'cardId': 'demo_card_${cardIndex++}',
+      'cardId': 'card_demo_joker_joker_$cardIndex',
       'rank': 'joker',
       'suit': 'joker',
       'points': 0,
     });
+    cardIndex++;
     cards.add({
-      'cardId': 'demo_card_${cardIndex++}',
+      'cardId': 'card_demo_joker_joker_$cardIndex',
       'rank': 'joker',
       'suit': 'joker',
       'points': 0,

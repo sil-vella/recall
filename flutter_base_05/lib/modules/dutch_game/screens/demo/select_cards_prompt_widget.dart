@@ -52,28 +52,63 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        // Get demo instructions phase and myCardsToPeek from state
+        // Get demo instructions phase, myCardsToPeek, and myDrawnCard from state
         final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final demoInstructionsPhase = dutchGameState['demoInstructionsPhase']?.toString() ?? '';
         final myCardsToPeek = dutchGameState['myCardsToPeek'] as List<dynamic>? ?? [];
         final selectedCount = myCardsToPeek.length;
+        final myDrawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
+        final hasDrawnCard = myDrawnCard != null;
         
-        // Only show during initial peek phase when 0 or 1 cards selected
-        final shouldShow = demoInstructionsPhase == 'initial_peek' && selectedCount < 2;
+        // Determine text and visibility based on phase
+        String promptText = '';
+        bool shouldShow = false;
         
-        _logger.info('SelectCardsPromptWidget: demoPhase=$demoInstructionsPhase, selectedCount=$selectedCount, shouldShow=$shouldShow', isOn: LOGGING_SWITCH);
+        if (demoInstructionsPhase == 'initial_peek' && selectedCount < 2) {
+          // Initial peek phase - show "Select two cards"
+          promptText = 'Select two cards';
+          shouldShow = true;
+        } else if (demoInstructionsPhase == 'drawing' && !hasDrawnCard) {
+          // Drawing phase - show "Tap the draw pile" until card is drawn
+          promptText = 'Tap the draw pile';
+          shouldShow = true;
+        } else if (demoInstructionsPhase == 'playing') {
+          // Playing phase - show "Select any card to play"
+          promptText = 'Select any card to play';
+          shouldShow = true;
+        }
         
-        if (!shouldShow) {
+        _logger.info('SelectCardsPromptWidget: demoPhase=$demoInstructionsPhase, selectedCount=$selectedCount, hasDrawnCard=$hasDrawnCard, shouldShow=$shouldShow', isOn: LOGGING_SWITCH);
+        
+        if (!shouldShow || promptText.isEmpty) {
           return const SizedBox.shrink();
         }
         
-        // Get actual myhand height from state (updated by unified widget via GlobalKey)
+        // Get heights from state (updated by unified widget via GlobalKey)
         final myHandHeight = dutchGameState['myHandHeight'] as double?;
+        final gameBoardHeight = dutchGameState['gameBoardHeight'] as double?;
         
-        // Calculate margin: use actual height if available, otherwise fallback to estimate
-        final marginBottom = myHandHeight != null 
-            ? myHandHeight
-            : MediaQuery.of(context).size.height * 0.18; // Fallback estimate
+        // Calculate position based on phase:
+        // - Initial peek: above myhand (marginBottom = myHandHeight)
+        // - Drawing: above game board (marginBottom = myHandHeight + gameBoardHeight + spacing)
+        // - Playing: above myhand (marginBottom = myHandHeight)
+        double marginBottom;
+        if (demoInstructionsPhase == 'drawing') {
+          // Drawing phase - position above game board
+          // Game board is above myhand, so we need: myHandHeight + gameBoardHeight + spacing
+          const spacing = 8.0; // Small spacing between game board and prompt
+          if (myHandHeight != null && gameBoardHeight != null) {
+            marginBottom = myHandHeight + gameBoardHeight + spacing;
+          } else {
+            // Fallback estimate
+            marginBottom = MediaQuery.of(context).size.height * 0.5;
+          }
+        } else {
+          // Initial peek and playing phases - position above myhand
+          marginBottom = myHandHeight != null 
+              ? myHandHeight
+              : MediaQuery.of(context).size.height * 0.18; // Fallback estimate for myhand
+        }
         
         return AnimatedBuilder(
           animation: _glowAnimation,
@@ -97,7 +132,7 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
               ),
               child: Center(
                 child: Text(
-                  'Select two cards',
+                  promptText,
                   style: AppTextStyles.headingMedium().copyWith(
                     color: AppColors.white,
                     fontWeight: FontWeight.bold,

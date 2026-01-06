@@ -136,7 +136,7 @@ eventEmitter.setTransportMode(EventTransportMode.demo);
 
 All player actions are intercepted and routed to demo functionality:
 - `draw_card` - **Implemented**: Handles drawing from draw pile or discard pile, adds card to hand, updates status
-- `play_card`
+- `play_card` - **Implemented**: Handles playing a card, moves card to discard pile, triggers same rank window, auto-plays opponent same rank cards
 - `replace_drawn_card`
 - `play_drawn_card`
 - `initial_peek` - **Implemented**: Handles card selection, shows card details
@@ -200,6 +200,48 @@ All player actions are intercepted and routed to demo functionality:
 - Status transitions: `'drawing_card'` → `'playing_card'`
 - All widget slices manually updated for immediate UI feedback
 
+### Play Card Implementation
+
+**Action Interception:**
+- `PlayerAction.playerPlayCard()` sends event `'play_card'` with payload:
+  - `card_id`: ID of the card to play
+  - `game_id`: Current game ID
+  - `player_id`: Auto-added by event emitter
+- Event intercepted by `DemoModeBridge` when `EventTransportMode.demo`
+- Routed to `DemoFunctionality._handlePlayCard()`
+
+**Playing Flow:**
+1. User taps a card in their hand
+2. `PlayerAction.playerPlayCard()` executed → Event `'play_card'` sent
+3. Event intercepted by demo mode bridge
+4. `_handlePlayCard()` processes the action:
+   - Finds card in player's hand by cardId
+   - Removes card from hand (creates blank slot if index ≤ 3, otherwise removes entirely)
+   - If a drawn card exists, it replaces the played card's position
+   - Adds played card to discard pile with full data
+   - Updates all players' status to `'same_rank_window'`
+   - Triggers opponent same rank auto-play check
+5. State synchronized:
+   - `myHandCards` updated in games map
+   - `myHand` slice updated with new cards
+   - `centerBoard` slice updated with discard pile
+   - `playerStatus` and `currentPlayerStatus` updated to `'same_rank_window'`
+   - `demoInstructionsPhase` cleared (instructions shown after opponent plays)
+6. Opponent same rank auto-play:
+   - Checks each opponent for matching rank cards
+   - Waits 3 seconds before each opponent plays (fixed delay for demo)
+   - Auto-plays first matching card if found
+   - Updates opponent's hand and discard pile
+   - After opponent plays, waits 3 seconds then shows same rank instructions
+
+**Key Implementation Details:**
+- Cards removed from hand create blank slots (index ≤ 3) or are removed entirely (index > 3)
+- Drawn cards repositioned to fill blank slots created by played cards
+- All players' status updated to `'same_rank_window'` after card is played
+- Opponents automatically play matching rank cards after 3-second delay
+- Same rank instructions appear 3 seconds after opponent plays
+- Hand manipulation uses mutable `List<dynamic>` to allow null values for blank slots
+
 ## Game Initialization
 
 ### Mode Selection
@@ -248,7 +290,7 @@ The demo uses a phase-based instruction system to guide users through different 
 - `initial_peek` - Instructions for selecting 2 cards to peek at
 - `drawing` - Instructions for drawing a card
 - `playing` - Instructions for playing a card
-- `same_rank` - Instructions for same rank window
+- `same_rank` - Instructions for same rank window (shown 3 seconds after opponent plays)
 - `jack_swap` - Instructions for Jack special power
 - `queen_peek` - Instructions for Queen special power
 
@@ -257,6 +299,13 @@ The demo uses a phase-based instruction system to guide users through different 
 - Dark semi-transparent background matching theme
 - Automatically hides when first card is selected during initial peek
 - Transitions between phases based on user actions and timers
+- Same rank instructions use timer-based display (3 seconds after opponent plays)
+
+**Same Rank Instructions:**
+- Text: "An opponent has played a card of the same rank, and now they have 3 cards left. During same rank window any player can play a card of the same rank. If an incorrect rank is attempted, that player will be given an extra penalty card."
+- Display timing: Instructions appear 3 seconds after an opponent plays a same rank card
+- Trigger: Automatically shown via timer when opponent auto-plays matching rank card
+- Phase transition: Instructions hidden when player plays a card, shown again after next opponent play
 
 **Select Cards Prompt:**
 - Flashing "Select two cards" text above myhand section (initial peek phase)
@@ -362,6 +411,12 @@ When leaving the demo screen:
 - [x] Card addition to hand (ID-only format, added to end)
 - [x] Status transition from drawing to playing phase
 - [x] Widget slice synchronization for status updates
+- [x] Play card functionality (removes card from hand, adds to discard pile)
+- [x] Blank slot creation in hand (for cards at index ≤ 3)
+- [x] Drawn card repositioning to fill blank slots
+- [x] Same rank window activation after card play
+- [x] Opponent same rank auto-play (3-second delay before each opponent)
+- [x] Same rank instructions with timer (3 seconds after opponent plays)
 
 ### 🚧 Pending Implementation
 
@@ -369,7 +424,8 @@ When leaving the demo screen:
   - [x] `_handleInitialPeek()` - Initial peek logic (shows card details)
   - [x] `_handleCompletedInitialPeek()` - Complete initial peek logic (starts timer)
   - [x] `_handleDrawCard()` - Draw card logic (adds card to hand, updates status to playing)
-  - [ ] `_handlePlayCard()` - Play card logic
+  - [x] `_handlePlayCard()` - Play card logic (removes from hand, adds to discard, triggers same rank window)
+  - [x] `_handleOpponentSameRankPlays()` - Auto-play opponent matching rank cards (3-second delay)
   - [ ] `_handleReplaceDrawnCard()` - Replace drawn card logic
   - [ ] `_handlePlayDrawnCard()` - Play drawn card logic
   - [ ] `_handleCallFinalRound()` - Call final round logic
@@ -444,4 +500,7 @@ flutter_base_05/lib/modules/dutch_game/
 - Card visibility is managed through `myCardsToPeek` in StateManager
 - GlobalKey is used to measure myhand height for dynamic overlay positioning
 - Timer-based transitions provide smooth user experience between phases
+- Opponent auto-play uses fixed 3-second delay before each opponent plays (for demo consistency)
+- Same rank instructions use timer-based display (3 seconds after opponent plays) to avoid showing instructions before opponent action is visible
+- Hand manipulation allows null values in list for blank slots (cards at index ≤ 3 create blank slots, others are removed entirely)
 

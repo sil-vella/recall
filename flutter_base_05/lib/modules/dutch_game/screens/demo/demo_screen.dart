@@ -109,19 +109,20 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
       }
     }
     
-    // Add 2 jokers
+    // Add extra Kings instead of jokers (for same rank play testing)
+    // Add 2 additional Kings (spades and clubs) - these will be used for same rank play
     cards.add({
-      'cardId': 'card_demo_joker_joker_$cardIndex',
-      'rank': 'joker',
-      'suit': 'joker',
-      'points': 0,
+      'cardId': 'card_demo_king_spades_extra_$cardIndex',
+      'rank': 'king',
+      'suit': 'spades',
+      'points': 10,
     });
     cardIndex++;
     cards.add({
-      'cardId': 'card_demo_joker_joker_$cardIndex',
-      'rank': 'joker',
-      'suit': 'joker',
-      'points': 0,
+      'cardId': 'card_demo_king_clubs_extra_$cardIndex',
+      'rank': 'king',
+      'suit': 'clubs',
+      'points': 10,
     });
     
     return cards;
@@ -388,21 +389,87 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         },
       ];
       
-      // 6. Deal 4 cards to each player from predefined deck
+      // 6. Deal cards to players, ensuring each rank in user's hand is also in at least one opponent's hand
       final drawStack = List<Map<String, dynamic>>.from(fullDeck);
-      for (int playerIndex = 0; playerIndex < _players.length; playerIndex++) {
+      
+      // First, deal 4 cards to the user (human player)
+      final userHand = <Map<String, dynamic>>[];
+      final userHandRanks = <String>{}; // Track ranks in user's hand
+      
+      for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
+        final card = drawStack.removeAt(0);
+        userHand.add(_cardToIdOnly(card));
+        userHandRanks.add(card['rank']?.toString() ?? '');
+      }
+      _players[0]['hand'] = userHand;
+      _logger.info('🎮 DemoScreen: Dealt ${userHand.length} cards to user. Ranks: ${userHandRanks.toList()}', isOn: LOGGING_SWITCH);
+      
+      // Now deal to opponents, ensuring each opponent gets at least one card matching a rank from user's hand
+      final opponentRanksAssigned = <String>{}; // Track which ranks we've assigned to opponents
+      
+      for (int playerIndex = 1; playerIndex < _players.length; playerIndex++) {
         final player = _players[playerIndex];
         final hand = <Map<String, dynamic>>[];
         
-        // Deal 4 cards - all players get ID-only cards (face-down) for demo
-        for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
+        // First, try to give this opponent a card matching a rank from user's hand that hasn't been assigned yet
+        for (final userRank in userHandRanks) {
+          if (!opponentRanksAssigned.contains(userRank)) {
+            // Find a card with this rank in the draw stack
+            int matchingCardIndex = -1;
+            for (int i = 0; i < drawStack.length; i++) {
+              if (drawStack[i]['rank']?.toString() == userRank) {
+                matchingCardIndex = i;
+                break;
+              }
+            }
+            
+            if (matchingCardIndex != -1) {
+              final matchingCard = drawStack.removeAt(matchingCardIndex);
+              hand.add(_cardToIdOnly(matchingCard));
+              opponentRanksAssigned.add(userRank);
+              _logger.info('🎮 DemoScreen: Assigned ${player['name']} a ${userRank} to match user\'s hand', isOn: LOGGING_SWITCH);
+              break;
+            }
+          }
+        }
+        
+        // Fill remaining slots (3 more cards to make 4 total)
+        for (int i = hand.length; i < 4 && drawStack.isNotEmpty; i++) {
           final card = drawStack.removeAt(0);
-          // All players get ID-only cards (face-down) in demo mode
           hand.add(_cardToIdOnly(card));
         }
         
         player['hand'] = hand;
         _logger.info('🎮 DemoScreen: Dealt ${hand.length} cards to ${player['name']} (ID-only)', isOn: LOGGING_SWITCH);
+      }
+      
+      // Ensure all user ranks are covered (if any weren't assigned, assign them now)
+      for (final userRank in userHandRanks) {
+        if (!opponentRanksAssigned.contains(userRank)) {
+          // Find a card with this rank and assign it to the first opponent that doesn't have 4 cards yet
+          for (int playerIndex = 1; playerIndex < _players.length; playerIndex++) {
+            final player = _players[playerIndex];
+            final hand = player['hand'] as List<dynamic>;
+            if (hand.length < 4) {
+              // Find a card with this rank in the draw stack
+              int matchingCardIndex = -1;
+              for (int i = 0; i < drawStack.length; i++) {
+                if (drawStack[i]['rank']?.toString() == userRank) {
+                  matchingCardIndex = i;
+                  break;
+                }
+              }
+              
+              if (matchingCardIndex != -1) {
+                final matchingCard = drawStack.removeAt(matchingCardIndex);
+                hand.add(_cardToIdOnly(matchingCard));
+                opponentRanksAssigned.add(userRank);
+                _logger.info('🎮 DemoScreen: Assigned ${player['name']} a ${userRank} to ensure all user ranks are covered', isOn: LOGGING_SWITCH);
+                break;
+              }
+            }
+          }
+        }
       }
       
       // 7. Set up discard pile with first card (full data - face-up)
@@ -413,9 +480,30 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         _logger.info('🎮 DemoScreen: Set up discard pile with first card', isOn: LOGGING_SWITCH);
       }
       
-      // 8. Remaining draw pile as ID-only cards
-      _drawPile = drawStack.map((c) => _cardToIdOnly(c)).toList();
-      _logger.info('🎮 DemoScreen: Draw pile has ${_drawPile.length} cards', isOn: LOGGING_SWITCH);
+      // 8. Set up draw pile - find a King and put it at the top
+      _drawPile = [];
+      Map<String, dynamic>? topKingCard;
+      
+      // Find a King card for the top of draw pile
+      int kingIndex = -1;
+      for (int i = 0; i < drawStack.length; i++) {
+        if (drawStack[i]['rank']?.toString() == 'king') {
+          kingIndex = i;
+          break;
+        }
+      }
+      
+      if (kingIndex != -1) {
+        topKingCard = drawStack.removeAt(kingIndex);
+        _drawPile.add(Map<String, dynamic>.from(topKingCard)); // Full data at top
+        _logger.info('🎮 DemoScreen: Added King ${topKingCard['suit']} to top of draw pile', isOn: LOGGING_SWITCH);
+      } else {
+        _logger.warning('⚠️ DemoScreen: No King found for top of draw pile', isOn: LOGGING_SWITCH);
+      }
+      
+      // Add remaining cards as ID-only
+      _drawPile.addAll(drawStack.map((c) => _cardToIdOnly(c)).toList());
+      _logger.info('🎮 DemoScreen: Draw pile has ${_drawPile.length} cards (King at top: ${topKingCard != null})', isOn: LOGGING_SWITCH);
       
       // 9. Set current player
       _currentPlayer = {

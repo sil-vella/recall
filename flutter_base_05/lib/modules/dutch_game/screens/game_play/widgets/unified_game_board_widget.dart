@@ -105,12 +105,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
             // This is the full available space in the content area
             final availableHeight = constraints.maxHeight;
             
-            _logger.info(
-              'UnifiedGameBoardWidget: LayoutBuilder - maxHeight=$availableHeight, '
-              'maxWidth=${constraints.maxWidth}',
-              isOn: LOGGING_SWITCH,
-            );
-            
             // Make it scrollable with my hand aligned to bottom
             return SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
@@ -186,7 +180,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     // Check if card-related state actually changed
     if (_previousCardState != null && _statesAreEqual(_previousCardState!, currentCardState)) {
       // No card-related changes, skip scan
-      _logger.debug('🎬 UnifiedGameBoardWidget: Card state unchanged, skipping scan', isOn: LOGGING_SWITCH);
       return;
     }
     
@@ -548,7 +541,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     _cardsToPeekProtectionTimer = Timer(Duration(seconds: 5), () {
       _clearCardsToPeekProtection();
     });
-    _logger.info('🛡️ CardsToPeek protection activated for 5 seconds', isOn: LOGGING_SWITCH);
   }
 
   /// Clear cardsToPeek protection
@@ -560,7 +552,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     if (mounted) {
       setState(() {});
     }
-    _logger.info('🛡️ CardsToPeek protection cleared', isOn: LOGGING_SWITCH);
   }
 
   /// Build the opponents panel widget
@@ -581,7 +572,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
       });
       if (hasFullCardData) {
         _protectCardsToPeek(cardsToPeekFromState);
-        _logger.info('🛡️ OpponentsPanelWidget: Activated protection for ${cardsToPeekFromState.length} cards', isOn: LOGGING_SWITCH);
       }
     }
     
@@ -727,11 +717,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     }
     
     if (drawnCard != null) {
-      final drawnCardId = drawnCard['cardId']?.toString() ?? 'unknown';
-      final drawnCardRank = drawnCard['rank']?.toString() ?? 'unknown';
-      final drawnCardSuit = drawnCard['suit']?.toString() ?? 'unknown';
-      final isIdOnly = drawnCardRank == '?' && drawnCardSuit == '?';
-      _logger.info('🔍 OpponentsPanel: Player $playerName (${player['id']}) drawnCard - cardId: $drawnCardId, rank: $drawnCardRank, suit: $drawnCardSuit, isIdOnly: $isIdOnly', isOn: LOGGING_SWITCH);
     }
     
     return Column(
@@ -1207,8 +1192,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   /// For current user: uses isMyTurn and myHand data source (same as my hand section)
   /// For opponents: uses currentPlayer from dutchGameState and currentPlayerStatus from opponentsPanel
   Widget _buildCurrentPlayerInfo() {
-    _logger.info('UnifiedGameBoardWidget: Building current player info widget', isOn: LOGGING_SWITCH);
-    
     final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     
     // Check if it's the user's turn (same check as my hand section)
@@ -1242,17 +1225,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
       currentPlayerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
       displayText = 'Your Turn';
       playerIdForChip = currentUserId;
-      _logger.info('UnifiedGameBoardWidget: User\'s turn - status from myHand: $currentPlayerStatus', isOn: LOGGING_SWITCH);
     } else {
       // For opponents: use opponentsPanel slice (same as opponents widget)
       final opponentsPanelSlice = dutchGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
       currentPlayerStatus = opponentsPanelSlice['currentPlayerStatus']?.toString() ?? 'unknown';
       displayText = currentPlayerData?['name']?.toString() ?? 'Unknown Player';
       playerIdForChip = currentPlayerId;
-      _logger.info('UnifiedGameBoardWidget: Opponent\'s turn - status from opponentsPanel: $currentPlayerStatus, player: $displayText', isOn: LOGGING_SWITCH);
     }
-    
-    _logger.info('UnifiedGameBoardWidget: isMyTurn: $isMyTurn, status: $currentPlayerStatus, displayText: $displayText', isOn: LOGGING_SWITCH);
     
     if (currentPlayerData == null && !isMyTurn) {
       _logger.warning('UnifiedGameBoardWidget: Current player data not found in dutchGameState', isOn: LOGGING_SWITCH);
@@ -1318,7 +1297,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
       final currentGameBoardHeight = stateManager.getModuleState<Map<String, dynamic>>('dutch_game')?['gameBoardHeight'] as double?;
       
       if (currentGameBoardHeight == null || currentGameBoardHeight != height) {
-        _logger.info('📐 UnifiedGameBoardWidget: Updating gameBoardHeight in StateManager to $height', isOn: LOGGING_SWITCH);
         stateManager.updateModuleState('dutch_game', {
           'gameBoardHeight': height,
         });
@@ -1696,7 +1674,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     _myHandCardsToPeekProtectionTimer = Timer(Duration(seconds: 5), () {
       _clearMyHandCardsToPeekProtection();
     });
-    _logger.info('🛡️ CardsToPeek protection activated for 5 seconds', isOn: LOGGING_SWITCH);
   }
 
   /// Clear cardsToPeek protection (My Hand)
@@ -1708,7 +1685,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     if (mounted) {
       setState(() {});
     }
-    _logger.info('🛡️ CardsToPeek protection cleared', isOn: LOGGING_SWITCH);
   }
 
   Widget _buildMyHand() {
@@ -1724,11 +1700,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         protectedTimestamp != null && 
         (now - protectedTimestamp) < 5000;
     
-    _logger.info('🛡️ MyHandWidget: cardsToPeekFromState.length: ${cardsToPeekFromState.length}, protectedCardsToPeek.length: ${protectedCardsToPeek?.length ?? 0}, isProtectedDataValid: $isProtectedDataValid, isProtected: $_isMyHandCardsToPeekProtected', isOn: LOGGING_SWITCH);
-    
     if (isProtectedDataValid && !_isMyHandCardsToPeekProtected) {
       _protectMyHandCardsToPeek(protectedCardsToPeek);
-      _logger.info('🛡️ MyHandWidget: Activated protection from state sync for ${protectedCardsToPeek.length} cards', isOn: LOGGING_SWITCH);
     }
     
     if (cardsToPeekFromState.isNotEmpty && !_isMyHandCardsToPeekProtected) {
@@ -1742,15 +1715,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
       });
       if (hasFullCardData) {
         _protectMyHandCardsToPeek(cardsToPeekFromState);
-        _logger.info('🛡️ MyHandWidget: Activated protection from state for ${cardsToPeekFromState.length} cards', isOn: LOGGING_SWITCH);
       }
     }
     
     final cardsToPeek = _isMyHandCardsToPeekProtected && _protectedMyHandCardsToPeek != null
         ? _protectedMyHandCardsToPeek!
         : cardsToPeekFromState;
-    
-    _logger.info('🛡️ MyHandWidget: Final cardsToPeek.length: ${cardsToPeek.length}', isOn: LOGGING_SWITCH);
     
     final isGameActive = dutchGameState['isGameActive'] ?? false;
     final isMyTurn = dutchGameState['isMyTurn'] ?? false;
@@ -1788,18 +1758,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         });
       });
     }
-    
-    _logger.info('🃏 MyHandWidget - playerStatus: $playerStatus', isOn: LOGGING_SWITCH);
-    _logger.info('🃏 MyHandWidget - cards.length: ${cards.length}', isOn: LOGGING_SWITCH);
-    _logger.info('🃏 MyHandWidget - cardsToPeek.length: ${cardsToPeek.length}', isOn: LOGGING_SWITCH);
-    if (cardsToPeek.isNotEmpty) {
-      _logger.info('🃏 MyHandWidget - cardsToPeek IDs: ${cardsToPeek.map((c) => c['cardId']).toList()}', isOn: LOGGING_SWITCH);
-    }
-    _logger.info('🃏 MyHandWidget - myHand keys: ${myHand.keys.toList()}', isOn: LOGGING_SWITCH);
-    _logger.info('🃏 MyHandWidget - dutchGameState keys: ${dutchGameState.keys.toList()}', isOn: LOGGING_SWITCH);
-    final myHandCards = currentGame['myHandCards'] as List<dynamic>? ?? [];
-    _logger.info('🃏 MyHandWidget - currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
-    _logger.info('🃏 MyHandWidget - myHandCards.length: ${myHandCards.length}', isOn: LOGGING_SWITCH);
     
     if (playerStatus != 'initial_peek' && _initialPeekSelectionCount > 0) {
       _initialPeekSelectionCount = 0;
@@ -2299,7 +2257,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         StateManager().updateModuleState('dutch_game', {
           'myHandHeight': height,
         });
-        _logger.info('📏 UnifiedGameBoardWidget: Updated myHandHeight to $height', isOn: LOGGING_SWITCH);
       }
     }
   }
@@ -2371,6 +2328,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
     final currentPlayerStatus = currentMyHand['playerStatus']?.toString() ?? 'unknown';
+    _logger.info('🎯 MyHandWidget - Card tapped: ${card['cardId']}, Status: $currentPlayerStatus', isOn: LOGGING_SWITCH);
       
     if (currentPlayerStatus == 'jack_swap') {
       _logger.info('🃏 MyHandWidget: Status is jack_swap - cards are interactive', isOn: LOGGING_SWITCH);
@@ -2596,11 +2554,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
             _isProcessingAction = true;
           });
           _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true', isOn: LOGGING_SWITCH);
+          _logger.info('🎮 MyHandWidget - About to execute playerPlayCard: cardId=${card['cardId']}, gameId=$currentGameId', isOn: LOGGING_SWITCH);
           final playAction = PlayerAction.playerPlayCard(
             gameId: currentGameId,
             cardId: card['cardId']?.toString() ?? '',
           );
+          _logger.info('🎮 MyHandWidget - Calling playAction.execute()', isOn: LOGGING_SWITCH);
           await playAction.execute();
+          _logger.info('🎮 MyHandWidget - playAction.execute() completed', isOn: LOGGING_SWITCH);
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               setState(() {

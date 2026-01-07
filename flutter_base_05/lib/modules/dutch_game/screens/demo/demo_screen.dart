@@ -389,121 +389,180 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         },
       ];
       
-      // 6. Deal cards to players, ensuring each rank in user's hand is also in at least one opponent's hand
-      final drawStack = List<Map<String, dynamic>>.from(fullDeck);
-      
-      // First, deal 4 cards to the user (human player)
-      final userHand = <Map<String, dynamic>>[];
-      final userHandRanks = <String>{}; // Track ranks in user's hand
-      
-      for (int i = 0; i < 4 && drawStack.isNotEmpty; i++) {
-        final card = drawStack.removeAt(0);
-        userHand.add(_cardToIdOnly(card));
-        userHandRanks.add(card['rank']?.toString() ?? '');
+      // 6. Deal hardcoded cards to players
+      // Helper to find a card by rank and suit
+      Map<String, dynamic>? _findCard(String rank, String suit) {
+        for (final card in fullDeck) {
+          if (card['rank']?.toString() == rank && card['suit']?.toString() == suit) {
+            return card;
+          }
+        }
+        return null;
       }
+      
+      // HARDCODED HANDS:
+      // User hand: Ace hearts, 5 diamonds, 8 clubs, 4 hearts
+      // Opponent 1: Ace clubs (matches user's Ace), 3 hearts, 7 diamonds, King hearts (has K)
+      // Opponent 2: 5 spades (matches user's 5), 2 hearts, 9 clubs, 10 diamonds
+      // Opponent 3: 8 hearts (matches user's 8), 4 spades (matches user's 4), 6 clubs, Queen diamonds
+      
+      // User hand
+      final userHandCards = [
+        _findCard('ace', 'hearts'),
+        _findCard('5', 'diamonds'),
+        _findCard('8', 'clubs'),
+        _findCard('4', 'hearts'),
+      ].whereType<Map<String, dynamic>>().toList();
+      
+      final userHand = userHandCards.map((c) => _cardToIdOnly(c)).toList();
       _players[0]['hand'] = userHand;
+      final userHandRanks = userHandCards.map((c) => c['rank']?.toString() ?? '').toSet();
       _logger.info('🎮 DemoScreen: Dealt ${userHand.length} cards to user. Ranks: ${userHandRanks.toList()}', isOn: LOGGING_SWITCH);
       
-      // Now deal to opponents, ensuring each opponent gets at least one card matching a rank from user's hand
-      final opponentRanksAssigned = <String>{}; // Track which ranks we've assigned to opponents
+      // Opponent 1: Other numbers (no ace, no jack/queen)
+      final opponent1Cards = [
+        _findCard('2', 'hearts'),
+        _findCard('3', 'diamonds'),
+        _findCard('6', 'clubs'),
+        _findCard('9', 'spades'),
+      ].whereType<Map<String, dynamic>>().toList();
+      _players[1]['hand'] = opponent1Cards.map((c) => _cardToIdOnly(c)).toList();
+      _logger.info('🎮 DemoScreen: Dealt ${opponent1Cards.length} cards to Opponent 1. Other numbers (no ace, no jack/queen)', isOn: LOGGING_SWITCH);
       
-      for (int playerIndex = 1; playerIndex < _players.length; playerIndex++) {
-        final player = _players[playerIndex];
-        final hand = <Map<String, dynamic>>[];
-        
-        // First, try to give this opponent a card matching a rank from user's hand that hasn't been assigned yet
-        for (final userRank in userHandRanks) {
-          if (!opponentRanksAssigned.contains(userRank)) {
-            // Find a card with this rank in the draw stack
-            int matchingCardIndex = -1;
-            for (int i = 0; i < drawStack.length; i++) {
-              if (drawStack[i]['rank']?.toString() == userRank) {
-                matchingCardIndex = i;
-                break;
-              }
-            }
-            
-            if (matchingCardIndex != -1) {
-              final matchingCard = drawStack.removeAt(matchingCardIndex);
-              hand.add(_cardToIdOnly(matchingCard));
-              opponentRanksAssigned.add(userRank);
-              _logger.info('🎮 DemoScreen: Assigned ${player['name']} a ${userRank} to match user\'s hand', isOn: LOGGING_SWITCH);
-              break;
-            }
-          }
-        }
-        
-        // Fill remaining slots (3 more cards to make 4 total)
-        for (int i = hand.length; i < 4 && drawStack.isNotEmpty; i++) {
-          final card = drawStack.removeAt(0);
-          hand.add(_cardToIdOnly(card));
-        }
-        
-        player['hand'] = hand;
-        _logger.info('🎮 DemoScreen: Dealt ${hand.length} cards to ${player['name']} (ID-only)', isOn: LOGGING_SWITCH);
-      }
+      // Opponent 2: K at index 0, rest other numbers (no ace, no jack/queen)
+      final opponent2Cards = [
+        _findCard('king', 'hearts'), // K at index 0
+        _findCard('2', 'diamonds'),
+        _findCard('6', 'spades'),
+        _findCard('9', 'clubs'),
+      ].whereType<Map<String, dynamic>>().toList();
+      _players[2]['hand'] = opponent2Cards.map((c) => _cardToIdOnly(c)).toList();
+      _logger.info('🎮 DemoScreen: Dealt ${opponent2Cards.length} cards to Opponent 2. K at index 0, rest other numbers', isOn: LOGGING_SWITCH);
       
-      // Ensure all user ranks are covered (if any weren't assigned, assign them now)
-      for (final userRank in userHandRanks) {
-        if (!opponentRanksAssigned.contains(userRank)) {
-          // Find a card with this rank and assign it to the first opponent that doesn't have 4 cards yet
-          for (int playerIndex = 1; playerIndex < _players.length; playerIndex++) {
-            final player = _players[playerIndex];
-            final hand = player['hand'] as List<dynamic>;
-            if (hand.length < 4) {
-              // Find a card with this rank in the draw stack
-              int matchingCardIndex = -1;
-              for (int i = 0; i < drawStack.length; i++) {
-                if (drawStack[i]['rank']?.toString() == userRank) {
-                  matchingCardIndex = i;
-                  break;
-                }
-              }
-              
-              if (matchingCardIndex != -1) {
-                final matchingCard = drawStack.removeAt(matchingCardIndex);
-                hand.add(_cardToIdOnly(matchingCard));
-                opponentRanksAssigned.add(userRank);
-                _logger.info('🎮 DemoScreen: Assigned ${player['name']} a ${userRank} to ensure all user ranks are covered', isOn: LOGGING_SWITCH);
+      // Opponent 3: Same ranks as user (ace, 5, 8, 4) - different suits
+      final opponent3Cards = [
+        _findCard('ace', 'clubs'), // Same rank as user's ace
+        _findCard('5', 'spades'), // Same rank as user's 5
+        _findCard('8', 'diamonds'), // Same rank as user's 8
+        _findCard('4', 'clubs'), // Same rank as user's 4
+      ].whereType<Map<String, dynamic>>().toList();
+      _players[3]['hand'] = opponent3Cards.map((c) => _cardToIdOnly(c)).toList();
+      _logger.info('🎮 DemoScreen: Dealt ${opponent3Cards.length} cards to Opponent 3. Same ranks as user (ace, 5, 8, 4)', isOn: LOGGING_SWITCH);
+      
+      // Verify all user ranks are covered
+      final opponentRanks = <String>{};
+      for (int i = 1; i < _players.length; i++) {
+        final hand = _players[i]['hand'] as List<dynamic>? ?? [];
+        for (final card in hand) {
+          if (card is Map<String, dynamic>) {
+            // Get full card data to check rank
+            final cardId = card['cardId']?.toString() ?? '';
+            for (final fullCard in fullDeck) {
+              if (fullCard['cardId']?.toString() == cardId) {
+                opponentRanks.add(fullCard['rank']?.toString() ?? '');
                 break;
               }
             }
           }
         }
       }
+      
+      final uncoveredRanks = userHandRanks.where((r) => !opponentRanks.contains(r)).toList();
+      if (uncoveredRanks.isNotEmpty) {
+        _logger.warning('⚠️ DemoScreen: Some user ranks are not covered by opponents: $uncoveredRanks', isOn: LOGGING_SWITCH);
+      } else {
+        _logger.info('✅ DemoScreen: All user ranks are covered by at least one opponent', isOn: LOGGING_SWITCH);
+      }
+      
+      // Check if at least one opponent has a King
+      bool hasKing = false;
+      for (int i = 1; i < _players.length; i++) {
+        final hand = _players[i]['hand'] as List<dynamic>? ?? [];
+        for (final card in hand) {
+          if (card is Map<String, dynamic>) {
+            final cardId = card['cardId']?.toString() ?? '';
+            for (final fullCard in fullDeck) {
+              if (fullCard['cardId']?.toString() == cardId && fullCard['rank']?.toString() == 'king') {
+                hasKing = true;
+                break;
+              }
+            }
+            if (hasKing) break;
+          }
+        }
+        if (hasKing) break;
+      }
+      
+      if (hasKing) {
+        _logger.info('✅ DemoScreen: At least one opponent has a King (for drawn card scenario)', isOn: LOGGING_SWITCH);
+      } else {
+        _logger.warning('⚠️ DemoScreen: No opponent has a King!', isOn: LOGGING_SWITCH);
+      }
+      
+      // Build draw stack from remaining cards (excluding dealt cards)
+      final dealtCardIds = <String>{};
+      for (final player in _players) {
+        final hand = player['hand'] as List<dynamic>? ?? [];
+        for (final card in hand) {
+          if (card is Map<String, dynamic>) {
+            dealtCardIds.add(card['cardId']?.toString() ?? '');
+          }
+        }
+      }
+      
+      final remainingCards = fullDeck.where((card) => !dealtCardIds.contains(card['cardId']?.toString())).toList();
       
       // 7. Set up discard pile with first card (full data - face-up)
+      // Use a Jack for the discard pile (good for demo)
+      final discardCard = _findCard('jack', 'diamonds') ?? 
+                         (remainingCards.isNotEmpty ? remainingCards[0] : null);
       _discardPile = [];
-      if (drawStack.isNotEmpty) {
-        final firstCard = drawStack.removeAt(0);
-        _discardPile.add(Map<String, dynamic>.from(firstCard));
-        _logger.info('🎮 DemoScreen: Set up discard pile with first card', isOn: LOGGING_SWITCH);
+      if (discardCard != null && !dealtCardIds.contains(discardCard['cardId']?.toString())) {
+        _discardPile.add(Map<String, dynamic>.from(discardCard));
+        _logger.info('🎮 DemoScreen: Set up discard pile with ${discardCard['rank']} of ${discardCard['suit']}', isOn: LOGGING_SWITCH);
+      } else if (remainingCards.isNotEmpty) {
+        _discardPile.add(Map<String, dynamic>.from(remainingCards[0]));
+        _logger.info('🎮 DemoScreen: Set up discard pile with first remaining card', isOn: LOGGING_SWITCH);
       }
       
-      // 8. Set up draw pile - find a King and put it at the top
-      _drawPile = [];
-      Map<String, dynamic>? topKingCard;
+      // Remove discard card from remaining cards
+      final discardCardId = _discardPile.isNotEmpty ? _discardPile[0]['cardId']?.toString() : '';
+      final drawStack = List<Map<String, dynamic>>.from(
+        remainingCards.where((card) => card['cardId']?.toString() != discardCardId)
+      );
       
-      // Find a King card for the top of draw pile
-      int kingIndex = -1;
-      for (int i = 0; i < drawStack.length; i++) {
-        if (drawStack[i]['rank']?.toString() == 'king') {
-          kingIndex = i;
-          break;
+      // 8. Set up draw pile - ensure next 3 cards are regular number cards (not special)
+      _drawPile = [];
+      
+      // Find regular number cards (not ace, jack, queen, king) for the top 3 positions
+      final regularNumberCards = <Map<String, dynamic>>[];
+      final specialCards = <Map<String, dynamic>>[];
+      
+      for (final card in drawStack) {
+        final rank = card['rank']?.toString() ?? '';
+        if (rank == 'ace' || rank == 'jack' || rank == 'queen' || rank == 'king') {
+          specialCards.add(card);
+        } else {
+          regularNumberCards.add(card);
         }
       }
       
-      if (kingIndex != -1) {
-        topKingCard = drawStack.removeAt(kingIndex);
-        _drawPile.add(Map<String, dynamic>.from(topKingCard)); // Full data at top
-        _logger.info('🎮 DemoScreen: Added King ${topKingCard['suit']} to top of draw pile', isOn: LOGGING_SWITCH);
-      } else {
-        _logger.warning('⚠️ DemoScreen: No King found for top of draw pile', isOn: LOGGING_SWITCH);
+      // Add first 3 regular number cards to draw pile (full data at top)
+      for (int i = 0; i < 3 && i < regularNumberCards.length; i++) {
+        _drawPile.add(Map<String, dynamic>.from(regularNumberCards[i]));
+        _logger.info('🎮 DemoScreen: Added regular number card ${regularNumberCards[i]['rank']} of ${regularNumberCards[i]['suit']} to draw pile', isOn: LOGGING_SWITCH);
       }
       
-      // Add remaining cards as ID-only
-      _drawPile.addAll(drawStack.map((c) => _cardToIdOnly(c)).toList());
-      _logger.info('🎮 DemoScreen: Draw pile has ${_drawPile.length} cards (King at top: ${topKingCard != null})', isOn: LOGGING_SWITCH);
+      // Remove the 3 cards we just added from regularNumberCards
+      final remainingRegularCards = regularNumberCards.skip(3).toList();
+      
+      // Add remaining regular cards as ID-only
+      _drawPile.addAll(remainingRegularCards.map((c) => _cardToIdOnly(c)).toList());
+      
+      // Add special cards as ID-only at the end
+      _drawPile.addAll(specialCards.map((c) => _cardToIdOnly(c)).toList());
+      
+      _logger.info('🎮 DemoScreen: Draw pile has ${_drawPile.length} cards (first 3 are regular number cards)', isOn: LOGGING_SWITCH);
       
       // 9. Set current player
       _currentPlayer = {
@@ -518,8 +577,8 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
       _turnNumber = 1;
       
       // Set demo instructions phase to 'initial' (separate from game phase)
-      final stateManager = StateManager();
-      stateManager.updateModuleState('dutch_game', {
+      final stateUpdater = DutchGameStateUpdater.instance;
+      stateUpdater.updateStateSync({
         'demoInstructionsPhase': 'initial',
       });
       
@@ -588,37 +647,39 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         },
       };
       
-      // Ensure dutch_game state is registered
+      // Ensure dutch_game state is registered (clean registration without 'players' field)
       final stateManager = StateManager();
-      if (!stateManager.isModuleStateRegistered('dutch_game')) {
-        stateManager.registerModuleState('dutch_game', {
-          'isLoading': false,
-          'isConnected': false,
-          'currentRoomId': '',
-          'currentRoom': null,
-          'isInRoom': false,
-          'myCreatedRooms': <Map<String, dynamic>>[],
-          'players': <Map<String, dynamic>>[],
-          'joinedGames': <Map<String, dynamic>>[],
-          'totalJoinedGames': 0,
-          'joinedGamesTimestamp': '',
-          'currentGameId': '',
-          'games': <String, dynamic>{},
-          'userStats': null,
-          'userStatsLastUpdated': null,
-          'showCreateRoom': true,
-          'showRoomList': true,
-          'actionBar': <String, dynamic>{},
-          'statusBar': <String, dynamic>{},
-          'myHand': <String, dynamic>{},
-          'centerBoard': <String, dynamic>{},
-          'opponentsPanel': <String, dynamic>{},
-          'myDrawnCard': null,
-          'cards_to_peek': <Map<String, dynamic>>[],
-          'turn_events': <Map<String, dynamic>>[],
-          'lastUpdated': DateTime.now().toIso8601String(),
-        });
+      // Unregister and re-register to ensure clean state without invalid 'players' field
+      if (stateManager.isModuleStateRegistered('dutch_game')) {
+        final existingState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        // Remove invalid 'players' field if present
+        existingState.remove('players');
+        stateManager.unregisterModuleState('dutch_game');
       }
+      // Register with clean initial state (only valid fields from state schema)
+      stateManager.registerModuleState('dutch_game', {
+        'isLoading': false,
+        'isConnected': false,
+        'currentRoomId': '',
+        'isInRoom': false,
+        'myCreatedRooms': <Map<String, dynamic>>[],
+        'joinedGames': <Map<String, dynamic>>[],
+        'totalJoinedGames': 0,
+        'joinedGamesTimestamp': '',
+        'currentGameId': '',
+        'games': <String, dynamic>{},
+        'userStats': null,
+        'userStatsLastUpdated': null,
+        'actionBar': <String, dynamic>{},
+        'statusBar': <String, dynamic>{},
+        'myHand': <String, dynamic>{},
+        'centerBoard': <String, dynamic>{},
+        'opponentsPanel': <String, dynamic>{},
+        'myDrawnCard': null,
+        'cards_to_peek': <Map<String, dynamic>>[],
+        'turn_events': <Map<String, dynamic>>[],
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
       
       // Extract demo user ID from first player
       final firstPlayerId = _players[0]['id']?.toString() ?? '';
@@ -654,6 +715,9 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         'discardPile': _discardPile,
         'drawPileCount': _drawPile.length,
         'turn_events': <Map<String, dynamic>>[],
+        
+        // Demo Instructions Phase (allowed field)
+        'demoInstructionsPhase': 'initial',
         
         // Practice Mode (allowed fields)
         'practiceUser': {
@@ -733,9 +797,14 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
           'currentPlayerStatus': _currentPlayer?['status'] ?? 'waiting',
         };
         
-        // Update all widget slices
-        stateManager.updateModuleState('dutch_game', {
-          ...currentState,
+        // Update all widget slices using state updater
+        // Filter out invalid fields (like 'players') before spreading
+        final filteredState = Map<String, dynamic>.from(currentState);
+        filteredState.remove('players'); // Remove invalid top-level 'players' field
+        
+        final stateUpdater = DutchGameStateUpdater.instance;
+        stateUpdater.updateStateSync({
+          ...filteredState,
           'gameInfo': gameInfoSlice,
           'myHand': myHandSlice,
           'opponentsPanel': opponentsPanelSlice,
@@ -802,9 +871,8 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
         'lastUpdated': DateTime.now().toIso8601String(),
       });
       
-      // Clear demo instructions phase
-      final stateManager = StateManager();
-      stateManager.updateModuleState('dutch_game', {
+      // Clear demo instructions phase using state updater
+      stateUpdater.updateStateSync({
         'demoInstructionsPhase': '',
       });
       

@@ -12,17 +12,20 @@ class DemoPhaseInstruction {
   final String phase;
   final String title;
   final String paragraph;
+  final bool hasButton;
 
   DemoPhaseInstruction({
     required this.phase,
     required this.title,
     required this.paragraph,
+    this.hasButton = false,
   });
 
   Map<String, dynamic> toMap() => {
     'phase': phase,
     'title': title,
     'paragraph': paragraph,
+    'hasButton': hasButton,
   };
 }
 
@@ -49,6 +52,9 @@ class DemoFunctionality {
   
   // Timer for showing same rank instructions after opponent plays
   Timer? _sameRankInstructionsTimer;
+  
+  // Timer for same rank window (5 seconds, like practice mode)
+  Timer? _sameRankWindowTimer;
 
   /// List of demo phase instructions
   /// Each phase has a title and paragraph explaining what to do
@@ -57,6 +63,7 @@ class DemoFunctionality {
       phase: 'initial',
       title: 'Welcome to the Demo',
       paragraph: 'Let\'s go through a quick demo. The goal is to end the game with no cards or least points possible.',
+      hasButton: true,
     ),
     DemoPhaseInstruction(
       phase: 'initial_peek',
@@ -77,6 +84,12 @@ class DemoFunctionality {
       phase: 'same_rank',
       title: 'Same Rank Window',
       paragraph: 'An opponent has played a card of the same rank, and now they have 3 cards left. During same rank window any player can play a card of the same rank. If an incorrect rank is attempted, that player will be given an extra penalty card.',
+    ),
+    DemoPhaseInstruction(
+      phase: 'wrong_same_rank_penalty',
+      title: 'You played a wrong rank',
+      paragraph: 'When playing a wrong rank in the same rank window you will be given an extra penalty card. Now you have 5 cards. Next we will wait for your opponents to play their turns.',
+      hasButton: true, // Show "Let's go" button
     ),
     DemoPhaseInstruction(
       phase: 'jack_swap',
@@ -129,6 +142,8 @@ class DemoFunctionality {
           return await _handleQueenPeek(payload);
         case 'play_out_of_turn':
           return await _handlePlayOutOfTurn(payload);
+        case 'same_rank_play':
+          return await _handleSameRankPlay(payload);
         default:
           _logger.warning('⚠️ DemoFunctionality: Unknown action type: $actionType', isOn: LOGGING_SWITCH);
           return {'success': false, 'error': 'Unknown action type'};
@@ -297,8 +312,8 @@ class DemoFunctionality {
       'lastUpdated': DateTime.now().toIso8601String(),
     });
     
-    // Manually update widget slices (updateStateSync doesn't compute slices)
-    stateManager.updateModuleState('dutch_game', {
+    // Update widget slices and UI-only fields using state updater
+    stateUpdater.updateStateSync({
       'demoInstructionsPhase': 'playing', // Transition to playing phase
       'centerBoard': centerBoard, // Update centerBoard slice
       'myHand': myHand, // Update myHand slice with new status and cards
@@ -547,17 +562,22 @@ class DemoFunctionality {
     // Don't show instructions immediately when player plays - wait for opponent to play
     // Instructions will be shown 2 seconds after an opponent plays (in _handleOpponentSameRankPlays)
     
-    // Manually update widget slices (updateStateSync doesn't compute slices)
-    stateManager.updateModuleState('dutch_game', {
+    // Update widget slices and UI-only fields using state updater
+    stateUpdater.updateStateSync({
       'myDrawnCard': null, // Clear drawn card (it's now repositioned in hand or discarded)
       'demoInstructionsPhase': '', // Don't show instructions yet - wait for opponent to play
       'centerBoard': centerBoard,
       'myHand': myHand,
+      'gamePhase': 'same_rank_window', // Set game phase to same_rank_window
     });
     
     _logger.info('✅ DemoFunctionality: Card $cardId played successfully', isOn: LOGGING_SWITCH);
     _logger.info('✅ DemoFunctionality: Updated all players status to same_rank_window', isOn: LOGGING_SWITCH);
     _logger.info('✅ DemoFunctionality: Transitioned to same_rank phase', isOn: LOGGING_SWITCH);
+    
+    // Cancel any existing same rank window timer - user controls when to proceed
+    // Timer will only be set when opponents play same rank cards
+    _sameRankWindowTimer?.cancel();
     
     // After user plays, automatically play same rank cards from opponents (demo mode)
     // Read fresh gameState from games map to ensure we have the latest state
@@ -580,6 +600,337 @@ class DemoFunctionality {
         _logger.error('❌ DemoFunctionality: Error in opponent same rank plays: $error', error: error, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
       });
     }
+    
+    return {'success': true, 'mode': 'demo', 'cardId': cardId};
+  }
+  
+  /// Handle same rank play action in demo mode
+  /// Intercepts PlayerAction.sameRankPlay() which sends event 'same_rank_play' with payload:
+  /// - card_id: ID of the card to play
+  /// - game_id: gameId
+  /// - player_id: auto-added by event emitter
+  Future<Map<String, dynamic>> _handleSameRankPlay(Map<String, dynamic> payload) async {
+    _logger.info('🎮 DemoFunctionality: Same rank play action intercepted', isOn: LOGGING_SWITCH);
+    _logger.info('🎮 DemoFunctionality: Payload: $payload', isOn: LOGGING_SWITCH);
+    
+    // Cancel any pending same rank instructions timer (player is playing, not waiting)
+    _sameRankInstructionsTimer?.cancel();
+    
+    // Cancel same rank window timer - timer only applies to opponent simulation, not user plays
+    _sameRankWindowTimer?.cancel();
+    
+    final cardId = payload['card_id']?.toString() ?? '';
+    if (cardId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: No card_id provided for same rank play', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'No card_id provided'};
+    }
+    
+    final stateManager = StateManager();
+    final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    
+    if (currentGameId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: No currentGameId found', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'No active game'};
+    }
+    
+    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+    
+    // Get current player ID from state
+    final currentPlayerId = dutchGameState['currentPlayer']?['id']?.toString() ?? 
+                           dutchGameState['playerId']?.toString() ?? '';
+    
+    if (currentPlayerId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: No current player ID found', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'No current player'};
+    }
+    
+    // Find the player
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? player;
+    for (var p in players) {
+      if (p is Map<String, dynamic> && p['id']?.toString() == currentPlayerId) {
+        player = p;
+        break;
+      }
+    }
+    
+    if (player == null) {
+      _logger.error('❌ DemoFunctionality: Player $currentPlayerId not found', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Player not found'};
+    }
+    
+    // Find the card in player's hand
+    final handRaw = player['hand'] as List<dynamic>? ?? [];
+    final hand = List<dynamic>.from(handRaw); // Convert to mutable list to allow nulls
+    Map<String, dynamic>? playedCard;
+    int cardIndex = -1;
+    
+    for (int i = 0; i < hand.length; i++) {
+      final card = hand[i];
+      if (card != null && card is Map<String, dynamic> && card['cardId']?.toString() == cardId) {
+        playedCard = card;
+        cardIndex = i;
+        break;
+      }
+    }
+    
+    if (playedCard == null) {
+      _logger.warning('⚠️ DemoFunctionality: Card $cardId not found in player $currentPlayerId hand', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Card not found in hand'};
+    }
+    
+    _logger.info('🎮 DemoFunctionality: Found card $cardId at index $cardIndex', isOn: LOGGING_SWITCH);
+    
+    // Get full card data
+    final playedCardFullData = _getCardById(cardId);
+    if (playedCardFullData == null) {
+      _logger.error('❌ DemoFunctionality: Failed to get full card data for $cardId', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Failed to get card data'};
+    }
+    
+    final cardRank = playedCardFullData['rank']?.toString() ?? '';
+    final cardSuit = playedCardFullData['suit']?.toString() ?? '';
+    
+    _logger.info('🎮 DemoFunctionality: Playing card $cardId (rank: $cardRank, suit: $cardSuit)', isOn: LOGGING_SWITCH);
+    
+    // Validate same rank play (check if rank matches discard pile top card)
+    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
+    bool isValidSameRank = false;
+    
+    if (discardPile.isNotEmpty) {
+      final lastCard = discardPile.last as Map<String, dynamic>?;
+      if (lastCard != null) {
+        final lastCardRank = lastCard['rank']?.toString() ?? '';
+        isValidSameRank = cardRank.toLowerCase() == lastCardRank.toLowerCase();
+        _logger.info('🎮 DemoFunctionality: Same rank validation - played: $cardRank, required: $lastCardRank, valid: $isValidSameRank', isOn: LOGGING_SWITCH);
+      }
+    }
+    
+    if (!isValidSameRank) {
+      // Apply penalty: draw a card from the draw pile and add to player's hand
+      _logger.info('🎮 DemoFunctionality: Same rank validation failed - applying penalty card', isOn: LOGGING_SWITCH);
+      
+      final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+      
+      // Check if draw pile is empty and reshuffle if needed
+      if (drawPile.isEmpty) {
+        if (discardPile.length <= 1) {
+          _logger.error('❌ DemoFunctionality: Cannot apply penalty - draw pile is empty and discard pile has ${discardPile.length} card(s)', isOn: LOGGING_SWITCH);
+          return {'success': false, 'error': 'Cannot apply penalty - no cards available'};
+        }
+        
+        // Keep the top card in discard pile, reshuffle the rest
+        final topCard = discardPile.last as Map<String, dynamic>;
+        final cardsToReshuffle = discardPile.sublist(0, discardPile.length - 1);
+        
+        _logger.info('🎮 DemoFunctionality: Draw pile empty during penalty - reshuffling ${cardsToReshuffle.length} cards from discard pile', isOn: LOGGING_SWITCH);
+        
+        // Convert full card data to ID-only for reshuffled cards
+        final idOnlyCards = cardsToReshuffle.map((card) {
+          if (card is Map<String, dynamic>) {
+            return <String, dynamic>{
+              'cardId': card['cardId'],
+              'suit': '?',
+              'rank': '?',
+              'points': 0,
+            };
+          }
+          return card;
+        }).toList();
+        
+        // Shuffle the cards
+        idOnlyCards.shuffle();
+        
+        // Add shuffled cards to draw pile
+        drawPile.addAll(idOnlyCards);
+        
+        // Keep only the top card in discard pile
+        gameState['discardPile'] = [topCard];
+        gameState['drawPile'] = drawPile;
+        
+        _logger.info('🎮 DemoFunctionality: Reshuffled ${idOnlyCards.length} cards into draw pile for penalty', isOn: LOGGING_SWITCH);
+      }
+      
+      // Re-fetch drawPile in case it was reshuffled
+      final currentDrawPile = gameState['drawPile'] as List<dynamic>? ?? [];
+      if (currentDrawPile.isEmpty) {
+        _logger.error('❌ DemoFunctionality: Draw pile is empty after reshuffle check - cannot apply penalty', isOn: LOGGING_SWITCH);
+        return {'success': false, 'error': 'Draw pile is empty'};
+      }
+      
+      // Draw a card from the draw pile (remove last card)
+      final penaltyCardRaw = currentDrawPile.removeLast();
+      Map<String, dynamic> penaltyCard;
+      if (penaltyCardRaw is Map<String, dynamic>) {
+        penaltyCard = penaltyCardRaw;
+      } else {
+        _logger.error('❌ DemoFunctionality: Penalty card is not a Map', isOn: LOGGING_SWITCH);
+        return {'success': false, 'error': 'Invalid penalty card format'};
+      }
+      
+      _logger.info('🎮 DemoFunctionality: Drew penalty card ${penaltyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
+      
+      // Add penalty card to player's hand as ID-only (same format as regular hand cards)
+      final penaltyCardIdOnly = {
+        'cardId': penaltyCard['cardId'],
+        'suit': '?',      // Face-down: hide suit
+        'rank': '?',      // Face-down: hide rank
+        'points': 0,      // Face-down: hide points
+      };
+      
+      hand.add(penaltyCardIdOnly);
+      _logger.info('🎮 DemoFunctionality: Added penalty card ${penaltyCard['cardId']} to player $currentPlayerId hand', isOn: LOGGING_SWITCH);
+      
+      // Update player's hand and draw pile in game state
+      player['hand'] = hand;
+      gameState['drawPile'] = currentDrawPile;
+      gameState['players'] = players;
+      
+      // Update game data
+      gameData['game_state'] = gameState;
+      currentGame['gameData'] = gameData;
+      games[currentGameId] = currentGame;
+      
+      // Update player status to 'waiting' (penalty applied, same rank window continues)
+      player['status'] = 'waiting';
+      
+      // Update widget slices
+      final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+      final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+      
+      // Update myHand slice with new hand
+      final myHandCards = List<dynamic>.from(hand);
+      myHand['cards'] = myHandCards;
+      myHand['playerStatus'] = 'waiting';
+      
+      // Update centerBoard slice with draw pile count
+      centerBoard['drawPileCount'] = currentDrawPile.length;
+      
+      // Use official state updater for main game state
+      final stateUpdater = DutchGameStateUpdater.instance;
+      stateUpdater.updateStateSync({
+        'games': games,
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      // Cancel same rank window timer - user will control when to proceed via "Let's go" button
+      _sameRankWindowTimer?.cancel();
+      
+      // Update widget slices and UI-only fields using state updater
+      stateUpdater.updateStateSync({
+        'centerBoard': centerBoard,
+        'myHand': myHand,
+        'playerStatus': 'waiting',
+        'currentPlayerStatus': 'waiting',
+        'demoInstructionsPhase': 'wrong_same_rank_penalty', // Show wrong rank penalty instructions
+      });
+      
+      final handCount = hand.where((c) => c != null).length;
+      
+      _logger.info('✅ DemoFunctionality: Penalty applied successfully - player $currentPlayerId now has $handCount cards', isOn: LOGGING_SWITCH);
+      
+      return {'success': true, 'mode': 'demo', 'penalty': true, 'cardId': cardId};
+    }
+    
+    // SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
+    _logger.info('✅ DemoFunctionality: Same rank validation passed - removing card from hand', isOn: LOGGING_SWITCH);
+    
+    // Check if we should create a blank slot or remove the card entirely
+    bool shouldCreateBlankSlot = cardIndex <= 3;
+    if (cardIndex > 3) {
+      // For index 4+, only create blank slot if there are cards after this index
+      for (int i = cardIndex + 1; i < hand.length; i++) {
+        if (hand[i] != null) {
+          shouldCreateBlankSlot = true;
+          break;
+        }
+      }
+    }
+    
+    // Remove card from hand
+    if (shouldCreateBlankSlot) {
+      hand[cardIndex] = null; // Create blank slot to maintain structure
+      _logger.info('✅ DemoFunctionality: Created blank slot at index $cardIndex for same rank play', isOn: LOGGING_SWITCH);
+    } else {
+      hand.removeAt(cardIndex); // Remove entirely and shift remaining cards
+      _logger.info('✅ DemoFunctionality: Removed same rank card entirely from index $cardIndex', isOn: LOGGING_SWITCH);
+    }
+    
+    // Update player's hand
+    player['hand'] = hand;
+    
+    // Add card to discard pile with full data
+    final updatedDiscardPile = List<Map<String, dynamic>>.from(
+      (gameState['discardPile'] as List<dynamic>? ?? []).map((c) {
+        if (c is Map<String, dynamic>) {
+          return Map<String, dynamic>.from(c);
+        }
+        return <String, dynamic>{};
+      })
+    );
+    updatedDiscardPile.add(Map<String, dynamic>.from(playedCardFullData));
+    gameState['discardPile'] = updatedDiscardPile;
+    
+    // Update game state
+    gameState['players'] = players;
+    gameData['game_state'] = gameState;
+    currentGame['gameData'] = gameData;
+    games[currentGameId] = currentGame;
+    
+    // Update player status to 'waiting' (same rank window continues)
+    player['status'] = 'waiting';
+    
+    // Update widget slices
+    final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+    final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+    
+    // Update myHand slice with new hand
+    final myHandCards = List<dynamic>.from(hand);
+    myHand['cards'] = myHandCards;
+    myHand['playerStatus'] = 'waiting';
+    
+    // Update centerBoard slice with discard pile
+    centerBoard['discardPile'] = updatedDiscardPile;
+    
+    // Create turn event for the same rank play
+    final currentTurnEvents = dutchGameState['turn_events'] as List<dynamic>? ?? [];
+    final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
+      ..add({
+        'cardId': cardId,
+        'actionType': 'same_rank_play',
+        'playerId': currentPlayerId,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+    
+    // Use official state updater for main game state
+    final stateUpdater = DutchGameStateUpdater.instance;
+    stateUpdater.updateStateSync({
+      'games': games,
+      'discardPile': updatedDiscardPile,
+      'turn_events': turnEvents,
+      'lastUpdated': DateTime.now().toIso8601String(),
+    });
+    
+    // Update widget slices and UI-only fields using state updater
+    stateUpdater.updateStateSync({
+      'centerBoard': centerBoard,
+      'myHand': myHand,
+      'playerStatus': 'waiting',
+      'currentPlayerStatus': 'waiting',
+      'turn_events': turnEvents,
+      'demoInstructionsPhase': '', // Clear instructions when player plays
+      'gamePhase': 'same_rank_window', // Keep same rank window active
+    });
+    
+    // Cancel any existing same rank window timer - user controls when to proceed
+    // Timer will only be set when opponents play same rank cards
+    _sameRankWindowTimer?.cancel();
+    
+    _logger.info('✅ DemoFunctionality: Same rank play successful - card $cardId (rank: $cardRank) added to discard pile', isOn: LOGGING_SWITCH);
     
     return {'success': true, 'mode': 'demo', 'cardId': cardId};
   }
@@ -775,7 +1126,7 @@ class DemoFunctionality {
         }
         
         // Update state immediately after each opponent plays (for visual feedback)
-        // Align with other demo state updates - use stateManager.updateModuleState()
+        // Align with other demo state updates - use DutchGameStateUpdater
         if (currentGameIdAfterDelay.isNotEmpty) {
           _logger.info('🎮 DemoFunctionality: Getting currentGame from gamesAfterDelay', isOn: LOGGING_SWITCH);
           final currentGame = gamesAfterDelay[currentGameIdAfterDelay] as Map<String, dynamic>? ?? {};
@@ -830,8 +1181,9 @@ class DemoFunctionality {
             'lastUpdated': DateTime.now().toIso8601String(),
           });
           
-          // Manually update widget slices (updateStateSync doesn't compute slices)
-          stateManager.updateModuleState('dutch_game', {
+          // Update widget slices using state updater
+          final stateUpdaterForOpponent = DutchGameStateUpdater.instance;
+          stateUpdaterForOpponent.updateStateSync({
             'centerBoard': centerBoard, // Updated center board slice
             'opponentsPanel': opponentsPanel, // Updated opponents panel slice
           });
@@ -845,8 +1197,8 @@ class DemoFunctionality {
           _sameRankInstructionsTimer = Timer(const Duration(seconds: 3), () {
             _logger.info('🎮 DemoFunctionality: Showing same rank instructions after 3 seconds', isOn: LOGGING_SWITCH);
             
-            final stateManager = StateManager();
-            stateManager.updateModuleState('dutch_game', {
+            final stateUpdaterForTimer = DutchGameStateUpdater.instance;
+            stateUpdaterForTimer.updateStateSync({
               'demoInstructionsPhase': 'same_rank',
             });
             
@@ -983,6 +1335,7 @@ class DemoFunctionality {
       'isVisible': isVisible,
       'title': instruction.title,
       'paragraph': instruction.paragraph,
+      'hasButton': instruction.hasButton,
     };
   }
 
@@ -999,9 +1352,9 @@ class DemoFunctionality {
     // Clear any previous selection (including myCardsToPeek since we're starting fresh)
     clearInitialPeekSelection();
     
-    // Update demoInstructionsPhase (UI-only field, not in validated schema)
-    final stateManager = StateManager();
-    stateManager.updateModuleState('dutch_game', {
+    // Update demoInstructionsPhase using state updater
+    final stateUpdater = DutchGameStateUpdater.instance;
+    stateUpdater.updateStateSync({
       'demoInstructionsPhase': 'initial_peek',
     });
     
@@ -1073,7 +1426,6 @@ class DemoFunctionality {
     _initialPeekSelectedCardIds.add(cardId);
     final selectedCount = _initialPeekSelectedCardIds.length;
     
-    final stateManager = StateManager();
     final updates = <String, dynamic>{};
     
     if (selectedCount == 1) {
@@ -1081,8 +1433,9 @@ class DemoFunctionality {
       updates['demoInstructionsPhase'] = '';
       _logger.info('🎮 DemoFunctionality: Hiding initial peek instructions (first card selected, waiting for second card)', isOn: LOGGING_SWITCH);
       
-      // Update state to hide instructions only
-      stateManager.updateModuleState('dutch_game', updates);
+      // Update state to hide instructions only using state updater
+      final stateUpdater = DutchGameStateUpdater.instance;
+      stateUpdater.updateStateSync(updates);
       
     } else if (selectedCount == 2) {
       // Both cards selected - now update state with both cards at once
@@ -1162,8 +1515,8 @@ class DemoFunctionality {
           'lastUpdated': DateTime.now().toIso8601String(),
         });
         
-        // Manually update widget slices and demo-specific UI fields (not in validated schema)
-        stateManager.updateModuleState('dutch_game', {
+        // Update widget slices and demo-specific UI fields using state updater
+        stateUpdater.updateStateSync({
           'myCardsToPeek': idOnlyCards,
           'demoInstructionsPhase': 'drawing',
           'centerBoard': centerBoard, // Update centerBoard slice
@@ -1174,8 +1527,9 @@ class DemoFunctionality {
         _logger.info('✅ DemoFunctionality: Updated myHand slice with playerStatus=drawing_card for status chip display', isOn: LOGGING_SWITCH);
       });
       
-      // Update state with both cards
-      stateManager.updateModuleState('dutch_game', updates);
+      // Update state with both cards using state updater
+      final stateUpdater = DutchGameStateUpdater.instance;
+      stateUpdater.updateStateSync(updates);
     }
     
     _logger.info('✅ DemoFunctionality: Added card $cardId to initial peek. Selected: $selectedCount/2', isOn: LOGGING_SWITCH);
@@ -1199,9 +1553,9 @@ class DemoFunctionality {
     _drawingInstructionsTimer?.cancel();
     _drawingInstructionsTimer = null;
     
-    // Also clear myCardsToPeek from state
-    final stateManager = StateManager();
-    stateManager.updateModuleState('dutch_game', {
+    // Also clear myCardsToPeek from state using state updater
+    final stateUpdater = DutchGameStateUpdater.instance;
+    stateUpdater.updateStateSync({
       'myCardsToPeek': <Map<String, dynamic>>[],
     });
   }
@@ -1211,6 +1565,414 @@ class DemoFunctionality {
   void clearInitialPeekTracking() {
     _logger.info('🎮 DemoFunctionality: Clearing initial peek tracking (keeping cards visible)', isOn: LOGGING_SWITCH);
     _initialPeekSelectedCardIds.clear();
+  }
+  
+  /// End same rank window and simulate opponent turns
+  /// Matches practice mode behavior: reset players to waiting, then simulate each opponent drawing and playing
+  /// Can be called from instructions widget "Let's go" button or from timer
+  Future<void> endSameRankWindowAndSimulateOpponents() async {
+    try {
+      _logger.info('🎮 DemoFunctionality: Ending same rank window and simulating opponents', isOn: LOGGING_SWITCH);
+      
+      final stateManager = StateManager();
+      final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+      final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+      
+      if (currentGameId.isEmpty) {
+        _logger.error('❌ DemoFunctionality: No currentGameId found', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+      final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+      final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+      
+      // Cancel any existing same rank window timer before starting simulation
+      _sameRankWindowTimer?.cancel();
+      _sameRankWindowTimer = null;
+      
+      // CRITICAL: Read from SSOT (games[currentGameId]['gameData']['game_state']['players'])
+      // Create a deep copy of the entire games map structure to avoid mutating references
+      final gamesCopy = Map<String, dynamic>.from(games);
+      final currentGameCopy = Map<String, dynamic>.from(currentGame);
+      final gameDataCopy = Map<String, dynamic>.from(gameData);
+      final gameStateCopy = Map<String, dynamic>.from(gameState);
+      
+      // Create new players list with all players set to 'waiting'
+      final playersCopy = (gameStateCopy['players'] as List<dynamic>? ?? []).map((p) {
+        if (p is Map<String, dynamic>) {
+          final playerCopy = Map<String, dynamic>.from(p);
+          playerCopy['status'] = 'waiting';
+          return playerCopy;
+        }
+        return p;
+      }).toList();
+      
+      // Update SSOT structure with new players list
+      gameStateCopy['players'] = playersCopy;
+      gameDataCopy['game_state'] = gameStateCopy;
+      currentGameCopy['gameData'] = gameDataCopy;
+      gamesCopy[currentGameId] = currentGameCopy;
+      
+      // Log all player statuses before update
+      _logger.info('🎮 DemoFunctionality: Resetting all players to waiting:', isOn: LOGGING_SWITCH);
+      for (var p in playersCopy) {
+        if (p is Map<String, dynamic>) {
+          final playerId = p['id']?.toString() ?? '';
+          final playerName = p['name']?.toString() ?? 'Unknown';
+          final status = p['status']?.toString() ?? 'unknown';
+          _logger.info('  - Player $playerName ($playerId): $status', isOn: LOGGING_SWITCH);
+        }
+      }
+      
+      // Update state using state updater - this updates the SSOT
+      final stateUpdater = DutchGameStateUpdater.instance;
+      stateUpdater.updateStateSync({
+        'currentGameId': currentGameId,
+        'games': gamesCopy, // SSOT: Updated games map with all players set to waiting
+        'gamePhase': 'player_turn', // Set phase to player_turn
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      _logger.info('✅ DemoFunctionality: Same rank window ended, reset all players to waiting in SSOT', isOn: LOGGING_SWITCH);
+      
+      // CRITICAL: Re-read from SSOT after update to verify all players are waiting
+      await Future.delayed(const Duration(milliseconds: 100)); // Allow state to propagate
+      final freshDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final freshGames = freshDutchGameState['games'] as Map<String, dynamic>? ?? {};
+      final freshCurrentGame = freshGames[currentGameId] as Map<String, dynamic>? ?? {};
+      final freshGameData = freshCurrentGame['gameData'] as Map<String, dynamic>? ?? {};
+      final freshGameState = freshGameData['game_state'] as Map<String, dynamic>? ?? {};
+      final freshPlayers = freshGameState['players'] as List<dynamic>? ?? [];
+      
+      // Verify all players are waiting (defensive check)
+      bool needsUpdate = false;
+      final freshPlayersCopy = freshPlayers.map((p) {
+        if (p is Map<String, dynamic>) {
+          final playerId = p['id']?.toString() ?? '';
+          final playerName = p['name']?.toString() ?? 'Unknown';
+          final status = p['status']?.toString() ?? 'unknown';
+          _logger.info('🎮 DemoFunctionality: Verified Player $playerName ($playerId) status: $status', isOn: LOGGING_SWITCH);
+          
+          if (status != 'waiting') {
+            _logger.warning('⚠️ DemoFunctionality: Player $playerName ($playerId) still has status $status, fixing...', isOn: LOGGING_SWITCH);
+            needsUpdate = true;
+            final playerCopy = Map<String, dynamic>.from(p);
+            playerCopy['status'] = 'waiting';
+            return playerCopy;
+          }
+        }
+        return p;
+      }).toList();
+      
+      // If any players needed fixing, update SSOT again with deep copy
+      if (needsUpdate) {
+        final fixedGamesCopy = Map<String, dynamic>.from(freshGames);
+        final fixedCurrentGameCopy = Map<String, dynamic>.from(freshCurrentGame);
+        final fixedGameDataCopy = Map<String, dynamic>.from(freshGameData);
+        final fixedGameStateCopy = Map<String, dynamic>.from(freshGameState);
+        
+        fixedGameStateCopy['players'] = freshPlayersCopy;
+        fixedGameDataCopy['game_state'] = fixedGameStateCopy;
+        fixedCurrentGameCopy['gameData'] = fixedGameDataCopy;
+        fixedGamesCopy[currentGameId] = fixedCurrentGameCopy;
+        
+        stateUpdater.updateStateSync({
+          'currentGameId': currentGameId,
+          'games': fixedGamesCopy, // SSOT: Updated games map with all players confirmed as waiting
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+        
+        _logger.info('✅ DemoFunctionality: Re-updated SSOT with all players confirmed as waiting', isOn: LOGGING_SWITCH);
+      }
+      
+      // Simulate each opponent's turn (draw and play)
+      // Get opponents (non-human players) from fresh state
+      final opponents = freshPlayers.where((p) {
+        if (p is Map<String, dynamic>) {
+          return p['isHuman'] != true && p['isActive'] == true;
+        }
+        return false;
+      }).toList();
+      
+      _logger.info('🎮 DemoFunctionality: Simulating ${opponents.length} opponents', isOn: LOGGING_SWITCH);
+      
+      // Predefined play indices: Opponent 1 -> index 3, Opponent 2 -> index 2, Opponent 3 -> index 4 (drawn card)
+      final playIndices = [3, 2, 4];
+      
+      // Process each opponent sequentially
+      for (int opponentIndex = 0; opponentIndex < opponents.length; opponentIndex++) {
+        final opponent = opponents[opponentIndex];
+        if (opponent is! Map<String, dynamic>) continue;
+        
+        final opponentId = opponent['id']?.toString() ?? '';
+        final opponentName = opponent['name']?.toString() ?? 'Opponent';
+        final playIndex = playIndices[opponentIndex % playIndices.length];
+        
+        _logger.info('🎮 DemoFunctionality: Simulating turn for $opponentName ($opponentId) - will play index $playIndex', isOn: LOGGING_SWITCH);
+        
+        // 2 second delay before drawing
+        await Future.delayed(const Duration(seconds: 2));
+        
+        // Re-read state to avoid stale references
+        final freshDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final freshGames = freshDutchGameState['games'] as Map<String, dynamic>? ?? {};
+        final freshCurrentGame = freshGames[currentGameId] as Map<String, dynamic>? ?? {};
+        final freshGameData = freshCurrentGame['gameData'] as Map<String, dynamic>? ?? {};
+        final freshGameState = freshGameData['game_state'] as Map<String, dynamic>? ?? {};
+        
+        // Find opponent in fresh state
+        final freshPlayers = freshGameState['players'] as List<dynamic>? ?? [];
+        Map<String, dynamic>? freshOpponent;
+        for (var p in freshPlayers) {
+          if (p is Map<String, dynamic> && p['id']?.toString() == opponentId) {
+            freshOpponent = p;
+            break;
+          }
+        }
+        
+        if (freshOpponent == null) {
+          _logger.warning('⚠️ DemoFunctionality: Opponent $opponentId not found in fresh state', isOn: LOGGING_SWITCH);
+          continue;
+        }
+        
+        // Update opponent status to 'drawing'
+        freshOpponent['status'] = 'drawing';
+        freshGameState['players'] = freshPlayers;
+        freshGameData['game_state'] = freshGameState;
+        freshCurrentGame['gameData'] = freshGameData;
+        freshGames[currentGameId] = freshCurrentGame;
+        
+        // Use updateState (not updateStateSync) to trigger widget slice recomputation
+        stateUpdater.updateState({
+          'currentGameId': currentGameId,
+          'games': freshGames,
+          'currentPlayer': freshOpponent,
+          'currentPlayerStatus': 'drawing',
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+        
+        // 1. Draw a card from draw pile
+        final drawPile = freshGameState['drawPile'] as List<dynamic>? ?? [];
+        if (drawPile.isEmpty) {
+          _logger.warning('⚠️ DemoFunctionality: Draw pile is empty, cannot draw for $opponentName', isOn: LOGGING_SWITCH);
+          continue;
+        }
+        
+        // Remove last card from draw pile (top of stack)
+        final drawnCardRaw = drawPile.removeLast();
+        Map<String, dynamic> drawnCard;
+        if (drawnCardRaw is Map<String, dynamic>) {
+          drawnCard = drawnCardRaw;
+        } else {
+          // If it's ID-only, get full data
+          final cardId = drawnCardRaw['cardId']?.toString() ?? '';
+          final fullCard = _getCardById(cardId);
+          if (fullCard == null) {
+            _logger.warning('⚠️ DemoFunctionality: Could not get full card data for $cardId', isOn: LOGGING_SWITCH);
+            continue;
+          }
+          drawnCard = fullCard;
+        }
+        
+        _logger.info('🎮 DemoFunctionality: $opponentName drew ${drawnCard['rank']} of ${drawnCard['suit']}', isOn: LOGGING_SWITCH);
+        
+        // Add drawn card to opponent's hand as ID-only (temporarily at the end)
+        final opponentHandRaw = freshOpponent['hand'] as List<dynamic>? ?? [];
+        final opponentHand = List<dynamic>.from(opponentHandRaw);
+        final drawnCardIdOnly = {
+          'cardId': drawnCard['cardId'],
+          'suit': '?',
+          'rank': '?',
+          'points': 0,
+        };
+        opponentHand.add(drawnCardIdOnly);
+        freshOpponent['hand'] = opponentHand;
+        
+        // Update draw pile
+        freshGameState['drawPile'] = drawPile;
+        freshGameState['players'] = freshPlayers;
+        freshGameData['game_state'] = freshGameState;
+        freshCurrentGame['gameData'] = freshGameData;
+        freshGames[currentGameId] = freshCurrentGame;
+        
+        // Update state after drawing (match practice mode pattern)
+        // Update games map with new draw pile and player status
+        freshCurrentGame['gameData'] = freshGameData;
+        freshGames[currentGameId] = freshCurrentGame;
+        
+        // Update main state like practice mode does (use updateState to trigger widget recomputation)
+        stateUpdater.updateState({
+          'currentGameId': currentGameId,
+          'games': freshGames,
+          'currentPlayer': freshOpponent,
+          'currentPlayerStatus': 'drawing_card',
+          'drawPileCount': drawPile.length,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+        
+        // Wait 2 seconds after drawing before playing
+        await Future.delayed(const Duration(seconds: 2));
+        
+        // 2. Play card from predefined index
+        // For index 4, play the drawn card (last card in hand)
+        // For other indices, play the card at that index
+        Map<String, dynamic>? cardToPlay;
+        int actualCardIndex = -1;
+        
+        if (playIndex == 4) {
+          // Play the drawn card (last card in hand, which is the one we just added)
+          if (opponentHand.isEmpty) {
+            _logger.warning('⚠️ DemoFunctionality: $opponentName cannot play index 4 (drawn card) - hand is empty', isOn: LOGGING_SWITCH);
+            continue;
+          }
+          actualCardIndex = opponentHand.length - 1; // Last card is the drawn one
+          final cardAtIndex = opponentHand[actualCardIndex];
+          if (cardAtIndex == null || cardAtIndex is! Map<String, dynamic>) {
+            _logger.warning('⚠️ DemoFunctionality: $opponentName has no valid drawn card at index $actualCardIndex', isOn: LOGGING_SWITCH);
+            continue;
+          }
+          cardToPlay = cardAtIndex;
+        } else {
+          // Play card at predefined index (use actual array index)
+          if (opponentHand.isEmpty || playIndex >= opponentHand.length) {
+            _logger.warning('⚠️ DemoFunctionality: $opponentName cannot play index $playIndex (hand size: ${opponentHand.length})', isOn: LOGGING_SWITCH);
+            continue;
+          }
+          final cardAtIndex = opponentHand[playIndex];
+          if (cardAtIndex == null || cardAtIndex is! Map<String, dynamic>) {
+            _logger.warning('⚠️ DemoFunctionality: $opponentName has no valid card at index $playIndex', isOn: LOGGING_SWITCH);
+            continue;
+          }
+          cardToPlay = cardAtIndex;
+          actualCardIndex = playIndex;
+        }
+        
+        final cardId = cardToPlay['cardId']?.toString() ?? '';
+        final fullCardData = _getCardById(cardId);
+        if (fullCardData == null) {
+          _logger.warning('⚠️ DemoFunctionality: Could not get full card data for $cardId', isOn: LOGGING_SWITCH);
+          continue;
+        }
+        
+        _logger.info('🎮 DemoFunctionality: $opponentName playing ${fullCardData['rank']} of ${fullCardData['suit']} from index $actualCardIndex', isOn: LOGGING_SWITCH);
+        
+        // Update opponent status to 'playing_card' (match practice mode)
+        freshOpponent['status'] = 'playing_card';
+        freshGameState['players'] = freshPlayers;
+        freshGameData['game_state'] = freshGameState;
+        freshCurrentGame['gameData'] = freshGameData;
+        freshGames[currentGameId] = freshCurrentGame;
+        
+        // Update main state like practice mode does (use updateState to trigger widget recomputation)
+        stateUpdater.updateState({
+          'currentGameId': currentGameId,
+          'games': freshGames,
+          'currentPlayer': freshOpponent,
+          'currentPlayerStatus': 'playing_card',
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+        
+        // Remove card from hand (create blank slot)
+        opponentHand[actualCardIndex] = null;
+        freshOpponent['hand'] = opponentHand;
+        
+        // Add card to discard pile
+        final discardPile = freshGameState['discardPile'] as List<dynamic>? ?? [];
+        discardPile.add(Map<String, dynamic>.from(fullCardData));
+        freshGameState['discardPile'] = discardPile;
+        
+        // Update all players to same_rank_window
+        for (var p in freshPlayers) {
+          if (p is Map<String, dynamic>) {
+            p['status'] = 'same_rank_window';
+          }
+        }
+        
+        freshGameState['players'] = freshPlayers;
+        freshGameData['game_state'] = freshGameState;
+        freshCurrentGame['gameData'] = freshGameData;
+        freshGames[currentGameId] = freshCurrentGame;
+        
+        // Wait 1 second after playing, then move drawn card to played index (if not playing the drawn card itself)
+        await Future.delayed(const Duration(seconds: 1));
+        
+        // Move drawn card to the played index (only if we didn't play the drawn card)
+        // The drawn card is at the last index (opponentHand.length - 1) after we set the played card to null
+        final drawnCardIndex = opponentHand.length - 1; // Last card is the drawn one
+        if (actualCardIndex != drawnCardIndex && drawnCardIndex >= 0 && drawnCardIndex < opponentHand.length) {
+          // The played card was not the drawn card, so move the drawn card to the played index
+          final drawnCardToMove = opponentHand[drawnCardIndex];
+          if (drawnCardToMove != null && drawnCardToMove is Map<String, dynamic>) {
+            opponentHand[drawnCardIndex] = null; // Remove drawn card from end
+            opponentHand[actualCardIndex] = drawnCardToMove; // Place at played index
+            freshOpponent['hand'] = opponentHand;
+            freshGameState['players'] = freshPlayers;
+            freshGameData['game_state'] = freshGameState;
+            freshCurrentGame['gameData'] = freshGameData;
+            freshGames[currentGameId] = freshCurrentGame;
+            _logger.info('🎮 DemoFunctionality: Moved drawn card from index $drawnCardIndex to index $actualCardIndex for $opponentName', isOn: LOGGING_SWITCH);
+          }
+        } else {
+          // The played card was the drawn card itself, no reposition needed
+          _logger.info('🎮 DemoFunctionality: $opponentName played the drawn card at index $actualCardIndex, no reposition needed', isOn: LOGGING_SWITCH);
+        }
+        
+        // Update games map with final state (after card reposition)
+        freshCurrentGame['gameData'] = freshGameData;
+        freshGames[currentGameId] = freshCurrentGame;
+        
+        // Re-read state to get latest turn_events before adding new event
+        final latestDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final currentTurnEvents = latestDutchGameState['turn_events'] as List<dynamic>? ?? [];
+        
+        // Create turn event (match practice mode format)
+        final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
+          ..add({
+            'cardId': cardId,
+            'actionType': 'play',
+            'playerId': opponentId,
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          });
+        
+        // Update main state like practice mode does (comprehensive update - use updateState to trigger widget recomputation)
+        stateUpdater.updateState({
+          'currentGameId': currentGameId,
+          'games': freshGames, // Full games map with updated game state
+          'gamePhase': 'same_rank_window', // Normalized UI phase
+          'currentPlayer': freshOpponent,
+          'currentPlayerStatus': 'same_rank_window',
+          'playerStatus': 'same_rank_window', // All players status
+          'discardPile': discardPile, // For centerBoard slice
+          'drawPileCount': drawPile.length,
+          'turn_events': turnEvents, // For animations
+          'lastUpdated': DateTime.now().toIso8601String(),
+        });
+        
+        _logger.info('✅ DemoFunctionality: $opponentName played card, same rank window started', isOn: LOGGING_SWITCH);
+        
+        // Don't start timer during simulation - only start after all opponents have played
+        // Cancel any existing timer to prevent multiple triggers
+        _sameRankWindowTimer?.cancel();
+        _sameRankWindowTimer = null;
+        
+        // Continue to next opponent (don't break)
+      }
+      
+      _logger.info('✅ DemoFunctionality: Completed opponent simulation', isOn: LOGGING_SWITCH);
+      
+      // After all opponents have played, start the same rank window timer ONCE
+      // This ensures the timer only triggers once after the entire simulation completes
+      _sameRankWindowTimer?.cancel();
+      _sameRankWindowTimer = Timer(const Duration(seconds: 5), () async {
+        _logger.info('🎮 DemoFunctionality: Same rank window timer expired after all opponents played', isOn: LOGGING_SWITCH);
+        await endSameRankWindowAndSimulateOpponents();
+      });
+      
+    } catch (e, stackTrace) {
+      _logger.error('❌ DemoFunctionality: Error in _endSameRankWindowAndSimulateOpponents: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+    }
   }
 }
 

@@ -361,6 +361,21 @@ class StateQueueValidator {
       required: false,
       description: 'Index of currently selected card in hand',
     ),
+    'demoInstructionsPhase': DutchStateFieldSpec(
+      type: String,
+      required: false,
+      description: 'Current demo instructions phase (demo mode only)',
+    ),
+    'myHandHeight': DutchStateFieldSpec(
+      type: double,
+      required: false,
+      description: 'Height of my hand widget (for overlay positioning)',
+    ),
+    'gameBoardHeight': DutchStateFieldSpec(
+      type: double,
+      required: false,
+      description: 'Height of game board widget (for overlay positioning)',
+    ),
     
     // Connection State
     'isConnected': DutchStateFieldSpec(

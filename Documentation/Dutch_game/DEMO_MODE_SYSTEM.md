@@ -308,13 +308,19 @@ The demo uses a phase-based instruction system to guide users through different 
 - Phase transition: Instructions hidden when player plays a card, shown again after next opponent play
 
 **Select Cards Prompt:**
-- Flashing "Select two cards" text above myhand section (initial peek phase)
-- Changes to "Tap the draw pile" text during drawing phase
+- Flashing prompt text above myhand section that changes based on demo phase
+- Text variations:
+  - "Select two cards" (initial peek phase)
+  - "Tap the draw pile" (drawing phase)
+  - "Select any card to play" (playing phase)
+  - "Tap any card from your hand" (same rank phase - appears at same time as same rank instructions)
 - Positioned dynamically using GlobalKey to measure actual myhand height
 - Only visible during:
   - Initial peek phase when 0-1 cards selected
   - Drawing phase when no card has been drawn yet (`myDrawnCard == null`)
-- Automatically hides when card is drawn
+  - Playing phase (when `demoInstructionsPhase == 'playing'`)
+  - Same rank phase (when `demoInstructionsPhase == 'same_rank'` - appears 3 seconds after opponent plays)
+- Automatically hides when appropriate action is taken or phase changes
 - Animated glow effect using accent color
 - Same background styling as instructions widget
 

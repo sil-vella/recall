@@ -76,6 +76,10 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
           // Playing phase - show "Select any card to play"
           promptText = 'Select any card to play';
           shouldShow = true;
+        } else if (demoInstructionsPhase == 'same_rank') {
+          // Same rank phase - show "Tap any card from your hand"
+          promptText = 'Tap any card from your hand';
+          shouldShow = true;
         }
         
         _logger.info('SelectCardsPromptWidget: demoPhase=$demoInstructionsPhase, selectedCount=$selectedCount, hasDrawnCard=$hasDrawnCard, shouldShow=$shouldShow', isOn: LOGGING_SWITCH);
@@ -92,6 +96,7 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
         // - Initial peek: above myhand (marginBottom = myHandHeight)
         // - Drawing: above game board (marginBottom = myHandHeight + gameBoardHeight + spacing)
         // - Playing: above myhand (marginBottom = myHandHeight)
+        // - Same rank: above myhand (marginBottom = myHandHeight)
         double marginBottom;
         if (demoInstructionsPhase == 'drawing') {
           // Drawing phase - position above game board
@@ -104,7 +109,7 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
             marginBottom = MediaQuery.of(context).size.height * 0.5;
           }
         } else {
-          // Initial peek and playing phases - position above myhand
+          // Initial peek, playing, and same rank phases - position above myhand
           marginBottom = myHandHeight != null 
               ? myHandHeight
               : MediaQuery.of(context).size.height * 0.18; // Fallback estimate for myhand

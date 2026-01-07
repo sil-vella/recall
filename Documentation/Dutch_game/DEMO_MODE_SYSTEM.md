@@ -215,11 +215,14 @@ All player actions are intercepted and routed to demo functionality:
 2. `PlayerAction.playerPlayCard()` executed → Event `'play_card'` sent
 3. Event intercepted by demo mode bridge
 4. `_handlePlayCard()` processes the action:
+   - Checks if played card is a queen (for special play routing)
+   - If queen: Routes to `_handleQueenPlay()` for special handling
+   - If not queen: Continues with regular play logic
    - Finds card in player's hand by cardId
    - Removes card from hand (creates blank slot if index ≤ 3, otherwise removes entirely)
    - If a drawn card exists, it replaces the played card's position
    - Adds played card to discard pile with full data
-   - Updates all players' status to `'same_rank_window'`
+   - Updates all players' status to `'same_rank_window'` (except human player during opponent simulation)
    - Triggers opponent same rank auto-play check
 5. State synchronized:
    - `myHandCards` updated in games map
@@ -233,6 +236,156 @@ All player actions are intercepted and routed to demo functionality:
    - Auto-plays first matching card if found
    - Updates opponent's hand and discard pile
    - After opponent plays, waits 3 seconds then shows same rank instructions
+
+**Wrong Same Rank Play:**
+- When user plays a card of wrong rank during same rank window:
+  - Card is added to discard pile
+  - User receives a penalty card (added to hand)
+  - Hand count hardcoded to 5 cards in instruction text
+  - `demoInstructionsPhase` set to `wrong_same_rank_penalty`
+  - Instruction shown with "Let's go" button
+  - Opponent simulation starts only after "Let's go" button is pressed
+
+**Queen Play (Special Play):**
+- When user plays a queen card:
+  - Action intercepted and routed to `_handleQueenPlay()`
+  - Queen card removed from hand (using smart blank slot logic)
+  - Drawn card repositioned if it wasn't the played card
+  - Original queen card (from originalDeck) added to discard pile
+  - Player status updated to `'queen_peek'`
+  - `demoInstructionsPhase` set to `'queen_peek'`
+  - Queen peek instructions displayed
+  - Prompt text "Tap a card to peek" shown above myhand
+
+**Queen Peek Implementation Pattern (Reference for Jack Swap):**
+
+The queen peek implementation follows a specific pattern that should be replicated for jack swap:
+
+1. **Action Interception**:
+   - In `_handlePlayCard()`, check if the played card is a queen (or jack)
+   - Route to special handler: `_handleQueenPlay()` or `_handleJackPlay()`
+
+2. **State Updates (SSOT - Single Source of Truth)**:
+   ```dart
+   // Step 1: Re-read latest state from SSOT to avoid stale references
+   final stateManager = StateManager();
+   final latestDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+   final latestGames = latestDutchGameState['games'] as Map<String, dynamic>? ?? {};
+   final latestCurrentGame = latestGames[currentGameId] as Map<String, dynamic>? ?? {};
+   final latestGameData = latestCurrentGame['gameData'] as Map<String, dynamic>? ?? {};
+   final latestGameState = latestGameData['game_state'] as Map<String, dynamic>? ?? gameState;
+   final latestPlayers = latestGameState['players'] as List<dynamic>? ?? [];
+   
+   // Step 2: Find user player from latest players (not stale parameter)
+   Map<String, dynamic>? userPlayer;
+   int userPlayerIndex = -1;
+   for (int i = 0; i < latestPlayers.length; i++) {
+     final p = latestPlayers[i];
+     if (p is Map<String, dynamic> && p['isHuman'] == true) {
+       userPlayer = Map<String, dynamic>.from(p);
+       userPlayerIndex = i;
+       break;
+     }
+   }
+   
+   // Step 3: Update user player's hand and status
+   userPlayer['hand'] = mutableHand; // Updated hand after card removal
+   userPlayer['status'] = 'queen_peek'; // or 'jack_swap'
+   
+   // Step 4: Update SSOT structure (deep copies)
+   final updatedPlayers = List<dynamic>.from(latestPlayers);
+   updatedPlayers[userPlayerIndex] = userPlayer;
+   final updatedGameState = Map<String, dynamic>.from(latestGameState);
+   updatedGameState['players'] = updatedPlayers;
+   updatedGameState['currentPlayer'] = userPlayer; // Important: Set currentPlayer
+   updatedGameState['discardPile'] = discardPile;
+   final updatedGameData = Map<String, dynamic>.from(latestGameData);
+   updatedGameData['game_state'] = updatedGameState;
+   final updatedCurrentGame = Map<String, dynamic>.from(latestCurrentGame);
+   updatedCurrentGame['gameData'] = updatedGameData;
+   updatedCurrentGame['myHandCards'] = myHandCards;
+   final updatedGames = Map<String, dynamic>.from(latestGames);
+   updatedGames[currentGameId] = updatedCurrentGame;
+   ```
+
+3. **Widget Slice Updates**:
+   ```dart
+   // Get current dutch game state for widget slice updates
+   final stateManagerForSlices = StateManager();
+   final currentDutchGameState = stateManagerForSlices.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+   
+   // Update widget slices manually
+   final centerBoard = currentDutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+   centerBoard['playerStatus'] = 'queen_peek'; // or 'jack_swap'
+   
+   final myHand = currentDutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+   myHand['playerStatus'] = 'queen_peek'; // or 'jack_swap'
+   myHand['cards'] = myHandCards; // Update cards in myHand slice
+   ```
+
+4. **State Synchronization (Two-Step Process)**:
+   ```dart
+   final stateUpdater = DutchGameStateUpdater.instance;
+   
+   // Step 1: Update SSOT and main state fields using updateStateSync
+   stateUpdater.updateStateSync({
+     'currentGameId': currentGameId,
+     'games': updatedGames, // SSOT with player status = 'queen_peek'
+     'discardPile': discardPile,
+     'myDrawnCard': null, // Clear drawn card
+     'currentPlayer': userPlayer, // Set currentPlayer so _getCurrentUserStatus can find it
+     'currentPlayerStatus': 'queen_peek', // or 'jack_swap'
+     'playerStatus': 'queen_peek', // or 'jack_swap'
+     'lastUpdated': DateTime.now().toIso8601String(),
+   });
+   
+   // Step 2: Update widget slices using updateStateSync
+   stateUpdater.updateStateSync({
+     'centerBoard': centerBoard, // Update centerBoard slice
+     'myHand': myHand, // Update myHand slice with new status and cards
+   });
+   
+   // Step 3: Update instructions phase separately using updateState (triggers widget rebuild)
+   // CRITICAL: Use updateState (not updateStateSync) to ensure ListenableBuilder rebuilds
+   // NOTE: Do NOT set gamePhase - it's validated and 'queen_peek'/'jack_swap' are not allowed
+   // Only set demoInstructionsPhase which controls the instructions widget
+   stateUpdater.updateState({
+     'demoInstructionsPhase': 'queen_peek', // or 'jack_swap'
+     'lastUpdated': DateTime.now().toIso8601String(),
+   });
+   ```
+
+5. **Instructions Configuration**:
+   - Add instruction entry in `_demoPhaseInstructions` list:
+   ```dart
+   DemoPhaseInstruction(
+     phase: 'queen_peek', // or 'jack_swap'
+     title: 'Queen Peek:', // or 'Jack Swap:'
+     paragraph: 'When a queen is played, that player can take a quick peek at any card from any player\'s hand, including their own.',
+   ),
+   ```
+
+6. **Prompt Text Configuration**:
+   - Update `SelectCardsPromptWidget` to show phase-specific text:
+   ```dart
+   } else if (demoInstructionsPhase == 'queen_peek') {
+     promptText = 'Tap a card to peek';
+     shouldShow = true;
+   } else if (demoInstructionsPhase == 'jack_swap') {
+     promptText = 'Tap two cards to swap';
+     shouldShow = true;
+   }
+   ```
+
+**Key Points for Jack Swap Implementation:**
+- Follow the exact same pattern as `_handleQueenPlay()`
+- Use `updateStateSync()` for SSOT and widget slice updates
+- Use `updateState()` for `demoInstructionsPhase` to trigger widget rebuilds
+- **DO NOT** set `gamePhase` to `'queen_peek'` or `'jack_swap'` - these values are not allowed by the validator
+- Set `currentPlayer` in the game state so `_getCurrentUserStatus()` can find the user's status
+- Update both `centerBoard` and `myHand` widget slices with the new status
+- Add instruction entry in `_demoPhaseInstructions`
+- Add prompt text condition in `SelectCardsPromptWidget`
 
 **Key Implementation Details:**
 - Cards removed from hand create blank slots (index ≤ 3) or are removed entirely (index > 3)
@@ -255,16 +408,24 @@ Users select demo mode via two buttons:
 1. **Create Predefined Cards**
    - Generate 54 cards manually (no deck factory)
    - Store in `_originalDeck` for lookups
+   - Queens are excluded from draw pile (they're in user's hand during special plays phase)
 
-2. **Create Players**
+2. **Create Players with Hardcoded Hands**
    - Current user + 3 opponents
+   - **User hand**: Ace hearts, 5 diamonds, 8 clubs, 4 hearts
+   - **Opponent 1 hand**: 2 clubs, 3 hearts, 6 diamonds, 9 hearts (other numbers, no ace/jack/queen)
+   - **Opponent 2 hand**: King spades (at index 0), 2 hearts, 6 clubs, 9 diamonds (has K, rest other numbers)
+   - **Opponent 3 hand**: Ace spades, 5 clubs, 8 diamonds, 4 clubs (same ranks as user, different suits)
    - All players get ID-only cards (face-down)
    - All player statuses set to `'initial_peek'`
+   - Opponents do not have special cards (Queen/Jack) in their predefined hands
 
 3. **Deal Cards**
-   - 4 cards to each player
+   - 4 cards to each player (hardcoded distribution)
    - Remaining cards go to draw pile
    - First card goes to discard pile (face-up)
+   - Next 3 cards in draw pile are regular number cards (not special cards)
+   - Queens are filtered out from draw pile
 
 4. **Set Game State**
    - Game phase: `'initial_peek'`
@@ -275,6 +436,7 @@ Users select demo mode via two buttons:
    - Sync local state to `StateManager` for widget display
    - Compute widget slices (`gameInfo`, `myHand`, `opponentsPanel`)
    - Set transport mode to `demo`
+   - Set `demoInstructionsPhase` to `'initial'`
 
 6. **Switch Event Transport**
    - Set `EventTransportMode.demo` to intercept all actions
@@ -291,8 +453,16 @@ The demo uses a phase-based instruction system to guide users through different 
 - `drawing` - Instructions for drawing a card
 - `playing` - Instructions for playing a card
 - `same_rank` - Instructions for same rank window (shown 3 seconds after opponent plays)
+- `wrong_same_rank_penalty` - Instructions shown when user plays wrong rank in same rank window (with "Let's go" button)
+- `special_plays` - Instructions for special card plays (queen/jack)
+- `queen_peek` - Instructions for Queen special power (shown after queen is played)
+  - Title: "Queen Peek:"
+  - Text: "When a queen is played, that player can take a quick peek at any card from any player's hand, including their own."
+  - Prompt text: "Tap a card to peek"
 - `jack_swap` - Instructions for Jack special power
-- `queen_peek` - Instructions for Queen special power
+  - Title: "Jack Swap:"
+  - Text: "When a jack is played, that player can switch any two cards between any players."
+  - Prompt text: "Tap two cards to swap"
 
 **Instruction Widget Behavior:**
 - Overlay positioned at top of screen (doesn't take layout space)
@@ -306,6 +476,26 @@ The demo uses a phase-based instruction system to guide users through different 
 - Display timing: Instructions appear 3 seconds after an opponent plays a same rank card
 - Trigger: Automatically shown via timer when opponent auto-plays matching rank card
 - Phase transition: Instructions hidden when player plays a card, shown again after next opponent play
+- Card count: Hardcoded to "3 cards" (not dynamic)
+- Prompt text: "Tap any card from your hand" appears above myhand at the same time as same rank instructions
+
+**Wrong Same Rank Penalty Instructions:**
+- Phase: `wrong_same_rank_penalty`
+- Title: "You played a wrong rank"
+- Text: "When playing a wrong rank in the same rank window you will be given an extra penalty card. Now you have 5 cards. Next we will wait for your opponents to play their turns."
+- Card count: Hardcoded to "5 cards" (not dynamic)
+- Button: "Let's go" button that triggers opponent simulation
+- Trigger: Shown when user plays a card of wrong rank during same rank window
+- Action: After "Let's go" button is pressed, opponent simulation begins
+
+**Special Plays Instructions:**
+- Phase: `special_plays`
+- Title: "Special Plays"
+- Text: "When a queen or a jack is played, that player will have a special play."
+- Prompt text: "Tap any card from your hand" appears above myhand
+- Trigger: Shown after opponent simulation completes (after opponent 3 plays)
+- User hand: Updated to 4 queens (one of each suit: hearts, diamonds, clubs, spades) with actual card IDs from originalDeck
+- User status: Set to `playing_card` to enable card interaction
 
 **Select Cards Prompt:**
 - Flashing prompt text above myhand section that changes based on demo phase
@@ -314,12 +504,18 @@ The demo uses a phase-based instruction system to guide users through different 
   - "Tap the draw pile" (drawing phase)
   - "Select any card to play" (playing phase)
   - "Tap any card from your hand" (same rank phase - appears at same time as same rank instructions)
+  - "Tap any card from your hand" (special_plays phase - appears when special plays instruction is shown)
+  - "Tap a card to peek" (queen_peek phase - appears when queen peek instructions are shown)
+  - "Tap two cards to swap" (jack_swap phase - appears when jack swap instructions are shown)
 - Positioned dynamically using GlobalKey to measure actual myhand height
 - Only visible during:
   - Initial peek phase when 0-1 cards selected
   - Drawing phase when no card has been drawn yet (`myDrawnCard == null`)
   - Playing phase (when `demoInstructionsPhase == 'playing'`)
   - Same rank phase (when `demoInstructionsPhase == 'same_rank'` - appears 3 seconds after opponent plays)
+  - Special plays phase (when `demoInstructionsPhase == 'special_plays'`)
+  - Queen peek phase (when `demoInstructionsPhase == 'queen_peek'`)
+  - Jack swap phase (when `demoInstructionsPhase == 'jack_swap'`)
 - Automatically hides when appropriate action is taken or phase changes
 - Animated glow effect using accent color
 - Same background styling as instructions widget
@@ -423,6 +619,17 @@ When leaving the demo screen:
 - [x] Same rank window activation after card play
 - [x] Opponent same rank auto-play (3-second delay before each opponent)
 - [x] Same rank instructions with timer (3 seconds after opponent plays)
+- [x] Wrong same rank penalty handling (penalty card, instruction with "Let's go" button)
+- [x] Opponent simulation after penalty (predefined plays for each opponent)
+- [x] Special plays instruction phase (shown after opponent simulation)
+- [x] User hand update to 4 queens (one per suit) with actual card IDs
+- [x] Queen play interception and routing to special handler
+- [x] Queen peek instructions after queen is played
+- [x] Hardcoded hands for all players (user and opponents)
+- [x] Queens excluded from draw pile
+- [x] Status text corrections (`drawing_card`, `playing_card` instead of `drawing`, `playing`)
+- [x] Human player exclusion from `same_rank_window` during opponent simulation
+- [x] Timer management (all timers stopped after opponent simulation)
 
 ### 🚧 Pending Implementation
 
@@ -430,8 +637,12 @@ When leaving the demo screen:
   - [x] `_handleInitialPeek()` - Initial peek logic (shows card details)
   - [x] `_handleCompletedInitialPeek()` - Complete initial peek logic (starts timer)
   - [x] `_handleDrawCard()` - Draw card logic (adds card to hand, updates status to playing)
-  - [x] `_handlePlayCard()` - Play card logic (removes from hand, adds to discard, triggers same rank window)
+  - [x] `_handlePlayCard()` - Play card logic (removes from hand, adds to discard, triggers same rank window, routes queen plays)
   - [x] `_handleOpponentSameRankPlays()` - Auto-play opponent matching rank cards (3-second delay)
+  - [x] `_handleSameRankPlay()` - Handle valid same rank play
+  - [x] `_handleWrongSameRankPlay()` - Handle wrong same rank play (penalty card, instruction)
+  - [x] `endSameRankWindowAndSimulateOpponents()` - Opponent simulation after penalty (predefined plays)
+  - [x] `_handleQueenPlay()` - Handle queen play (special play routing, queen peek instructions)
   - [ ] `_handleReplaceDrawnCard()` - Replace drawn card logic
   - [ ] `_handlePlayDrawnCard()` - Play drawn card logic
   - [ ] `_handleCallFinalRound()` - Call final round logic
@@ -509,4 +720,44 @@ flutter_base_05/lib/modules/dutch_game/
 - Opponent auto-play uses fixed 3-second delay before each opponent plays (for demo consistency)
 - Same rank instructions use timer-based display (3 seconds after opponent plays) to avoid showing instructions before opponent action is visible
 - Hand manipulation allows null values in list for blank slots (cards at index ≤ 3 create blank slots, others are removed entirely)
+- Opponent simulation uses predefined play indices: Opponent 1 plays index 3, Opponent 2 plays index 2, Opponent 3 plays index 4 (the drawn card)
+- Each opponent in simulation: draws card, waits 2 seconds, plays card, waits 1 second, drawn card moves to played card's position
+- All timers are cancelled and set to null after opponent simulation completes
+- Human player is excluded from `same_rank_window` status during opponent simulation
+- User's hand is updated to 4 queens (one per suit) with actual card IDs from originalDeck when special plays instruction is shown
+- Queens are filtered out from draw pile during initialization
+- Card counts in instructions are hardcoded (not dynamic): "3 cards" for same rank, "5 cards" for penalty
+- Queen play is intercepted and routed to `_handleQueenPlay()` which handles the special play logic and shows queen peek instructions
+- All state updates use `DutchGameStateUpdater.updateState()` (not `updateStateSync()`) to ensure widget slice recomputation
+- State updates include all necessary fields (`currentGameId`, `games`, `discardPile`, `drawPileCount`, `turn_events`, `currentPlayer`, `currentPlayerStatus`, `playerStatus`) to trigger widget dependencies
+
+## Special Play Implementation Pattern (Queen Peek / Jack Swap)
+
+### Summary
+
+When implementing special plays (queen peek, jack swap, etc.), follow this exact pattern:
+
+1. **Intercept in `_handlePlayCard()`**: Check card rank and route to special handler
+2. **Re-read SSOT**: Always re-read latest state from `StateManager` to avoid stale references
+3. **Update Player Status**: Set player status in SSOT (`userPlayer['status'] = 'special_play'`)
+4. **Update SSOT Structure**: Create deep copies of game state structure and update with new player status
+5. **Update Widget Slices**: Manually update `centerBoard` and `myHand` slices with new status
+6. **Three-Step State Sync**:
+   - Step 1: `updateStateSync()` for SSOT and main state fields
+   - Step 2: `updateStateSync()` for widget slices
+   - Step 3: `updateState()` for `demoInstructionsPhase` (triggers widget rebuilds)
+7. **Configure Instructions**: Add entry in `_demoPhaseInstructions` list
+8. **Configure Prompt Text**: Add condition in `SelectCardsPromptWidget`
+
+### Critical Notes
+
+- **DO NOT** set `gamePhase` to special play values (`'queen_peek'`, `'jack_swap'`) - these are not allowed by the validator
+- **DO** set `currentPlayer` in game state so `_getCurrentUserStatus()` can find the user's status
+- **DO** use `updateState()` (not `updateStateSync()`) for `demoInstructionsPhase` to ensure `ListenableBuilder` rebuilds
+- **DO** update both `centerBoard` and `myHand` widget slices with the new status
+- **DO** re-read state from SSOT at the start of the handler to avoid stale references
+
+### Reference Implementation
+
+See `_handleQueenPlay()` in `demo_functionality.dart` (lines 627-895) for the complete implementation pattern.
 

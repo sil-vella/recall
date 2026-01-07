@@ -584,13 +584,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     final playerStatus = dutchGameState['playerStatus']?.toString() ?? 'unknown';
     
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (opponents.isEmpty)
-          _buildEmptyOpponents()
-        else
-          _buildOpponentsGrid(otherPlayers, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
-      ],
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (opponents.isEmpty)
+              _buildEmptyOpponents()
+            else
+              _buildOpponentsGrid(otherPlayers, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
+          ],
     );
   }
 
@@ -722,33 +722,33 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     return Column(
       crossAxisAlignment: columnAlignment,
       mainAxisSize: MainAxisSize.min,
-      children: [
+            children: [
         // Top row: Name and status chip on same level
         Row(
           mainAxisAlignment: nameAlignment,
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
-          children: [
-            if (hasCalledDutch) ...[
-              Icon(
-                Icons.flag,
-                size: 16,
-                color: AppColors.errorColor,
-              ),
-              const SizedBox(width: 4),
-            ],
-            if (isCurrentTurn && !isCurrentPlayer) ...[
-              Icon(
-                Icons.play_arrow,
-                size: 16,
-                color: AppColors.accentColor2,
-              ),
-              const SizedBox(width: 4),
-            ],
+                      children: [
+                        if (hasCalledDutch) ...[
+                          Icon(
+                            Icons.flag,
+                            size: 16,
+                            color: AppColors.errorColor,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        if (isCurrentTurn && !isCurrentPlayer) ...[
+                          Icon(
+                            Icons.play_arrow,
+                            size: 16,
+                            color: AppColors.accentColor2,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
             Text(
-              playerName,
-              style: AppTextStyles.label().copyWith(
-                fontWeight: FontWeight.bold,
+                            playerName,
+                            style: AppTextStyles.label().copyWith(
+                              fontWeight: FontWeight.bold,
                 color: AppColors.white,
                 // Add glow effect when isCurrentPlayer is true
                 shadows: isCurrentPlayer && statusChipColor != null
@@ -760,7 +760,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                         Shadow(
                           color: statusChipColor.withOpacity(0.6),
                           blurRadius: 12,
-                        ),
+                            ),
                         Shadow(
                           color: statusChipColor.withOpacity(0.3),
                           blurRadius: 16,
@@ -768,16 +768,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                       ]
                     : null,
               ),
-            ),
-            if (playerStatus != 'unknown') ...[
+                    ),
+                    if (playerStatus != 'unknown') ...[
               const SizedBox(width: 8),
               PlayerStatusChip(
-                playerId: player['id']?.toString() ?? '',
-                size: shouldHighlight ? PlayerStatusChipSize.medium : PlayerStatusChipSize.small,
-              ),
-            ],
-          ],
-        ),
+                          playerId: player['id']?.toString() ?? '',
+                          size: shouldHighlight ? PlayerStatusChipSize.medium : PlayerStatusChipSize.small,
+                      ),
+                    ],
+                  ],
+                ),
         
         // Bottom: Cards aligned based on opponent index
         const SizedBox(height: 8),
@@ -1275,15 +1275,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     return Container(
       key: _gameBoardKey,
       padding: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          _buildDrawPile(),
-          const SizedBox(width: 16),
-          _buildDiscardPile(),
-          const SizedBox(width: 16),
-          _buildMatchPot(),
-        ],
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            _buildDrawPile(),
+            const SizedBox(width: 16),
+            _buildDiscardPile(),
+            const SizedBox(width: 16),
+            _buildMatchPot(),
+          ],
       ),
     );
   }
@@ -2500,57 +2500,57 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
             }
           } else {
             // Normal mode: use existing logic
-            if (_initialPeekSelectedCardIds.contains(cardId)) {
+          if (_initialPeekSelectedCardIds.contains(cardId)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Card already selected'),
+                backgroundColor: AppColors.warningColor,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
+          if (_initialPeekSelectionCount < 2) {
+            _initialPeekSelectedCardIds.add(cardId);
+            _initialPeekSelectionCount++;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Card ${_initialPeekSelectionCount}/2 selected'
+                ),
+                backgroundColor: AppColors.infoColor,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            if (_initialPeekSelectionCount == 2) {
+              await Future.delayed(Duration(milliseconds: 500));
+              final completedInitialPeekAction = PlayerAction.completedInitialPeek(
+                gameId: currentGameId,
+                cardIds: _initialPeekSelectedCardIds,
+              );
+              await completedInitialPeekAction.execute();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Card already selected'),
-                  backgroundColor: AppColors.warningColor,
-                  duration: Duration(seconds: 2),
+                  content: Text(
+                    'Initial peek completed! You have looked at 2 cards.'
+                  ),
+                  backgroundColor: AppColors.successColor,
+                  duration: Duration(seconds: 3),
                 ),
               );
-              return;
+              _initialPeekSelectionCount = 0;
+              _initialPeekSelectedCardIds.clear();
             }
-            if (_initialPeekSelectionCount < 2) {
-              _initialPeekSelectedCardIds.add(cardId);
-              _initialPeekSelectionCount++;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Card ${_initialPeekSelectionCount}/2 selected'
-                  ),
-                  backgroundColor: AppColors.infoColor,
-                  duration: Duration(seconds: 2),
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'You have already peeked at 2 cards. Initial peek is complete.'
                 ),
-              );
-              if (_initialPeekSelectionCount == 2) {
-                await Future.delayed(Duration(milliseconds: 500));
-                final completedInitialPeekAction = PlayerAction.completedInitialPeek(
-                  gameId: currentGameId,
-                  cardIds: _initialPeekSelectedCardIds,
-                );
-                await completedInitialPeekAction.execute();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Initial peek completed! You have looked at 2 cards.'
-                    ),
-                    backgroundColor: AppColors.successColor,
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-                _initialPeekSelectionCount = 0;
-                _initialPeekSelectedCardIds.clear();
-              }
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'You have already peeked at 2 cards. Initial peek is complete.'
-                  ),
-                  backgroundColor: AppColors.warningColor,
-                  duration: Duration(seconds: 2),
-                ),
-              );
+                backgroundColor: AppColors.warningColor,
+                duration: Duration(seconds: 2),
+              ),
+            );
             }
           }
         } else {
@@ -2561,12 +2561,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
           _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true', isOn: LOGGING_SWITCH);
           _logger.info('🎮 MyHandWidget - About to execute playerPlayCard: cardId=${card['cardId']}, gameId=$currentGameId', isOn: LOGGING_SWITCH);
           try {
-            final playAction = PlayerAction.playerPlayCard(
-              gameId: currentGameId,
-              cardId: card['cardId']?.toString() ?? '',
-            );
+          final playAction = PlayerAction.playerPlayCard(
+            gameId: currentGameId,
+            cardId: card['cardId']?.toString() ?? '',
+          );
             _logger.info('🎮 MyHandWidget - Calling playAction.execute()', isOn: LOGGING_SWITCH);
-            await playAction.execute();
+          await playAction.execute();
           } catch (e, stackTrace) {
             _logger.error('❌ MyHandWidget - Error executing playAction: $e', isOn: LOGGING_SWITCH);
             _logger.error('❌ MyHandWidget - Stack trace: $stackTrace', isOn: LOGGING_SWITCH);

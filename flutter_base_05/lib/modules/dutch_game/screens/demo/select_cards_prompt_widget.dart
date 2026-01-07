@@ -80,6 +80,10 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
           // Same rank phase - show "Tap any card from your hand"
           promptText = 'Tap any card from your hand';
           shouldShow = true;
+        } else if (demoInstructionsPhase == 'special_plays') {
+          // Special plays phase - show "Tap any card from your hand"
+          promptText = 'Tap any card from your hand';
+          shouldShow = true;
         }
         
         _logger.info('SelectCardsPromptWidget: demoPhase=$demoInstructionsPhase, selectedCount=$selectedCount, hasDrawnCard=$hasDrawnCard, shouldShow=$shouldShow', isOn: LOGGING_SWITCH);

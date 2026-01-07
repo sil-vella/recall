@@ -2338,6 +2338,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         currentPlayerStatus == 'queen_peek' ||
         currentPlayerStatus == 'same_rank_window' ||
         currentPlayerStatus == 'initial_peek') {
+      _logger.info('🎮 MyHandWidget - Status matches allowed statuses: $currentPlayerStatus', isOn: LOGGING_SWITCH);
       final updatedMyHand = {
         ...currentMyHand,
         'selectedIndex': index,
@@ -2348,6 +2349,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         'myHand': updatedMyHand,
       });
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
+      _logger.info('🎮 MyHandWidget - currentGameId: $currentGameId', isOn: LOGGING_SWITCH);
       if (currentGameId.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2359,7 +2361,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         return;
       }
       try {
+        _logger.info('🎮 MyHandWidget - Inside try block, checking status: $currentPlayerStatus', isOn: LOGGING_SWITCH);
         if (currentPlayerStatus == 'same_rank_window') {
+          _logger.info('🎮 MyHandWidget - Status is same_rank_window', isOn: LOGGING_SWITCH);
           final sameRankAction = PlayerAction.sameRankPlay(
             gameId: currentGameId,
             cardId: card['cardId']?.toString() ?? '',
@@ -2550,17 +2554,24 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
             }
           }
         } else {
+          _logger.info('🎮 MyHandWidget - Entering else block for playing_card status', isOn: LOGGING_SWITCH);
           setState(() {
             _isProcessingAction = true;
           });
           _logger.info('🔒 MyHandWidget - Set _isProcessingAction = true', isOn: LOGGING_SWITCH);
           _logger.info('🎮 MyHandWidget - About to execute playerPlayCard: cardId=${card['cardId']}, gameId=$currentGameId', isOn: LOGGING_SWITCH);
-          final playAction = PlayerAction.playerPlayCard(
-            gameId: currentGameId,
-            cardId: card['cardId']?.toString() ?? '',
-          );
-          _logger.info('🎮 MyHandWidget - Calling playAction.execute()', isOn: LOGGING_SWITCH);
-          await playAction.execute();
+          try {
+            final playAction = PlayerAction.playerPlayCard(
+              gameId: currentGameId,
+              cardId: card['cardId']?.toString() ?? '',
+            );
+            _logger.info('🎮 MyHandWidget - Calling playAction.execute()', isOn: LOGGING_SWITCH);
+            await playAction.execute();
+          } catch (e, stackTrace) {
+            _logger.error('❌ MyHandWidget - Error executing playAction: $e', isOn: LOGGING_SWITCH);
+            _logger.error('❌ MyHandWidget - Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
+            rethrow;
+          }
           _logger.info('🎮 MyHandWidget - playAction.execute() completed', isOn: LOGGING_SWITCH);
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {

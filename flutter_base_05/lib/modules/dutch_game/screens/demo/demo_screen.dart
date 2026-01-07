@@ -537,10 +537,15 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
       // Find regular number cards (not ace, jack, queen, king) for the top 3 positions
       final regularNumberCards = <Map<String, dynamic>>[];
       final specialCards = <Map<String, dynamic>>[];
+      final queenCards = <Map<String, dynamic>>[]; // Separate queens to exclude from draw pile
       
       for (final card in drawStack) {
         final rank = card['rank']?.toString() ?? '';
-        if (rank == 'ace' || rank == 'jack' || rank == 'queen' || rank == 'king') {
+        if (rank == 'queen') {
+          // Exclude queens from draw pile (they're in the user's hand)
+          queenCards.add(card);
+          _logger.info('🎮 DemoScreen: Excluding queen ${card['suit']} from draw pile (will be in user hand)', isOn: LOGGING_SWITCH);
+        } else if (rank == 'ace' || rank == 'jack' || rank == 'king') {
           specialCards.add(card);
         } else {
           regularNumberCards.add(card);
@@ -559,8 +564,10 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
       // Add remaining regular cards as ID-only
       _drawPile.addAll(remainingRegularCards.map((c) => _cardToIdOnly(c)).toList());
       
-      // Add special cards as ID-only at the end
+      // Add special cards (excluding queens) as ID-only at the end
       _drawPile.addAll(specialCards.map((c) => _cardToIdOnly(c)).toList());
+      
+      _logger.info('🎮 DemoScreen: Excluded ${queenCards.length} queens from draw pile', isOn: LOGGING_SWITCH);
       
       _logger.info('🎮 DemoScreen: Draw pile has ${_drawPile.length} cards (first 3 are regular number cards)', isOn: LOGGING_SWITCH);
       

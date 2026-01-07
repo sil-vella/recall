@@ -144,8 +144,8 @@ All player actions are intercepted and routed to demo functionality:
 - `call_final_round`
 - `collect_from_discard`
 - `use_special_power`
-- `jack_swap`
-- `queen_peek`
+- `jack_swap` - **Implemented**: Handles jack play and jack swap card swapping
+- `queen_peek` - **Implemented**: Handles queen peek card selection and display
 - `play_out_of_turn`
 
 ### Initial Peek Implementation
@@ -256,6 +256,19 @@ All player actions are intercepted and routed to demo functionality:
   - `demoInstructionsPhase` set to `'queen_peek'`
   - Queen peek instructions displayed
   - Prompt text "Tap a card to peek" shown above myhand
+  - **Note**: Same rank window is skipped for queen play (no opponent auto-play)
+
+**Jack Play (Special Play):**
+- When user plays a jack card:
+  - Action intercepted and routed to `_handleJackPlay()`
+  - Jack card removed from hand (using smart blank slot logic)
+  - Drawn card repositioned if it wasn't the played card
+  - Original jack card (from originalDeck) added to discard pile
+  - Player status updated to `'jack_swap'`
+  - `demoInstructionsPhase` set to `'jack_swap'`
+  - Jack swap instructions displayed
+  - Prompt text "Tap two cards to swap" shown above myhand
+  - **Note**: Same rank window is skipped for jack play (no opponent auto-play)
 
 **Queen Peek Implementation Pattern (Reference for Jack Swap):**
 
@@ -377,8 +390,43 @@ The queen peek implementation follows a specific pattern that should be replicat
    }
    ```
 
-**Key Points for Jack Swap Implementation:**
-- Follow the exact same pattern as `_handleQueenPlay()`
+**Queen Peek Implementation:**
+- When user selects a card to peek at:
+  - Action intercepted by `_handleQueenPeek()`
+  - Card ID extracted from payload (`card_id` and `ownerId`)
+  - Full card data retrieved from `originalDeck` using `_getCardById()`
+  - Card added to `myCardsToPeek` with full data (suit, rank, points visible)
+  - Player status immediately set to `'waiting'` (not `'playing_card'`)
+  - Peeked card displayed with full details
+  - 3-second timer starts automatically
+  - After timer expires:
+    - User's hand updated from 4 queens to 4 jacks (one per suit)
+    - Player status updated to `'playing_card'`
+    - `myCardsToPeek` cleared (card goes back to face-down)
+    - `demoInstructionsPhase` set to `'special_plays'` (for jack swap demo)
+    - Instructions and prompt text updated
+
+**Jack Swap Implementation:**
+- When user selects two cards to swap:
+  - Action intercepted by `_handleJackSwap()`
+  - Payload contains: `first_card_id`, `first_player_id`, `second_card_id`, `second_player_id`
+  - Both players found in game state
+  - Both cards found in their respective hands
+  - Full card data retrieved using `_getCardById()` for both cards
+  - Cards converted to ID-only format (face-down format)
+  - Cards swapped between hands:
+    - First player's hand updated with second card (ID-only)
+    - Second player's hand updated with first card (ID-only)
+  - If user is involved, status updated to `'playing_card'`
+  - State synchronized:
+    - `myHandCards` updated if user is involved
+    - `opponentsPanel` updated if opponents are involved
+    - Widget slices (`centerBoard`, `myHand`, `opponentsPanel`) updated
+  - `demoInstructionsPhase` set to `'playing'` after swap completes
+  - Instructions and prompt text updated
+
+**Key Points for Special Play Implementation:**
+- Follow the exact same pattern as `_handleQueenPlay()` for play handlers
 - Use `updateStateSync()` for SSOT and widget slice updates
 - Use `updateState()` for `demoInstructionsPhase` to trigger widget rebuilds
 - **DO NOT** set `gamePhase` to `'queen_peek'` or `'jack_swap'` - these values are not allowed by the validator
@@ -386,6 +434,7 @@ The queen peek implementation follows a specific pattern that should be replicat
 - Update both `centerBoard` and `myHand` widget slices with the new status
 - Add instruction entry in `_demoPhaseInstructions`
 - Add prompt text condition in `SelectCardsPromptWidget`
+- For jack swap, update `opponentsPanel` slice if opponents are involved in the swap
 
 **Key Implementation Details:**
 - Cards removed from hand create blank slots (index ≤ 3) or are removed entirely (index > 3)
@@ -496,6 +545,7 @@ The demo uses a phase-based instruction system to guide users through different 
 - Trigger: Shown after opponent simulation completes (after opponent 3 plays)
 - User hand: Updated to 4 queens (one of each suit: hearts, diamonds, clubs, spades) with actual card IDs from originalDeck
 - User status: Set to `playing_card` to enable card interaction
+- **After Queen Peek**: User hand automatically updated to 4 jacks (one per suit) after 3-second peek timer expires, then `demoInstructionsPhase` set to `special_plays` for jack swap demo
 
 **Select Cards Prompt:**
 - Flashing prompt text above myhand section that changes based on demo phase
@@ -568,6 +618,13 @@ The event validation system has been updated to accept demo game IDs:
 - Pattern: `^(room_|practice_room_|demo_game_)[a-zA-Z0-9_]+$`
 - Demo games use prefix: `demo_game_`
 
+### Player ID Pattern
+
+The event validation system has been updated to accept demo player IDs:
+- Pattern includes `demo_[a-zA-Z0-9_]+` prefix for demo players
+- Used in fields: `ownerId`, `queen_peek_player_id`, `first_player_id`, `second_player_id`
+- Allows demo opponents to be selected for queen peek and jack swap actions
+
 ### State Schema
 
 Demo mode uses only allowed fields from the state schema:
@@ -625,6 +682,12 @@ When leaving the demo screen:
 - [x] User hand update to 4 queens (one per suit) with actual card IDs
 - [x] Queen play interception and routing to special handler
 - [x] Queen peek instructions after queen is played
+- [x] Queen peek card selection and display with timer
+- [x] Queen peek timer (3 seconds) with hand update to jacks after expiration
+- [x] Jack play interception and routing to special handler
+- [x] Jack swap instructions after jack is played
+- [x] Jack swap card swapping between any players (user and opponents)
+- [x] Jack swap state updates (myHandCards, opponentsPanel, widget slices)
 - [x] Hardcoded hands for all players (user and opponents)
 - [x] Queens excluded from draw pile
 - [x] Status text corrections (`drawing_card`, `playing_card` instead of `drawing`, `playing`)
@@ -637,19 +700,20 @@ When leaving the demo screen:
   - [x] `_handleInitialPeek()` - Initial peek logic (shows card details)
   - [x] `_handleCompletedInitialPeek()` - Complete initial peek logic (starts timer)
   - [x] `_handleDrawCard()` - Draw card logic (adds card to hand, updates status to playing)
-  - [x] `_handlePlayCard()` - Play card logic (removes from hand, adds to discard, triggers same rank window, routes queen plays)
+  - [x] `_handlePlayCard()` - Play card logic (removes from hand, adds to discard, triggers same rank window, routes queen/jack plays)
   - [x] `_handleOpponentSameRankPlays()` - Auto-play opponent matching rank cards (3-second delay)
   - [x] `_handleSameRankPlay()` - Handle valid same rank play
   - [x] `_handleWrongSameRankPlay()` - Handle wrong same rank play (penalty card, instruction)
   - [x] `endSameRankWindowAndSimulateOpponents()` - Opponent simulation after penalty (predefined plays)
   - [x] `_handleQueenPlay()` - Handle queen play (special play routing, queen peek instructions)
+- [x] `_handleJackPlay()` - Handle jack play (special play routing, jack swap instructions, skips same rank window)
+- [x] `_handleQueenPeek()` - Handle queen peek (card selection, display, timer, hand update to jacks)
+- [x] `_handleJackSwap()` - Handle jack swap (card swapping between any players, state updates)
   - [ ] `_handleReplaceDrawnCard()` - Replace drawn card logic
   - [ ] `_handlePlayDrawnCard()` - Play drawn card logic
   - [ ] `_handleCallFinalRound()` - Call final round logic
   - [ ] `_handleCollectFromDiscard()` - Collect from discard logic
   - [ ] `_handleUseSpecialPower()` - Special power logic
-  - [ ] `_handleJackSwap()` - Jack swap logic
-  - [ ] `_handleQueenPeek()` - Queen peek logic
   - [ ] `_handlePlayOutOfTurn()` - Play out of turn logic
 
 - [ ] Turn progression logic
@@ -757,7 +821,10 @@ When implementing special plays (queen peek, jack swap, etc.), follow this exact
 - **DO** update both `centerBoard` and `myHand` widget slices with the new status
 - **DO** re-read state from SSOT at the start of the handler to avoid stale references
 
-### Reference Implementation
+### Reference Implementations
 
-See `_handleQueenPlay()` in `demo_functionality.dart` (lines 627-895) for the complete implementation pattern.
+- **Queen Play**: See `_handleQueenPlay()` in `demo_functionality.dart` (lines 629-900) for the complete implementation pattern
+- **Jack Play**: See `_handleJackPlay()` in `demo_functionality.dart` (lines 902-1170) - follows same pattern as queen play
+- **Queen Peek**: See `_handleQueenPeek()` in `demo_functionality.dart` (lines 1871-2055) - includes timer and hand update logic
+- **Jack Swap**: See `_handleJackSwap()` in `demo_functionality.dart` (lines 1864-2070) - handles card swapping between any players
 

@@ -38,7 +38,7 @@ class HomeScreenFeatureRegistrar {
           _logger.error('HomeScreen: Error in Dutch game play button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
         }
       },
-      backgroundColor: AppColors.primaryColor,
+      imagePath: 'assets/images/backgrounds/play_001.png',
       heightPercentage: 0.5, // 50% of available height
       priority: 100, // Default priority
       textStyle: AppTextStyles.headingMedium().copyWith(

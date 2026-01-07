@@ -88,6 +88,10 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
           // Queen peek phase - show "Tap a card to peek"
           promptText = 'Tap a card to peek';
           shouldShow = true;
+        } else if (demoInstructionsPhase == 'jack_swap') {
+          // Jack swap phase - show "Tap two cards to swap"
+          promptText = 'Tap two cards to swap';
+          shouldShow = true;
         }
         
         _logger.info('SelectCardsPromptWidget: demoPhase=$demoInstructionsPhase, selectedCount=$selectedCount, hasDrawnCard=$hasDrawnCard, shouldShow=$shouldShow', isOn: LOGGING_SWITCH);

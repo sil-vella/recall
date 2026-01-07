@@ -201,8 +201,8 @@ class DutchGameEventEmitter {
     ),
     'first_player_id': DutchEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
-      description: 'First player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|demo_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+      description: 'First player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, demo_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
     ),
     'second_card_id': DutchEventFieldSpec(
       type: String,
@@ -211,8 +211,8 @@ class DutchGameEventEmitter {
     ),
     'second_player_id': DutchEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
-      description: 'Second player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|demo_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+      description: 'Second player ID in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, demo_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
     ),
     'queen_peek_card_id': DutchEventFieldSpec(
       type: String,
@@ -221,13 +221,13 @@ class DutchGameEventEmitter {
     ),
     'queen_peek_player_id': DutchEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
-      description: 'Player ID whose card to peek at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|demo_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+      description: 'Player ID whose card to peek at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, demo_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
     ),
     'ownerId': DutchEventFieldSpec(
       type: String,
-      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
-      description: 'Owner ID of the card being peeked at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
+      pattern: r'^(player_[a-zA-Z0-9_]+|computer_[a-zA-Z0-9_]+|cpu_[a-zA-Z0-9_]+|comp_[a-zA-Z0-9_]+|practice_session_[a-zA-Z0-9_]+|demo_[a-zA-Z0-9_]+|[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+      description: 'Owner ID of the card being peeked at in format: player_xxxxx, computer_xxxxx, cpu_xxxxx, comp_xxxxx, practice_session_xxxxx, demo_xxxxx, MongoDB ObjectId, or UUID (sessionId)',
     ),
     'showInstructions': DutchEventFieldSpec(
       type: bool,

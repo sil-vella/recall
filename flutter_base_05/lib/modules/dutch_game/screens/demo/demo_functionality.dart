@@ -55,6 +55,9 @@ class DemoFunctionality {
   
   // Timer for same rank window (5 seconds, like practice mode)
   Timer? _sameRankWindowTimer;
+  
+  // Timer for queen peek card display (3 seconds to show the peeked card before updating hand)
+  Timer? _queenPeekTimer;
 
   /// List of demo phase instructions
   /// Each phase has a title and paragraph explaining what to do
@@ -425,12 +428,15 @@ class DemoFunctionality {
     
     // Check if played card is a queen - if so, route to queen-specific logic
     final cardRank = cardToPlayFullData['rank']?.toString() ?? '';
-    _logger.info('🎮 DemoFunctionality: Card rank: "$cardRank" (checking for "queen")', isOn: LOGGING_SWITCH);
+    _logger.info('🎮 DemoFunctionality: Card rank: "$cardRank" (checking for "queen" or "jack")', isOn: LOGGING_SWITCH);
     if (cardRank == 'queen') {
       _logger.info('🎮 DemoFunctionality: Queen detected, routing to queen play logic', isOn: LOGGING_SWITCH);
       return await _handleQueenPlay(payload, cardToPlayFullData, player, hand, gameState, games, currentGameId, dutchGameState);
+    } else if (cardRank == 'jack') {
+      _logger.info('🎮 DemoFunctionality: Jack detected, routing to jack play logic', isOn: LOGGING_SWITCH);
+      return await _handleJackPlay(payload, cardToPlayFullData, player, hand, gameState, games, currentGameId, dutchGameState);
     } else {
-      _logger.info('🎮 DemoFunctionality: Not a queen (rank: "$cardRank"), continuing with regular play logic', isOn: LOGGING_SWITCH);
+      _logger.info('🎮 DemoFunctionality: Not a queen or jack (rank: "$cardRank"), continuing with regular play logic', isOn: LOGGING_SWITCH);
     }
     
     // Check if played card is the drawn card
@@ -890,6 +896,278 @@ class DemoFunctionality {
     _logger.info('✅ DemoFunctionality: Updated user status to queen_peek in SSOT', isOn: LOGGING_SWITCH);
     _logger.info('✅ DemoFunctionality: Updated state - widget slices will be recomputed with playerStatus=queen_peek', isOn: LOGGING_SWITCH);
     _logger.info('✅ DemoFunctionality: Queen played successfully, showing queen peek instructions', isOn: LOGGING_SWITCH);
+    
+    return {'success': true, 'mode': 'demo', 'cardId': cardId};
+  }
+
+  /// Handle jack play - plays jack to discard and shows jack swap instructions
+  Future<Map<String, dynamic>> _handleJackPlay(
+    Map<String, dynamic> payload,
+    Map<String, dynamic> cardToPlayFullData,
+    Map<String, dynamic> player,
+    List<dynamic> hand,
+    Map<String, dynamic> gameState,
+    Map<String, dynamic> games,
+    String currentGameId,
+    Map<String, dynamic> dutchGameState,
+  ) async {
+    _logger.info('🎮 DemoFunctionality: Jack play intercepted', isOn: LOGGING_SWITCH);
+    
+    final cardId = payload['card_id']?.toString() ?? payload['cardId']?.toString() ?? '';
+    final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
+    
+    // Re-read latest state from SSOT to ensure we have the most up-to-date data
+    final stateManager = StateManager();
+    final latestDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final latestGames = latestDutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final latestCurrentGame = latestGames[currentGameId] as Map<String, dynamic>? ?? {};
+    final latestGameData = latestCurrentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final latestGameState = latestGameData['game_state'] as Map<String, dynamic>? ?? gameState;
+    final latestPlayers = latestGameState['players'] as List<dynamic>? ?? [];
+    
+    // Find user player from latest players (not the stale player parameter)
+    Map<String, dynamic>? userPlayer;
+    int userPlayerIndex = -1;
+    for (int i = 0; i < latestPlayers.length; i++) {
+      final p = latestPlayers[i];
+      if (p is Map<String, dynamic> && p['isHuman'] == true) {
+        userPlayer = Map<String, dynamic>.from(p);
+        userPlayerIndex = i;
+        break;
+      }
+    }
+    
+    if (userPlayer == null) {
+      _logger.error('❌ DemoFunctionality: User player not found in latest players', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'User player not found'};
+    }
+    
+    // Use the fresh user player's hand
+    final userHand = userPlayer['hand'] as List<dynamic>? ?? [];
+    
+    // Find card index in hand
+    int cardIndex = -1;
+    for (int i = 0; i < userHand.length; i++) {
+      final card = userHand[i];
+      if (card != null && card is Map<String, dynamic>) {
+        final cardIdInHand = card['cardId']?.toString() ?? '';
+        if (cardIdInHand == cardId) {
+          cardIndex = i;
+          break;
+        }
+      }
+    }
+    
+    if (cardIndex == -1) {
+      _logger.error('❌ DemoFunctionality: Jack card $cardId not found in hand', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Card not found in hand'};
+    }
+    
+    // Check if played card is the drawn card
+    final isDrawnCard = drawnCard != null && drawnCard['cardId']?.toString() == cardId;
+    
+    // Create mutable copy of hand
+    final mutableHand = List<dynamic>.from(userHand);
+    
+    // Remove card from hand (create blank slot for indices 0-3, remove for index 4+)
+    bool shouldCreateBlankSlot = cardIndex <= 3;
+    if (cardIndex > 3) {
+      for (int i = cardIndex + 1; i < mutableHand.length; i++) {
+        if (mutableHand[i] != null) {
+          shouldCreateBlankSlot = true;
+          break;
+        }
+      }
+    }
+    
+    if (shouldCreateBlankSlot) {
+      mutableHand[cardIndex] = null;
+      _logger.info('✅ DemoFunctionality: Created blank slot at index $cardIndex for jack', isOn: LOGGING_SWITCH);
+    } else {
+      mutableHand.removeAt(cardIndex);
+      _logger.info('✅ DemoFunctionality: Removed jack entirely from index $cardIndex', isOn: LOGGING_SWITCH);
+    }
+    
+    // Handle drawn card repositioning if it wasn't played (same logic as regular play)
+    if (drawnCard != null && !isDrawnCard) {
+      int? drawnCardOriginalIndex;
+      for (int i = 0; i < mutableHand.length; i++) {
+        final card = mutableHand[i];
+        if (card is Map<String, dynamic> && card['cardId']?.toString() == drawnCard['cardId']?.toString()) {
+          drawnCardOriginalIndex = i;
+          break;
+        }
+      }
+      
+      if (drawnCardOriginalIndex != null) {
+        bool shouldKeepOriginalSlot = drawnCardOriginalIndex <= 3;
+        if (drawnCardOriginalIndex > 3) {
+          for (int i = drawnCardOriginalIndex + 1; i < mutableHand.length; i++) {
+            if (mutableHand[i] != null) {
+              shouldKeepOriginalSlot = true;
+              break;
+            }
+          }
+        }
+        
+        if (shouldKeepOriginalSlot) {
+          mutableHand[drawnCardOriginalIndex] = null;
+        } else {
+          mutableHand.removeAt(drawnCardOriginalIndex);
+          if (drawnCardOriginalIndex < cardIndex) {
+            cardIndex -= 1;
+          }
+        }
+        
+        final drawnCardIdOnly = {
+          'cardId': drawnCard['cardId'],
+          'suit': '?',
+          'rank': '?',
+          'points': 0,
+        };
+        
+        bool shouldPlaceInSlot = cardIndex <= 3;
+        if (cardIndex > 3) {
+          for (int i = cardIndex + 1; i < mutableHand.length; i++) {
+            if (mutableHand[i] != null) {
+              shouldPlaceInSlot = true;
+              break;
+            }
+          }
+        }
+        
+        if (shouldPlaceInSlot) {
+          if (cardIndex < mutableHand.length) {
+            mutableHand[cardIndex] = drawnCardIdOnly;
+          } else {
+            mutableHand.insert(cardIndex, drawnCardIdOnly);
+          }
+        } else {
+          mutableHand.add(drawnCardIdOnly);
+        }
+      }
+    }
+    
+    // Update user player's hand and status
+    userPlayer['hand'] = mutableHand;
+    userPlayer['status'] = 'jack_swap';
+    
+    // Find the played jack card from originalDeck using its actual cardId
+    final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? originalJackCard;
+    
+    // First, try to find the card by matching the cardId from the hand
+    final playedCardId = cardToPlayFullData['cardId']?.toString() ?? '';
+    for (final card in originalDeck) {
+      if (card is Map<String, dynamic> && 
+          card['cardId']?.toString() == playedCardId) {
+        originalJackCard = Map<String, dynamic>.from(card);
+        break;
+      }
+    }
+    
+    // If not found by ID, try to find by rank and suit (fallback)
+    if (originalJackCard == null) {
+      final playedRank = cardToPlayFullData['rank']?.toString() ?? '';
+      final playedSuit = cardToPlayFullData['suit']?.toString() ?? '';
+      for (final card in originalDeck) {
+        if (card is Map<String, dynamic> && 
+            card['rank']?.toString() == playedRank && 
+            card['suit']?.toString() == playedSuit) {
+          originalJackCard = Map<String, dynamic>.from(card);
+          break;
+        }
+      }
+    }
+    
+    // If still not found, create one with the played card's suit
+    if (originalJackCard == null) {
+      final playedSuit = cardToPlayFullData['suit']?.toString() ?? 'hearts';
+      originalJackCard = {
+        'cardId': 'card_demo_jack_${playedSuit}_0',
+        'rank': 'jack',
+        'suit': playedSuit,
+        'points': 10,
+        'specialPower': 'swap_cards',
+      };
+      _logger.warning('⚠️ DemoFunctionality: Jack not found in originalDeck, created fallback jack of $playedSuit', isOn: LOGGING_SWITCH);
+    } else {
+      _logger.info('🎮 DemoFunctionality: Using original jack card ID: ${originalJackCard['cardId']}, suit: ${originalJackCard['suit']}', isOn: LOGGING_SWITCH);
+    }
+    
+    // Add original jack to discard pile (using actual card ID from originalDeck)
+    final discardPile = latestGameState['discardPile'] as List<dynamic>? ?? [];
+    discardPile.add(originalJackCard);
+    
+    // Update myHandCards in games map
+    final myHandCards = List<Map<String, dynamic>>.from(mutableHand.map((c) {
+      if (c is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(c);
+      }
+      return <String, dynamic>{};
+    }));
+    
+    // Update players list with updated user player
+    final updatedPlayers = List<dynamic>.from(latestPlayers);
+    updatedPlayers[userPlayerIndex] = userPlayer;
+    
+    // Update SSOT with player status change and discard pile
+    // NOTE: Do NOT set gamePhase to 'same_rank_window' - we skip same rank window for jack play
+    final updatedGameState = Map<String, dynamic>.from(latestGameState);
+    updatedGameState['players'] = updatedPlayers;
+    updatedGameState['currentPlayer'] = userPlayer; // Set currentPlayer so _getCurrentUserStatus can find it
+    updatedGameState['discardPile'] = discardPile;
+    final updatedGameData = Map<String, dynamic>.from(latestGameData);
+    updatedGameData['game_state'] = updatedGameState;
+    final updatedCurrentGame = Map<String, dynamic>.from(latestCurrentGame);
+    updatedCurrentGame['gameData'] = updatedGameData;
+    updatedCurrentGame['myHandCards'] = myHandCards; // Update myHandCards so _computeMyHandSlice picks it up
+    final updatedGames = Map<String, dynamic>.from(latestGames);
+    updatedGames[currentGameId] = updatedCurrentGame;
+    
+    // Get current dutch game state for widget slice updates (same pattern as _handleQueenPlay)
+    final stateManagerForSlices = StateManager();
+    final currentDutchGameState = stateManagerForSlices.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    
+    // Update widget slices manually (same pattern as _handleQueenPlay)
+    final centerBoard = currentDutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+    centerBoard['playerStatus'] = 'jack_swap';
+    
+    final myHand = currentDutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+    myHand['playerStatus'] = 'jack_swap';
+    myHand['cards'] = myHandCards; // Update cards in myHand slice
+    
+    // Update state using official state updater (same pattern as _handleQueenPlay)
+    final stateUpdater = DutchGameStateUpdater.instance;
+    stateUpdater.updateStateSync({
+      'currentGameId': currentGameId,
+      'games': updatedGames, // SSOT with player status = 'jack_swap'
+      'discardPile': discardPile,
+      'myDrawnCard': null, // Clear drawn card
+      'currentPlayer': userPlayer, // Set currentPlayer so _getCurrentUserStatus can find it
+      'currentPlayerStatus': 'jack_swap',
+      'playerStatus': 'jack_swap',
+      'lastUpdated': DateTime.now().toIso8601String(),
+    });
+    
+    // Update widget slices and UI-only fields using state updater (same pattern as _handleQueenPlay)
+    stateUpdater.updateStateSync({
+      'centerBoard': centerBoard, // Update centerBoard slice
+      'myHand': myHand, // Update myHand slice with new status and cards
+    });
+    
+    // Update instructions phase separately using updateState (triggers widget rebuild)
+    // Same pattern as queen_peek - use updateState to ensure ListenableBuilder rebuilds
+    // NOTE: Do NOT set gamePhase - it's validated and 'jack_swap' is not allowed
+    // Only set demoInstructionsPhase which controls the instructions widget
+    stateUpdater.updateState({
+      'demoInstructionsPhase': 'jack_swap', // Show jack swap instructions
+      'lastUpdated': DateTime.now().toIso8601String(),
+    });
+    
+    _logger.info('✅ DemoFunctionality: Updated user status to jack_swap in SSOT', isOn: LOGGING_SWITCH);
+    _logger.info('✅ DemoFunctionality: Updated state - widget slices will be recomputed with playerStatus=jack_swap', isOn: LOGGING_SWITCH);
+    _logger.info('✅ DemoFunctionality: Jack played successfully, showing jack swap instructions (skipped same rank window)', isOn: LOGGING_SWITCH);
     
     return {'success': true, 'mode': 'demo', 'cardId': cardId};
   }
@@ -1584,17 +1862,552 @@ class DemoFunctionality {
   }
 
   /// Handle jack swap action in demo mode
+  /// Intercepts PlayerAction.jackSwap() which sends event 'jack_swap' with payload:
+  /// - first_card_id: ID of the first card to swap
+  /// - first_player_id: ID of the player who owns the first card
+  /// - second_card_id: ID of the second card to swap
+  /// - second_player_id: ID of the player who owns the second card
+  /// - game_id: Current game ID
   Future<Map<String, dynamic>> _handleJackSwap(Map<String, dynamic> payload) async {
-    _logger.info('🎮 DemoFunctionality: Jack swap action (demo mode - no-op)', isOn: LOGGING_SWITCH);
-    // TODO: Implement demo jack swap logic
-    return {'success': true, 'mode': 'demo'};
+    _logger.info('🎮 DemoFunctionality: Jack swap action intercepted', isOn: LOGGING_SWITCH);
+    _logger.info('🎮 DemoFunctionality: Payload: $payload', isOn: LOGGING_SWITCH);
+    
+    final firstCardId = payload['first_card_id']?.toString() ?? '';
+    final firstPlayerId = payload['first_player_id']?.toString() ?? '';
+    final secondCardId = payload['second_card_id']?.toString() ?? '';
+    final secondPlayerId = payload['second_player_id']?.toString() ?? '';
+    
+    if (firstCardId.isEmpty || firstPlayerId.isEmpty || secondCardId.isEmpty || secondPlayerId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: Missing required fields for jack swap', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Missing required fields'};
+    }
+    
+    _logger.info('🎮 DemoFunctionality: Swapping cards - First: $firstCardId (player: $firstPlayerId), Second: $secondCardId (player: $secondPlayerId)', isOn: LOGGING_SWITCH);
+    
+    // Re-read latest state from SSOT to ensure we have the most up-to-date data
+    final stateManager = StateManager();
+    final latestDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final latestGames = latestDutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGameId = latestDutchGameState['currentGameId']?.toString() ?? '';
+    
+    if (currentGameId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: No currentGameId found', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'No active game'};
+    }
+    
+    final latestCurrentGame = latestGames[currentGameId] as Map<String, dynamic>? ?? {};
+    final latestGameData = latestCurrentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final latestGameState = latestGameData['game_state'] as Map<String, dynamic>? ?? {};
+    final latestPlayers = latestGameState['players'] as List<dynamic>? ?? [];
+    
+    // Find both players
+    Map<String, dynamic>? firstPlayer;
+    int firstPlayerIndex = -1;
+    Map<String, dynamic>? secondPlayer;
+    int secondPlayerIndex = -1;
+    
+    for (int i = 0; i < latestPlayers.length; i++) {
+      final p = latestPlayers[i];
+      if (p is Map<String, dynamic>) {
+        final pId = p['id']?.toString() ?? '';
+        if (pId == firstPlayerId) {
+          firstPlayer = Map<String, dynamic>.from(p);
+          firstPlayerIndex = i;
+        }
+        if (pId == secondPlayerId) {
+          secondPlayer = Map<String, dynamic>.from(p);
+          secondPlayerIndex = i;
+        }
+      }
+    }
+    
+    if (firstPlayer == null || secondPlayer == null) {
+      _logger.error('❌ DemoFunctionality: One or both players not found. firstPlayerId: $firstPlayerId (found: ${firstPlayer != null}), secondPlayerId: $secondPlayerId (found: ${secondPlayer != null})', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Player not found'};
+    }
+    
+    _logger.info('✅ DemoFunctionality: Both players found - firstPlayer: ${firstPlayer['name']} (${firstPlayer['id']}), secondPlayer: ${secondPlayer['name']} (${secondPlayer['id']})', isOn: LOGGING_SWITCH);
+    
+    // Get player hands (convert to mutable lists)
+    final firstPlayerHand = List<dynamic>.from(firstPlayer['hand'] as List<dynamic>? ?? []);
+    final secondPlayerHand = List<dynamic>.from(secondPlayer['hand'] as List<dynamic>? ?? []);
+    
+    // Find the cards in each player's hand
+    Map<String, dynamic>? firstCard;
+    int? firstCardIndex;
+    Map<String, dynamic>? secondCard;
+    int? secondCardIndex;
+    
+    // Find first card
+    for (int i = 0; i < firstPlayerHand.length; i++) {
+      final card = firstPlayerHand[i];
+      if (card != null && card is Map<String, dynamic>) {
+        final cardIdInHand = card['cardId']?.toString() ?? '';
+        if (cardIdInHand == firstCardId) {
+          firstCard = Map<String, dynamic>.from(card);
+          firstCardIndex = i;
+          break;
+        }
+      }
+    }
+    
+    // Find second card
+    for (int i = 0; i < secondPlayerHand.length; i++) {
+      final card = secondPlayerHand[i];
+      if (card != null && card is Map<String, dynamic>) {
+        final cardIdInHand = card['cardId']?.toString() ?? '';
+        if (cardIdInHand == secondCardId) {
+          secondCard = Map<String, dynamic>.from(card);
+          secondCardIndex = i;
+          break;
+        }
+      }
+    }
+    
+    // Validate cards found
+    if (firstCard == null || secondCard == null || firstCardIndex == null || secondCardIndex == null) {
+      _logger.error('❌ DemoFunctionality: One or both cards not found in players\' hands', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Card not found in hand'};
+    }
+    
+    _logger.info('✅ DemoFunctionality: Found cards - First card at index $firstCardIndex in player $firstPlayerId hand, Second card at index $secondCardIndex in player $secondPlayerId hand', isOn: LOGGING_SWITCH);
+    
+    // Get full card data for both cards to ensure we have the correct cardId
+    final firstCardFullData = _getCardById(firstCardId);
+    final secondCardFullData = _getCardById(secondCardId);
+    
+    if (firstCardFullData == null || secondCardFullData == null) {
+      _logger.error('❌ DemoFunctionality: Failed to get full card data for swap - firstCard: ${firstCardFullData != null}, secondCard: ${secondCardFullData != null}', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Failed to get card data'};
+    }
+    
+    // Convert swapped cards to ID-only format (player hands always store ID-only cards)
+    // Format matches dutch game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
+    final firstCardIdOnly = {
+      'cardId': firstCardFullData['cardId'],
+      'suit': '?',      // Face-down: hide suit
+      'rank': '?',      // Face-down: hide rank
+      'points': 0,      // Face-down: hide points
+    };
+    
+    final secondCardIdOnly = {
+      'cardId': secondCardFullData['cardId'],
+      'suit': '?',      // Face-down: hide suit
+      'rank': '?',      // Face-down: hide rank
+      'points': 0,      // Face-down: hide points
+    };
+    
+    // Perform the swap with ID-only format
+    firstPlayerHand[firstCardIndex] = secondCardIdOnly;
+    secondPlayerHand[secondCardIndex] = firstCardIdOnly;
+    
+    _logger.info('✅ DemoFunctionality: Successfully swapped cards: $firstCardId <-> $secondCardId', isOn: LOGGING_SWITCH);
+    _logger.info('✅ DemoFunctionality: Player $firstPlayerId now has card $secondCardId at index $firstCardIndex', isOn: LOGGING_SWITCH);
+    _logger.info('✅ DemoFunctionality: Player $secondPlayerId now has card $firstCardId at index $secondCardIndex', isOn: LOGGING_SWITCH);
+    
+    // Update player hands in player objects
+    firstPlayer['hand'] = firstPlayerHand;
+    secondPlayer['hand'] = secondPlayerHand;
+    
+    // Update user player status to 'playing_card' after swap completes
+    // Check if user is one of the players involved
+    bool userInvolved = false;
+    if (firstPlayer['isHuman'] == true) {
+      firstPlayer['status'] = 'playing_card';
+      userInvolved = true;
+    }
+    if (secondPlayer['isHuman'] == true) {
+      secondPlayer['status'] = 'playing_card';
+      userInvolved = true;
+    }
+    
+    // Update players list
+    final updatedPlayers = List<dynamic>.from(latestPlayers);
+    updatedPlayers[firstPlayerIndex] = firstPlayer;
+    updatedPlayers[secondPlayerIndex] = secondPlayer;
+    
+    // Update SSOT
+    final updatedGameState = Map<String, dynamic>.from(latestGameState);
+    updatedGameState['players'] = updatedPlayers;
+    
+    // If user is involved, set currentPlayer to user player
+    if (userInvolved) {
+      Map<String, dynamic>? userPlayer;
+      for (final p in updatedPlayers) {
+        if (p is Map<String, dynamic> && p['isHuman'] == true) {
+          userPlayer = p;
+          break;
+        }
+      }
+      if (userPlayer != null) {
+        updatedGameState['currentPlayer'] = userPlayer;
+      }
+    }
+    
+    final updatedGameData = Map<String, dynamic>.from(latestGameData);
+    updatedGameData['game_state'] = updatedGameState;
+    final updatedCurrentGame = Map<String, dynamic>.from(latestCurrentGame);
+    updatedCurrentGame['gameData'] = updatedGameData;
+    
+    // Update myHandCards if user is involved
+    if (userInvolved) {
+      Map<String, dynamic>? userPlayer;
+      for (final p in updatedPlayers) {
+        if (p is Map<String, dynamic> && p['isHuman'] == true) {
+          userPlayer = p;
+          break;
+        }
+      }
+      if (userPlayer != null) {
+        final userHand = userPlayer['hand'] as List<dynamic>? ?? [];
+        final myHandCards = List<Map<String, dynamic>>.from(userHand.map((c) {
+          if (c is Map<String, dynamic>) {
+            return Map<String, dynamic>.from(c);
+          }
+          return <String, dynamic>{};
+        }));
+        updatedCurrentGame['myHandCards'] = myHandCards;
+      }
+    }
+    
+    final updatedGames = Map<String, dynamic>.from(latestGames);
+    updatedGames[currentGameId] = updatedCurrentGame;
+    
+    // Get current dutch game state for widget slice updates
+    final stateManagerForSlices = StateManager();
+    final currentDutchGameState = stateManagerForSlices.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    
+    // Update widget slices manually
+    final centerBoard = currentDutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+    if (userInvolved) {
+      centerBoard['playerStatus'] = 'playing_card';
+    }
+    
+    final myHand = currentDutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+    if (userInvolved) {
+      myHand['playerStatus'] = 'playing_card';
+      if (updatedCurrentGame['myHandCards'] != null) {
+        myHand['cards'] = updatedCurrentGame['myHandCards'];
+      }
+    }
+    
+    final opponentsPanel = currentDutchGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
+    final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
+    // Update opponent hands in opponentsPanel if they were involved
+    for (int i = 0; i < opponents.length; i++) {
+      final opponent = opponents[i];
+      if (opponent is Map<String, dynamic>) {
+        final opponentId = opponent['id']?.toString() ?? '';
+        if (opponentId == firstPlayerId && firstPlayer['isHuman'] != true) {
+          opponents[i] = {
+            ...opponent,
+            'hand': firstPlayerHand,
+          };
+        } else if (opponentId == secondPlayerId && secondPlayer['isHuman'] != true) {
+          opponents[i] = {
+            ...opponent,
+            'hand': secondPlayerHand,
+          };
+        }
+      }
+    }
+    opponentsPanel['opponents'] = opponents;
+    
+    // Update state using official state updater
+    final stateUpdater = DutchGameStateUpdater.instance;
+    
+    // Step 1: Update SSOT and main state fields using updateStateSync
+    stateUpdater.updateStateSync({
+      'currentGameId': currentGameId,
+      'games': updatedGames, // SSOT with swapped cards
+      'currentPlayer': userInvolved ? updatedGameState['currentPlayer'] : null,
+      'currentPlayerStatus': userInvolved ? 'playing_card' : null,
+      'playerStatus': userInvolved ? 'playing_card' : null,
+      'lastUpdated': DateTime.now().toIso8601String(),
+    });
+    
+    // Step 2: Update widget slices using updateStateSync
+    stateUpdater.updateStateSync({
+      'centerBoard': centerBoard,
+      'myHand': myHand,
+      'opponentsPanel': opponentsPanel,
+    });
+    
+    // Step 3: Clear jack swap instructions and show playing phase
+    if (userInvolved) {
+      stateUpdater.updateState({
+        'demoInstructionsPhase': 'playing', // Show playing phase instructions after swap
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+    }
+    
+    _logger.info('✅ DemoFunctionality: Jack swap completed - cards swapped successfully', isOn: LOGGING_SWITCH);
+    
+    return {'success': true, 'mode': 'demo', 'firstCardId': firstCardId, 'secondCardId': secondCardId};
   }
 
   /// Handle queen peek action in demo mode
+  /// Intercepts PlayerAction.queenPeek() which sends event 'queen_peek' with payload:
+  /// - card_id: ID of the card to peek at
+  /// - ownerId: ID of the player who owns the card
+  /// - game_id: Current game ID
+  /// - player_id: Auto-added by event emitter
   Future<Map<String, dynamic>> _handleQueenPeek(Map<String, dynamic> payload) async {
-    _logger.info('🎮 DemoFunctionality: Queen peek action (demo mode - no-op)', isOn: LOGGING_SWITCH);
-    // TODO: Implement demo queen peek logic
-    return {'success': true, 'mode': 'demo'};
+    _logger.info('🎮 DemoFunctionality: Queen peek action intercepted', isOn: LOGGING_SWITCH);
+    _logger.info('🎮 DemoFunctionality: Payload: $payload', isOn: LOGGING_SWITCH);
+    
+    final cardId = payload['card_id']?.toString() ?? payload['cardId']?.toString() ?? '';
+    if (cardId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: No card_id provided for queen peek', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'No card_id provided'};
+    }
+    
+    // Get full card data from originalDeck (similar to initial peek)
+    final fullCardData = _getCardById(cardId);
+    if (fullCardData == null) {
+      _logger.error('❌ DemoFunctionality: Failed to get full card data for $cardId', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'Failed to get card data'};
+    }
+    
+    _logger.info('🎮 DemoFunctionality: Peeking at card: ${fullCardData['rank']} of ${fullCardData['suit']}', isOn: LOGGING_SWITCH);
+    
+    // Re-read latest state from SSOT to ensure we have the most up-to-date data
+    final stateManager = StateManager();
+    final latestDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final latestGames = latestDutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGameId = latestDutchGameState['currentGameId']?.toString() ?? '';
+    
+    if (currentGameId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: No currentGameId found', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'No active game'};
+    }
+    
+    final latestCurrentGame = latestGames[currentGameId] as Map<String, dynamic>? ?? {};
+    final latestGameData = latestCurrentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final latestGameState = latestGameData['game_state'] as Map<String, dynamic>? ?? {};
+    final latestPlayers = latestGameState['players'] as List<dynamic>? ?? [];
+    
+    // Find user player from latest players
+    Map<String, dynamic>? userPlayer;
+    int userPlayerIndex = -1;
+    for (int i = 0; i < latestPlayers.length; i++) {
+      final p = latestPlayers[i];
+      if (p is Map<String, dynamic> && p['isHuman'] == true) {
+        userPlayer = Map<String, dynamic>.from(p);
+        userPlayerIndex = i;
+        break;
+      }
+    }
+    
+    if (userPlayer == null) {
+      _logger.error('❌ DemoFunctionality: User player not found in latest players', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'User player not found'};
+    }
+    
+    // Immediately set player status to 'waiting' (queen peek in progress)
+    userPlayer['status'] = 'waiting';
+    
+    // Update players list with updated user player
+    final updatedPlayers = List<dynamic>.from(latestPlayers);
+    updatedPlayers[userPlayerIndex] = userPlayer;
+    
+    // Update SSOT with player status change (waiting during peek)
+    final updatedGameState = Map<String, dynamic>.from(latestGameState);
+    updatedGameState['players'] = updatedPlayers;
+    updatedGameState['currentPlayer'] = userPlayer; // Set currentPlayer so _getCurrentUserStatus can find it
+    final updatedGameData = Map<String, dynamic>.from(latestGameData);
+    updatedGameData['game_state'] = updatedGameState;
+    final updatedCurrentGame = Map<String, dynamic>.from(latestCurrentGame);
+    updatedCurrentGame['gameData'] = updatedGameData;
+    final updatedGames = Map<String, dynamic>.from(latestGames);
+    updatedGames[currentGameId] = updatedCurrentGame;
+    
+    // Get current dutch game state for widget slice updates
+    final stateManagerForSlices = StateManager();
+    final currentDutchGameState = stateManagerForSlices.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    
+    // Update widget slices manually
+    final centerBoard = currentDutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+    centerBoard['playerStatus'] = 'waiting';
+    
+    final myHand = currentDutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+    myHand['playerStatus'] = 'waiting';
+    
+    // Update state using official state updater
+    final stateUpdater = DutchGameStateUpdater.instance;
+    
+    // Step 1: Update SSOT and main state fields using updateStateSync (immediate - show card and set to waiting)
+    stateUpdater.updateStateSync({
+      'currentGameId': currentGameId,
+      'games': updatedGames, // SSOT with player status = 'waiting'
+      'myCardsToPeek': [fullCardData], // Show the peeked card with full data (similar to initial peek)
+      'currentPlayer': userPlayer, // Set currentPlayer so _getCurrentUserStatus can find it
+      'currentPlayerStatus': 'waiting',
+      'playerStatus': 'waiting',
+      'lastUpdated': DateTime.now().toIso8601String(),
+    });
+    
+    // Step 2: Update widget slices using updateStateSync
+    stateUpdater.updateStateSync({
+      'centerBoard': centerBoard, // Update centerBoard slice
+      'myHand': myHand, // Update myHand slice with waiting status
+    });
+    
+    // Step 3: Clear queen peek instructions (user is waiting during peek)
+    stateUpdater.updateState({
+      'demoInstructionsPhase': '', // Clear instructions during peek
+      'lastUpdated': DateTime.now().toIso8601String(),
+    });
+    
+    _logger.info('✅ DemoFunctionality: Queen peek card selected, showing card and setting status to waiting', isOn: LOGGING_SWITCH);
+    _logger.info('✅ DemoFunctionality: Card data added to myCardsToPeek: ${fullCardData['rank']} of ${fullCardData['suit']}', isOn: LOGGING_SWITCH);
+    
+    // Cancel any existing queen peek timer
+    _queenPeekTimer?.cancel();
+    
+    // Start 3-second timer before updating hand to jacks and changing to playing_card
+    _queenPeekTimer = Timer(Duration(seconds: 3), () {
+      _logger.info('🎮 DemoFunctionality: Queen peek timer expired, updating hand to 4 jacks and setting status to playing_card', isOn: LOGGING_SWITCH);
+      
+      // Re-read latest state from SSOT
+      final timerStateManager = StateManager();
+      final timerDutchGameState = timerStateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final timerGames = timerDutchGameState['games'] as Map<String, dynamic>? ?? {};
+      final timerCurrentGameId = timerDutchGameState['currentGameId']?.toString() ?? '';
+      
+      if (timerCurrentGameId.isEmpty) {
+        _logger.error('❌ DemoFunctionality: No currentGameId found in timer callback', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      final timerCurrentGame = timerGames[timerCurrentGameId] as Map<String, dynamic>? ?? {};
+      final timerGameData = timerCurrentGame['gameData'] as Map<String, dynamic>? ?? {};
+      final timerGameState = timerGameData['game_state'] as Map<String, dynamic>? ?? {};
+      final timerPlayers = timerGameState['players'] as List<dynamic>? ?? [];
+      
+      // Find user player
+      Map<String, dynamic>? timerUserPlayer;
+      int timerUserPlayerIndex = -1;
+      for (int i = 0; i < timerPlayers.length; i++) {
+        final p = timerPlayers[i];
+        if (p is Map<String, dynamic> && p['isHuman'] == true) {
+          timerUserPlayer = Map<String, dynamic>.from(p);
+          timerUserPlayerIndex = i;
+          break;
+        }
+      }
+      
+      if (timerUserPlayer == null) {
+        _logger.error('❌ DemoFunctionality: User player not found in timer callback', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Update user's hand from 4 queens to 4 jacks (for jack swap demo)
+      final originalDeck = timerGameState['originalDeck'] as List<dynamic>? ?? [];
+      final suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+      final jacksHand = <Map<String, dynamic>>[];
+      
+      // Find each jack by suit from originalDeck
+      for (final suit in suits) {
+        Map<String, dynamic>? jackCard;
+        for (final card in originalDeck) {
+          if (card is Map<String, dynamic> && 
+              card['rank']?.toString() == 'jack' && 
+              card['suit']?.toString() == suit) {
+            jackCard = Map<String, dynamic>.from(card);
+            break;
+          }
+        }
+        
+        // If jack not found in originalDeck, create one with standard ID
+        if (jackCard == null) {
+          jackCard = {
+            'cardId': 'card_demo_jack_${suit}_0',
+            'rank': 'jack',
+            'suit': suit,
+            'points': 10,
+            'specialPower': 'swap_cards',
+          };
+          _logger.warning('⚠️ DemoFunctionality: Jack of $suit not found in originalDeck, created fallback', isOn: LOGGING_SWITCH);
+        }
+        
+        // Convert to ID-only format (as stored in hands) using the actual card ID
+        final idOnlyCard = {
+          'cardId': jackCard['cardId'], // Use actual card ID from originalDeck
+          'suit': '?',      // Face-down: hide suit
+          'rank': '?',      // Face-down: hide rank
+          'points': 0,      // Face-down: hide points
+        };
+        jacksHand.add(idOnlyCard);
+        _logger.info('✅ DemoFunctionality: Added jack of $suit to hand with ID: ${jackCard['cardId']}', isOn: LOGGING_SWITCH);
+      }
+      
+      // Update user's hand to 4 jacks and status to playing_card
+      timerUserPlayer['hand'] = jacksHand;
+      timerUserPlayer['status'] = 'playing_card';
+      
+      // Update players list
+      final timerUpdatedPlayers = List<dynamic>.from(timerPlayers);
+      timerUpdatedPlayers[timerUserPlayerIndex] = timerUserPlayer;
+      
+      // Update SSOT with new hand and playing_card status
+      final timerUpdatedGameState = Map<String, dynamic>.from(timerGameState);
+      timerUpdatedGameState['players'] = timerUpdatedPlayers;
+      timerUpdatedGameState['currentPlayer'] = timerUserPlayer;
+      final timerUpdatedGameData = Map<String, dynamic>.from(timerGameData);
+      timerUpdatedGameData['game_state'] = timerUpdatedGameState;
+      final timerUpdatedCurrentGame = Map<String, dynamic>.from(timerCurrentGame);
+      timerUpdatedCurrentGame['gameData'] = timerUpdatedGameData;
+      // Update myHandCards with the new jacks hand
+      final timerMyHandCards = List<Map<String, dynamic>>.from(jacksHand.map((c) => Map<String, dynamic>.from(c)));
+      timerUpdatedCurrentGame['myHandCards'] = timerMyHandCards;
+      final timerUpdatedGames = Map<String, dynamic>.from(timerGames);
+      timerUpdatedGames[timerCurrentGameId] = timerUpdatedCurrentGame;
+      
+      // Get current dutch game state for widget slice updates
+      final timerStateManagerForSlices = StateManager();
+      final timerCurrentDutchGameState = timerStateManagerForSlices.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      
+      // Update widget slices manually
+      final timerCenterBoard = timerCurrentDutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+      timerCenterBoard['playerStatus'] = 'playing_card';
+      
+      final timerMyHand = timerCurrentDutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+      timerMyHand['playerStatus'] = 'playing_card';
+      timerMyHand['cards'] = timerMyHandCards; // Update cards in myHand slice with new jacks
+      
+      // Update state using official state updater
+      final timerStateUpdater = DutchGameStateUpdater.instance;
+      
+      // Step 1: Update SSOT and main state fields using updateStateSync
+      timerStateUpdater.updateStateSync({
+        'currentGameId': timerCurrentGameId,
+        'games': timerUpdatedGames, // SSOT with player status = 'playing_card' and new jacks hand
+        'myCardsToPeek': [], // Clear peeked card (convert back to ID-only after timer)
+        'currentPlayer': timerUserPlayer,
+        'currentPlayerStatus': 'playing_card',
+        'playerStatus': 'playing_card',
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      // Step 2: Update widget slices using updateStateSync
+      timerStateUpdater.updateStateSync({
+        'centerBoard': timerCenterBoard, // Update centerBoard slice
+        'myHand': timerMyHand, // Update myHand slice with new status and cards
+      });
+      
+      // Step 3: Show special plays instructions (for jack swap demo)
+      timerStateUpdater.updateState({
+        'demoInstructionsPhase': 'special_plays', // Show special plays instructions
+        'lastUpdated': DateTime.now().toIso8601String(),
+      });
+      
+      _logger.info('✅ DemoFunctionality: Queen peek timer expired - updated hand to 4 jacks and status to playing_card', isOn: LOGGING_SWITCH);
+      _logger.info('✅ DemoFunctionality: Showing special plays instructions', isOn: LOGGING_SWITCH);
+      _queenPeekTimer = null;
+    });
+    
+    return {'success': true, 'mode': 'demo', 'cardId': cardId, 'cardData': fullCardData};
   }
 
   /// Handle play out of turn action in demo mode
@@ -2482,6 +3295,8 @@ class DemoFunctionality {
       _sameRankInstructionsTimer = null;
       _drawingInstructionsTimer?.cancel();
       _drawingInstructionsTimer = null;
+      _queenPeekTimer?.cancel();
+      _queenPeekTimer = null;
       _logger.info('✅ DemoFunctionality: Cancelled all timers after opponent simulation completed', isOn: LOGGING_SWITCH);
       
     } catch (e, stackTrace) {

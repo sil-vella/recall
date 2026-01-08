@@ -7,6 +7,7 @@ import '../../managers/player_action.dart';
 import '../../managers/validated_event_emitter.dart';
 import '../../practice/practice_mode_bridge.dart';
 import '../../utils/dutch_game_helpers.dart';
+import '../../utils/game_instructions_provider.dart';
 import '../../backend_core/services/game_state_store.dart';
 import 'demo_state_setup.dart';
 
@@ -30,6 +31,9 @@ class DemoActionHandler {
   /// Track the currently active demo action type
   static String? _activeDemoActionType;
   
+  /// Flag to prevent multiple calls to endDemoAction
+  static bool _isEndingDemoAction = false;
+  
   /// Check if a demo action is currently active
   static bool isDemoActionActive() {
     return _activeDemoActionType != null;
@@ -48,38 +52,45 @@ class DemoActionHandler {
     try {
       _logger.info('🎮 DemoActionHandler: Starting demo action: $actionType', isOn: LOGGING_SWITCH);
       
-      // Set active demo action type
+      // 1. Clear all state FIRST (before setting active demo action)
+      // This ensures no leftover state from previous demos can interfere
+      await _clearAllState();
+      
+      // 2. Reset ending flag in case it was left set
+      _isEndingDemoAction = false;
+      
+      // 3. Set active demo action type AFTER clearing state
       _activeDemoActionType = actionType;
 
-      // 1. Clear all state
-      await _clearAllState();
-
-      // 2. Determine if collection mode is needed
+      // 3. Determine if collection mode is needed
       final isClearAndCollect = actionType == 'collect_rank';
 
-      // 3. Start practice match with showInstructions: true and test deck
+      // 4. Start practice match with showInstructions: true and test deck
       final practiceRoomId = await _startPracticeMatch(
         showInstructions: true,
         isClearAndCollect: isClearAndCollect,
       );
 
-      // 4. Get initial game state
+      // 5. Get initial game state
       final gameStateStore = GameStateStore.instance;
       final gameState = gameStateStore.getGameState(practiceRoomId);
       
       _logger.info('🎮 DemoActionHandler: Got initial game state, phase = ${gameState['phase']}', isOn: LOGGING_SWITCH);
 
-      // 5. Advance game state to action-specific state
+      // 6. Advance game state to action-specific state
       final updatedGameState = await _stateSetup.setupActionState(
         actionType: actionType,
         gameId: practiceRoomId,
         gameState: gameState,
       );
 
-      // 6. Sync state and trigger widget updates
+      // 7. Sync state and trigger widget updates
       await _syncGameState(practiceRoomId, updatedGameState);
 
-      // 7. Navigate to game play screen
+      // 8. Show instructions for this demo action
+      _showDemoInstructions(actionType);
+
+      // 9. Navigate to game play screen
       _logger.info('🎮 DemoActionHandler: Navigating to game play screen', isOn: LOGGING_SWITCH);
       NavigationManager().navigateTo('/dutch/game-play');
 
@@ -92,24 +103,36 @@ class DemoActionHandler {
   }
 
   /// Clear all state before starting new demo
+  /// This must be called BEFORE setting _activeDemoActionType to prevent false completion detection
   Future<void> _clearAllState() async {
     try {
       _logger.info('🧹 DemoActionHandler: Clearing all state', isOn: LOGGING_SWITCH);
 
-      // Get current game ID if any
+      // 1. Clear active demo action type FIRST to prevent completion detection
+      _activeDemoActionType = null;
+
+      // 2. Get current game ID if any
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
 
-      // Remove player from game (clears all game state)
+      // 3. Remove player from game (clears all game state)
       if (currentGameId.isNotEmpty) {
         DutchGameHelpers.removePlayerFromGame(gameId: currentGameId);
       }
 
-      // End any existing practice session
+      // 4. End any existing practice session
       final practiceBridge = PracticeModeBridge.instance;
       practiceBridge.endPracticeSession();
 
-      // Clear all state fields
+      // 5. Clear all games from GameStateStore to remove any leftover game states
+      final gameStateStore = GameStateStore.instance;
+      final currentGames = currentState['games'] as Map<String, dynamic>? ?? {};
+      for (final gameId in currentGames.keys) {
+        gameStateStore.clear(gameId.toString());
+        _logger.info('🧹 DemoActionHandler: Cleared GameStateStore for game: $gameId', isOn: LOGGING_SWITCH);
+      }
+
+      // 6. Clear all state fields including previousPlayerStatus to prevent false completion detection
       final stateUpdater = DutchGameStateUpdater.instance;
       stateUpdater.updateStateSync({
         'currentGameId': '',
@@ -125,12 +148,19 @@ class DemoActionHandler {
         'roundNumber': 0,
         'discardPile': <Map<String, dynamic>>[],
         'drawPileCount': 0,
-        'discardPileCount': 0,
         'turn_events': <Map<String, dynamic>>[],
         'actionText': {
           'isVisible': false,
           'text': '',
         },
+        'instructions': {
+          'isVisible': false,
+          'title': '',
+          'content': '',
+          'key': '',
+          'hasDemonstration': false,
+        },
+        'previousPlayerStatus': null, // CRITICAL: Clear to prevent false completion detection
         'lastUpdated': DateTime.now().toIso8601String(),
       });
 
@@ -282,24 +312,9 @@ class DemoActionHandler {
       // Small delay to allow slice recomputation
       await Future.delayed(const Duration(milliseconds: 50));
 
-      // Initialize previous player status for demo completion detection
-      final players = gameState['players'] as List<dynamic>? ?? [];
-      String? initialPlayerStatus;
-      try {
-        final myPlayer = players.cast<Map<String, dynamic>>().firstWhere(
-          (player) => player['id']?.toString() == currentUserId,
-        );
-        initialPlayerStatus = myPlayer['status']?.toString();
-      } catch (e) {
-        // Player not found, will be set on first state update
-      }
-
-      // Store initial player status for transition detection
-      if (initialPlayerStatus != null) {
-        StateManager().updateModuleState('dutch_game', {
-          'previousPlayerStatus': initialPlayerStatus,
-        });
-      }
+      // IMPORTANT: Do NOT set previousPlayerStatus during initial sync
+      // It will be set on the first real state update from the backend
+      // Setting it here could cause false completion detection if there's leftover state
 
       // Trigger game_state_updated event to sync widget slices
       _logger.info('🎮 DemoActionHandler: Triggering handleGameStateUpdated for game_id = $gameId', isOn: LOGGING_SWITCH);
@@ -322,10 +337,22 @@ class DemoActionHandler {
   /// 
   /// [actionType] - The demo action type that was completed
   Future<void> endDemoAction(String actionType) async {
+    // Prevent multiple calls to endDemoAction
+    if (_isEndingDemoAction) {
+      _logger.info('🎮 DemoActionHandler: Already ending demo action, skipping duplicate call', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
+    _isEndingDemoAction = true;
+    
     try {
       _logger.info('🎮 DemoActionHandler: Ending demo action: $actionType', isOn: LOGGING_SWITCH);
       
-      // Clear demo-specific state
+      // IMPORTANT: Keep _activeDemoActionType set until after navigation
+      // This prevents _triggerInstructionsIfNeeded from showing instructions
+      // during the delay period or after state updates
+      
+      // 1. Clear demo-specific state (but keep _activeDemoActionType set)
       final stateUpdater = DutchGameStateUpdater.instance;
       stateUpdater.updateStateSync({
         'actionText': {
@@ -339,17 +366,37 @@ class DemoActionHandler {
           'key': '',
           'hasDemonstration': false,
         },
-        'previousPlayerStatus': null,
+        'previousPlayerStatus': null, // CRITICAL: Clear to prevent false detection on next demo
       });
       
-      // Wait 2-3 seconds to show the result
+      // 2. Wait 2-3 seconds to show the result
+      // During this time, _activeDemoActionType is still set, so instructions won't show
       await Future.delayed(const Duration(seconds: 2));
       
-      // Navigate back to demo screen
+      // 3. Clear all game state to ensure clean slate for next demo
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final currentGameId = currentState['currentGameId']?.toString() ?? '';
+      
+      if (currentGameId.isNotEmpty) {
+        // Remove player from game
+        DutchGameHelpers.removePlayerFromGame(gameId: currentGameId);
+        
+        // Clear from GameStateStore
+        final gameStateStore = GameStateStore.instance;
+        gameStateStore.clear(currentGameId);
+        _logger.info('🧹 DemoActionHandler: Cleared GameStateStore for ended demo: $currentGameId', isOn: LOGGING_SWITCH);
+      }
+      
+      // 4. End practice session
+      final practiceBridge = PracticeModeBridge.instance;
+      practiceBridge.endPracticeSession();
+      
+      // 5. Navigate back to demo screen
       _logger.info('🎮 DemoActionHandler: Navigating back to demo screen', isOn: LOGGING_SWITCH);
       NavigationManager().navigateTo('/dutch/demo');
       
-      // Clear active demo action type
+      // 6. NOW clear active demo action type AFTER navigation
+      // This ensures instructions won't show during or after the demo action ends
       _activeDemoActionType = null;
       
       _logger.info('✅ DemoActionHandler: Demo action $actionType ended successfully', isOn: LOGGING_SWITCH);
@@ -358,6 +405,9 @@ class DemoActionHandler {
         error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
       // Clear active demo action type even on error
       _activeDemoActionType = null;
+    } finally {
+      // Reset flag to allow future demo actions
+      _isEndingDemoAction = false;
     }
   }
 
@@ -417,6 +467,149 @@ class DemoActionHandler {
   /// Check if an action is completed (public method for use in event handlers)
   bool isActionCompleted(String actionType, String? previousStatus, String? currentStatus) {
     return _isActionCompleted(actionType, previousStatus, currentStatus);
+  }
+
+  /// Show "Wrong Same Rank" instruction after same rank play completion
+  /// 
+  /// [actionType] - The demo action type (should be 'same_rank')
+  Future<void> showWrongSameRankInstruction(String actionType) async {
+    try {
+      _logger.info('📚 DemoActionHandler: Showing wrong same rank instruction for action: $actionType', isOn: LOGGING_SWITCH);
+      
+      // Wait 2 seconds before showing instruction
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // Create callback that will execute endDemoAction when instruction is closed
+      void onCloseCallback() {
+        _logger.info('📚 DemoActionHandler: Wrong same rank instruction closed - executing endDemoAction', isOn: LOGGING_SWITCH);
+        endDemoAction(actionType);
+      }
+      
+      // Show the instruction with custom close callback
+      final stateUpdater = DutchGameStateUpdater.instance;
+      stateUpdater.updateStateSync({
+        'instructions': {
+          'isVisible': true,
+          'title': 'Wrong Same Rank',
+          'content': 'You played a wrong rank during same rank windows and was given a penalty card.',
+          'key': 'wrong_same_rank',
+          'hasDemonstration': false,
+          'onClose': onCloseCallback, // Custom close action
+        },
+      });
+      
+      _logger.info('✅ DemoActionHandler: Wrong same rank instruction shown', isOn: LOGGING_SWITCH);
+    } catch (e, stackTrace) {
+      _logger.error('❌ DemoActionHandler: Error showing wrong same rank instruction: $e', 
+        error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      // Fallback: end demo action if instruction fails
+      endDemoAction(actionType);
+    }
+  }
+
+  /// Show instructions for a demo action
+  ///
+  /// [actionType] - The demo action type
+  void _showDemoInstructions(String actionType) {
+    try {
+      _logger.info('📚 DemoActionHandler: Showing instructions for demo action: $actionType', isOn: LOGGING_SWITCH);
+
+      // Map demo action types to instruction keys and get instructions
+      Map<String, dynamic>? instructions;
+      switch (actionType) {
+        case 'initial_peek':
+          instructions = GameInstructionsProvider.getInstructions(
+            gamePhase: 'initial_peek',
+            playerStatus: 'initial_peek',
+            isMyTurn: true,
+          );
+          break;
+        case 'drawing':
+          instructions = GameInstructionsProvider.getInstructions(
+            gamePhase: 'playing',
+            playerStatus: 'drawing_card',
+            isMyTurn: true,
+          );
+          break;
+        case 'playing':
+          instructions = GameInstructionsProvider.getInstructions(
+            gamePhase: 'playing',
+            playerStatus: 'playing_card',
+            isMyTurn: true,
+          );
+          break;
+        case 'same_rank':
+          instructions = GameInstructionsProvider.getInstructions(
+            gamePhase: 'same_rank_window',
+            playerStatus: 'same_rank_window',
+            isMyTurn: true,
+          );
+          break;
+        case 'queen_peek':
+          instructions = GameInstructionsProvider.getInstructions(
+            gamePhase: 'playing',
+            playerStatus: 'queen_peek',
+            isMyTurn: true,
+          );
+          break;
+        case 'jack_swap':
+          instructions = GameInstructionsProvider.getInstructions(
+            gamePhase: 'playing',
+            playerStatus: 'jack_swap',
+            isMyTurn: true,
+          );
+          break;
+        case 'collect_rank':
+          instructions = GameInstructionsProvider.getInstructions(
+            gamePhase: 'same_rank_window',
+            playerStatus: 'collection_card',
+            isMyTurn: true,
+          );
+          break;
+        case 'call_dutch':
+          // No specific instruction for call_dutch, skip
+          _logger.info('📚 DemoActionHandler: No instructions available for call_dutch', isOn: LOGGING_SWITCH);
+          return;
+        default:
+          _logger.warning('📚 DemoActionHandler: Unknown demo action type: $actionType', isOn: LOGGING_SWITCH);
+          return;
+      }
+
+      if (instructions == null) {
+        _logger.warning('📚 DemoActionHandler: No instructions found for demo action: $actionType', isOn: LOGGING_SWITCH);
+        return;
+      }
+
+      // Get current dontShowAgain map and set all demo instructions to true (can't be dismissed)
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final instructionsData = currentState['instructions'] as Map<String, dynamic>? ?? {};
+      final dontShowAgain = Map<String, bool>.from(
+        instructionsData['dontShowAgain'] as Map<String, dynamic>? ?? {},
+      );
+
+      // Set this instruction's dontShowAgain to true (though checkbox is removed, this ensures consistency)
+      final instructionKey = instructions['key']?.toString();
+      if (instructionKey != null) {
+        dontShowAgain[instructionKey] = true;
+      }
+
+      // Update state to show instructions
+      StateManager().updateModuleState('dutch_game', {
+        'instructions': {
+          'isVisible': true,
+          'title': instructions['title'] ?? 'Game Instructions',
+          'content': instructions['content'] ?? '',
+          'key': instructionKey ?? '',
+          'hasDemonstration': instructions['hasDemonstration'] ?? false,
+          'dontShowAgain': dontShowAgain,
+        },
+      });
+
+      _logger.info('✅ DemoActionHandler: Instructions shown for demo action: $actionType', isOn: LOGGING_SWITCH);
+    } catch (e, stackTrace) {
+      _logger.error('❌ DemoActionHandler: Error showing instructions for demo action $actionType: $e', 
+        error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+    }
   }
 }
 

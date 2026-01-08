@@ -43,6 +43,8 @@ class InstructionsWidget extends StatelessWidget {
         final instructionKey = instructionsData['key']?.toString();
         final hasDemonstration = instructionsData['hasDemonstration'] as bool? ?? false;
         final isInitial = instructionKey == 'initial' || instructionKey == 'initial_peek';
+        // Get optional custom close callback (function reference stored in state)
+        final onCloseCallback = instructionsData['onClose'] as void Function()?;
         
         _logger.info('InstructionsWidget: isVisible=$isVisible, title=$title, key=$instructionKey, currentlyShowing=$_currentlyShowingKey', isOn: LOGGING_SWITCH);
         
@@ -66,7 +68,15 @@ class InstructionsWidget extends StatelessWidget {
         
         // Show modal using Flutter's official showDialog method
         WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showInstructionsModal(context, title, content, instructionKey, isInitial, hasDemonstration);
+            _showInstructionsModal(
+              context, 
+              title, 
+              content, 
+              instructionKey, 
+              isInitial, 
+              hasDemonstration,
+              onCloseCallback,
+            );
         });
         } else if (!shouldShow) {
           _logger.info('InstructionsWidget: Skipping duplicate modal for key=$instructionKey (already showing)', isOn: LOGGING_SWITCH);
@@ -104,7 +114,19 @@ class InstructionsWidget extends StatelessWidget {
 
   /// Show the instructions modal with checkbox for "don't show again"
   /// Uses root navigator to be independent of screen constraints
-  void _showInstructionsModal(BuildContext context, String title, String content, String? instructionKey, bool isInitial, bool hasDemonstration) {
+  /// 
+  /// [onCloseCallback] - Optional custom callback to execute when close button is pressed.
+  ///                     If provided, this will be called instead of the default close behavior.
+  ///                     The default behavior (closing the widget) will still execute after the callback.
+  void _showInstructionsModal(
+    BuildContext context, 
+    String title, 
+    String content, 
+    String? instructionKey, 
+    bool isInitial, 
+    bool hasDemonstration,
+    void Function()? onCloseCallback,
+  ) {
     // Get status color for this instruction key
     final headerColor = _getStatusColorForInstructionKey(instructionKey);
     
@@ -117,7 +139,6 @@ class InstructionsWidget extends StatelessWidget {
     
     _logger.info('InstructionsWidget: Showing modal with rootNavigator=${rootNavigator != null}', isOn: LOGGING_SWITCH);
     
-    // Use a StatefulBuilder to manage checkbox state
     // Use root navigator to ensure modal is independent of screen constraints
     showDialog(
       context: dialogContext,
@@ -125,10 +146,6 @@ class InstructionsWidget extends StatelessWidget {
       useRootNavigator: true, // Always use root navigator for independence
       barrierColor: AppColors.black.withOpacity(AppOpacity.barrier), // Ensure barrier is visible
       builder: (BuildContext builderContext) {
-        bool dontShowAgain = isInitial; // Initial message auto-checks the box
-        
-        return StatefulBuilder(
-          builder: (context, setState) {
             return ModalTemplateWidget(
               title: title,
               content: content,
@@ -199,7 +216,7 @@ class InstructionsWidget extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Footer with checkbox and close button on same line (fixed at bottom)
+                  // Footer with close button (fixed at bottom)
                   Container(
                     padding: AppPadding.cardPadding,
                     decoration: BoxDecoration(
@@ -212,35 +229,12 @@ class InstructionsWidget extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        // Checkbox for "don't show again" - aligned to the right
-                        if (instructionKey != null) ...[
-                          // Text before checkbox
-                          Text(
-                            'Understood, don\'t show again',
-                            style: AppTextStyles.bodySmall(
-                              color: AppColors.textOnCard,
-                            ),
-                          ),
-                          SizedBox(width: AppPadding.smallPadding.left),
-                          // Checkbox
-                          Checkbox(
-                            value: dontShowAgain,
-                            onChanged: (value) {
-                              setState(() {
-                                dontShowAgain = value ?? false;
-                              });
-                            },
-                            activeColor: AppColors.accentColor,
-                            checkColor: AppColors.textOnAccent,
-                          ),
-                          SizedBox(width: AppPadding.smallPadding.left),
-                        ],
                         // Close button (text only, no icon)
                         TextButton(
                           onPressed: () => _closeInstructions(
                             builderContext,
                             instructionKey,
-                            dontShowAgain,
+                            onCloseCallback,
                           ),
                           child: Text(
                             'Close',
@@ -263,14 +257,23 @@ class InstructionsWidget extends StatelessWidget {
                 ],
               ),
     );
-          },
-        );
       },
     ).then((_) {
       // Handle dialog dismissal (either by close button or tapping outside)
       // Clear the currently showing key when dialog is dismissed
       if (_currentlyShowingKey == instructionKey) {
         _currentlyShowingKey = null;
+        
+        // Execute custom close callback if provided (for tapping outside dismissal)
+        if (onCloseCallback != null) {
+          _logger.info('InstructionsWidget: Executing custom close callback for key=$instructionKey (dismissed by tapping outside)', isOn: LOGGING_SWITCH);
+          try {
+            onCloseCallback();
+          } catch (e) {
+            _logger.error('InstructionsWidget: Error executing custom close callback: $e', isOn: LOGGING_SWITCH);
+          }
+        }
+        
         // Also update state to hide instructions
         final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
         final instructionsData = dutchGameState['instructions'] as Map<String, dynamic>? ?? {};
@@ -285,40 +288,51 @@ class InstructionsWidget extends StatelessWidget {
             'content': '',
             'key': '',
             'dontShowAgain': currentDontShowAgain,
+            'onClose': null, // Clear custom callback
           },
         });
       }
     });
   }
   
-  void _closeInstructions(BuildContext context, String? instructionKey, bool dontShowAgain) {
+  /// Close instructions modal
+  /// 
+  /// [onCloseCallback] - Optional custom callback to execute before default close behavior.
+  ///                     If provided, this will be called first, then the default behavior executes.
+  void _closeInstructions(
+    BuildContext context, 
+    String? instructionKey,
+    void Function()? onCloseCallback,
+  ) {
     try {
-      _logger.info('InstructionsWidget: Closing instructions modal, key=$instructionKey, dontShowAgain=$dontShowAgain', isOn: LOGGING_SWITCH);
+      _logger.info('InstructionsWidget: Closing instructions modal, key=$instructionKey, hasCustomCallback=${onCloseCallback != null}', isOn: LOGGING_SWITCH);
       
-      // Clear currently showing key
+      // Execute custom close callback if provided (instruction-specific action)
+      if (onCloseCallback != null) {
+        _logger.info('InstructionsWidget: Executing custom close callback for key=$instructionKey', isOn: LOGGING_SWITCH);
+        try {
+          onCloseCallback();
+        } catch (e) {
+          _logger.error('InstructionsWidget: Error executing custom close callback: $e', isOn: LOGGING_SWITCH);
+        }
+      }
+      
+      // Default behavior: Clear currently showing key
       if (_currentlyShowingKey == instructionKey) {
         _currentlyShowingKey = null;
       }
       
-      // Close the dialog first
+      // Default behavior: Close the dialog
       Navigator.of(context).pop();
       
-      // Get current dontShowAgain map
+      // Default behavior: Get current dontShowAgain map
       final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final instructionsData = dutchGameState['instructions'] as Map<String, dynamic>? ?? {};
       final currentDontShowAgain = Map<String, bool>.from(
         instructionsData['dontShowAgain'] as Map<String, dynamic>? ?? {},
       );
       
-      // Update dontShowAgain map if checkbox was checked
-      // For initial and initial_peek instructions, always mark as "don't show again" since checkbox is pre-checked
-      if (instructionKey != null) {
-        if (dontShowAgain || instructionKey == 'initial' || instructionKey == 'initial_peek') {
-        currentDontShowAgain[instructionKey] = true;
-        }
-      }
-      
-      // Update state to hide instructions and save dontShowAgain preferences
+      // Default behavior: Update state to hide instructions
       StateManager().updateModuleState('dutch_game', {
         'instructions': {
           'isVisible': false,
@@ -326,6 +340,7 @@ class InstructionsWidget extends StatelessWidget {
           'content': '',
           'key': '',
           'dontShowAgain': currentDontShowAgain,
+          'onClose': null, // Clear custom callback
         },
         'lastUpdated': DateTime.now().toIso8601String(),
       });

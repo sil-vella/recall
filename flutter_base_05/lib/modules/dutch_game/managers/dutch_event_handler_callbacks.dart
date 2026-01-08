@@ -562,8 +562,14 @@ When anyone has played a card with the **same rank** as your **collection card**
           'previousPlayerStatus': null,
         });
 
-        // Trigger endDemoAction
-        demoHandler.endDemoAction(activeDemoAction);
+        // Special handling for same_rank demo: show instruction before ending
+        if (activeDemoAction == 'same_rank') {
+          _logger.info('🎮 _checkDemoActionCompletion: Same rank demo completed - showing wrong rank instruction', isOn: LOGGING_SWITCH);
+          demoHandler.showWrongSameRankInstruction(activeDemoAction);
+        } else {
+          // Trigger endDemoAction for other demos
+          demoHandler.endDemoAction(activeDemoAction);
+        }
       } else {
         // Update previous status for next check
         if (currentUserPlayerStatus != null) {

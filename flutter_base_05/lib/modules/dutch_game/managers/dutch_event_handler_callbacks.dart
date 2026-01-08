@@ -234,6 +234,14 @@ class DutchEventHandlerCallbacks {
   }) {
     try {
       _logger.info('📚 _triggerInstructionsIfNeeded: Called for gameId=$gameId, phase=${gameState['phase']}', isOn: LOGGING_SWITCH);
+      
+      // Skip automatic instruction triggering if a demo action is active
+      // Demo logic will handle showing instructions manually
+      if (DemoActionHandler.isDemoActionActive()) {
+        _logger.info('📚 _triggerInstructionsIfNeeded: Demo action active, skipping automatic instruction triggering', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       // Get showInstructions flag from game state
       final showInstructions = gameState['showInstructions'] as bool? ?? false;
       _logger.info('📚 _triggerInstructionsIfNeeded: showInstructions from gameState=$showInstructions', isOn: LOGGING_SWITCH);

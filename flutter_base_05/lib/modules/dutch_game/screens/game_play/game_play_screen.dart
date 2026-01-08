@@ -16,6 +16,7 @@ import '../../managers/feature_registry_manager.dart';
 import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
 import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
+import '../demo/demo_action_handler.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
@@ -165,6 +166,13 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   /// Check if initial instructions should be shown when screen loads
   void _checkAndShowInitialInstructions() {
     try {
+      // Skip automatic instruction triggering if a demo action is active
+      // Demo logic will handle showing instructions manually
+      if (DemoActionHandler.isDemoActionActive()) {
+        _logger.info('📚 _checkAndShowInitialInstructions: Demo action active, skipping automatic instruction triggering', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final currentGameId = dutchGameState['currentGameId']?.toString();
       

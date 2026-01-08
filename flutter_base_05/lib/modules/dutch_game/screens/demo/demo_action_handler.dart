@@ -383,8 +383,9 @@ class DemoActionHandler {
         return previousStatus == 'drawing_card' && currentStatus == 'playing_card';
       
       case 'playing':
-        // Playing completes when status changes from playing_card to waiting (card played)
-        return previousStatus == 'playing_card' && currentStatus == 'waiting';
+        // Playing completes when status changes from playing_card to same_rank_window (card played)
+        // After playing a card, the status transitions to same_rank_window to allow other players to play same rank
+        return previousStatus == 'playing_card' && currentStatus == 'same_rank_window';
       
       case 'same_rank':
         // Same rank completes when status changes from same_rank_window to waiting (card played)

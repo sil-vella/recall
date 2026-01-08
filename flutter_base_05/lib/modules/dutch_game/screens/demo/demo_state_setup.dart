@@ -407,36 +407,92 @@ class DemoStateSetup {
 
   /// Set up state for Queen Peek action
   /// Game should be started, player played Queen, in queen_peek status
+  /// CRITICAL: Hand should only contain 4 face-down ID-only cards (no drawn card)
   Future<Map<String, dynamic>> setupQueenPeekState(
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
     _logger.info('🎮 DemoStateSetup: Setting up queen peek state', isOn: LOGGING_SWITCH);
 
-    // First set up playing state, then simulate playing a Queen
-    var updatedState = await setupPlayingState(gameId, gameState);
+    // Start from initial game state (NOT playing state) to ensure only 4 face-down cards
+    // Get original deck to retrieve full card data
+    final gameStateStore = GameStateStore.instance;
+    final fullGameState = gameStateStore.getGameState(gameId);
+    final originalDeck = fullGameState['originalDeck'] as List<dynamic>? ?? [];
 
-    // Find a Queen in the hand or create one
-    final players = List<Map<String, dynamic>>.from(updatedState['players'] as List<dynamic>? ?? []);
-    final discardPile = List<Map<String, dynamic>>.from(updatedState['discardPile'] as List<dynamic>? ?? []);
+    // Create updated state from initial game state
+    final updatedState = Map<String, dynamic>.from(gameState);
+
+    // Get players and ensure we start with initial state (4 cards, no drawn card)
+    final players = List<Map<String, dynamic>>.from(gameState['players'] as List<dynamic>? ?? []);
+    final discardPile = List<Map<String, dynamic>>.from(gameState['discardPile'] as List<dynamic>? ?? []);
     
-    if (players.isNotEmpty) {
-      // Create a Queen card and add to discard pile
-      final queenCard = {
-        'cardId': 'card_demo_queen_hearts_0',
-        'rank': 'queen',
-        'suit': 'hearts',
-        'points': 10,
-        'specialPower': 'peek_at_card',
-      };
-      discardPile.insert(0, queenCard);
+    if (players.isNotEmpty && players[0]['hand'] != null) {
+      // Get the initial 4 cards (ID-only, face-down)
+      // Filter out any drawn card that might have been added
+      final initialHand = List<Map<String, dynamic>>.from(players[0]['hand'] as List<dynamic>? ?? []);
+      final hand = <Map<String, dynamic>>[];
+      
+      // Only keep ID-only cards (face-down cards have suit: '?', rank: '?', points: 0)
+      // This ensures we only have the 4 initial cards, not any drawn card
+      for (final card in initialHand) {
+        final cardMap = card as Map<String, dynamic>?;
+        if (cardMap != null) {
+          final suit = cardMap['suit']?.toString();
+          final rank = cardMap['rank']?.toString();
+          // ID-only cards have '?' for suit and rank
+          if (suit == '?' && rank == '?') {
+            hand.add(Map<String, dynamic>.from(cardMap));
+          }
+        }
+      }
+      
+      // Ensure we have exactly 4 cards (the initial deal)
+      if (hand.length != 4) {
+        _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.', isOn: LOGGING_SWITCH);
+        hand.clear();
+        for (int i = 0; i < 4 && i < initialHand.length; i++) {
+          hand.add(Map<String, dynamic>.from(initialHand[i]));
+        }
+      }
 
+      // Clear any drawnCard property (should not exist for queen peek demo)
+      players[0].remove('drawnCard');
+      
+      // Find a Queen card from the original deck to add to discard pile
+      Map<String, dynamic>? queenCard;
+      try {
+        queenCard = originalDeck.firstWhere(
+          (card) => card is Map<String, dynamic> && card['rank']?.toString().toLowerCase() == 'queen',
+        ) as Map<String, dynamic>?;
+      } catch (e) {
+        // Queen not found in deck, create a placeholder
+        _logger.warning('⚠️ DemoStateSetup: Queen not found in deck, creating placeholder', isOn: LOGGING_SWITCH);
+        queenCard = {
+          'cardId': 'card_demo_queen_hearts_0',
+          'rank': 'queen',
+          'suit': 'hearts',
+          'points': 10,
+          'specialPower': 'peek_at_card',
+        };
+      }
+      
+      if (queenCard != null) {
+        // Add Queen to discard pile (with full data for face-up display)
+        discardPile.insert(0, Map<String, dynamic>.from(queenCard));
+        _logger.info('✅ DemoStateSetup: Added Queen to discard pile: ${queenCard['rank']} of ${queenCard['suit']}', isOn: LOGGING_SWITCH);
+      }
+
+      players[0]['hand'] = hand;
       players[0]['status'] = 'queen_peek';
       players[0]['isCurrentPlayer'] = true;
+      
+      _logger.info('✅ DemoStateSetup: Queen peek state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card).', isOn: LOGGING_SWITCH);
     }
 
     updatedState['players'] = players;
     updatedState['discardPile'] = discardPile;
+    updatedState['phase'] = 'playing';
     updatedState['currentPlayer'] = players.isNotEmpty ? {
       'id': players[0]['id'],
       'name': players[0]['name'],
@@ -444,7 +500,6 @@ class DemoStateSetup {
     } : null;
 
     // Update game state store
-    final gameStateStore = GameStateStore.instance;
     gameStateStore.setGameState(gameId, updatedState);
 
     return updatedState;
@@ -452,36 +507,92 @@ class DemoStateSetup {
 
   /// Set up state for Jack Swap action
   /// Game should be started, player played Jack, in jack_swap status
+  /// CRITICAL: Hand should only contain 4 face-down ID-only cards (no drawn card)
   Future<Map<String, dynamic>> setupJackSwapState(
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
     _logger.info('🎮 DemoStateSetup: Setting up jack swap state', isOn: LOGGING_SWITCH);
 
-    // First set up playing state, then simulate playing a Jack
-    var updatedState = await setupPlayingState(gameId, gameState);
+    // Start from initial game state (NOT playing state) to ensure only 4 face-down cards
+    // Get original deck to retrieve full card data
+    final gameStateStore = GameStateStore.instance;
+    final fullGameState = gameStateStore.getGameState(gameId);
+    final originalDeck = fullGameState['originalDeck'] as List<dynamic>? ?? [];
 
-    // Find a Jack in the hand or create one
-    final players = List<Map<String, dynamic>>.from(updatedState['players'] as List<dynamic>? ?? []);
-    final discardPile = List<Map<String, dynamic>>.from(updatedState['discardPile'] as List<dynamic>? ?? []);
+    // Create updated state from initial game state
+    final updatedState = Map<String, dynamic>.from(gameState);
+
+    // Get players and ensure we start with initial state (4 cards, no drawn card)
+    final players = List<Map<String, dynamic>>.from(gameState['players'] as List<dynamic>? ?? []);
+    final discardPile = List<Map<String, dynamic>>.from(gameState['discardPile'] as List<dynamic>? ?? []);
     
-    if (players.isNotEmpty) {
-      // Create a Jack card and add to discard pile
-      final jackCard = {
-        'cardId': 'card_demo_jack_hearts_0',
-        'rank': 'jack',
-        'suit': 'hearts',
-        'points': 10,
-        'specialPower': 'switch_cards',
-      };
-      discardPile.insert(0, jackCard);
+    if (players.isNotEmpty && players[0]['hand'] != null) {
+      // Get the initial 4 cards (ID-only, face-down)
+      // Filter out any drawn card that might have been added
+      final initialHand = List<Map<String, dynamic>>.from(players[0]['hand'] as List<dynamic>? ?? []);
+      final hand = <Map<String, dynamic>>[];
+      
+      // Only keep ID-only cards (face-down cards have suit: '?', rank: '?', points: 0)
+      // This ensures we only have the 4 initial cards, not any drawn card
+      for (final card in initialHand) {
+        final cardMap = card as Map<String, dynamic>?;
+        if (cardMap != null) {
+          final suit = cardMap['suit']?.toString();
+          final rank = cardMap['rank']?.toString();
+          // ID-only cards have '?' for suit and rank
+          if (suit == '?' && rank == '?') {
+            hand.add(Map<String, dynamic>.from(cardMap));
+          }
+        }
+      }
+      
+      // Ensure we have exactly 4 cards (the initial deal)
+      if (hand.length != 4) {
+        _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.', isOn: LOGGING_SWITCH);
+        hand.clear();
+        for (int i = 0; i < 4 && i < initialHand.length; i++) {
+          hand.add(Map<String, dynamic>.from(initialHand[i]));
+        }
+      }
 
+      // Clear any drawnCard property (should not exist for jack swap demo)
+      players[0].remove('drawnCard');
+      
+      // Find a Jack card from the original deck to add to discard pile
+      Map<String, dynamic>? jackCard;
+      try {
+        jackCard = originalDeck.firstWhere(
+          (card) => card is Map<String, dynamic> && card['rank']?.toString().toLowerCase() == 'jack',
+        ) as Map<String, dynamic>?;
+      } catch (e) {
+        // Jack not found in deck, create a placeholder
+        _logger.warning('⚠️ DemoStateSetup: Jack not found in deck, creating placeholder', isOn: LOGGING_SWITCH);
+        jackCard = {
+          'cardId': 'card_demo_jack_hearts_0',
+          'rank': 'jack',
+          'suit': 'hearts',
+          'points': 10,
+          'specialPower': 'switch_cards',
+        };
+      }
+      
+      if (jackCard != null) {
+        // Add Jack to discard pile (with full data for face-up display)
+        discardPile.insert(0, Map<String, dynamic>.from(jackCard));
+        _logger.info('✅ DemoStateSetup: Added Jack to discard pile: ${jackCard['rank']} of ${jackCard['suit']}', isOn: LOGGING_SWITCH);
+      }
+
+      players[0]['hand'] = hand;
       players[0]['status'] = 'jack_swap';
       players[0]['isCurrentPlayer'] = true;
+      
+      _logger.info('✅ DemoStateSetup: Jack swap state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card).', isOn: LOGGING_SWITCH);
     }
 
     updatedState['players'] = players;
     updatedState['discardPile'] = discardPile;
+    updatedState['phase'] = 'playing';
     updatedState['currentPlayer'] = players.isNotEmpty ? {
       'id': players[0]['id'],
       'name': players[0]['name'],
@@ -489,7 +600,6 @@ class DemoStateSetup {
     } : null;
 
     // Update game state store
-    final gameStateStore = GameStateStore.instance;
     gameStateStore.setGameState(gameId, updatedState);
 
     return updatedState;
@@ -497,27 +607,68 @@ class DemoStateSetup {
 
   /// Set up state for Call Dutch action
   /// Game should be started, player in playing_card status, finalRoundActive: false
+  /// CRITICAL: Hand should only contain 4 face-down ID-only cards (no drawn card)
   Future<Map<String, dynamic>> setupCallDutchState(
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
     _logger.info('🎮 DemoStateSetup: Setting up call dutch state', isOn: LOGGING_SWITCH);
 
-    // Set up playing state
-    var updatedState = await setupPlayingState(gameId, gameState);
+    // Start from initial game state (NOT playing state) to ensure only 4 face-down cards
+    final gameStateStore = GameStateStore.instance;
+
+    // Create updated state from initial game state
+    final updatedState = Map<String, dynamic>.from(gameState);
+
+    // Get players and ensure we start with initial state (4 cards, no drawn card)
+    final players = List<Map<String, dynamic>>.from(gameState['players'] as List<dynamic>? ?? []);
+    
+    if (players.isNotEmpty && players[0]['hand'] != null) {
+      // Get the initial 4 cards (ID-only, face-down)
+      // Filter out any drawn card that might have been added
+      final initialHand = List<Map<String, dynamic>>.from(players[0]['hand'] as List<dynamic>? ?? []);
+      final hand = <Map<String, dynamic>>[];
+      
+      // Only keep ID-only cards (face-down cards have suit: '?', rank: '?', points: 0)
+      // This ensures we only have the 4 initial cards, not any drawn card
+      for (final card in initialHand) {
+        final cardMap = card as Map<String, dynamic>?;
+        if (cardMap != null) {
+          final suit = cardMap['suit']?.toString();
+          final rank = cardMap['rank']?.toString();
+          // ID-only cards have '?' for suit and rank
+          if (suit == '?' && rank == '?') {
+            hand.add(Map<String, dynamic>.from(cardMap));
+          }
+        }
+      }
+      
+      // Ensure we have exactly 4 cards (the initial deal)
+      if (hand.length != 4) {
+        _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.', isOn: LOGGING_SWITCH);
+        hand.clear();
+        for (int i = 0; i < 4 && i < initialHand.length; i++) {
+          hand.add(Map<String, dynamic>.from(initialHand[i]));
+        }
+      }
+
+      // Clear any drawnCard property (should not exist for call dutch demo)
+      players[0].remove('drawnCard');
+      
+      players[0]['hand'] = hand;
+      players[0]['hasCalledFinalRound'] = false;
+      players[0]['status'] = 'playing_card';
+      players[0]['isCurrentPlayer'] = true;
+      
+      _logger.info('✅ DemoStateSetup: Call dutch state set up. Hand has ${hand.length} face-down ID-only cards (no drawn card).', isOn: LOGGING_SWITCH);
+    }
 
     // Ensure finalRoundActive is false and player hasn't called yet
     updatedState['finalRoundActive'] = false;
     updatedState['finalRoundCalledBy'] = null;
 
-    final players = List<Map<String, dynamic>>.from(updatedState['players'] as List<dynamic>? ?? []);
-    if (players.isNotEmpty) {
-      players[0]['hasCalledFinalRound'] = false;
-      players[0]['status'] = 'playing_card';
-      players[0]['isCurrentPlayer'] = true;
-    }
-
     updatedState['players'] = players;
+    updatedState['phase'] = 'playing';
     updatedState['currentPlayer'] = players.isNotEmpty ? {
       'id': players[0]['id'],
       'name': players[0]['name'],
@@ -525,28 +676,199 @@ class DemoStateSetup {
     } : null;
 
     // Update game state store
-    final gameStateStore = GameStateStore.instance;
     gameStateStore.setGameState(gameId, updatedState);
 
     return updatedState;
   }
 
   /// Set up state for Collect Rank action
-  /// Game should be in initial_peek phase, collection mode enabled
+  /// Game should be in playing phase with discard pile having a card matching collection rank
+  /// CRITICAL: Sets up collection mode with predefined collection rank and collection cards
   Future<Map<String, dynamic>> setupCollectRankState(
     String gameId,
     Map<String, dynamic> gameState,
   ) async {
     _logger.info('🎮 DemoStateSetup: Setting up collect rank state', isOn: LOGGING_SWITCH);
 
-    // Set up initial peek state
-    var updatedState = await setupInitialPeekState(gameId, gameState);
+    // Get original deck to retrieve full card data
+    final gameStateStore = GameStateStore.instance;
+    final fullGameState = gameStateStore.getGameState(gameId);
+    final originalDeck = fullGameState['originalDeck'] as List<dynamic>? ?? [];
 
-    // Ensure isClearAndCollect is true
+    // Create updated state from initial game state
+    final updatedState = Map<String, dynamic>.from(gameState);
+
+    // CRITICAL: Set isClearAndCollect to true for collection mode
     updatedState['isClearAndCollect'] = true;
 
+    // Get players and discard pile
+    final players = List<Map<String, dynamic>>.from(gameState['players'] as List<dynamic>? ?? []);
+    final discardPile = List<Map<String, dynamic>>.from(gameState['discardPile'] as List<dynamic>? ?? []);
+    final drawPile = List<Map<String, dynamic>>.from(gameState['drawPile'] as List<dynamic>? ?? []);
+    
+    if (players.isNotEmpty && players[0]['hand'] != null) {
+      // Get the initial 4 cards (ID-only, face-down)
+      final initialHand = List<Map<String, dynamic>>.from(players[0]['hand'] as List<dynamic>? ?? []);
+      final hand = <Map<String, dynamic>>[];
+      
+      // Only keep ID-only cards (face-down cards have suit: '?', rank: '?', points: 0)
+      for (final card in initialHand) {
+        final cardMap = card as Map<String, dynamic>?;
+        if (cardMap != null) {
+          final suit = cardMap['suit']?.toString();
+          final rank = cardMap['rank']?.toString();
+          if (suit == '?' && rank == '?') {
+            hand.add(Map<String, dynamic>.from(cardMap));
+          }
+        }
+      }
+      
+      // Ensure we have exactly 4 cards
+      if (hand.length != 4) {
+        _logger.warning('⚠️ DemoStateSetup: Expected 4 initial cards, found ${hand.length}. Using first 4.', isOn: LOGGING_SWITCH);
+        hand.clear();
+        for (int i = 0; i < 4 && i < initialHand.length; i++) {
+          hand.add(Map<String, dynamic>.from(initialHand[i]));
+        }
+      }
+
+      // Clear any drawnCard property
+      players[0].remove('drawnCard');
+
+      // Choose a collection rank (e.g., "ace" - low points, common)
+      // First, find a suitable collection rank card from the player's hand or deck
+      String collectionRank = 'ace';
+      Map<String, dynamic>? collectionCard;
+      
+      // Try to find a card in hand that we can use as collection rank
+      // Prefer ace, then 2, then 3, etc. (low points)
+      final preferredRanks = ['ace', '2', '3', '4', '5'];
+      
+      for (final preferredRank in preferredRanks) {
+        // Check if any card in hand matches this rank
+        for (final handCard in hand) {
+          final cardId = handCard['cardId']?.toString() ?? '';
+          // Get full card data from original deck
+          try {
+            final fullCard = originalDeck.firstWhere(
+              (card) => card is Map<String, dynamic> && card['cardId'] == cardId,
+            ) as Map<String, dynamic>?;
+            
+            if (fullCard != null && fullCard['rank']?.toString().toLowerCase() == preferredRank) {
+              collectionRank = preferredRank;
+              collectionCard = Map<String, dynamic>.from(fullCard);
+              _logger.info('✅ DemoStateSetup: Found collection rank card in hand: ${collectionCard['rank']} of ${collectionCard['suit']}', isOn: LOGGING_SWITCH);
+              break;
+            }
+          } catch (e) {
+            // Card not found, continue
+          }
+        }
+        if (collectionCard != null) break;
+      }
+      
+      // If no suitable card found in hand, use first ace from deck
+      if (collectionCard == null) {
+        try {
+          collectionCard = originalDeck.firstWhere(
+            (card) => card is Map<String, dynamic> && card['rank']?.toString().toLowerCase() == 'ace',
+          ) as Map<String, dynamic>?;
+          if (collectionCard != null) {
+            collectionRank = 'ace';
+            // Replace first card in hand with this collection card (as ID-only)
+            if (hand.isNotEmpty) {
+              hand[0] = {
+                'cardId': collectionCard['cardId'],
+                'suit': '?',
+                'rank': '?',
+                'points': 0,
+              };
+            }
+            _logger.info('✅ DemoStateSetup: Added collection card to hand: ${collectionCard['rank']} of ${collectionCard['suit']}', isOn: LOGGING_SWITCH);
+          }
+        } catch (e) {
+          _logger.warning('⚠️ DemoStateSetup: Could not find ace card in deck', isOn: LOGGING_SWITCH);
+        }
+      }
+
+      // Ensure discard pile has a card with the same rank as collection rank
+      Map<String, dynamic>? discardTopCard;
+      
+      if (discardPile.isNotEmpty) {
+        discardTopCard = Map<String, dynamic>.from(discardPile.last);
+        final discardRank = discardTopCard['rank']?.toString().toLowerCase();
+        
+        // If discard pile top card doesn't match collection rank, replace it
+        if (discardRank != collectionRank.toLowerCase()) {
+          // Find a card with collection rank from deck (not the collection card itself)
+          Map<String, dynamic>? matchingCard;
+          try {
+            matchingCard = originalDeck.firstWhere(
+              (card) => card is Map<String, dynamic> && 
+                       card['rank']?.toString().toLowerCase() == collectionRank.toLowerCase() &&
+                       card['cardId'] != collectionCard?['cardId'],
+            ) as Map<String, dynamic>?;
+          } catch (e) {
+            // No matching card found, use collection card
+            matchingCard = collectionCard;
+          }
+          
+          if (matchingCard != null) {
+            discardPile.clear();
+            discardPile.add(Map<String, dynamic>.from(matchingCard));
+            discardTopCard = matchingCard;
+            _logger.info('✅ DemoStateSetup: Set discard pile top card to match collection rank: ${matchingCard['rank']} of ${matchingCard['suit']}', isOn: LOGGING_SWITCH);
+          }
+        } else {
+          _logger.info('✅ DemoStateSetup: Discard pile top card already matches collection rank: $collectionRank', isOn: LOGGING_SWITCH);
+        }
+      } else {
+        // No discard pile, create one with a card matching collection rank
+        Map<String, dynamic>? matchingCard;
+        try {
+          matchingCard = originalDeck.firstWhere(
+            (card) => card is Map<String, dynamic> && 
+                     card['rank']?.toString().toLowerCase() == collectionRank.toLowerCase() &&
+                     card['cardId'] != collectionCard?['cardId'],
+          ) as Map<String, dynamic>?;
+        } catch (e) {
+          // No matching card found, use collection card
+          matchingCard = collectionCard;
+        }
+        
+        if (matchingCard != null) {
+          discardPile.add(Map<String, dynamic>.from(matchingCard));
+          discardTopCard = matchingCard;
+          _logger.info('✅ DemoStateSetup: Created discard pile with card matching collection rank: ${matchingCard['rank']} of ${matchingCard['suit']}', isOn: LOGGING_SWITCH);
+        }
+      }
+
+      // Set up collection rank cards for the player
+      // Add the collection card to collection_rank_cards (the collection card that's face-up)
+      final collectionRankCards = <Map<String, dynamic>>[];
+      
+      if (collectionCard != null) {
+        collectionRankCards.add(Map<String, dynamic>.from(collectionCard));
+        _logger.info('✅ DemoStateSetup: Added collection card to collection_rank_cards: ${collectionCard['rank']} of ${collectionCard['suit']}', isOn: LOGGING_SWITCH);
+      }
+
+      // Set player's collection rank and collection cards
+      players[0]['collection_rank'] = collectionRank;
+      players[0]['collection_rank_cards'] = collectionRankCards;
+      players[0]['hand'] = hand;
+      players[0]['status'] = 'waiting'; // Player can collect during waiting status
+      players[0]['isCurrentPlayer'] = false;
+
+      _logger.info('✅ DemoStateSetup: Collect rank state set up. Collection rank: $collectionRank, Collection cards: ${collectionRankCards.length}, Discard pile top: ${discardTopCard?['rank'] ?? "none"}', isOn: LOGGING_SWITCH);
+    }
+
+    updatedState['players'] = players;
+    updatedState['discardPile'] = discardPile;
+    updatedState['drawPile'] = drawPile;
+    updatedState['phase'] = 'playing';
+    updatedState['currentPlayer'] = null; // No current player during collection phase
+
     // Update game state store
-    final gameStateStore = GameStateStore.instance;
     gameStateStore.setGameState(gameId, updatedState);
 
     return updatedState;

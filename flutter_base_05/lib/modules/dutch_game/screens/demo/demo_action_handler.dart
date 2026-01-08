@@ -34,6 +34,9 @@ class DemoActionHandler {
   /// Flag to prevent multiple calls to endDemoAction
   static bool _isEndingDemoAction = false;
   
+  /// Track initial hand count for collect_rank demo
+  static int? _collectRankInitialHandCount;
+  
   /// Check if a demo action is currently active
   static bool isDemoActionActive() {
     return _activeDemoActionType != null;
@@ -59,10 +62,13 @@ class DemoActionHandler {
       // 2. Reset ending flag in case it was left set
       _isEndingDemoAction = false;
       
-      // 3. Set active demo action type AFTER clearing state
+      // 3. Reset collect_rank initial hand count
+      _collectRankInitialHandCount = null;
+      
+      // 4. Set active demo action type AFTER clearing state
       _activeDemoActionType = actionType;
 
-      // 3. Determine if collection mode is needed
+      // 5. Determine if collection mode is needed
       final isClearAndCollect = actionType == 'collect_rank';
 
       // 4. Start practice match with showInstructions: true and test deck
@@ -86,6 +92,12 @@ class DemoActionHandler {
 
       // 7. Sync state and trigger widget updates
       await _syncGameState(practiceRoomId, updatedGameState);
+      
+      // For collect_rank demo, set initial hand count after state is set up
+      // This must happen BEFORE the user can collect, so we capture the baseline
+      if (actionType == 'collect_rank') {
+        _setInitialHandCountForCollectRank(updatedGameState);
+      }
 
       // 8. Show instructions for this demo action
       _showDemoInstructions(actionType);
@@ -369,9 +381,9 @@ class DemoActionHandler {
         'previousPlayerStatus': null, // CRITICAL: Clear to prevent false detection on next demo
       });
       
-      // 2. Wait 2-3 seconds to show the result
+      // 2. Wait 0.5 seconds before navigating
       // During this time, _activeDemoActionType is still set, so instructions won't show
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(milliseconds: 500));
       
       // 3. Clear all game state to ensure clean slate for next demo
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -411,13 +423,14 @@ class DemoActionHandler {
     }
   }
 
-  /// Check if an action is completed based on status transition
+  /// Check if an action is completed based on status transition or state changes
   /// 
   /// [actionType] - The demo action type
   /// [previousStatus] - Previous player status
   /// [currentStatus] - Current player status
+  /// [gameState] - Optional game state for checking hand count changes (for collect_rank)
   /// Returns true if the action is considered completed
-  bool _isActionCompleted(String actionType, String? previousStatus, String? currentStatus) {
+  bool _isActionCompleted(String actionType, String? previousStatus, String? currentStatus, {Map<String, dynamic>? gameState}) {
     if (previousStatus == null || currentStatus == null) {
       return false;
     }
@@ -442,9 +455,8 @@ class DemoActionHandler {
         return previousStatus == 'same_rank_window' && currentStatus == 'waiting';
       
       case 'queen_peek':
-        // Queen peek completes when status changes from queen_peek to waiting or playing_card
-        return previousStatus == 'queen_peek' && 
-               (currentStatus == 'waiting' || currentStatus == 'playing_card');
+        // Queen peek completes when status changes from queen_peek to peeking (peek action executed)
+        return previousStatus == 'queen_peek' && currentStatus == 'peeking';
       
       case 'jack_swap':
         // Jack swap completes when status changes from jack_swap to waiting or playing_card
@@ -452,36 +464,205 @@ class DemoActionHandler {
                (currentStatus == 'waiting' || currentStatus == 'playing_card');
       
       case 'call_dutch':
-        // Call dutch completes when status changes from playing_card to waiting (after call_final_round)
-        return previousStatus == 'playing_card' && currentStatus == 'waiting';
+        // Call dutch completes when status changes from playing_card to same_rank_window (after call_final_round and card played)
+        return previousStatus == 'playing_card' && currentStatus == 'same_rank_window';
       
       case 'collect_rank':
-        // Collect rank completes when status changes to waiting (after collect_from_discard)
-        return currentStatus == 'waiting' && previousStatus != 'waiting';
+        // Collect rank completes when a collection card is added to the hand
+        // Check if hand count has increased (indicating a card was collected)
+        if (gameState != null) {
+          try {
+            // Get current user ID using the same method as _syncWidgetStatesFromGameState
+            // This returns sessionId in practice mode (practice_session_<userId>)
+            final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+            final practiceUser = currentState['practiceUser'] as Map<String, dynamic>?;
+            String currentUserId = '';
+            
+            if (practiceUser != null && practiceUser['isPracticeUser'] == true) {
+              final practiceUserId = practiceUser['userId']?.toString() ?? '';
+              if (practiceUserId.isNotEmpty) {
+                // In practice mode, player ID is the sessionId, not the userId
+                currentUserId = 'practice_session_$practiceUserId';
+              }
+            }
+            
+            if (currentUserId.isEmpty) {
+              _logger.warning('⚠️ DemoActionHandler: No current user ID found for collect_rank completion check', isOn: LOGGING_SWITCH);
+              return false;
+            }
+            
+            _logger.info('🔍 DemoActionHandler: Checking collect_rank completion - currentUserId: $currentUserId', isOn: LOGGING_SWITCH);
+            
+            // Get players from game state
+            final players = gameState['players'] as List<dynamic>? ?? [];
+            _logger.info('🔍 DemoActionHandler: Found ${players.length} players in game state', isOn: LOGGING_SWITCH);
+            
+            // Find the current user's player
+            Map<String, dynamic>? currentPlayer;
+            for (final player in players) {
+              if (player is Map<String, dynamic>) {
+                final playerId = player['id']?.toString() ?? '';
+                _logger.info('🔍 DemoActionHandler: Checking player ID: $playerId', isOn: LOGGING_SWITCH);
+                if (playerId == currentUserId) {
+                  currentPlayer = player;
+                  _logger.info('✅ DemoActionHandler: Found matching player: $playerId', isOn: LOGGING_SWITCH);
+                  break;
+                }
+              }
+            }
+            
+            if (currentPlayer == null) {
+              _logger.warning('⚠️ DemoActionHandler: Current user ($currentUserId) not found in players list', isOn: LOGGING_SWITCH);
+              return false;
+            }
+            
+            // Get hand from player
+            final hand = currentPlayer['hand'] as List<dynamic>? ?? [];
+            final currentHandCount = hand.length;
+            _logger.info('🔍 DemoActionHandler: Current hand count: $currentHandCount, Initial hand count: $_collectRankInitialHandCount', isOn: LOGGING_SWITCH);
+            
+            // Initialize hand count if not set
+            if (_collectRankInitialHandCount == null) {
+              _collectRankInitialHandCount = currentHandCount;
+              _logger.info('🎮 DemoActionHandler: Initial hand count for collect_rank demo: $_collectRankInitialHandCount', isOn: LOGGING_SWITCH);
+              return false;
+            }
+            
+            // Check if hand count has increased (card was collected)
+            if (currentHandCount > _collectRankInitialHandCount!) {
+              _logger.info('🎮 DemoActionHandler: Collect rank demo completed - hand count increased from $_collectRankInitialHandCount to $currentHandCount', isOn: LOGGING_SWITCH);
+              return true;
+            }
+          } catch (e, stackTrace) {
+            _logger.error('❌ DemoActionHandler: Error checking collect_rank completion: $e', 
+              error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+          }
+        }
+        return false;
       
       default:
         return false;
     }
   }
   
-  /// Check if an action is completed (public method for use in event handlers)
-  bool isActionCompleted(String actionType, String? previousStatus, String? currentStatus) {
-    return _isActionCompleted(actionType, previousStatus, currentStatus);
+  /// Set initial hand count for collect_rank demo
+  /// This should be called after the demo state is set up
+  void _setInitialHandCountForCollectRank(Map<String, dynamic> gameState) {
+    try {
+      // Get current user ID
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final practiceUser = currentState['practiceUser'] as Map<String, dynamic>?;
+      String currentUserId = '';
+      
+      if (practiceUser != null && practiceUser['isPracticeUser'] == true) {
+        final practiceUserId = practiceUser['userId']?.toString() ?? '';
+        if (practiceUserId.isNotEmpty) {
+          currentUserId = 'practice_session_$practiceUserId';
+        }
+      }
+      
+      if (currentUserId.isEmpty) {
+        _logger.warning('⚠️ DemoActionHandler: No current user ID found for setting initial hand count', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Get players from game state
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      
+      // Find the current user's player
+      for (final player in players) {
+        if (player is Map<String, dynamic>) {
+          final playerId = player['id']?.toString() ?? '';
+          if (playerId == currentUserId) {
+            final hand = player['hand'] as List<dynamic>? ?? [];
+            _collectRankInitialHandCount = hand.length;
+            _logger.info('🎮 DemoActionHandler: Set initial hand count for collect_rank demo: $_collectRankInitialHandCount', isOn: LOGGING_SWITCH);
+            return;
+          }
+        }
+      }
+      
+      _logger.warning('⚠️ DemoActionHandler: Current user ($currentUserId) not found in players list for setting initial hand count', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('❌ DemoActionHandler: Error setting initial hand count: $e', isOn: LOGGING_SWITCH);
+    }
   }
 
-  /// Show "Wrong Same Rank" instruction after same rank play completion
+  /// Check if an action is completed (public method for use in event handlers)
+  bool isActionCompleted(String actionType, String? previousStatus, String? currentStatus, {Map<String, dynamic>? gameState}) {
+    return _isActionCompleted(actionType, previousStatus, currentStatus, gameState: gameState);
+  }
+
+  /// Get after-action instruction content for a demo action
   /// 
-  /// [actionType] - The demo action type (should be 'same_rank')
-  Future<void> showWrongSameRankInstruction(String actionType) async {
+  /// [actionType] - The demo action type
+  /// Returns a map with 'title' and 'content' for the instruction
+  Map<String, String> _getAfterActionInstruction(String actionType) {
+    switch (actionType) {
+      case 'initial_peek':
+        return {
+          'title': 'Initial Peek Complete',
+          'content': 'You peeked at 2 of your cards and selected your collection rank. The lowest rank among the revealed cards was automatically chosen as your collection rank.',
+        };
+      case 'drawing':
+        return {
+          'title': 'Card Drawn',
+          'content': 'You drew a card from the draw pile and added it to your hand. You can now play a card from your hand.',
+        };
+      case 'playing':
+        return {
+          'title': 'Card Played',
+          'content': 'You played a card from your hand to the discard pile. Other players can now play a card with the same rank if they have one.',
+        };
+      case 'same_rank':
+        return {
+          'title': 'Wrong Same Rank',
+          'content': 'You played a wrong rank during same rank windows and was given a penalty card.',
+        };
+      case 'queen_peek':
+        return {
+          'title': 'Queen Power Used',
+          'content': 'You used the Queen\'s power to peek at a card. This helps you gather information about other players\' hands.',
+        };
+      case 'jack_swap':
+        return {
+          'title': 'Jack Power Used',
+          'content': 'You used the Jack\'s power to swap two cards. This can help you improve your hand or disrupt opponents.',
+        };
+      case 'call_dutch':
+        return {
+          'title': 'Dutch Called',
+          'content': 'You called Dutch to signal the final round. All players will get one more turn, then the game ends and points are calculated.',
+        };
+      case 'collect_rank':
+        return {
+          'title': 'Rank Collected',
+          'content': 'You collected cards of the same rank from the discard pile. Collecting all 4 cards of your rank is one way to win the game.',
+        };
+      default:
+        return {
+          'title': 'Action Complete',
+          'content': 'You completed the demo action.',
+        };
+    }
+  }
+
+  /// Show after-action instruction for a completed demo action
+  /// 
+  /// [actionType] - The demo action type that was completed
+  Future<void> showAfterActionInstruction(String actionType) async {
     try {
-      _logger.info('📚 DemoActionHandler: Showing wrong same rank instruction for action: $actionType', isOn: LOGGING_SWITCH);
+      _logger.info('📚 DemoActionHandler: Showing after-action instruction for: $actionType', isOn: LOGGING_SWITCH);
       
       // Wait 2 seconds before showing instruction
       await Future.delayed(const Duration(seconds: 2));
       
+      // Get instruction content for this action
+      final instruction = _getAfterActionInstruction(actionType);
+      
       // Create callback that will execute endDemoAction when instruction is closed
       void onCloseCallback() {
-        _logger.info('📚 DemoActionHandler: Wrong same rank instruction closed - executing endDemoAction', isOn: LOGGING_SWITCH);
+        _logger.info('📚 DemoActionHandler: After-action instruction closed - executing endDemoAction', isOn: LOGGING_SWITCH);
         endDemoAction(actionType);
       }
       
@@ -490,17 +671,17 @@ class DemoActionHandler {
       stateUpdater.updateStateSync({
         'instructions': {
           'isVisible': true,
-          'title': 'Wrong Same Rank',
-          'content': 'You played a wrong rank during same rank windows and was given a penalty card.',
-          'key': 'wrong_same_rank',
+          'title': instruction['title'] ?? 'Action Complete',
+          'content': instruction['content'] ?? 'You completed the demo action.',
+          'key': 'demo_after_${actionType}',
           'hasDemonstration': false,
           'onClose': onCloseCallback, // Custom close action
         },
       });
       
-      _logger.info('✅ DemoActionHandler: Wrong same rank instruction shown', isOn: LOGGING_SWITCH);
+      _logger.info('✅ DemoActionHandler: After-action instruction shown for $actionType', isOn: LOGGING_SWITCH);
     } catch (e, stackTrace) {
-      _logger.error('❌ DemoActionHandler: Error showing wrong same rank instruction: $e', 
+      _logger.error('❌ DemoActionHandler: Error showing after-action instruction: $e', 
         error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
       // Fallback: end demo action if instruction fails
       endDemoAction(actionType);

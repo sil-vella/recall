@@ -546,12 +546,13 @@ When anyone has played a card with the **same rank** as your **collection card**
       // Get previous player status from state
       final previousPlayerStatus = dutchGameState['previousPlayerStatus']?.toString();
 
-      // Check if action is completed based on status transition
+      // Check if action is completed based on status transition (pass gameState for collect_rank demo)
       final demoHandler = DemoActionHandler.instance;
       final isCompleted = demoHandler.isActionCompleted(
         activeDemoAction,
         previousPlayerStatus,
         currentUserPlayerStatus,
+        gameState: gameState,
       );
 
       if (isCompleted) {
@@ -562,14 +563,9 @@ When anyone has played a card with the **same rank** as your **collection card**
           'previousPlayerStatus': null,
         });
 
-        // Special handling for same_rank demo: show instruction before ending
-        if (activeDemoAction == 'same_rank') {
-          _logger.info('🎮 _checkDemoActionCompletion: Same rank demo completed - showing wrong rank instruction', isOn: LOGGING_SWITCH);
-          demoHandler.showWrongSameRankInstruction(activeDemoAction);
-        } else {
-          // Trigger endDemoAction for other demos
-          demoHandler.endDemoAction(activeDemoAction);
-        }
+        // Show after-action instruction for all demo actions
+        _logger.info('🎮 _checkDemoActionCompletion: Demo action completed - showing after-action instruction', isOn: LOGGING_SWITCH);
+        demoHandler.showAfterActionInstruction(activeDemoAction);
       } else {
         // Update previous status for next check
         if (currentUserPlayerStatus != null) {

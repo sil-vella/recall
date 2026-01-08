@@ -6,6 +6,7 @@ import '../../../core/managers/module_manager.dart';
 import '../../dutch_game/utils/dutch_game_helpers.dart';
 import '../utils/game_instructions_provider.dart';
 import '../../../modules/analytics_module/analytics_module.dart';
+import '../screens/demo/demo_action_handler.dart';
 
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
@@ -487,6 +488,84 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
     } catch (e) {
       _logger.error('Error triggering instructions: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Check if demo action has completed and trigger endDemoAction if needed
+  /// 
+  /// Checks if:
+  /// - Game is a practice game
+  /// - showInstructions is enabled
+  /// - A demo action is currently active
+  /// - Player status has transitioned to indicate action completion
+  static void _checkDemoActionCompletion({
+    required String gameId,
+    required Map<String, dynamic> gameState,
+    required String? currentUserPlayerStatus,
+  }) {
+    try {
+      // Get current state once
+      final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      
+      // Check if practice game
+      final gameType = dutchGameState['gameType']?.toString() ?? '';
+      if (gameType != 'practice') {
+        return; // Not a practice game, skip demo check
+      }
+
+      // Check if showInstructions is enabled
+      bool showInstructions = gameState['showInstructions'] as bool? ?? false;
+      if (!showInstructions) {
+        // Fallback to practice settings
+        final practiceSettings = dutchGameState['practiceSettings'] as Map<String, dynamic>?;
+        showInstructions = practiceSettings?['showInstructions'] as bool? ?? false;
+      }
+
+      if (!showInstructions) {
+        return; // Instructions not enabled, skip demo check
+      }
+
+      // Check if demo action is active
+      if (!DemoActionHandler.isDemoActionActive()) {
+        return; // No active demo action
+      }
+
+      final activeDemoAction = DemoActionHandler.getActiveDemoActionType();
+      if (activeDemoAction == null) {
+        return; // No active demo action type
+      }
+
+      // Get previous player status from state
+      final previousPlayerStatus = dutchGameState['previousPlayerStatus']?.toString();
+
+      // Check if action is completed based on status transition
+      final demoHandler = DemoActionHandler.instance;
+      final isCompleted = demoHandler.isActionCompleted(
+        activeDemoAction,
+        previousPlayerStatus,
+        currentUserPlayerStatus,
+      );
+
+      if (isCompleted) {
+        _logger.info('🎮 _checkDemoActionCompletion: Demo action $activeDemoAction completed (status: $previousPlayerStatus → $currentUserPlayerStatus)', isOn: LOGGING_SWITCH);
+        
+        // Clear previous status
+        StateManager().updateModuleState('dutch_game', {
+          'previousPlayerStatus': null,
+        });
+
+        // Trigger endDemoAction
+        demoHandler.endDemoAction(activeDemoAction);
+      } else {
+        // Update previous status for next check
+        if (currentUserPlayerStatus != null) {
+          StateManager().updateModuleState('dutch_game', {
+            'previousPlayerStatus': currentUserPlayerStatus,
+          });
+        }
+      }
+    } catch (e) {
+      _logger.error('Error checking demo action completion: $e', isOn: LOGGING_SWITCH);
     }
   }
 
@@ -1206,6 +1285,13 @@ When anyone has played a card with the **same rank** as your **collection card**
         'joinedGamesTimestamp': DateTime.now().toIso8601String(),
       });
     }
+    
+    // Check for demo action completion
+    _checkDemoActionCompletion(
+      gameId: gameId,
+      gameState: gameState,
+      currentUserPlayerStatus: currentUserPlayerStatus,
+    );
     
     // Add session message about game state update or game end
     _logger.info('🎯 handleGameStateUpdated: Checking game end - uiPhase=$uiPhase, winners=${winners?.length ?? 0}', isOn: LOGGING_SWITCH);

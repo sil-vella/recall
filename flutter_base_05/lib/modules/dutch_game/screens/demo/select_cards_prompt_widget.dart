@@ -92,6 +92,10 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
           // Jack swap phase - show "Tap two cards to swap"
           promptText = 'Tap two cards to swap';
           shouldShow = true;
+        } else if (demoInstructionsPhase == 'call_dutch') {
+          // Call Dutch phase - show "Tap 'Call Dutch' then play a card"
+          promptText = 'Tap \'Call Dutch\' then play a card';
+          shouldShow = true;
         }
         
         _logger.info('SelectCardsPromptWidget: demoPhase=$demoInstructionsPhase, selectedCount=$selectedCount, hasDrawnCard=$hasDrawnCard, shouldShow=$shouldShow', isOn: LOGGING_SWITCH);
@@ -109,6 +113,7 @@ class _SelectCardsPromptWidgetState extends State<SelectCardsPromptWidget> with 
         // - Drawing: above game board (marginBottom = myHandHeight + gameBoardHeight + spacing)
         // - Playing: above myhand (marginBottom = myHandHeight)
         // - Same rank: above myhand (marginBottom = myHandHeight)
+        // - Call Dutch: above myhand (marginBottom = myHandHeight)
         double marginBottom;
         if (demoInstructionsPhase == 'drawing') {
           // Drawing phase - position above game board

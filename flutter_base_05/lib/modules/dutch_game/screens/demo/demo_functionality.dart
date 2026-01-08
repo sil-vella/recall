@@ -55,7 +55,7 @@ class DemoFunctionality {
   
   // Timer for same rank window (5 seconds, like practice mode)
   Timer? _sameRankWindowTimer;
-  
+
   // Timer for queen peek card display (3 seconds to show the peeked card before updating hand)
   Timer? _queenPeekTimer;
 
@@ -108,6 +108,11 @@ class DemoFunctionality {
       phase: 'queen_peek',
       title: 'Queen Peek:',
       paragraph: 'When a queen is played, that player can take a quick peek at any card from any player\'s hand, including their own.',
+    ),
+    DemoPhaseInstruction(
+      phase: 'call_dutch',
+      title: 'Call Dutch',
+      paragraph: 'When it\'s your turn to play, you will be shown a \'Call Dutch\' button in your hand. Tapping it will start the final round of plays where each player will have one final turn. At the end, the winner is decided by these criteria, in order:\n\n1. Fewest points\n2. Fewest points with fewest cards\n3. Fewest points with fewest cards, and Dutch caller\n4. Draw if same number of cards and points, and no Dutch caller\n\nThe game can always end early when a player ends up with 0 cards, as they are automatically declared the winner(s).',
     ),
   ];
 
@@ -777,12 +782,8 @@ class DemoFunctionality {
       }
     }
     
-    // Update user player's hand and status
-    userPlayer['hand'] = mutableHand;
-    userPlayer['status'] = 'queen_peek';
-    
     // Find the played queen card from originalDeck using its actual cardId
-    final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
+    final originalDeck = latestGameState['originalDeck'] as List<dynamic>? ?? [];
     Map<String, dynamic>? originalQueenCard;
     
     // First, try to find the card by matching the cardId from the hand
@@ -824,12 +825,17 @@ class DemoFunctionality {
       _logger.info('🎮 DemoFunctionality: Using original queen card ID: ${originalQueenCard['cardId']}, suit: ${originalQueenCard['suit']}', isOn: LOGGING_SWITCH);
     }
     
-    // Add original queen to discard pile (using actual card ID from originalDeck)
+    // Restore original hand and update piles
+    final drawPile = latestGameState['drawPile'] as List<dynamic>? ?? [];
     final discardPile = latestGameState['discardPile'] as List<dynamic>? ?? [];
-    discardPile.add(originalQueenCard);
+    final restored = _restoreOriginalHand(originalDeck, drawPile, discardPile, originalQueenCard);
     
-    // Update myHandCards in games map
-    final myHandCards = List<Map<String, dynamic>>.from(mutableHand.map((c) {
+    // Update user player's hand and status
+    userPlayer['hand'] = restored['hand'];
+    userPlayer['status'] = 'queen_peek';
+    
+    // Update myHandCards in games map with restored hand
+    final myHandCards = List<Map<String, dynamic>>.from((restored['hand'] as List<dynamic>).map((c) {
       if (c is Map<String, dynamic>) {
         return Map<String, dynamic>.from(c);
       }
@@ -840,11 +846,12 @@ class DemoFunctionality {
     final updatedPlayers = List<dynamic>.from(latestPlayers);
     updatedPlayers[userPlayerIndex] = userPlayer;
     
-    // Update SSOT with player status change and discard pile
+    // Update SSOT with player status change, restored hand, and updated piles
     final updatedGameState = Map<String, dynamic>.from(latestGameState);
     updatedGameState['players'] = updatedPlayers;
     updatedGameState['currentPlayer'] = userPlayer; // Set currentPlayer so _getCurrentUserStatus can find it
-    updatedGameState['discardPile'] = discardPile;
+    updatedGameState['discardPile'] = restored['discardPile'];
+    updatedGameState['drawPile'] = restored['drawPile'];
     final updatedGameData = Map<String, dynamic>.from(latestGameData);
     updatedGameData['game_state'] = updatedGameState;
     final updatedCurrentGame = Map<String, dynamic>.from(latestCurrentGame);
@@ -865,20 +872,20 @@ class DemoFunctionality {
     myHand['playerStatus'] = 'queen_peek';
     myHand['cards'] = myHandCards; // Update cards in myHand slice
     
-    // Update state using official state updater (same pattern as _handleDrawCard)
+    // Update state using official state updater (same pattern as regular play)
     final stateUpdater = DutchGameStateUpdater.instance;
     stateUpdater.updateStateSync({
-      'currentGameId': currentGameId,
-      'games': updatedGames, // SSOT with player status = 'queen_peek'
-      'discardPile': discardPile,
+      'playerStatus': 'queen_peek', // Update main state
+      'currentPlayerStatus': 'queen_peek',
+      'games': updatedGames, // SSOT with player status = 'queen_peek' and restored hand
+      'discardPile': restored['discardPile'], // Update discard pile
+      'drawPileCount': (restored['drawPile'] as List<dynamic>).length,
       'myDrawnCard': null, // Clear drawn card
       'currentPlayer': userPlayer, // Set currentPlayer so _getCurrentUserStatus can find it
-      'currentPlayerStatus': 'queen_peek',
-      'playerStatus': 'queen_peek',
       'lastUpdated': DateTime.now().toIso8601String(),
     });
     
-    // Update widget slices and UI-only fields using state updater (same pattern as _handleDrawCard)
+    // Update widget slices and UI-only fields using state updater (same pattern as regular play)
     stateUpdater.updateStateSync({
       'centerBoard': centerBoard, // Update centerBoard slice
       'myHand': myHand, // Update myHand slice with new status and cards
@@ -1048,12 +1055,8 @@ class DemoFunctionality {
       }
     }
     
-    // Update user player's hand and status
-    userPlayer['hand'] = mutableHand;
-    userPlayer['status'] = 'jack_swap';
-    
     // Find the played jack card from originalDeck using its actual cardId
-    final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
+    final originalDeck = latestGameState['originalDeck'] as List<dynamic>? ?? [];
     Map<String, dynamic>? originalJackCard;
     
     // First, try to find the card by matching the cardId from the hand
@@ -1095,12 +1098,17 @@ class DemoFunctionality {
       _logger.info('🎮 DemoFunctionality: Using original jack card ID: ${originalJackCard['cardId']}, suit: ${originalJackCard['suit']}', isOn: LOGGING_SWITCH);
     }
     
-    // Add original jack to discard pile (using actual card ID from originalDeck)
+    // Restore original hand and update piles
+    final drawPile = latestGameState['drawPile'] as List<dynamic>? ?? [];
     final discardPile = latestGameState['discardPile'] as List<dynamic>? ?? [];
-    discardPile.add(originalJackCard);
+    final restored = _restoreOriginalHand(originalDeck, drawPile, discardPile, originalJackCard);
     
-    // Update myHandCards in games map
-    final myHandCards = List<Map<String, dynamic>>.from(mutableHand.map((c) {
+    // Update user player's hand and status
+    userPlayer['hand'] = restored['hand'];
+    userPlayer['status'] = 'jack_swap';
+    
+    // Update myHandCards in games map with restored hand
+    final myHandCards = List<Map<String, dynamic>>.from((restored['hand'] as List<dynamic>).map((c) {
       if (c is Map<String, dynamic>) {
         return Map<String, dynamic>.from(c);
       }
@@ -1111,12 +1119,13 @@ class DemoFunctionality {
     final updatedPlayers = List<dynamic>.from(latestPlayers);
     updatedPlayers[userPlayerIndex] = userPlayer;
     
-    // Update SSOT with player status change and discard pile
+    // Update SSOT with player status change, restored hand, and updated piles
     // NOTE: Do NOT set gamePhase to 'same_rank_window' - we skip same rank window for jack play
     final updatedGameState = Map<String, dynamic>.from(latestGameState);
     updatedGameState['players'] = updatedPlayers;
     updatedGameState['currentPlayer'] = userPlayer; // Set currentPlayer so _getCurrentUserStatus can find it
-    updatedGameState['discardPile'] = discardPile;
+    updatedGameState['discardPile'] = restored['discardPile'];
+    updatedGameState['drawPile'] = restored['drawPile'];
     final updatedGameData = Map<String, dynamic>.from(latestGameData);
     updatedGameData['game_state'] = updatedGameState;
     final updatedCurrentGame = Map<String, dynamic>.from(latestCurrentGame);
@@ -1137,20 +1146,20 @@ class DemoFunctionality {
     myHand['playerStatus'] = 'jack_swap';
     myHand['cards'] = myHandCards; // Update cards in myHand slice
     
-    // Update state using official state updater (same pattern as _handleQueenPlay)
+    // Update state using official state updater (same pattern as regular play)
     final stateUpdater = DutchGameStateUpdater.instance;
     stateUpdater.updateStateSync({
-      'currentGameId': currentGameId,
-      'games': updatedGames, // SSOT with player status = 'jack_swap'
-      'discardPile': discardPile,
+      'playerStatus': 'jack_swap', // Update main state
+      'currentPlayerStatus': 'jack_swap',
+      'games': updatedGames, // SSOT with player status = 'jack_swap' and restored hand
+      'discardPile': restored['discardPile'], // Update discard pile
+      'drawPileCount': (restored['drawPile'] as List<dynamic>).length,
       'myDrawnCard': null, // Clear drawn card
       'currentPlayer': userPlayer, // Set currentPlayer so _getCurrentUserStatus can find it
-      'currentPlayerStatus': 'jack_swap',
-      'playerStatus': 'jack_swap',
       'lastUpdated': DateTime.now().toIso8601String(),
     });
     
-    // Update widget slices and UI-only fields using state updater (same pattern as _handleQueenPlay)
+    // Update widget slices and UI-only fields using state updater (same pattern as regular play)
     stateUpdater.updateStateSync({
       'centerBoard': centerBoard, // Update centerBoard slice
       'myHand': myHand, // Update myHand slice with new status and cards
@@ -1841,10 +1850,113 @@ class DemoFunctionality {
   }
 
   /// Handle call final round action in demo mode
+  /// Handle call final round action in demo mode
+  /// Sets finalRoundActive flag and marks player as having called final round
+  /// Player can still play cards after calling Dutch
   Future<Map<String, dynamic>> _handleCallFinalRound(Map<String, dynamic> payload) async {
-    _logger.info('🎮 DemoFunctionality: Call final round action (demo mode - no-op)', isOn: LOGGING_SWITCH);
-    // TODO: Implement demo call final round logic
-    return {'success': true, 'mode': 'demo'};
+    _logger.info('🎮 DemoFunctionality: Call final round action intercepted', isOn: LOGGING_SWITCH);
+    _logger.info('🎮 DemoFunctionality: Payload: $payload', isOn: LOGGING_SWITCH);
+    
+    // Re-read latest state from SSOT to ensure we have the most up-to-date data
+    final stateManager = StateManager();
+    final latestDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final latestGames = latestDutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGameId = latestDutchGameState['currentGameId']?.toString() ?? '';
+    
+    if (currentGameId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: No currentGameId found', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'No active game'};
+    }
+    
+    final latestCurrentGame = latestGames[currentGameId] as Map<String, dynamic>? ?? {};
+    final latestGameData = latestCurrentGame['gameData'] as Map<String, dynamic>? ?? {};
+    final latestGameState = latestGameData['game_state'] as Map<String, dynamic>? ?? {};
+    final latestPlayers = latestGameState['players'] as List<dynamic>? ?? [];
+    
+    // Find the user player (isHuman == true)
+    Map<String, dynamic>? userPlayer;
+    int userPlayerIndex = -1;
+    
+    for (int i = 0; i < latestPlayers.length; i++) {
+      final p = latestPlayers[i];
+      if (p is Map<String, dynamic> && p['isHuman'] == true) {
+        userPlayer = Map<String, dynamic>.from(p);
+        userPlayerIndex = i;
+        break;
+      }
+    }
+    
+    if (userPlayer == null) {
+      _logger.error('❌ DemoFunctionality: User player not found', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'User player not found'};
+    }
+    
+    final userId = userPlayer['id']?.toString() ?? '';
+    if (userId.isEmpty) {
+      _logger.error('❌ DemoFunctionality: User player ID is empty', isOn: LOGGING_SWITCH);
+      return {'success': false, 'error': 'User player ID is empty'};
+    }
+    
+    _logger.info('✅ DemoFunctionality: Found user player: ${userPlayer['name']} ($userId)', isOn: LOGGING_SWITCH);
+    
+    // Update game state to indicate final round is active
+    final updatedGameState = Map<String, dynamic>.from(latestGameState);
+    updatedGameState['finalRoundCalledBy'] = userId;
+    updatedGameState['finalRoundActive'] = true;
+    
+    // Update player's hasCalledFinalRound flag
+    userPlayer['hasCalledFinalRound'] = true;
+    // Keep player status as 'playing_card' so they can still play their card
+    userPlayer['status'] = 'playing_card';
+    
+    // Update players list
+    final updatedPlayers = List<dynamic>.from(latestPlayers);
+    updatedPlayers[userPlayerIndex] = userPlayer;
+    updatedGameState['players'] = updatedPlayers;
+    
+    // Set currentPlayer to user player
+    updatedGameState['currentPlayer'] = userPlayer;
+    
+    // Update SSOT
+    final updatedGameData = Map<String, dynamic>.from(latestGameData);
+    updatedGameData['game_state'] = updatedGameState;
+    final updatedCurrentGame = Map<String, dynamic>.from(latestCurrentGame);
+    updatedCurrentGame['gameData'] = updatedGameData;
+    
+    final updatedGames = Map<String, dynamic>.from(latestGames);
+    updatedGames[currentGameId] = updatedCurrentGame;
+    
+    // Get current dutch game state for widget slice updates
+    final currentDutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    
+    // Update widget slices manually
+    final centerBoard = currentDutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+    centerBoard['playerStatus'] = 'playing_card';
+    
+    final myHand = currentDutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+    myHand['playerStatus'] = 'playing_card';
+    
+    // Update state using official state updater
+    final stateUpdater = DutchGameStateUpdater.instance;
+    
+    // Combine all state updates into a single atomic update
+    stateUpdater.updateStateSync({
+      'currentGameId': currentGameId,
+      'games': updatedGames, // SSOT with final round info
+      'currentPlayer': userPlayer,
+      'currentPlayerStatus': 'playing_card',
+      'playerStatus': 'playing_card',
+      'isGameActive': true,
+      'isMyTurn': true,
+      'centerBoard': centerBoard,
+      'myHand': myHand,
+      'demoInstructionsPhase': 'playing', // Show playing phase after calling Dutch
+      'lastUpdated': DateTime.now().toIso8601String(),
+    });
+    
+    _logger.info('✅ DemoFunctionality: Final round called successfully - player can still play cards', isOn: LOGGING_SWITCH);
+    
+    return {'success': true, 'mode': 'demo', 'finalRoundActive': true, 'finalRoundCalledBy': userId};
   }
 
   /// Handle collect from discard action in demo mode
@@ -2030,6 +2142,10 @@ class DemoFunctionality {
     final updatedGameState = Map<String, dynamic>.from(latestGameState);
     updatedGameState['players'] = updatedPlayers;
     
+    // Ensure finalRoundActive is false (needed for Call Final Round button visibility)
+    updatedGameState['finalRoundActive'] = false;
+    updatedGameState['finalRoundCalledBy'] = null;
+    
     // If user is involved, set currentPlayer to user player
     if (userInvolved) {
       Map<String, dynamic>? userPlayer;
@@ -2041,6 +2157,17 @@ class DemoFunctionality {
       }
       if (userPlayer != null) {
         updatedGameState['currentPlayer'] = userPlayer;
+        // Ensure user player doesn't have hasCalledFinalRound set (needed for button visibility)
+        userPlayer['hasCalledFinalRound'] = false;
+        // Update the player in the list
+        for (int i = 0; i < updatedPlayers.length; i++) {
+          if (updatedPlayers[i] is Map<String, dynamic> && 
+              updatedPlayers[i]['id']?.toString() == userPlayer['id']?.toString()) {
+            updatedPlayers[i] = userPlayer;
+            break;
+          }
+        }
+        updatedGameState['players'] = updatedPlayers;
       }
     }
     
@@ -2117,29 +2244,38 @@ class DemoFunctionality {
     final stateUpdater = DutchGameStateUpdater.instance;
     
     // Step 1: Update SSOT and main state fields using updateStateSync
-    stateUpdater.updateStateSync({
-      'currentGameId': currentGameId,
-      'games': updatedGames, // SSOT with swapped cards
-      'currentPlayer': userInvolved ? updatedGameState['currentPlayer'] : null,
-      'currentPlayerStatus': userInvolved ? 'playing_card' : null,
-      'playerStatus': userInvolved ? 'playing_card' : null,
-      'lastUpdated': DateTime.now().toIso8601String(),
-    });
+    // Also ensure isGameActive and isMyTurn are set for Call Final Round button visibility
+    // Note: isMyTurn must be set at top level of dutchGameState, not just in game data
+    if (userInvolved) {
+      // Update isMyTurn in the game data first
+      final updatedGameForMyTurn = updatedGames[currentGameId] as Map<String, dynamic>? ?? {};
+      updatedGameForMyTurn['isMyTurn'] = true;
+      updatedGames[currentGameId] = updatedGameForMyTurn;
+    }
     
-    // Step 2: Update widget slices using updateStateSync
-    stateUpdater.updateStateSync({
+    // Combine all state updates into a single atomic update for immediate widget rebuild
+    final stateUpdates = <String, dynamic>{
+      'currentGameId': currentGameId,
+      'games': updatedGames, // SSOT with swapped cards (includes isMyTurn in game data)
       'centerBoard': centerBoard,
       'myHand': myHand,
       'opponentsPanel': opponentsPanel,
-    });
+      'lastUpdated': DateTime.now().toIso8601String(),
+    };
     
-    // Step 3: Clear jack swap instructions and show playing phase
     if (userInvolved) {
-      stateUpdater.updateState({
-        'demoInstructionsPhase': 'playing', // Show playing phase instructions after swap
-        'lastUpdated': DateTime.now().toIso8601String(),
+      stateUpdates.addAll({
+        'currentPlayer': updatedGameState['currentPlayer'],
+        'currentPlayerStatus': 'playing_card',
+        'playerStatus': 'playing_card',
+        'isGameActive': true, // Required for Call Final Round button
+        'isMyTurn': true, // Required for Call Final Round button (top level)
+        'demoInstructionsPhase': 'call_dutch', // Show call dutch instructions after swap
       });
     }
+    
+    // Single atomic update to ensure all state changes happen together and widget rebuilds
+    stateUpdater.updateStateSync(stateUpdates);
     
     _logger.info('✅ DemoFunctionality: Jack swap completed - cards swapped successfully', isOn: LOGGING_SWITCH);
     
@@ -2462,6 +2598,115 @@ class DemoFunctionality {
     });
     
     _logger.info('✅ DemoFunctionality: Demo instructions phase transitioned to initial_peek', isOn: LOGGING_SWITCH);
+  }
+
+  /// Restore original hand (Ace hearts, 5 diamonds, 8 clubs, 4 hearts) and update piles
+  /// Returns the restored hand as ID-only cards and updated draw/discard piles
+  Map<String, dynamic> _restoreOriginalHand(
+    List<dynamic> originalDeck,
+    List<dynamic> currentDrawPile,
+    List<dynamic> currentDiscardPile,
+    Map<String, dynamic> playedCard,
+  ) {
+    _logger.info('🎮 DemoFunctionality: Restoring original hand (Ace hearts, 5 diamonds, 8 clubs, 4 hearts)', isOn: LOGGING_SWITCH);
+    
+    // Helper to find card by rank and suit
+    Map<String, dynamic>? _findCard(String rank, String suit) {
+      for (final card in originalDeck) {
+        if (card is Map<String, dynamic> && 
+            card['rank']?.toString() == rank && 
+            card['suit']?.toString() == suit) {
+          return Map<String, dynamic>.from(card);
+        }
+      }
+      return null;
+    }
+    
+    // Find the 4 original cards
+    final aceHearts = _findCard('ace', 'hearts');
+    final fiveDiamonds = _findCard('5', 'diamonds');
+    final eightClubs = _findCard('8', 'clubs');
+    final fourHearts = _findCard('4', 'hearts');
+    
+    if (aceHearts == null || fiveDiamonds == null || eightClubs == null || fourHearts == null) {
+      _logger.error('❌ DemoFunctionality: Could not find all original cards in deck', isOn: LOGGING_SWITCH);
+      return {
+        'hand': <Map<String, dynamic>>[],
+        'drawPile': currentDrawPile,
+        'discardPile': currentDiscardPile,
+      };
+    }
+    
+    // Convert to ID-only format
+    Map<String, dynamic> _cardToIdOnly(Map<String, dynamic> card) => {
+      'cardId': card['cardId'],
+      'suit': '?',
+      'rank': '?',
+      'points': 0,
+    };
+    
+    final restoredHand = [
+      _cardToIdOnly(aceHearts),
+      _cardToIdOnly(fiveDiamonds),
+      _cardToIdOnly(eightClubs),
+      _cardToIdOnly(fourHearts),
+    ];
+    
+    _logger.info('✅ DemoFunctionality: Restored original hand with ${restoredHand.length} cards', isOn: LOGGING_SWITCH);
+    
+    // Create mutable copies of piles
+    final updatedDrawPile = List<dynamic>.from(currentDrawPile);
+    final updatedDiscardPile = List<dynamic>.from(currentDiscardPile);
+    
+    // Remove original cards from draw pile if present
+    final originalCardIds = [
+      aceHearts['cardId'],
+      fiveDiamonds['cardId'],
+      eightClubs['cardId'],
+      fourHearts['cardId'],
+    ];
+    
+    updatedDrawPile.removeWhere((card) {
+      if (card is Map<String, dynamic>) {
+        final cardId = card['cardId']?.toString() ?? '';
+        return originalCardIds.contains(cardId);
+      }
+      return false;
+    });
+    
+    // Remove original cards from discard pile if present (except the played card)
+    final playedCardId = playedCard['cardId']?.toString() ?? '';
+    updatedDiscardPile.removeWhere((card) {
+      if (card is Map<String, dynamic>) {
+        final cardId = card['cardId']?.toString() ?? '';
+        // Keep the played card, remove others
+        if (cardId == playedCardId) {
+          return false; // Keep played card
+        }
+        return originalCardIds.contains(cardId);
+      }
+      return false;
+    });
+    
+    // Remove played card from discard pile if it exists (we'll add it at the top)
+    updatedDiscardPile.removeWhere((card) {
+      if (card is Map<String, dynamic>) {
+        return card['cardId']?.toString() == playedCardId;
+      }
+      return false;
+    });
+    
+    // Add played card to the TOP of discard pile (last item = top of stack)
+    updatedDiscardPile.add(playedCard);
+    _logger.info('✅ DemoFunctionality: Added played card to TOP of discard pile', isOn: LOGGING_SWITCH);
+    
+    _logger.info('✅ DemoFunctionality: Updated draw pile (${updatedDrawPile.length} cards), discard pile (${updatedDiscardPile.length} cards)', isOn: LOGGING_SWITCH);
+    
+    return {
+      'hand': restoredHand,
+      'drawPile': updatedDrawPile,
+      'discardPile': updatedDiscardPile,
+    };
   }
 
   /// Get full card data from game state by cardId

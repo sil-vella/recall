@@ -2,89 +2,80 @@
 
 ## Overview
 
-The Demo Mode System provides a self-contained demo experience for the Dutch card game, allowing users to explore the game mechanics without requiring backend connectivity or WebSocket communication. The demo mode intercepts all player actions and routes them to demo-specific logic, similar to how practice mode works.
+The Demo Mode System provides individual, focused demo experiences for specific game mechanics. Each demo action is a separate, tappable demo that:
+- Clears and resets state entirely before starting
+- Starts a fresh practice match with `showInstructions: true` and test deck
+- Sets up game state for the specific action being demonstrated
+- Navigates to game play screen with all state correctly set
+- Uses unified state updater to trigger widget updates
+- Displays instructions widget and action text widget as overlays
+- Prevents game progression (timers disabled when `showInstructions: true`)
 
 ## Architecture
 
 ### Core Components
 
 1. **DemoScreen** (`screens/demo/demo_screen.dart`)
-   - Main demo screen that displays the game UI
-   - Manages all game state locally (no StateManager dependency for game logic)
-   - Initializes demo game with predefined cards and players
-   - Handles mode selection (regular vs. Clear and Collect)
+   - Main demo screen that displays a grid of action buttons
+   - Each button triggers a specific demo action
+   - No local state management - uses practice match logic
 
-2. **DemoModeBridge** (`screens/demo/demo_mode_bridge.dart`)
-   - Bridges player actions to demo-specific functionality
-   - Routes events from the event emitter to `DemoFunctionality`
-   - Singleton instance for consistent state
+2. **DemoActionHandler** (`screens/demo/demo_action_handler.dart`)
+   - Centralized handler for all demo actions
+   - Clears state, starts practice match, sets up game state
+   - Uses unified state updater for all state updates
+   - Navigates to game play screen
 
-3. **DemoFunctionality** (`screens/demo/demo_functionality.dart`)
-   - Handles all demo-specific game logic
-   - Contains action handlers for all player actions
-   - Manages initial peek card selection and state updates
-   - Handles demo phase transitions and instructions
-   - Tracks selected cards and updates `myCardsToPeek` in StateManager
+3. **DemoStateSetup** (`screens/demo/demo_state_setup.dart`)
+   - Helper methods to set up game state for each action
+   - Each method modifies game state to match action requirements
+   - Uses test deck cards for predictable setup
 
-4. **DemoInstructionsWidget** (`screens/demo/demo_instructions_widget.dart`)
-   - Displays phase-specific instructions at the top of the demo screen
-   - Overlay widget that doesn't take up layout space
-   - Shows title and paragraph for each demo phase
-   - Includes "Let's go" button for initial phase
+4. **ActionTextWidget** (`screens/game_play/widgets/action_text_widget.dart`)
+   - Displays contextual action prompts (e.g., "Tap a card to peek", "Draw a card")
+   - Overlay widget positioned at bottom of screen
+   - Only visible when `showInstructions: true`
+   - Reads from `actionText` state slice
 
-5. **SelectCardsPromptWidget** (`screens/demo/select_cards_prompt_widget.dart`)
-   - Displays flashing "Select two cards" text above myhand section
-   - Overlay widget positioned dynamically based on myhand height
-   - Only visible during initial peek phase when 0-1 cards selected
-   - Uses animated glow effect with accent color
+5. **InstructionsWidget** (`screens/game_play/widgets/instructions_widget.dart`)
+   - Existing instructions widget (already integrated)
+   - Automatically shows when `showInstructions: true` and game state matches instruction trigger
+   - Uses `GameInstructionsProvider` to get instruction content
+   - Shows as modal overlay
 
-6. **Event Transport System**
-   - `EventTransportMode.demo` - New transport mode for demo
-   - Routes all actions through `DemoModeBridge` instead of WebSocket/PracticeBridge
+6. **Practice Match Integration**
+   - Uses existing `PracticeModeBridge` for practice match initialization
+   - Uses `PlayerAction.startMatch()` with `showInstructions: true` and `testingModeOverride: true`
+   - Leverages existing practice match logic for state initialization
 
 ## State Management
 
-### Local State (DemoScreen)
+### Unified State Updater
 
-All game state is managed locally within `DemoScreenState` using `setState()`:
-
-```dart
-// Local demo state fields
-String? _demoGameId;
-List<Map<String, dynamic>> _players = [];
-List<Map<String, dynamic>> _drawPile = [];
-List<Map<String, dynamic>> _discardPile = [];
-List<Map<String, dynamic>> _originalDeck = [];
-Map<String, dynamic>? _currentPlayer;
-String _gamePhase = 'waiting';
-int _roundNumber = 1;
-int _turnNumber = 1;
-bool _isClearAndCollect = false;
-```
-
-### StateManager Sync
-
-While game logic uses local state, widgets still read from `StateManager`. The demo screen:
-- Updates `StateManager` with demo state structure (for widget display)
-- Computes widget slices manually (`gameInfo`, `myHand`, `opponentsPanel`)
-- Uses `updateStateSync()` for immediate synchronous updates
-
-**State Fields Updated During Demo:**
-- `demoInstructionsPhase` - Controls which instruction phase is visible (independent from `gamePhase`)
-- `myCardsToPeek` - Cards selected during initial peek (full data → ID-only after timer)
-- `myDrawnCard` - Currently drawn card (cleared when added to hand)
-- `myHandHeight` - Dynamic height of myhand section (measured via GlobalKey)
-- `playerStatus` - Current player status (`'initial_peek'` → `'drawing_card'` → `'playing_card'`)
-- `myHand['playerStatus']` - Status in myHand slice (for status chip display)
-- `centerBoard['playerStatus']` - Status in centerBoard slice (for draw pile interaction)
+All state updates go through `DutchGameHelpers.updateUIState()`:
+- Ensures widget slices are recomputed
+- Triggers `ListenableBuilder` rebuilds
+- Follows same pattern as practice match and multiplayer
 
 ### State Structure
 
-The demo state follows the same structure as production games:
+The demo state follows the same structure as practice matches:
 - `games[gameId].gameData.game_state` - Single source of truth for game state
-- All players have ID-only cards (face-down) in demo mode
-- Game phase starts at `'initial_peek'`
-- All player statuses set to `'initial_peek'`
+- Uses practice match initialization logic
+- Test deck provides predictable card distribution
+- `showInstructions: true` disables timers (prevents auto-progression)
+
+### Action Text State
+
+The `actionText` state slice controls the action text widget:
+```dart
+'actionText': {
+  'isVisible': bool,
+  'text': String,  // Prompt text for current action
+}
+```
+
+This is updated by demo action handlers to show contextual prompts.
 
 ## Card Management
 
@@ -444,131 +435,113 @@ The queen peek implementation follows a specific pattern that should be replicat
 - Same rank instructions appear 3 seconds after opponent plays
 - Hand manipulation uses mutable `List<dynamic>` to allow null values for blank slots
 
-## Game Initialization
+## Demo Actions
 
-### Mode Selection
+The demo screen displays a grid of buttons for each action:
 
-Users select demo mode via two buttons:
-1. **"Start Dutch demo"** - Regular mode (`isClearAndCollect: false`)
-2. **"Start Dutch Clear and collect demo"** - Clear and Collect mode (`isClearAndCollect: true`)
+1. **Initial Peek** - Game in `initial_peek` phase
+2. **Drawing** - Game started, player in `drawing_card` status
+3. **Playing** - Game started, player in `playing_card` status with drawn card
+4. **Same Rank** - Game in `same_rank_window` phase
+5. **Queen Peek** - Game started, player played Queen, in `queen_peek` status
+6. **Jack Swap** - Game started, player played Jack, in `jack_swap` status
+7. **Call Dutch** - Game started, player can call Dutch (button visible)
+8. **Collect Rank** - Game in `initial_peek` phase, collection mode enabled
 
-### Initialization Steps
+## Demo Action Flow
 
-1. **Create Predefined Cards**
-   - Generate 54 cards manually (no deck factory)
-   - Store in `_originalDeck` for lookups
-   - Queens are excluded from draw pile (they're in user's hand during special plays phase)
+### Starting a Demo Action
 
-2. **Create Players with Hardcoded Hands**
-   - Current user + 3 opponents
-   - **User hand**: Ace hearts, 5 diamonds, 8 clubs, 4 hearts
-   - **Opponent 1 hand**: 2 clubs, 3 hearts, 6 diamonds, 9 hearts (other numbers, no ace/jack/queen)
-   - **Opponent 2 hand**: King spades (at index 0), 2 hearts, 6 clubs, 9 diamonds (has K, rest other numbers)
-   - **Opponent 3 hand**: Ace spades, 5 clubs, 8 diamonds, 4 clubs (same ranks as user, different suits)
-   - All players get ID-only cards (face-down)
-   - All player statuses set to `'initial_peek'`
-   - Opponents do not have special cards (Queen/Jack) in their predefined hands
+1. **User Taps Demo Button**
+   - Button in grid triggers `DemoActionHandler.startDemoAction(actionType)`
 
-3. **Deal Cards**
-   - 4 cards to each player (hardcoded distribution)
-   - Remaining cards go to draw pile
-   - First card goes to discard pile (face-up)
-   - Next 3 cards in draw pile are regular number cards (not special cards)
-   - Queens are filtered out from draw pile
+2. **Clear All State**
+   - `DutchGameHelpers.removePlayerFromGame()` clears game state
+   - `PracticeModeBridge.endPracticeSession()` ends any existing practice session
+   - All state fields reset to defaults
 
-4. **Set Game State**
-   - Game phase: `'initial_peek'`
-   - Game ID: `demo_game_<timestamp>`
-   - Round/Turn: 1
+3. **Start Practice Match**
+   - `PracticeModeBridge.startPracticeSession()` creates practice room
+   - `PlayerAction.startMatch()` with:
+     - `showInstructions: true` (enables instructions, disables timers)
+     - `testingModeOverride: true` (uses test deck)
+     - `isClearAndCollect: true/false` (based on action)
 
-5. **Update StateManager**
-   - Sync local state to `StateManager` for widget display
-   - Compute widget slices (`gameInfo`, `myHand`, `opponentsPanel`)
-   - Set transport mode to `demo`
-   - Set `demoInstructionsPhase` to `'initial'`
+4. **Set Up Game State**
+   - `DemoStateSetup.setupActionState()` modifies game state for specific action
+   - Each action has its own setup method that configures:
+     - Player status
+     - Game phase
+     - Piles (draw/discard)
+     - Current player
+     - Other action-specific requirements
 
-6. **Switch Event Transport**
-   - Set `EventTransportMode.demo` to intercept all actions
+5. **Sync State**
+   - `DutchEventManager().handleGameStateUpdated()` syncs widget states
+   - `DutchGameHelpers.updateUIState()` triggers widget slice recomputation
+   - All widgets rebuild via `ListenableBuilder`
 
-## Demo Instructions System
+6. **Navigate to Game Play Screen**
+   - `NavigationManager().navigateTo('/dutch/game-play')`
+   - Instructions widget automatically shows (if enabled)
+   - Action text widget shows contextual prompt
 
-### Phase-Based Instructions
+### Action State Setup
 
-The demo uses a phase-based instruction system to guide users through different game phases:
+Each demo action requires specific game state:
 
-**Demo Phases:**
-- `initial` - Welcome message with "Let's go" button
+- **Initial Peek**: `phase: 'initial_peek'`, player in `initial_peek` status
+- **Drawing**: `phase: 'playing'`, player in `drawing_card` status, game started
+- **Playing**: `phase: 'playing'`, player in `playing_card` status, has `drawnCard`, game started
+- **Same Rank**: `phase: 'same_rank_window'`, player in `same_rank_window` status, discard pile has card
+- **Queen Peek**: `phase: 'playing'`, player in `queen_peek` status, Queen in discard pile
+- **Jack Swap**: `phase: 'playing'`, player in `jack_swap` status, Jack in discard pile
+- **Call Dutch**: `phase: 'playing'`, player in `playing_card` status, `finalRoundActive: false`, `hasCalledFinalRound: false`
+- **Collect Rank**: `phase: 'initial_peek'`, `isClearAndCollect: true`, player in `initial_peek` status
+
+## Instructions and Action Text System
+
+### Instructions Widget
+
+The existing `InstructionsWidget` automatically shows when:
+- `showInstructions: true` in game state
+- Game state matches instruction trigger (phase/status/turn)
+- Instruction hasn't been dismissed ("don't show again")
+
+**Instruction Types:**
+- `initial` - Welcome message
 - `initial_peek` - Instructions for selecting 2 cards to peek at
-- `drawing` - Instructions for drawing a card
-- `playing` - Instructions for playing a card
-- `same_rank` - Instructions for same rank window (shown 3 seconds after opponent plays)
-- `wrong_same_rank_penalty` - Instructions shown when user plays wrong rank in same rank window (with "Let's go" button)
-- `special_plays` - Instructions for special card plays (queen/jack)
-- `queen_peek` - Instructions for Queen special power (shown after queen is played)
-  - Title: "Queen Peek:"
-  - Text: "When a queen is played, that player can take a quick peek at any card from any player's hand, including their own."
-  - Prompt text: "Tap a card to peek"
+- `drawing_card` - Instructions for drawing a card
+- `playing_card` - Instructions for playing a card
+- `same_rank_window` - Instructions for same rank window
+- `queen_peek` - Instructions for Queen special power
 - `jack_swap` - Instructions for Jack special power
-  - Title: "Jack Swap:"
-  - Text: "When a jack is played, that player can switch any two cards between any players."
-  - Prompt text: "Tap two cards to swap"
+- `collection_card` - Instructions for collection cards (collection mode only)
 
-**Instruction Widget Behavior:**
-- Overlay positioned at top of screen (doesn't take layout space)
-- Dark semi-transparent background matching theme
-- Automatically hides when first card is selected during initial peek
-- Transitions between phases based on user actions and timers
-- Same rank instructions use timer-based display (3 seconds after opponent plays)
+### Action Text Widget
 
-**Same Rank Instructions:**
-- Text: "An opponent has played a card of the same rank, and now they have 3 cards left. During same rank window any player can play a card of the same rank. If an incorrect rank is attempted, that player will be given an extra penalty card."
-- Display timing: Instructions appear 3 seconds after an opponent plays a same rank card
-- Trigger: Automatically shown via timer when opponent auto-plays matching rank card
-- Phase transition: Instructions hidden when player plays a card, shown again after next opponent play
-- Card count: Hardcoded to "3 cards" (not dynamic)
-- Prompt text: "Tap any card from your hand" appears above myhand at the same time as same rank instructions
+The `ActionTextWidget` displays contextual action prompts:
+- Overlay positioned at bottom of screen
+- Shows action-specific prompt text
+- Only visible when `showInstructions: true` and `actionText.isVisible == true`
+- Updates based on `playerStatus` and `gamePhase`
 
-**Wrong Same Rank Penalty Instructions:**
-- Phase: `wrong_same_rank_penalty`
-- Title: "You played a wrong rank"
-- Text: "When playing a wrong rank in the same rank window you will be given an extra penalty card. Now you have 5 cards. Next we will wait for your opponents to play their turns."
-- Card count: Hardcoded to "5 cards" (not dynamic)
-- Button: "Let's go" button that triggers opponent simulation
-- Trigger: Shown when user plays a card of wrong rank during same rank window
-- Action: After "Let's go" button is pressed, opponent simulation begins
+**Action Text Examples:**
+- "Tap a card to peek" (queen peek)
+- "Tap two cards to swap" (jack swap)
+- "Draw a card" (drawing)
+- "Select any card to play" (playing)
+- "Tap 'Call Dutch' then play a card" (call Dutch)
 
-**Special Plays Instructions:**
-- Phase: `special_plays`
-- Title: "Special Plays"
-- Text: "When a queen or a jack is played, that player will have a special play."
-- Prompt text: "Tap any card from your hand" appears above myhand
-- Trigger: Shown after opponent simulation completes (after opponent 3 plays)
-- User hand: Updated to 4 queens (one of each suit: hearts, diamonds, clubs, spades) with actual card IDs from originalDeck
-- User status: Set to `playing_card` to enable card interaction
-- **After Queen Peek**: User hand automatically updated to 4 jacks (one per suit) after 3-second peek timer expires, then `demoInstructionsPhase` set to `special_plays` for jack swap demo
-
-**Select Cards Prompt:**
-- Flashing prompt text above myhand section that changes based on demo phase
-- Text variations:
-  - "Select two cards" (initial peek phase)
-  - "Tap the draw pile" (drawing phase)
-  - "Select any card to play" (playing phase)
-  - "Tap any card from your hand" (same rank phase - appears at same time as same rank instructions)
-  - "Tap any card from your hand" (special_plays phase - appears when special plays instruction is shown)
-  - "Tap a card to peek" (queen_peek phase - appears when queen peek instructions are shown)
-  - "Tap two cards to swap" (jack_swap phase - appears when jack swap instructions are shown)
-- Positioned dynamically using GlobalKey to measure actual myhand height
-- Only visible during:
-  - Initial peek phase when 0-1 cards selected
-  - Drawing phase when no card has been drawn yet (`myDrawnCard == null`)
-  - Playing phase (when `demoInstructionsPhase == 'playing'`)
-  - Same rank phase (when `demoInstructionsPhase == 'same_rank'` - appears 3 seconds after opponent plays)
-  - Special plays phase (when `demoInstructionsPhase == 'special_plays'`)
-  - Queen peek phase (when `demoInstructionsPhase == 'queen_peek'`)
-  - Jack swap phase (when `demoInstructionsPhase == 'jack_swap'`)
-- Automatically hides when appropriate action is taken or phase changes
-- Animated glow effect using accent color
-- Same background styling as instructions widget
+The action text is set by demo action handlers via state updates:
+```dart
+DutchGameHelpers.updateUIState({
+  'actionText': {
+    'isVisible': true,
+    'text': 'Tap a card to peek',
+  },
+});
+```
 
 ## Widget Slices
 
@@ -648,94 +621,51 @@ When leaving the demo screen:
 
 ### ✅ Completed
 
-- [x] Demo screen structure with mode selection
-- [x] Local state management (all state in `DemoScreenState`)
-- [x] Predefined card creation (54 cards, manually created)
-- [x] Player setup (4 players with ID-only cards)
-- [x] Card dealing (4 cards per player)
-- [x] StateManager sync for widget display
-- [x] Widget slice computation (`gameInfo`, `myHand`, `opponentsPanel`)
-- [x] Event interception system (`DemoModeBridge`, `DemoFunctionality`)
-- [x] Transport mode routing (`EventTransportMode.demo`)
-- [x] Game ID validation (accepts `demo_game_` prefix)
-- [x] Initial peek phase setup
-- [x] Demo instructions widget with phase-based messages
-- [x] Select cards prompt widget with animated glow
-- [x] Initial peek card selection with full card data display
-- [x] Batched state updates (both cards shown simultaneously)
-- [x] Timer-based phase transitions (5-second delay after initial peek)
-- [x] Card visibility management (full data → ID-only conversion)
-- [x] Dynamic positioning using GlobalKey for myhand height measurement
-- [x] Drawing functionality (draw from draw pile or discard pile)
-- [x] Card addition to hand (ID-only format, added to end)
-- [x] Status transition from drawing to playing phase
-- [x] Widget slice synchronization for status updates
-- [x] Play card functionality (removes card from hand, adds to discard pile)
-- [x] Blank slot creation in hand (for cards at index ≤ 3)
-- [x] Drawn card repositioning to fill blank slots
-- [x] Same rank window activation after card play
-- [x] Opponent same rank auto-play (3-second delay before each opponent)
-- [x] Same rank instructions with timer (3 seconds after opponent plays)
-- [x] Wrong same rank penalty handling (penalty card, instruction with "Let's go" button)
-- [x] Opponent simulation after penalty (predefined plays for each opponent)
-- [x] Special plays instruction phase (shown after opponent simulation)
-- [x] User hand update to 4 queens (one per suit) with actual card IDs
-- [x] Queen play interception and routing to special handler
-- [x] Queen peek instructions after queen is played
-- [x] Queen peek card selection and display with timer
-- [x] Queen peek timer (3 seconds) with hand update to jacks after expiration
-- [x] Jack play interception and routing to special handler
-- [x] Jack swap instructions after jack is played
-- [x] Jack swap card swapping between any players (user and opponents)
-- [x] Jack swap state updates (myHandCards, opponentsPanel, widget slices)
-- [x] Hardcoded hands for all players (user and opponents)
-- [x] Queens excluded from draw pile
-- [x] Status text corrections (`drawing_card`, `playing_card` instead of `drawing`, `playing`)
-- [x] Human player exclusion from `same_rank_window` during opponent simulation
-- [x] Timer management (all timers stopped after opponent simulation)
+- [x] Demo screen refactored to show action buttons grid
+- [x] DemoActionHandler with centralized action handling
+- [x] DemoStateSetup with state setup helpers for each action
+- [x] Practice match integration with showInstructions and test deck
+- [x] Unified state updater usage (DutchGameHelpers.updateUIState)
+- [x] State cleanup before each demo action
+- [x] ActionTextWidget for contextual prompts
+- [x] ActionTextWidget integrated into GamePlayScreen
+- [x] State validator updated with actionText schema
+- [x] Navigation to game play screen after demo action setup
+- [x] Instructions widget integration (existing, works automatically)
+- [x] Timer prevention (timers disabled when showInstructions: true)
 
-### 🚧 Pending Implementation
+### Demo Actions Implemented
 
-- [ ] Demo-specific action handlers in `DemoFunctionality`
-  - [x] `_handleInitialPeek()` - Initial peek logic (shows card details)
-  - [x] `_handleCompletedInitialPeek()` - Complete initial peek logic (starts timer)
-  - [x] `_handleDrawCard()` - Draw card logic (adds card to hand, updates status to playing)
-  - [x] `_handlePlayCard()` - Play card logic (removes from hand, adds to discard, triggers same rank window, routes queen/jack plays)
-  - [x] `_handleOpponentSameRankPlays()` - Auto-play opponent matching rank cards (3-second delay)
-  - [x] `_handleSameRankPlay()` - Handle valid same rank play
-  - [x] `_handleWrongSameRankPlay()` - Handle wrong same rank play (penalty card, instruction)
-  - [x] `endSameRankWindowAndSimulateOpponents()` - Opponent simulation after penalty (predefined plays)
-  - [x] `_handleQueenPlay()` - Handle queen play (special play routing, queen peek instructions)
-- [x] `_handleJackPlay()` - Handle jack play (special play routing, jack swap instructions, skips same rank window)
-- [x] `_handleQueenPeek()` - Handle queen peek (card selection, display, timer, hand update to jacks)
-- [x] `_handleJackSwap()` - Handle jack swap (card swapping between any players, state updates)
-  - [ ] `_handleReplaceDrawnCard()` - Replace drawn card logic
-  - [ ] `_handlePlayDrawnCard()` - Play drawn card logic
-  - [ ] `_handleCallFinalRound()` - Call final round logic
-  - [ ] `_handleCollectFromDiscard()` - Collect from discard logic
-  - [ ] `_handleUseSpecialPower()` - Special power logic
-  - [ ] `_handlePlayOutOfTurn()` - Play out of turn logic
+- [x] Initial Peek - Game state setup for initial peek phase
+- [x] Drawing - Game state setup for drawing action
+- [x] Playing - Game state setup for playing action
+- [x] Same Rank - Game state setup for same rank window
+- [x] Queen Peek - Game state setup for queen peek action
+- [x] Jack Swap - Game state setup for jack swap action
+- [x] Call Dutch - Game state setup for call Dutch action
+- [x] Collect Rank - Game state setup for collect rank action (collection mode)
 
-- [ ] Turn progression logic
-- [x] Card reveal mechanics (for initial peek) - **Implemented**
-- [ ] Game end conditions
-- [ ] Score calculation
-- [ ] Animation support (if needed)
+### 🚧 Future Enhancements
+
+- [ ] Action completion detection (prevent game from moving forward)
+- [ ] Action-specific action text updates
+- [ ] Enhanced state setup for more complex scenarios
+- [ ] Additional demo actions as needed
 
 ## Usage
 
-### Starting a Demo
+### Starting a Demo Action
 
-1. Navigate to home screen
-2. Tap "Take a quick demo" button
-3. Select demo mode:
-   - "Start Dutch demo" (regular mode)
-   - "Start Dutch Clear and collect demo" (clear and collect mode)
-4. Demo game initializes with:
-   - 4 players (You + 3 opponents)
-   - All cards face-down (ID-only)
-   - Game phase: `initial_peek`
-   - All actions intercepted for demo logic
+1. Navigate to demo screen
+2. Tap any demo action button (e.g., "Drawing", "Playing", "Queen Peek")
+3. Demo action handler:
+   - Clears all state
+   - Starts fresh practice match with instructions enabled
+   - Sets up game state for the specific action
+   - Navigates to game play screen
+4. Instructions widget automatically shows (if enabled)
+5. Action text widget shows contextual prompt
+6. User can complete the action (game waits, no timer)
 
 ### Demo vs Practice vs Multiplayer
 
@@ -743,25 +673,33 @@ When leaving the demo screen:
 |---------|------|----------|-------------|
 | Backend Required | ❌ | ❌ | ✅ |
 | WebSocket Required | ❌ | ❌ | ✅ |
-| State Management | Local (`setState`) | Backend Bridge | WebSocket |
-| Card Visibility | All face-down | Normal rules | Normal rules |
-| Action Routing | `DemoFunctionality` | `PracticeModeBridge` | WebSocket |
-| Game ID Prefix | `demo_game_` | `practice_room_` | `room_` |
+| State Management | Practice Match Logic | Backend Bridge | WebSocket |
+| Instructions | ✅ Always Enabled | ✅ Optional | ❌ |
+| Test Deck | ✅ Always Used | ✅ When Instructions On | ❌ |
+| Timers | ❌ Disabled | ✅ When Instructions Off | ✅ Enabled |
+| Action Routing | Practice Bridge | `PracticeModeBridge` | WebSocket |
+| Game ID Prefix | `practice_room_` | `practice_room_` | `room_` |
 
 ## File Structure
 
 ```
 flutter_base_05/lib/modules/dutch_game/
 ├── screens/
-│   └── demo/
-│       ├── demo_screen.dart              # Main demo screen
-│       ├── demo_mode_bridge.dart         # Event routing bridge
-│       ├── demo_functionality.dart       # Demo action handlers
-│       ├── demo_instructions_widget.dart # Phase-based instructions overlay
-│       └── select_cards_prompt_widget.dart # Flashing prompt above myhand
+│   ├── demo/
+│   │   ├── demo_screen.dart              # Main demo screen with action buttons
+│   │   ├── demo_action_handler.dart     # Centralized demo action handler
+│   │   └── demo_state_setup.dart        # Game state setup helpers for each action
+│   └── game_play/
+│       └── widgets/
+│           ├── instructions_widget.dart  # Instructions modal (existing)
+│           └── action_text_widget.dart  # Action text overlay (new)
 ├── managers/
-│   ├── validated_event_emitter.dart     # Event routing (supports demo mode)
-│   └── dutch_game_state_updater.dart    # State accessor (isCurrentGameDemo)
+│   └── dutch_game_state_updater.dart    # State updater with unified updateUIState
+├── practice/
+│   └── practice_mode_bridge.dart        # Practice match initialization
+└── utils/
+    ├── dutch_game_helpers.dart          # Unified state updater
+    └── state_queue_validator.dart      # State schema (includes actionText)
 ```
 
 ## Related Documentation
@@ -827,4 +765,53 @@ When implementing special plays (queen peek, jack swap, etc.), follow this exact
 - **Jack Play**: See `_handleJackPlay()` in `demo_functionality.dart` (lines 902-1170) - follows same pattern as queen play
 - **Queen Peek**: See `_handleQueenPeek()` in `demo_functionality.dart` (lines 1871-2055) - includes timer and hand update logic
 - **Jack Swap**: See `_handleJackSwap()` in `demo_functionality.dart` (lines 1864-2070) - handles card swapping between any players
+
+## Implementation Details
+
+### Demo Action Handler
+
+The `DemoActionHandler` provides a centralized `startDemoAction()` method that:
+
+1. **Clears State**: Uses `DutchGameHelpers.removePlayerFromGame()` and `PracticeModeBridge.endPracticeSession()`
+2. **Starts Practice Match**: Creates practice session and starts match with `showInstructions: true` and `testingModeOverride: true`
+3. **Sets Up Game State**: Calls `DemoStateSetup.setupActionState()` to configure game state for the action
+4. **Syncs State**: Uses `DutchEventManager().handleGameStateUpdated()` and `DutchGameHelpers.updateUIState()`
+5. **Navigates**: Navigates to game play screen
+
+### Demo State Setup
+
+The `DemoStateSetup` class provides helper methods for each action:
+
+- `setupInitialPeekState()` - Sets phase to `initial_peek`, player status to `initial_peek`
+- `setupDrawingState()` - Sets phase to `playing`, player status to `drawing_card`
+- `setupPlayingState()` - Sets phase to `playing`, player status to `playing_card`, adds drawn card
+- `setupSameRankState()` - Sets phase to `same_rank_window`, simulates a card being played
+- `setupQueenPeekState()` - Sets phase to `playing`, player status to `queen_peek`, adds Queen to discard
+- `setupJackSwapState()` - Sets phase to `playing`, player status to `jack_swap`, adds Jack to discard
+- `setupCallDutchState()` - Sets phase to `playing`, player status to `playing_card`, ensures call Dutch button visible
+- `setupCollectRankState()` - Sets phase to `initial_peek`, enables collection mode
+
+Each method:
+- Takes current game state from `GameStateStore`
+- Modifies game state to match action requirements
+- Updates `GameStateStore` with modified state
+- Returns modified game state
+
+### Test Deck Usage
+
+When `testingModeOverride: true` is passed to `YamlDeckFactory`:
+- Test deck configuration is used (from `assets/deck_config.yaml`)
+- Provides predictable card distribution
+- See `DECK_CREATION_RESHUFFLING_AND_CONFIG.md` for details
+
+### Timer Prevention
+
+When `showInstructions: true`:
+- `_shouldStartTimer()` in `DutchGameRound` returns `false`
+- Timers are disabled for draw and play actions
+- Game waits for user action (no automatic progression)
+
+### Action Completion Detection
+
+**Future Enhancement**: Detect when action is completed and prevent game from moving forward. This should utilize the `showInstructions` flag to keep timers disabled, ensuring the game waits for user interaction.
 

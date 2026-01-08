@@ -54,32 +54,32 @@ class DemoInstructionsWidgetState extends State<DemoInstructionsWidget> {
   }
 
   void _updateInstructions() {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-    final demoInstructionsPhase = dutchGameState['demoInstructionsPhase']?.toString() ?? '';
-    
-    _logger.info('DemoInstructionsWidget: demoPhase=$demoInstructionsPhase, type=${demoInstructionsPhase.runtimeType}', isOn: LOGGING_SWITCH);
-    
-    // Get instructions for current demo phase
-    final instructions = DemoFunctionality.instance.getInstructionsForPhase(demoInstructionsPhase);
+        final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final demoInstructionsPhase = dutchGameState['demoInstructionsPhase']?.toString() ?? '';
+        
+        _logger.info('DemoInstructionsWidget: demoPhase=$demoInstructionsPhase, type=${demoInstructionsPhase.runtimeType}', isOn: LOGGING_SWITCH);
+        
+        // Get instructions for current demo phase
+        final instructions = DemoFunctionality.instance.getInstructionsForPhase(demoInstructionsPhase);
     _cachedInstructions = instructions;
   }
 
   @override
   Widget build(BuildContext context) {
     final instructions = _cachedInstructions ?? {};
-    final isVisible = instructions['isVisible'] as bool? ?? false;
-    final title = instructions['title']?.toString() ?? '';
-    final paragraph = instructions['paragraph']?.toString() ?? '';
-    final hasButton = instructions['hasButton'] as bool? ?? false;
-    
+        final isVisible = instructions['isVisible'] as bool? ?? false;
+        final title = instructions['title']?.toString() ?? '';
+        final paragraph = instructions['paragraph']?.toString() ?? '';
+        final hasButton = instructions['hasButton'] as bool? ?? false;
+        
     _logger.info('DemoInstructionsWidget: demoPhase=$_previousPhase, isVisible=$isVisible, title="$title", paragraph="${paragraph.length > 50 ? paragraph.substring(0, 50) + '...' : paragraph}"', isOn: LOGGING_SWITCH);
-    
-    // Don't render if not visible or no content
-    if (!isVisible || title.isEmpty || paragraph.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    
-    return Container(
+        
+        // Don't render if not visible or no content
+        if (!isVisible || title.isEmpty || paragraph.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        
+        return Container(
           width: double.infinity,
           padding: AppPadding.defaultPadding,
           margin: EdgeInsets.only(
@@ -164,7 +164,7 @@ class DemoInstructionsWidgetState extends State<DemoInstructionsWidget> {
               ],
             ],
           ),
-        );
+    );
   }
 }
 

@@ -350,6 +350,27 @@ class StateQueueValidator {
       description: 'Current action error to display to user',
     ),
     
+    // Instructions and Action Text
+    'instructions': DutchStateFieldSpec(
+      type: Map,
+      defaultValue: {
+        'isVisible': false,
+        'title': '',
+        'content': '',
+        'key': '',
+        'dontShowAgain': {},
+      },
+      description: 'Instructions modal state (title, content, visibility)',
+    ),
+    'actionText': DutchStateFieldSpec(
+      type: Map,
+      defaultValue: {
+        'isVisible': false,
+        'text': '',
+      },
+      description: 'Action text overlay state (prompt text for current action)',
+    ),
+    
     // UI State
     'selectedCard': DutchStateFieldSpec(
       type: Map,
@@ -488,6 +509,11 @@ class StateQueueValidator {
       required: false,
       nullable: true,
       description: 'Practice mode settings (difficulty, showInstructions)',
+    ),
+    'previousPlayerStatus': DutchStateFieldSpec(
+      type: String,
+      required: false,
+      description: 'Previous player status for demo action completion detection',
     ),
     
     // Game Status Field

@@ -10,6 +10,7 @@ import 'widgets/unified_game_board_widget.dart';
 import 'widgets/instructions_widget.dart';
 import 'widgets/messages_widget.dart';
 import 'widgets/card_animation_layer.dart';
+import 'widgets/action_text_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../managers/feature_registry_manager.dart';
 import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
@@ -311,6 +312,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
         
         // Instructions Modal Widget - handles its own state subscription
         const InstructionsWidget(),
+        
+        // Action Text Widget - overlay at bottom showing contextual prompts
+        const ActionTextWidget(),
         
             // Messages Modal Widget - handles its own state subscription
             const MessagesWidget(),

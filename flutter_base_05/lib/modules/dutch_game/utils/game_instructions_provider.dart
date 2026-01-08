@@ -64,8 +64,12 @@ You'll get helpful instructions as you play. You can mark any instruction as "Un
         'title': 'Initial Peek Phase',
         'content': '''🎯 **Initial Peek Phase**
 
+You have a chance to peek at any **2 cards** from your hand during initial peek phase. 
+The more of your hand cards you know the better.
+
 Tap on any **2 cards** from your hand to reveal them.
 
+** For Dutch: Clear and Collect mode **
 The **lowest rank** among the revealed cards will automatically be selected as your collection rank.''',
         'hasDemonstration': true,
       };
@@ -75,7 +79,7 @@ The **lowest rank** among the revealed cards will automatically be selected as y
     if (playerStatus == 'drawing_card' && isMyTurn) {
       return {
         'key': KEY_DRAWING_CARD,
-        'title': 'Your Turn - Draw a Card',
+        'title': 'Draw a Card',
         'content': '''🎯 **Draw a Card**
 
 Tap the **draw pile** to draw a card to your hand.''',
@@ -87,11 +91,14 @@ Tap the **draw pile** to draw a card to your hand.''',
     if (playerStatus == 'playing_card' && isMyTurn) {
       return {
         'key': KEY_PLAYING_CARD,
-        'title': 'Your Turn - Play a Card',
+        'title': 'Play a Card',
         'hasDemonstration': true,
         'content': '''🎯 **Play a Card**
 
-Select a card from your hand to play, including the newly drawn card, but **excluding the collection card**.''',
+You can play any card from your hand, including the newly drawn card.
+
+** For Dutch: Clear and Collect mode **
+You cannot play the collection cards**.''',
       };
     }
 
@@ -103,7 +110,9 @@ Select a card from your hand to play, including the newly drawn card, but **excl
         'hasDemonstration': true,
         'content': '''👑 **Queen Power Activated**
 
-You have a chance to peek at any **face down card** from any player's hand, including your own.''',
+When you play a Queen, you have a chance to peek at any **face down card** from any player's hand, including your own.
+
+Tap a card from any hand to reveal it.''',
       };
     }
 
@@ -119,9 +128,10 @@ You have a chance to peek at any **face down card** from any player's hand, incl
 
 You can swap any **2 cards** from any hand, including your own.
 
-Jack swap also enables you to swap out **collection cards** from any hand. You can swap your collection cards with another card from your own hand.
+** For Dutch: Clear and Collect mode **
+Jack swap also enables you to swap out **collection cards** from any hand. You can swap collection cards from any hand. Swapped out collection cards are now regular playable cards.
 
-**Important:** If you swap out the last collection card, you no longer have a collection and the swapped out card is now playable. Same applies to opponents' hands.''',
+**Important:** If you swap out the last collection card, that player no longer have a collection.''',
       };
     }
 
@@ -134,9 +144,12 @@ Jack swap also enables you to swap out **collection cards** from any hand. You c
         'hasDemonstration': true,
         'content': '''📚 **Collection Cards**
 
+** For Dutch: Clear and Collect mode **
+
 You can collect cards from the **discard pile** if they are the same rank as your collection rank at any time, **except during same rank play**.
 
-**Important:** Collecting all **4 cards** of your rank will win you the game, but keep in mind collection also adds points.''',
+**Important:** Collecting all 4 cards of a rank wins the game. Collections score as one card regardless of how many cards they contain.
+During same rank play, you cannot collect cards from the discard pile, but you can choose to either clear your collection (if rank matches the last played card) or keep it and collect it after same rank window ends.''',
       };
     }
 
@@ -148,9 +161,12 @@ You can collect cards from the **discard pile** if they are the same rank as you
         'hasDemonstration': true,
         'content': '''⚡ **Same Rank Window**
 
-If you know you have a card in hand with the **same rank** as the last played card, you can play it.
+If you know you have a card in hand with the **same rank** as the last played card, you can play it during the same rank window.
 
-**Warning:** Attempting to play a wrong rank will get you a **penalty card**.''',
+**Warning:** Attempting to play a wrong rank will get you a **penalty card**.
+
+** For Dutch: Clear and Collect mode **
+During same rank play, you cannot collect cards from the discard pile, but you can choose to either clear your collection (if rank matches the last played card) or keep it and collect it after same rank window ends.''',
       };
     }
 

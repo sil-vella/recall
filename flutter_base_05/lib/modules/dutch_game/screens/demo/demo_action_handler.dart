@@ -472,6 +472,13 @@ class DemoActionHandler {
         // Check if hand count has increased (indicating a card was collected)
         if (gameState != null) {
           try {
+            // CRITICAL: If initial hand count hasn't been set yet, don't check for completion
+            // This prevents false positives during initial state setup
+            if (_collectRankInitialHandCount == null) {
+              _logger.info('🔍 DemoActionHandler: Initial hand count not set yet, skipping collect_rank completion check', isOn: LOGGING_SWITCH);
+              return false;
+            }
+            
             // Get current user ID using the same method as _syncWidgetStatesFromGameState
             // This returns sessionId in practice mode (practice_session_<userId>)
             final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -520,13 +527,6 @@ class DemoActionHandler {
             final hand = currentPlayer['hand'] as List<dynamic>? ?? [];
             final currentHandCount = hand.length;
             _logger.info('🔍 DemoActionHandler: Current hand count: $currentHandCount, Initial hand count: $_collectRankInitialHandCount', isOn: LOGGING_SWITCH);
-            
-            // Initialize hand count if not set
-            if (_collectRankInitialHandCount == null) {
-              _collectRankInitialHandCount = currentHandCount;
-              _logger.info('🎮 DemoActionHandler: Initial hand count for collect_rank demo: $_collectRankInitialHandCount', isOn: LOGGING_SWITCH);
-              return false;
-            }
             
             // Check if hand count has increased (card was collected)
             if (currentHandCount > _collectRankInitialHandCount!) {
@@ -602,17 +602,17 @@ class DemoActionHandler {
       case 'initial_peek':
         return {
           'title': 'Initial Peek Complete',
-          'content': 'You peeked at 2 of your cards and selected your collection rank. The lowest rank among the revealed cards was automatically chosen as your collection rank.',
+          'content': 'You peeked at 2 of your cards. The more you know, the better.',
         };
       case 'drawing':
         return {
           'title': 'Card Drawn',
-          'content': 'You drew a card from the draw pile and added it to your hand. You can now play a card from your hand.',
+          'content': 'You drew a card from the draw pile and added it to your hand. Time to play a card.',
         };
       case 'playing':
         return {
           'title': 'Card Played',
-          'content': 'You played a card from your hand to the discard pile. Other players can now play a card with the same rank if they have one.',
+          'content': 'You played a card from your hand to the discard pile. Players, including you, can now play a card with the same rank if they have one during same rank window.',
         };
       case 'same_rank':
         return {
@@ -622,7 +622,7 @@ class DemoActionHandler {
       case 'queen_peek':
         return {
           'title': 'Queen Power Used',
-          'content': 'You used the Queen\'s power to peek at a card. This helps you gather information about other players\' hands.',
+          'content': 'You used the Queen\'s power to peek at a card.',
         };
       case 'jack_swap':
         return {
@@ -637,7 +637,7 @@ class DemoActionHandler {
       case 'collect_rank':
         return {
           'title': 'Rank Collected',
-          'content': 'You collected cards of the same rank from the discard pile. Collecting all 4 cards of your rank is one way to win the game.',
+          'content': 'You collected cards of the same rank from the discard pile. Collecting all 4 cards of your rank is one way to win the game. Remember, collections score as one card regardless of how many cards they contain.',
         };
       default:
         return {

@@ -61,20 +61,19 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
   Widget _buildDemoActionButtons() {
     return Padding(
       padding: AppPadding.defaultPadding,
-      child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 1.2,
-        ),
+      child: ListView.builder(
         itemCount: _demoActions.length,
         itemBuilder: (context, index) {
           final action = _demoActions[index];
-          return _buildActionButton(
-            actionType: action['type']!,
-            title: action['title']!,
-            icon: action['icon']!,
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: index < _demoActions.length - 1 ? 16 : 0,
+            ),
+            child: _buildActionButton(
+              actionType: action['type']!,
+              title: action['title']!,
+              icon: action['icon']!,
+            ),
           );
         },
       ),

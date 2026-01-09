@@ -1,6 +1,6 @@
 # Metrics System Documentation
 
-This directory contains comprehensive documentation for the Recall application's metrics and monitoring system.
+This directory contains comprehensive documentation for the Dutch application's metrics and monitoring system.
 
 ## Documentation Index
 

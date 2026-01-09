@@ -199,6 +199,28 @@ def update_pubspec_yaml(pubspec_path):
     # Check if already configured (not commented)
     if re.search(r'^flutter_launcher_icons:\s*$', content, re.MULTILINE):
         print(f"   ✅ flutter_launcher_icons configuration already active")
+        # Update existing config values (image paths) if needed
+        # Update image_path
+        content = re.sub(
+            r'^(\s+image_path:\s*)"[^"]*"',
+            r'\1"assets/images/icon.png"',
+            content,
+            flags=re.MULTILINE
+        )
+        # Update adaptive_icon_background
+        content = re.sub(
+            r'^(\s+adaptive_icon_background:\s*)"[^"]*"',
+            r'\1"assets/images/icon_background.png"',
+            content,
+            flags=re.MULTILINE
+        )
+        # Update adaptive_icon_foreground
+        content = re.sub(
+            r'^(\s+adaptive_icon_foreground:\s*)"[^"]*"',
+            r'\1"assets/images/icon_foreground.png"',
+            content,
+            flags=re.MULTILINE
+        )
         # Still check dev_dependencies
         if 'flutter_launcher_icons:' not in content.split('dev_dependencies:')[1].split('\nflutter:')[0]:
             # Need to add to dev_dependencies
@@ -208,10 +230,12 @@ def update_pubspec_yaml(pubspec_path):
                 content,
                 flags=re.MULTILINE
             )
-            if content != original_content:
-                with open(pubspec_path, 'w') as f:
-                    f.write(content)
-                print(f"   ✅ Added flutter_launcher_icons to dev_dependencies")
+            print(f"   ✅ Added flutter_launcher_icons to dev_dependencies")
+        
+        if content != original_content:
+            with open(pubspec_path, 'w') as f:
+                f.write(content)
+            print(f"   ✅ Updated flutter_launcher_icons configuration")
         return True
     
     # Step 1: Uncomment flutter_launcher_icons in dev_dependencies

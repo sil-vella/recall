@@ -249,7 +249,7 @@ ansible-playbook -i inventory.ini 08_deploy_docker_compose.yml -e vm_name=rop01
 **Usage**:
 
 ```bash
-cd /Users/sil/Documents/Work/reignofplay/Recall/app_dev
+cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
 python3 playbooks/rop01/06_build_and_push_docker.py
 ```
 
@@ -275,7 +275,7 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
 **Usage**:
 
 ```bash
-cd /Users/sil/Documents/Work/reignofplay/Recall/app_dev
+cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
 python3 playbooks/rop01/07_build_and_push_dart_docker.py
 ```
 
@@ -357,7 +357,7 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
 **Usage**:
 
 ```bash
-cd /Users/sil/Documents/Work/reignofplay/Recall/app_dev
+cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
 
 # 1) Set the mobile app version for this release
 echo "2.1.0" > python_base_04/secrets/app_version
@@ -548,7 +548,7 @@ To perform a full **mobile app + backend** release with versioned updates:
 5. **Build and upload new APK + update manifest**:
 
    ```bash
-   cd /Users/sil/Documents/Work/reignofplay/Recall/app_dev
+   cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
    ./tools/scripts/build_apk.sh
    ```
 

@@ -1,6 +1,6 @@
 # Grafana Dashboards
 
-This document describes the pre-configured Grafana dashboards for the Recall application.
+This document describes the pre-configured Grafana dashboards for the Dutch application.
 
 ## Dashboard Locations
 

@@ -62,7 +62,7 @@ flutter:
     - assets/predefined_hands.yaml
 
 flutter_native_splash:
-  color: "#59504c"
+  color: "#2a5c32"
   image: assets/images/splash_screen.png
   android: true
   ios: true
@@ -71,11 +71,9 @@ flutter_native_splash:
   ios_content_mode: scaleToFill
   fullscreen: true
   android_12:
-    color: "#59504c"
+    color: "#2a5c32"
     image: assets/images/splash_screen.png
-    icon_background_color: "#59504c"
- # Ensures the image fills the screen on iOS
-
+    icon_background_color: "#2a5c32"
 flutter_launcher_icons:
   android: true
   ios: true

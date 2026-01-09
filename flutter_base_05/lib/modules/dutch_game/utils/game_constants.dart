@@ -15,7 +15,7 @@ class GameConstants {
   static const String PHASE_SPECIAL_PLAY_WINDOW = 'special_play_window';
   static const String PHASE_QUEEN_PEEK_WINDOW = 'queen_peek_window';
   static const String PHASE_TURN_PENDING_EVENTS = 'turn_pending_events';
-  static const String PHASE_RECALL = 'dutch';
+  static const String PHASE_DUTCH = 'dutch';
   static const String PHASE_FINISHED = 'finished';
   
   // Game status
@@ -76,7 +76,7 @@ class GameConstants {
   static const String WS_EVENT_GAME_ENDED = 'dutch_game_ended';
   static const String WS_EVENT_TURN_CHANGED = 'dutch_turn_changed';
   static const String WS_EVENT_CARD_PLAYED = 'dutch_card_played';
-  static const String WS_EVENT_RECALL_CALLED = 'dutch_dutch_called';
+  static const String WS_EVENT_DUTCH_CALLED = 'dutch_dutch_called';
   static const String WS_EVENT_GAME_STATE_UPDATED = 'dutch_game_state_updated';
   static const String WS_EVENT_ERROR = 'dutch_error';
   
@@ -84,7 +84,7 @@ class GameConstants {
   static const String ACTION_JOIN_GAME = 'dutch_join_game';
   static const String ACTION_LEAVE_GAME = 'dutch_leave_game';
   static const String ACTION_PLAY_CARD = 'dutch_player_action';
-  static const String ACTION_CALL_RECALL = 'dutch_player_action';
+  static const String ACTION_CALL_DUTCH = 'dutch_player_action';
   static const String ACTION_USE_SPECIAL_POWER = 'dutch_player_action';
   
   // UI constants
@@ -116,10 +116,10 @@ class GameConstants {
   static const String MSG_GAME_ENDED = 'Game ended';
   static const String MSG_TURN_CHANGED = 'Turn changed';
   static const String MSG_CARD_PLAYED = 'Card played';
-  static const String MSG_RECALL_CALLED = 'Dutch called!';
+  static const String MSG_DUTCH_CALLED = 'Dutch called!';
   static const String MSG_SPECIAL_POWER_USED = 'Special power used';
   static const String MSG_NOT_YOUR_TURN = 'Not your turn';
-  static const String MSG_CANNOT_CALL_RECALL = 'Cannot call dutch at this time';
+  static const String MSG_CANNOT_CALL_DUTCH = 'Cannot call dutch at this time';
   static const String MSG_INVALID_CARD = 'Invalid card';
   static const String MSG_GAME_FULL = 'Game is full';
   static const String MSG_GAME_NOT_FOUND = 'Game not found';
@@ -129,7 +129,7 @@ class GameConstants {
   // Error codes
   static const String ERROR_NOT_IN_GAME = 'NOT_IN_GAME';
   static const String ERROR_NOT_YOUR_TURN = 'NOT_YOUR_TURN';
-  static const String ERROR_CANNOT_CALL_RECALL = 'CANNOT_CALL_RECALL';
+  static const String ERROR_CANNOT_CALL_DUTCH = 'CANNOT_CALL_DUTCH';
   static const String ERROR_INVALID_CARD = 'INVALID_CARD';
   static const String ERROR_GAME_FULL = 'GAME_FULL';
   static const String ERROR_GAME_NOT_FOUND = 'GAME_NOT_FOUND';

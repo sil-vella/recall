@@ -10,8 +10,9 @@ import '../../utils/dutch_game_helpers.dart';
 import '../../utils/game_instructions_provider.dart';
 import '../../backend_core/services/game_state_store.dart';
 import 'demo_state_setup.dart';
+import 'demo_functionality.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for demo debugging
+const bool LOGGING_SWITCH = false; // Enabled for demo debugging
 
 /// Demo Action Handler
 /// 
@@ -617,7 +618,7 @@ class DemoActionHandler {
       case 'same_rank':
         return {
           'title': 'Wrong Same Rank',
-          'content': 'You played a wrong rank during same rank windows and was given a penalty card.',
+          'content': 'You played a wrong rank during same rank window and was given a penalty card.',
         };
       case 'queen_peek':
         return {
@@ -748,9 +749,20 @@ class DemoActionHandler {
           );
           break;
         case 'call_dutch':
-          // No specific instruction for call_dutch, skip
-          _logger.info('📚 DemoActionHandler: No instructions available for call_dutch', isOn: LOGGING_SWITCH);
-          return;
+          // Get instructions from DemoFunctionality
+          final demoInstructions = DemoFunctionality.instance.getInstructionsForPhase('call_dutch');
+          if (demoInstructions['isVisible'] == true) {
+            instructions = {
+              'key': 'call_dutch',
+              'title': demoInstructions['title'] ?? 'Call Dutch',
+              'content': demoInstructions['paragraph'] ?? '',
+              'hasDemonstration': false,
+            };
+          } else {
+            _logger.warning('📚 DemoActionHandler: call_dutch instructions not available', isOn: LOGGING_SWITCH);
+            return;
+          }
+          break;
         default:
           _logger.warning('📚 DemoActionHandler: Unknown demo action type: $actionType', isOn: LOGGING_SWITCH);
           return;

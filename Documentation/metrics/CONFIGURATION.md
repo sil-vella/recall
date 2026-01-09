@@ -207,7 +207,7 @@ analytics_service.track_event(
 ### 1. Start Docker Containers
 
 ```bash
-cd /Users/sil/Documents/Work/reignofplay/Recall/app_dev
+cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
 docker-compose -f docker-compose.debug.yml up -d prometheus grafana
 ```
 

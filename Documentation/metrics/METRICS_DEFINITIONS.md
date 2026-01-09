@@ -1,6 +1,6 @@
 # Metrics Definitions
 
-This document provides a complete reference of all metrics collected by the Recall application.
+This document provides a complete reference of all metrics collected by the Dutch application.
 
 ## Metric Naming Convention
 

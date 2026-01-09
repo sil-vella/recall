@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the complete user registration process in the Recall application. The registration flow spans from the Flutter frontend through the Python backend to database storage and hook processing. This is a comprehensive guide covering all aspects of the registration system.
+This document describes the complete user registration process in the Dutch application. The registration flow spans from the Flutter frontend through the Python backend to database storage and hook processing. This is a comprehensive guide covering all aspects of the registration system.
 
 ---
 

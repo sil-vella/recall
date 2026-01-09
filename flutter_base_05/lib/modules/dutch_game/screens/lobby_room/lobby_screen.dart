@@ -56,11 +56,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     final isLoggedIn = loginState['isLoggedIn'] == true;
     _logger.info('LobbyScreen: User login status - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
     
+    // Allow unauthenticated users to stay on lobby screen (they can see the lobby but can't play)
+    // Individual game actions will check authentication and redirect if needed
     if (!isLoggedIn) {
-      _logger.warning('LobbyScreen: User is not logged in, navigating to account screen', isOn: LOGGING_SWITCH);
-      if (mounted) {
-        DutchGameHelpers.navigateToAccountScreen('not_logged_in', 'Please log in to play games.');
-      }
+      _logger.info('LobbyScreen: User is not logged in, skipping WebSocket initialization. User can stay on lobby screen.', isOn: LOGGING_SWITCH);
       return;
     }
     

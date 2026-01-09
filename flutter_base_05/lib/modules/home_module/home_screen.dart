@@ -60,28 +60,18 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
     try {
       return Center(
         child: SingleChildScrollView(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Welcome text with app title
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
-                child: Text(
-              'Welcome to Dutch',
-              style: AppTextStyles.headingLarge(),
-              textAlign: TextAlign.center,
-            ),
-              ),
-              const SizedBox(height: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
               // Home screen button features slot - full-width buttons registered by modules
               FeatureSlot(
                 scopeKey: featureScopeKey,
                 slotId: 'home_screen_buttons',
                 contract: 'home_screen_button',
                 useTemplate: false,
-                  ),
-                ],
               ),
+            ],
+          ),
         ),
       );
     } catch (e, stackTrace) {

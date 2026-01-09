@@ -1,7 +1,7 @@
 import '../../../../tools/logging/logger.dart';
 import '../../backend_core/services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for demo debugging
+const bool LOGGING_SWITCH = false; // Enabled for demo debugging
 
 /// Demo State Setup
 /// 

@@ -526,7 +526,7 @@ class Config:
     WS_SESSION_TTL = int(get_file_first_config_value("ws_session_ttl", "WS_SESSION_TTL", "3600"))  # Session TTL in seconds
 
     # Dutch Game Configuration
-    RECALL_PLAYER_ACTION_TIMEOUT = int(get_file_first_config_value("dutch_player_action_timeout", "RECALL_PLAYER_ACTION_TIMEOUT", "10"))  # Player action timeout in seconds
+    DUTCH_PLAYER_ACTION_TIMEOUT = int(get_file_first_config_value("dutch_player_action_timeout", "DUTCH_PLAYER_ACTION_TIMEOUT", "10"))  # Player action timeout in seconds
 
     @classmethod
     def refresh_from_vault(cls):

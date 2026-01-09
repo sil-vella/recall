@@ -260,7 +260,7 @@ def test_code_integration():
     # Try relative path first
     flutter_path_rel = os.path.join(base_path, "../../flutter_base_05", flutter_file)
     # Try absolute path
-    flutter_path_abs = os.path.join("/Users/sil/Documents/Work/reignofplay/Recall/app_dev/flutter_base_05", flutter_file)
+    flutter_path_abs = os.path.join("/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/flutter_base_05", flutter_file)
     
     if os.path.exists(flutter_path_rel):
         print_success(f"Flutter file exists: {flutter_file}")

@@ -25,7 +25,7 @@ class DemoScreen extends BaseScreen {
 class DemoScreenState extends BaseScreenState<DemoScreen> {
   // Logger for demo operations
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for demo debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for demo debugging
   
   // Demo action handler
   final DemoActionHandler _demoActionHandler = DemoActionHandler.instance;

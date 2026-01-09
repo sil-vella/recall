@@ -204,46 +204,66 @@ def update_pubspec_yaml(pubspec_path, background_color):
     
     original_content = content
     
-    # Check if already configured (not commented)
-    if re.search(r'^flutter_native_splash:\s*$', content, re.MULTILINE):
-        print(f"   ✅ flutter_native_splash configuration already active")
-        # Still need to update the configuration values
-        # Replace existing config
-        pattern = r'flutter_native_splash:.*?(?=\n\w|\n#\w|\Z)'
-        replacement = f"""flutter_native_splash:
-  color: "{background_color}"
-  image: assets/images/splash_screen.png
-  android: true
-  ios: true
-  web: false
-  android_gravity: fill
-  ios_content_mode: scaleToFill
-  fullscreen: true
-  android_12:
-    color: "{background_color}"
-    image: assets/images/splash_screen.png
-    icon_background_color: "{background_color}"
-"""
-        content = re.sub(pattern, replacement, content, flags=re.DOTALL)
-        
-        if content != original_content:
-            with open(pubspec_path, 'w') as f:
-                f.write(content)
-            print(f"   ✅ Updated flutter_native_splash configuration")
-        return True
+    # Step 1: Fix any incorrectly placed flutter_native_splash in dependencies section
+    # Look for flutter_native_splash: followed by configuration (not a version number)
+    deps_section_pattern = r'(dependencies:.*?)(\n  flutter_native_splash:\s*\n(?:  (?:color|image|android|ios|web|android_gravity|ios_content_mode|fullscreen|android_12):.*?\n)+)'
+    deps_match = re.search(deps_section_pattern, content, re.DOTALL)
+    if deps_match:
+        print(f"   🔧 Found incorrectly placed flutter_native_splash config in dependencies section")
+        print(f"      Removing configuration from dependencies...")
+        # Remove the config block from dependencies
+        content = re.sub(deps_section_pattern, r'\1', content, flags=re.DOTALL)
+        # Ensure flutter_native_splash package is in dependencies with version
+        if 'flutter_native_splash:' not in content.split('dependencies:')[1].split('\ndev_dependencies:')[0]:
+            # Add it after package_info_plus or last dependency
+            if 'package_info_plus:' in content:
+                content = re.sub(
+                    r'(package_info_plus:.*?\n)',
+                    r'\1  flutter_native_splash: ^2.4.0\n',
+                    content
+                )
+            else:
+                # Find the last dependency before dev_dependencies
+                deps_end = content.find('\ndev_dependencies:')
+                if deps_end != -1:
+                    # Find last line in dependencies
+                    deps_section = content[:deps_end]
+                    last_dep_match = re.search(r'(\n  \w+.*?\n)', deps_section[::-1])
+                    if last_dep_match:
+                        insert_pos = deps_end - last_dep_match.end()
+                        content = content[:insert_pos] + '\n  flutter_native_splash: ^2.4.0' + content[insert_pos:]
+        print(f"      ✅ Fixed dependencies section")
     
-    # Step 1: Ensure flutter_native_splash is in dependencies (it should already be)
-    if 'flutter_native_splash:' not in content.split('dependencies:')[1].split('\n\n')[0]:
-        print(f"   ⚠️  Warning: flutter_native_splash not found in dependencies")
-        print(f"      Adding to dependencies...")
-        # Add after flutter_secure_storage
-        content = re.sub(
-            r'(flutter_secure_storage:.*?\n)',
-            r'\1  flutter_native_splash: ^2.4.0\n',
-            content
-        )
+    # Step 2: Ensure flutter_native_splash package is in dependencies with version
+    deps_section = content.split('dependencies:')
+    if len(deps_section) > 1:
+        deps_content = deps_section[1].split('\ndev_dependencies:')[0]
+        # Check if flutter_native_splash exists but without version (just the name)
+        if re.search(r'^\s+flutter_native_splash:\s*$', deps_content, re.MULTILINE):
+            print(f"   🔧 Found flutter_native_splash without version in dependencies")
+            content = re.sub(
+                r'(\n\s+flutter_native_splash:\s*)\n',
+                r'\1^2.4.0\n',
+                content
+            )
+            print(f"      ✅ Added version to flutter_native_splash dependency")
+        elif not re.search(r'^\s+flutter_native_splash:\s*\^?[\d.]+', deps_content, re.MULTILINE):
+            print(f"   📦 Adding flutter_native_splash to dependencies...")
+            # Add after package_info_plus if it exists
+            if 'package_info_plus:' in content:
+                content = re.sub(
+                    r'(package_info_plus:.*?\n)',
+                    r'\1  flutter_native_splash: ^2.4.0\n',
+                    content
+                )
+            else:
+                # Add at end of dependencies section
+                deps_end = content.find('\ndev_dependencies:')
+                if deps_end != -1:
+                    content = content[:deps_end] + '\n  flutter_native_splash: ^2.4.0' + content[deps_end:]
+            print(f"      ✅ Added flutter_native_splash: ^2.4.0 to dependencies")
     
-    # Step 2: Replace commented flutter_native_splash config section
+    # Step 3: Update or add flutter_native_splash configuration at root level
     splash_config = f"""flutter_native_splash:
   color: "{background_color}"
   image: assets/images/splash_screen.png
@@ -259,13 +279,25 @@ def update_pubspec_yaml(pubspec_path, background_color):
     icon_background_color: "{background_color}"
 """
     
-    # Find and replace the commented block (multiline)
-    pattern = r'#\s*flutter_native_splash:.*?#\s*ios_content_mode:\s*scaleToFill'
-    if re.search(pattern, content, re.DOTALL | re.MULTILINE):
-        content = re.sub(pattern, splash_config, content, flags=re.DOTALL | re.MULTILINE)
-        print(f"   ✅ Replaced commented flutter_native_splash configuration")
+    # Check if configuration already exists at root level (not in dependencies)
+    # Look for flutter_native_splash: at the start of a line (root level)
+    # Match until next top-level key (starts at beginning of line, not indented) or end of file
+    root_config_pattern = r'^flutter_native_splash:.*?(?=\n[a-z_]+:|\n# [A-Z]|\Z)'
+    root_match = re.search(root_config_pattern, content, re.MULTILINE | re.DOTALL)
+    
+    if root_match:
+        print(f"   ✅ Found existing flutter_native_splash configuration at root level")
+        # Replace the entire flutter_native_splash section to ensure consistency
+        # Match from flutter_native_splash: to the next top-level key or end of file
+        content = re.sub(
+            r'^flutter_native_splash:.*?(?=\n[a-z_]+:|\n# [A-Z]|\Z)',
+            splash_config.rstrip(),
+            content,
+            flags=re.MULTILINE | re.DOTALL
+        )
+        print(f"      ✅ Updated existing configuration with new color: {background_color}")
     else:
-        # Add after flutter_launcher_icons section
+        # Add configuration after flutter_launcher_icons section
         launcher_icons_match = re.search(r'(flutter_launcher_icons:.*?remove_alpha_ios:\s*true)', content, re.DOTALL)
         if launcher_icons_match:
             insert_pos = content.find('\n', launcher_icons_match.end())
@@ -276,25 +308,31 @@ def update_pubspec_yaml(pubspec_path, background_color):
                 content = content + '\n\n' + splash_config
                 print(f"   ✅ Added flutter_native_splash configuration at end")
         else:
-            # Fallback: add after assets section
-            assets_match = re.search(r'(assets/predefined_hands\.yaml)', content)
-            if assets_match:
-                insert_pos = content.find('\n', assets_match.end())
-                if insert_pos != -1:
-                    content = content[:insert_pos + 1] + '\n' + splash_config + '\n' + content[insert_pos + 1:]
-                    print(f"   ✅ Added flutter_native_splash configuration after assets section")
+            # Fallback: add after flutter section
+            flutter_match = re.search(r'(uses-material-design:\s*true)', content)
+            if flutter_match:
+                # Find end of flutter section (before next top-level key)
+                flutter_end = content.find('\n\n', flutter_match.end())
+                if flutter_end == -1:
+                    flutter_end = content.find('\n\w', flutter_match.end())
+                if flutter_end != -1:
+                    content = content[:flutter_end] + '\n\n' + splash_config + content[flutter_end:]
+                    print(f"   ✅ Added flutter_native_splash configuration after flutter section")
                 else:
-                    content = content + '\n\n' + splash_config + '\n'
+                    content = content + '\n\n' + splash_config
                     print(f"   ✅ Added flutter_native_splash configuration at end")
             else:
-                content = content + '\n\n' + splash_config + '\n'
+                content = content + '\n\n' + splash_config
                 print(f"   ✅ Added flutter_native_splash configuration at end")
     
     # Write updated content
-    with open(pubspec_path, 'w') as f:
-        f.write(content)
+    if content != original_content:
+        with open(pubspec_path, 'w') as f:
+            f.write(content)
+        print(f"   ✅ Updated pubspec.yaml with flutter_native_splash configuration")
+    else:
+        print(f"   ℹ️  No changes needed to pubspec.yaml")
     
-    print(f"   ✅ Updated pubspec.yaml with flutter_native_splash configuration")
     return True
 
 def verify_generated_files(output_dir):

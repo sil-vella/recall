@@ -45,7 +45,7 @@ Scripts:
   - Writes them to the shared Python log file:
 
     ```
-    /Users/sil/Documents/Work/reignofplay/Recall/app_dev/python_base_04/tools/logger/server.log
+    /Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log
     ```
 
 This is the recommended way to run the **web** version against either the local backend or the live VPS.
@@ -210,7 +210,7 @@ Use this script for **manual testing on the physical device** against either loc
 **Usage examples**:
 
 ```bash
-cd /Users/sil/Documents/Work/reignofplay/Recall/app_dev
+cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
 
 # 1) Set the new app version
 echo "2.1.0" > python_base_04/secrets/app_version

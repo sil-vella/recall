@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The Recall application uses a comprehensive metrics and monitoring system built on **Prometheus** and **Grafana**. This system tracks application performance, user behavior, game analytics, and system health metrics.
+The Dutch application uses a comprehensive metrics and monitoring system built on **Prometheus** and **Grafana**. This system tracks application performance, user behavior, game analytics, and system health metrics.
 
 ## Architecture
 

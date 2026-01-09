@@ -3,7 +3,7 @@ import 'package:dutch/tools/logging/logger.dart';
 import '../../../../core/managers/state_manager.dart';
 import '../../managers/dutch_game_state_updater.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for demo debugging
+const bool LOGGING_SWITCH = false; // Enabled for demo debugging
 
 /// Demo Phase Instructions
 /// 
@@ -112,7 +112,7 @@ class DemoFunctionality {
     DemoPhaseInstruction(
       phase: 'call_dutch',
       title: 'Call Dutch',
-      paragraph: 'When it\'s your turn to play, you will be shown a \'Call Dutch\' button in your hand. Tapping it will start the final round of plays where each player will have one final turn. At the end, the winner is decided by these criteria, in order:\n\n1. Fewest points\n2. Fewest points with fewest cards\n3. Fewest points with fewest cards, and Dutch caller\n4. Draw if same number of cards and points, and no Dutch caller\n\nThe game can always end early when a player ends up with 0 cards, as they are automatically declared the winner(s).',
+      paragraph: 'When it\'s your turn to play, you will be shown a \'Call Dutch\' button in your hand. Tapping it will start the final round of plays where each player will have one final turn. At the end, the winner is decided by these criteria, in order:\n\n1. Fewest points\n2. Fewest points with fewest cards\n3. Fewest points with fewest cards, and Dutch caller\n4. Draw if same number of cards and points, and no Dutch caller\n\nThe game can always end early when a player ends up with 0 cards, as they are automatically declared the winner(s). Tap \'Call Dutch\' then play a card to start the final round.',
     ),
   ];
 

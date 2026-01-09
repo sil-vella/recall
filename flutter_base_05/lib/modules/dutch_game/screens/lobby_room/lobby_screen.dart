@@ -244,14 +244,18 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       };
       _logger.info('🎮 _startPracticeMatch: Generated practice user: $currentUserId', isOn: LOGGING_SWITCH);
       
+      // Force showInstructions to false for practice matches (instructions are only used in demo matches)
+      final updatedPracticeSettings = Map<String, dynamic>.from(practiceSettings);
+      updatedPracticeSettings['showInstructions'] = false;
+      
       // Store practice user data and settings in dutch_game state (accessible to event handlers)
       // Use validated state updater to ensure proper validation
       DutchGameHelpers.updateUIState({
         'practiceUser': practiceUserData,
-        'practiceSettings': practiceSettings,
+        'practiceSettings': updatedPracticeSettings,
       });
       _logger.info('🎮 _startPracticeMatch: Stored practice user data and settings in state', isOn: LOGGING_SWITCH);
-      _logger.info('🎮 _startPracticeMatch: showInstructions = ${practiceSettings['showInstructions']}', isOn: LOGGING_SWITCH);
+      _logger.info('🎮 _startPracticeMatch: showInstructions = false (always disabled for practice matches)', isOn: LOGGING_SWITCH);
       
       // Verify practice user data was stored (read back from state)
       final verifyState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};

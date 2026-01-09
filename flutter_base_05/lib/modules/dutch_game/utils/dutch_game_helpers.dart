@@ -15,7 +15,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for debugging navigation issues
+  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
   
   // ========================================
   // EVENT EMISSION HELPERS

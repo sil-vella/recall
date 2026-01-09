@@ -6,6 +6,7 @@ import '../../../models/card_display_config.dart';
 import '../../../utils/card_dimensions.dart';
 import '../../../widgets/card_widget.dart';
 import 'player_status_chip_widget.dart';
+import 'circular_timer_widget.dart';
 import '../../../managers/player_action.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
@@ -14,7 +15,7 @@ import '../../../utils/card_position_scanner.dart';
 import '../../../utils/card_animation_detector.dart';
 import '../../demo/demo_functionality.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -102,44 +103,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         
         return LayoutBuilder(
           builder: (context, constraints) {
-            // This is the full available space in the content area
-            final availableHeight = constraints.maxHeight;
-            
-            // Make it scrollable with my hand aligned to bottom
-            return SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: availableHeight,
+            // Use Column with Expanded to center game board vertically
+            return Column(
+              children: [
+                // Opponents Panel Section - at the top
+                _buildOpponentsPanel(),
+                
+                // Game Board Section - centered vertically in remaining space
+                Expanded(
+                  child: Center(
+                    child: _buildGameBoard(),
+                  ),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Opponents Panel Section - at the top
-                    _buildOpponentsPanel(),
-                    
-                    // Current Player Info Section - use SizedBox with minimum height instead of Expanded
-                    SizedBox(
-                      height: availableHeight * 0.2, // Fixed height for player info
-                      child: _buildCurrentPlayerInfo(),
-                    ),
-                    
-                    // Game Board and My Hand grouped together at the bottom
-                    // Game board sits directly on top of my hand
-                    // My hand aligned to bottom of UnifiedGameBoardWidget
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Game Board Section - sits directly above my hand
-                        _buildGameBoard(),
-                        
-                        // My Hand Section - at the bottom
-                        _buildMyHand(),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                
+                // My Hand Section - at the bottom
+                _buildMyHand(),
+              ],
             );
           },
         );
@@ -644,6 +623,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         final currentPlayerStatus = opponentsPanelSlice['currentPlayerStatus']?.toString() ?? 'unknown';
         final gamePhase = dutchGameState['gamePhase']?.toString() ?? 'waiting';
         final isInitialPeekPhase = gamePhase == 'initial_peek';
+        
+        // Get turnTimeLimit from game state
+        final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+        final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+        final gameData = games[currentGameId] as Map<String, dynamic>?;
+        final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+        final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+        final turnTimeLimit = gameState?['turnTimeLimit'] as int? ?? 30;
     
         return Column(
           children: opponents.asMap().entries.map((entry) {
@@ -666,6 +653,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                   currentPlayerStatus,
                   knownCards,
                   isInitialPeekPhase,
+                  turnTimeLimit,
                   opponentIndex: index, // Pass index for alignment
                 ),
               );
@@ -675,7 +663,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     );
   }
 
-  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, {required int opponentIndex}) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, int turnTimeLimit, {required int opponentIndex}) {
     final playerName = player['name']?.toString() ?? 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
@@ -744,6 +732,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                             color: AppColors.accentColor2,
                           ),
                           const SizedBox(width: 4),
+                        ],
+                        // Show circular timer when this is the current player
+                        if (isCurrentPlayer) ...[
+                          CircularTimerWidget(
+                            key: ValueKey('timer_${player['id']}_${currentPlayerStatus}'), // Reset timer when player or status changes
+                            durationSeconds: turnTimeLimit,
+                            size: 20.0,
+                            color: statusChipColor ?? AppColors.accentColor2,
+                            backgroundColor: AppColors.surfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
                         ],
             Text(
                             playerName,
@@ -1183,85 +1182,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
       return false;
     }
     return true;
-  }
-
-  // ========== Current Player Info Methods ==========
-
-  /// Build widget showing current player username and status chip
-  /// Takes up available space and centers content
-  /// For current user: uses isMyTurn and myHand data source (same as my hand section)
-  /// For opponents: uses currentPlayer from dutchGameState and currentPlayerStatus from opponentsPanel
-  Widget _buildCurrentPlayerInfo() {
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-    
-    // Check if it's the user's turn (same check as my hand section)
-    final isMyTurn = dutchGameState['isMyTurn'] ?? false;
-    
-    // Get current player data (for opponents)
-    final currentPlayerRaw = dutchGameState['currentPlayer'];
-    Map<String, dynamic>? currentPlayerData;
-    if (currentPlayerRaw == null || currentPlayerRaw == 'null' || currentPlayerRaw == '') {
-      currentPlayerData = null;
-    } else if (currentPlayerRaw is Map<String, dynamic>) {
-      currentPlayerData = currentPlayerRaw;
-    } else {
-      currentPlayerData = null;
-    }
-    
-    // Get current player ID
-    final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
-    
-    // Get current user ID
-    final currentUserId = _getCurrentUserId();
-    
-    // Get status and display text based on whether it's the user's turn
-    String currentPlayerStatus;
-    String displayText;
-    String playerIdForChip;
-    
-    if (isMyTurn) {
-      // For current user: use myHand data source (same as my hand section)
-      final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
-      currentPlayerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
-      displayText = 'Your Turn';
-      playerIdForChip = currentUserId;
-    } else {
-      // For opponents: use opponentsPanel slice (same as opponents widget)
-      final opponentsPanelSlice = dutchGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-      currentPlayerStatus = opponentsPanelSlice['currentPlayerStatus']?.toString() ?? 'unknown';
-      displayText = currentPlayerData?['name']?.toString() ?? 'Unknown Player';
-      playerIdForChip = currentPlayerId;
-    }
-    
-    if (currentPlayerData == null && !isMyTurn) {
-      _logger.warning('UnifiedGameBoardWidget: Current player data not found in dutchGameState', isOn: LOGGING_SWITCH);
-    }
-    
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Player username or "Your Turn" - always use accent color
-          Text(
-            displayText,
-            style: AppTextStyles.headingMedium().copyWith(
-              fontWeight: FontWeight.bold,
-              color: AppColors.accentColor,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          // Status chip - show when status is not unknown
-          if (currentPlayerStatus != 'unknown') ...[
-            const SizedBox(height: 8),
-            PlayerStatusChip(
-              playerId: playerIdForChip,
-              size: PlayerStatusChipSize.medium,
-            ),
-          ],
-        ],
-      ),
-    );
   }
 
   // ========== Game Board Methods ==========

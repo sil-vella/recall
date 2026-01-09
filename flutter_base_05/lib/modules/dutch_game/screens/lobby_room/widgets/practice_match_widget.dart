@@ -1,18 +1,19 @@
 /// # Practice Match Widget
 /// 
 /// This widget provides the user interface for starting a practice match in the Dutch card game.
-/// It allows users to configure difficulty level and instructions display before starting a practice game.
+/// It allows users to configure difficulty level before starting a practice game.
 /// 
 /// ## PracticeMatchWidget
 /// A card-based widget that displays:
 /// - Difficulty dropdown (easy, medium, hard, expert)
-/// - Instructions toggle switch
 /// - Start Practice Match button
 /// 
 /// All controls are visible inline in the card (no modal needed for simplicity).
 /// 
+/// Note: Instructions are always disabled for practice matches (they are only used in demo matches).
+/// 
 /// The widget communicates with its parent through the `onStartPractice` callback,
-/// passing a Map containing the selected difficulty and instructions setting.
+/// passing a Map containing the selected difficulty and settings.
 
 import 'package:flutter/material.dart';
 import '../../../../../utils/consts/theme_consts.dart';
@@ -32,7 +33,6 @@ class PracticeMatchWidget extends StatefulWidget {
 class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
   // State variables
   String _selectedDifficulty = 'medium';
-  bool _showInstructions = true;
   bool _isStarting = false;
 
   // Difficulty options
@@ -49,9 +49,10 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
     });
 
     // Prepare practice settings
+    // Note: showInstructions is always false for practice matches (instructions are only used in demo matches)
     final practiceSettings = {
       'difficulty': _selectedDifficulty,
-      'showInstructions': _showInstructions,
+      'showInstructions': false,
       'isClearAndCollect': isClearAndCollect,
     };
 
@@ -107,24 +108,6 @@ class _PracticeMatchWidgetState extends State<PracticeMatchWidget> {
                 onChanged: (value) {
                   setState(() {
                     _selectedDifficulty = value ?? 'medium';
-                  });
-                },
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Instructions Toggle
-            Semantics(
-              label: 'practice_match_instructions',
-              identifier: 'practice_match_instructions',
-              child: SwitchListTile(
-                title: const Text('Show Instructions'),
-                subtitle: const Text('Display game instructions during play'),
-                value: _showInstructions,
-                onChanged: (value) {
-                  setState(() {
-                    _showInstructions = value;
                   });
                 },
               ),

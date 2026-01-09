@@ -8,7 +8,7 @@ import '../utils/platform/practice/stubs/websocket_server_stub.dart';
 import '../utils/platform/practice/stubs/room_manager_stub.dart';
 import '../../dutch_game/managers/dutch_event_manager.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for practice match debugging
+const bool LOGGING_SWITCH = false; // Enabled for practice match debugging
 
 /// Practice Mode Bridge
 /// 

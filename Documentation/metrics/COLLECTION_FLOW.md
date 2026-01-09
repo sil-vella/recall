@@ -280,13 +280,13 @@ metrics_collector.collect_metric(
 ### Enable Logging
 ```python
 # In metrics_collector.py
-LOGGING_SWITCH = True
+LOGGING_SWITCH = false
 
 # In analytics_service.py
-LOGGING_SWITCH = True
+LOGGING_SWITCH = false
 
 # In modules
-LOGGING_SWITCH = True
+LOGGING_SWITCH = false
 ```
 
 ### Check Metrics Endpoint

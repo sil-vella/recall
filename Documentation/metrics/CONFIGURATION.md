@@ -193,7 +193,7 @@ def metrics_endpoint():
 ```python
 # In user_management_main.py
 METRICS_SWITCH = True
-LOGGING_SWITCH = True
+LOGGING_SWITCH = false
 
 # Usage
 analytics_service.track_event(

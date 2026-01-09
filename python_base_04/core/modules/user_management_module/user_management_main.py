@@ -35,7 +35,7 @@ from core.services.analytics_service import AnalyticsService
 
 class UserManagementModule(BaseModule):
     # Logging switch for guest registration and conversion testing
-    LOGGING_SWITCH = True
+    LOGGING_SWITCH = false
     METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):

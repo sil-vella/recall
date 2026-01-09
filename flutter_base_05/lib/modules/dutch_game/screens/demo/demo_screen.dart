@@ -62,12 +62,22 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
     return Padding(
       padding: AppPadding.defaultPadding,
       child: ListView.builder(
-        itemCount: _demoActions.length,
+        itemCount: _demoActions.length + 1, // +1 for "Start Demo" button
         itemBuilder: (context, index) {
-          final action = _demoActions[index];
+          // First item is the "Start Demo" button
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 32),
+              child: _buildStartDemoButton(),
+            );
+          }
+          
+          // Adjust index for demo actions (subtract 1 for the Start Demo button)
+          final actionIndex = index - 1;
+          final action = _demoActions[actionIndex];
           return Padding(
             padding: EdgeInsets.only(
-              bottom: index < _demoActions.length - 1 ? 16 : 0,
+              bottom: actionIndex < _demoActions.length - 1 ? 16 : 0,
             ),
             child: _buildActionButton(
               actionType: action['type']!,
@@ -76,6 +86,73 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+  
+  Widget _buildStartDemoButton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.accentColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async {
+            _logger.info('🎮 DemoScreen: Start Demo button tapped - starting sequential demos', isOn: LOGGING_SWITCH);
+            try {
+              await _demoActionHandler.startSequentialDemos();
+            } catch (e) {
+              _logger.error('❌ DemoScreen: Error starting sequential demos: $e', isOn: LOGGING_SWITCH);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to start sequential demos: $e'),
+                    backgroundColor: AppColors.errorColor,
+                  ),
+                );
+              }
+            }
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: AppPadding.defaultPadding,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '🚀',
+                  style: const TextStyle(fontSize: 48),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Start Demo',
+                  style: AppTextStyles.headingMedium().copyWith(
+                    color: AppColors.textOnAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Run all demos sequentially',
+                  style: AppTextStyles.bodySmall().copyWith(
+                    color: AppColors.textOnAccent.withOpacity(0.9),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -118,13 +195,16 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
                   },
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-            padding: AppPadding.defaultPadding,
+            padding: EdgeInsets.symmetric(
+              horizontal: AppPadding.defaultPadding.left,
+              vertical: AppPadding.smallPadding.top,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   icon,
-                  style: const TextStyle(fontSize: 48),
+                  style: const TextStyle(fontSize: 24),
                 ),
                 const SizedBox(height: 8),
                 Text(

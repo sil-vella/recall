@@ -15,7 +15,7 @@ import '../../../utils/card_position_scanner.dart';
 import '../../../utils/card_animation_detector.dart';
 import '../../demo/demo_functionality.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.

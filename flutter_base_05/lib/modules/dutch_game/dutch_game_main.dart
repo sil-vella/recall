@@ -19,7 +19,7 @@ import '../dutch_game/screens/home_screen/features/home_screen_features.dart';
 /// Dutch Game Module
 /// Main module for the Dutch card game functionality
 class DutchGameMain extends ModuleBase {
-  static const bool LOGGING_SWITCH = true; // Enabled for debugging navigation issues
+  static const bool LOGGING_SWITCH = false; // Enabled for debugging navigation issues
   final Logger _logger = Logger();
   
   final navigationManager = NavigationManager();

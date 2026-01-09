@@ -24,7 +24,7 @@ from core.managers.websockets.websocket_manager import WebSocketManager
 
 class AppManager:
     METRICS_SWITCH = True
-    LOGGING_SWITCH = True
+    LOGGING_SWITCH = false
     
     def __init__(self):
         # Plugin system removed - ModuleManager is now primary orchestrator

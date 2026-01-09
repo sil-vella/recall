@@ -38,6 +38,11 @@ class DemoActionHandler {
   /// Track initial hand count for collect_rank demo
   static int? _collectRankInitialHandCount;
   
+  /// Track sequential demo mode
+  static bool _isSequentialDemoMode = false;
+  static int _currentSequentialDemoIndex = 0;
+  static List<String> _sequentialDemoActions = [];
+  
   /// Check if a demo action is currently active
   static bool isDemoActionActive() {
     return _activeDemoActionType != null;
@@ -46,6 +51,53 @@ class DemoActionHandler {
   /// Get the currently active demo action type
   static String? getActiveDemoActionType() {
     return _activeDemoActionType;
+  }
+  
+  /// Check if sequential demo mode is active
+  static bool isSequentialDemoMode() {
+    return _isSequentialDemoMode;
+  }
+  
+  /// Start sequential demo mode - runs all demos one after another
+  /// 
+  /// This will go through all demo actions in order, automatically moving
+  /// from one to the next when each completes.
+  Future<void> startSequentialDemos() async {
+    try {
+      _logger.info('🎮 DemoActionHandler: Starting sequential demo mode', isOn: LOGGING_SWITCH);
+      
+      // Define the order of demos
+      _sequentialDemoActions = [
+        'initial_peek',
+        'drawing',
+        'playing',
+        'same_rank',
+        'queen_peek',
+        'jack_swap',
+        'call_dutch',
+        'collect_rank',
+      ];
+      
+      // Initialize sequential demo mode
+      _isSequentialDemoMode = true;
+      _currentSequentialDemoIndex = 0;
+      
+      // Start the first demo
+      final firstActionType = _sequentialDemoActions[_currentSequentialDemoIndex];
+      _logger.info('🎮 DemoActionHandler: Starting first demo in sequence: $firstActionType', isOn: LOGGING_SWITCH);
+      
+      await startDemoAction(firstActionType);
+      
+      _logger.info('✅ DemoActionHandler: Sequential demo mode started', isOn: LOGGING_SWITCH);
+    } catch (e, stackTrace) {
+      _logger.error('❌ DemoActionHandler: Error starting sequential demos: $e', 
+        error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      // Reset sequential mode on error
+      _isSequentialDemoMode = false;
+      _currentSequentialDemoIndex = 0;
+      _sequentialDemoActions = [];
+      rethrow;
+    }
   }
 
   /// Start a demo action
@@ -404,15 +456,43 @@ class DemoActionHandler {
       final practiceBridge = PracticeModeBridge.instance;
       practiceBridge.endPracticeSession();
       
-      // 5. Navigate back to demo screen
-      _logger.info('🎮 DemoActionHandler: Navigating back to demo screen', isOn: LOGGING_SWITCH);
-      NavigationManager().navigateTo('/dutch/demo');
-      
-      // 6. NOW clear active demo action type AFTER navigation
-      // This ensures instructions won't show during or after the demo action ends
-      _activeDemoActionType = null;
-      
-      _logger.info('✅ DemoActionHandler: Demo action $actionType ended successfully', isOn: LOGGING_SWITCH);
+      // 5. Check if we're in sequential demo mode
+      if (_isSequentialDemoMode && _currentSequentialDemoIndex < _sequentialDemoActions.length - 1) {
+        // Continue to next demo in sequence
+        _currentSequentialDemoIndex++;
+        final nextActionType = _sequentialDemoActions[_currentSequentialDemoIndex];
+        
+        // Clear active demo action type before starting next
+        _activeDemoActionType = null;
+        
+        _logger.info('🎮 DemoActionHandler: Continuing sequential demo - moving to: $nextActionType (${_currentSequentialDemoIndex + 1}/${_sequentialDemoActions.length})', isOn: LOGGING_SWITCH);
+        
+        // Wait a bit before starting next demo
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Start the next demo
+        await startDemoAction(nextActionType);
+        
+        _logger.info('✅ DemoActionHandler: Sequential demo continued to: $nextActionType', isOn: LOGGING_SWITCH);
+      } else {
+        // End of sequence or not in sequential mode - navigate back to demo screen
+        if (_isSequentialDemoMode) {
+          _logger.info('🎮 DemoActionHandler: Sequential demo sequence completed (${_sequentialDemoActions.length} demos)', isOn: LOGGING_SWITCH);
+          _isSequentialDemoMode = false;
+          _currentSequentialDemoIndex = 0;
+          _sequentialDemoActions = [];
+        }
+        
+        // 5. Navigate back to demo screen
+        _logger.info('🎮 DemoActionHandler: Navigating back to demo screen', isOn: LOGGING_SWITCH);
+        NavigationManager().navigateTo('/dutch/demo');
+        
+        // 6. NOW clear active demo action type AFTER navigation
+        // This ensures instructions won't show during or after the demo action ends
+        _activeDemoActionType = null;
+        
+        _logger.info('✅ DemoActionHandler: Demo action $actionType ended successfully', isOn: LOGGING_SWITCH);
+      }
     } catch (e, stackTrace) {
       _logger.error('❌ DemoActionHandler: Error ending demo action $actionType: $e', 
         error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);

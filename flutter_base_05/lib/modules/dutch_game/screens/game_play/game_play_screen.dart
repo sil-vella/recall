@@ -18,7 +18,7 @@ import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);

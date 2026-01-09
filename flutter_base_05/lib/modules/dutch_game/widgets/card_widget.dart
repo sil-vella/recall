@@ -66,6 +66,13 @@ class CardWidget extends StatelessWidget {
 
   /// Build the front face of the card
   Widget _buildCardFront(Size dimensions) {
+    // Check if this is a special card that should use a background image
+    final isSpecialCard = card.isFaceCard || card.rank.toLowerCase() == 'joker';
+    final specialCardImagePath = _getSpecialCardImagePath();
+    
+    // Calculate padding based on card size (minimum 2px, maximum 8% of width)
+    final padding = (dimensions.width * 0.05).clamp(2.0, dimensions.width * 0.08);
+    
     return Container(
       width: dimensions.width,
       height: dimensions.height,
@@ -80,87 +87,364 @@ class CardWidget extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: EdgeInsets.all(dimensions.width * 0.05),
-        child: Column(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            // Centered display mode: rank and suit in center, no corners
-            if (config.displayMode == CardDisplayMode.centeredOnly) ...[
-              Expanded(
-                child: Center(
-                  child: _buildCenteredRankAndSuit(dimensions),
+      child: Stack(
+        children: [
+          // Background image for special cards (queen, king, jack, joker)
+          if (isSpecialCard && specialCardImagePath != null)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image(
+                  image: AssetImage(specialCardImagePath),
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    // If image fails to load, continue with normal card layout
+                    return const SizedBox.shrink();
+                  },
                 ),
               ),
-            ] else ...[
-              // Top-left rank and suit (always shown for non-centered modes)
-              Align(
-                alignment: Alignment.topLeft,
-                child: _buildCornerText(dimensions),
-              ),
-              
-              // Center suit symbol (always shown for non-centered modes)
-              Expanded(
-                child: Center(
-                  child: _buildCenterSuit(dimensions),
-                ),
-              ),
-              
-              // Bottom-right rank and suit (rotated) - only shown in fullCorners mode
-              if (config.displayMode == CardDisplayMode.fullCorners) ...[
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: Transform.rotate(
-                    angle: 3.14159, // 180 degrees
-                    child: _buildCornerText(dimensions),
-                  ),
-                ),
-              ],
-            ],
-            
-            // Special power indicator
-            if (config.showSpecialPower && card.hasSpecialPower) ...[
-              const SizedBox(height: 4),
-              _buildSpecialPowerIndicator(dimensions),
-            ],
-            
-            // Points indicator
-            if (config.showPoints) ...[
-              const SizedBox(height: 2),
-              _buildPointsIndicator(dimensions),
-            ],
-          ],
-        ),
+            ),
+          
+          // Card content (rank, suit, etc.) - properly constrained
+          Padding(
+            padding: EdgeInsets.all(padding),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Calculate available space after padding
+                final availableWidth = constraints.maxWidth;
+                final availableHeight = constraints.maxHeight;
+                
+                return Column(
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    // Centered display mode: rank and suit in center, no corners
+                    if (config.displayMode == CardDisplayMode.centeredOnly) ...[
+                      Expanded(
+                        child: Center(
+                          child: _buildCenteredRankAndSuit(Size(availableWidth, availableHeight)),
+                        ),
+                      ),
+                    ] else ...[
+                      // Top-left rank and suit (always shown for non-centered modes)
+                      Align(
+                        alignment: Alignment.topLeft,
+                        child: _buildCornerText(Size(availableWidth, availableHeight)),
+                      ),
+                      
+                      // Center content - suit symbols for numbered cards
+                      // For special cards with background images, center is empty (image shows)
+                      Expanded(
+                        child: Center(
+                          child: (isSpecialCard && specialCardImagePath != null)
+                              ? const SizedBox.shrink() // Background image shows, no center content needed
+                              : _buildCenterContent(Size(availableWidth, availableHeight)),
+                        ),
+                      ),
+                      
+                      // Bottom-right rank and suit (rotated) - only shown in fullCorners mode
+                      if (config.displayMode == CardDisplayMode.fullCorners) ...[
+                        Align(
+                          alignment: Alignment.bottomRight,
+                          child: Transform.rotate(
+                            angle: 3.14159, // 180 degrees
+                            child: _buildCornerText(Size(availableWidth, availableHeight)),
+                          ),
+                        ),
+                      ],
+                    ],
+                    
+                    // Special power indicator
+                    if (config.showSpecialPower && card.hasSpecialPower) ...[
+                      const SizedBox(height: 4),
+                      _buildSpecialPowerIndicator(Size(availableWidth, availableHeight)),
+                    ],
+                    
+                    // Points indicator
+                    if (config.showPoints) ...[
+                      const SizedBox(height: 2),
+                      _buildPointsIndicator(Size(availableWidth, availableHeight)),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
+  }
+  
+  /// Get the path to special card image if available
+  String? _getSpecialCardImagePath() {
+    final rank = card.rank.toLowerCase();
+    if (rank == 'queen') return 'assets/images/queen.png';
+    if (rank == 'king') return 'assets/images/king.png';
+    if (rank == 'jack') return 'assets/images/jack.png';
+    if (rank == 'joker') return 'assets/images/joker.png';
+    return null;
+  }
+  
+  /// Build center content for numbered cards (shows appropriate number of suit symbols)
+  Widget _buildCenterContent(Size dimensions) {
+    // For numbered cards, show the number of suit symbols
+    if (card.isNumberedCard) {
+      final rankNum = int.tryParse(card.rank);
+      if (rankNum != null && rankNum >= 2 && rankNum <= 10) {
+        return _buildNumberedCardCenter(dimensions, rankNum);
+      }
+    }
+    
+    // For Ace, show single large suit symbol
+    if (card.isAce) {
+      return _buildCenterSuit(dimensions);
+    }
+    
+    // Default: show single suit symbol
+    return _buildCenterSuit(dimensions);
+  }
+  
+  /// Build center for numbered cards - shows appropriate number of suit symbols
+  Widget _buildNumberedCardCenter(Size dimensions, int rankNum) {
+    final suitSymbol = card.suitSymbol;
+    final suitColor = card.color;
+    
+    // Calculate font size based on available space, ensuring it fits
+    // Use the smaller dimension to ensure it fits both width and height
+    final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
+    // Calculate max font size: ensure symbols fit with spacing
+    // For higher ranks, we need smaller symbols to fit more
+    final baseFontSize = minDimension * 0.2;
+    final fontSize = (rankNum <= 4) 
+        ? baseFontSize.clamp(8.0, minDimension * 0.25)
+        : (baseFontSize * 0.8).clamp(6.0, minDimension * 0.2);
+    
+    // Calculate spacing based on available space
+    final verticalSpacing = (dimensions.height * 0.08).clamp(2.0, dimensions.height * 0.15);
+    final horizontalSpacing = (dimensions.width * 0.1).clamp(2.0, dimensions.width * 0.2);
+    
+    // Use FittedBox to ensure content scales down if needed
+    Widget buildSymbol() {
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          suitSymbol,
+          style: TextStyle(
+            fontSize: fontSize,
+            color: suitColor,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+    
+    // Arrange suit symbols based on number
+    // For 2-6: show in a pattern
+    // For 7-10: show in a pattern with more symbols
+    if (rankNum == 2) {
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            buildSymbol(),
+            SizedBox(height: verticalSpacing * 2),
+            buildSymbol(),
+          ],
+        ),
+      );
+    } else if (rankNum == 3) {
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            buildSymbol(),
+            SizedBox(height: verticalSpacing),
+            buildSymbol(),
+            SizedBox(height: verticalSpacing),
+            buildSymbol(),
+          ],
+        ),
+      );
+    } else if (rankNum == 4) {
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                buildSymbol(),
+                SizedBox(width: horizontalSpacing),
+                buildSymbol(),
+              ],
+            ),
+            SizedBox(height: verticalSpacing * 1.5),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                buildSymbol(),
+                SizedBox(width: horizontalSpacing),
+                buildSymbol(),
+              ],
+            ),
+          ],
+        ),
+      );
+    } else if (rankNum == 5) {
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                buildSymbol(),
+                SizedBox(width: horizontalSpacing),
+                buildSymbol(),
+              ],
+            ),
+            SizedBox(height: verticalSpacing),
+            buildSymbol(),
+            SizedBox(height: verticalSpacing),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                buildSymbol(),
+                SizedBox(width: horizontalSpacing),
+                buildSymbol(),
+              ],
+            ),
+          ],
+        ),
+      );
+    } else if (rankNum == 6) {
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                buildSymbol(),
+                SizedBox(width: horizontalSpacing),
+                buildSymbol(),
+              ],
+            ),
+            SizedBox(height: verticalSpacing),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                buildSymbol(),
+                SizedBox(width: horizontalSpacing),
+                buildSymbol(),
+              ],
+            ),
+            SizedBox(height: verticalSpacing),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                buildSymbol(),
+                SizedBox(width: horizontalSpacing),
+                buildSymbol(),
+              ],
+            ),
+          ],
+        ),
+      );
+    } else {
+      // For 7-10, show a grid pattern
+      final symbolsPerRow = rankNum <= 8 ? 2 : 3;
+      final totalRows = (rankNum / symbolsPerRow).ceil();
+      
+      final rows = <Widget>[];
+      int symbolCount = 0;
+      for (int row = 0; row < totalRows; row++) {
+        final rowSymbols = <Widget>[];
+        for (int col = 0; col < symbolsPerRow && symbolCount < rankNum; col++) {
+          rowSymbols.add(buildSymbol());
+          if (col < symbolsPerRow - 1 && symbolCount < rankNum - 1) {
+            rowSymbols.add(SizedBox(width: horizontalSpacing));
+          }
+          symbolCount++;
+        }
+        rows.add(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: rowSymbols,
+          ),
+        );
+        if (row < totalRows - 1) {
+          rows.add(SizedBox(height: verticalSpacing));
+        }
+      }
+      
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: rows,
+        ),
+      );
+    }
   }
 
 
 
   /// Build corner text (rank and suit)
   Widget _buildCornerText(Size dimensions) {
-    final fontSize = dimensions.width * 0.12;
+    // Calculate font size based on available space
+    final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
+    final fontSize = (minDimension * 0.12).clamp(8.0, minDimension * 0.15);
     
-    return Text(
-      '${card.rankSymbol}\n${card.suitSymbol}',
-      style: TextStyle(
-        fontSize: fontSize,
-        fontWeight: FontWeight.bold,
-        color: card.color,
-        height: 1.0,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.topLeft,
+      child: Text(
+        '${card.rankSymbol}\n${card.suitSymbol}',
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+          color: card.color,
+          height: 1.0,
+        ),
+        textAlign: TextAlign.left,
       ),
     );
   }
 
-  /// Build center suit symbol
+  /// Build center suit symbol (for Ace)
   Widget _buildCenterSuit(Size dimensions) {
-    final fontSize = dimensions.width * 0.3;
+    // Calculate font size based on available space
+    final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
+    final fontSize = (minDimension * 0.3).clamp(12.0, minDimension * 0.4);
     
-    return Text(
-      card.suitSymbol,
-      style: TextStyle(
-        fontSize: fontSize,
-        color: card.color,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        card.suitSymbol,
+        style: TextStyle(
+          fontSize: fontSize,
+          color: card.color,
+        ),
+        textAlign: TextAlign.center,
       ),
     );
   }
@@ -168,32 +452,40 @@ class CardWidget extends StatelessWidget {
   /// Build centered rank and suit (for opponent cards)
   /// Shows rank and suit in the center, text size is 40% of card height
   Widget _buildCenteredRankAndSuit(Size dimensions) {
-    final fontSize = dimensions.height * 0.4; // 40% of card height
+    // Calculate font size based on available space
+    final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
+    final fontSize = (minDimension * 0.4).clamp(10.0, minDimension * 0.5);
     
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Rank
-        Text(
-          card.rankSymbol,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: card.color,
-            height: 1.0,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Rank
+          Text(
+            card.rankSymbol,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.bold,
+              color: card.color,
+              height: 1.0,
+            ),
+            textAlign: TextAlign.center,
           ),
-        ),
-        // Suit
-        Text(
-          card.suitSymbol,
-          style: TextStyle(
-            fontSize: fontSize,
-            color: card.color,
-            height: 1.0,
+          // Suit
+          Text(
+            card.suitSymbol,
+            style: TextStyle(
+              fontSize: fontSize,
+              color: card.color,
+              height: 1.0,
+            ),
+            textAlign: TextAlign.center,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -272,89 +564,104 @@ class CardWidget extends StatelessWidget {
       ),
       child: Padding(
         padding: EdgeInsets.all(dimensions.width * 0.05),
-        child: Stack(
-          children: [
-            // Structure matching front face - placeholders for layout consistency
-            Column(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            // Centered mode: no corner placeholders needed
-            if (config.displayMode == CardDisplayMode.centeredOnly) ...[
-              Expanded(child: Container()), // Spacer for centered content
-            ] else ...[
-              // Top-left placeholder to match front face structure
-              Align(
-                alignment: Alignment.topLeft,
-                child: SizedBox(
-                  width: dimensions.width * 0.12,
-                  height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
-                ),
-              ),
+        child: Center(
+          child: ListenableBuilder(
+            listenable: StateManager(),
+            builder: (context, child) {
+              // Get currentGameId to detect practice mode
+              final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+              final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
               
-              // Expanded spacer to match front face structure
-              Expanded(child: Container()),
+              // Detect practice mode: practice games have IDs starting with "practice_room_"
+              final isPracticeMode = currentGameId.startsWith('practice_room_');
               
-              // Bottom-right placeholder to match front face structure (when fullCorners mode)
-              if (config.displayMode == CardDisplayMode.fullCorners) ...[
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: SizedBox(
-                    width: dimensions.width * 0.12,
-                    height: dimensions.width * 0.12 * 2, // Match corner text height (2 lines)
-                  ),
-                ),
-              ],
-            ],
-            
-            // Special power indicator placeholder to match front face structure
-            if (config.showSpecialPower && card.hasSpecialPower) ...[
-              const SizedBox(height: 4),
-              SizedBox(
-                width: dimensions.width * 0.2,
-                height: dimensions.width * 0.2, // Match icon size
-              ),
-            ],
-            
-            // Points indicator placeholder to match front face structure
-            if (config.showPoints) ...[
-              const SizedBox(height: 2),
-              SizedBox(
-                width: dimensions.width * 0.3,
-                height: dimensions.width * 0.1 + 4, // Match points indicator height (fontSize + padding)
-              ),
-            ],
-              ],
-            ),
-            
-            // Center the card back image - loaded from server with cache-busting per match
-            Center(
-              child: ListenableBuilder(
-                listenable: StateManager(),
-                builder: (context, child) {
-                  // Get currentGameId to detect practice mode
-                  final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-                  final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-                  
-                  // Detect practice mode: practice games have IDs starting with "practice_room_"
-                  final isPracticeMode = currentGameId.startsWith('practice_room_');
-                  
-                  // Log image loading details
-                  _logger.info('🖼️ CardWidget: Loading card back image', isOn: LOGGING_SWITCH);
-                  _logger.info('🖼️ CardWidget: currentGameId=$currentGameId', isOn: LOGGING_SWITCH);
-                  _logger.info('🖼️ CardWidget: isPracticeMode=$isPracticeMode', isOn: LOGGING_SWITCH);
-                  
-                  // In practice mode, load from assets; otherwise load from server
-                  if (isPracticeMode) {
-                    // Load from assets for practice mode
-                    _logger.info('🖼️ CardWidget: Loading from assets: assets/images/card_back.png', isOn: LOGGING_SWITCH);
-                    return Image.asset(
-                      'assets/images/card_back.png',
-                      width: dimensions.width * 0.9, // Leave some padding
+              // Log image loading details
+              _logger.info('🖼️ CardWidget: Loading card back image', isOn: LOGGING_SWITCH);
+              _logger.info('🖼️ CardWidget: currentGameId=$currentGameId', isOn: LOGGING_SWITCH);
+              _logger.info('🖼️ CardWidget: isPracticeMode=$isPracticeMode', isOn: LOGGING_SWITCH);
+              
+              // In practice mode, load from assets; otherwise load from server
+              if (isPracticeMode) {
+                // Load from assets for practice mode
+                _logger.info('🖼️ CardWidget: Loading from assets: assets/images/card_back.png', isOn: LOGGING_SWITCH);
+                _logger.info('🖼️ CardWidget: Dimensions: width=${dimensions.width}, height=${dimensions.height}', isOn: LOGGING_SWITCH);
+                // Try loading the asset - use AssetImage directly for better reliability
+                try {
+                  _logger.info('🖼️ CardWidget: Attempting to load asset using AssetImage', isOn: LOGGING_SWITCH);
+                  return Image(
+                    image: AssetImage('assets/images/card_back.png'),
+                    width: dimensions.width * 0.9, // Leave some padding
+                    height: dimensions.height * 0.9,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      _logger.error('🖼️ CardWidget: Asset load error for assets/images/card_back.png', isOn: LOGGING_SWITCH);
+                      _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
+                      _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
+                      return Icon(
+                        Icons.broken_image,
+                        size: dimensions.width * 0.4,
+                        color: AppColors.white.withOpacity(0.5),
+                      );
+                    },
+                  );
+                } catch (e, stackTrace) {
+                  _logger.error('🖼️ CardWidget: Exception loading asset: $e', isOn: LOGGING_SWITCH);
+                  _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
+                  return Icon(
+                    Icons.broken_image,
+                    size: dimensions.width * 0.4,
+                    color: AppColors.white.withOpacity(0.5),
+                  );
+                }
+              } else {
+                // Load from server for multiplayer games
+                // Build image URL with cache-busting query parameters
+                // Version 2: Increment this when uploading a new image to force cache refresh
+                const int imageVersion = 2;
+                final imageUrl = currentGameId.isNotEmpty
+                    ? '${Config.apiUrl}/sponsors/images/card_back.png?gameId=$currentGameId&v=$imageVersion'
+                    : '${Config.apiUrl}/sponsors/images/card_back.png?v=$imageVersion';
+                
+                _logger.info('🖼️ CardWidget: apiUrl=${Config.apiUrl}', isOn: LOGGING_SWITCH);
+                _logger.info('🖼️ CardWidget: imageUrl=$imageUrl', isOn: LOGGING_SWITCH);
+                
+                // Use Image.network which uses browser's native image loading on web
+                // This avoids CORS issues that affect the http package
+                // Fallback to asset image if network fails
+                return Image.network(
+                  imageUrl,
+                  width: dimensions.width * 0.9, // Leave some padding
+                  height: dimensions.height * 0.9,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) {
+                      _logger.info('🖼️ CardWidget: Network image loaded successfully', isOn: LOGGING_SWITCH);
+                      return child;
+                    }
+                    // Show placeholder while loading
+                    return Icon(
+                      Icons.image,
+                      size: dimensions.width * 0.4,
+                      color: AppColors.white.withOpacity(0.5),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    _logger.error('🖼️ CardWidget: Network image load error for $imageUrl', isOn: LOGGING_SWITCH);
+                    _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
+                    _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
+                    if (error is Exception) {
+                      _logger.error('🖼️ CardWidget: Exception type: ${error.runtimeType}', isOn: LOGGING_SWITCH);
+                      _logger.error('🖼️ CardWidget: Exception message: ${error.toString()}', isOn: LOGGING_SWITCH);
+                    }
+                    // Fallback to asset image if network fails
+                    _logger.info('🖼️ CardWidget: Falling back to asset image', isOn: LOGGING_SWITCH);
+                    return Image(
+                      image: AssetImage('assets/images/card_back.png'),
+                      width: dimensions.width * 0.9,
                       height: dimensions.height * 0.9,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {
-                        _logger.error('🖼️ CardWidget: Asset load error for assets/images/card_back.png', isOn: LOGGING_SWITCH);
-                        _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
+                        _logger.error('🖼️ CardWidget: Asset fallback also failed', isOn: LOGGING_SWITCH);
                         return Icon(
                           Icons.broken_image,
                           size: dimensions.width * 0.4,
@@ -362,57 +669,11 @@ class CardWidget extends StatelessWidget {
                         );
                       },
                     );
-                  } else {
-                    // Load from server for multiplayer games
-                    // Build image URL with cache-busting query parameters
-                    // Version 2: Increment this when uploading a new image to force cache refresh
-                    const int imageVersion = 2;
-                    final imageUrl = currentGameId.isNotEmpty
-                        ? '${Config.apiUrl}/sponsors/images/card_back.png?gameId=$currentGameId&v=$imageVersion'
-                        : '${Config.apiUrl}/sponsors/images/card_back.png?v=$imageVersion';
-                    
-                    _logger.info('🖼️ CardWidget: apiUrl=${Config.apiUrl}', isOn: LOGGING_SWITCH);
-                    _logger.info('🖼️ CardWidget: imageUrl=$imageUrl', isOn: LOGGING_SWITCH);
-                    
-                    // Use Image.network which uses browser's native image loading on web
-                    // This avoids CORS issues that affect the http package
-                    return Image.network(
-                      imageUrl,
-                      width: dimensions.width * 0.9, // Leave some padding
-                      height: dimensions.height * 0.9,
-                      fit: BoxFit.contain,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) {
-                          _logger.info('🖼️ CardWidget: Image loaded successfully', isOn: LOGGING_SWITCH);
-                          return child;
-                        }
-                        // Show placeholder while loading
-                        return Icon(
-                          Icons.image,
-                          size: dimensions.width * 0.4,
-                          color: AppColors.white.withOpacity(0.5),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        _logger.error('🖼️ CardWidget: Image load error for $imageUrl', isOn: LOGGING_SWITCH);
-                        _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
-                        _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
-                        if (error is Exception) {
-                          _logger.error('🖼️ CardWidget: Exception type: ${error.runtimeType}', isOn: LOGGING_SWITCH);
-                          _logger.error('🖼️ CardWidget: Exception message: ${error.toString()}', isOn: LOGGING_SWITCH);
-                        }
-                        return Icon(
-                          Icons.broken_image,
-                          size: dimensions.width * 0.4,
-                          color: AppColors.white.withOpacity(0.5),
-                        );
-                      },
-                    );
-                  }
-                },
-              ),
-            ),
-          ],
+                  },
+                );
+              }
+            },
+          ),
         ),
       ),
     );

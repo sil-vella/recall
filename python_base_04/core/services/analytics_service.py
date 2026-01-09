@@ -12,7 +12,7 @@ from tools.logger.custom_logging import custom_log
 class AnalyticsService:
     """Service for tracking and querying user analytics events."""
     
-    LOGGING_SWITCH = True
+    LOGGING_SWITCH = false
     
     def __init__(self, app_manager=None):
         """Initialize Analytics Service."""

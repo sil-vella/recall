@@ -19,7 +19,7 @@ import time
 import random
 
 # Logging switch for this module
-LOGGING_SWITCH = True
+LOGGING_SWITCH = false
 METRICS_SWITCH = True
 
 

@@ -3,7 +3,7 @@ from typing import Dict, List, Type, Any, Optional
 from core.managers.module_registry import ModuleRegistry
 from core.modules.base_module import BaseModule
 
-LOGGING_SWITCH = True
+LOGGING_SWITCH = false
 
 class ModuleManager:
     def __init__(self):

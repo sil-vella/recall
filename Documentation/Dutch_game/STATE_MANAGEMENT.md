@@ -154,6 +154,12 @@ The Dutch game module state is stored under the key `'dutch_game'` in `StateMana
   'lastError': String?,          // Last error message (if any)
   
   // ========================================
+  // USER RANK AND LEVEL
+  // ========================================
+  'userRank': String?,            // Current user's rank (beginner, novice, apprentice, etc.)
+  'userLevel': int?,              // Current user's level (1-100+)
+  
+  // ========================================
   // CURRENT GAME REFERENCES
   // ========================================
   'currentGameId': String,       // ID of currently active game
@@ -191,6 +197,9 @@ The Dutch game module state is stored under the key `'dutch_game'` in `StateMana
               'score': int,
               'points': int,
               'isCurrentPlayer': bool,
+              'rank': String?,           // Player rank (beginner, novice, etc.) - for comp players
+              'level': int?,             // Player level (1-100+) - for comp players
+              'difficulty': String?,     // AI difficulty (easy, medium, hard, expert) - for comp players
             }
           ],
           
@@ -353,6 +362,28 @@ The Dutch game module state is stored under the key `'dutch_game'` in `StateMana
 }
 ```
 
+### Backend Root State Structure
+
+The backend `GameStateStore` maintains a root state structure for each room:
+
+```dart
+{
+  'game_id': String,              // Room/game ID
+  'game_state': Map<String, dynamic>,  // Main game state (SSOT)
+  'roomDifficulty': String?,      // Room difficulty (rank-based: beginner, novice, etc.)
+  'lastUpdated': String,         // ISO timestamp
+  'isClearAndCollect': bool?,     // Game mode flag (optional, also in game_state)
+}
+```
+
+**Key Fields**:
+- `game_id`: The room/game identifier
+- `game_state`: The main game state (single source of truth)
+- `roomDifficulty`: The room's difficulty level, set based on:
+  - **Multiplayer**: Creator's rank (from `server.getUserRankForSession()`)
+  - **Practice**: User-selected difficulty from lobby (easy, medium, hard, expert)
+- `lastUpdated`: Timestamp of last state update
+
 ### Single Source of Truth (SSOT)
 
 **Key Principle**: `games[gameId].gameData.game_state` is the single source of truth for all game data.
@@ -361,6 +392,7 @@ The Dutch game module state is stored under the key `'dutch_game'` in `StateMana
 - Widget-specific data (`myHandCards`, `myDrawnCard`) is **derived** from SSOT
 - Player status, current player, and other fields are **computed** from SSOT
 - Widget slices are **computed** from SSOT and main state fields
+- `roomDifficulty` is stored at the root level and used for comp player filtering
 
 **Data Flow**:
 ```

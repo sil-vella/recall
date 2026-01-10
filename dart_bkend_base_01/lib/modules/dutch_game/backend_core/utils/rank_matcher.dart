@@ -111,4 +111,42 @@ class RankMatcher {
     }
     return getRankIndex(rank) != -1;
   }
+
+  /// Map player rank to YAML difficulty level for computer player AI behavior
+  /// Returns one of: 'easy', 'medium', 'hard', 'expert'
+  /// Defaults to 'medium' if rank is null or invalid
+  static String rankToDifficulty(String? rank) {
+    if (rank == null) {
+      return 'medium';
+    }
+
+    final normalizedRank = normalizeRank(rank);
+    if (normalizedRank.isEmpty) {
+      return 'medium';
+    }
+
+    // Map ranks to YAML difficulties:
+    // beginner → easy
+    // novice, apprentice → medium
+    // skilled, advanced, expert → hard
+    // veteran, master, elite, legend → expert
+    switch (normalizedRank) {
+      case 'beginner':
+        return 'easy';
+      case 'novice':
+      case 'apprentice':
+        return 'medium';
+      case 'skilled':
+      case 'advanced':
+      case 'expert':
+        return 'hard';
+      case 'veteran':
+      case 'master':
+      case 'elite':
+      case 'legend':
+        return 'expert';
+      default:
+        return 'medium'; // Default fallback
+    }
+  }
 }

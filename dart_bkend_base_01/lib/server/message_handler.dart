@@ -7,7 +7,7 @@ import 'random_join_timer_manager.dart';
 import '../modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart';
 import '../modules/dutch_game/backend_core/services/game_state_store.dart';
 import '../modules/dutch_game/utils/platform/shared_imports.dart';
-import '../modules/dutch_game/utils/rank_matcher.dart';
+import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 
 // Logging switch for this file
 const bool LOGGING_SWITCH = true; // Enabled for rank-based matching testing

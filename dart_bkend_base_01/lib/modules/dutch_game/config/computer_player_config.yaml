@@ -286,14 +286,14 @@ events:
           type: "use_special_play"
           select_targets: true
           target_strategy: "random_two_players"
-        # Probability-based execution (medium/easy use this rule more)
+        # Probability-based execution (easy/medium always do random swap instead of skip)
         execution_probability:
           expert: 0.0    # 0% chance (expert uses rule 1)
           hard: 0.05     # 5% chance (hard prefers rule 1)
-          medium: 0.3    # 30% chance (medium uses this as fallback)
-          easy: 0.5      # 50% chance (easy uses this more often)
+          medium: 1.0    # 100% chance (medium always does random swap if rule 1 doesn't execute)
+          easy: 1.0      # 100% chance (easy always does random swap if rule 1 doesn't execute)
       
-      # Rule 3: Skip swap (fallback)
+      # Rule 3: Skip swap (fallback for hard/expert only)
       - name: "skip_jack_swap"
         priority: 3
         description: "Skip using Jack swap"
@@ -301,6 +301,12 @@ events:
           type: "always"
         action:
           type: "skip_special_play"
+        # Only skip for hard/expert if both rules 1 and 2 don't execute
+        execution_probability:
+          expert: 0.0    # 0% chance (expert always uses rule 1)
+          hard: 0.0      # 0% chance (hard almost always uses rule 1, rule 2 as backup)
+          medium: 0.0    # 0% chance (medium always uses rule 2 if rule 1 doesn't execute)
+          easy: 0.0      # 0% chance (easy always uses rule 2 if rule 1 doesn't execute)
       
   queen_peek:
     # Decision logic for Queen peek

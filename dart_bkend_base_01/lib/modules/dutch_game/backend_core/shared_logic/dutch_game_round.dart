@@ -4,6 +4,7 @@
 /// for dutch sessions, including turn rotation, card actions, and AI decision making.
 
 import '../../utils/platform/shared_imports.dart';
+import '../utils/rank_matcher.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 
@@ -480,13 +481,54 @@ class DutchGameRound {
   }
 
   /// Get computer player difficulty from game state
+  /// Maps player rank to YAML difficulty (easy, medium, hard, expert)
   String _getComputerDifficulty(Map<String, dynamic> gameState, String playerId) {
     try {
-      // For now, return a default difficulty
-      // Later this will be read from game configuration or player settings
-      return 'medium'; // Options: easy, medium, hard, expert
+      // Get players list from game state
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      
+      // Find the player by ID
+      Map<String, dynamic>? player;
+      try {
+        player = players.firstWhere(
+          (p) => p is Map<String, dynamic> && (p['id']?.toString() == playerId),
+        ) as Map<String, dynamic>?;
+      } catch (e) {
+        // Player not found
+        player = null;
+      }
+      
+      if (player == null) {
+        _logger.warning('Dutch: Player $playerId not found in game state, using default difficulty', isOn: LOGGING_SWITCH);
+        return 'medium';
+      }
+      
+      // Get player info for logging
+      final playerName = player['name']?.toString() ?? playerId;
+      final playerRank = player['rank']?.toString();
+      final playerLevel = player['level']?.toString();
+      
+      _logger.info('Dutch: 🎯 BEFORE YAML PARSING - Player: $playerName (ID: $playerId), Rank: $playerRank, Level: $playerLevel', isOn: LOGGING_SWITCH);
+      
+      // Try to get difficulty directly (if already set)
+      final difficulty = player['difficulty']?.toString();
+      if (difficulty != null && difficulty.isNotEmpty) {
+        _logger.info('Dutch: ✅ Using stored difficulty for player $playerName: $difficulty (from rank: $playerRank)', isOn: LOGGING_SWITCH);
+        return difficulty;
+      }
+      
+      // If no difficulty, try to map from rank
+      if (playerRank != null && playerRank.isNotEmpty) {
+        final mappedDifficulty = RankMatcher.rankToDifficulty(playerRank);
+        _logger.info('Dutch: ✅ Mapped rank $playerRank to YAML difficulty $mappedDifficulty for player $playerName', isOn: LOGGING_SWITCH);
+        return mappedDifficulty;
+      }
+      
+      // Fallback to default
+      _logger.warning('Dutch: ⚠️ No difficulty or rank found for player $playerName, using default difficulty: medium', isOn: LOGGING_SWITCH);
+      return 'medium';
     } catch (e) {
-      _logger.error('Dutch: Error getting computer difficulty: $e', isOn: LOGGING_SWITCH);
+      _logger.error('Dutch: ❌ Error getting computer difficulty: $e', isOn: LOGGING_SWITCH);
       return 'medium';
     }
   }
@@ -534,11 +576,19 @@ class DutchGameRound {
         return;
       }
       
-      _logger.info('Dutch: DEBUG - _handleComputerActionWithYAML called with event: $eventName', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: Handling computer action with YAML - Player: $playerId, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
+      // Get player info for logging
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      final computerPlayer = players.firstWhere(
+        (p) => p['id']?.toString() == playerId,
+        orElse: () => <String, dynamic>{},
+      );
+      final playerName = computerPlayer['name']?.toString() ?? playerId;
+      final playerRank = computerPlayer['rank']?.toString() ?? 'unknown';
+      
+      _logger.info('Dutch: 🎯 BEFORE YAML PARSING - Player: $playerName (ID: $playerId), Rank: $playerRank, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
       
       if (_computerPlayerFactory == null) {
-        _logger.error('Dutch: Computer player factory not initialized', isOn: LOGGING_SWITCH);
+        _logger.error('Dutch: ❌ Computer player factory not initialized', isOn: LOGGING_SWITCH);
         _moveToNextPlayer();
         return;
       }
@@ -598,7 +648,7 @@ class DutchGameRound {
           return;
       }
       
-      _logger.info('Dutch: Computer decision: $decision', isOn: LOGGING_SWITCH);
+      _logger.info('Dutch: ✅ AFTER YAML PARSING - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, Decision: ${decision['action']}, Card: ${decision['card_id']}, Reasoning: ${decision['reasoning']}', isOn: LOGGING_SWITCH);
       
       // Execute decision with delay from YAML config
       final delaySeconds = (decision['delay_seconds'] ?? 1.0).toDouble();

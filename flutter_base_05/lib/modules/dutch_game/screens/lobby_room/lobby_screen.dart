@@ -71,13 +71,8 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         _logger.info('LobbyScreen: WebSocket initialization result: $initialized', isOn: LOGGING_SWITCH);
         if (!initialized) {
           _logger.warning('LobbyScreen: WebSocket initialization failed, mounted: $mounted', isOn: LOGGING_SWITCH);
-          // Only navigate if we're still on this screen (mounted)
           if (mounted) {
-            _logger.info('LobbyScreen: Navigating to account screen due to WebSocket init failure', isOn: LOGGING_SWITCH);
-            // Navigate to account screen when WebSocket initialization fails due to auth
-            DutchGameHelpers.navigateToAccountScreen('ws_init_failed', 'Unable to initialize game connection. Please log in to continue.');
-          } else {
-            _logger.warning('LobbyScreen: Screen not mounted, skipping navigation', isOn: LOGGING_SWITCH);
+            _showSnackBar('Unable to initialize game connection', isError: true);
           }
           return;
         }
@@ -92,13 +87,8 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         _logger.info('LobbyScreen: WebSocket connection result: $connected', isOn: LOGGING_SWITCH);
         if (!connected) {
           _logger.warning('LobbyScreen: WebSocket connection failed, mounted: $mounted', isOn: LOGGING_SWITCH);
-          // Only navigate if we're still on this screen (mounted)
           if (mounted) {
-            _logger.info('LobbyScreen: Navigating to account screen due to WebSocket connection failure', isOn: LOGGING_SWITCH);
-            // Navigate to account screen when WebSocket connection fails due to auth
-            DutchGameHelpers.navigateToAccountScreen('ws_connect_failed', 'Unable to connect to game server. Please log in to continue.');
-          } else {
-            _logger.warning('LobbyScreen: Screen not mounted, skipping navigation', isOn: LOGGING_SWITCH);
+            _showSnackBar('Unable to connect to game server', isError: true);
           }
           return;
         }
@@ -113,13 +103,8 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       }
     } catch (e, stackTrace) {
       _logger.error('LobbyScreen: WebSocket initialization error: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
-      // Only navigate if we're still on this screen (mounted)
       if (mounted) {
-        _logger.info('LobbyScreen: Navigating to account screen due to WebSocket error', isOn: LOGGING_SWITCH);
-        // Navigate to account screen when WebSocket initialization error occurs
-        DutchGameHelpers.navigateToAccountScreen('ws_error', 'WebSocket connection error. Please log in to continue.');
-      } else {
-        _logger.warning('LobbyScreen: Screen not mounted, skipping navigation', isOn: LOGGING_SWITCH);
+        _showSnackBar('WebSocket connection error: $e', isError: true);
       }
     }
   }
@@ -206,8 +191,7 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final isReady = await DutchGameHelpers.ensureWebSocketReady();
       if (!isReady) {
         if (mounted) {
-          _showSnackBar('Unable to connect to game server. Please log in to continue.', isError: true);
-          DutchGameHelpers.navigateToAccountScreen('ws_not_ready', 'Unable to connect to game server. Please log in to continue.');
+          _showSnackBar('Unable to connect to game server', isError: true);
         }
         return;
       }
@@ -272,11 +256,15 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       await practiceBridge.initialize();
       _logger.info('🎮 _startPracticeMatch: Practice bridge initialized', isOn: LOGGING_SWITCH);
       
+      // Get difficulty from practice settings
+      final practiceDifficulty = updatedPracticeSettings['difficulty'] as String? ?? 'medium';
+      
       final practiceRoomId = await practiceBridge.startPracticeSession(
         userId: currentUserId,
         maxPlayers: 4,
         minPlayers: 2,
         gameType: 'practice',
+        difficulty: practiceDifficulty, // Pass difficulty from lobby selection
       );
       _logger.info('🎮 _startPracticeMatch: Practice room created: $practiceRoomId', isOn: LOGGING_SWITCH);
       

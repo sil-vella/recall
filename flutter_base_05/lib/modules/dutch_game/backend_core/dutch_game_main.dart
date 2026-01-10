@@ -3,7 +3,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for leave_room hook testing
+const bool LOGGING_SWITCH = true; // Enabled for rank-based matching testing
 
 /// Entry point for registering Dutch game module components with the server.
 class DutchGameModule {
@@ -54,6 +54,50 @@ class DutchGameModule {
 
       _logger.info('🎣 room_created: Creating game for room $roomId with player ID $sessionId', isOn: LOGGING_SWITCH);
 
+      // Check if this is a practice room (practice rooms start with "practice_room_")
+      final isPracticeMode = roomId.startsWith('practice_room_');
+      
+      String? roomDifficulty;
+      
+      if (isPracticeMode) {
+        // For practice rooms: get difficulty from hook data (passed from Flutter lobby selection)
+        final practiceDifficulty = data['difficulty'] as String?;
+        if (practiceDifficulty != null) {
+          roomDifficulty = practiceDifficulty.toLowerCase();
+          _logger.info('🎣 room_created: Practice mode - using difficulty from hook data: $roomDifficulty', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.warning('🎣 room_created: Practice mode but no difficulty in hook data, defaulting to medium', isOn: LOGGING_SWITCH);
+          roomDifficulty = 'medium'; // Default for practice if not provided
+        }
+        
+        // Set room difficulty
+        final room = roomManager.getRoomInfo(roomId);
+        if (room != null) {
+          room.difficulty = roomDifficulty;
+          _logger.info('🎣 room_created: Set practice room difficulty to $roomDifficulty for room $roomId', isOn: LOGGING_SWITCH);
+        }
+      } else {
+        // For multiplayer rooms: get creator's rank from session data and set room difficulty
+        _logger.info('🎣 room_created: Multiplayer mode - getting rank for session $sessionId', isOn: LOGGING_SWITCH);
+        final creatorRank = server.getUserRankForSession(sessionId);
+        _logger.info('🎣 room_created: Creator rank for session $sessionId: $creatorRank', isOn: LOGGING_SWITCH);
+        if (creatorRank != null) {
+          _logger.info('🎣 room_created: Creator rank is not null, getting room info', isOn: LOGGING_SWITCH);
+          final room = roomManager.getRoomInfo(roomId);
+          _logger.info('🎣 room_created: Room info retrieved: ${room != null ? "found" : "null"}', isOn: LOGGING_SWITCH);
+          if (room != null) {
+            room.difficulty = creatorRank.toLowerCase();
+            roomDifficulty = creatorRank.toLowerCase();
+            _logger.info('🎣 room_created: Set room difficulty to $roomDifficulty for room $roomId', isOn: LOGGING_SWITCH);
+          } else {
+            _logger.warning('🎣 room_created: Room $roomId not found in roomManager', isOn: LOGGING_SWITCH);
+          }
+        } else {
+          _logger.warning('🎣 room_created: Creator rank is null for session $sessionId', isOn: LOGGING_SWITCH);
+        }
+      }
+      _logger.info('🎣 room_created: Final roomDifficulty value: $roomDifficulty', isOn: LOGGING_SWITCH);
+
       // Create GameRound instance via registry (includes ServerGameStateCallback)
       GameRegistry.instance.getOrCreate(roomId, server);
 
@@ -62,6 +106,7 @@ class DutchGameModule {
       final store = GameStateStore.instance;
       store.mergeRoot(roomId, {
         'game_id': roomId,
+        'roomDifficulty': roomDifficulty, // Store room difficulty in state
         'game_state': {
           'gameId': roomId,
           'gameName': 'Game_$roomId',
@@ -142,6 +187,38 @@ class DutchGameModule {
         // Still send snapshot
         _sendGameSnapshot(sessionId, roomId);
         return;
+      }
+
+      // Set room difficulty if not already set
+      // For practice rooms: difficulty is already set in room_created hook
+      // For multiplayer rooms: first human player sets it from their rank
+      final room = roomManager.getRoomInfo(roomId);
+      String? roomDifficulty;
+      final isPracticeMode = roomId.startsWith('practice_room_');
+      
+      if (room != null && room.difficulty == null && !isPracticeMode) {
+        // Only try to get rank for multiplayer rooms (practice rooms already have difficulty set)
+        final joinerRank = server.getUserRankForSession(sessionId);
+        if (joinerRank != null) {
+          room.difficulty = joinerRank.toLowerCase();
+          roomDifficulty = joinerRank.toLowerCase();
+          _logger.info('🎣 room_joined: Set room difficulty to $joinerRank for room $roomId (first human player)', isOn: LOGGING_SWITCH);
+        }
+      } else if (room != null && room.difficulty != null) {
+        roomDifficulty = room.difficulty;
+        _logger.info('🎣 room_joined: Room $roomId already has difficulty set to ${room.difficulty}', isOn: LOGGING_SWITCH);
+      } else if (isPracticeMode && room != null && room.difficulty == null) {
+        // Practice room but difficulty not set - should have been set in room_created, default to medium
+        room.difficulty = 'medium';
+        roomDifficulty = 'medium';
+        _logger.warning('🎣 room_joined: Practice room $roomId has no difficulty, defaulting to medium', isOn: LOGGING_SWITCH);
+      }
+      
+      // Update game state with room difficulty
+      if (roomDifficulty != null) {
+        final stateRoot = store.getState(roomId);
+        stateRoot['roomDifficulty'] = roomDifficulty;
+        store.setGameState(roomId, stateRoot['game_state'] as Map<String, dynamic>);
       }
 
       // Add new player - use sessionId as player ID

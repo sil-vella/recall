@@ -1,4 +1,5 @@
 import '../../utils/platform/shared_imports.dart';
+import '../utils/rank_matcher.dart';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
@@ -6,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for practice match debugging
+const bool LOGGING_SWITCH = true; // Enabled for rank-based matching and comp player testing
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -255,9 +256,29 @@ class GameEventCoordinator {
     final existingNames = players.map((p) => (p['name'] ?? '').toString()).toSet();
     int cpuIndexBase = 1;
     
+    // Get room difficulty for practice mode (from room or state)
+    String practiceDifficulty = 'medium'; // Default fallback
+    if (isPracticeMode) {
+      // Try to get difficulty from room first
+      final roomDifficulty = roomInfo?.difficulty;
+      if (roomDifficulty != null && roomDifficulty.isNotEmpty) {
+        practiceDifficulty = roomDifficulty.toLowerCase();
+        _logger.info('GameEventCoordinator: Practice mode - using room difficulty: $practiceDifficulty', isOn: LOGGING_SWITCH);
+      } else {
+        // Fallback to state
+        final stateDifficulty = stateRoot['roomDifficulty'] as String?;
+        if (stateDifficulty != null && stateDifficulty.isNotEmpty) {
+          practiceDifficulty = stateDifficulty.toLowerCase();
+          _logger.info('GameEventCoordinator: Practice mode - using state difficulty: $practiceDifficulty', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.warning('GameEventCoordinator: Practice mode - no difficulty found, defaulting to medium', isOn: LOGGING_SWITCH);
+        }
+      }
+    }
+    
     // Skip comp player fetching for practice mode - use simulated CPU players
     if (isPracticeMode) {
-      _logger.info('GameEventCoordinator: Practice mode detected - using simulated CPU players', isOn: LOGGING_SWITCH);
+      _logger.info('GameEventCoordinator: Practice mode detected - using simulated CPU players with difficulty: $practiceDifficulty', isOn: LOGGING_SWITCH);
       // Create simulated CPU players (existing logic)
       while (needed > 0 && players.length < maxPlayers) {
         String name;
@@ -276,7 +297,7 @@ class GameEventCoordinator {
           'known_cards': <String, dynamic>{},
           'collection_rank_cards': <String>[],
           'isActive': true,  // Required for same rank play filtering
-          'difficulty': 'medium',  // Default difficulty for computer players
+          'difficulty': practiceDifficulty,  // Use practice difficulty from lobby selection
         });
         existingNames.add(name);  // Track name to avoid duplicates
         needed--;
@@ -288,9 +309,19 @@ class GameEventCoordinator {
       int compPlayersAdded = 0;
       int remainingNeeded = needed;
       
+      // Get room difficulty from roomInfo or state, and calculate compatible ranks
+      final roomDifficulty = roomInfo?.difficulty ?? stateRoot['roomDifficulty'] as String?;
+      List<String>? rankFilter;
+      if (roomDifficulty != null) {
+        rankFilter = RankMatcher.getCompatibleRanks(roomDifficulty);
+        _logger.info('GameEventCoordinator: Room difficulty is $roomDifficulty, compatible ranks: $rankFilter', isOn: LOGGING_SWITCH);
+      } else {
+        _logger.info('GameEventCoordinator: Room has no difficulty set, will fetch comp players without rank filter', isOn: LOGGING_SWITCH);
+      }
+      
       try {
-        // Fetch comp players from Flask backend
-        final compPlayersResponse = await server.pythonClient.getCompPlayers(needed);
+        // Fetch comp players from Flask backend with rank filter
+        final compPlayersResponse = await server.pythonClient.getCompPlayers(needed, rankFilter: rankFilter);
         final success = compPlayersResponse['success'] as bool? ?? false;
         final compPlayersList = compPlayersResponse['comp_players'] as List<dynamic>? ?? [];
         final returnedCount = compPlayersResponse['count'] as int? ?? 0;
@@ -306,6 +337,11 @@ class GameEventCoordinator {
             final userId = compPlayerData['user_id'] as String? ?? '';
             final username = compPlayerData['username'] as String? ?? 'CompPlayer';
             final email = compPlayerData['email'] as String? ?? '';
+            final rank = compPlayerData['rank'] as String? ?? 'beginner';
+            final level = compPlayerData['level'] as int? ?? 1;
+            
+            // Map rank to YAML difficulty for AI behavior
+            final difficulty = RankMatcher.rankToDifficulty(rank);
             
             // Generate a unique player ID (use userId as base, but ensure uniqueness)
             // For comp players, we can use userId directly or create a sessionId-like ID
@@ -331,7 +367,9 @@ class GameEventCoordinator {
               'known_cards': <String, dynamic>{},
               'collection_rank_cards': <String>[],
               'isActive': true,  // Required for same rank play filtering
-              'difficulty': 'medium',  // Default difficulty for computer players
+              'difficulty': difficulty,  // Mapped from player rank
+              'rank': rank,  // Store player rank for reference
+              'level': level,  // Store player level for reference
               'userId': userId,  // Store userId for coin deduction logic
               'email': email,  // Store email for reference
             });
@@ -339,12 +377,75 @@ class GameEventCoordinator {
             compPlayersAdded++;
             remainingNeeded--;
             
-            _logger.info('GameEventCoordinator: Added comp player - id: $playerId, name: $uniqueName, userId: $userId', isOn: LOGGING_SWITCH);
+            _logger.info('GameEventCoordinator: Added comp player - id: $playerId, name: $uniqueName, userId: $userId, rank: $rank, difficulty: $difficulty', isOn: LOGGING_SWITCH);
           }
           
           _logger.info('GameEventCoordinator: Added $compPlayersAdded comp player(s) from database', isOn: LOGGING_SWITCH);
         } else {
           _logger.warning('GameEventCoordinator: No comp players returned from Flask backend (success: $success, count: $returnedCount)', isOn: LOGGING_SWITCH);
+          
+          // If rank filter was used and no players found, retry without filter
+          if (rankFilter != null && rankFilter.isNotEmpty && remainingNeeded > 0) {
+            _logger.info('GameEventCoordinator: No comp players found with rank filter, retrying without filter', isOn: LOGGING_SWITCH);
+            try {
+              final fallbackResponse = await server.pythonClient.getCompPlayers(remainingNeeded);
+              final fallbackSuccess = fallbackResponse['success'] as bool? ?? false;
+              final fallbackPlayersList = fallbackResponse['comp_players'] as List<dynamic>? ?? [];
+              final fallbackCount = fallbackResponse['count'] as int? ?? 0;
+              
+              if (fallbackSuccess && fallbackPlayersList.isNotEmpty) {
+                _logger.info('GameEventCoordinator: Retrieved $fallbackCount comp player(s) without rank filter', isOn: LOGGING_SWITCH);
+                
+                // Add comp players to players list
+                for (final compPlayerData in fallbackPlayersList) {
+                  if (compPlayerData is! Map<String, dynamic>) continue;
+                  if (players.length >= maxPlayers) break;
+                  
+                  final userId = compPlayerData['user_id'] as String? ?? '';
+                  final username = compPlayerData['username'] as String? ?? 'CompPlayer';
+                  final email = compPlayerData['email'] as String? ?? '';
+                  final rank = compPlayerData['rank'] as String? ?? 'beginner';
+                  final level = compPlayerData['level'] as int? ?? 1;
+                  
+                  // Map rank to YAML difficulty for AI behavior
+                  final difficulty = RankMatcher.rankToDifficulty(rank);
+                  
+                  final playerId = 'comp_${userId}_${DateTime.now().microsecondsSinceEpoch}';
+                  
+                  String uniqueName = username;
+                  int nameSuffix = 1;
+                  while (existingNames.contains(uniqueName)) {
+                    uniqueName = '$username$nameSuffix';
+                    nameSuffix++;
+                  }
+                  existingNames.add(uniqueName);
+                  
+                  players.add({
+                    'id': playerId,
+                    'name': uniqueName,
+                    'isHuman': false,
+                    'status': 'waiting',
+                    'hand': <Map<String, dynamic>>[],
+                    'visible_cards': <Map<String, dynamic>>[],
+                    'points': 0,
+                    'known_cards': <String, dynamic>{},
+                    'collection_rank_cards': <String>[],
+                    'isActive': true,
+                    'difficulty': difficulty,  // Mapped from player rank
+                    'rank': rank,  // Store player rank for reference
+                    'level': level,  // Store player level for reference
+                    'userId': userId,
+                    'email': email,
+                  });
+                  
+                  compPlayersAdded++;
+                  remainingNeeded--;
+                }
+              }
+            } catch (fallbackError) {
+              _logger.error('GameEventCoordinator: Error in fallback comp player fetch: $fallbackError', isOn: LOGGING_SWITCH);
+            }
+          }
         }
       } catch (e) {
         _logger.error('GameEventCoordinator: Error fetching comp players from Flask backend: $e', isOn: LOGGING_SWITCH);
@@ -719,22 +820,22 @@ class GameEventCoordinator {
 
     if (isClearAndCollect) {
       // Collection mode: Select one card for collection, store other in known_cards
-    // Decide collection rank card using priority logic
-    final selectedCardForCollection = _selectCardForCollection(card1, card2, random);
+      // Decide collection rank card using priority logic
+      final selectedCardForCollection = _selectCardForCollection(card1, card2, random);
 
-    // Determine which card is NOT the collection card
-    final nonCollectionCard = selectedCardForCollection['cardId'] == card1['cardId'] ? card2 : card1;
+      // Determine which card is NOT the collection card
+      final nonCollectionCard = selectedCardForCollection['cardId'] == card1['cardId'] ? card2 : card1;
 
-    // Store only the non-collection card in known_cards with card-ID-based structure
-    final cardId = nonCollectionCard['cardId'] as String;
-    (knownCards[playerId] as Map<String, dynamic>)[cardId] = nonCollectionCard;
-    computerPlayer['known_cards'] = knownCards;
+      // Store only the non-collection card in known_cards with card-ID-based structure
+      final cardId = nonCollectionCard['cardId'] as String;
+      (knownCards[playerId] as Map<String, dynamic>)[cardId] = nonCollectionCard;
+      computerPlayer['known_cards'] = knownCards;
 
-    // Add the selected card full data to player's collection_rank_cards list
-    final collectionRankCards = computerPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-    collectionRankCards.add(selectedCardForCollection);
-    computerPlayer['collection_rank_cards'] = collectionRankCards;
-    computerPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
+      // Add the selected card full data to player's collection_rank_cards list
+      final collectionRankCards = computerPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+      collectionRankCards.add(selectedCardForCollection);
+      computerPlayer['collection_rank_cards'] = collectionRankCards;
+      computerPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
 
       _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} peeked at cards at positions $indices', isOn: LOGGING_SWITCH);
       _logger.info('GameEventCoordinator: AI ${computerPlayer['name']} selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
@@ -995,37 +1096,37 @@ class GameEventCoordinator {
 
       if (isClearAndCollect) {
         // Collection mode: Select one card for collection, store other in known_cards
-      // Auto-select collection rank card for human player (same logic as AI)
-      // IMPORTANT: Must select collection card BEFORE storing in known_cards
-      // so we can exclude it from known_cards (just like computer players)
-      final selectedCardForCollection = _selectCardForCollection(cardsToPeek[0], cardsToPeek[1], Random());
-      
-      // Determine which card is NOT the collection card
-      final nonCollectionCard = selectedCardForCollection['cardId'] == cardsToPeek[0]['cardId'] 
-          ? cardsToPeek[1] 
-          : cardsToPeek[0];
+        // Auto-select collection rank card for human player (same logic as AI)
+        // IMPORTANT: Must select collection card BEFORE storing in known_cards
+        // so we can exclude it from known_cards (just like computer players)
+        final selectedCardForCollection = _selectCardForCollection(cardsToPeek[0], cardsToPeek[1], Random());
+        
+        // Determine which card is NOT the collection card
+        final nonCollectionCard = selectedCardForCollection['cardId'] == cardsToPeek[0]['cardId'] 
+            ? cardsToPeek[1] 
+            : cardsToPeek[0];
 
-      // Store only the non-collection card in known_cards with card-ID-based structure
-      // (same logic as computer players - collection cards should NOT be in known_cards)
-      final nonCollectionCardId = nonCollectionCard['cardId'] as String;
-      (humanKnownCards[playerId] as Map<String, dynamic>)[nonCollectionCardId] = nonCollectionCard;
-      humanPlayer['known_cards'] = humanKnownCards;
-      // Also update in games map for consistency
-      playerInGamesMap['known_cards'] = humanKnownCards;
-
-      final fullCardData = _getCardById(gameState, selectedCardForCollection['cardId'] as String);
-      if (fullCardData != null) {
-        final collectionRankCards = humanPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-        collectionRankCards.add(fullCardData);
-        humanPlayer['collection_rank_cards'] = collectionRankCards;
-        humanPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
+        // Store only the non-collection card in known_cards with card-ID-based structure
+        // (same logic as computer players - collection cards should NOT be in known_cards)
+        final nonCollectionCardId = nonCollectionCard['cardId'] as String;
+        (humanKnownCards[playerId] as Map<String, dynamic>)[nonCollectionCardId] = nonCollectionCard;
+        humanPlayer['known_cards'] = humanKnownCards;
         // Also update in games map for consistency
-        playerInGamesMap['collection_rank_cards'] = collectionRankCards;
-        playerInGamesMap['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
+        playerInGamesMap['known_cards'] = humanKnownCards;
 
-        _logger.info('GameEventCoordinator: Human player selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
-      } else {
-        _logger.error('GameEventCoordinator: Failed to get full card data for human collection rank card', isOn: LOGGING_SWITCH);
+        final fullCardData = _getCardById(gameState, selectedCardForCollection['cardId'] as String);
+        if (fullCardData != null) {
+          final collectionRankCards = humanPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+          collectionRankCards.add(fullCardData);
+          humanPlayer['collection_rank_cards'] = collectionRankCards;
+          humanPlayer['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
+          // Also update in games map for consistency
+          playerInGamesMap['collection_rank_cards'] = collectionRankCards;
+          playerInGamesMap['collection_rank'] = selectedCardForCollection['rank']?.toString() ?? 'unknown';
+
+          _logger.info('GameEventCoordinator: Human player selected ${selectedCardForCollection['rank']} of ${selectedCardForCollection['suit']} for collection (${selectedCardForCollection['points']} points)', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.error('GameEventCoordinator: Failed to get full card data for human collection rank card', isOn: LOGGING_SWITCH);
         }
       } else {
         // Clear mode: Store BOTH cards in known_cards (no collection)

@@ -273,11 +273,13 @@ class DemoActionHandler {
       final practiceBridge = PracticeModeBridge.instance;
       await practiceBridge.initialize();
 
+      // Demo matches use medium difficulty by default
       final practiceRoomId = await practiceBridge.startPracticeSession(
         userId: currentUserId,
         maxPlayers: 4,
         minPlayers: 2,
         gameType: 'practice',
+        difficulty: 'medium', // Demo matches use medium difficulty
       );
 
       _logger.info('🎮 DemoActionHandler: Practice room created: $practiceRoomId', isOn: LOGGING_SWITCH);

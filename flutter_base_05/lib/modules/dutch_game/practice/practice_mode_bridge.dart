@@ -95,6 +95,7 @@ class PracticeModeBridge {
     int? maxPlayers,
     int? minPlayers,
     String? gameType,
+    String? difficulty, // Practice difficulty from lobby selection
   }) async {
     if (!_initialized) {
       await initialize();
@@ -104,7 +105,7 @@ class PracticeModeBridge {
     _currentSessionId = 'practice_session_$userId';
     _currentUserId = userId;
 
-    _logger.info('🏗️ PracticeModeBridge: Creating practice room for user $userId', isOn: LOGGING_SWITCH);
+    _logger.info('🏗️ PracticeModeBridge: Creating practice room for user $userId with difficulty: $difficulty', isOn: LOGGING_SWITCH);
     
     // Create a practice room
     _currentRoomId = _roomManager.createRoom(
@@ -127,6 +128,7 @@ class PracticeModeBridge {
       'max_size': maxPlayers ?? 4,
       'min_players': minPlayers ?? 2,
       'game_type': gameType ?? 'practice',
+      'difficulty': difficulty ?? 'medium', // Pass difficulty from lobby selection
       'current_size': 1,
       'permission': 'private',
       'created_at': DateTime.now().toIso8601String(),

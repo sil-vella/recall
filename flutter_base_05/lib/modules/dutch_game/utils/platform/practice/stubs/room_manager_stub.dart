@@ -11,6 +11,7 @@ class RoomInfoStub {
   final String permission;
   final int turnTimeLimit;
   final bool autoStart;
+  String? difficulty; // Room difficulty (for practice: from lobby selection, for multiplayer: from creator's rank)
 
   RoomInfoStub({
     required this.roomId,
@@ -22,6 +23,7 @@ class RoomInfoStub {
     this.permission = 'private',
     this.turnTimeLimit = 30,
     this.autoStart = false,
+    this.difficulty,
   });
 }
 

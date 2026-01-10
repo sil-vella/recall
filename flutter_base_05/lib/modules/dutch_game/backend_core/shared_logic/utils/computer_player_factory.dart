@@ -4,7 +4,7 @@ import '../../../utils/platform/shared_imports.dart';
 import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true; // Enabled for rank-based matching and debugging
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {
@@ -47,14 +47,18 @@ class ComputerPlayerFactory {
 
   /// Get computer player decision for play card event
   Map<String, dynamic> getPlayCardDecision(String difficulty, Map<String, dynamic> gameState, List<String> availableCards) {
-    _logger.info('Dutch: DEBUG - getPlayCardDecision called with difficulty: $difficulty, availableCards: ${availableCards.length}', isOn: LOGGING_SWITCH);
+    // Get player info for logging
+    final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+    final playerName = currentPlayer?['name']?.toString() ?? 'unknown';
+    final playerRank = currentPlayer?['rank']?.toString() ?? 'unknown';
+    
+    _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getPlayCardDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, AvailableCards: ${availableCards.length}', isOn: LOGGING_SWITCH);
     
     final decisionDelay = config.getDecisionDelay(difficulty);
     final cardSelection = config.getCardSelectionStrategy(difficulty);
     final evaluationWeights = config.getCardEvaluationWeights();
     
-    _logger.info('Dutch: DEBUG - Card selection strategy: $cardSelection', isOn: LOGGING_SWITCH);
-    _logger.info('Dutch: DEBUG - Evaluation weights: $evaluationWeights', isOn: LOGGING_SWITCH);
+    _logger.info('Dutch: 📋 YAML Config Loaded - Difficulty: $difficulty, DecisionDelay: ${decisionDelay}s, Strategy: ${cardSelection['strategy']}, Weights: $evaluationWeights', isOn: LOGGING_SWITCH);
     
     if (availableCards.isEmpty) {
       _logger.warning('Dutch: DEBUG - No cards available to play', isOn: LOGGING_SWITCH);
@@ -72,7 +76,7 @@ class ComputerPlayerFactory {
     // Select card based on strategy
     final selectedCard = _selectCard(availableCards, cardSelection, evaluationWeights, gameState);
     
-    _logger.info('Dutch: DEBUG - Selected card: $selectedCard', isOn: LOGGING_SWITCH);
+    _logger.info('Dutch: ✅ AFTER YAML PARSING (getPlayCardDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, SelectedCard: $selectedCard, Strategy: ${cardSelection['strategy']}', isOn: LOGGING_SWITCH);
     
     return {
       'action': 'play_card',
@@ -150,7 +154,16 @@ class ComputerPlayerFactory {
 
   /// Get computer player decision for Jack swap event
   Map<String, dynamic> getJackSwapDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
-    _logger.info('Dutch: DEBUG - getJackSwapDecision called with difficulty: $difficulty, playerId: $playerId', isOn: LOGGING_SWITCH);
+    // Get player info for logging
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    final player = players.firstWhere(
+      (p) => p['id']?.toString() == playerId,
+      orElse: () => <String, dynamic>{},
+    );
+    final playerName = player['name']?.toString() ?? playerId;
+    final playerRank = player['rank']?.toString() ?? 'unknown';
+    
+    _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getJackSwapDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty', isOn: LOGGING_SWITCH);
     
     final decisionDelay = config.getDecisionDelay(difficulty);
     
@@ -161,7 +174,7 @@ class ComputerPlayerFactory {
     final jackSwapConfig = config.getEventConfig('jack_swap');
     final strategyRules = jackSwapConfig['strategy_rules'] as List<dynamic>? ?? [];
     
-    _logger.info('Dutch: DEBUG - YAML strategy rules count: ${strategyRules.length}', isOn: LOGGING_SWITCH);
+    _logger.info('Dutch: 📋 YAML Config Loaded (jack_swap) - Difficulty: $difficulty, RulesCount: ${strategyRules.length}', isOn: LOGGING_SWITCH);
     if (strategyRules.isNotEmpty) {
       _logger.info('Dutch: DEBUG - YAML rules: ${strategyRules.map((r) => r['name']).join(', ')}', isOn: LOGGING_SWITCH);
     }
@@ -188,7 +201,7 @@ class ComputerPlayerFactory {
     // Evaluate rules using YAML rules engine
     final decision = _evaluateSpecialPlayRules(strategyRules, gameData, shouldPlayOptimal, 'jack_swap');
     
-    _logger.info('Dutch: DEBUG - YAML rules engine returned decision: $decision', isOn: LOGGING_SWITCH);
+    _logger.info('Dutch: ✅ AFTER YAML PARSING (getJackSwapDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, Use: ${decision['use']}, Reasoning: ${decision['reasoning']}', isOn: LOGGING_SWITCH);
     
     // Merge decision with delay and difficulty
     return {
@@ -206,7 +219,16 @@ class ComputerPlayerFactory {
 
   /// Get computer player decision for Queen peek event
   Map<String, dynamic> getQueenPeekDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
-    _logger.info('Dutch: DEBUG - getQueenPeekDecision called with difficulty: $difficulty, playerId: $playerId', isOn: LOGGING_SWITCH);
+    // Get player info for logging
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    final player = players.firstWhere(
+      (p) => p['id']?.toString() == playerId,
+      orElse: () => <String, dynamic>{},
+    );
+    final playerName = player['name']?.toString() ?? playerId;
+    final playerRank = player['rank']?.toString() ?? 'unknown';
+    
+    _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getQueenPeekDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty', isOn: LOGGING_SWITCH);
     
     final decisionDelay = config.getDecisionDelay(difficulty);
     
@@ -217,7 +239,7 @@ class ComputerPlayerFactory {
     final queenPeekConfig = config.getEventConfig('queen_peek');
     final strategyRules = queenPeekConfig['strategy_rules'] as List<dynamic>? ?? [];
     
-    _logger.info('Dutch: DEBUG - YAML strategy rules count: ${strategyRules.length}', isOn: LOGGING_SWITCH);
+    _logger.info('Dutch: 📋 YAML Config Loaded (queen_peek) - Difficulty: $difficulty, RulesCount: ${strategyRules.length}', isOn: LOGGING_SWITCH);
     if (strategyRules.isNotEmpty) {
       _logger.info('Dutch: DEBUG - YAML rules: ${strategyRules.map((r) => r['name']).join(', ')}', isOn: LOGGING_SWITCH);
     }
@@ -244,7 +266,7 @@ class ComputerPlayerFactory {
     // Evaluate rules using YAML rules engine
     final decision = _evaluateSpecialPlayRules(strategyRules, gameData, shouldPlayOptimal, 'queen_peek');
     
-    _logger.info('Dutch: DEBUG - YAML rules engine returned decision: $decision', isOn: LOGGING_SWITCH);
+    _logger.info('Dutch: ✅ AFTER YAML PARSING (getQueenPeekDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, Use: ${decision['use']}, Reasoning: ${decision['reasoning']}', isOn: LOGGING_SWITCH);
     
     // Merge decision with delay and difficulty
     return {
@@ -763,10 +785,10 @@ class ComputerPlayerFactory {
     final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
     final actingPlayerCollectionCards = <Map<String, dynamic>>[];
     if (isClearAndCollect) {
-    final collectionRankCards = actingPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
-    for (final card in collectionRankCards) {
-      if (card is Map<String, dynamic>) {
-        actingPlayerCollectionCards.add(Map<String, dynamic>.from(card));
+      final collectionRankCards = actingPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
+      for (final card in collectionRankCards) {
+        if (card is Map<String, dynamic>) {
+          actingPlayerCollectionCards.add(Map<String, dynamic>.from(card));
         }
       }
     }
@@ -808,10 +830,10 @@ class ComputerPlayerFactory {
       // Extract collection cards (full data) - only if collection mode is enabled
       final collectionCards = <Map<String, dynamic>>[];
       if (isClearAndCollect) {
-      final playerCollectionCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
-      for (final card in playerCollectionCards) {
-        if (card is Map<String, dynamic>) {
-          collectionCards.add(Map<String, dynamic>.from(card));
+        final playerCollectionCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+        for (final card in playerCollectionCards) {
+          if (card is Map<String, dynamic>) {
+            collectionCards.add(Map<String, dynamic>.from(card));
           }
         }
       }

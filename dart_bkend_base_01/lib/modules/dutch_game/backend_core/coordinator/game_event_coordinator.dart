@@ -1,5 +1,5 @@
 import '../../utils/platform/shared_imports.dart';
-import '../../utils/rank_matcher.dart';
+import '../utils/rank_matcher.dart';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
@@ -256,9 +256,29 @@ class GameEventCoordinator {
     final existingNames = players.map((p) => (p['name'] ?? '').toString()).toSet();
     int cpuIndexBase = 1;
     
+    // Get room difficulty for practice mode (from room or state)
+    String practiceDifficulty = 'medium'; // Default fallback
+    if (isPracticeMode) {
+      // Try to get difficulty from room first
+      final roomDifficulty = roomInfo?.difficulty;
+      if (roomDifficulty != null && roomDifficulty.isNotEmpty) {
+        practiceDifficulty = roomDifficulty.toLowerCase();
+        _logger.info('GameEventCoordinator: Practice mode - using room difficulty: $practiceDifficulty', isOn: LOGGING_SWITCH);
+      } else {
+        // Fallback to state
+        final stateDifficulty = stateRoot['roomDifficulty'] as String?;
+        if (stateDifficulty != null && stateDifficulty.isNotEmpty) {
+          practiceDifficulty = stateDifficulty.toLowerCase();
+          _logger.info('GameEventCoordinator: Practice mode - using state difficulty: $practiceDifficulty', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.warning('GameEventCoordinator: Practice mode - no difficulty found, defaulting to medium', isOn: LOGGING_SWITCH);
+        }
+      }
+    }
+    
     // Skip comp player fetching for practice mode - use simulated CPU players
     if (isPracticeMode) {
-      _logger.info('GameEventCoordinator: Practice mode detected - using simulated CPU players', isOn: LOGGING_SWITCH);
+      _logger.info('GameEventCoordinator: Practice mode detected - using simulated CPU players with difficulty: $practiceDifficulty', isOn: LOGGING_SWITCH);
       // Create simulated CPU players (existing logic)
       while (needed > 0 && players.length < maxPlayers) {
         String name;
@@ -277,7 +297,7 @@ class GameEventCoordinator {
           'known_cards': <String, dynamic>{},
           'collection_rank_cards': <String>[],
           'isActive': true,  // Required for same rank play filtering
-          'difficulty': 'medium',  // Default difficulty for computer players
+          'difficulty': practiceDifficulty,  // Use practice difficulty from lobby selection
         });
         existingNames.add(name);  // Track name to avoid duplicates
         needed--;
@@ -317,6 +337,11 @@ class GameEventCoordinator {
             final userId = compPlayerData['user_id'] as String? ?? '';
             final username = compPlayerData['username'] as String? ?? 'CompPlayer';
             final email = compPlayerData['email'] as String? ?? '';
+            final rank = compPlayerData['rank'] as String? ?? 'beginner';
+            final level = compPlayerData['level'] as int? ?? 1;
+            
+            // Map rank to YAML difficulty for AI behavior
+            final difficulty = RankMatcher.rankToDifficulty(rank);
             
             // Generate a unique player ID (use userId as base, but ensure uniqueness)
             // For comp players, we can use userId directly or create a sessionId-like ID
@@ -342,7 +367,9 @@ class GameEventCoordinator {
               'known_cards': <String, dynamic>{},
               'collection_rank_cards': <String>[],
               'isActive': true,  // Required for same rank play filtering
-              'difficulty': 'medium',  // Default difficulty for computer players
+              'difficulty': difficulty,  // Mapped from player rank
+              'rank': rank,  // Store player rank for reference
+              'level': level,  // Store player level for reference
               'userId': userId,  // Store userId for coin deduction logic
               'email': email,  // Store email for reference
             });
@@ -350,7 +377,7 @@ class GameEventCoordinator {
             compPlayersAdded++;
             remainingNeeded--;
             
-            _logger.info('GameEventCoordinator: Added comp player - id: $playerId, name: $uniqueName, userId: $userId', isOn: LOGGING_SWITCH);
+            _logger.info('GameEventCoordinator: Added comp player - id: $playerId, name: $uniqueName, userId: $userId, rank: $rank, difficulty: $difficulty', isOn: LOGGING_SWITCH);
           }
           
           _logger.info('GameEventCoordinator: Added $compPlayersAdded comp player(s) from database', isOn: LOGGING_SWITCH);
@@ -377,6 +404,11 @@ class GameEventCoordinator {
                   final userId = compPlayerData['user_id'] as String? ?? '';
                   final username = compPlayerData['username'] as String? ?? 'CompPlayer';
                   final email = compPlayerData['email'] as String? ?? '';
+                  final rank = compPlayerData['rank'] as String? ?? 'beginner';
+                  final level = compPlayerData['level'] as int? ?? 1;
+                  
+                  // Map rank to YAML difficulty for AI behavior
+                  final difficulty = RankMatcher.rankToDifficulty(rank);
                   
                   final playerId = 'comp_${userId}_${DateTime.now().microsecondsSinceEpoch}';
                   
@@ -399,7 +431,9 @@ class GameEventCoordinator {
                     'known_cards': <String, dynamic>{},
                     'collection_rank_cards': <String>[],
                     'isActive': true,
-                    'difficulty': 'medium',
+                    'difficulty': difficulty,  // Mapped from player rank
+                    'rank': rank,  // Store player rank for reference
+                    'level': level,  // Store player level for reference
                     'userId': userId,
                     'email': email,
                   });

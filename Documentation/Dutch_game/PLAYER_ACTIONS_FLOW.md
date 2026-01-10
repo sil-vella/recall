@@ -304,7 +304,11 @@ All player actions originate from the **Game Play Screen** (`game_play_screen.da
 
 1. **Random Join**: When user clicks "Play Dutch" or "Play Dutch: Clear and Collect" buttons
 2. **Create Room**: When user creates a new game room
+   - Room difficulty is set to creator's rank (multiplayer) or selected difficulty (practice)
+   - See [Rank-Based Matching](#rank-based-matching) for details
 3. **Join Room**: When user joins an existing room
+   - User's rank must be compatible with room difficulty (±1 rank)
+   - See [Rank-Based Matching](#rank-based-matching) for details
 
 **Connection Flow:**
 ```
@@ -901,6 +905,8 @@ switch (event) {
 - Only room owner can start match
 - Auto-creates computer players to fill to `maxPlayers`
 - Uses YAML deck configuration for testing mode support
+- **Rank-Based Matching**: Computer players are created with difficulty matching the room difficulty (selected in lobby)
+- See [Rank-Based Matching](#rank-based-matching) section for details
 
 ### 9. Call Final Round Action
 
@@ -934,6 +940,80 @@ switch (event) {
 - Winner determination uses lowest points (not "final round" as win reason)
 - Final round caller only matters for tie-breaking, not as the win reason itself
 - Win reason displayed in winners modal: "Lowest Points" (not "Final Round")
+
+---
+
+## Rank-Based Matching
+
+### Overview
+
+The system implements rank-based matching to ensure players of similar skill levels are matched together. This applies to both human players joining rooms and computer players being added to games.
+
+### Room Creation
+
+**Multiplayer Mode**:
+- When a human player creates a room, the room's `difficulty` is set to the creator's rank
+- The creator's rank is retrieved from WebSocket session data (`server.getUserRankForSession(sessionId)`)
+- Room difficulty is stored in `room.difficulty` and `stateRoot['roomDifficulty']`
+
+**Practice Mode**:
+- When a practice match is initiated, the user selects a difficulty (easy, medium, hard, expert) in the lobby
+- This difficulty is passed to the `room_created` hook and stored as `room.difficulty`
+- Practice mode CPU players are created with this difficulty
+
+### Room Joining
+
+**Multiplayer Mode**:
+- When a human player attempts to join a room, the system checks rank compatibility
+- Uses `RankMatcher.areRanksCompatible(userRank, roomDifficulty)` to validate
+- Players can only join if their rank is:
+  - The same as room difficulty
+  - One rank below (e.g., `novice` can join `beginner` room)
+  - One rank above (e.g., `expert` can join `advanced` room)
+- If rank is incompatible, a `join_room_error` event is sent
+
+**Random Join**:
+- When finding available rooms for random join, rooms are filtered by rank compatibility
+- Only rooms with compatible difficulty are shown to the player
+- If no compatible rooms exist, a new room is created with the player's rank as difficulty
+
+### Computer Player Selection
+
+When a room needs computer players (after initial delay or for practice mode):
+
+1. **Get Room Difficulty**: Retrieve from `roomInfo.difficulty` or `stateRoot['roomDifficulty']`
+2. **Calculate Compatible Ranks**: Use `RankMatcher.getCompatibleRanks(roomDifficulty)` to get ±1 rank range
+3. **Fetch Comp Players**: Call Flask endpoint with `rank_filter` containing compatible ranks
+4. **Fallback**: If no comp players found with rank filter, retry without filter (ensures game can start)
+5. **Map Difficulty**: For each comp player, map their `rank` to YAML `difficulty` using `RankMatcher.rankToDifficulty()`
+6. **Store in Player Object**: Include `rank`, `level`, and `difficulty` in the player object for AI decision-making
+
+### Rank Hierarchy
+
+The system uses 10 ranks in ascending order:
+1. `beginner` (Levels 1-10)
+2. `novice` (Levels 11-20)
+3. `apprentice` (Levels 21-30)
+4. `skilled` (Levels 31-40)
+5. `advanced` (Levels 41-50)
+6. `expert` (Levels 51-60)
+7. `veteran` (Levels 61-70)
+8. `master` (Levels 71-80)
+9. `elite` (Levels 81-90)
+10. `legend` (Levels 91+)
+
+### Rank-to-Difficulty Mapping
+
+Player ranks are mapped to YAML difficulty levels for AI behavior:
+
+| Rank Range | YAML Difficulty |
+|------------|----------------|
+| `beginner` | `easy` |
+| `novice`, `apprentice` | `medium` |
+| `skilled`, `advanced`, `expert` | `hard` |
+| `veteran`, `master`, `elite`, `legend` | `expert` |
+
+**Implementation**: `RankMatcher.rankToDifficulty(rank)` returns the mapped difficulty.
 
 ---
 

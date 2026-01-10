@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
@@ -19,6 +20,195 @@ import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+
+/// Custom painter for felt texture - creates grainy noise effect
+/// Uses seeded random for consistent, stable texture pattern
+class FeltTexturePainter extends CustomPainter {
+  // Use a fixed seed so the texture pattern is always the same
+  static const int _seed = 42;
+  
+  // Cache the generated pattern points to avoid regenerating on every paint
+  List<_GrainPoint>? _cachedPoints;
+  Size? _cachedSize;
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Regenerate pattern only if size changed
+    if (_cachedPoints == null || _cachedSize != size) {
+      _cachedSize = size;
+      _cachedPoints = [];
+      
+      // Reset random with same seed for consistent pattern
+      final random = math.Random(_seed);
+      final pointCount = (size.width * size.height * 0.15).round();
+      
+      for (int i = 0; i < pointCount; i++) {
+        _cachedPoints!.add(_GrainPoint(
+          x: random.nextDouble() * size.width,
+          y: random.nextDouble() * size.height,
+          opacity: random.nextDouble() * 0.3 + 0.1, // 0.1 to 0.4 opacity
+        ));
+      }
+    }
+    
+    final paint = Paint()
+      ..color = Colors.black
+      ..strokeWidth = 0.5;
+    
+    // Draw cached pattern
+    for (final point in _cachedPoints!) {
+      paint.color = Colors.black.withValues(alpha: point.opacity);
+      canvas.drawCircle(Offset(point.x, point.y), 0.5, paint);
+    }
+  }
+  
+  @override
+  bool shouldRepaint(FeltTexturePainter oldDelegate) {
+    // Only repaint if size changed
+    return oldDelegate._cachedSize != _cachedSize;
+  }
+}
+
+/// Helper class to store grain point data
+class _GrainPoint {
+  final double x;
+  final double y;
+  final double opacity;
+  
+  _GrainPoint({
+    required this.x,
+    required this.y,
+    required this.opacity,
+  });
+}
+
+/// Background widget that only builds once - contains table color and texture
+/// Uses RepaintBoundary to prevent unnecessary repaints
+class TableBackgroundWidget extends StatefulWidget {
+  const TableBackgroundWidget({Key? key}) : super(key: key);
+
+  @override
+  State<TableBackgroundWidget> createState() => _TableBackgroundWidgetState();
+}
+
+class _TableBackgroundWidgetState extends State<TableBackgroundWidget> {
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final height = constraints.maxHeight;
+          
+          // Calculate spotlight positions - evenly spaced vertically
+          // 2 spotlights from left, 2 from right
+          final spotlightSize = 400.0; // Size of circular spotlight
+          final topSpotlightY = height * 0.25; // Top spotlight position
+          final bottomSpotlightY = height * 0.75; // Bottom spotlight position
+          
+          return Stack(
+            children: [
+              // Background color and texture
+              Container(
+                color: AppColors.pokerTableGreen,
+                child: CustomPaint(
+                  painter: FeltTexturePainter(),
+                  size: Size(width, height),
+                ),
+              ),
+              // Left side spotlights (2 evenly spaced) - bright at edge, quick fade
+              Positioned(
+                left: -0,
+                top: topSpotlightY - spotlightSize / 2,
+                child: Container(
+                  width: spotlightSize,
+                  height: spotlightSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      center: Alignment.centerLeft,
+                      radius: 1.0,
+                      colors: [
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.15), // Warm fade
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
+                      ],
+                      stops: const [0.0, 0.05, 0.3], // Fades to zero at 40% - well before edge
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: -0,
+                top: bottomSpotlightY - spotlightSize / 2,
+                child: Container(
+                  width: spotlightSize,
+                  height: spotlightSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      center: Alignment.centerLeft,
+                      radius: 1.0,
+                      colors: [
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.15), // Warm fade
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
+                      ],
+                      stops: const [0.0, 0.05, 0.3], // Fades to zero at 40% - well before edge
+                    ),
+                  ),
+                ),
+              ),
+              // Right side spotlights (2 evenly spaced) - bright at edge, quick fade
+              Positioned(
+                right: -0,
+                top: topSpotlightY - spotlightSize / 2,
+                child: Container(
+                  width: spotlightSize,
+                  height: spotlightSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      center: Alignment.centerRight,
+                      radius: 1.0,
+                      colors: [
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.15), // Warm fade
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
+                      ],
+                      stops: const [0.0, 0.05, 0.3], // Fades to zero at 40% - well before edge
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: -0,
+                top: bottomSpotlightY - spotlightSize / 2,
+                child: Container(
+                  width: spotlightSize,
+                  height: spotlightSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      center: Alignment.centerRight,
+                      radius: 1.0,
+                      colors: [
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.85), // Warm bright at edge
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.15), // Warm fade
+                        AppColors.warmSpotlightColor.withValues(alpha: 0.0), // Warm transparent
+                      ],
+                      stops: const [0.0, 0.05, 0.3], // Fades to zero at 40% - well before edge
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
 
 class GamePlayScreen extends BaseScreen {
   const GamePlayScreen({Key? key}) : super(key: key);
@@ -44,6 +234,9 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   
   // GlobalKey for the main Stack to get exact position for animations
   final GlobalKey _mainStackKey = GlobalKey(); // Track game ID to detect navigation away
+  
+  // Cached background widget - only builds once on screen load
+  late final Widget _tableBackground = const TableBackgroundWidget();
 
   @override
   void initState() {
@@ -299,20 +492,77 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
           clipBehavior: Clip.none,
           children: [
             // Main game content - takes full size of content area
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Game Information Widget - takes natural height
-                const GameInfoWidget(),
-                
-                SizedBox(height: AppPadding.smallPadding.top),
-                
-                // Unified Game Board Widget - takes all remaining available space
-                // It will be scrollable internally with my hand aligned to bottom
-                Expanded(
-                  child: const UnifiedGameBoardWidget(),
-                ),
-              ],
+            // Wrapped in container with layered casino table border effect
+            Container(
+              margin: EdgeInsets.all(AppPadding.mediumPadding.top),
+              child: Stack(
+                children: [
+                  // Outer border layer - dark gray/charcoal
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: AppColors.casinoOuterBorderColor,
+                        width: 20.0,
+                      ),
+                      borderRadius: BorderRadius.circular(24.0),
+                      boxShadow: [
+                        // Strong outer shadow for depth
+                        BoxShadow(
+                          color: AppColors.black.withValues(alpha: 0.8),
+                          blurRadius: 35.0,
+                          spreadRadius: 5.0,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Inner border layer - brownish-orange border only (no fill)
+                  Container(
+                    margin: const EdgeInsets.all(20.0),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: AppColors.casinoBorderColor,
+                        width: 12.0,
+                      ),
+                      borderRadius: BorderRadius.circular(12.0),
+                      // No background color - transparent so table green shows through
+                      color: Colors.transparent,
+                    ),
+                  ),
+                  // Main content with felt texture overlay
+                  Container(
+                    margin: const EdgeInsets.all(32.0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Stack(
+                        children: [
+                          // Background layer - poker table green with felt texture
+                          // Uses cached widget instance that only builds once on screen load
+                          Positioned.fill(
+                            child: _tableBackground,
+                          ),
+                          // Main content - transparent so background shows through
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Game Information Widget - takes natural height
+                              const GameInfoWidget(),
+                              
+                              SizedBox(height: AppPadding.smallPadding.top),
+                              
+                              // Unified Game Board Widget - takes all remaining available space
+                              // It will be scrollable internally with my hand aligned to bottom
+                              Expanded(
+                                child: const UnifiedGameBoardWidget(),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
         
         // Card Animation Layer - full-screen overlay for animated cards

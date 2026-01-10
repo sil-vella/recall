@@ -192,6 +192,18 @@ class ThemeConfig {
   static Color getTextColorForAccent() {
     return getTextColorForBackground(accentColor);
   }
+
+  /// Get casino border color - brownish accent for casino table borders
+  static Color get casinoBorderColor {
+    // Rich brown color that works well for casino table edges
+    return const Color(0xFF8B6F47); // Warm brown/sienna color
+  }
+
+  /// Get casino outer border color - dark gray/charcoal for outer table edge
+  static Color get casinoOuterBorderColor {
+    // Dark gray/charcoal color for the outer border layer
+    return const Color(0xFF2C2C2C); // Dark charcoal gray
+  }
 }
 
 /// App colors - now theme-aware and dynamic
@@ -253,6 +265,13 @@ class AppColors {
   
   // Poker table green for game screens
   static const Color pokerTableGreen = Color(0xFF0F5132); // Dark green similar to poker table felt
+
+  // Casino border colors - for layered casino table borders
+  static Color get casinoBorderColor => ThemeConfig.casinoBorderColor;
+  static Color get casinoOuterBorderColor => ThemeConfig.casinoOuterBorderColor;
+
+  // Warm spotlight color for casino table lighting effects
+  static const Color warmSpotlightColor = Color(0xFFFFD4A3); // Warm amber/peach color
 
   // Text color variants
   static Color get textPrimary => darkGray;

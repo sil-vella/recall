@@ -232,9 +232,9 @@ def update_pubspec_yaml(pubspec_path):
             )
             print(f"   ✅ Added flutter_launcher_icons to dev_dependencies")
         
-        if content != original_content:
-            with open(pubspec_path, 'w') as f:
-                f.write(content)
+            if content != original_content:
+                with open(pubspec_path, 'w') as f:
+                    f.write(content)
             print(f"   ✅ Updated flutter_launcher_icons configuration")
         return True
     

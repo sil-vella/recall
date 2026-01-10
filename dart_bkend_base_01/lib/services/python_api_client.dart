@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for comp player testing
+const bool LOGGING_SWITCH = true; // Enabled for rank-based matching and comp player testing
 
 class PythonApiClient {
   final String baseUrl;
@@ -80,15 +80,24 @@ class PythonApiClient {
   }
   
   /// Get computer players from Flask backend
-  Future<Map<String, dynamic>> getCompPlayers(int count) async {
-    _logger.info('🤖 Dart: Requesting $count comp player(s) from Python API', isOn: LOGGING_SWITCH);
+  /// [count] Number of comp players to retrieve
+  /// [rankFilter] Optional list of compatible ranks to filter by
+  Future<Map<String, dynamic>> getCompPlayers(int count, {List<String>? rankFilter}) async {
+    _logger.info('🤖 Dart: Requesting $count comp player(s) from Python API' + (rankFilter != null ? ' with rank filter: $rankFilter' : ''), isOn: LOGGING_SWITCH);
     _logger.info('🌐 Dart: Calling $baseUrl/public/dutch/get-comp-players', isOn: LOGGING_SWITCH);
     
     try {
+      final requestBody = <String, dynamic>{
+        'count': count,
+      };
+      if (rankFilter != null && rankFilter.isNotEmpty) {
+        requestBody['rank_filter'] = rankFilter;
+      }
+      
       final response = await http.post(
         Uri.parse('$baseUrl/public/dutch/get-comp-players'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'count': count}),
+        body: jsonEncode(requestBody),
       );
       
       _logger.info('📡 Dart: HTTP response status: ${response.statusCode}', isOn: LOGGING_SWITCH);

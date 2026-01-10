@@ -53,12 +53,17 @@ class DutchGameEventEmitter {
     },
     'join_random_game': {
       'isClearAndCollect', // Optional: game mode flag
+      'rank', 'level', // Optional: user rank and level (for validation, usually from session)
     },
     'create_room': {
       'permission', 'max_players', 'min_players', 
-      'turn_time_limit', 'auto_start', 'game_type', 'password'
+      'turn_time_limit', 'auto_start', 'game_type', 'password',
+      'rank', 'level', // Optional: user rank and level (for validation, usually from session)
     },
-    'join_room': {'room_id', 'password'},
+    'join_room': {
+      'room_id', 'password',
+      'rank', 'level', // Optional: user rank and level (for validation, usually from session)
+    },
     'join_game': {'game_id', 'player_name', 'max_players'},
     'start_match': {'game_id', 'showInstructions', 'isClearAndCollect'},
     'play_card': {'game_id', 'card_id', 'replace_index'}, // player_id auto-added
@@ -130,6 +135,19 @@ class DutchGameEventEmitter {
       minLength: 4,
       maxLength: 20,
       description: 'Room password for private rooms: 4-20 characters',
+    ),
+    'rank': DutchEventFieldSpec(
+      type: String,
+      required: false,
+      allowedValues: ['beginner', 'novice', 'apprentice', 'skilled', 'advanced', 'expert', 'veteran', 'master', 'elite', 'legend'],
+      description: 'User rank (optional, usually from session data)',
+    ),
+    'level': DutchEventFieldSpec(
+      type: int,
+      required: false,
+      min: 1,
+      max: 100,
+      description: 'User level (optional, usually from session data)',
     ),
     
     // Join room fields

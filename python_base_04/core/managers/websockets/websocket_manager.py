@@ -18,7 +18,7 @@ from datetime import datetime
 from functools import wraps
 import json
 
-LOGGING_SWITCH = False
+LOGGING_SWITCH = True  # Enabled for rank-based matching and debugging
 
 class WebSocketManager:
     def __init__(self):
@@ -280,7 +280,8 @@ class WebSocketManager:
     def set_jwt_manager(self, jwt_manager):
         """Set the JWT manager instance and initialize dependent managers."""
         self._jwt_manager = jwt_manager
-        self.session_manager = WSSessionManager(self.redis_manager, jwt_manager)
+        app_manager = getattr(self, '_app_manager', None)
+        self.session_manager = WSSessionManager(self.redis_manager, jwt_manager, app_manager)
         self.broadcast_manager = WSBroadcastManager(self)
 
     def set_room_access_check(self, access_check_func):
@@ -290,6 +291,9 @@ class WebSocketManager:
     def set_app_manager(self, app_manager):
         """Set the app manager instance for hook triggering."""
         self._app_manager = app_manager
+        # Update session manager with app_manager if it's already initialized
+        if self.session_manager:
+            self.session_manager.set_app_manager(app_manager)
 
     def trigger_hook(self, hook_name: str, data=None, context=None):
         """Trigger a hook through the app manager."""

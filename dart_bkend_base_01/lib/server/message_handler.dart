@@ -7,9 +7,10 @@ import 'random_join_timer_manager.dart';
 import '../modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart';
 import '../modules/dutch_game/backend_core/services/game_state_store.dart';
 import '../modules/dutch_game/utils/platform/shared_imports.dart';
+import '../modules/dutch_game/utils/rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for winner determination testing
+const bool LOGGING_SWITCH = true; // Enabled for rank-based matching testing
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -140,6 +141,7 @@ class MessageHandler {
         'permission': room.permission,
         'turn_time_limit': room.turnTimeLimit,
         'auto_start': room.autoStart,
+        'difficulty': room.difficulty, // Room difficulty (rank-based)
         'timestamp': DateTime.now().toIso8601String(),
       });
       
@@ -269,6 +271,25 @@ class MessageHandler {
       return;
     }
     
+      // Validate rank compatibility (if room has difficulty set and user has rank)
+      final userRank = _server.getUserRankForSession(sessionId);
+      if (room.difficulty != null && userRank != null) {
+        final roomDifficulty = room.difficulty!.toLowerCase();
+        final normalizedUserRank = userRank.toLowerCase();
+        
+        // Check if ranks are compatible (±1)
+        if (!RankMatcher.areRanksCompatible(roomDifficulty, normalizedUserRank)) {
+          _server.sendToSession(sessionId, {
+            'event': 'join_room_error',
+            'message': 'Your rank ($userRank) is not compatible with this room\'s difficulty ($roomDifficulty). You can only join rooms within ±1 rank of your own.',
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          _logger.room('❌ Rank mismatch: user rank=$userRank, room difficulty=$roomDifficulty', isOn: LOGGING_SWITCH);
+          return;
+        }
+      }
+      // If room difficulty is null (first human) or user has no rank, allow join (fallback behavior)
+    
     // Attempt to join room
     _logger.room('🔍 _handleJoinRoom: About to join room with sessionId=$sessionId, userId=$userId, roomId=$roomId', isOn: LOGGING_SWITCH);
     if (_roomManager.joinRoom(roomId, sessionId, userId, password: password)) {
@@ -283,6 +304,7 @@ class MessageHandler {
         'owner_id': room.ownerId,
         'current_size': room.currentSize,
         'max_size': room.maxSize,
+        'difficulty': room.difficulty, // Room difficulty (rank-based)
         'timestamp': DateTime.now().toIso8601String(),
       });
       
@@ -420,7 +442,11 @@ class MessageHandler {
     
     try {
       // Get available rooms for random join
-      final availableRooms = _getAvailableRoomsForRandomJoin();
+      var availableRooms = _getAvailableRoomsForRandomJoin();
+      
+      // Filter by rank compatibility
+      final userRank = _server.getUserRankForSession(sessionId);
+      availableRooms = _filterRoomsByRank(availableRooms, userRank);
       
       if (availableRooms.isNotEmpty) {
         // Pick a random room
@@ -681,11 +707,15 @@ class MessageHandler {
   }
 
   /// Get available rooms for random join
-  /// Filters rooms by: public permission, has capacity, phase is waiting_for_players
+  /// Filters rooms by: public permission, has capacity, phase is waiting_for_players, rank compatibility
   List<Room> _getAvailableRoomsForRandomJoin() {
     final allRooms = _roomManager.getAllRooms();
     final store = GameStateStore.instance;
     final availableRooms = <Room>[];
+    
+    // Get current user's rank (if available) - we need sessionId for this
+    // For now, we'll filter in the calling method where we have sessionId
+    // This method will filter by basic criteria, rank filtering happens in caller
     
     for (final room in allRooms) {
       // Filter: public permission
@@ -708,6 +738,33 @@ class MessageHandler {
     }
     
     return availableRooms;
+  }
+  
+  /// Filter rooms by rank compatibility
+  List<Room> _filterRoomsByRank(List<Room> rooms, String? userRank) {
+    if (userRank == null) {
+      // If user has no rank, allow all rooms (fallback behavior)
+      return rooms;
+    }
+    
+    final compatibleRooms = <Room>[];
+    final normalizedUserRank = userRank.toLowerCase();
+    
+    for (final room in rooms) {
+      // If room has no difficulty set, allow it (first human will set it)
+      if (room.difficulty == null) {
+        compatibleRooms.add(room);
+        continue;
+      }
+      
+      // Check if room difficulty is compatible with user rank
+      final roomDifficulty = room.difficulty!.toLowerCase();
+      if (RankMatcher.areRanksCompatible(roomDifficulty, normalizedUserRank)) {
+        compatibleRooms.add(room);
+      }
+    }
+    
+    return compatibleRooms;
   }
   
   // ========= GAME EVENT HANDLER (UNIFIED) =========

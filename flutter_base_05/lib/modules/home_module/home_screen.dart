@@ -60,18 +60,18 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
     try {
       return Center(
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
               // Home screen button features slot - full-width buttons registered by modules
               FeatureSlot(
                 scopeKey: featureScopeKey,
                 slotId: 'home_screen_buttons',
                 contract: 'home_screen_button',
                 useTemplate: false,
+                  ),
+                ],
               ),
-            ],
-          ),
         ),
       );
     } catch (e, stackTrace) {

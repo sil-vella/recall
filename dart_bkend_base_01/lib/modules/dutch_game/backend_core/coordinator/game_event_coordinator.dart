@@ -1,4 +1,5 @@
 import '../../utils/platform/shared_imports.dart';
+import '../../utils/rank_matcher.dart';
 import '../../../dutch_game/backend_core/shared_logic/dutch_game_round.dart';
 import '../services/game_registry.dart';
 import '../services/game_state_store.dart';
@@ -6,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for comp player testing
+const bool LOGGING_SWITCH = true; // Enabled for rank-based matching and comp player testing
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -288,9 +289,19 @@ class GameEventCoordinator {
       int compPlayersAdded = 0;
       int remainingNeeded = needed;
       
+      // Get room difficulty from roomInfo or state, and calculate compatible ranks
+      final roomDifficulty = roomInfo?.difficulty ?? stateRoot['roomDifficulty'] as String?;
+      List<String>? rankFilter;
+      if (roomDifficulty != null) {
+        rankFilter = RankMatcher.getCompatibleRanks(roomDifficulty);
+        _logger.info('GameEventCoordinator: Room difficulty is $roomDifficulty, compatible ranks: $rankFilter', isOn: LOGGING_SWITCH);
+      } else {
+        _logger.info('GameEventCoordinator: Room has no difficulty set, will fetch comp players without rank filter', isOn: LOGGING_SWITCH);
+      }
+      
       try {
-        // Fetch comp players from Flask backend
-        final compPlayersResponse = await server.pythonClient.getCompPlayers(needed);
+        // Fetch comp players from Flask backend with rank filter
+        final compPlayersResponse = await server.pythonClient.getCompPlayers(needed, rankFilter: rankFilter);
         final success = compPlayersResponse['success'] as bool? ?? false;
         final compPlayersList = compPlayersResponse['comp_players'] as List<dynamic>? ?? [];
         final returnedCount = compPlayersResponse['count'] as int? ?? 0;
@@ -345,6 +356,62 @@ class GameEventCoordinator {
           _logger.info('GameEventCoordinator: Added $compPlayersAdded comp player(s) from database', isOn: LOGGING_SWITCH);
         } else {
           _logger.warning('GameEventCoordinator: No comp players returned from Flask backend (success: $success, count: $returnedCount)', isOn: LOGGING_SWITCH);
+          
+          // If rank filter was used and no players found, retry without filter
+          if (rankFilter != null && rankFilter.isNotEmpty && remainingNeeded > 0) {
+            _logger.info('GameEventCoordinator: No comp players found with rank filter, retrying without filter', isOn: LOGGING_SWITCH);
+            try {
+              final fallbackResponse = await server.pythonClient.getCompPlayers(remainingNeeded);
+              final fallbackSuccess = fallbackResponse['success'] as bool? ?? false;
+              final fallbackPlayersList = fallbackResponse['comp_players'] as List<dynamic>? ?? [];
+              final fallbackCount = fallbackResponse['count'] as int? ?? 0;
+              
+              if (fallbackSuccess && fallbackPlayersList.isNotEmpty) {
+                _logger.info('GameEventCoordinator: Retrieved $fallbackCount comp player(s) without rank filter', isOn: LOGGING_SWITCH);
+                
+                // Add comp players to players list
+                for (final compPlayerData in fallbackPlayersList) {
+                  if (compPlayerData is! Map<String, dynamic>) continue;
+                  if (players.length >= maxPlayers) break;
+                  
+                  final userId = compPlayerData['user_id'] as String? ?? '';
+                  final username = compPlayerData['username'] as String? ?? 'CompPlayer';
+                  final email = compPlayerData['email'] as String? ?? '';
+                  
+                  final playerId = 'comp_${userId}_${DateTime.now().microsecondsSinceEpoch}';
+                  
+                  String uniqueName = username;
+                  int nameSuffix = 1;
+                  while (existingNames.contains(uniqueName)) {
+                    uniqueName = '$username$nameSuffix';
+                    nameSuffix++;
+                  }
+                  existingNames.add(uniqueName);
+                  
+                  players.add({
+                    'id': playerId,
+                    'name': uniqueName,
+                    'isHuman': false,
+                    'status': 'waiting',
+                    'hand': <Map<String, dynamic>>[],
+                    'visible_cards': <Map<String, dynamic>>[],
+                    'points': 0,
+                    'known_cards': <String, dynamic>{},
+                    'collection_rank_cards': <String>[],
+                    'isActive': true,
+                    'difficulty': 'medium',
+                    'userId': userId,
+                    'email': email,
+                  });
+                  
+                  compPlayersAdded++;
+                  remainingNeeded--;
+                }
+              }
+            } catch (fallbackError) {
+              _logger.error('GameEventCoordinator: Error in fallback comp player fetch: $fallbackError', isOn: LOGGING_SWITCH);
+            }
+          }
         }
       } catch (e) {
         _logger.error('GameEventCoordinator: Error fetching comp players from Flask backend: $e', isOn: LOGGING_SWITCH);

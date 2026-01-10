@@ -482,16 +482,16 @@ class DemoActionHandler {
           _currentSequentialDemoIndex = 0;
           _sequentialDemoActions = [];
         }
-        
-        // 5. Navigate back to demo screen
-        _logger.info('🎮 DemoActionHandler: Navigating back to demo screen', isOn: LOGGING_SWITCH);
-        NavigationManager().navigateTo('/dutch/demo');
-        
-        // 6. NOW clear active demo action type AFTER navigation
-        // This ensures instructions won't show during or after the demo action ends
-        _activeDemoActionType = null;
-        
-        _logger.info('✅ DemoActionHandler: Demo action $actionType ended successfully', isOn: LOGGING_SWITCH);
+      
+      // 5. Navigate back to demo screen
+      _logger.info('🎮 DemoActionHandler: Navigating back to demo screen', isOn: LOGGING_SWITCH);
+      NavigationManager().navigateTo('/dutch/demo');
+      
+      // 6. NOW clear active demo action type AFTER navigation
+      // This ensures instructions won't show during or after the demo action ends
+      _activeDemoActionType = null;
+      
+      _logger.info('✅ DemoActionHandler: Demo action $actionType ended successfully', isOn: LOGGING_SWITCH);
       }
     } catch (e, stackTrace) {
       _logger.error('❌ DemoActionHandler: Error ending demo action $actionType: $e', 
@@ -840,7 +840,7 @@ class DemoActionHandler {
             };
           } else {
             _logger.warning('📚 DemoActionHandler: call_dutch instructions not available', isOn: LOGGING_SWITCH);
-            return;
+          return;
           }
           break;
         default:

@@ -7,16 +7,18 @@ import 'random_join_timer_manager.dart';
 import '../services/python_api_client.dart';
 import '../utils/server_logger.dart';
 import '../managers/hooks_manager.dart';
-import '../modules/dutch_game/dutch_game_main.dart';
+import '../modules/dutch_game/dutch_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true; // Enabled for rank-based matching testing
 
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};
   final Map<String, String> _connectionHashes = {}; // Track connection object identity
   final Map<String, String> _sessionToUser = {};
   final Map<String, bool> _authenticatedSessions = {};
+  final Map<String, String?> _sessionToRank = {}; // Track user rank per session
+  final Map<String, int?> _sessionToLevel = {}; // Track user level per session
   final RoomManager _roomManager = RoomManager();
   late MessageHandler _messageHandler;
   late PythonApiClient _pythonClient;
@@ -70,6 +72,26 @@ class WebSocketServer {
   /// Get user ID for a session
   String? getUserIdForSession(String sessionId) {
     return _sessionToUser[sessionId];
+  }
+
+  /// Get user rank for a session
+  String? getUserRankForSession(String sessionId) {
+    return _sessionToRank[sessionId];
+  }
+
+  /// Get user level for a session
+  int? getUserLevelForSession(String sessionId) {
+    return _sessionToLevel[sessionId];
+  }
+
+  /// Set user rank and level for a session
+  void setUserRankAndLevel(String sessionId, String? rank, int? level) {
+    if (rank != null) {
+      _sessionToRank[sessionId] = rank.toLowerCase();
+    }
+    if (level != null) {
+      _sessionToLevel[sessionId] = level;
+    }
   }
 
   /// Get session ID for a user (reverse lookup)
@@ -169,6 +191,14 @@ class WebSocketServer {
       if (result['valid'] == true) {
         _authenticatedSessions[sessionId] = true;
         _sessionToUser[sessionId] = result['user_id'] ?? sessionId;
+        
+        // Store rank and level from validation response
+        final rank = result['rank'] as String?;
+        final level = result['level'] as int?;
+        if (rank != null || level != null) {
+          setUserRankAndLevel(sessionId, rank, level);
+          _logger.auth('✅ Stored rank=$rank, level=$level for session: $sessionId', isOn: LOGGING_SWITCH);
+        }
 
         _logger.auth('✅ Session authenticated: $sessionId', isOn: LOGGING_SWITCH);
         sendToSession(sessionId, {
@@ -205,6 +235,8 @@ class WebSocketServer {
     _connectionHashes.remove(sessionId);
     _sessionToUser.remove(sessionId);
     _authenticatedSessions.remove(sessionId);
+    _sessionToRank.remove(sessionId);
+    _sessionToLevel.remove(sessionId);
     
     // Handle room cleanup
     _roomManager.handleDisconnect(sessionId);

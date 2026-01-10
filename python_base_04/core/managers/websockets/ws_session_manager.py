@@ -4,13 +4,19 @@ from datetime import datetime
 from core.managers.redis_manager import RedisManager
 from core.managers.jwt_manager import JWTManager, TokenType
 from utils.config.config import Config
+from bson import ObjectId
 
 class WSSessionManager:
     """WebSocket Session Manager - Handles session data, authentication, and session lifecycle."""
     
-    def __init__(self, redis_manager: RedisManager, jwt_manager: JWTManager):
+    def __init__(self, redis_manager: RedisManager, jwt_manager: JWTManager, app_manager=None):
         self.redis_manager = redis_manager
         self.jwt_manager = jwt_manager
+        self._app_manager = app_manager
+    
+    def set_app_manager(self, app_manager):
+        """Set the app manager instance for database access."""
+        self._app_manager = app_manager
 
     def create_session(self, session_id: str, user_id: str, username: str, token: str, 
                       client_id: str = None, origin: str = None) -> Dict[str, Any]:
@@ -30,6 +36,9 @@ class WSSessionManager:
                 'status': 'active'
             }
             
+            # Fetch user rank and level from database
+            self._fetch_user_rank_and_level(session_data, user_id)
+            
             # Store session data
             self.store_session_data(session_id, session_data)
             return {
@@ -43,6 +52,44 @@ class WSSessionManager:
                 'success': False,
                 'error': f'Failed to create session: {str(e)}'
             }
+    
+    def _fetch_user_rank_and_level(self, session_data: Dict[str, Any], user_id: str) -> None:
+        """Fetch user's rank and level from database and add to session data."""
+        try:
+            if not self._app_manager:
+                custom_log("⚠️ WSSessionManager: App manager not available, skipping rank/level fetch", level="WARNING")
+                session_data['rank'] = None
+                session_data['level'] = None
+                return
+            
+            db_manager = self._app_manager.get_db_manager(role="read_only")
+            if not db_manager:
+                custom_log("⚠️ WSSessionManager: Database manager not available, skipping rank/level fetch", level="WARNING")
+                session_data['rank'] = None
+                session_data['level'] = None
+                return
+            
+            # Query user data from database
+            try:
+                user_data = db_manager.find_one("users", {"_id": ObjectId(user_id)})
+            except Exception as e:
+                # If ObjectId conversion fails, try with string
+                user_data = db_manager.find_one("users", {"_id": user_id})
+            
+            if user_data and user_data.get("modules", {}).get("dutch_game"):
+                dutch_game_data = user_data['modules']['dutch_game']
+                session_data['rank'] = dutch_game_data.get('rank', 'beginner')
+                session_data['level'] = dutch_game_data.get('level', 1)
+                custom_log(f"✅ WSSessionManager: Fetched rank={session_data['rank']}, level={session_data['level']} for user {user_id}", level="INFO")
+            else:
+                session_data['rank'] = None
+                session_data['level'] = None
+                custom_log(f"⚠️ WSSessionManager: No dutch_game data found for user {user_id}", level="WARNING")
+                
+        except Exception as e:
+            custom_log(f"❌ WSSessionManager: Error fetching rank/level for user {user_id}: {e}", level="ERROR")
+            session_data['rank'] = None
+            session_data['level'] = None
 
     def store_session_data(self, session_id: str, session_data: Dict[str, Any]) -> None:
         """Store session data in Redis."""
@@ -315,10 +362,14 @@ class WSSessionManager:
                 return False
             
             # Update session with user info
-            session_data['user_id'] = str(payload.get('user_id'))
+            user_id = str(payload.get('user_id'))
+            session_data['user_id'] = user_id
             session_data['username'] = payload.get('username', '')
             session_data['user_roles'] = set(payload.get('roles', []))
             session_data['last_activity'] = datetime.now().isoformat()
+            
+            # Fetch user rank and level from database
+            self._fetch_user_rank_and_level(session_data, user_id)
             
             # Store updated session data
             self.store_session_data(session_id, session_data)

@@ -201,11 +201,11 @@ class _FeatureSlotState extends State<FeatureSlot> {
                   color: Colors.black.withOpacity(0.5),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  feature.text,
+              child: Text(
+                feature.text,
                   style: feature.textStyle ?? AppTextStyles.headingLarge().copyWith(
-                    color: AppColors.textOnPrimary,
-                    fontWeight: FontWeight.bold,
+                  color: AppColors.textOnPrimary,
+                  fontWeight: FontWeight.bold,
                     fontSize: 56, // Double the default headingLarge size (28 * 2)
                   ),
                   textAlign: TextAlign.center,

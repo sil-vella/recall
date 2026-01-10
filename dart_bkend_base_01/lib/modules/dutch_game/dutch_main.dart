@@ -3,7 +3,7 @@ import 'backend_core/coordinator/game_event_coordinator.dart';
 import 'backend_core/services/game_registry.dart';
 import 'backend_core/services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true;
 
 /// Entry point for registering Dutch game module components with the server.
 class DutchGameModule {
@@ -54,6 +54,27 @@ class DutchGameModule {
 
       _logger.info('🎣 room_created: Creating game for room $roomId with player ID $sessionId', isOn: LOGGING_SWITCH);
 
+      // Get creator's rank from session data and set room difficulty
+      _logger.info('🎣 room_created: About to get rank for session $sessionId', isOn: LOGGING_SWITCH);
+      final creatorRank = server.getUserRankForSession(sessionId);
+      _logger.info('🎣 room_created: Creator rank for session $sessionId: $creatorRank', isOn: LOGGING_SWITCH);
+      String? roomDifficulty;
+      if (creatorRank != null) {
+        _logger.info('🎣 room_created: Creator rank is not null, getting room info', isOn: LOGGING_SWITCH);
+        final room = roomManager.getRoomInfo(roomId);
+        _logger.info('🎣 room_created: Room info retrieved: ${room != null ? "found" : "null"}', isOn: LOGGING_SWITCH);
+        if (room != null) {
+          room.difficulty = creatorRank.toLowerCase();
+          roomDifficulty = creatorRank.toLowerCase();
+          _logger.info('🎣 room_created: Set room difficulty to $roomDifficulty for room $roomId', isOn: LOGGING_SWITCH);
+        } else {
+          _logger.warning('🎣 room_created: Room $roomId not found in roomManager', isOn: LOGGING_SWITCH);
+        }
+      } else {
+        _logger.warning('🎣 room_created: Creator rank is null for session $sessionId', isOn: LOGGING_SWITCH);
+      }
+      _logger.info('🎣 room_created: Final roomDifficulty value: $roomDifficulty', isOn: LOGGING_SWITCH);
+
       // Create GameRound instance via registry (includes ServerGameStateCallback)
       GameRegistry.instance.getOrCreate(roomId, server);
 
@@ -62,6 +83,7 @@ class DutchGameModule {
       final store = GameStateStore.instance;
       store.mergeRoot(roomId, {
         'game_id': roomId,
+        'roomDifficulty': roomDifficulty, // Store room difficulty in state
         'game_state': {
           'gameId': roomId,
           'gameName': 'Game_$roomId',
@@ -142,6 +164,21 @@ class DutchGameModule {
         return;
       }
 
+      // Set room difficulty if not already set (first human player sets it)
+      final room = roomManager.getRoomInfo(roomId);
+      String? roomDifficulty;
+      if (room != null && room.difficulty == null) {
+        final joinerRank = server.getUserRankForSession(sessionId);
+        if (joinerRank != null) {
+          room.difficulty = joinerRank.toLowerCase();
+          roomDifficulty = joinerRank.toLowerCase();
+          _logger.info('🎣 room_joined: Set room difficulty to $joinerRank for room $roomId (first human player)', isOn: LOGGING_SWITCH);
+        }
+      } else if (room != null && room.difficulty != null) {
+        roomDifficulty = room.difficulty;
+        _logger.info('🎣 room_joined: Room $roomId already has difficulty set to ${room.difficulty}', isOn: LOGGING_SWITCH);
+      }
+
       // Add new player - use sessionId as player ID
       players.add({
         'id': sessionId, // Use sessionId as player ID
@@ -158,6 +195,12 @@ class DutchGameModule {
       gameState['players'] = players;
       // Maintain playerCount for UI
       gameState['playerCount'] = players.length;
+      
+      // Update roomDifficulty in root state if set
+      if (roomDifficulty != null) {
+        store.mergeRoot(roomId, {'roomDifficulty': roomDifficulty});
+      }
+      
       store.setGameState(roomId, gameState);
 
       // Send snapshot to the joiner
@@ -271,5 +314,3 @@ class DutchGameModule {
     }
   }
 }
-
-

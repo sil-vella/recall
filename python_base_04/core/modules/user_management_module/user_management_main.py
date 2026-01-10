@@ -35,7 +35,7 @@ from core.services.analytics_service import AnalyticsService
 
 class UserManagementModule(BaseModule):
     # Logging switch for guest registration and conversion testing
-    LOGGING_SWITCH = false
+    LOGGING_SWITCH = True  # Enabled for rank-based matching and debugging
     METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):
@@ -231,7 +231,18 @@ class UserManagementModule(BaseModule):
                     # Preserve all existing modules from guest account
                     pass  # Already copied above
                 
-                custom_log(f"UserManagement: Copied guest account data for conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                # Ensure dutch_game module exists with rank and level (preserve existing or default)
+                if 'modules' not in user_data:
+                    user_data['modules'] = {}
+                if 'dutch_game' not in user_data['modules']:
+                    user_data['modules']['dutch_game'] = {}
+                # Preserve existing rank and level from guest account, or default to beginner/1
+                if 'rank' not in user_data['modules']['dutch_game']:
+                    user_data['modules']['dutch_game']['rank'] = 'beginner'
+                if 'level' not in user_data['modules']['dutch_game']:
+                    user_data['modules']['dutch_game']['level'] = 1
+                
+                custom_log(f"UserManagement: Copied guest account data for conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}, rank: {user_data['modules'].get('dutch_game', {}).get('rank')}, level: {user_data['modules'].get('dutch_game', {}).get('level')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             else:
                 # Prepare user data with comprehensive structure (new account)
                 user_data = {
@@ -1084,7 +1095,18 @@ class UserManagementModule(BaseModule):
                     if picture:
                         user_data['profile']['picture'] = picture
                     
-                    custom_log(f"UserManagement: Copied guest account data for Google Sign-In conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                    # Ensure dutch_game module exists with rank and level (preserve existing or default)
+                    if 'modules' not in user_data:
+                        user_data['modules'] = {}
+                    if 'dutch_game' not in user_data['modules']:
+                        user_data['modules']['dutch_game'] = {}
+                    # Preserve existing rank and level from guest account, or default to beginner/1
+                    if 'rank' not in user_data['modules']['dutch_game']:
+                        user_data['modules']['dutch_game']['rank'] = 'beginner'
+                    if 'level' not in user_data['modules']['dutch_game']:
+                        user_data['modules']['dutch_game']['level'] = 1
+                    
+                    custom_log(f"UserManagement: Copied guest account data for Google Sign-In conversion - Preserving modules: {list(user_data.get('modules', {}).keys())}, rank: {user_data['modules'].get('dutch_game', {}).get('rank')}, level: {user_data['modules'].get('dutch_game', {}).get('level')}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                 else:
                     # Prepare user data with comprehensive structure (new account)
                     user_data = {

@@ -6,7 +6,7 @@ from tools.logger.custom_logging import custom_log
 METRICS_COLLECTION_ENABLED = True
 
 class MetricsCollector:
-    LOGGING_SWITCH = False  # Disabled to reduce log noise
+    LOGGING_SWITCH = True  # Enabled for debugging
     _instance = None
     
     def __new__(cls, port: int = 8000):

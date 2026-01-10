@@ -16,6 +16,7 @@ class Room {
   final String? password; // for private rooms
   final int turnTimeLimit; // in seconds
   final bool autoStart;
+  String? difficulty; // Room difficulty (set by first human player's rank)
   
   Room({
     required this.roomId,
@@ -27,6 +28,7 @@ class Room {
     this.password,
     this.turnTimeLimit = 30,
     this.autoStart = true,
+    this.difficulty,
     DateTime? ttlExpiresAt,
   }) : _ttlExpiresAt = ttlExpiresAt ?? DateTime.now().add(Duration(seconds: 86400)); // Default 24 hours
   
@@ -62,6 +64,7 @@ class Room {
       'permission': permission,
       'turn_time_limit': turnTimeLimit,
       'auto_start': autoStart,
+      'difficulty': difficulty, // Room difficulty (rank-based)
       'created_at': createdAt.toIso8601String(),
       'player_count': sessionIds.length, // Keep for backward compatibility
     };

@@ -251,11 +251,11 @@ def update_pubspec_yaml(pubspec_path, background_color):
             print(f"   📦 Adding flutter_native_splash to dependencies...")
             # Add after package_info_plus if it exists
             if 'package_info_plus:' in content:
-                content = re.sub(
+        content = re.sub(
                     r'(package_info_plus:.*?\n)',
-                    r'\1  flutter_native_splash: ^2.4.0\n',
-                    content
-                )
+            r'\1  flutter_native_splash: ^2.4.0\n',
+            content
+        )
             else:
                 # Add at end of dependencies section
                 deps_end = content.find('\ndev_dependencies:')
@@ -327,8 +327,8 @@ def update_pubspec_yaml(pubspec_path, background_color):
     
     # Write updated content
     if content != original_content:
-        with open(pubspec_path, 'w') as f:
-            f.write(content)
+    with open(pubspec_path, 'w') as f:
+        f.write(content)
         print(f"   ✅ Updated pubspec.yaml with flutter_native_splash configuration")
     else:
         print(f"   ℹ️  No changes needed to pubspec.yaml")

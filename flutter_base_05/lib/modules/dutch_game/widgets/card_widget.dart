@@ -115,65 +115,65 @@ class CardWidget extends StatelessWidget {
                 final availableHeight = constraints.maxHeight;
                 
                 return Column(
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    // Centered display mode: rank and suit in center, no corners
-                    if (config.displayMode == CardDisplayMode.centeredOnly) ...[
-                      Expanded(
-                        child: Center(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            // Centered display mode: rank and suit in center, no corners
+            if (config.displayMode == CardDisplayMode.centeredOnly) ...[
+              Expanded(
+                child: Center(
                           child: _buildCenteredRankAndSuit(Size(availableWidth, availableHeight)),
-                        ),
-                      ),
-                    ] else ...[
-                      // Top-left rank and suit (always shown for non-centered modes)
-                      Align(
-                        alignment: Alignment.topLeft,
+                ),
+              ),
+            ] else ...[
+              // Top-left rank and suit (always shown for non-centered modes)
+              Align(
+                alignment: Alignment.topLeft,
                         child: _buildCornerText(Size(availableWidth, availableHeight)),
-                      ),
-                      
+              ),
+              
                       // Center content - suit symbols for numbered cards
                       // For special cards with background images, center is empty (image shows)
-                      Expanded(
-                        child: Center(
+              Expanded(
+                child: Center(
                           child: (isSpecialCard && specialCardImagePath != null)
                               ? const SizedBox.shrink() // Background image shows, no center content needed
                               : _buildCenterContent(Size(availableWidth, availableHeight)),
-                        ),
-                      ),
-                      
-                      // Bottom-right rank and suit (rotated) - only shown in fullCorners mode
-                      if (config.displayMode == CardDisplayMode.fullCorners) ...[
-                        Align(
-                          alignment: Alignment.bottomRight,
-                          child: Transform.rotate(
-                            angle: 3.14159, // 180 degrees
+                ),
+              ),
+              
+              // Bottom-right rank and suit (rotated) - only shown in fullCorners mode
+              if (config.displayMode == CardDisplayMode.fullCorners) ...[
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: Transform.rotate(
+                    angle: 3.14159, // 180 degrees
                             child: _buildCornerText(Size(availableWidth, availableHeight)),
-                          ),
-                        ),
-                      ],
-                    ],
-                    
-                    // Special power indicator
-                    if (config.showSpecialPower && card.hasSpecialPower) ...[
-                      const SizedBox(height: 4),
+                  ),
+                ),
+              ],
+            ],
+            
+            // Special power indicator
+            if (config.showSpecialPower && card.hasSpecialPower) ...[
+              const SizedBox(height: 4),
                       _buildSpecialPowerIndicator(Size(availableWidth, availableHeight)),
-                    ],
-                    
-                    // Points indicator
-                    if (config.showPoints) ...[
-                      const SizedBox(height: 2),
+            ],
+            
+            // Points indicator
+            if (config.showPoints) ...[
+              const SizedBox(height: 2),
                       _buildPointsIndicator(Size(availableWidth, availableHeight)),
-                    ],
-                  ],
+            ],
+          ],
                 );
               },
             ),
-          ),
+        ),
         ],
       ),
     );
   }
-  
+
   /// Get the path to special card image if available
   String? _getSpecialCardImagePath() {
     final rank = card.rank.toLowerCase();
@@ -418,12 +418,12 @@ class CardWidget extends StatelessWidget {
       fit: BoxFit.scaleDown,
       alignment: Alignment.topLeft,
       child: Text(
-        '${card.rankSymbol}\n${card.suitSymbol}',
-        style: TextStyle(
-          fontSize: fontSize,
-          fontWeight: FontWeight.bold,
-          color: card.color,
-          height: 1.0,
+      '${card.rankSymbol}\n${card.suitSymbol}',
+      style: TextStyle(
+        fontSize: fontSize,
+        fontWeight: FontWeight.bold,
+        color: card.color,
+        height: 1.0,
         ),
         textAlign: TextAlign.left,
       ),
@@ -439,10 +439,10 @@ class CardWidget extends StatelessWidget {
     return FittedBox(
       fit: BoxFit.scaleDown,
       child: Text(
-        card.suitSymbol,
-        style: TextStyle(
-          fontSize: fontSize,
-          color: card.color,
+      card.suitSymbol,
+      style: TextStyle(
+        fontSize: fontSize,
+        color: card.color,
         ),
         textAlign: TextAlign.center,
       ),
@@ -459,32 +459,32 @@ class CardWidget extends StatelessWidget {
     return FittedBox(
       fit: BoxFit.scaleDown,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Rank
-          Text(
-            card.rankSymbol,
-            style: TextStyle(
-              fontSize: fontSize,
-              fontWeight: FontWeight.bold,
-              color: card.color,
-              height: 1.0,
-            ),
-            textAlign: TextAlign.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Rank
+        Text(
+          card.rankSymbol,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            color: card.color,
+            height: 1.0,
           ),
-          // Suit
-          Text(
-            card.suitSymbol,
-            style: TextStyle(
-              fontSize: fontSize,
-              color: card.color,
-              height: 1.0,
-            ),
             textAlign: TextAlign.center,
+        ),
+        // Suit
+        Text(
+          card.suitSymbol,
+          style: TextStyle(
+            fontSize: fontSize,
+            color: card.color,
+            height: 1.0,
           ),
-        ],
+            textAlign: TextAlign.center,
+        ),
+      ],
       ),
     );
   }
@@ -565,45 +565,45 @@ class CardWidget extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(dimensions.width * 0.05),
         child: Center(
-          child: ListenableBuilder(
-            listenable: StateManager(),
-            builder: (context, child) {
-              // Get currentGameId to detect practice mode
-              final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-              final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-              
-              // Detect practice mode: practice games have IDs starting with "practice_room_"
-              final isPracticeMode = currentGameId.startsWith('practice_room_');
-              
-              // Log image loading details
-              _logger.info('🖼️ CardWidget: Loading card back image', isOn: LOGGING_SWITCH);
-              _logger.info('🖼️ CardWidget: currentGameId=$currentGameId', isOn: LOGGING_SWITCH);
-              _logger.info('🖼️ CardWidget: isPracticeMode=$isPracticeMode', isOn: LOGGING_SWITCH);
-              
-              // In practice mode, load from assets; otherwise load from server
-              if (isPracticeMode) {
-                // Load from assets for practice mode
-                _logger.info('🖼️ CardWidget: Loading from assets: assets/images/card_back.png', isOn: LOGGING_SWITCH);
+              child: ListenableBuilder(
+                listenable: StateManager(),
+                builder: (context, child) {
+                  // Get currentGameId to detect practice mode
+                  final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+                  final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+                  
+                  // Detect practice mode: practice games have IDs starting with "practice_room_"
+                  final isPracticeMode = currentGameId.startsWith('practice_room_');
+                  
+                  // Log image loading details
+                  _logger.info('🖼️ CardWidget: Loading card back image', isOn: LOGGING_SWITCH);
+                  _logger.info('🖼️ CardWidget: currentGameId=$currentGameId', isOn: LOGGING_SWITCH);
+                  _logger.info('🖼️ CardWidget: isPracticeMode=$isPracticeMode', isOn: LOGGING_SWITCH);
+                  
+                  // In practice mode, load from assets; otherwise load from server
+                  if (isPracticeMode) {
+                    // Load from assets for practice mode
+                    _logger.info('🖼️ CardWidget: Loading from assets: assets/images/card_back.png', isOn: LOGGING_SWITCH);
                 _logger.info('🖼️ CardWidget: Dimensions: width=${dimensions.width}, height=${dimensions.height}', isOn: LOGGING_SWITCH);
                 // Try loading the asset - use AssetImage directly for better reliability
                 try {
                   _logger.info('🖼️ CardWidget: Attempting to load asset using AssetImage', isOn: LOGGING_SWITCH);
                   return Image(
                     image: AssetImage('assets/images/card_back.png'),
-                    width: dimensions.width * 0.9, // Leave some padding
-                    height: dimensions.height * 0.9,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      _logger.error('🖼️ CardWidget: Asset load error for assets/images/card_back.png', isOn: LOGGING_SWITCH);
-                      _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
+                      width: dimensions.width * 0.9, // Leave some padding
+                      height: dimensions.height * 0.9,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        _logger.error('🖼️ CardWidget: Asset load error for assets/images/card_back.png', isOn: LOGGING_SWITCH);
+                        _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
                       _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
-                      return Icon(
-                        Icons.broken_image,
-                        size: dimensions.width * 0.4,
-                        color: AppColors.white.withOpacity(0.5),
-                      );
-                    },
-                  );
+                        return Icon(
+                          Icons.broken_image,
+                          size: dimensions.width * 0.4,
+                          color: AppColors.white.withOpacity(0.5),
+                        );
+                      },
+                    );
                 } catch (e, stackTrace) {
                   _logger.error('🖼️ CardWidget: Exception loading asset: $e', isOn: LOGGING_SWITCH);
                   _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
@@ -613,46 +613,46 @@ class CardWidget extends StatelessWidget {
                     color: AppColors.white.withOpacity(0.5),
                   );
                 }
-              } else {
-                // Load from server for multiplayer games
-                // Build image URL with cache-busting query parameters
-                // Version 2: Increment this when uploading a new image to force cache refresh
-                const int imageVersion = 2;
-                final imageUrl = currentGameId.isNotEmpty
-                    ? '${Config.apiUrl}/sponsors/images/card_back.png?gameId=$currentGameId&v=$imageVersion'
-                    : '${Config.apiUrl}/sponsors/images/card_back.png?v=$imageVersion';
-                
-                _logger.info('🖼️ CardWidget: apiUrl=${Config.apiUrl}', isOn: LOGGING_SWITCH);
-                _logger.info('🖼️ CardWidget: imageUrl=$imageUrl', isOn: LOGGING_SWITCH);
-                
-                // Use Image.network which uses browser's native image loading on web
-                // This avoids CORS issues that affect the http package
+                  } else {
+                    // Load from server for multiplayer games
+                    // Build image URL with cache-busting query parameters
+                    // Version 2: Increment this when uploading a new image to force cache refresh
+                    const int imageVersion = 2;
+                    final imageUrl = currentGameId.isNotEmpty
+                        ? '${Config.apiUrl}/sponsors/images/card_back.png?gameId=$currentGameId&v=$imageVersion'
+                        : '${Config.apiUrl}/sponsors/images/card_back.png?v=$imageVersion';
+                    
+                    _logger.info('🖼️ CardWidget: apiUrl=${Config.apiUrl}', isOn: LOGGING_SWITCH);
+                    _logger.info('🖼️ CardWidget: imageUrl=$imageUrl', isOn: LOGGING_SWITCH);
+                    
+                    // Use Image.network which uses browser's native image loading on web
+                    // This avoids CORS issues that affect the http package
                 // Fallback to asset image if network fails
-                return Image.network(
-                  imageUrl,
-                  width: dimensions.width * 0.9, // Leave some padding
-                  height: dimensions.height * 0.9,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) {
+                    return Image.network(
+                      imageUrl,
+                      width: dimensions.width * 0.9, // Leave some padding
+                      height: dimensions.height * 0.9,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) {
                       _logger.info('🖼️ CardWidget: Network image loaded successfully', isOn: LOGGING_SWITCH);
-                      return child;
-                    }
-                    // Show placeholder while loading
-                    return Icon(
-                      Icons.image,
-                      size: dimensions.width * 0.4,
-                      color: AppColors.white.withOpacity(0.5),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
+                          return child;
+                        }
+                        // Show placeholder while loading
+                        return Icon(
+                          Icons.image,
+                          size: dimensions.width * 0.4,
+                          color: AppColors.white.withOpacity(0.5),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
                     _logger.error('🖼️ CardWidget: Network image load error for $imageUrl', isOn: LOGGING_SWITCH);
-                    _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
-                    _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
-                    if (error is Exception) {
-                      _logger.error('🖼️ CardWidget: Exception type: ${error.runtimeType}', isOn: LOGGING_SWITCH);
-                      _logger.error('🖼️ CardWidget: Exception message: ${error.toString()}', isOn: LOGGING_SWITCH);
-                    }
+                        _logger.error('🖼️ CardWidget: Error details: $error', isOn: LOGGING_SWITCH);
+                        _logger.error('🖼️ CardWidget: Stack trace: $stackTrace', isOn: LOGGING_SWITCH);
+                        if (error is Exception) {
+                          _logger.error('🖼️ CardWidget: Exception type: ${error.runtimeType}', isOn: LOGGING_SWITCH);
+                          _logger.error('🖼️ CardWidget: Exception message: ${error.toString()}', isOn: LOGGING_SWITCH);
+                        }
                     // Fallback to asset image if network fails
                     _logger.info('🖼️ CardWidget: Falling back to asset image', isOn: LOGGING_SWITCH);
                     return Image(
@@ -668,12 +668,12 @@ class CardWidget extends StatelessWidget {
                           color: AppColors.white.withOpacity(0.5),
                         );
                       },
+                        );
+                      },
                     );
-                  },
-                );
-              }
-            },
-          ),
+                  }
+                },
+              ),
         ),
       ),
     );

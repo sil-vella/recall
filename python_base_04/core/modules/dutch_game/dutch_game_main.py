@@ -19,7 +19,7 @@ import time
 import random
 
 # Logging switch for this module
-LOGGING_SWITCH = false
+LOGGING_SWITCH = True  # Enabled for rank-based matching testing
 METRICS_SWITCH = True
 
 
@@ -69,8 +69,11 @@ class DutchGameMain(BaseModule):
             custom_log("🔐 DutchGame: Starting route registration", level="INFO", isOn=LOGGING_SWITCH)
             
             # Import and register API blueprint
-            from .api_endpoints import dutch_api
+            from .api_endpoints import dutch_api, set_app_manager
             custom_log("🔐 DutchGame: Imported API blueprint", level="INFO", isOn=LOGGING_SWITCH)
+            
+            # Set app_manager for API endpoints (for database access)
+            set_app_manager(self.app_manager)
             
             self.app.register_blueprint(dutch_api)
             custom_log("🔐 DutchGame: API blueprint registered successfully", level="INFO", isOn=LOGGING_SWITCH)
@@ -756,7 +759,17 @@ class DutchGameMain(BaseModule):
                     "message": "count must be a positive integer"
                 }), 400
             
-            custom_log(f"🤖 DutchGame: Requesting {count} comp player(s)", level="INFO", isOn=LOGGING_SWITCH)
+            # Get optional rank_filter parameter (list of compatible ranks)
+            rank_filter = data.get('rank_filter')
+            if rank_filter is not None and not isinstance(rank_filter, list):
+                custom_log("❌ DutchGame: Invalid rank_filter parameter (must be a list)", level="ERROR", isOn=LOGGING_SWITCH)
+                return jsonify({
+                    "success": False,
+                    "error": "Invalid rank_filter parameter",
+                    "message": "rank_filter must be a list of rank strings"
+                }), 400
+            
+            custom_log(f"🤖 DutchGame: Requesting {count} comp player(s)" + (f" with rank filter: {rank_filter}" if rank_filter else ""), level="INFO", isOn=LOGGING_SWITCH)
             
             # Get database manager
             db_manager = self.app_manager.get_db_manager(role="read_write")
@@ -774,19 +787,44 @@ class DutchGameMain(BaseModule):
                 "status": "active"
             }
             
+            # Add rank filter if provided
+            if rank_filter and len(rank_filter) > 0:
+                # Normalize ranks to lowercase for database query
+                normalized_ranks = [rank.lower() if isinstance(rank, str) else str(rank).lower() for rank in rank_filter]
+                query["modules.dutch_game.rank"] = {"$in": normalized_ranks}
+                custom_log(f"🤖 DutchGame: Filtering comp players by ranks: {normalized_ranks}", level="INFO", isOn=LOGGING_SWITCH)
+            
             custom_log(f"🤖 DutchGame: Querying database for comp players with query: {query}", level="INFO", isOn=LOGGING_SWITCH)
             
             # Find all comp players
             comp_players = db_manager.find("users", query)
             
             if not comp_players:
-                custom_log("⚠️ DutchGame: No comp players found in database", level="WARNING", isOn=LOGGING_SWITCH)
-                return jsonify({
-                    "success": True,
-                    "comp_players": [],
-                    "count": 0,
-                    "message": "No comp players available in database"
-                }), 200
+                # If rank filter was used and no players found, fallback to all ranks
+                if rank_filter and len(rank_filter) > 0:
+                    custom_log(f"⚠️ DutchGame: No comp players found with rank filter {rank_filter}, falling back to all ranks", level="WARNING", isOn=LOGGING_SWITCH)
+                    # Retry without rank filter
+                    fallback_query = {
+                        "is_comp_player": True,
+                        "status": "active"
+                    }
+                    comp_players = db_manager.find("users", fallback_query)
+                    if not comp_players:
+                        custom_log("⚠️ DutchGame: No comp players found in database (even without rank filter)", level="WARNING", isOn=LOGGING_SWITCH)
+                        return jsonify({
+                            "success": True,
+                            "comp_players": [],
+                            "count": 0,
+                            "message": "No comp players available in database"
+                        }), 200
+                else:
+                    custom_log("⚠️ DutchGame: No comp players found in database", level="WARNING", isOn=LOGGING_SWITCH)
+                    return jsonify({
+                        "success": True,
+                        "comp_players": [],
+                        "count": 0,
+                        "message": "No comp players available in database"
+                    }), 200
             
             custom_log(f"🤖 DutchGame: Found {len(comp_players)} comp player(s) in database", level="INFO", isOn=LOGGING_SWITCH)
             
@@ -802,15 +840,18 @@ class DutchGameMain(BaseModule):
             
             custom_log(f"🤖 DutchGame: Selected {selected_count} comp player(s) randomly and shuffled", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Format response with user_id, username, email (preserve random order)
+            # Format response with user_id, username, email, rank (preserve random order)
             comp_players_list = []
             for idx, player in enumerate(selected_players):
+                dutch_game_data = player.get("modules", {}).get("dutch_game", {})
                 comp_players_list.append({
                     "user_id": str(player.get("_id", "")),
                     "username": player.get("username", ""),
-                    "email": player.get("email", "")
+                    "email": player.get("email", ""),
+                    "rank": dutch_game_data.get("rank", "beginner"),  # Include rank in response
+                    "level": dutch_game_data.get("level", 1),  # Include level in response
                 })
-                custom_log(f"🤖 DutchGame: Added comp player [{idx+1}/{selected_count}] - user_id: {player.get('_id')}, username: {player.get('username')}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"🤖 DutchGame: Added comp player [{idx+1}/{selected_count}] - user_id: {player.get('_id')}, username: {player.get('username')}, rank: {dutch_game_data.get('rank', 'beginner')}", level="INFO", isOn=LOGGING_SWITCH)
             
             response_data = {
                 "success": True,

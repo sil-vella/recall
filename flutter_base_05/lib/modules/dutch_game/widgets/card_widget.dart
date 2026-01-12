@@ -77,7 +77,9 @@ class CardWidget extends StatelessWidget {
     final specialCardImagePath = _getSpecialCardImagePath();
     
     // Calculate padding based on card size (minimum 2px, maximum 8% of width)
-    final padding = (dimensions.width * 0.05).clamp(2.0, dimensions.width * 0.08);
+    final safeWidth = dimensions.width > 0 ? dimensions.width : 1.0;
+    final maxPadding = safeWidth * 0.08;
+    final padding = (safeWidth * 0.05).clamp(2.0, maxPadding > 2.0 ? maxPadding : 2.0);
     
     return Container(
       width: dimensions.width,
@@ -217,16 +219,24 @@ class CardWidget extends StatelessWidget {
     // Calculate font size based on available space, ensuring it fits
     // Use the smaller dimension to ensure it fits both width and height
     final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
+    // Ensure minDimension is valid (at least 1.0) to prevent clamp errors
+    final safeMinDimension = minDimension > 0 ? minDimension : 1.0;
     // Calculate max font size: ensure symbols fit with spacing
     // For higher ranks, we need smaller symbols to fit more
-    final baseFontSize = minDimension * 0.2;
+    final baseFontSize = safeMinDimension * 0.2;
+    final maxFontSize1 = safeMinDimension * 0.25;
+    final maxFontSize2 = safeMinDimension * 0.2;
     final fontSize = (rankNum <= 4) 
-        ? baseFontSize.clamp(8.0, minDimension * 0.25)
-        : (baseFontSize * 0.8).clamp(6.0, minDimension * 0.2);
+        ? baseFontSize.clamp(8.0, maxFontSize1 > 8.0 ? maxFontSize1 : 8.0)
+        : (baseFontSize * 0.8).clamp(6.0, maxFontSize2 > 6.0 ? maxFontSize2 : 6.0);
     
     // Calculate spacing based on available space
-    final verticalSpacing = (dimensions.height * 0.08).clamp(2.0, dimensions.height * 0.15);
-    final horizontalSpacing = (dimensions.width * 0.1).clamp(2.0, dimensions.width * 0.2);
+    final safeHeight = dimensions.height > 0 ? dimensions.height : 1.0;
+    final safeWidth = dimensions.width > 0 ? dimensions.width : 1.0;
+    final maxVerticalSpacing = safeHeight * 0.15;
+    final maxHorizontalSpacing = safeWidth * 0.2;
+    final verticalSpacing = (safeHeight * 0.08).clamp(2.0, maxVerticalSpacing > 2.0 ? maxVerticalSpacing : 2.0);
+    final horizontalSpacing = (safeWidth * 0.1).clamp(2.0, maxHorizontalSpacing > 2.0 ? maxHorizontalSpacing : 2.0);
     
     // Use FittedBox to ensure content scales down if needed
     Widget buildSymbol() {
@@ -445,7 +455,10 @@ class CardWidget extends StatelessWidget {
   Widget _buildCenterSuit(Size dimensions) {
     // Calculate font size based on available space
     final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
-    final fontSize = (minDimension * 0.3).clamp(12.0, minDimension * 0.4);
+    // Ensure minDimension is valid (at least 1.0) to prevent clamp errors
+    final safeMinDimension = minDimension > 0 ? minDimension : 1.0;
+    final maxFontSize = safeMinDimension * 0.4;
+    final fontSize = (safeMinDimension * 0.3).clamp(12.0, maxFontSize > 12.0 ? maxFontSize : 12.0);
     
     return FittedBox(
       fit: BoxFit.scaleDown,
@@ -465,7 +478,10 @@ class CardWidget extends StatelessWidget {
   Widget _buildCenteredRankAndSuit(Size dimensions) {
     // Calculate font size based on available space
     final minDimension = dimensions.width < dimensions.height ? dimensions.width : dimensions.height;
-    final fontSize = (minDimension * 0.4).clamp(10.0, minDimension * 0.5);
+    // Ensure minDimension is valid (at least 1.0) to prevent clamp errors
+    final safeMinDimension = minDimension > 0 ? minDimension : 1.0;
+    final maxFontSize = safeMinDimension * 0.5;
+    final fontSize = (safeMinDimension * 0.4).clamp(10.0, maxFontSize > 10.0 ? maxFontSize : 10.0);
     
     return FittedBox(
       fit: BoxFit.scaleDown,

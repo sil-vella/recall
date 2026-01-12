@@ -737,6 +737,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Profile picture (circular, 1.5x status chip height)
+                        _buildPlayerProfilePicture(player['id']?.toString() ?? ''),
+                        const SizedBox(width: 8),
                         if (hasCalledDutch) ...[
                           Icon(
                             Icons.flag,
@@ -1779,6 +1782,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           children: [
             Row(
               children: [
+                // Profile picture (circular, 1.5x status chip height)
+                _buildPlayerProfilePicture(_getCurrentUserId()),
+                const SizedBox(width: 8),
                 Text(
                   'You',
                   style: AppTextStyles.headingSmall(),
@@ -1971,6 +1977,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           builder: (context, constraints) {
             // Get container width - prioritize constraints, but ensure we have a value immediately
             // If constraints are not yet available, use a reasonable default based on screen width
+            // Note: constraints.maxWidth already accounts for the Padding widget's horizontal padding
             double containerWidth;
             if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
               containerWidth = constraints.maxWidth;
@@ -2026,8 +2033,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             }
             
             // Calculate card dimensions - rescale if needed
-            // Add safety margin (8px) to prevent rounding errors and small overflows
-            const safetyMargin = 8.0;
+            // Add safety margin to prevent rounding errors and small overflows
+            // Account for border (4px total when highlighted) and extra safety margin
+            const safetyMargin = 12.0; // Increased from 8px to account for border and rounding
             Size cardDimensions;
             if (totalWidthNeeded > (containerWidth - safetyMargin) && nonNullCardCount > 0) {
               // Need to rescale - calculate new width that fits all cards
@@ -2058,7 +2066,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 cardWidgets.add(
                   Padding(
                     padding: const EdgeInsets.only(right: cardPadding),
-                    child: _buildMyHandBlankCardSlot(),
+                    child: _buildMyHandBlankCardSlot(cardDimensions),
                   ),
                 );
                 continue;
@@ -2601,11 +2609,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     }
   }
 
-  Widget _buildMyHandBlankCardSlot() {
-    final cardDimensions = CardDimensions.getUnifiedDimensions();
+  Widget _buildMyHandBlankCardSlot([Size? cardDimensions]) {
+    final dimensions = cardDimensions ?? CardDimensions.getUnifiedDimensions();
     return SizedBox(
-      width: cardDimensions.width,
-      height: cardDimensions.height,
+      width: dimensions.width,
+      height: dimensions.height,
       child: Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceVariant,
@@ -2734,6 +2742,33 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       return false;
     }
     return true;
+  }
+
+  /// Build circular profile picture widget
+  /// Size is 1.5x the status chip height (small size)
+  /// For now, displays a player icon. Will be replaced with actual profile image later.
+  Widget _buildPlayerProfilePicture(String playerId) {
+    // Status chip small size: padding (2*2=4px) + icon (12px) + text (~10px) ≈ 18-20px
+    // 1.5x = ~27-30px, using 28px for a nice round number
+    const double profilePictureSize = 28.0;
+    
+    return Container(
+      width: profilePictureSize,
+      height: profilePictureSize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.surfaceVariant,
+        border: Border.all(
+          color: AppColors.borderDefault,
+          width: 1.5,
+        ),
+      ),
+      child: Icon(
+        Icons.person,
+        size: profilePictureSize * 0.6, // Icon is 60% of container size
+        color: AppColors.textSecondary,
+      ),
+    );
   }
 }
 

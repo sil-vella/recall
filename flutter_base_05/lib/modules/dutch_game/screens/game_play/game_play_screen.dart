@@ -82,6 +82,79 @@ class _GrainPoint {
   });
 }
 
+/// Custom painter for gradient border - fades from light brown to darker brown
+/// The gradient starts from the outer edge (light brown) and fades to darker brown at the inner edge
+/// From halfway in to the inner edge, it transitions to darker brown
+class GradientBorderPainter extends CustomPainter {
+  final Color startColor; // Light brown (outer edge)
+  final Color endColor; // Darker brown (inner edge)
+  final double borderWidth;
+  final double borderRadius;
+  
+  GradientBorderPainter({
+    required this.startColor,
+    required this.endColor,
+    required this.borderWidth,
+    required this.borderRadius,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw the border with a gradient that fades from outer edge (light brown) to inner edge (dark brown)
+    // The gradient starts at halfway point and intensifies to the inner edge
+    // We'll draw multiple concentric strokes with gradually changing colors to create the gradient effect
+    
+    final gradientSteps = 12; // Number of steps for smooth gradient
+    final stepWidth = borderWidth / gradientSteps;
+    
+    // Draw the entire border width with gradient
+    // Outer half (first 50%): solid light brown
+    // Inner half (last 50%): gradient from light brown to dark brown
+    for (int i = 0; i < gradientSteps; i++) {
+      final position = i / gradientSteps; // 0.0 (outer edge) to 1.0 (inner edge)
+      
+      Color color;
+      if (position <= 0.5) {
+        // Outer half: solid light brown
+        color = startColor;
+      } else {
+        // Inner half: gradient from light brown to dark brown
+        // Map position from 0.5-1.0 to 0.0-1.0 for interpolation
+        final t = (position - 0.5) * 2.0; // 0.0 to 1.0
+        color = Color.lerp(startColor, endColor, t)!;
+      }
+      
+      final offset = i * stepWidth;
+      final rect = Rect.fromLTWH(
+        offset,
+        offset,
+        size.width - (offset * 2),
+        size.height - (offset * 2),
+      );
+      final rrect = RRect.fromRectAndRadius(
+        rect,
+        Radius.circular(borderRadius - offset),
+      );
+      
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stepWidth + 0.5 // Slight overlap to avoid gaps
+        ..color = color;
+      
+      final path = Path()..addRRect(rrect);
+      canvas.drawPath(path, paint);
+    }
+  }
+  
+  @override
+  bool shouldRepaint(GradientBorderPainter oldDelegate) {
+    return oldDelegate.startColor != startColor ||
+        oldDelegate.endColor != endColor ||
+        oldDelegate.borderWidth != borderWidth ||
+        oldDelegate.borderRadius != borderRadius;
+  }
+}
+
 /// Background widget that only builds once - contains table color and texture
 /// Uses RepaintBoundary to prevent unnecessary repaints
 class TableBackgroundWidget extends StatefulWidget {
@@ -516,24 +589,36 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
                       ],
                     ),
                   ),
-                  // Inner border layer - brownish-orange border only (no fill)
+                  // Inner border layer - gradient brown border (fades from light to dark)
                   Container(
                     margin: const EdgeInsets.all(20.0),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: AppColors.casinoBorderColor,
-                        width: 12.0,
+                    child: CustomPaint(
+                      painter: GradientBorderPainter(
+                        startColor: AppColors.casinoBorderColor, // Light brown (outer edge)
+                        endColor: const Color(0xFF5D4A2F), // Darker brown (inner edge)
+                        borderWidth: 6.0,
+                        borderRadius: 12.0,
                       ),
-                      borderRadius: BorderRadius.circular(12.0),
-                      // No background color - transparent so table green shows through
-                      color: Colors.transparent,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12.0),
+                          color: Colors.transparent,
+                        ),
+                      ),
                     ),
                   ),
                   // Main content with felt texture overlay
+                  // Margin matches inner border margin (20px) + border width (6px) = 26px
+                  // This ensures content starts right after the inner border with no gap
                   Container(
-                    margin: const EdgeInsets.all(32.0),
+                    margin: const EdgeInsets.all(26.0),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8.0),
+                      color: AppColors.pokerTableGreen, // Fill background to prevent black edges
+                    ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8.0),
+                      clipBehavior: Clip.antiAlias, // Smooth edges without black artifacts
                       child: Stack(
                         children: [
                           // Background layer - poker table green with felt texture

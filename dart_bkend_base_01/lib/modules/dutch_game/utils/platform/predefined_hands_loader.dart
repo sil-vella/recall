@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:yaml/yaml.dart';
 import 'shared_imports.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for debugging
+const bool LOGGING_SWITCH = false; // Enabled for debugging
 
 
 /// Predefined Hands Loader for Testing

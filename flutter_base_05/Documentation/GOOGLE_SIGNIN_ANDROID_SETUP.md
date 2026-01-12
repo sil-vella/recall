@@ -18,7 +18,7 @@ Run the helper script to get your app's SHA-1 fingerprints:
 
 ```bash
 cd flutter_base_05
-./tools/scripts/get_sha1_fingerprint.sh
+./playbooks/frontend/get_sha1_fingerprint.sh
 ```
 
 This will output:
@@ -96,14 +96,14 @@ After completing the above steps:
 
 ```bash
 cd flutter_base_05
-./tools/scripts/build_apk.sh
+./playbooks/frontend/build_apk.sh
 ```
 
 Or if using environment variable:
 
 ```bash
 export GOOGLE_CLIENT_ID_ANDROID="your-android-client-id-here.apps.googleusercontent.com"
-./tools/scripts/build_apk.sh
+./playbooks/frontend/build_apk.sh
 ```
 
 The Google Sign-In should now work in the APK.
@@ -169,7 +169,7 @@ flutter_base_05/
 │   └── modules/login_module/
 │       └── login_module.dart          # GoogleSignIn initialization
 ├── keystore.properties                # Release keystore config
-└── tools/scripts/
+└── playbooks/frontend/
     └── get_sha1_fingerprint.sh        # Helper script for SHA-1
 ```
 

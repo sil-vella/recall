@@ -1,6 +1,6 @@
 import '../../../utils/platform/shared_imports.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for debugging
+const bool LOGGING_SWITCH = false; // Enabled for debugging
 
 /// YAML Rules Engine - Generic interpreter for YAML-defined decision rules
 class YamlRulesEngine {

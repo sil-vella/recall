@@ -8,7 +8,7 @@ import '../utils/rank_matcher.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for rank-based matching and debugging
+const bool LOGGING_SWITCH = false; // Enabled for rank-based matching and debugging
 
 class DutchGameRound {
   final Logger _logger = Logger();

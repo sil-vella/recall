@@ -28,11 +28,11 @@
 **Option A: Set environment variable (Recommended)**
 ```bash
 export GOOGLE_CLIENT_ID_ANDROID="your-debug-client-id.apps.googleusercontent.com"
-./tools/scripts/launch_android_debug.sh
+./playbooks/frontend/launch_android_debug.sh
 ```
 
 **Option B: Edit the launch script**
-Edit `tools/scripts/launch_android_debug.sh` and change line ~40:
+Edit `playbooks/frontend/launch_android_debug.sh` and change line ~40:
 ```bash
 GOOGLE_CLIENT_ID_ANDROID="${GOOGLE_CLIENT_ID_ANDROID:-your-debug-client-id.apps.googleusercontent.com}"
 ```

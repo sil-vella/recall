@@ -30,9 +30,7 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
   bool _animationComplete = false;
   bool _cardRevealed = false;
   late AnimationController _animationController;
-  late AnimationController _textFlashController;
   late Animation<Offset> _cardAnimation;
-  late Animation<double> _textFlashAnimation;
   
   // GlobalKeys to track positions
   final GlobalKey _drawPileKey = GlobalKey(debugLabel: 'demo_draw_pile');
@@ -95,20 +93,6 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
       vsync: this,
     );
     
-    // Text flash animation (pulsing)
-    _textFlashController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    )..repeat(reverse: true);
-    
-    _textFlashAnimation = Tween<double>(
-      begin: 0.3,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _textFlashController,
-      curve: Curves.easeInOut,
-    ));
-    
     // Animation will be set up with actual positions after first frame
     _cardAnimation = Tween<Offset>(
       begin: Offset.zero,
@@ -124,7 +108,6 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
   @override
   void dispose() {
     _animationController.dispose();
-    _textFlashController.dispose();
     super.dispose();
   }
 
@@ -239,30 +222,6 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
     });
   }
 
-  /// Build flashing "Tap Here" text overlay for draw pile card
-  /// Positioned at the very bottom of the card
-  Widget _buildTapHereText() {
-    return AnimatedBuilder(
-      animation: _textFlashAnimation,
-      builder: (context, child) {
-        return Positioned(
-          bottom: AppPadding.smallPadding.bottom,
-          left: 0,
-          right: 0,
-          child: Text(
-            'Tap Here',
-            style: AppTextStyles.bodyMedium(
-              color: AppColors.white.withOpacity(_textFlashAnimation.value),
-            ).copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        );
-      },
-    );
-  }
-
   /// Build the game board section (draw pile and discard pile)
   Widget _buildGameBoard() {
     final cardDimensions = CardDimensions.getUnifiedDimensions();
@@ -288,26 +247,17 @@ class _DrawingCardDemonstrationWidgetState extends State<DrawingCardDemonstratio
                   style: AppTextStyles.headingSmall(),
                 ),
                 SizedBox(height: AppPadding.smallPadding.top),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    CardWidget(
-                      key: _drawPileKey,
-                      card: CardModel(
-                        cardId: 'demo-draw-pile',
-                        rank: '?',
-                        suit: '?',
-                        points: 0,
-                      ),
-                      dimensions: cardDimensions,
-                      config: CardDisplayConfig.forDrawPile(),
-                      showBack: true, // Always show back for draw pile
-                    ),
-                    // Overlay "Tap Here" text on the card
-                    Positioned.fill(
-                      child: _buildTapHereText(),
-                    ),
-                  ],
+                CardWidget(
+                  key: _drawPileKey,
+                  card: CardModel(
+                    cardId: 'demo-draw-pile',
+                    rank: '?',
+                    suit: '?',
+                    points: 0,
+                  ),
+                  dimensions: cardDimensions,
+                  config: CardDisplayConfig.forDrawPile(),
+                  showBack: true, // Always show back for draw pile
                 ),
               ],
             ),

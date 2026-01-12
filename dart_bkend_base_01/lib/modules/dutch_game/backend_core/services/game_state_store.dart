@@ -1,6 +1,6 @@
 import '../../utils/platform/shared_imports.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for rank-based matching and debugging
+const bool LOGGING_SWITCH = false; // Enabled for rank-based matching and debugging
 
 /// In-memory game state store keyed by roomId.
 /// Holds a mutable Map<String,dynamic> representing the current game state

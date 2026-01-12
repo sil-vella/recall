@@ -2,7 +2,7 @@
 
 This document summarizes the full VPS setup and deployment flow for the Dutch stack, from SSH key provisioning through Docker, Nginx, database setup, and the mobile app update pipeline.
 
-The playbooks and scripts live in `playbooks/rop01/` and `tools/scripts/`, and target a single VPS at `65.181.125.135` with:
+The playbooks and scripts live in `playbooks/rop01/` and `playbooks/frontend/`, and target a single VPS at `65.181.125.135` with:
 - **Initial root access** via SSH
 - A non-root application user `rop01_user`
 - Application root directory: `/opt/apps/reignofplay/dutch`
@@ -283,9 +283,9 @@ After pushing, re-run `08_deploy_docker_compose.yml` so the VPS pulls and starts
 
 ---
 
-### 7. Mobile App Build & Update Flow (`tools/scripts/build_apk.sh`)
+### 7. Mobile App Build & Update Flow (`playbooks/frontend/build_apk.sh`)
 
-- **Script**: `tools/scripts/build_apk.sh`
+- **Script**: `playbooks/frontend/build_apk.sh`
 
 **Inputs**:
 - Backend target: `local` or `vps` (default `vps`).
@@ -363,10 +363,10 @@ cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
 echo "2.1.0" > python_base_04/secrets/app_version
 
 # 2) Build + upload for VPS
-./tools/scripts/build_apk.sh          # default is vps
+   ./playbooks/frontend/build_apk.sh          # default is vps
 
 # 3) (Optional) Build for local backend only
-./tools/scripts/build_apk.sh local
+./playbooks/frontend/build_apk.sh local
 ```
 
 ---
@@ -549,7 +549,7 @@ To perform a full **mobile app + backend** release with versioned updates:
 
    ```bash
    cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
-   ./tools/scripts/build_apk.sh
+   ./playbooks/frontend/build_apk.sh
    ```
 
    This creates `/downloads/v2.2.0/app.apk` and updates `mobile_release.json` accordingly.

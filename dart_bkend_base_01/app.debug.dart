@@ -5,7 +5,7 @@ import 'lib/server/websocket_server.dart';
 import 'lib/utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // Enabled for rank-based matching and debugging
+const bool LOGGING_SWITCH = false; // Enabled for rank-based matching and debugging
 
 void main(List<String> args) async {
   // Initialize logger first

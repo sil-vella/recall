@@ -10,7 +10,7 @@ import '../managers/hooks_manager.dart';
 import '../modules/dutch_game/dutch_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = true; // Enabled for rank-based matching testing
+const bool LOGGING_SWITCH = false; // Enabled for rank-based matching testing
 
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};

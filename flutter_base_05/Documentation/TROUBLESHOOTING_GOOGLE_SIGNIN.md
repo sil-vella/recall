@@ -9,7 +9,7 @@ The SHA-1 fingerprint in your APK must **exactly match** what's registered in Go
 **Check your release keystore SHA-1:**
 ```bash
 cd flutter_base_05
-./tools/scripts/get_sha1_fingerprint.sh
+./playbooks/frontend/get_sha1_fingerprint.sh
 ```
 
 **Verify in Google Cloud Console:**
@@ -34,7 +34,7 @@ cd flutter_base_05
 ## 3. Verify Client ID is Being Used
 
 **Check the build script:**
-- File: `tools/scripts/build_apk.sh`
+- File: `playbooks/frontend/build_apk.sh`
 - Should include: `--dart-define=GOOGLE_CLIENT_ID_ANDROID=907176907209-u7cjeiousj1dd460730rgspf05u0fhic.apps.googleusercontent.com`
 
 **Check the code:**
@@ -91,7 +91,7 @@ Enable logging in the app to see what client ID is being used:
 
 After making any changes:
 1. **Clean build:** `cd flutter_base_05 && flutter clean`
-2. **Rebuild APK:** `./tools/scripts/build_apk.sh`
+2. **Rebuild APK:** `./playbooks/frontend/build_apk.sh`
 3. **Uninstall old APK** from device
 4. **Install new APK** and test again
 

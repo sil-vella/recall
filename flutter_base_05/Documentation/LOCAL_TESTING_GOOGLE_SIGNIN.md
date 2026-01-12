@@ -7,7 +7,7 @@ This guide explains how to test Google Sign-In locally without rebuilding APKs e
 1. **Connect your Android device** via USB (or use an emulator)
 2. **Run the debug launcher:**
    ```bash
-   ./tools/scripts/launch_android_debug.sh
+   ./playbooks/frontend/launch_android_debug.sh
    ```
 3. **Test Google Sign-In** - changes apply instantly with hot reload!
 
@@ -39,7 +39,7 @@ Since Google Cloud Console doesn't allow multiple SHA-1s in one client, create a
 **Option A: Set environment variable before running:**
 ```bash
 export GOOGLE_CLIENT_ID_ANDROID="your-debug-client-id.apps.googleusercontent.com"
-./tools/scripts/launch_android_debug.sh
+./playbooks/frontend/launch_android_debug.sh
 ```
 
 **Option B: Edit the script** to use the debug client ID by default for local testing.
@@ -57,13 +57,13 @@ The `launch_android_debug.sh` script:
 
 ```bash
 # Test with local backend (default)
-./tools/scripts/launch_android_debug.sh
+./playbooks/frontend/launch_android_debug.sh
 
 # Test with VPS backend
-./tools/scripts/launch_android_debug.sh vps
+./playbooks/frontend/launch_android_debug.sh vps
 
 # Use custom debug client ID
-GOOGLE_CLIENT_ID_ANDROID="your-debug-client-id" ./tools/scripts/launch_android_debug.sh
+GOOGLE_CLIENT_ID_ANDROID="your-debug-client-id" ./playbooks/frontend/launch_android_debug.sh
 ```
 
 ### Hot Reload Commands
@@ -124,7 +124,7 @@ LoginModule: Current Client ID: 907176907209-...
 
 For production APKs, continue using:
 ```bash
-./tools/scripts/build_apk.sh
+./playbooks/frontend/build_apk.sh
 ```
 
 This will use the release keystore and release OAuth client ID automatically.

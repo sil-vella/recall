@@ -13,7 +13,7 @@ class Logger {
   }
 
   // Logging switch for this module (like Python LOGGING_SWITCH)
-  static const bool LOGGING_SWITCH = true; // Enabled for debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for debugging
 
   // Log file path - same as Python server log
   static const String _logFileName = '/Users/sil/Documents/Work/reignofplay/Dutch/app_dev/python_base_04/tools/logger/server.log';

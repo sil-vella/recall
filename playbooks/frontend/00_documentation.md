@@ -21,12 +21,12 @@ Scripts:
 
 ```bash
 # LOCAL backend (default)
-./tools/scripts/launch_chrome.sh
+./playbooks/frontend/launch_chrome.sh
 # or
-./tools/scripts/launch_chrome.sh local
+./playbooks/frontend/launch_chrome.sh local
 
 # VPS backend
-./tools/scripts/launch_chrome.sh vps
+./playbooks/frontend/launch_chrome.sh vps
 ```
 
 **Local vs VPS behavior**:
@@ -67,12 +67,12 @@ This is the recommended way to run the **web** version against either the local 
 
 ```bash
 # LOCAL backend
-./tools/scripts/launch_oneplus.sh
+./playbooks/frontend/launch_oneplus.sh
 # or
-./tools/scripts/launch_oneplus.sh local
+./playbooks/frontend/launch_oneplus.sh local
 
 # VPS backend
-./tools/scripts/launch_oneplus.sh vps
+./playbooks/frontend/launch_oneplus.sh vps
 ```
 
 **Local vs VPS behavior**:
@@ -126,7 +126,7 @@ Use this script for **manual testing on the physical device** against either loc
    - Ensures production builds don't include debug logging
 
 2. **Resolve repo root**:
-   - `SCRIPT_DIR` = `tools/scripts`
+   - `SCRIPT_DIR` = `playbooks/frontend`
    - `REPO_ROOT` = project root.
 
 3. **Read app version**:
@@ -216,13 +216,13 @@ cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
 echo "2.1.0" > python_base_04/secrets/app_version
 
 # 2) Build + upload + update manifest for VPS
-./tools/scripts/build_apk.sh
+./playbooks/frontend/build_apk.sh
 
 # 3) Build only for local backend
-./tools/scripts/build_apk.sh local
+./playbooks/frontend/build_apk.sh local
 
 # 4) Use a custom SSH target (if needed)
-VPS_SSH_TARGET="rop01_user@65.181.125.135" ./tools/scripts/build_apk.sh
+VPS_SSH_TARGET="rop01_user@65.181.125.135" ./playbooks/frontend/build_apk.sh
 ```
 
 ---

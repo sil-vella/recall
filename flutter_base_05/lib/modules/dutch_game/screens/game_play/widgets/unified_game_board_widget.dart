@@ -29,7 +29,7 @@ class UnifiedGameBoardWidget extends StatefulWidget {
   State<UnifiedGameBoardWidget> createState() => _UnifiedGameBoardWidgetState();
 }
 
-class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
+class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with TickerProviderStateMixin {
   final Logger _logger = Logger();
   
   // ========== Opponents Panel State ==========
@@ -40,6 +40,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   
   // ========== Draw Pile State ==========
   String? _clickedPileType;
+  AnimationController? _glowAnimationController;
+  Animation<double>? _glowAnimation;
   
   // ========== Discard Pile State ==========
   // (No state needed - using _cardKeys for all cards)
@@ -85,11 +87,30 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   static const Duration _minScanInterval = Duration(milliseconds: 100);
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize glow animation controller
+    _glowAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    )..repeat(reverse: true);
+    
+    _glowAnimation = Tween<double>(
+      begin: 0.3,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _glowAnimationController!,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
     _scanThrottleTimer?.cancel();
     _positionScanner.clearPositions();
+    _glowAnimationController?.dispose();
     super.dispose();
   }
 
@@ -673,7 +694,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     final shouldHighlightBackground = _shouldHighlightCurrentPlayer(playerStatus) 
         || (isCurrentPlayer && playerStatus == 'same_rank_window');
     final statusChipColor = shouldHighlightBackground ? _getStatusChipColor(playerStatus) : null;
-    final shouldHighlight = isCurrentPlayer && _shouldHighlightCurrentPlayer(playerStatus);
     
     // Determine alignment based on opponent index
     // Opponent 0: center, Opponent 1: left, Opponent 2: right
@@ -772,7 +792,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
               const SizedBox(width: 8),
               PlayerStatusChip(
                           playerId: player['id']?.toString() ?? '',
-                          size: shouldHighlight ? PlayerStatusChipSize.medium : PlayerStatusChipSize.small,
+                          size: PlayerStatusChipSize.small,
                       ),
                     ],
                   ],
@@ -847,7 +867,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         }
         
         // Calculate total width needed for all cards
-        final totalCardsWidth = (cards.length * (cardWidth + cardPadding));
+        // Always reserve space for drawn card extra padding (even if no drawn card currently)
+        // Drawn cards get cardPadding * 2 as left padding, so we need one extra cardPadding
+        final totalCardsWidth = (cards.length * (cardWidth + cardPadding)) + cardPadding;
         
         return SizedBox(
           height: cardHeight,
@@ -1237,24 +1259,27 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
     // Get full draw pile list
     final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
     
+    // Check if player is in drawing status (similar to myHand logic)
+    final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+    final playerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
+    final isDrawingStatus = playerStatus == 'drawing_card';
+    final statusChipColor = isDrawingStatus ? _getStatusChipColor(playerStatus) : null;
+    
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'Draw',
-            style: AppTextStyles.headingSmall(),
-          ),
-          const SizedBox(height: 12),
           Builder(
             builder: (context) {
               final cardDimensions = CardDimensions.getUnifiedDimensions();
               
+              Widget drawPileContent;
+              
               if (drawPile.isEmpty) {
                 // Empty draw pile - render placeholder
                 final emptyKey = _getOrCreateCardKey('draw_pile_empty', 'draw_pile');
-                return CardWidget(
+                drawPileContent = CardWidget(
                   key: emptyKey,
                   card: CardModel(
                     cardId: 'draw_pile_empty',
@@ -1267,42 +1292,77 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
                   showBack: true,
                   onTap: _handleDrawPileClick,
                 );
+              } else {
+                // Render all cards in draw pile (stacked, all at same position)
+                // Only the top card is visible, but all are tracked for animation
+                drawPileContent = SizedBox(
+                  width: cardDimensions.width,
+                  height: cardDimensions.height,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: drawPile.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final cardData = entry.value as Map<String, dynamic>? ?? {};
+                      final cardId = cardData['cardId']?.toString() ?? 'draw_pile_empty';
+                      
+                      // Get or create key for this card
+                      final cardKey = _getOrCreateCardKey(cardId, 'draw_pile');
+                      
+                      // Only show the top card (last in list), but render all for tracking
+                      final isTopCard = index == drawPile.length - 1;
+                      
+                      return Positioned.fill(
+                        child: Opacity(
+                          opacity: isTopCard ? 1.0 : 0.0, // Only top card visible
+                          child: CardWidget(
+                            key: cardKey,
+                            card: CardModel.fromMap(cardData),
+                            dimensions: cardDimensions,
+                            config: CardDisplayConfig.forDrawPile(),
+                            showBack: true,
+                            onTap: isTopCard ? _handleDrawPileClick : null, // Only top card clickable
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                );
               }
               
-              // Render all cards in draw pile (stacked, all at same position)
-              // Only the top card is visible, but all are tracked for animation
-              return SizedBox(
-                width: cardDimensions.width,
-                height: cardDimensions.height,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: drawPile.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final cardData = entry.value as Map<String, dynamic>? ?? {};
-                    final cardId = cardData['cardId']?.toString() ?? 'draw_pile_empty';
-                    
-                    // Get or create key for this card
-                    final cardKey = _getOrCreateCardKey(cardId, 'draw_pile');
-                    
-                    // Only show the top card (last in list), but render all for tracking
-                    final isTopCard = index == drawPile.length - 1;
-                    
-                    return Positioned.fill(
-                      child: Opacity(
-                        opacity: isTopCard ? 1.0 : 0.0, // Only top card visible
-                        child: CardWidget(
-                          key: cardKey,
-                          card: CardModel.fromMap(cardData),
-                          dimensions: cardDimensions,
-                          config: CardDisplayConfig.forDrawPile(),
-                          showBack: true,
-                          onTap: isTopCard ? _handleDrawPileClick : null, // Only top card clickable
-                        ),
+              // Wrap with animated glow effect when in drawing status
+              if (isDrawingStatus && statusChipColor != null && _glowAnimation != null) {
+                return AnimatedBuilder(
+                  animation: _glowAnimation!,
+                  builder: (context, child) {
+                    final glowOpacity = _glowAnimation!.value;
+                    return Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusChipColor.withValues(alpha: 0.6 * glowOpacity),
+                            blurRadius: 20,
+                            spreadRadius: 4,
+                          ),
+                          BoxShadow(
+                            color: statusChipColor.withValues(alpha: 0.4 * glowOpacity),
+                            blurRadius: 35,
+                            spreadRadius: 8,
+                          ),
+                          BoxShadow(
+                            color: statusChipColor.withValues(alpha: 0.2 * glowOpacity),
+                            blurRadius: 50,
+                            spreadRadius: 12,
+                          ),
+                        ],
                       ),
+                      child: drawPileContent,
                     );
-                  }).toList(),
-                ),
-              );
+                  },
+                );
+              }
+              
+              return drawPileContent;
             },
           ),
         ],
@@ -1394,11 +1454,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'Last Played',
-            style: AppTextStyles.headingSmall(),
-          ),
-          const SizedBox(height: 12),
           Builder(
             builder: (context) {
               final cardDimensions = CardDimensions.getUnifiedDimensions();
@@ -2039,9 +2094,25 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
               }
               
               // Determine which data to use (priority: drawn card > peeked card > collection rank card > ID-only hand card)
-              final cardDataToUse = isDrawnCard && drawnCard != null 
-                  ? drawnCard 
-                  : (peekedCardData ?? collectionRankCardData ?? cardMap);
+              // For drawn cards, ensure we have full data (rank and suit not '?')
+              Map<String, dynamic> cardDataToUse;
+              if (isDrawnCard && drawnCard != null) {
+                // Validate drawn card has full data
+                final hasFullData = drawnCard.containsKey('rank') && 
+                                   drawnCard['rank'] != null && 
+                                   drawnCard['rank'] != '?' &&
+                                   drawnCard.containsKey('suit') && 
+                                   drawnCard['suit'] != null && 
+                                   drawnCard['suit'] != '?';
+                if (hasFullData) {
+                  cardDataToUse = drawnCard;
+                } else {
+                  // Drawn card data is incomplete, fall back to other sources
+                  cardDataToUse = peekedCardData ?? collectionRankCardData ?? cardMap;
+                }
+              } else {
+                cardDataToUse = peekedCardData ?? collectionRankCardData ?? cardMap;
+              }
               
               // If this is a collection rank card, render the stack (only once, at the first collection card)
               if (isCollectionRankCard && collectionRankWidgets.containsKey(cardId)) {
@@ -2571,8 +2642,57 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
   }
 
   Widget _buildMyHandCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey, Size cardDimensions) {
-    final cardModel = CardModel.fromMap(card);
+    // For drawn cards in user's hand, always show face up
+    // Ensure card has full data - if not, try to get it from the cardMap or myDrawnCard in state
+    Map<String, dynamic> cardDataToUse = card;
+    if (isDrawnCard) {
+      // For drawn cards, we MUST have full data (rank, suit, points)
+      // Check if current card data is incomplete
+      final hasIncompleteData = !card.containsKey('rank') || 
+                                card['rank'] == null || 
+                                card['rank'] == '?' ||
+                                !card.containsKey('suit') || 
+                                card['suit'] == null || 
+                                card['suit'] == '?';
+      
+      if (hasIncompleteData) {
+        // Try to get full data from cardMap first
+        if (cardMap.containsKey('rank') && 
+            cardMap['rank'] != null && 
+            cardMap['rank'] != '?' &&
+            cardMap.containsKey('suit') && 
+            cardMap['suit'] != null && 
+            cardMap['suit'] != '?') {
+          cardDataToUse = cardMap;
+        } else {
+          // Last resort: try to get from myDrawnCard in state
+          final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+          final myDrawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
+          if (myDrawnCard != null && 
+              myDrawnCard.containsKey('rank') && 
+              myDrawnCard['rank'] != null && 
+              myDrawnCard['rank'] != '?' &&
+              myDrawnCard.containsKey('suit') && 
+              myDrawnCard['suit'] != null && 
+              myDrawnCard['suit'] != '?') {
+            cardDataToUse = myDrawnCard;
+          }
+        }
+      }
+    }
+    
+    final cardModel = CardModel.fromMap(cardDataToUse);
     final updatedCardModel = cardModel.copyWith(isSelected: isSelected);
+    
+    // For drawn cards in user's hand, show face up ONLY if we have complete data
+    // If data is still incomplete after all fallbacks, show back to avoid blank white card
+    // For other cards, show back if face down or missing full data
+    final hasCompleteData = cardModel.hasFullData && 
+                           cardModel.rank != '?' && 
+                           cardModel.suit != '?';
+    final shouldShowBack = isDrawnCard 
+        ? !hasCompleteData  // Show back if data is incomplete
+        : (cardModel.isFaceDown || !cardModel.hasFullData);
     
     // Use provided cardDimensions (may be rescaled to fit container)
     Widget cardWidget = CardWidget(
@@ -2580,6 +2700,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> {
       card: updatedCardModel,
       dimensions: cardDimensions,
       config: CardDisplayConfig.forMyHand(),
+      showBack: shouldShowBack,
       isSelected: isSelected,
       onTap: () => _handleMyHandCardSelection(context, index, cardMap),
     );

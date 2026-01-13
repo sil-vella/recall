@@ -13,6 +13,10 @@ This document describes the complete timer system and game leaving logic in the 
 3. [Flow Diagrams](#flow-diagrams)
 4. [Implementation Details](#implementation-details)
 
+## Related Documentation
+
+- **[Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)** - Complete documentation of the phase-based timer configuration system, timer value declaration, and priority logic
+
 ---
 
 ## Timer System
@@ -23,8 +27,9 @@ The Dutch game uses several types of timers to manage game flow and player actio
 
 #### 1. Draw Action Timer
 - **Purpose**: Limits time for a player to draw a card
-- **Duration**: Configurable via `turnTimeLimit` (default: 30 seconds)
+- **Duration**: Determined by `getTimerConfig()` based on status `drawing_card` (current: 10 seconds)
 - **Location**: `DutchGameRound._drawActionTimer`
+- **Configuration**: See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)
 - **When Started**: 
   - When a player's turn begins (status changes to `drawing_card`)
   - After `handleDrawCard()` completes successfully
@@ -41,8 +46,9 @@ The Dutch game uses several types of timers to manage game flow and player actio
 
 #### 2. Play Action Timer
 - **Purpose**: Limits time for a player to play a card after drawing
-- **Duration**: Configurable via `turnTimeLimit` (default: 30 seconds)
+- **Duration**: Determined by `getTimerConfig()` based on status `playing_card` (current: 30 seconds)
 - **Location**: `DutchGameRound._playActionTimer`
+- **Configuration**: See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)
 - **When Started**: 
   - After player successfully draws a card (status changes to `playing_card`)
 - **When Cancelled**:
@@ -61,9 +67,10 @@ The Dutch game uses several types of timers to manage game flow and player actio
   8. If counter reaches 2, trigger auto-leave
 
 #### 3. Same Rank Timer
-- **Purpose**: Provides a 5-second window for other players to play matching rank cards
-- **Duration**: 5 seconds (fixed)
+- **Purpose**: Provides a window for other players to play matching rank cards
+- **Duration**: Determined by `getTimerConfig()` based on phase `same_rank_window` or status `same_rank_window` (current: 10 seconds)
 - **Location**: `DutchGameRound._sameRankTimer`
+- **Configuration**: See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)
 - **When Started**: 
   - When a card is played and triggers same rank window
 - **When Cancelled**:
@@ -74,8 +81,9 @@ The Dutch game uses several types of timers to manage game flow and player actio
 
 #### 4. Special Card Timer
 - **Purpose**: Provides time for special card actions (Queen peek, Jack swap)
-- **Duration**: 10 seconds per special card (fixed)
+- **Duration**: Determined by `getTimerConfig()` based on status `queen_peek` (15s) or `jack_swap` (20s)
 - **Location**: `DutchGameRound._specialCardTimer`
+- **Configuration**: See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)
 - **When Started**: 
   - When a special card (Queen/Jack) is played
 - **When Cancelled**:
@@ -86,8 +94,9 @@ The Dutch game uses several types of timers to manage game flow and player actio
 
 #### 5. Initial Peek Timer
 - **Purpose**: Limits time for players to peek at initial cards before game starts
-- **Duration**: 15 seconds (fixed)
+- **Duration**: Determined by `game_state['timerConfig']['initial_peek']` (current: 15 seconds)
 - **Location**: `GameEventCoordinator._initialPeekTimers` (per room)
+- **Configuration**: See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)
 - **When Started**: 
   - When match starts and game enters `initial_peek` phase
 - **When Cancelled**:
@@ -97,6 +106,15 @@ The Dutch game uses several types of timers to manage game flow and player actio
 
 ### Timer Configuration
 
+The timer system uses **phase-based configuration** where timer durations are determined by game phase and player status. See [Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md) for complete details.
+
+**Key Points**:
+- Timer values are declared in `game_registry.dart` switch cases
+- Status is checked before phase (status is more specific)
+- `timerConfig` is added to `game_state` during initialization for UI consumption
+- Timer values can be modified in `game_registry.dart` switch cases
+
+**Timer Disabling**:
 Timers can be disabled when instructions are shown:
 - **Condition**: `showInstructions == true` (typically in practice mode)
 - **Behavior**: All action timers (draw/play) are disabled

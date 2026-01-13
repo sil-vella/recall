@@ -10,6 +10,7 @@ The multiplayer game system uses real computer player users from the database in
 4. **Rank-based matching system** for both human and computer players
 5. **Rank-to-difficulty mapping** for AI behavior configuration
 6. **Level and rank fields** stored in player data and game state
+7. **Profile picture support** - comp players include `profile_picture` URLs in player data, displayed in the unified game board widget
 
 ## Database Changes
 
@@ -82,7 +83,7 @@ Add method `get_comp_players()`:
   - Uses `random.sample()` to select the requested count
   - Shuffles selected players again before returning
   - This ensures both selection and order are truly random
-- Returns list with `user_id`, `username`, `email`, `rank`, and `level` for each comp player
+- Returns list with `user_id`, `username`, `email`, `rank`, `level`, and `profile_picture` for each comp player
 - Handles case where fewer comp players exist than requested (returns available ones)
 
 **Response format**:
@@ -95,14 +96,16 @@ Add method `get_comp_players()`:
       "username": "CompPlayer1",
       "email": "...",
       "rank": "apprentice",
-      "level": 25
+      "level": 25,
+      "profile_picture": "https://dutch.reignofplay.com/sim_players/images/img000.jpg"
     },
     {
       "user_id": "...",
       "username": "CompPlayer2",
       "email": "...",
       "rank": "skilled",
-      "level": 35
+      "level": 35,
+      "profile_picture": "https://dutch.reignofplay.com/sim_players/images/img001.jpg"
     }
   ],
   "count": 2
@@ -130,7 +133,7 @@ Future<Map<String, dynamic>> getCompPlayers(int count, {List<String>? rankFilter
   // POST to /public/dutch/get-comp-players
   // Body: {"count": count, "rank_filter": rankFilter}  // rankFilter is optional
   // Returns: {"success": true, "comp_players": [...], "count": N}
-  // Each comp player includes: user_id, username, email, rank, level
+  // Each comp player includes: user_id, username, email, rank, level, profile_picture
 }
 ```
 
@@ -164,9 +167,9 @@ Future<Map<String, dynamic>> getCompPlayers(int count, {List<String>? rankFilter
      - Use `username` as player `name` (ensure uniqueness)
      - Set `isHuman: false`
      - Set `userId: user_id` (for coin deduction)
-     - **Extract `rank` and `level`** from comp player data
+     - **Extract `rank`, `level`, and `profile_picture`** from comp player data
      - **Map rank to difficulty** using `RankMatcher.rankToDifficulty(rank)` (returns: easy, medium, hard, expert)
-     - **Store `rank`, `level`, and `difficulty`** in player object
+     - **Store `rank`, `level`, `difficulty`, and `profile_picture`** in player object
      - Initialize other player fields (hand, status, points, etc.)
 
 3. Fallback logic:
@@ -274,7 +277,7 @@ Player ranks are mapped to YAML difficulty levels for AI behavior:
 3. **Fetch Comp Players**: Call Flask endpoint with `rank_filter` containing compatible ranks
 4. **Fallback**: If no comp players found with rank filter, retry without filter (ensures game can start)
 5. **Map Difficulty**: For each comp player, map their `rank` to YAML `difficulty` using `RankMatcher.rankToDifficulty()`
-6. **Store in Player Object**: Include `rank`, `level`, and `difficulty` in the player object for AI decision-making
+6. **Store in Player Object**: Include `rank`, `level`, `difficulty`, and `profile_picture` in the player object for AI decision-making and UI display
 
 ### Practice Mode CPU Players
 
@@ -312,6 +315,7 @@ Player ranks are mapped to YAML difficulty levels for AI behavior:
 - [x] Implement rank-based room joining validation
 - [x] Store user rank and level in WebSocket session
 - [x] Update practice mode to use selected difficulty
+- [x] Add profile picture support for computer players (profile_picture URL included in comp player data and displayed in unified game board widget)
 
 ## Implementation Details
 

@@ -224,6 +224,19 @@ The Dutch game module state is stored under the key `'dutch_game'` in `StateMana
           'minPlayers': int,
           'showInstructions': bool,
           'isClearAndCollect': bool,  // Game mode flag: false = clear mode (no collection), true = collection mode
+          'timerConfig': Map<String, int>,  // Phase-based timer configuration (added during game initialization)
+          // timerConfig structure:
+          //   'initial_peek': int,      // Timer for initial peek phase (current: 15s)
+          //   'drawing_card': int,      // Timer for drawing card status (current: 10s)
+          //   'playing_card': int,       // Timer for playing card status (current: 30s)
+          //   'same_rank_window': int,  // Timer for same rank window phase (current: 10s)
+          //   'queen_peek': int,        // Timer for queen peek status (current: 15s)
+          //   'jack_swap': int,         // Timer for jack swap status (current: 20s)
+          //   'peeking': int,           // Timer for peeking status (current: 10s)
+          //   'waiting': int,           // Timer for waiting status (current: 0s)
+          //   'default': int,           // Default fallback timer (current: 30s)
+          // Note: Timer values are declared in game_registry.dart switch cases.
+          // See PHASE_BASED_TIMER_SYSTEM.md for complete documentation.
           'dutchCalledBy': String?,   // Player ID who called Dutch (final round)
           'winners': List<Player>?,
         },

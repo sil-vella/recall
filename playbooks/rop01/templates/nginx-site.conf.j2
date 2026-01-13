@@ -47,6 +47,23 @@ server {
         }
     }
 
+    # Static sim_players/images directory for simulated player profile pictures
+    # Must come BEFORE location / to ensure it matches first
+    location /sim_players/ {
+        alias {{ item.root_dir | default('/var/www/' + item.domain) }}/sim_players/;
+        autoindex off;
+        expires 7d;
+        add_header Cache-Control "public";
+        # CORS headers for Flutter web image loading
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "*" always;
+        # Handle OPTIONS preflight requests
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+    }
+
     # Reverse proxy to backend application (e.g. Flask in Docker)
     location / {
         proxy_pass http://127.0.0.1:{{ item.backend_port }};

@@ -58,7 +58,18 @@ def create_player_document(player_json: Dict[str, Any], current_time: datetime) 
     rank = player_json.get('rank', 'beginner').lower()
     coins = player_json.get('coins', 1000)
     
-    firstName, lastName = extract_name_from_username(username)
+    # Use first_name and last_name from JSON if available, otherwise extract from username
+    firstName = player_json.get('first_name', '')
+    lastName = player_json.get('last_name', '')
+    if not firstName or not lastName:
+        extracted_first, extracted_last = extract_name_from_username(username)
+        if not firstName:
+            firstName = extracted_first
+        if not lastName:
+            lastName = extracted_last
+    
+    # Use picture from JSON if available, otherwise use empty string
+    picture = player_json.get('picture', '')
     
     return {
         "username": username,
@@ -71,7 +82,7 @@ def create_player_document(player_json: Dict[str, Any], current_time: datetime) 
         "profile": {
             "first_name": firstName,
             "last_name": lastName,
-            "picture": "",
+            "picture": picture,
             "timezone": "UTC",
             "language": "en"
         },
@@ -120,28 +131,40 @@ def create_player_document(player_json: Dict[str, Any], current_time: datetime) 
     }
 
 
-def insert_players(players: List[Dict[str, Any]], batch_size: int = 50):
-    """Insert players into MongoDB in batches (local Docker)."""
+def upsert_players(players: List[Dict[str, Any]], batch_size: int = 50):
+    """Upsert players into MongoDB in batches (local Docker) - inserts new or updates existing."""
+    total_upserted = 0
     total_inserted = 0
+    total_updated = 0
     failed = 0
     
     for i in range(0, len(players), batch_size):
         batch = players[i:i + batch_size]
         batch_num = i // batch_size + 1
         
-        # Create JavaScript file with the data
-        js_file = '/tmp/insert_players_batch.js'
+        # Create JavaScript file with upsert operations
+        js_file = '/tmp/upsert_players_batch.js'
         with open(js_file, 'w') as f:
             f.write(f'db = db.getSiblingDB("{MONGODB_DATABASE}");\n')
             f.write(f'var players = {json.dumps(batch)};\n')
-            f.write('var result = db.users.insertMany(players, { ordered: false });\n')
-            f.write('print("Inserted: " + result.insertedIds.length);\n')
-            f.write('if (result.writeErrors && result.writeErrors.length > 0) {\n')
-            f.write('  print("Duplicates skipped: " + result.writeErrors.length);\n')
-            f.write('}\n')
+            f.write('var inserted = 0;\n')
+            f.write('var updated = 0;\n')
+            f.write('players.forEach(function(player) {\n')
+            f.write('  var result = db.users.updateOne(\n')
+            f.write('    { email: player.email },\n')
+            f.write('    { $set: player },\n')
+            f.write('    { upsert: true }\n')
+            f.write('  );\n')
+            f.write('  if (result.upsertedId) {\n')
+            f.write('    inserted++;\n')
+            f.write('  } else if (result.modifiedCount > 0) {\n')
+            f.write('    updated++;\n')
+            f.write('  }\n')
+            f.write('});\n')
+            f.write('print("Inserted: " + inserted + ", Updated: " + updated);\n')
         
         # Copy file into MongoDB container
-        copy_to_container_cmd = f'docker cp {js_file} {MONGODB_CONTAINER}:/tmp/insert_players_batch.js'
+        copy_to_container_cmd = f'docker cp {js_file} {MONGODB_CONTAINER}:/tmp/upsert_players_batch.js'
         try:
             subprocess.run(copy_to_container_cmd, shell=True, check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
@@ -155,7 +178,7 @@ def insert_players(players: List[Dict[str, Any]], batch_size: int = 50):
             continue
         
         # Execute the JavaScript file
-        mongosh_cmd = f'docker exec {MONGODB_CONTAINER} mongosh -u {MONGODB_USER} -p "{MONGODB_PASSWORD}" --authenticationDatabase {MONGODB_AUTH_DB} /tmp/insert_players_batch.js'
+        mongosh_cmd = f'docker exec {MONGODB_CONTAINER} mongosh -u {MONGODB_USER} -p "{MONGODB_PASSWORD}" --authenticationDatabase {MONGODB_AUTH_DB} /tmp/upsert_players_batch.js'
         
         try:
             result = subprocess.run(
@@ -166,17 +189,21 @@ def insert_players(players: List[Dict[str, Any]], batch_size: int = 50):
                 check=True
             )
             
-            # Parse inserted count
+            # Parse inserted and updated counts
             for line in result.stdout.split('\n'):
-                if 'Inserted:' in line and not line.startswith('Mongo'):
+                if 'Inserted:' in line and 'Updated:' in line and not line.startswith('Mongo'):
                     try:
-                        count = int(line.split(':')[1].strip())
-                        total_inserted += count
-                        print(f"  ✅ Batch {batch_num}: Inserted {count} players")
+                        parts = line.split(',')
+                        inserted_count = int(parts[0].split(':')[1].strip())
+                        updated_count = int(parts[1].split(':')[1].strip())
+                        total_inserted += inserted_count
+                        total_updated += updated_count
+                        total_upserted += inserted_count + updated_count
+                        print(f"  ✅ Batch {batch_num}: Inserted {inserted_count}, Updated {updated_count} players")
                     except (ValueError, IndexError):
                         pass
         except subprocess.CalledProcessError as e:
-            print(f"⚠️  Error inserting batch {batch_num}: {e.stderr[:200] if e.stderr else str(e)}", file=sys.stderr)
+            print(f"⚠️  Error upserting batch {batch_num}: {e.stderr[:200] if e.stderr else str(e)}", file=sys.stderr)
             failed += len(batch)
         
         # Clean up local file
@@ -185,7 +212,7 @@ def insert_players(players: List[Dict[str, Any]], batch_size: int = 50):
         except:
             pass
     
-    return total_inserted, failed
+    return total_upserted, total_inserted, total_updated, failed
 
 
 def main():
@@ -230,10 +257,10 @@ def main():
         print(f"✅ All {len(players_data)} players already exist in database")
         return
     
-    print(f"\n➕ Creating {len(players_to_create)} players...")
+    print(f"\n➕ Upserting {len(players_to_create)} players (insert new or update existing)...")
     
-    # Insert players
-    total_inserted, failed = insert_players(players_to_create)
+    # Upsert players (insert new or update existing)
+    total_upserted, total_inserted, total_updated, failed = upsert_players(players_to_create)
     
     # Summary by rank
     rank_summary = {}
@@ -241,9 +268,13 @@ def main():
         rank = player['modules']['dutch_game']['rank']
         rank_summary[rank] = rank_summary.get(rank, 0) + 1
     
-    print(f"\n✅ Created {total_inserted} computer player(s)")
+    print(f"\n✅ Upserted {total_upserted} computer player(s)")
+    if total_inserted > 0:
+        print(f"  ➕ Inserted {total_inserted} new player(s)")
+    if total_updated > 0:
+        print(f"  🔄 Updated {total_updated} existing player(s) with new profile data")
     if failed > 0:
-        print(f"  ❌ Failed to insert {failed} player(s)")
+        print(f"  ❌ Failed to upsert {failed} player(s)")
     
     print("\n📊 Created players by rank:")
     for rank, count in sorted(rank_summary.items()):

@@ -840,18 +840,20 @@ class DutchGameMain(BaseModule):
             
             custom_log(f"🤖 DutchGame: Selected {selected_count} comp player(s) randomly and shuffled", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Format response with user_id, username, email, rank (preserve random order)
+            # Format response with user_id, username, email, rank, level, and profile_picture (preserve random order)
             comp_players_list = []
             for idx, player in enumerate(selected_players):
                 dutch_game_data = player.get("modules", {}).get("dutch_game", {})
+                profile = player.get("profile", {})
                 comp_players_list.append({
                     "user_id": str(player.get("_id", "")),
                     "username": player.get("username", ""),
                     "email": player.get("email", ""),
                     "rank": dutch_game_data.get("rank", "beginner"),  # Include rank in response
                     "level": dutch_game_data.get("level", 1),  # Include level in response
+                    "profile_picture": profile.get("picture", ""),  # Include profile picture URL
                 })
-                custom_log(f"🤖 DutchGame: Added comp player [{idx+1}/{selected_count}] - user_id: {player.get('_id')}, username: {player.get('username')}, rank: {dutch_game_data.get('rank', 'beginner')}", level="INFO", isOn=LOGGING_SWITCH)
+                custom_log(f"🤖 DutchGame: Added comp player [{idx+1}/{selected_count}] - user_id: {player.get('_id')}, username: {player.get('username')}, rank: {dutch_game_data.get('rank', 'beginner')}, hasPicture: {bool(profile.get('picture', ''))}", level="INFO", isOn=LOGGING_SWITCH)
             
             response_data = {
                 "success": True,

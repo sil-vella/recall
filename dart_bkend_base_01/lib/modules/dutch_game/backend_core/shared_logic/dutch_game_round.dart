@@ -8,7 +8,7 @@ import '../utils/rank_matcher.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for rank-based matching and debugging
+const bool LOGGING_SWITCH = true; // Enabled for timer configuration testing
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -2901,17 +2901,21 @@ class DutchGameRound {
     }
   }
 
-  /// Start a 5-second timer for the same rank window
+  /// Start a phase-based timer for the same rank window
   /// Replicates backend's _start_same_rank_timer method in game_round.py lines 587-597
   void _startSameRankTimer() {
     try {
-      _logger.info('Dutch: Starting 5-second same rank window timer', isOn: LOGGING_SWITCH);
+      // Get timer duration from phase-based configuration
+      final config = _stateCallback.getTimerConfig();
+      final sameRankTimerDuration = config['turnTimeLimit'] as int? ?? 10;
+      
+      _logger.info('Dutch: Starting ${sameRankTimerDuration}-second same rank window timer (phase-based)', isOn: LOGGING_SWITCH);
       
       // Cancel existing timer if any
       _sameRankTimer?.cancel();
       
       // Store timer reference for potential cancellation
-      _sameRankTimer = Timer(const Duration(seconds: 5), () async {
+      _sameRankTimer = Timer(Duration(seconds: sameRankTimerDuration), () async {
         await _endSameRankWindow();
       });
       
@@ -3800,10 +3804,8 @@ class DutchGameRound {
       // Set player status based on special power
       if (specialPower == 'jack_swap') {
         _updatePlayerStatusInGamesMap('jack_swap', playerId: playerId);
-        _logger.info('Dutch: Player $playerId status set to jack_swap - 10 second timer started', isOn: LOGGING_SWITCH);
       } else if (specialPower == 'queen_peek') {
         _updatePlayerStatusInGamesMap('queen_peek', playerId: playerId);
-        _logger.info('Dutch: Player $playerId status set to queen_peek - 10 second timer started', isOn: LOGGING_SWITCH);
       } else {
         _logger.warning('Dutch: Unknown special power: $specialPower for player $playerId', isOn: LOGGING_SWITCH);
         // Remove this card and move to next
@@ -3842,12 +3844,16 @@ class DutchGameRound {
         }
       }
       
-      // Start 10-second timer for this player's special card play
+      // Get timer duration from phase-based configuration (based on current player status)
+      final config = _stateCallback.getTimerConfig();
+      final specialCardTimerDuration = config['turnTimeLimit'] as int? ?? 15;
+      
+      // Start phase-based timer for this player's special card play
       _specialCardTimer?.cancel();
-      _specialCardTimer = Timer(const Duration(seconds: 10), () {
+      _specialCardTimer = Timer(Duration(seconds: specialCardTimerDuration), () {
         _onSpecialCardTimerExpired();
       });
-      _logger.info('Dutch: 10-second timer started for player $playerId\'s $specialPower', isOn: LOGGING_SWITCH);
+      _logger.info('Dutch: ${specialCardTimerDuration}-second timer started for player $playerId\'s $specialPower (phase-based)', isOn: LOGGING_SWITCH);
       
     } catch (e) {
       _logger.error('Dutch: Error in _processNextSpecialCard: $e', isOn: LOGGING_SWITCH);

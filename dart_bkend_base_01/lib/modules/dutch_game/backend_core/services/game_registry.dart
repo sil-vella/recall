@@ -4,7 +4,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for rank-based matching and debugging
+const bool LOGGING_SWITCH = true; // Enabled for timer configuration testing
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -351,13 +351,84 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
 
   @override
   Map<String, dynamic> getTimerConfig() {
-    // Get turnTimeLimit from room config
-    final roomInfo = server.getRoomInfo(roomId);
-    final turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;
+    // Get current phase and status for phase-based timer calculation
+    final gameState = _store.getGameState(roomId);
+    final phase = gameState['phase'] as String?;
+    final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
+    final status = currentPlayer?['status'] as String?;
+    
+    _logger.info('GameRegistry: getTimerConfig() for room $roomId - phase: $phase, status: $status', isOn: LOGGING_SWITCH);
+    
+    // Calculate timer based on phase or status - timer values declared directly in switch cases
+    // Priority: Status is more specific than phase, so check status first for player actions
+    int? turnTimeLimit; // Use null to track if timer was set
+    
+    // Check status first (more specific than phase for player actions)
+    if (status != null && status.isNotEmpty) {
+      switch (status) {
+        case 'initial_peek':
+          turnTimeLimit = 15;
+          break;
+        case 'drawing_card':
+          turnTimeLimit = 10;
+          break;
+        case 'playing_card':
+          turnTimeLimit = 30;
+          break;
+        case 'same_rank_window':
+          turnTimeLimit = 10;
+          break;
+        case 'queen_peek':
+          turnTimeLimit = 15;
+          break;
+        case 'jack_swap':
+          turnTimeLimit = 20;
+          break;
+        case 'peeking':
+          turnTimeLimit = 10;
+          break;
+        case 'waiting':
+          turnTimeLimit = 0;
+          break;
+        default:
+          // If status doesn't match, fall through to phase check
+          break;
+      }
+    }
+    
+    // If status didn't provide a timer (or status was null), check phase
+    if (turnTimeLimit == null && phase != null && phase.isNotEmpty) {
+      switch (phase) {
+        case 'initial_peek':
+          turnTimeLimit = 15;
+          break;
+        case 'player_turn':
+        case 'playing':
+          // For generic player_turn/playing phase, status should have been checked above
+          // But if status wasn't available, use playing_card as default
+          turnTimeLimit = 30;
+          break;
+        case 'same_rank_window':
+          turnTimeLimit = 10;
+          break;
+        case 'queen_peek_window':
+          turnTimeLimit = 15;
+          break;
+        case 'special_play_window':
+          turnTimeLimit = 20;
+          break;
+        default:
+          turnTimeLimit = 30;
+      }
+    }
+    
+    // Final fallback if neither status nor phase provided a timer
+    turnTimeLimit ??= 30;
     
     // Get showInstructions from game state (default to false if not found)
-    final gameState = _store.getGameState(roomId);
     final showInstructions = gameState['showInstructions'] as bool? ?? false;
+    
+    _logger.info('GameRegistry: getTimerConfig() returning turnTimeLimit: $turnTimeLimit for room $roomId', isOn: LOGGING_SWITCH);
     
     return {
       'turnTimeLimit': turnTimeLimit,

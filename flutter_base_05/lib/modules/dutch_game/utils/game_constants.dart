@@ -170,4 +170,74 @@ class GameConstants {
       'specialPowerUsage': 0.9,
     },
   };
+  
+  // Phase-based timer configuration (in seconds)
+  // Note: Actual timer values are declared in game_registry.dart switch cases
+  static const int TIMER_INITIAL_PEEK = 15;
+  static const int TIMER_DRAWING_CARD = 620; // Test value - actual timer values declared in game_registry.dart
+  static const int TIMER_PLAYING_CARD = 30;
+  static const int TIMER_SAME_RANK_WINDOW = 10;
+  static const int TIMER_QUEEN_PEEK = 15;
+  static const int TIMER_JACK_SWAP = 20;
+  static const int TIMER_PEEKING = 10;
+  static const int TIMER_WAITING = 0; // No timer for waiting
+  static const int TIMER_DEFAULT = 30; // Default fallback
+  
+  /// Get timer duration for a game phase
+  static int getTimerForPhase(String? phase) {
+    if (phase == null || phase.isEmpty) return TIMER_DEFAULT;
+    switch (phase) {
+      case 'initial_peek':
+        return TIMER_INITIAL_PEEK;
+      case 'player_turn':
+        return TIMER_PLAYING_CARD; // Default for player turn
+      case 'same_rank_window':
+        return TIMER_SAME_RANK_WINDOW;
+      case 'queen_peek_window':
+        return TIMER_QUEEN_PEEK;
+      case 'special_play_window':
+        return TIMER_JACK_SWAP;
+      default:
+        return TIMER_DEFAULT;
+    }
+  }
+  
+  /// Get timer duration for a player status
+  static int getTimerForStatus(String? status) {
+    if (status == null || status.isEmpty) return TIMER_DEFAULT;
+    switch (status) {
+      case 'initial_peek':
+        return TIMER_INITIAL_PEEK;
+      case 'drawing_card':
+        return TIMER_DRAWING_CARD;
+      case 'playing_card':
+        return TIMER_PLAYING_CARD;
+      case 'same_rank_window':
+        return TIMER_SAME_RANK_WINDOW;
+      case 'queen_peek':
+        return TIMER_QUEEN_PEEK;
+      case 'jack_swap':
+        return TIMER_JACK_SWAP;
+      case 'peeking':
+        return TIMER_PEEKING;
+      case 'waiting':
+        return TIMER_WAITING;
+      default:
+        return TIMER_DEFAULT;
+    }
+  }
+  
+  /// Get timer duration based on phase or status (prefers phase)
+  static int getTimer(String? phase, String? status) {
+    if (phase != null && phase.isNotEmpty) {
+      final phaseTimer = getTimerForPhase(phase);
+      if (phaseTimer != TIMER_DEFAULT || status == null) {
+        return phaseTimer;
+      }
+    }
+    if (status != null && status.isNotEmpty) {
+      return getTimerForStatus(status);
+    }
+    return TIMER_DEFAULT;
+  }
 } 

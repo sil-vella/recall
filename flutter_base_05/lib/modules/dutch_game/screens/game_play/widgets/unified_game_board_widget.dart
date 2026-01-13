@@ -15,7 +15,7 @@ import '../../../utils/card_position_scanner.dart';
 import '../../../utils/card_animation_detector.dart';
 import '../../demo/demo_functionality.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -645,13 +645,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         final gamePhase = dutchGameState['gamePhase']?.toString() ?? 'waiting';
         final isInitialPeekPhase = gamePhase == 'initial_peek';
         
-        // Get turnTimeLimit from game state
+        // Get game state for timer configuration
         final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
         final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
         final gameData = games[currentGameId] as Map<String, dynamic>?;
         final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
         final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
-        final turnTimeLimit = gameState?['turnTimeLimit'] as int? ?? 30;
+        final phase = gameState?['phase'] as String?;
+        // Safely convert Map<String, dynamic> to Map<String, int>
+        final timerConfigRaw = gameState?['timerConfig'] as Map<String, dynamic>?;
+        final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
     
         return Column(
           children: opponents.asMap().entries.map((entry) {
@@ -674,7 +677,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   currentPlayerStatus,
                   knownCards,
                   isInitialPeekPhase,
-                  turnTimeLimit,
+                  phase, // Pass phase for timer calculation
+                  timerConfig, // Pass timerConfig from game_state
                   opponentIndex: index, // Pass index for alignment
                 ),
               );
@@ -684,7 +688,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, int turnTimeLimit, {required int opponentIndex}) {
+  Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, String? phase, Map<String, int>? timerConfig, {required int opponentIndex}) {
     // Get player name - prefer full_name, fallback to name, then username, then default
     final fullName = player['full_name']?.toString();
     final playerNameRaw = player['name']?.toString();
@@ -701,9 +705,88 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final hasCalledDutch = player['hasCalledDutch'] ?? false;
     final playerStatus = player['status']?.toString() ?? 'unknown';
     
+    // Use currentPlayerStatus (from game state) when isCurrentPlayer is true, as it reflects the actual game state status
+    final effectiveStatus = isCurrentPlayer ? currentPlayerStatus : playerStatus;
+    
+    // Calculate timer from game_state timerConfig (status is more specific than phase)
+    int? effectiveTimer;
+    
+    // Check status first (more specific than phase for player actions)
+    if (effectiveStatus != null && effectiveStatus.isNotEmpty) {
+      switch (effectiveStatus) {
+        case 'initial_peek':
+          effectiveTimer = timerConfig?['initial_peek'] ?? 15;
+          break;
+        case 'drawing_card':
+          effectiveTimer = timerConfig?['drawing_card'] ?? 20;
+          break;
+        case 'playing_card':
+          effectiveTimer = timerConfig?['playing_card'] ?? 30;
+          break;
+        case 'same_rank_window':
+          effectiveTimer = timerConfig?['same_rank_window'] ?? 10;
+          break;
+        case 'queen_peek':
+          effectiveTimer = timerConfig?['queen_peek'] ?? 15;
+          break;
+        case 'jack_swap':
+          effectiveTimer = timerConfig?['jack_swap'] ?? 20;
+          break;
+        case 'peeking':
+          effectiveTimer = timerConfig?['peeking'] ?? 10;
+          break;
+        case 'waiting':
+          effectiveTimer = timerConfig?['waiting'] ?? 0;
+          break;
+        default:
+          // If status doesn't match, fall through to phase check
+          break;
+      }
+    }
+    
+    // If status didn't provide a timer (or status was null), check phase
+    if (effectiveTimer == null && phase != null && phase.isNotEmpty) {
+      switch (phase) {
+        case 'initial_peek':
+          effectiveTimer = timerConfig?['initial_peek'] ?? 15;
+          break;
+        case 'player_turn':
+        case 'playing':
+          // For generic player_turn/playing phase, status should have been checked above
+          // But if status wasn't available, use playing_card as default
+          effectiveTimer = timerConfig?['playing_card'] ?? 30;
+          break;
+        case 'same_rank_window':
+          effectiveTimer = timerConfig?['same_rank_window'] ?? 10;
+          break;
+        case 'queen_peek_window':
+          effectiveTimer = timerConfig?['queen_peek'] ?? 15;
+          break;
+        case 'special_play_window':
+          effectiveTimer = timerConfig?['jack_swap'] ?? 20;
+          break;
+        default:
+          effectiveTimer = timerConfig?['default'] ?? 30;
+      }
+    }
+    
+    // Final fallback if neither status nor phase provided a timer
+    effectiveTimer ??= 30;
+    
+    // Show timer when: (1) current player with active status, OR (2) player has jack_swap/queen_peek (can happen out of turn)
+    final shouldShowTimer = (isCurrentPlayer && effectiveStatus != 'waiting' && effectiveStatus != 'same_rank_window') ||
+        (playerStatus == 'jack_swap' || playerStatus == 'queen_peek');
+    
+    // Use status chip color logic for glow (excludes 'waiting' and 'same_rank_window')
+    final shouldShowGlow = _shouldHighlightCurrentPlayer(playerStatus);
+    final statusChipColor = shouldShowGlow ? _getStatusChipColor(playerStatus) : null;
+    
+    // For timer color, always get the status chip color (including same_rank_window)
+    final timerColor = _getStatusChipColor(playerStatus);
+    
+    // Background highlight logic (includes same_rank_window for current player)
     final shouldHighlightBackground = _shouldHighlightCurrentPlayer(playerStatus) 
         || (isCurrentPlayer && playerStatus == 'same_rank_window');
-    final statusChipColor = shouldHighlightBackground ? _getStatusChipColor(playerStatus) : null;
     
     // Determine alignment based on opponent index
     // Opponent 0: center, Opponent 1: left, Opponent 2: right
@@ -769,46 +852,47 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                           ),
                           const SizedBox(width: 4),
                         ],
-                        // Show circular timer when this is the current player
-                        if (isCurrentPlayer) ...[
-                          CircularTimerWidget(
-                            key: ValueKey('timer_${player['id']}_${currentPlayerStatus}'), // Reset timer when player or status changes
-                            durationSeconds: turnTimeLimit,
-                            size: 20.0,
-                            color: statusChipColor ?? AppColors.accentColor2,
-                            backgroundColor: AppColors.surfaceVariant,
-                          ),
-                          const SizedBox(width: 6),
-                        ],
             Text(
                             playerName,
                             style: AppTextStyles.label().copyWith(
                               fontWeight: FontWeight.bold,
                 color: AppColors.white,
-                // Add glow effect when isCurrentPlayer is true
-                shadows: isCurrentPlayer && statusChipColor != null
+                // Add very prominent glow effect using status chip color logic (excludes 'waiting' and 'same_rank_window')
+                shadows: statusChipColor != null
                     ? [
                         Shadow(
                           color: statusChipColor,
-                          blurRadius: 8,
+                          blurRadius: 16,
                         ),
                         Shadow(
-                          color: statusChipColor.withOpacity(0.6),
-                          blurRadius: 12,
-                            ),
+                          color: statusChipColor.withOpacity(0.9),
+                          blurRadius: 24,
+                        ),
+                        Shadow(
+                          color: statusChipColor.withOpacity(0.7),
+                          blurRadius: 32,
+                        ),
+                        Shadow(
+                          color: statusChipColor.withOpacity(0.5),
+                          blurRadius: 40,
+                        ),
                         Shadow(
                           color: statusChipColor.withOpacity(0.3),
-                          blurRadius: 16,
+                          blurRadius: 48,
                         ),
                       ]
                     : null,
               ),
                     ),
-                    if (playerStatus != 'unknown') ...[
-              const SizedBox(width: 8),
-              PlayerStatusChip(
-                          playerId: player['id']?.toString() ?? '',
-                          size: PlayerStatusChipSize.small,
+                    // Show circular timer (right side) when shouldShowTimer is true
+                    if (shouldShowTimer) ...[
+                      const SizedBox(width: 6),
+                      CircularTimerWidget(
+                        key: ValueKey('timer_${player['id']}_${playerStatus}'), // Reset timer when player or status changes
+                        durationSeconds: effectiveTimer,
+                        size: 28.0, // Match profile picture size
+                        color: timerColor,
+                        backgroundColor: AppColors.surfaceVariant,
                       ),
                     ],
                   ],
@@ -1723,6 +1807,76 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
     final finalRoundActive = gameState['finalRoundActive'] as bool? ?? false;
     final finalRoundCalledBy = gameState['finalRoundCalledBy']?.toString();
+    // Get timer from game_state timerConfig (added during game initialization)
+    // Safely convert Map<String, dynamic> to Map<String, int>
+    final timerConfigRaw = gameState['timerConfig'] as Map<String, dynamic>?;
+    final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
+    final phase = gameState['phase'] as String?;
+    // Calculate timer based on phase or status using timerConfig from game_state
+    // Priority: Status is more specific than phase, so check status first
+    int? turnTimeLimit;
+    
+    // Check status first (more specific than phase for player actions)
+    if (playerStatus != null && playerStatus.isNotEmpty) {
+      switch (playerStatus) {
+        case 'initial_peek':
+          turnTimeLimit = timerConfig['initial_peek'] ?? 15;
+          break;
+        case 'drawing_card':
+          turnTimeLimit = timerConfig['drawing_card'] ?? 20;
+          break;
+        case 'playing_card':
+          turnTimeLimit = timerConfig['playing_card'] ?? 30;
+          break;
+        case 'same_rank_window':
+          turnTimeLimit = timerConfig['same_rank_window'] ?? 10;
+          break;
+        case 'queen_peek':
+          turnTimeLimit = timerConfig['queen_peek'] ?? 15;
+          break;
+        case 'jack_swap':
+          turnTimeLimit = timerConfig['jack_swap'] ?? 20;
+          break;
+        case 'peeking':
+          turnTimeLimit = timerConfig['peeking'] ?? 10;
+          break;
+        case 'waiting':
+          turnTimeLimit = timerConfig['waiting'] ?? 0;
+          break;
+        default:
+          // If status doesn't match, fall through to phase check
+          break;
+      }
+    }
+    
+    // If status didn't provide a timer (or status was null), check phase
+    if (turnTimeLimit == null && phase != null && phase.isNotEmpty) {
+      switch (phase) {
+        case 'initial_peek':
+          turnTimeLimit = timerConfig['initial_peek'] ?? 15;
+          break;
+        case 'player_turn':
+        case 'playing':
+          // For generic player_turn/playing phase, status should have been checked above
+          // But if status wasn't available, use playing_card as default
+          turnTimeLimit = timerConfig['playing_card'] ?? 30;
+          break;
+        case 'same_rank_window':
+          turnTimeLimit = timerConfig['same_rank_window'] ?? 10;
+          break;
+        case 'queen_peek_window':
+          turnTimeLimit = timerConfig['queen_peek'] ?? 15;
+          break;
+        case 'special_play_window':
+          turnTimeLimit = timerConfig['jack_swap'] ?? 20;
+          break;
+        default:
+          turnTimeLimit = timerConfig['default'] ?? 30;
+      }
+    }
+    
+    // Final fallback if neither status nor phase provided a timer
+    turnTimeLimit ??= 30;
     final currentUserId = _getCurrentUserId();
     final hasPlayerCalledFinalRound = gameState['players'] != null
         ? (gameState['players'] as List<dynamic>?)
@@ -1757,6 +1911,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     final shouldHighlight = _shouldHighlightStatus(playerStatus);
     final statusChipColor = shouldHighlight ? _getStatusChipColor(playerStatus) : null;
+    // For timer color, always get the status chip color (including same_rank_window)
+    final timerColor = _getStatusChipColor(playerStatus);
     final backgroundColor = shouldHighlight && statusChipColor != null
         ? statusChipColor.withValues(alpha: 0.1)
         : Colors.transparent;
@@ -1872,6 +2028,19 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                     playerId: _getCurrentUserId(),
                     size: PlayerStatusChipSize.small,
                   ),
+                // Show circular timer next to status chip (right side) when status is not 'waiting'
+                // Note: 'jack_swap' and 'queen_peek' can occur out of turn and should show timer
+                // Also show timer during 'same_rank_window' for my hand section
+                if (playerStatus != 'waiting') ...[
+                  const SizedBox(width: 6),
+                  CircularTimerWidget(
+                    key: ValueKey('timer_myhand_${playerStatus}'), // Reset timer when status changes
+                    durationSeconds: turnTimeLimit,
+                    size: 28.0, // Match profile picture size
+                    color: timerColor,
+                    backgroundColor: AppColors.surfaceVariant,
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 16),

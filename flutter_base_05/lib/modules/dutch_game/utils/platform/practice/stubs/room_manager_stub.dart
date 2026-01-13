@@ -9,7 +9,6 @@ class RoomInfoStub {
   final int minPlayers;
   final String gameType;
   final String permission;
-  final int turnTimeLimit;
   final bool autoStart;
   String? difficulty; // Room difficulty (for practice: from lobby selection, for multiplayer: from creator's rank)
 
@@ -21,7 +20,6 @@ class RoomInfoStub {
     this.minPlayers = 2,
     this.gameType = 'practice',
     this.permission = 'private',
-    this.turnTimeLimit = 30,
     this.autoStart = false,
     this.difficulty,
   });
@@ -33,7 +31,7 @@ class RoomManagerStub {
   final Map<String, RoomInfoStub> _rooms = {};
   final Map<String, String> _sessionToRoom = {};
 
-  static const bool LOGGING_SWITCH = false;
+  static const bool LOGGING_SWITCH = true;
 
   RoomManagerStub();
 
@@ -43,7 +41,6 @@ class RoomManagerStub {
     String? gameType,
     String? permission,
     String? password,
-    int? turnTimeLimit,
     bool? autoStart,
   }) {
     final roomId = 'practice_room_${DateTime.now().millisecondsSinceEpoch}';
@@ -55,14 +52,13 @@ class RoomManagerStub {
       minPlayers: minPlayers ?? 2,
       gameType: gameType ?? 'practice',
       permission: permission ?? 'private',
-      turnTimeLimit: turnTimeLimit ?? 30,
       autoStart: autoStart ?? false,
     );
     
     _rooms[roomId] = room;
     _sessionToRoom[creatorSessionId] = roomId;
     
-    _logger.info('RoomManagerStub: Created practice room $roomId', isOn: LOGGING_SWITCH);
+    _logger.info('RoomManagerStub: Created practice room $roomId (phase-based timers enabled)', isOn: LOGGING_SWITCH);
     return roomId;
   }
 

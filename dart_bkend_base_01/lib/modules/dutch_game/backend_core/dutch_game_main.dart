@@ -3,7 +3,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for rank-based matching testing
+const bool LOGGING_SWITCH = true; // Enabled for rank-based matching testing
 
 /// Entry point for registering Dutch game module components with the server.
 class DutchGameModule {

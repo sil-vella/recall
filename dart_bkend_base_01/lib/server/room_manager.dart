@@ -14,7 +14,6 @@ class Room {
   final String gameType;
   final String permission; // 'public' or 'private'
   final String? password; // for private rooms
-  final int turnTimeLimit; // in seconds
   final bool autoStart;
   String? difficulty; // Room difficulty (set by first human player's rank)
   
@@ -26,7 +25,6 @@ class Room {
     this.gameType = 'classic',
     this.permission = 'public',
     this.password,
-    this.turnTimeLimit = 30,
     this.autoStart = true,
     this.difficulty,
     DateTime? ttlExpiresAt,
@@ -62,7 +60,6 @@ class Room {
       'min_players': minPlayers,
       'game_type': gameType,
       'permission': permission,
-      'turn_time_limit': turnTimeLimit,
       'auto_start': autoStart,
       'difficulty': difficulty, // Room difficulty (rank-based)
       'created_at': createdAt.toIso8601String(),
@@ -93,7 +90,6 @@ class RoomManager {
     String? gameType,
     String? permission,
     String? password,
-    int? turnTimeLimit,
     bool? autoStart,
   }) {
     final roomId = 'room_${DateTime.now().millisecondsSinceEpoch}';
@@ -107,7 +103,6 @@ class RoomManager {
       gameType: gameType ?? 'classic',
       permission: permission ?? 'public',
       password: password,
-      turnTimeLimit: turnTimeLimit ?? 30,
       autoStart: autoStart ?? true,
       ttlExpiresAt: DateTime.now().add(ttl),
     );

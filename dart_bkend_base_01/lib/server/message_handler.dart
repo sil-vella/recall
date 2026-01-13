@@ -104,11 +104,10 @@ class MessageHandler {
     final gameType = data['game_type'] as String? ?? data['gameType'] as String?;
     final permission = data['permission'] as String?;
     final password = data['password'] as String?;
-    final turnTimeLimit = data['turn_time_limit'] as int? ?? data['turnTimeLimit'] as int?;
     final autoStart = data['auto_start'] as bool? ?? data['autoStart'] as bool?;
     
     try {
-      // Create room with settings
+      // Create room with settings (timer values are now phase-based, managed by RoomManager)
       final roomId = _roomManager.createRoom(
         sessionId,
         userId,
@@ -117,7 +116,6 @@ class MessageHandler {
         gameType: gameType,
         permission: permission,
         password: password,
-        turnTimeLimit: turnTimeLimit,
         autoStart: autoStart,
       );
       
@@ -139,7 +137,6 @@ class MessageHandler {
         'min_players': room.minPlayers,
         'game_type': room.gameType,
         'permission': room.permission,
-        'turn_time_limit': room.turnTimeLimit,
         'auto_start': room.autoStart,
         'difficulty': room.difficulty, // Room difficulty (rank-based)
         'timestamp': DateTime.now().toIso8601String(),
@@ -505,7 +502,6 @@ class MessageHandler {
         'min_players': room.minPlayers,
         'game_type': room.gameType,
         'permission': room.permission,
-        'turn_time_limit': room.turnTimeLimit,
         'auto_start': room.autoStart,
         'is_random_join': true, // Flag to indicate this was auto-created for random join
         'timestamp': DateTime.now().toIso8601String(),

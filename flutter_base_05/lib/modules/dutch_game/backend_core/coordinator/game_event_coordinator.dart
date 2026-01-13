@@ -7,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for rank-based matching and comp player testing
+const bool LOGGING_SWITCH = true; // Enabled for timer configuration testing
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -339,6 +339,7 @@ class GameEventCoordinator {
             final email = compPlayerData['email'] as String? ?? '';
             final rank = compPlayerData['rank'] as String? ?? 'beginner';
             final level = compPlayerData['level'] as int? ?? 1;
+            final profilePicture = compPlayerData['profile_picture'] as String?;
             
             // Map rank to YAML difficulty for AI behavior
             final difficulty = RankMatcher.rankToDifficulty(rank);
@@ -372,6 +373,7 @@ class GameEventCoordinator {
               'level': level,  // Store player level for reference
               'userId': userId,  // Store userId for coin deduction logic
               'email': email,  // Store email for reference
+              if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
             });
             
             compPlayersAdded++;
@@ -406,6 +408,7 @@ class GameEventCoordinator {
                   final email = compPlayerData['email'] as String? ?? '';
                   final rank = compPlayerData['rank'] as String? ?? 'beginner';
                   final level = compPlayerData['level'] as int? ?? 1;
+                  final profilePicture = compPlayerData['profile_picture'] as String?;
                   
                   // Map rank to YAML difficulty for AI behavior
                   final difficulty = RankMatcher.rankToDifficulty(rank);
@@ -436,6 +439,7 @@ class GameEventCoordinator {
                     'level': level,  // Store player level for reference
                     'userId': userId,
                     'email': email,
+                    if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
                   });
                   
                   compPlayersAdded++;
@@ -669,9 +673,6 @@ class GameEventCoordinator {
 
     // showInstructions was already extracted earlier for deck selection
     
-    // Get turnTimeLimit from room config (reuse roomInfo from earlier in method)
-    final turnTimeLimit = roomInfo?.turnTimeLimit ?? 30;
-
     // Calculate pot: coin_cost × number_of_active_players (regardless of subscription tier)
     // Default coin cost is 25 (will be tied to match_class in future)
     final coinCost = 25;
@@ -681,6 +682,7 @@ class GameEventCoordinator {
     _logger.info('GameEventCoordinator: Calculated pot for game $roomId - coin_cost: $coinCost, players: $activePlayerCount, pot: $pot', isOn: LOGGING_SWITCH);
     
     // Build updated game_state - set to initial_peek phase
+    // Add timer configuration to game_state (game-specific, not room-specific)
     final gameState = <String, dynamic>{
       'gameId': roomId,
       'gameName': 'Dutch Game $roomId',
@@ -695,12 +697,24 @@ class GameEventCoordinator {
       'maxPlayers': maxPlayers,
       'minPlayers': minPlayers,
       'showInstructions': showInstructions, // Store instructions switch
-      'turnTimeLimit': turnTimeLimit, // Store turn time limit
       'match_class': 'standard', // Placeholder for future match class system
       'coin_cost_per_player': coinCost,
       'match_pot': pot,
       'isClearAndCollect': data['isClearAndCollect'] as bool? ?? true, // Collection mode flag - false = clear mode (no collection), true = collection mode (default to true for backward compatibility)
+      'timerConfig': {
+        'initial_peek': 15,
+        'drawing_card': 3420,
+        'playing_card': 30,
+        'same_rank_window': 10,
+        'queen_peek': 15,
+        'jack_swap': 20,
+        'peeking': 10,
+        'waiting': 0,
+        'default': 30,
+      }, // Add timer configuration to game state (for UI to read)
     };
+    
+    _logger.info('GameEventCoordinator: Added timerConfig to game_state for room $roomId: ${gameState['timerConfig']}', isOn: LOGGING_SWITCH);
 
     // Set all players to initial_peek status
     for (final player in players) {
@@ -732,13 +746,18 @@ class GameEventCoordinator {
       'timestamp': DateTime.now().toIso8601String(),
     });
 
-    // Start 15-second timer for initial peek phase (only if instructions are not shown)
+    // Start phase-based timer for initial peek phase (only if instructions are not shown)
     if (!showInstructions) {
       _initialPeekTimers[roomId]?.cancel();
-      _initialPeekTimers[roomId] = Timer(Duration(seconds: 15), () {
+      
+      // Get timer duration from game state timer configuration
+      final timerConfig = gameState['timerConfig'] as Map<String, int>? ?? {};
+      final initialPeekTimerDuration = timerConfig['initial_peek'] ?? 15;
+      
+      _initialPeekTimers[roomId] = Timer(Duration(seconds: initialPeekTimerDuration), () {
         _onInitialPeekTimerExpired(roomId, round);
       });
-      _logger.info('GameEventCoordinator: Initial peek phase started - 15-second timer started', isOn: LOGGING_SWITCH);
+      _logger.info('GameEventCoordinator: Initial peek phase started - ${initialPeekTimerDuration}-second timer started (from game_state timerConfig)', isOn: LOGGING_SWITCH);
     } else {
       _logger.info('GameEventCoordinator: Initial peek phase started - timer disabled (showInstructions=true)', isOn: LOGGING_SWITCH);
     }

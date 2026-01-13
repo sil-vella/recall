@@ -1,0 +1,24 @@
+Images with Black Lines (Grid Separators) Detected
+==================================================
+
+Images with BOTH vertical and horizontal black lines (5):
+  - female065.jpg
+  - female082.jpg
+  - female110.jpg
+  - female118.jpg
+  - male030.jpg
+
+Images with VERTICAL black lines (4):
+  - female107.jpg
+  - female115.jpg
+  - female120.jpg
+  - female129.jpg
+
+Images with HORIZONTAL black lines (1):
+  - female126.jpg
+
+Total problematic images: 10
+Good images: 161
+
+These images likely contain grid separator lines that were not properly excluded during cropping.
+They may need to be re-cropped or excluded from use.

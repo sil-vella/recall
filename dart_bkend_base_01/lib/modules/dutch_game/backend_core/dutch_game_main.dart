@@ -38,7 +38,7 @@ class DutchGameModule {
 
   /// Hook callback: room_created
   /// Create a minimal game state when a room is created (creator auto-joined)
-  void _onRoomCreated(Map<String, dynamic> data) {
+  Future<void> _onRoomCreated(Map<String, dynamic> data) async {
     try {
       final roomId = data['room_id'] as String?;
       final ownerId = data['owner_id'] as String?;
@@ -101,6 +101,35 @@ class DutchGameModule {
       // Create GameRound instance via registry (includes ServerGameStateCallback)
       GameRegistry.instance.getOrCreate(roomId, server);
 
+      // Fetch user profile data (full name, profile picture) for creator
+      String playerName = 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}';
+      String? profilePicture;
+      
+      if (ownerId != null && ownerId.isNotEmpty) {
+        try {
+          final profileResult = await server.pythonClient.getUserProfile(ownerId);
+          if (profileResult['success'] == true) {
+            final fullName = profileResult['full_name'] as String?;
+            final username = profileResult['username'] as String? ?? '';
+            profilePicture = profileResult['profile_picture'] as String?;
+            
+            // Use full name if available, otherwise fallback to username, otherwise keep default
+            if (fullName != null && fullName.isNotEmpty) {
+              playerName = fullName;
+            } else if (username.isNotEmpty) {
+              playerName = username;
+            }
+            
+            _logger.info('✅ Fetched creator profile: name=$playerName, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
+          } else {
+            _logger.warning('⚠️ Failed to fetch creator profile: ${profileResult['error']}', isOn: LOGGING_SWITCH);
+          }
+        } catch (e) {
+          _logger.warning('⚠️ Error fetching creator profile: $e', isOn: LOGGING_SWITCH);
+          // Continue with default name
+        }
+      }
+
       // Initialize minimal game state in store
       // Use sessionId as player ID (not ownerId/userId)
       final store = GameStateStore.instance;
@@ -123,7 +152,7 @@ class DutchGameModule {
             // Player ID is now sessionId, not ownerId
             {
               'id': sessionId, // Use sessionId as player ID
-              'name': 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}',
+              'name': playerName,
               'isHuman': true,
               'status': 'waiting',
               'hand': <Map<String, dynamic>>[],
@@ -133,6 +162,7 @@ class DutchGameModule {
               'collection_rank_cards': <String>[],
               'isActive': true,  // Required for winner calculation and same rank play filtering
               'userId': ownerId,  // Store userId (MongoDB ObjectId) for coin deduction
+              if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
             }
           ],
           'drawPile': <String>[],
@@ -163,7 +193,7 @@ class DutchGameModule {
 
   /// Hook callback: room_joined
   /// Add player to existing game and send snapshot
-  void _onRoomJoined(Map<String, dynamic> data) {
+  Future<void> _onRoomJoined(Map<String, dynamic> data) async {
     try {
       final roomId = data['room_id'] as String?;
       final userId = data['user_id'] as String?; // Kept for backward compatibility
@@ -221,10 +251,39 @@ class DutchGameModule {
         store.setGameState(roomId, stateRoot['game_state'] as Map<String, dynamic>);
       }
 
+      // Fetch user profile data (full name, profile picture) if userId is available
+      String playerName = 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}';
+      String? profilePicture;
+      
+      if (userId != null && userId.isNotEmpty) {
+        try {
+          final profileResult = await server.pythonClient.getUserProfile(userId);
+          if (profileResult['success'] == true) {
+            final fullName = profileResult['full_name'] as String?;
+            final username = profileResult['username'] as String? ?? '';
+            profilePicture = profileResult['profile_picture'] as String?;
+            
+            // Use full name if available, otherwise fallback to username, otherwise keep default
+            if (fullName != null && fullName.isNotEmpty) {
+              playerName = fullName;
+            } else if (username.isNotEmpty) {
+              playerName = username;
+            }
+            
+            _logger.info('✅ Fetched user profile: name=$playerName, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
+          } else {
+            _logger.warning('⚠️ Failed to fetch user profile: ${profileResult['error']}', isOn: LOGGING_SWITCH);
+          }
+        } catch (e) {
+          _logger.warning('⚠️ Error fetching user profile: $e', isOn: LOGGING_SWITCH);
+          // Continue with default name
+        }
+      }
+
       // Add new player - use sessionId as player ID
       players.add({
         'id': sessionId, // Use sessionId as player ID
-        'name': 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}',
+        'name': playerName,
         'isHuman': true,
         'status': 'waiting',
         'hand': <Map<String, dynamic>>[],
@@ -234,6 +293,7 @@ class DutchGameModule {
         'collection_rank_cards': <String>[],
         'isActive': true,  // Required for winner calculation and same rank play filtering
         if (userId != null && userId.isNotEmpty) 'userId': userId,  // Store userId for coin deduction
+        if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
       });
 
       gameState['players'] = players;
@@ -253,7 +313,8 @@ class DutchGameModule {
         'joined_player': {
           'user_id': userId, // Kept for backward compatibility
           'session_id': sessionId, // This is the player ID
-          'name': 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}',
+          'name': playerName,
+          if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
           'joined_at': DateTime.now().toIso8601String(),
         },
         'game_state': () {

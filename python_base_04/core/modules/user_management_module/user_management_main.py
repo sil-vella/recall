@@ -76,6 +76,8 @@ class UserManagementModule(BaseModule):
         # JWT authenticated routes (user authentication)
         self._register_auth_route_helper("/userauth/users/profile", self.get_user_profile, methods=["GET"])
         self._register_auth_route_helper("/userauth/users/profile", self.update_user_profile, methods=["PUT"])
+        # Public route for fetching user profile by userId (for Dart backend)
+        self._register_auth_route_helper("/public/users/profile", self.get_user_profile_by_id, methods=["POST"])
         self._register_auth_route_helper("/userauth/users/settings", self.get_user_settings, methods=["GET"])
         self._register_auth_route_helper("/userauth/users/settings", self.update_user_settings, methods=["PUT"])
         self._register_auth_route_helper("/userauth/logout", self.logout_user, methods=["POST"])
@@ -986,8 +988,28 @@ class UserManagementModule(BaseModule):
                 
                 # Check if Google is already linked
                 if 'google' in auth_providers:
-                    # Normal Google login
+                    # Normal Google login - update profile picture if provided
                     custom_log(f"UserManagement: Google Sign-In - Existing user with Google auth - Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                    
+                    # Update profile picture if provided (always update to get latest from Google)
+                    update_data = {
+                        'updated_at': datetime.utcnow().isoformat()
+                    }
+                    
+                    if picture:
+                        update_data['profile.picture'] = picture
+                        custom_log(f"UserManagement: Google Sign-In - Updating profile picture for existing user", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
+                    
+                    # Also update name fields if provided and missing
+                    if 'profile' not in existing_user:
+                        existing_user['profile'] = {}
+                    if given_name and not existing_user['profile'].get('first_name'):
+                        update_data['profile.first_name'] = given_name
+                    if family_name and not existing_user['profile'].get('last_name'):
+                        update_data['profile.last_name'] = family_name
+                    
+                    if len(update_data) > 1:  # More than just updated_at
+                        self.db_manager.update("users", {"_id": existing_user["_id"]}, update_data)
                 else:
                     # Link Google account to existing account
                     custom_log(f"UserManagement: Google Sign-In - Linking Google to existing account - Email: {email}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
@@ -1006,13 +1028,15 @@ class UserManagementModule(BaseModule):
                     }
                     
                     # Update profile if Google provides better info
-                    if given_name or family_name:
-                        if 'profile' not in existing_user:
-                            existing_user['profile'] = {}
-                        if given_name and not existing_user['profile'].get('first_name'):
-                            update_data['profile.first_name'] = given_name
-                        if family_name and not existing_user['profile'].get('last_name'):
-                            update_data['profile.last_name'] = family_name
+                    if 'profile' not in existing_user:
+                        existing_user['profile'] = {}
+                    if given_name and not existing_user['profile'].get('first_name'):
+                        update_data['profile.first_name'] = given_name
+                    if family_name and not existing_user['profile'].get('last_name'):
+                        update_data['profile.last_name'] = family_name
+                    if picture:
+                        update_data['profile.picture'] = picture
+                        custom_log(f"UserManagement: Google Sign-In - Saving profile picture when linking Google account", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
                     
                     self.db_manager.update("users", {"_id": existing_user["_id"]}, update_data)
                 
@@ -1589,7 +1613,7 @@ class UserManagementModule(BaseModule):
         })
 
     def get_user_profile(self):
-        """Get user profile (JWT auth required)."""
+        """Get user profile (JWT auth required - returns current authenticated user's profile)."""
         try:
             # User ID is set by JWT middleware
             user_id = request.user_id
@@ -1597,7 +1621,12 @@ class UserManagementModule(BaseModule):
                 return jsonify({'error': 'User not authenticated'}), 401
             
             # Get user profile from database
-            user = self.analytics_db.find_one("users", {"_id": user_id})
+            try:
+                user = self.analytics_db.find_one("users", {"_id": ObjectId(user_id)})
+            except Exception:
+                # If ObjectId conversion fails, try with string
+                user = self.analytics_db.find_one("users", {"_id": user_id})
+            
             if not user:
                 return jsonify({'error': 'User not found'}), 404
             
@@ -1614,6 +1643,60 @@ class UserManagementModule(BaseModule):
             
         except Exception as e:
             return jsonify({'error': 'Failed to get user profile'}), 500
+
+    def get_user_profile_by_id(self):
+        """Get user profile by userId (public endpoint for Dart backend - no JWT required)."""
+        try:
+            data = request.get_json()
+            user_id = data.get('user_id') if data else None
+            
+            if not user_id:
+                return jsonify({
+                    'success': False,
+                    'error': 'No user_id provided'
+                }), 400
+            
+            # Get user profile from database
+            try:
+                user = self.analytics_db.find_one("users", {"_id": ObjectId(user_id)})
+            except Exception:
+                # If ObjectId conversion fails, try with string
+                user = self.analytics_db.find_one("users", {"_id": user_id})
+            
+            if not user:
+                return jsonify({
+                    'success': False,
+                    'error': 'User not found'
+                }), 404
+            
+            # Extract profile data
+            profile = user.get('profile', {})
+            username = user.get('username', '')
+            first_name = profile.get('first_name', '')
+            last_name = profile.get('last_name', '')
+            picture = profile.get('picture', '')
+            
+            # Build full name (first_name + last_name, fallback to empty string)
+            full_name = ''
+            if first_name or last_name:
+                full_name = f"{first_name} {last_name}".strip()
+            
+            return jsonify({
+                'success': True,
+                'user_id': user_id,
+                'username': username,
+                'full_name': full_name,
+                'first_name': first_name,
+                'last_name': last_name,
+                'profile_picture': picture,
+            }), 200
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to get user profile',
+                'message': str(e)
+            }), 500
 
     def update_user_profile(self):
         """Update user profile (JWT auth required)."""

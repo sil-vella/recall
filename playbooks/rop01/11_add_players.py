@@ -72,6 +72,7 @@ def create_player_document(player_json: Dict[str, Any], current_time: datetime) 
         "profile": {
             "first_name": firstName,
             "last_name": lastName,
+            "picture": "",
             "timezone": "UTC",
             "language": "en"
         },

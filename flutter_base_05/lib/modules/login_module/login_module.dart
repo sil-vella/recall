@@ -585,6 +585,11 @@ class LoginModule extends ModuleBase {
           "error": null
         });
         
+        // Fetch and update user profile (including picture) after login
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          fetchAndUpdateUserProfile();
+        });
+        
         // Trigger auth_login_complete hook after tokens are stored and user is fully logged in
         final hooksManager = HooksManager();
         hooksManager.triggerHookWithData('auth_login_complete', {
@@ -842,6 +847,11 @@ class LoginModule extends ModuleBase {
           "error": null
         });
         
+        // Fetch and update user profile (including picture) after Google Sign-In
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          fetchAndUpdateUserProfile();
+        });
+        
         // Trigger auth_login_complete hook after tokens are stored and user is fully logged in
         final hooksManager = HooksManager();
         hooksManager.triggerHookWithData('auth_login_complete', {
@@ -941,6 +951,50 @@ class LoginModule extends ModuleBase {
       return {"success": "Logout successful"};
     } catch (e) {
       return {"error": "Logout failed"};
+    }
+  }
+
+  /// Fetch and update user profile data including picture
+  /// Stores profile data in StateManager under "login" state
+  Future<bool> fetchAndUpdateUserProfile() async {
+    try {
+      Logger().info('LoginModule: Fetching user profile...', isOn: LOGGING_SWITCH);
+      
+      if (_connectionModule == null) {
+        Logger().error('LoginModule: ConnectionsApiModule not available', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final response = await _connectionModule!.sendGetRequest('/userauth/users/profile');
+      
+      if (response is Map && response.containsKey('error')) {
+        Logger().warning('LoginModule: Failed to fetch profile: ${response['error']}', isOn: LOGGING_SWITCH);
+        return false;
+      }
+      
+      final profile = response['profile'] as Map<String, dynamic>?;
+      final pictureUrl = profile?['picture'] as String?;
+      
+      // Update StateManager with profile data
+      final stateManager = StateManager();
+      final currentLoginState = stateManager.getModuleState<Map<String, dynamic>>("login") ?? {};
+      
+      stateManager.updateModuleState("login", {
+        ...currentLoginState,
+        "profile": profile ?? {},
+        "profilePicture": pictureUrl,
+      });
+      
+      if (pictureUrl != null && pictureUrl.isNotEmpty) {
+        Logger().info('LoginModule: Profile picture updated: $pictureUrl', isOn: LOGGING_SWITCH);
+      } else {
+        Logger().info('LoginModule: No profile picture available', isOn: LOGGING_SWITCH);
+      }
+      
+      return true;
+    } catch (e) {
+      Logger().error('LoginModule: Error fetching user profile: $e', isOn: LOGGING_SWITCH);
+      return false;
     }
   }
 

@@ -140,4 +140,53 @@ class PythonApiClient {
       };
     }
   }
+  
+  /// Get user profile data (full name, profile picture) by userId
+  Future<Map<String, dynamic>> getUserProfile(String userId) async {
+    _logger.info('👤 Dart: Requesting user profile for userId: $userId', isOn: LOGGING_SWITCH);
+    _logger.info('🌐 Dart: Calling $baseUrl/public/users/profile', isOn: LOGGING_SWITCH);
+    
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/public/users/profile'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': userId,
+        }),
+      );
+      
+      _logger.info('📡 Dart: HTTP response status: ${response.statusCode}', isOn: LOGGING_SWITCH);
+      _logger.info('📦 Dart: Response body: ${response.body}', isOn: LOGGING_SWITCH);
+      
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        final success = result['success'] as bool? ?? false;
+        
+        if (success) {
+          _logger.info('✅ Dart: Retrieved user profile for userId: $userId', isOn: LOGGING_SWITCH);
+          return result;
+        } else {
+          _logger.warning('⚠️ Dart: API returned success=false: ${result['error']}', isOn: LOGGING_SWITCH);
+          return {
+            'success': false,
+            'error': result['error'] ?? 'Failed to retrieve user profile',
+          };
+        }
+      } else {
+        _logger.error('❌ Dart: HTTP error ${response.statusCode}: ${response.body}', isOn: LOGGING_SWITCH);
+        return {
+          'success': false,
+          'error': 'Failed to retrieve user profile',
+          'status_code': response.statusCode,
+        };
+      }
+    } catch (e) {
+      _logger.error('❌ Dart: Network error retrieving user profile: $e', isOn: LOGGING_SWITCH);
+      return {
+        'success': false,
+        'error': 'Connection failed',
+        'message': e.toString(),
+      };
+    }
+  }
 }

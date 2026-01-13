@@ -685,7 +685,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   }
 
   Widget _buildOpponentCard(Map<String, dynamic> player, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, bool isCurrentTurn, bool isGameActive, bool isCurrentPlayer, String currentPlayerStatus, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, int turnTimeLimit, {required int opponentIndex}) {
-    final playerName = player['name']?.toString() ?? 'Unknown Player';
+    // Get player name - prefer full_name, fallback to name, then username, then default
+    final fullName = player['full_name']?.toString();
+    final playerNameRaw = player['name']?.toString();
+    final username = player['username']?.toString();
+    final playerName = (fullName != null && fullName.isNotEmpty) 
+        ? fullName 
+        : (playerNameRaw != null && playerNameRaw.isNotEmpty) 
+            ? playerNameRaw 
+            : (username != null && username.isNotEmpty) 
+                ? username 
+                : 'Unknown Player';
     final hand = player['hand'] as List<dynamic>? ?? [];
     final drawnCard = player['drawnCard'] as Map<String, dynamic>?;
     final hasCalledDutch = player['hasCalledDutch'] ?? false;
@@ -738,7 +748,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           mainAxisSize: MainAxisSize.min,
                       children: [
                         // Profile picture (circular, 1.5x status chip height)
-                        _buildPlayerProfilePicture(player['id']?.toString() ?? ''),
+                        _buildPlayerProfilePicture(
+                          player['id']?.toString() ?? '',
+                          profilePictureUrl: player['profile_picture']?.toString(),
+                        ),
                         const SizedBox(width: 8),
                         if (hasCalledDutch) ...[
                           Icon(
@@ -2746,12 +2759,81 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   /// Build circular profile picture widget
   /// Size is 1.5x the status chip height (small size)
-  /// For now, displays a player icon. Will be replaced with actual profile image later.
-  Widget _buildPlayerProfilePicture(String playerId) {
+  /// Shows user's profile picture if available, otherwise shows default icon
+  /// [playerId] The player's session ID
+  /// [profilePictureUrl] Optional profile picture URL (for opponents from player data)
+  Widget _buildPlayerProfilePicture(String playerId, {String? profilePictureUrl}) {
     // Status chip small size: padding (2*2=4px) + icon (12px) + text (~10px) ≈ 18-20px
     // 1.5x = ~27-30px, using 28px for a nice round number
     const double profilePictureSize = 28.0;
     
+    // Check if this is the current user
+    final currentUserId = _getCurrentUserId();
+    final isCurrentUser = playerId == currentUserId;
+    
+    // Get profile picture URL:
+    // 1. Use provided profilePictureUrl (for opponents from player data)
+    // 2. For current user, get from StateManager if not provided
+    if (profilePictureUrl == null || profilePictureUrl.isEmpty) {
+      if (isCurrentUser) {
+        final stateManager = StateManager();
+        final loginState = stateManager.getModuleState<Map<String, dynamic>>("login") ?? {};
+        profilePictureUrl = loginState["profilePicture"] as String?;
+      }
+    }
+    
+    // If we have a profile picture URL, show it
+    if (profilePictureUrl != null && profilePictureUrl.isNotEmpty) {
+      return Container(
+        width: profilePictureSize,
+        height: profilePictureSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.surfaceVariant,
+          border: Border.all(
+            color: AppColors.borderDefault,
+            width: 1.5,
+          ),
+        ),
+        child: ClipOval(
+          child: Image.network(
+            profilePictureUrl,
+            width: profilePictureSize,
+            height: profilePictureSize,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              // Fallback to icon if image fails to load
+              return Icon(
+                Icons.person,
+                size: profilePictureSize * 0.6,
+                color: AppColors.textSecondary,
+              );
+            },
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) {
+                return child;
+              }
+              // Show loading indicator while image loads
+              return Center(
+                child: SizedBox(
+                  width: profilePictureSize * 0.4,
+                  height: profilePictureSize * 0.4,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    value: loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                        : null,
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+    
+    // Fallback to default icon
     return Container(
       width: profilePictureSize,
       height: profilePictureSize,

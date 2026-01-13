@@ -50,6 +50,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
   bool _isGuestAccount = false;
   bool _lastLoggedInState = false; // Track previous login state to prevent rebuild loops
   
+  
   // Module manager
   final ModuleManager _moduleManager = ModuleManager();
   LoginModule? _loginModule;
@@ -63,6 +64,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     _checkForGuestCredentials();
     _checkGuestAccountStatus();
     _trackScreenView();
+    _fetchUserProfile();
   }
   
   /// Track screen view
@@ -91,6 +93,30 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       _logger.info('AccountScreen: Guest account status checked - isGuestAccount: $_isGuestAccount', isOn: LOGGING_SWITCH);
     } catch (e) {
       _logger.error('AccountScreen: Error checking guest account status: $e', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Fetch user profile data using LoginModule helper
+  Future<void> _fetchUserProfile() async {
+    try {
+      final stateManager = StateManager();
+      final loginState = stateManager.getModuleState("login");
+      final isLoggedIn = loginState?["isLoggedIn"] ?? false;
+      
+      if (!isLoggedIn) {
+        _logger.info('AccountScreen: User not logged in, skipping profile fetch', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      if (_loginModule == null) {
+        _logger.error('AccountScreen: LoginModule not available', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      _logger.info('AccountScreen: Fetching user profile via LoginModule...', isOn: LOGGING_SWITCH);
+      await _loginModule!.fetchAndUpdateUserProfile();
+    } catch (e) {
+      _logger.error('AccountScreen: Error fetching user profile: $e', isOn: LOGGING_SWITCH);
     }
   }
   
@@ -593,6 +619,32 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
       ),
     );
   }
+  
+  /// Build profile picture widget with fallback to icon
+  /// Reads profile picture from StateManager
+  Widget _buildProfilePicture() {
+    final stateManager = StateManager();
+    final loginState = stateManager.getModuleState<Map<String, dynamic>>("login") ?? {};
+    final profilePictureUrl = loginState["profilePicture"] as String?;
+    
+    if (profilePictureUrl != null && profilePictureUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: 40,
+        backgroundImage: NetworkImage(profilePictureUrl),
+        backgroundColor: AppColors.surfaceVariant,
+        onBackgroundImageError: (exception, stackTrace) {
+          _logger.warning('AccountScreen: Failed to load profile picture: $exception', isOn: LOGGING_SWITCH);
+        },
+      );
+    }
+    
+    // Fallback to icon if no picture
+    return Icon(
+      Icons.account_circle,
+      size: 80,
+      color: Theme.of(context).primaryColor,
+    );
+  }
 
   Widget _buildGameStatisticsCard() {
     // Get user stats from dutch_game state
@@ -825,6 +877,7 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 try {
                   _checkGuestAccountStatus();
+                  _fetchUserProfile(); // Fetch profile when user logs in
                 } catch (e, stackTrace) {
                   _logger.error('AccountScreen: Error in postFrameCallback for guest account check', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
                 }
@@ -848,11 +901,8 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                   Center(
                     child: Column(
                       children: [
-                        Icon(
-                          Icons.account_circle,
-                          size: 80,
-                          color: Theme.of(context).primaryColor,
-                        ),
+                        // Profile Picture or Icon
+                        _buildProfilePicture(),
                         const SizedBox(height: 16),
                         Text(
                           'Welcome Back!',

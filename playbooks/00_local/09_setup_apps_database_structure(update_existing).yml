@@ -145,6 +145,16 @@
             var needsUpdate = false;
             var updateFields = {};
             
+            // Check for profile.picture field
+            if (!user.profile || user.profile.picture === undefined) {
+              needsUpdate = true;
+              if (!user.profile) {
+                updateFields["profile"] = {};
+              }
+              updateFields["profile.picture"] = "";
+              print("  🔄 Adding picture field to profile for user: " + user.username + " (" + user.email + ")");
+            }
+            
             // Check for in_app_purchases module
             if (!user.modules || !user.modules.in_app_purchases) {
               needsUpdate = true;
@@ -336,6 +346,7 @@
                 "profile": {
                   "first_name": firstName,
                   "last_name": lastName,
+                  "picture": "",
                   "timezone": "UTC",
                   "language": "en"
                 },

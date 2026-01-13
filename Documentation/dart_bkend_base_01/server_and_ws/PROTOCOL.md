@@ -382,29 +382,90 @@ Server: Cleanup session and room associations
 }
 ```
 
-## Game Events (Future)
+## Dutch Game Events
 
-### Planned Game Events
-- `start_game`: Initialize game in room
-- `play_card`: Play a card
-- `draw_card`: Draw from deck
-- `end_turn`: End current turn
-- `call_dutch`: Call dutch phase
-- `game_state`: Broadcast game state updates
+### Server → Client Events
 
-### Example Game Event
+#### `dutch_new_player_joined`
+Sent when a new player joins a Dutch game room.
+
 ```json
 {
-  "event": "play_card",
-  "room_id": "room_123",
-  "card": {
-    "id": "card_456",
-    "rank": "7",
-    "suit": "hearts"
+  "event": "dutch_new_player_joined",
+  "room_id": "room_1761652434996",
+  "owner_id": "player123",
+  "joined_player": {
+    "user_id": "player456",
+    "session_id": "session_789",
+    "name": "John Doe",
+    "profile_picture": "https://lh3.googleusercontent.com/...",
+    "joined_at": "2025-01-XX..."
   },
-  "player_id": "player123"
+  "game_state": {
+    "phase": "waiting_for_players",
+    "players": [
+      {
+        "id": "session_789",
+        "name": "John Doe",
+        "profile_picture": "https://lh3.googleusercontent.com/...",
+        "isHuman": true,
+        "status": "waiting",
+        "hand": [],
+        "points": 0
+      }
+    ],
+    "playerCount": 1
+  },
+  "timestamp": "2025-01-XX..."
 }
 ```
+
+**Player Object Fields**:
+- `id`: Player ID (sessionId in multiplayer)
+- `name`: Full name (first_name + last_name) or username, or default "Player_XXX"
+- `profile_picture`: Optional URL to user's profile picture
+- `userId`: Optional MongoDB user ID (for coin deduction)
+- `isHuman`: Boolean indicating if player is human
+- `status`: Player status ('waiting', 'drawing_card', 'playing_card', etc.)
+- `hand`: List of cards in player's hand
+- `points`: Current points/score
+- `isActive`: Boolean indicating if player is active
+
+#### `game_state_updated`
+Sent when game state changes (card plays, turns, etc.).
+
+```json
+{
+  "event": "game_state_updated",
+  "game_id": "room_1761652434996",
+  "game_state": {
+    "phase": "player_turn",
+    "players": [
+      {
+        "id": "session_789",
+        "name": "John Doe",
+        "profile_picture": "https://lh3.googleusercontent.com/...",
+        "isHuman": true,
+        "status": "playing_card",
+        "hand": [...],
+        "points": 15,
+        "isCurrentPlayer": true
+      }
+    ],
+    "currentPlayer": {
+      "id": "session_789",
+      "name": "John Doe",
+      "status": "playing_card"
+    },
+    "playerCount": 2
+  },
+  "timestamp": "2025-01-XX..."
+}
+```
+
+**Note**: Player objects in `game_state.players` include:
+- `name`: Full name (preferred) or username (fallback) or default name
+- `profile_picture`: Optional profile picture URL (fetched from database when player joins)
 
 ---
 

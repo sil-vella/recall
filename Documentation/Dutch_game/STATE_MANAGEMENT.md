@@ -189,7 +189,9 @@ The Dutch game module state is stored under the key `'dutch_game'` in `StateMana
           'players': [
             {
               'id': String,              // Player ID (sessionId in multiplayer)
-              'name': String,
+              'name': String,            // Full name (first_name + last_name) or username, or default
+              'profile_picture': String?, // Optional: URL to user's profile picture
+              'userId': String?,         // Optional: MongoDB user ID (for coin deduction)
               'hand': List<Card>,        // Full cards for current user, ID-only for others
               'drawnCard': Card?,        // Full data for current user, ID-only for others
               'cardsToPeek': List<Card>, // Cards available to peek (Queen power)
@@ -206,7 +208,8 @@ The Dutch game module state is stored under the key `'dutch_game'` in `StateMana
           // Current player
           'currentPlayer': {
             'id': String,
-            'name': String,
+            'name': String,            // Full name (preferred) or username (fallback)
+            'profile_picture': String?, // Optional: URL to profile picture
             'status': String,
           },
           

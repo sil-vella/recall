@@ -34,6 +34,7 @@ const dummyUsers = [
     profile: {
       first_name: 'John',
       last_name: 'Doe',
+      picture: '',
       phone: '+1-555-0101',
       country: 'US'
     }
@@ -45,7 +46,8 @@ const dummyUsers = [
     status: 'active',
     profile: {
       first_name: 'Jane',
-      last_name: 'Smith', 
+      last_name: 'Smith',
+      picture: '',
       phone: '+1-555-0102',
       country: 'CA'
     }
@@ -58,7 +60,8 @@ const dummyUsers = [
     profile: {
       first_name: 'Bob',
       last_name: 'Wilson',
-      phone: '+1-555-0103', 
+      picture: '',
+      phone: '+1-555-0103',
       country: 'UK'
     }
   },
@@ -70,6 +73,7 @@ const dummyUsers = [
     profile: {
       first_name: 'Alice',
       last_name: 'Brown',
+      picture: '',
       phone: '+1-555-0104',
       country: 'AU'
     }
@@ -82,6 +86,7 @@ const dummyUsers = [
     profile: {
       first_name: 'Charlie',
       last_name: 'Davis',
+      picture: '',
       phone: '+1-555-0105',
       country: 'DE'
     }

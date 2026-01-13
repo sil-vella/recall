@@ -590,6 +590,68 @@ if (success) {
 }
 ```
 
+### User Profile API Endpoints
+
+#### Get User Profile by ID (Public Endpoint)
+
+**Endpoint**: `POST /public/users/profile`
+
+**Description**: Fetches user profile data (full name, profile picture) by userId. This is a public endpoint used by the Dart backend to fetch opponent profile information.
+
+**Authentication**: None required (public endpoint)
+
+**Request Body**:
+```json
+{
+  "user_id": "userId"
+}
+```
+
+**Response** (Success - 200):
+```json
+{
+  "success": true,
+  "user_id": "userId",
+  "username": "username",
+  "full_name": "First Last",
+  "first_name": "First",
+  "last_name": "Last",
+  "profile_picture": "https://lh3.googleusercontent.com/..."
+}
+```
+
+**Response** (Error - 400):
+```json
+{
+  "success": false,
+  "error": "No user_id provided"
+}
+```
+
+**Response** (Error - 404):
+```json
+{
+  "success": false,
+  "error": "User not found"
+}
+```
+
+**Example Usage**:
+```dart
+final apiModule = ConnectionsApiModule(Config.apiUrl);
+final response = await apiModule.sendPostRequest("/public/users/profile", {
+  "user_id": "userId123"
+});
+
+if (response['success'] == true) {
+  final fullName = response['full_name'];
+  final profilePicture = response['profile_picture'];
+  // Use profile data
+}
+```
+
+**Note**: This endpoint is primarily used by the Dart backend WebSocket server to fetch user profile data when players join games. The frontend typically uses the authenticated endpoint `GET /userauth/users/profile` to fetch the current user's profile.
+
 ## Models
 
 ### CreditBucket

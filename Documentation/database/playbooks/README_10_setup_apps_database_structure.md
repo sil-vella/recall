@@ -56,6 +56,7 @@ The main user document with modular structure:
   "profile": {                              // Personal Information
     "first_name": "John",
     "last_name": "Doe",
+    "picture": "https://lh3.googleusercontent.com/...",  // Profile picture URL (from Google Sign-In or other OAuth)
     "phone": "+1234567890",
     "timezone": "America/New_York",
     "language": "en"

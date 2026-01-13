@@ -2097,6 +2097,124 @@ GoogleSignIn(
 ```
 
 **Error Response (400 Bad Request - Guest Conversion)**:
+
+#### Get User Profile by ID (Public Endpoint)
+
+**Endpoint**: `POST /public/users/profile`
+
+**Description**: Fetches user profile data (full name, profile picture) by userId. This is a public endpoint primarily used by the Dart backend WebSocket server to fetch opponent profile information when players join games.
+
+**Authentication**: None required (public endpoint)
+
+**Request Body**:
+```json
+{
+  "user_id": "userId"
+}
+```
+
+**Success Response (200 OK)**:
+```json
+{
+  "success": true,
+  "user_id": "userId",
+  "username": "username",
+  "full_name": "First Last",
+  "first_name": "First",
+  "last_name": "Last",
+  "profile_picture": "https://lh3.googleusercontent.com/..."
+}
+```
+
+**Error Response (400 Bad Request)**:
+```json
+{
+  "success": false,
+  "error": "No user_id provided"
+}
+```
+
+**Error Response (404 Not Found)**:
+```json
+{
+  "success": false,
+  "error": "User not found"
+}
+```
+
+**Error Response (500 Internal Server Error)**:
+```json
+{
+  "success": false,
+  "error": "Failed to get user profile",
+  "message": "Error details"
+}
+```
+
+**Usage Notes**:
+- This endpoint is used by the Dart backend to fetch user profile data when creating/joining players
+- Returns `full_name` as a concatenation of `first_name` and `last_name` (empty string if neither exists)
+- Falls back to `username` if full name is not available
+- Profile picture URL is from Google Sign-In or other OAuth providers
+- Used to display player names and profile pictures in the game UI
+
+**Example Usage (Dart Backend)**:
+```dart
+final profileResult = await server.pythonClient.getUserProfile(userId);
+if (profileResult['success'] == true) {
+  final fullName = profileResult['full_name'];
+  final profilePicture = profileResult['profile_picture'];
+  // Use in player object
+}
+```
+
+#### Get Current User Profile (JWT Protected)
+
+**Endpoint**: `GET /userauth/users/profile`
+
+**Description**: Gets the current authenticated user's profile (requires JWT token).
+
+**Authentication**: JWT token required (in Authorization header)
+
+**Request Headers**:
+```
+Authorization: Bearer {jwt_token}
+```
+
+**Success Response (200 OK)**:
+```json
+{
+  "user_id": "userId",
+  "email": "user@example.com",
+  "username": "username",
+  "profile": {
+    "first_name": "First",
+    "last_name": "Last",
+    "picture": "https://...",
+    "phone": "...",
+    "timezone": "UTC",
+    "language": "en"
+  },
+  "modules": {
+    "dutch_game": {...},
+    "wallet": {...}
+  }
+}
+```
+
+**Error Response (401 Unauthorized)**:
+```json
+{
+  "error": "User not authenticated"
+}
+```
+
+**Error Response (404 Not Found)**:
+```json
+{
+  "error": "User not found"
+}
+```
 ```json
 {
   "success": false,
@@ -2285,12 +2403,33 @@ GoogleSignIn(
 - GitHub Sign-In
 - Twitter/X Sign-In
 
-#### 2. Profile Picture Sync
+#### 2. Profile Picture Sync ✅ **IMPLEMENTED**
 
-**Proposed Enhancement**:
-- Automatically sync Google profile picture
-- Store in user profile
-- Update on each Google Sign-In
+**Status**: ✅ **Completed**
+
+**Implementation**:
+- Automatically syncs Google profile picture during Google Sign-In
+- Stores in `profile.picture` field in user document
+- Updates on each Google Sign-In (for existing users)
+- Available via public API endpoint: `POST /public/users/profile`
+- Used in game UI to display player profile pictures
+
+**API Endpoint**:
+- **Endpoint**: `POST /public/users/profile`
+- **Auth**: Public (no JWT required)
+- **Request Body**: `{"user_id": "userId"}`
+- **Response**: 
+  ```json
+  {
+    "success": true,
+    "user_id": "userId",
+    "username": "username",
+    "full_name": "First Last",
+    "first_name": "First",
+    "last_name": "Last",
+    "profile_picture": "https://..."
+  }
+  ```
 
 #### 3. Enhanced Account Linking
 
@@ -2331,6 +2470,7 @@ GoogleSignIn(
   "profile": {
     "first_name": "string",
     "last_name": "string",
+    "picture": "string (URL to profile picture, e.g., from Google Sign-In)",
     "phone": "string (encrypted: gAAAAAB... if provided)",
     "timezone": "string (default: 'UTC')",
     "language": "string (default: 'en')"

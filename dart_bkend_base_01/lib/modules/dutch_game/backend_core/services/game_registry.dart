@@ -367,13 +367,13 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     if (status != null && status.isNotEmpty) {
       switch (status) {
         case 'initial_peek':
-          turnTimeLimit = 15;
+          turnTimeLimit = 10;
           break;
         case 'drawing_card':
           turnTimeLimit = 10;
           break;
         case 'playing_card':
-          turnTimeLimit = 30;
+          turnTimeLimit = 20;
           break;
         case 'same_rank_window':
           turnTimeLimit = 10;
@@ -400,7 +400,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     if (turnTimeLimit == null && phase != null && phase.isNotEmpty) {
       switch (phase) {
         case 'initial_peek':
-          turnTimeLimit = 15;
+          turnTimeLimit = 10;
           break;
         case 'player_turn':
         case 'playing':

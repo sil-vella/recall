@@ -1877,7 +1877,24 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // Final fallback if neither status nor phase provided a timer
     turnTimeLimit ??= 30;
-    final currentUserId = _getCurrentUserId();
+    // Use DutchEventHandlerCallbacks.getCurrentUserId() to get sessionId (not userId)
+    // This matches how players are identified in game_state (by sessionId)
+    final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+    
+    // Get current user's player data from game_state to retrieve profile picture
+    // Profile picture is fetched when player joins and stored in player['profile_picture']
+    final players = gameState['players'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? currentUserPlayer;
+    try {
+      currentUserPlayer = players.cast<Map<String, dynamic>>().firstWhere(
+        (p) => p['id']?.toString() == currentUserId,
+      );
+    } catch (e) {
+      // Player not found, will use fallback to StateManager
+      currentUserPlayer = null;
+    }
+    final currentUserProfilePicture = currentUserPlayer?['profile_picture']?.toString();
+    
     final hasPlayerCalledFinalRound = gameState['players'] != null
         ? (gameState['players'] as List<dynamic>?)
             ?.any((p) => p is Map<String, dynamic> && 
@@ -1952,7 +1969,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             Row(
               children: [
                 // Profile picture (circular, 1.5x status chip height)
-                _buildPlayerProfilePicture(_getCurrentUserId()),
+                // Get profile picture from game_state player data first, then fallback to StateManager
+                _buildPlayerProfilePicture(
+                  _getCurrentUserId(),
+                  profilePictureUrl: currentUserProfilePicture,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'You',

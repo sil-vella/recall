@@ -119,6 +119,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
  
   Future<void> _createRoom(Map<String, dynamic> roomSettings) async {
     try {
+      // 🎯 CRITICAL: Clear all existing game state before starting new game
+      // This prevents overlapping or old game state from interfering
+      await DutchGameHelpers.clearAllGameStateBeforeNewGame();
+      
       // Check if user has enough coins (default 25, can be overridden in roomSettings)
       // Fetch fresh stats from API before checking
       final requiredCoins = roomSettings['requiredCoins'] as int? ?? 25;
@@ -170,6 +174,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   Future<void> _joinRoom(String roomId) async {
     try {
+      // 🎯 CRITICAL: Clear all existing game state before starting new game
+      // This prevents overlapping or old game state from interfering
+      await DutchGameHelpers.clearAllGameStateBeforeNewGame();
+      
       // Check if user has enough coins (default 25)
       // Fetch fresh stats from API before checking
       final hasEnoughCoins = await DutchGameHelpers.checkCoinsRequirement(fetchFromAPI: true);
@@ -218,6 +226,10 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     try {
       final Logger _logger = Logger();
       _logger.info('🎮 _startPracticeMatch: Starting practice match setup', isOn: LOGGING_SWITCH);
+      
+      // 🎯 CRITICAL: Clear all existing game state before starting new game
+      // This prevents overlapping or old game state from interfering
+      await DutchGameHelpers.clearAllGameStateBeforeNewGame();
       
       // Generate practice mode user data (self-contained, doesn't rely on login module)
       final currentUserId = 'practice_user_${DateTime.now().millisecondsSinceEpoch}';

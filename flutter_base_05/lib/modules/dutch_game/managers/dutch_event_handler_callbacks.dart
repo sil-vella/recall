@@ -585,6 +585,14 @@ When anyone has played a card with the **same rank** as your **collection card**
   /// [turnEvents] Optional turn_events list to include in games map update for widget slices
   static void _syncWidgetStatesFromGameState(String gameId, Map<String, dynamic> gameState, {List<dynamic>? turnEvents}) {
     try {
+      // 🎯 CRITICAL: Verify game exists in games map before updating
+      // This prevents stale state updates when user has left the game
+      final currentGames = _getCurrentGamesMap();
+      if (!currentGames.containsKey(gameId)) {
+        _logger.warning('⚠️  _syncWidgetStatesFromGameState: Game $gameId not found in games map - user may have left. Skipping widget state sync.', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       // Get current user ID (checks practice user data first, then login state)
       // In multiplayer mode, this should return sessionId (which is the player ID)
       final currentUserId = getCurrentUserId();
@@ -771,7 +779,15 @@ When anyone has played a card with the **same rank** as your **collection card**
     final roomId = data['room_id']?.toString() ?? '';
     final joinedPlayer = data['joined_player'] as Map<String, dynamic>? ?? {};
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
-    
+
+    // 🎯 CRITICAL: Verify game exists in games map before updating
+    // This prevents stale state updates when user has left the game
+    final currentGames = _getCurrentGamesMap();
+    if (!currentGames.containsKey(roomId)) {
+      _logger.warning('⚠️  handleDutchNewPlayerJoined: Game $roomId not found in games map - user may have left. Skipping player join update.', isOn: LOGGING_SWITCH);
+      return;
+    }
+
     // Update the game data with the new game state using helper method
     _updateGameData(roomId, {
       'game_state': gameState,
@@ -831,6 +847,14 @@ When anyone has played a card with the **same rank** as your **collection card**
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final startedBy = data['started_by']?.toString() ?? '';
     // final timestamp = data['timestamp']?.toString() ?? '';
+    
+    // 🎯 CRITICAL: Verify game exists in games map before updating
+    // This prevents stale state updates when user has left the game
+    final currentGames = _getCurrentGamesMap();
+    if (!currentGames.containsKey(gameId)) {
+      _logger.warning('⚠️  handleGameStarted: Game $gameId not found in games map - user may have left. Skipping game started update.', isOn: LOGGING_SWITCH);
+      return;
+    }
     
     // Extract player data
     final players = gameState['players'] as List<dynamic>? ?? [];
@@ -964,6 +988,14 @@ When anyone has played a card with the **same rank** as your **collection card**
     final playerStatus = data['player_status']?.toString() ?? 'unknown';
     final turnTimeout = data['turn_timeout'] as int? ?? 30;
     // final timestamp = data['timestamp']?.toString() ?? '';
+    
+    // 🎯 CRITICAL: Verify game exists in games map before updating
+    // This prevents stale state updates when user has left the game
+    final currentGames = _getCurrentGamesMap();
+    if (!currentGames.containsKey(gameId)) {
+      _logger.warning('⚠️  handleTurnStarted: Game $gameId not found in games map - user may have left. Skipping turn started update.', isOn: LOGGING_SWITCH);
+      return;
+    }
     
     // Find the current user's player data
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
@@ -1125,6 +1157,14 @@ When anyone has played a card with the **same rank** as your **collection card**
         });
       }
     } else {
+      // 🎯 CRITICAL: Verify game still exists in games map before updating
+      // This prevents stale state updates when user has left the game
+      final currentGamesForCheck = _getCurrentGamesMap();
+      if (!currentGamesForCheck.containsKey(gameId)) {
+        _logger.warning('⚠️  handleGameStateUpdated: Game $gameId not found in games map - user may have left. Skipping game state update.', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       // Update existing game's game_state
       _logger.info('🔍 Updating existing game: $gameId', isOn: LOGGING_SWITCH);
       _updateGameData(gameId, {
@@ -1614,6 +1654,14 @@ When anyone has played a card with the **same rank** as your **collection card**
     final playerId = data['player_id']?.toString() ?? '';
     final playerData = data['player_data'] as Map<String, dynamic>? ?? {};
     // final timestamp = data['timestamp']?.toString() ?? '';
+    
+    // 🎯 CRITICAL: Verify game exists in games map before updating
+    // This prevents stale state updates when user has left the game
+    final currentGames = _getCurrentGamesMap();
+    if (!currentGames.containsKey(gameId)) {
+      _logger.warning('⚠️  handlePlayerStateUpdated: Game $gameId not found in games map - user may have left. Skipping player state update.', isOn: LOGGING_SWITCH);
+      return;
+    }
     
     // Find the current user's player data
     final loginState = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};

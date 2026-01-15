@@ -124,6 +124,19 @@ This document tracks high-level development plans, todos, and architectural deci
   - **Solution**: Before making Jack swap decision, validate that selected cards actually exist in the player's current hand, not just in `known_cards`
   - **Location**: `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getJackSwapDecision()` and related selection methods
   - **Impact**: Improves CPU player decision accuracy, reduces failed swap attempts
+- [ ] **Add computer player Queen peek decision rule: peek at opponent when all own cards are known**
+  - **Issue**: Computer players need smarter Queen peek decision logic
+  - **Current Behavior**: Computer players use existing rules (peek_own_unknown_cards, peek_random_other_player, skip_queen_peek)
+  - **Expected Behavior**: If all cards in the computer player's own hand are known (no unknown cards), the computer should peek at an opponent's hand instead
+  - **Implementation**: 
+    - Add new decision rule: `peek_opponent_when_all_own_known`
+    - Check if computer player has any unknown cards in their hand
+    - If all cards are known, prioritize peeking at opponent's hand over skipping
+    - This rule should have higher priority than `skip_queen_peek` but lower than `peek_own_unknown_cards`
+  - **Location**: 
+    - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/shared_logic/utils/computer_player_factory.dart` - `getQueenPeekDecision()` method
+    - YAML configuration for computer player strategies (if applicable)
+  - **Impact**: Improves computer player AI - makes strategic use of Queen peek when own hand is fully known
 
 ### Low Priority
 

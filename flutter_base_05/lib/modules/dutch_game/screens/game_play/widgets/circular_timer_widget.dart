@@ -80,7 +80,13 @@ class _CircularTimerWidgetState extends State<CircularTimerWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final progress = _remainingSeconds / widget.durationSeconds;
+    // Prevent division by zero or NaN - ensure durationSeconds is valid
+    final safeDuration = widget.durationSeconds > 0 && widget.durationSeconds.isFinite 
+        ? widget.durationSeconds 
+        : 30; // Safe default
+    final progress = safeDuration > 0 
+        ? (_remainingSeconds / safeDuration).clamp(0.0, 1.0)
+        : 0.0;
     final color = widget.color ?? AppColors.accentColor2;
     final backgroundColor = widget.backgroundColor ?? AppColors.surfaceVariant;
 

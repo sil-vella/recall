@@ -647,8 +647,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           currentPlayerData = null;
         }
         final currentPlayerId = currentPlayerData?['id']?.toString() ?? '';
-        final opponentsPanelSlice = dutchGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-        final currentPlayerStatus = opponentsPanelSlice['currentPlayerStatus']?.toString() ?? 'unknown';
+        // Use current user's status for card glow (same source as status chip)
+        final currentPlayerStatus = _getCurrentUserStatus();
         final gamePhase = dutchGameState['gamePhase']?.toString() ?? 'waiting';
         final isInitialPeekPhase = gamePhase == 'initial_peek';
         
@@ -822,6 +822,11 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Final fallback if neither status nor phase provided a timer
     effectiveTimer ??= 30;
     
+    // Ensure effectiveTimer is valid (not 0, not negative, not NaN) to prevent division by zero in timer widget
+    if (effectiveTimer <= 0 || !effectiveTimer.isFinite) {
+      effectiveTimer = 30; // Safe default
+    }
+    
     // Show timer when: (1) current player with active status, OR (2) player has jack_swap/queen_peek/peeking (can happen out of turn)
     // Note: 'peeking' status occurs after a queen_peek decision is executed, but timer should continue showing
     final shouldShowTimer = (isCurrentPlayer && effectiveStatus != 'waiting' && effectiveStatus != 'same_rank_window') ||
@@ -963,9 +968,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   Widget _buildOpponentsCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, Map<String, dynamic> player, {MainAxisAlignment? nameAlignment, String? currentPlayerStatus}) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final containerWidth = constraints.maxWidth.isFinite 
-            ? constraints.maxWidth 
-            : MediaQuery.of(context).size.width * 0.5;
+        final containerWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : (MediaQuery.of(context).size.width > 0 ? MediaQuery.of(context).size.width * 0.5 : 500.0);
+        // Ensure containerWidth is valid before calculations
+        if (containerWidth <= 0 || !containerWidth.isFinite) {
+          return const SizedBox.shrink();
+        }
         final cardWidth = containerWidth * 0.06;
         final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
         final cardDimensions = Size(cardWidth, cardHeight);
@@ -1234,8 +1243,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   void _handleOpponentCardClick(Map<String, dynamic> card, String cardOwnerId) async {
     final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-    final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
-    final currentPlayerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
+    final currentPlayerStatus = _getCurrentUserStatus();
     
     if (currentPlayerStatus == 'jack_swap') {
       _logger.info('🃏 OpponentsPanelWidget: Status is jack_swap - opponent cards are interactive', isOn: LOGGING_SWITCH);
@@ -2019,7 +2027,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     final isGameActive = dutchGameState['isGameActive'] ?? false;
     final isMyTurn = dutchGameState['isMyTurn'] ?? false;
-    final playerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
+    final playerStatus = _getCurrentUserStatus(); // Use same source as status chip
     final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
     final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
     final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
@@ -2097,6 +2105,12 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     // Final fallback if neither status nor phase provided a timer
     turnTimeLimit ??= 30;
+    
+    // Ensure turnTimeLimit is valid (not 0, not negative, not NaN) to prevent division by zero in timer widget
+    if (turnTimeLimit <= 0 || !turnTimeLimit.isFinite) {
+      turnTimeLimit = 30; // Safe default
+    }
+    
     // Use DutchEventHandlerCallbacks.getCurrentUserId() to get sessionId (not userId)
     // This matches how players are identified in game_state (by sessionId)
     final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
@@ -2306,8 +2320,7 @@ _updateMyHandHeight();
       listenable: StateManager(),
       builder: (context, child) {
         final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-        final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
-        final currentPlayerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
+        final currentPlayerStatus = _getCurrentUserStatus();
         final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
         final drawnCardId = drawnCard?['cardId']?.toString();
         final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
@@ -2376,9 +2389,8 @@ _updateMyHandHeight();
         // Auto-rescale cards if they would overflow, maintaining 5:7 aspect ratio
         return LayoutBuilder(
           builder: (context, constraints) {
-            // Get current player status for glow effect
-            final myHandForStatus = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
-            final currentPlayerStatusForGlow = myHandForStatus['playerStatus']?.toString() ?? 'unknown';
+            // Get current player status for glow effect (using same source as status chip)
+            final currentPlayerStatusForGlow = _getCurrentUserStatus();
             // Get container width - prioritize constraints, but ensure we have a value immediately
             // If constraints are not yet available, use a reasonable default based on screen width
             // Note: constraints.maxWidth already accounts for the Padding widget's horizontal padding
@@ -2441,17 +2453,30 @@ _updateMyHandHeight();
             // Account for border (4px total when highlighted) and extra safety margin
             const safetyMargin = 12.0; // Increased from 8px to account for border and rounding
             Size cardDimensions;
-            if (totalWidthNeeded > (containerWidth - safetyMargin) && nonNullCardCount > 0) {
+            if (totalWidthNeeded > (containerWidth - safetyMargin) && nonNullCardCount > 0 && totalItems > 0) {
               // Need to rescale - calculate new width that fits all cards
               // Account for padding between all items and drawn card extra padding
               final totalPadding = (totalItems - 1) * cardPadding;
               final drawnCardPadding = hasDrawnCard ? drawnCardExtraPadding : 0;
               final availableWidth = containerWidth - totalPadding - drawnCardPadding - safetyMargin;
-              final newCardWidth = availableWidth / totalItems;
-              
-              // Maintain 5:7 aspect ratio
-              final newCardHeight = newCardWidth / CardDimensions.CARD_ASPECT_RATIO;
-              cardDimensions = Size(newCardWidth, newCardHeight);
+              // Prevent division by zero and ensure valid width
+              if (availableWidth > 0 && totalItems > 0) {
+                final newCardWidth = availableWidth / totalItems;
+                // Ensure newCardWidth is valid before creating Size
+                if (newCardWidth.isFinite && newCardWidth > 0) {
+                  // Maintain 5:7 aspect ratio
+                  final newCardHeight = newCardWidth / CardDimensions.CARD_ASPECT_RATIO;
+                  if (newCardHeight.isFinite && newCardHeight > 0) {
+                    cardDimensions = Size(newCardWidth, newCardHeight);
+                  } else {
+                    cardDimensions = defaultDimensions;
+                  }
+                } else {
+                  cardDimensions = defaultDimensions;
+                }
+              } else {
+                cardDimensions = defaultDimensions;
+              }
             } else {
               // Use default unified dimensions
               cardDimensions = defaultDimensions;
@@ -2650,6 +2675,14 @@ _updateMyHandHeight();
     return loginState['userId']?.toString() ?? '';
   }
 
+  /// Get current user's status from the same source as PlayerStatusChip
+  /// This ensures consistency between status chip and card lighting
+  String _getCurrentUserStatus() {
+    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+    return myHand['playerStatus']?.toString() ?? 'unknown';
+  }
+
   /// Update myhand section height in state (for overlay positioning)
   void _updateMyHandHeight() {
     if (!mounted) return;
@@ -2732,7 +2765,7 @@ _updateMyHandHeight();
     }
     final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final currentMyHand = currentState['myHand'] as Map<String, dynamic>? ?? {};
-    final currentPlayerStatus = currentMyHand['playerStatus']?.toString() ?? 'unknown';
+    final currentPlayerStatus = _getCurrentUserStatus();
     _logger.info('🎯 MyHandWidget - Card tapped: ${card['cardId']}, Status: $currentPlayerStatus', isOn: LOGGING_SWITCH);
       
     if (currentPlayerStatus == 'jack_swap') {

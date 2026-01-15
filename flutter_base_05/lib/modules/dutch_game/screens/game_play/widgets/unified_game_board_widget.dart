@@ -124,18 +124,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         
         return LayoutBuilder(
           builder: (context, constraints) {
-            // Use Column with Expanded to center game board vertically
+            // New layout: Opponents spread evenly, Game Board above My Hand
             return Column(
               children: [
-                // Opponents Panel Section - at the top
-                _buildOpponentsPanel(),
-                
-                // Game Board Section - centered vertically in remaining space
+                // Opponents Panel Section - spread evenly vertically
                 Expanded(
-                  child: Center(
-                    child: _buildGameBoard(),
-                  ),
+                  child: _buildOpponentsPanel(),
                 ),
+                
+                // Spacer above game board (doubled)
+                const SizedBox(height: 32),
+                
+                // Game Board Section - Draw Pile, Match Pot, Discard Pile (just above My Hand)
+                _buildGameBoard(),
+                
+                // Small spacer below game board
+                const SizedBox(height: 16),
                 
                 // My Hand Section - at the bottom
                 _buildMyHand(),
@@ -584,13 +588,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final playerStatus = dutchGameState['playerStatus']?.toString() ?? 'unknown';
     
     return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (opponents.isEmpty)
-              _buildEmptyOpponents()
-            else
-              _buildOpponentsGrid(otherPlayers, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
-          ],
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (opponents.isEmpty)
+          _buildEmptyOpponents()
+        else
+          // Spread opponents evenly vertically using Expanded and Spacers
+          Expanded(
+            child: _buildOpponentsGrid(otherPlayers, cardsToPeek, currentTurnIndex, isGameActive, playerStatus),
+          ),
+      ],
     );
   }
 
@@ -656,33 +663,75 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         final timerConfigRaw = gameState?['timerConfig'] as Map<String, dynamic>?;
         final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
     
-        return Column(
-          children: opponents.asMap().entries.map((entry) {
-            final index = entry.key;
-            final player = entry.value as Map<String, dynamic>;
-            final playerId = player['id']?.toString() ?? '';
-            final isCurrentTurn = index == currentTurnIndex;
-            final isCurrentPlayer = playerId == currentPlayerId;
-            final knownCards = player['known_cards'] as Map<String, dynamic>?;
-            
-            return SizedBox(
+        // Reorder opponents for clockwise UI rotation:
+        // Original: [player1, player2, player3] → Top: player1, Middle: player2, Bottom: player3
+        // New: [player2, player1, player3] → Top: player2, Middle: player1, Bottom: player3
+        // This creates a clockwise rotation effect while keeping players list order unchanged
+        List<dynamic> reorderedOpponents = [];
+        if (opponents.length >= 2) {
+          reorderedOpponents = [
+            opponents[1], // player2 goes to top row (center aligned)
+            opponents[0], // player1 goes to middle row (left aligned)
+            if (opponents.length > 2) ...opponents.sublist(2), // player3+ stays in same relative position
+          ];
+        } else {
+          reorderedOpponents = opponents; // If less than 2 opponents, keep original order
+        }
+        
+        // Create a map to find original index from player ID for currentTurnIndex calculation
+        final originalIndexMap = <String, int>{};
+        for (int i = 0; i < opponents.length; i++) {
+          final player = opponents[i] as Map<String, dynamic>;
+          final playerId = player['id']?.toString() ?? '';
+          if (playerId.isNotEmpty) {
+            originalIndexMap[playerId] = i;
+          }
+        }
+    
+        // Build list of opponent widgets with spacers to spread them evenly
+        final opponentWidgets = <Widget>[];
+        final entries = reorderedOpponents.asMap().entries.toList();
+        
+        for (int i = 0; i < entries.length; i++) {
+          final entry = entries[i];
+          final displayIndex = entry.key; // Position in UI (0=top, 1=middle, 2=bottom)
+          final player = entry.value as Map<String, dynamic>;
+          final playerId = player['id']?.toString() ?? '';
+          // Use original index from opponents list for turn calculation
+          final originalIndex = originalIndexMap[playerId] ?? displayIndex;
+          final isCurrentTurn = originalIndex == currentTurnIndex;
+          final isCurrentPlayer = playerId == currentPlayerId;
+          final knownCards = player['known_cards'] as Map<String, dynamic>?;
+          
+          // Add spacer before each opponent (except the first) to spread them evenly
+          if (i > 0) {
+            opponentWidgets.add(const Spacer());
+          }
+          
+          // Add opponent widget
+          opponentWidgets.add(
+            SizedBox(
               width: double.infinity,
               child: _buildOpponentCard(
-                  player, 
-                  cardsToPeek, 
-                  player['collection_rank_cards'] as List<dynamic>? ?? [],
-                  isCurrentTurn, 
-                  isGameActive, 
-                  isCurrentPlayer, 
-                  currentPlayerStatus,
-                  knownCards,
-                  isInitialPeekPhase,
-                  phase, // Pass phase for timer calculation
-                  timerConfig, // Pass timerConfig from game_state
-                  opponentIndex: index, // Pass index for alignment
-                ),
-              );
-          }).toList(),
+                player, 
+                cardsToPeek, 
+                player['collection_rank_cards'] as List<dynamic>? ?? [],
+                isCurrentTurn, 
+                isGameActive, 
+                isCurrentPlayer, 
+                currentPlayerStatus,
+                knownCards,
+                isInitialPeekPhase,
+                phase, // Pass phase for timer calculation
+                timerConfig, // Pass timerConfig from game_state
+                opponentIndex: displayIndex, // Pass display index for alignment (0=top, 1=middle, 2=bottom)
+              ),
+            ),
+          );
+        }
+        
+        return Column(
+          children: opponentWidgets,
         );
       },
     );
@@ -1317,15 +1366,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return Container(
       key: _gameBoardKey,
       padding: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            _buildDrawPile(),
-            const SizedBox(width: 16),
-            _buildDiscardPile(),
-            const SizedBox(width: 16),
-            _buildMatchPot(),
-          ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Get the actual width of the gameboard row
+          final gameboardRowWidth = constraints.maxWidth;
+          
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDrawPile(),
+              _buildMatchPot(gameboardRowWidth), // Match pot in the middle
+              _buildDiscardPile(),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1365,7 +1421,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final isDrawingStatus = playerStatus == 'drawing_card';
     final statusChipColor = isDrawingStatus ? _getStatusChipColor(playerStatus) : null;
     
-    return Expanded(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
@@ -1393,38 +1450,97 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   onTap: _handleDrawPileClick,
                 );
               } else {
-                // Render all cards in draw pile (stacked, all at same position)
-                // Only the top card is visible, but all are tracked for animation
+                // Render all cards in draw pile with stacking effect
+                // Only the top card is visible and clickable, but all are tracked for animation
+                final topCardIndex = drawPile.length - 1;
+                final topCardData = drawPile[topCardIndex] as Map<String, dynamic>? ?? {};
+                
+                // Create stacking effect with 2 additional cards behind
+                final stackCards = <Widget>[];
+                
+                // Add 2 background cards with rotation and offset for stacking effect
+                for (int i = 0; i < 2; i++) {
+                  // Draw pile: 2° and 4° anticlockwise
+                  final rotation = -(i + 1) * 2.0; // -2° and -4° (anticlockwise)
+                  final offset = (i + 1) * 1.5; // 1.5px and 3px offset
+                  // Add shadow to the last (bottom) card of the stack
+                  final isBottomCard = i == 1; // Second card is the bottom one
+                  stackCards.add(
+                    Positioned.fill(
+                      child: Transform.rotate(
+                        angle: rotation * 3.14159 / 180, // Convert to radians
+                        child: Transform.translate(
+                          offset: Offset(offset, -offset),
+                          child: isBottomCard
+                              ? Container(
+                                  decoration: BoxDecoration(
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 4,
+                                        spreadRadius: 1,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Opacity(
+                                    opacity: 0.6 - (i * 0.2), // Fade effect: 0.6, 0.4
+                                    child: CardWidget(
+                                      card: CardModel.fromMap(topCardData),
+                                      dimensions: cardDimensions,
+                                      config: CardDisplayConfig.forDrawPile(),
+                                      showBack: true,
+                                      onTap: null, // Background cards not clickable
+                                    ),
+                                  ),
+                                )
+                              : Opacity(
+                                  opacity: 0.6 - (i * 0.2), // Fade effect: 0.6, 0.4
+                                  child: CardWidget(
+                                    card: CardModel.fromMap(topCardData),
+                                    dimensions: cardDimensions,
+                                    config: CardDisplayConfig.forDrawPile(),
+                                    showBack: true,
+                                    onTap: null, // Background cards not clickable
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                
+                // Add all actual cards in the pile (for animation tracking)
+                for (final entry in drawPile.asMap().entries) {
+                  final index = entry.key;
+                  final cardData = entry.value as Map<String, dynamic>? ?? {};
+                  final cardId = cardData['cardId']?.toString() ?? 'draw_pile_empty';
+                  final cardKey = _getOrCreateCardKey(cardId, 'draw_pile');
+                  final isTopCard = index == topCardIndex;
+                  
+                  stackCards.add(
+                    Positioned.fill(
+                      child: Opacity(
+                        opacity: isTopCard ? 1.0 : 0.0, // Only top card visible
+                        child: CardWidget(
+                          key: cardKey,
+                          card: CardModel.fromMap(cardData),
+                          dimensions: cardDimensions,
+                          config: CardDisplayConfig.forDrawPile(),
+                          showBack: true,
+                          onTap: isTopCard ? _handleDrawPileClick : null, // Only top card clickable
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                
                 drawPileContent = SizedBox(
                   width: cardDimensions.width,
                   height: cardDimensions.height,
                   child: Stack(
                     clipBehavior: Clip.none,
-                    children: drawPile.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final cardData = entry.value as Map<String, dynamic>? ?? {};
-                      final cardId = cardData['cardId']?.toString() ?? 'draw_pile_empty';
-                      
-                      // Get or create key for this card
-                      final cardKey = _getOrCreateCardKey(cardId, 'draw_pile');
-                      
-                      // Only show the top card (last in list), but render all for tracking
-                      final isTopCard = index == drawPile.length - 1;
-                      
-                      return Positioned.fill(
-                        child: Opacity(
-                          opacity: isTopCard ? 1.0 : 0.0, // Only top card visible
-                          child: CardWidget(
-                            key: cardKey,
-                            card: CardModel.fromMap(cardData),
-                            dimensions: cardDimensions,
-                            config: CardDisplayConfig.forDrawPile(),
-                            showBack: true,
-                            onTap: isTopCard ? _handleDrawPileClick : null, // Only top card clickable
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                    children: stackCards,
                   ),
                 );
               }
@@ -1549,7 +1665,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
     final hasCards = discardPile.isNotEmpty;
     
-    return Expanded(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
@@ -1576,37 +1693,94 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 );
               }
               
-              // Render all cards in discard pile (stacked, all at same position)
-              // Only the top card is visible, but all are tracked for animation
+              // Render all cards in discard pile with stacking effect
+              // Only the top card is visible and clickable, but all are tracked for animation
+              final topCardIndex = discardPile.length - 1;
+              final topCardData = discardPile[topCardIndex] as Map<String, dynamic>? ?? {};
+              
+              // Create stacking effect with 2 additional cards behind
+              final stackCards = <Widget>[];
+              
+              // Add 2 background cards with rotation and offset for stacking effect
+              for (int i = 0; i < 2; i++) {
+                // Discard pile: 2° and 4° clockwise
+                final rotation = (i + 1) * 2.0; // 2° and 4° (clockwise)
+                final offset = (i + 1) * 1.5; // 1.5px and 3px offset
+                // Add shadow to the last (bottom) card of the stack
+                final isBottomCard = i == 1; // Second card is the bottom one
+                stackCards.add(
+                  Positioned.fill(
+                    child: Transform.rotate(
+                      angle: rotation * 3.14159 / 180, // Convert to radians
+                      child: Transform.translate(
+                        offset: Offset(-offset, -offset), // Negative X for discard pile
+                        child: isBottomCard
+                            ? Container(
+                                decoration: BoxDecoration(
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 4,
+                                      spreadRadius: 1,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Opacity(
+                                  opacity: 0.6 - (i * 0.2), // Fade effect: 0.6, 0.4
+                                  child: CardWidget(
+                                    card: CardModel.fromMap(topCardData),
+                                    dimensions: cardDimensions,
+                                    config: CardDisplayConfig.forDiscardPile(),
+                                    onTap: null, // Background cards not clickable
+                                  ),
+                                ),
+                              )
+                            : Opacity(
+                                opacity: 0.6 - (i * 0.2), // Fade effect: 0.6, 0.4
+                                child: CardWidget(
+                                  card: CardModel.fromMap(topCardData),
+                                  dimensions: cardDimensions,
+                                  config: CardDisplayConfig.forDiscardPile(),
+                                  onTap: null, // Background cards not clickable
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                );
+              }
+              
+              // Add all actual cards in the pile (for animation tracking)
+              for (final entry in discardPile.asMap().entries) {
+                final index = entry.key;
+                final cardData = entry.value as Map<String, dynamic>? ?? {};
+                final cardId = cardData['cardId']?.toString() ?? 'discard_pile_empty';
+                final cardKey = _getOrCreateCardKey(cardId, 'discard_pile');
+                final isTopCard = index == topCardIndex;
+                
+                stackCards.add(
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: isTopCard ? 1.0 : 0.0, // Only top card visible
+                      child: CardWidget(
+                        key: cardKey,
+                        card: CardModel.fromMap(cardData),
+                        dimensions: cardDimensions,
+                        config: CardDisplayConfig.forDiscardPile(),
+                        onTap: isTopCard ? _handleDiscardPileClick : null, // Only top card clickable
+                      ),
+                    ),
+                  ),
+                );
+              }
+              
               return SizedBox(
                 width: cardDimensions.width,
                 height: cardDimensions.height,
                 child: Stack(
                   clipBehavior: Clip.none,
-                  children: discardPile.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final cardData = entry.value as Map<String, dynamic>? ?? {};
-                    final cardId = cardData['cardId']?.toString() ?? 'discard_pile_empty';
-                    
-                    // Get or create key for this card
-                    final cardKey = _getOrCreateCardKey(cardId, 'discard_pile');
-                    
-                    // Only show the top card (last in list), but render all for tracking
-                    final isTopCard = index == discardPile.length - 1;
-                    
-                    return Positioned.fill(
-                      child: Opacity(
-                        opacity: isTopCard ? 1.0 : 0.0, // Only top card visible
-                        child: CardWidget(
-                          key: cardKey,
-                          card: CardModel.fromMap(cardData),
-                          dimensions: cardDimensions,
-                          config: CardDisplayConfig.forDiscardPile(),
-                          onTap: isTopCard ? _handleDiscardPileClick : null, // Only top card clickable
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                  children: stackCards,
                 ),
               );
             },
@@ -1672,7 +1846,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
 
   // ========== Match Pot Methods ==========
 
-  Widget _buildMatchPot() {
+  Widget _buildMatchPot(double gameboardRowWidth) {
     final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
     final matchPot = centerBoard['matchPot'] as int? ?? 0;
@@ -1681,58 +1855,52 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     final shouldShowPot = isGameActive && gamePhase != 'waiting';
     
-    return Expanded(
+    // Calculate width: 20% of gameboard row width
+    final calculatedWidth = gameboardRowWidth * 0.2;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Match Pot',
-            style: AppTextStyles.headingSmall(),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
+            'Win',
+            style: AppTextStyles.headingSmall().copyWith(
               color: shouldShowPot 
-                  ? AppColors.primaryColor.withOpacity(0.1)
-                  : AppColors.widgetContainerBackground,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: shouldShowPot 
-                    ? AppColors.primaryColor.withOpacity(0.3)
-                    : AppColors.borderDefault.withOpacity(0.3),
-                width: 1,
+                  ? AppColors.primaryColor
+                  : AppColors.textSecondary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Image.asset(
+                'assets/images/coins.png',
+                width: calculatedWidth,
+                fit: BoxFit.contain,
               ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.monetization_on,
-                  color: shouldShowPot 
-                      ? AppColors.primaryColor
-                      : AppColors.textSecondary,
-                  size: 24,
+              Text(
+                shouldShowPot ? matchPot.toString() : '—',
+                style: AppTextStyles.headingLarge().copyWith(
+                  color: AppColors.black,
+                  shadows: [
+                    Shadow(
+                      offset: Offset.zero,
+                      blurRadius: 4.0,
+                      color: AppColors.white,
+                    ),
+                    Shadow(
+                      offset: Offset.zero,
+                      blurRadius: 8.0,
+                      color: AppColors.white.withValues(alpha: 0.5),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  shouldShowPot ? matchPot.toString() : '—',
-                  style: AppTextStyles.headingMedium().copyWith(
-                    color: shouldShowPot 
-                        ? AppColors.primaryColor
-                        : AppColors.textSecondary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'coins',
-                  style: AppTextStyles.bodySmall().copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

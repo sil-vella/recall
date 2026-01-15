@@ -95,9 +95,9 @@ if (_transportMode == EventTransportMode.practice) {
 ## Logging
 
 ### Enabled Logging Flags
-- ✅ `dutch_game_helpers.dart`: `LOGGING_SWITCH = true` (mode switching verification)
-- ✅ `validated_event_emitter.dart`: `LOGGING_SWITCH = true` (mode switching verification)
-- ✅ `practice_mode_bridge.dart`: `LOGGING_SWITCH = true` (practice match debugging)
+- ✅ `dutch_game_helpers.dart`: `LOGGING_SWITCH = false` (mode switching verification)
+- ✅ `validated_event_emitter.dart`: `LOGGING_SWITCH = false` (mode switching verification)
+- ✅ `practice_mode_bridge.dart`: `LOGGING_SWITCH = false` (practice match debugging)
 
 ### Expected Log Messages
 

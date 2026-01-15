@@ -18,7 +18,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = true; // Enabled for mode switching verification
+  static const bool LOGGING_SWITCH = false; // Enabled for mode switching verification
   
   // ========================================
   // EVENT EMISSION HELPERS

@@ -18,7 +18,7 @@ from datetime import datetime
 from functools import wraps
 import json
 
-LOGGING_SWITCH = True  # Enabled for rank-based matching and debugging
+LOGGING_SWITCH = False  # Enabled for rank-based matching and debugging
 
 class WebSocketManager:
     def __init__(self):

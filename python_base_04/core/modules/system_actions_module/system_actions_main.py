@@ -8,7 +8,7 @@ import os
 import json
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Enabled for debugging
+LOGGING_SWITCH = False  # Enabled for debugging
 
 
 class SystemActionsModule(BaseModule):

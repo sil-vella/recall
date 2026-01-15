@@ -24,7 +24,7 @@ from core.managers.websockets.websocket_manager import WebSocketManager
 
 class AppManager:
     METRICS_SWITCH = True
-    LOGGING_SWITCH = True  # Enabled for rank-based matching and debugging
+    LOGGING_SWITCH = False  # Enabled for rank-based matching and debugging
     
     def __init__(self):
         # Plugin system removed - ModuleManager is now primary orchestrator

@@ -14,7 +14,7 @@ from datetime import datetime
 class AnalyticsModule(BaseModule):
     """Module for tracking and querying user analytics events."""
     
-    LOGGING_SWITCH = True  # Enabled for debugging
+    LOGGING_SWITCH = False  # Enabled for debugging
     
     def __init__(self, app_manager=None):
         """Initialize the AnalyticsModule."""

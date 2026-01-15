@@ -703,7 +703,7 @@ class GameEventCoordinator {
       'isClearAndCollect': data['isClearAndCollect'] as bool? ?? true, // Collection mode flag - false = clear mode (no collection), true = collection mode (default to true for backward compatibility)
       'timerConfig': {
         'initial_peek': 15,
-        'drawing_card': 23420,
+        'drawing_card': 3420,
         'playing_card': 30,
         'same_rank_window': 10,
         'queen_peek': 15,

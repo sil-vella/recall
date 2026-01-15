@@ -6,7 +6,7 @@ from bson import ObjectId
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Enabled for rank-based matching testing
+LOGGING_SWITCH = False  # Enabled for rank-based matching testing
 
 # Store app_manager reference (will be set by module)
 _app_manager = None

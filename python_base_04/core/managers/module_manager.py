@@ -3,7 +3,7 @@ from typing import Dict, List, Type, Any, Optional
 from core.managers.module_registry import ModuleRegistry
 from core.modules.base_module import BaseModule
 
-LOGGING_SWITCH = True  # Enabled for rank-based matching and debugging
+LOGGING_SWITCH = False  # Enabled for rank-based matching and debugging
 
 class ModuleManager:
     def __init__(self):

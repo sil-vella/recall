@@ -19,7 +19,7 @@ import time
 import random
 
 # Logging switch for this module
-LOGGING_SWITCH = True  # Enabled for rank-based matching testing
+LOGGING_SWITCH = False  # Enabled for rank-based matching testing
 METRICS_SWITCH = True
 
 

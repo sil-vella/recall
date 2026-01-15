@@ -33,6 +33,10 @@ class DutchGameRound {
   // Matches backend's self.special_card_players list (game_round.py line 686)
   List<Map<String, dynamic>> _specialCardPlayers = [];
   
+  // Flag to prevent multiple calls to _endSpecialCardsWindow() due to race conditions
+  // When timer expires and jack swap completes simultaneously, both try to end the window
+  bool _isEndingSpecialCardsWindow = false;
+  
   // Winners list - stores winner information when game ends
   List<Map<String, dynamic>> _winnersList = [];
   
@@ -766,7 +770,7 @@ class DutchGameRound {
             }
           } else {
             _logger.info('Dutch: Computer decided not to use Jack swap', isOn: LOGGING_SWITCH);
-            // Note: Don't call _moveToNextPlayer() here - special card window timer will handle it
+            // Note: Timer will continue running and expire naturally - don't cancel it
           }
           break;
           
@@ -784,7 +788,7 @@ class DutchGameRound {
             }
           } else {
             _logger.info('Dutch: Computer decided not to use Queen peek', isOn: LOGGING_SWITCH);
-            // Note: Don't call _moveToNextPlayer() here - special card window timer will handle it
+            // Note: Timer will continue running and expire naturally - don't cancel it
           }
           break;
           
@@ -2602,6 +2606,12 @@ class DutchGameRound {
       _specialCardTimer?.cancel();
       _logger.info('Dutch: Cancelled special card timer after Jack swap completion', isOn: LOGGING_SWITCH);
 
+      // Check if we're already ending the window (prevent race condition with timer expiration)
+      if (_isEndingSpecialCardsWindow) {
+        _logger.info('Dutch: Special cards window is already ending - skipping processing after Jack swap', isOn: LOGGING_SWITCH);
+        return true;
+      }
+
       // Set the current player's status to waiting
       // The player who completed the swap is the one in the first entry of _specialCardPlayers
       if (_specialCardPlayers.isNotEmpty) {
@@ -3746,6 +3756,9 @@ class DutchGameRound {
       _logger.info('Dutch: === SPECIAL CARDS WINDOW ===', isOn: LOGGING_SWITCH);
       _logger.info('Dutch: DEBUG: special_card_data length: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
       
+      // Reset flag when starting new special cards window
+      _isEndingSpecialCardsWindow = false;
+      
       // CRITICAL: Set gamePhase to special_play_window to match Python backend behavior
       // This ensures same_rank_window phase is fully ended before special_play_window begins
       // Matches backend's phase transition at game_round.py line 1709
@@ -3781,6 +3794,12 @@ class DutchGameRound {
   /// Replicates backend's _process_next_special_card method in game_round.py lines 696-739
   void _processNextSpecialCard() {
     try {
+      // Check if we're already ending the window (prevent race condition)
+      if (_isEndingSpecialCardsWindow) {
+        _logger.info('Dutch: Special cards window is already ending - skipping duplicate call', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       // Check if we've processed all special cards (list is empty)
       if (_specialCardPlayers.isEmpty) {
         _logger.info('Dutch: All special cards processed - moving to next player', isOn: LOGGING_SWITCH);
@@ -3844,16 +3863,25 @@ class DutchGameRound {
         }
       }
       
-      // Get timer duration from phase-based configuration (based on current player status)
-      final config = _stateCallback.getTimerConfig();
-      final specialCardTimerDuration = config['turnTimeLimit'] as int? ?? 15;
+      // Get timer duration based on special power type directly (not from state, as state update may not be applied yet)
+      // This prevents race condition where getTimerConfig() reads "waiting" status before "queen_peek"/"jack_swap" is applied
+      int specialCardTimerDuration;
+      if (specialPower == 'queen_peek') {
+        specialCardTimerDuration = 15; // queen_peek timer from timerConfig
+      } else if (specialPower == 'jack_swap') {
+        specialCardTimerDuration = 20; // jack_swap timer from timerConfig
+      } else {
+        // Fallback: try to get from config, but use direct value as fallback
+        final config = _stateCallback.getTimerConfig();
+        specialCardTimerDuration = config['turnTimeLimit'] as int? ?? 15;
+      }
       
       // Start phase-based timer for this player's special card play
       _specialCardTimer?.cancel();
       _specialCardTimer = Timer(Duration(seconds: specialCardTimerDuration), () {
         _onSpecialCardTimerExpired();
       });
-      _logger.info('Dutch: ${specialCardTimerDuration}-second timer started for player $playerId\'s $specialPower (phase-based)', isOn: LOGGING_SWITCH);
+      _logger.info('Dutch: ${specialCardTimerDuration}-second timer started for player $playerId\'s $specialPower (phase-based, using direct specialPower value)', isOn: LOGGING_SWITCH);
       
     } catch (e) {
       _logger.error('Dutch: Error in _processNextSpecialCard: $e', isOn: LOGGING_SWITCH);
@@ -3864,6 +3892,12 @@ class DutchGameRound {
   /// Replicates backend's _on_special_card_timer_expired method in game_round.py lines 741-766
   void _onSpecialCardTimerExpired() {
     try {
+      // Check if we're already ending the window (prevent race condition with jack swap completion)
+      if (_isEndingSpecialCardsWindow) {
+        _logger.info('Dutch: Special cards window is already ending - skipping timer expiration processing', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
       // Reset current player's status to WAITING (if there are still cards to process)
       if (_specialCardPlayers.isNotEmpty) {
         final specialData = _specialCardPlayers[0];
@@ -3917,6 +3951,15 @@ class DutchGameRound {
   /// Replicates backend's _end_special_cards_window method in game_round.py lines 768-789
   void _endSpecialCardsWindow() {
     try {
+      // Prevent multiple calls to this method (race condition protection)
+      if (_isEndingSpecialCardsWindow) {
+        _logger.info('Dutch: Special cards window is already ending - preventing duplicate call', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Set flag to prevent duplicate calls
+      _isEndingSpecialCardsWindow = true;
+      
       // Cancel any running timer
       _specialCardTimer?.cancel();
       
@@ -3947,8 +3990,13 @@ class DutchGameRound {
       _logger.info('Dutch: Moving to next player after special cards', isOn: LOGGING_SWITCH);
       _moveToNextPlayer();
       
+      // Reset flag after moving to next player (allows new special cards window to start)
+      _isEndingSpecialCardsWindow = false;
+      
     } catch (e) {
       _logger.error('Dutch: Error in _endSpecialCardsWindow: $e', isOn: LOGGING_SWITCH);
+      // Reset flag on error to prevent permanent lock
+      _isEndingSpecialCardsWindow = false;
     }
   }
 

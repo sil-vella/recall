@@ -9,7 +9,7 @@ import os
 import importlib
 import inspect
 
-LOGGING_SWITCH = True  # Enabled for rank-based matching and debugging
+LOGGING_SWITCH = False  # Enabled for rank-based matching and debugging
 
 class ModuleRegistry:
     """

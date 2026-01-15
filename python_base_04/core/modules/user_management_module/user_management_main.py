@@ -35,7 +35,7 @@ from core.services.analytics_service import AnalyticsService
 
 class UserManagementModule(BaseModule):
     # Logging switch for guest registration and conversion testing
-    LOGGING_SWITCH = True  # Enabled for rank-based matching and debugging
+    LOGGING_SWITCH = False  # Enabled for rank-based matching and debugging
     METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):

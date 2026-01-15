@@ -5,7 +5,7 @@ import 'room_manager_stub.dart';
 /// Routes messages to practice bridge callbacks instead of actual WebSocket connections
 class WebSocketServerStub {
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   final RoomManagerStub _roomManager;
   final Function(String sessionId, Map<String, dynamic> message)? _onSendToSession;
   final Function(String roomId, Map<String, dynamic> message)? _onBroadcastToRoom;

@@ -31,7 +31,7 @@ class RoomManagerStub {
   final Map<String, RoomInfoStub> _rooms = {};
   final Map<String, String> _sessionToRoom = {};
 
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
 
   RoomManagerStub();
 

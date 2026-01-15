@@ -15,7 +15,7 @@ import '../../../utils/card_position_scanner.dart';
 import '../../../utils/card_animation_detector.dart';
 import '../../demo/demo_functionality.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
@@ -822,9 +822,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     // Final fallback if neither status nor phase provided a timer
     effectiveTimer ??= 30;
     
-    // Show timer when: (1) current player with active status, OR (2) player has jack_swap/queen_peek (can happen out of turn)
+    // Show timer when: (1) current player with active status, OR (2) player has jack_swap/queen_peek/peeking (can happen out of turn)
+    // Note: 'peeking' status occurs after a queen_peek decision is executed, but timer should continue showing
     final shouldShowTimer = (isCurrentPlayer && effectiveStatus != 'waiting' && effectiveStatus != 'same_rank_window') ||
-        (playerStatus == 'jack_swap' || playerStatus == 'queen_peek');
+        (playerStatus == 'jack_swap' || playerStatus == 'queen_peek' || playerStatus == 'peeking');
     
     // Use status chip color logic for glow (excludes 'waiting' and 'same_rank_window')
     final shouldShowGlow = _shouldHighlightCurrentPlayer(playerStatus);
@@ -952,14 +953,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         Align(
           alignment: cardAlignment,
           child: hand.isNotEmpty
-              ? _buildOpponentsCardsRow(hand, cardsToPeek, playerCollectionRankCards, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase, player, nameAlignment: nameAlignment)
+              ? _buildOpponentsCardsRow(hand, cardsToPeek, playerCollectionRankCards, drawnCard, player['id']?.toString() ?? '', knownCards, isInitialPeekPhase, player, nameAlignment: nameAlignment, currentPlayerStatus: currentPlayerStatus)
               : _buildEmptyHand(),
         ),
       ],
     );
   }
 
-  Widget _buildOpponentsCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, Map<String, dynamic> player, {MainAxisAlignment? nameAlignment}) {
+  Widget _buildOpponentsCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, Map<String, dynamic> player, {MainAxisAlignment? nameAlignment, String? currentPlayerStatus}) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final containerWidth = constraints.maxWidth.isFinite 
@@ -1116,7 +1117,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 return const SizedBox.shrink();
               }
               final cardKey = _getOrCreateCardKey(cardId, 'opponent_$playerId');
-              final cardWidget = _buildOpponentCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey);
+              final cardWidget = _buildOpponentCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey, currentPlayerStatus: currentPlayerStatus);
               return Padding(
                 padding: EdgeInsets.only(
                   right: cardPadding,
@@ -1131,7 +1132,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  Widget _buildOpponentCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isCollectionRankCard, Size cardDimensions, {GlobalKey? cardKey}) {
+  Widget _buildOpponentCardWidget(Map<String, dynamic> card, bool isDrawnCard, String playerId, bool isCollectionRankCard, Size cardDimensions, {GlobalKey? cardKey, String? currentPlayerStatus}) {
     final cardModel = CardModel.fromMap(card);
     final cardId = card['cardId']?.toString();
     final isSelected = cardId != null && _clickedCardId == cardId;
@@ -1145,6 +1146,25 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       isSelected: isSelected,
       onTap: () => _handleOpponentCardClick(card, playerId),
     );
+    
+    // Apply glow effect based on current player status (for jack_swap and queen_peek)
+    final glowColor = currentPlayerStatus != null 
+        ? _getGlowColorForCards(currentPlayerStatus, false) 
+        : null;
+    
+    if (glowColor != null && _glowAnimation != null) {
+      return AnimatedBuilder(
+        animation: _glowAnimation!,
+        builder: (context, child) {
+          final glowOpacity = _glowAnimation!.value;
+          final glowDecoration = _buildGlowDecoration(glowColor, glowOpacity);
+          return Container(
+            decoration: glowDecoration,
+            child: cardWidget,
+          );
+        },
+      );
+    }
     
     return cardWidget;
   }
@@ -1345,6 +1365,56 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         return AppColors.errorColor;
       default:
         return AppColors.textSecondary;
+    }
+  }
+
+  /// Reusable glow effect decoration builder
+  /// Returns a BoxDecoration with animated glow effect based on status color
+  /// [statusColor] The color to use for the glow (from _getStatusChipColor)
+  /// [glowOpacity] The current animation opacity value (from _glowAnimation)
+  /// Returns null if glow should not be applied
+  BoxDecoration? _buildGlowDecoration(Color statusColor, double glowOpacity) {
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(8),
+      boxShadow: [
+        BoxShadow(
+          color: statusColor.withValues(alpha: 0.6 * glowOpacity),
+          blurRadius: 6,
+          spreadRadius: 1,
+        ),
+        BoxShadow(
+          color: statusColor.withValues(alpha: 0.4 * glowOpacity),
+          blurRadius: 10,
+          spreadRadius: 2,
+        ),
+        BoxShadow(
+          color: statusColor.withValues(alpha: 0.2 * glowOpacity),
+          blurRadius: 14,
+          spreadRadius: 3,
+        ),
+      ],
+    );
+  }
+
+  /// Determine if glow should be applied to cards based on current status
+  /// [currentPlayerStatus] The current player's status
+  /// [isMyHand] Whether this is for my hand (true) or opponent hand (false)
+  /// Returns the status color if glow should be applied, null otherwise
+  Color? _getGlowColorForCards(String currentPlayerStatus, bool isMyHand) {
+    switch (currentPlayerStatus) {
+      case 'playing_card':
+        // During playing: apply to all cards in my hand
+        return isMyHand ? _getStatusChipColor(currentPlayerStatus) : null;
+      case 'jack_swap':
+      case 'queen_peek':
+        // During jack swap/queen peek: apply to all cards in all hands
+        return _getStatusChipColor(currentPlayerStatus);
+      case 'initial_peek':
+      case 'same_rank_window':
+        // During initial peek/same rank: apply to my hand only
+        return isMyHand ? _getStatusChipColor(currentPlayerStatus) : null;
+      default:
+        return null;
     }
   }
 
@@ -1551,27 +1621,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   animation: _glowAnimation!,
                   builder: (context, child) {
                     final glowOpacity = _glowAnimation!.value;
+                    final glowDecoration = _buildGlowDecoration(statusChipColor, glowOpacity);
                     return Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: statusChipColor.withValues(alpha: 0.6 * glowOpacity),
-                            blurRadius: 20,
-                            spreadRadius: 4,
-                          ),
-                          BoxShadow(
-                            color: statusChipColor.withValues(alpha: 0.4 * glowOpacity),
-                            blurRadius: 35,
-                            spreadRadius: 8,
-                          ),
-                          BoxShadow(
-                            color: statusChipColor.withValues(alpha: 0.2 * glowOpacity),
-                            blurRadius: 50,
-                            spreadRadius: 12,
-                          ),
-                        ],
-                      ),
+                      decoration: glowDecoration,
                       child: drawPileContent,
                     );
                   },
@@ -2094,41 +2146,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       _initialPeekSelectedCardIds.clear();
     }
     
-    final shouldHighlight = _shouldHighlightStatus(playerStatus);
-    final statusChipColor = shouldHighlight ? _getStatusChipColor(playerStatus) : null;
     // For timer color, always get the status chip color (including same_rank_window)
     final timerColor = _getStatusChipColor(playerStatus);
-    final backgroundColor = shouldHighlight && statusChipColor != null
-        ? statusChipColor.withValues(alpha: 0.1)
-        : Colors.transparent;
     
     // Update myhand height in state after build
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _updateMyHandHeight();
+_updateMyHandHeight();
     });
     
     return Container(
       key: _myHandKey,
       margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: shouldHighlight && statusChipColor != null
-            ? Border.all(
-                color: statusChipColor,
-                width: 2,
-              )
-            : null,
-        boxShadow: shouldHighlight && statusChipColor != null
-            ? [
-                BoxShadow(
-                  color: statusChipColor.withValues(alpha: 0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
-              ]
-            : null,
-      ),
       child: Padding(
         padding: AppPadding.cardPadding,
         child: Column(
@@ -2278,6 +2306,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       listenable: StateManager(),
       builder: (context, child) {
         final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+        final currentPlayerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
         final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
         final drawnCardId = drawnCard?['cardId']?.toString();
         final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
@@ -2337,7 +2367,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
             // Use default dimensions here - will be rebuilt with calculated dimensions in LayoutBuilder
             final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
             final defaultDimensions = CardDimensions.getUnifiedDimensions();
-            final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey, defaultDimensions);
+            final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey, defaultDimensions, currentPlayerStatus: currentPlayerStatus);
             collectionRankWidgets[cardId] = cardWidget;
           }
         }
@@ -2346,6 +2376,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         // Auto-rescale cards if they would overflow, maintaining 5:7 aspect ratio
         return LayoutBuilder(
           builder: (context, constraints) {
+            // Get current player status for glow effect
+            final myHandForStatus = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+            final currentPlayerStatusForGlow = myHandForStatus['playerStatus']?.toString() ?? 'unknown';
             // Get container width - prioritize constraints, but ensure we have a value immediately
             // If constraints are not yet available, use a reasonable default based on screen width
             // Note: constraints.maxWidth already accounts for the Padding widget's horizontal padding
@@ -2526,6 +2559,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                           index, 
                           collectionCard, 
                           collectionCardKey,
+                          currentPlayerStatus: currentPlayerStatusForGlow,
                           cardDimensions,
                         );
                         orderedCollectionWidgets.add(collectionCardWidget);
@@ -2581,6 +2615,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   cardMap, 
                   cardKey,
                   cardDimensions,
+                  currentPlayerStatus: currentPlayerStatusForGlow,
                 );
                 
                 cardWidgets.add(
@@ -3020,7 +3055,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
 
-  Widget _buildMyHandCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey, Size cardDimensions) {
+  Widget _buildMyHandCardWidget(Map<String, dynamic> card, bool isSelected, bool isDrawnCard, bool isCollectionRankCard, int index, Map<String, dynamic> cardMap, GlobalKey cardKey, Size cardDimensions, {String? currentPlayerStatus}) {
     // For drawn cards in user's hand, always show face up
     // Ensure card has full data - if not, try to get it from the cardMap or myDrawnCard in state
     Map<String, dynamic> cardDataToUse = card;
@@ -3102,6 +3137,25 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           ),
           child: cardWidget,
         ),
+      );
+    }
+    
+    // Apply glow effect based on current player status
+    final glowColor = currentPlayerStatus != null 
+        ? _getGlowColorForCards(currentPlayerStatus, true) 
+        : null;
+    
+    if (glowColor != null && _glowAnimation != null) {
+      return AnimatedBuilder(
+        animation: _glowAnimation!,
+        builder: (context, child) {
+          final glowOpacity = _glowAnimation!.value;
+          final glowDecoration = _buildGlowDecoration(glowColor, glowOpacity);
+          return Container(
+            decoration: glowDecoration,
+            child: cardWidget,
+          );
+        },
       );
     }
     

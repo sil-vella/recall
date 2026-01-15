@@ -249,9 +249,9 @@ deck_stats:
   testing:
     total_cards: 20
     suits: 4
-    special_cards: 0  # No special cards (jacks/queens removed)
-    numbered_cards: 16  # 2, 3, 4 of each suit (3×4 = 12) + ace counts as numbered
-    face_cards: 4  # 4 kings
+    special_cards: 16  # 8 jacks + 8 queens
+    numbered_cards: 4  # 4 aces
+    face_cards: 16  # 8 jacks + 8 queens
     jokers: 0
 ```
 
@@ -476,11 +476,9 @@ Future<void> _handleStartMatch(String roomId, DutchGameRound round, Map<String, 
 
 **Current Composition** (20 cards):
 - ace: 4 cards (1 per suit)
-- 2: 4 cards (1 per suit)
-- 3: 4 cards (1 per suit)
-- 4: 4 cards (1 per suit)
-- king: 4 cards (1 per suit)
-- No jacks, queens, or jokers
+- jack: 8 cards (2 per suit)
+- queen: 8 cards (2 per suit)
+- No jokers or other ranks
 
 **Use Cases**:
 - Practice mode

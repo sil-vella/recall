@@ -701,17 +701,7 @@ class GameEventCoordinator {
       'coin_cost_per_player': coinCost,
       'match_pot': pot,
       'isClearAndCollect': data['isClearAndCollect'] as bool? ?? true, // Collection mode flag - false = clear mode (no collection), true = collection mode (default to true for backward compatibility)
-      'timerConfig': {
-        'initial_peek': 15,
-        'drawing_card': 3420,
-        'playing_card': 30,
-        'same_rank_window': 10,
-        'queen_peek': 15,
-        'jack_swap': 20,
-        'peeking': 10,
-        'waiting': 0,
-        'default': 30,
-      }, // Add timer configuration to game state (for UI to read)
+      'timerConfig': ServerGameStateCallbackImpl.getAllTimerValues(), // Get timer values from registry (single source of truth)
     };
     
     _logger.info('GameEventCoordinator: Added timerConfig to game_state for room $roomId: ${gameState['timerConfig']}', isOn: LOGGING_SWITCH);
@@ -751,8 +741,10 @@ class GameEventCoordinator {
       _initialPeekTimers[roomId]?.cancel();
       
       // Get timer duration from game state timer configuration
+      // Use SSOT for fallback value
       final timerConfig = gameState['timerConfig'] as Map<String, int>? ?? {};
-      final initialPeekTimerDuration = timerConfig['initial_peek'] ?? 15;
+      final allTimerValues = ServerGameStateCallbackImpl.getAllTimerValues();
+      final initialPeekTimerDuration = timerConfig['initial_peek'] ?? allTimerValues['initial_peek'] ?? 10;
       
       _initialPeekTimers[roomId] = Timer(Duration(seconds: initialPeekTimerDuration), () {
         _onInitialPeekTimerExpired(roomId, round);

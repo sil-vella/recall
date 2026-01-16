@@ -4,7 +4,7 @@ import '../shared_logic/game_state_callback.dart';
 import '../utils/state_queue_validator.dart';
 import 'game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for timer configuration testing
+const bool LOGGING_SWITCH = true; // Enabled for timer configuration testing
 
 /// Holds active DutchGameRound instances per room and wires their callbacks
 /// to the WebSocket server through ServerGameStateCallback.
@@ -38,6 +38,23 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   final _store = GameStateStore.instance;
   final Logger _logger = Logger();
   final StateQueueValidator _validator = StateQueueValidator.instance;
+
+  /// Get all timer values as a map (for UI consumption)
+  /// This is the single source of truth for all timer durations
+  /// Static method - doesn't require roomId since values are constant
+  static Map<String, int> getAllTimerValues() {
+    return {
+      'initial_peek': 10,
+      'drawing_card': 5,
+      'playing_card': 15,
+      'same_rank_window': 5,
+      'queen_peek': 10,
+      'jack_swap': 10,
+      'peeking': 5,
+      'waiting': 0,
+      'default': 30,
+    };
+  }
 
   ServerGameStateCallbackImpl(this.roomId, this.server) {
     // Initialize state queue validator with logger callback
@@ -359,7 +376,10 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     
     _logger.info('GameRegistry: getTimerConfig() for room $roomId - phase: $phase, status: $status', isOn: LOGGING_SWITCH);
     
-    // Calculate timer based on phase or status - timer values declared directly in switch cases
+    // Get all timer values from single source of truth
+    final allTimerValues = ServerGameStateCallbackImpl.getAllTimerValues();
+    
+    // Calculate timer based on phase or status - timer values from getAllTimerValues()
     // Priority: Status is more specific than phase, so check status first for player actions
     int? turnTimeLimit; // Use null to track if timer was set
     
@@ -367,28 +387,28 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     if (status != null && status.isNotEmpty) {
       switch (status) {
         case 'initial_peek':
-          turnTimeLimit = 10;
+          turnTimeLimit = allTimerValues['initial_peek'];
           break;
         case 'drawing_card':
-          turnTimeLimit = 10;
+          turnTimeLimit = allTimerValues['drawing_card'];
           break;
         case 'playing_card':
-          turnTimeLimit = 20;
+          turnTimeLimit = allTimerValues['playing_card'];
           break;
         case 'same_rank_window':
-          turnTimeLimit = 10;
+          turnTimeLimit = allTimerValues['same_rank_window'];
           break;
         case 'queen_peek':
-          turnTimeLimit = 15;
+          turnTimeLimit = allTimerValues['queen_peek'];
           break;
         case 'jack_swap':
-          turnTimeLimit = 20;
+          turnTimeLimit = allTimerValues['jack_swap'];
           break;
         case 'peeking':
-          turnTimeLimit = 10;
+          turnTimeLimit = allTimerValues['peeking'];
           break;
         case 'waiting':
-          turnTimeLimit = 0;
+          turnTimeLimit = allTimerValues['waiting'];
           break;
         default:
           // If status doesn't match, fall through to phase check
@@ -400,30 +420,30 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     if (turnTimeLimit == null && phase != null && phase.isNotEmpty) {
       switch (phase) {
         case 'initial_peek':
-          turnTimeLimit = 10;
+          turnTimeLimit = allTimerValues['initial_peek'];
           break;
         case 'player_turn':
         case 'playing':
           // For generic player_turn/playing phase, status should have been checked above
           // But if status wasn't available, use playing_card as default
-          turnTimeLimit = 30;
+          turnTimeLimit = allTimerValues['playing_card'];
           break;
         case 'same_rank_window':
-          turnTimeLimit = 10;
+          turnTimeLimit = allTimerValues['same_rank_window'];
           break;
         case 'queen_peek_window':
-          turnTimeLimit = 15;
+          turnTimeLimit = allTimerValues['queen_peek'];
           break;
         case 'special_play_window':
-          turnTimeLimit = 20;
+          turnTimeLimit = allTimerValues['jack_swap'];
           break;
         default:
-          turnTimeLimit = 30;
+          turnTimeLimit = allTimerValues['default'];
       }
     }
     
     // Final fallback if neither status nor phase provided a timer
-    turnTimeLimit ??= 30;
+    turnTimeLimit ??= allTimerValues['default'];
     
     // Get showInstructions from game state (default to false if not found)
     final showInstructions = gameState['showInstructions'] as bool? ?? false;

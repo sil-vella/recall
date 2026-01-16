@@ -754,15 +754,17 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final hasCalledDutch = player['hasCalledDutch'] ?? false;
     final playerStatus = player['status']?.toString() ?? 'unknown';
     
-    // Use currentPlayerStatus (from game state) when isCurrentPlayer is true, as it reflects the actual game state status
-    final effectiveStatus = isCurrentPlayer ? currentPlayerStatus : playerStatus;
+    // For timer calculation, always use playerStatus (opponent's actual status)
+    // currentPlayerStatus is the user's status (used for card glow), not the opponent's status
+    // For timer, we need the opponent's actual status to get the correct duration
+    final statusForTimer = playerStatus;
     
     // Calculate timer from game_state timerConfig (status is more specific than phase)
     int? effectiveTimer;
     
     // Check status first (more specific than phase for player actions)
-    if (effectiveStatus != null && effectiveStatus.isNotEmpty) {
-      switch (effectiveStatus) {
+    if (statusForTimer != null && statusForTimer.isNotEmpty) {
+      switch (statusForTimer) {
         case 'initial_peek':
           effectiveTimer = timerConfig?['initial_peek'] ?? 15;
           break;
@@ -827,10 +829,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       effectiveTimer = 30; // Safe default
     }
     
-    // Show timer when: (1) current player with active status, OR (2) player has jack_swap/queen_peek/peeking (can happen out of turn)
+    // Show timer when: player has any active status (drawing_card, playing_card, initial_peek, jack_swap, queen_peek, peeking)
     // Note: 'peeking' status occurs after a queen_peek decision is executed, but timer should continue showing
-    final shouldShowTimer = (isCurrentPlayer && effectiveStatus != 'waiting' && effectiveStatus != 'same_rank_window') ||
-        (playerStatus == 'jack_swap' || playerStatus == 'queen_peek' || playerStatus == 'peeking');
+    // Use playerStatus (opponent's actual status) to determine if timer should show
+    final shouldShowTimer = playerStatus == 'drawing_card' || 
+         playerStatus == 'playing_card' || 
+         playerStatus == 'initial_peek' ||
+         playerStatus == 'jack_swap' || 
+         playerStatus == 'queen_peek' || 
+         playerStatus == 'peeking';
     
     // Use status chip color logic for glow (excludes 'waiting' and 'same_rank_window')
     final shouldShowGlow = _shouldHighlightCurrentPlayer(playerStatus);

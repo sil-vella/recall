@@ -2,90 +2,101 @@
 
 ## Overview
 
-The Dutch game uses a **phase-based timer system** where timer durations are dynamically determined based on the current game phase and player status. Timer values are declared in `game_registry.dart` and added to `game_state` during game initialization for UI consumption.
+The Dutch game uses a **phase-based timer system** where timer durations are dynamically determined based on the current game phase and player status. Timer values are declared in a single location in `game_registry.dart` and automatically used by both backend logic and UI initialization.
 
 ## Architecture
 
 ### Single Source of Truth
 
-Timer values are declared **once** in `game_registry.dart` switch cases:
+Timer values are declared **once** in `ServerGameStateCallbackImpl.getAllTimerValues()`:
 - **Location**: `lib/modules/dutch_game/backend_core/services/game_registry.dart`
-- **Method**: `getTimerConfig()`
-- **Format**: Hardcoded values in switch statements
+- **Method**: `ServerGameStateCallbackImpl.getAllTimerValues()` (static method)
+- **Format**: Centralized map of all timer values
+- **Usage**: 
+  - Backend logic (`getTimerConfig()`) reads from this method
+  - UI initialization (`game_event_coordinator.dart`) reads from this method
+  - No duplication - single source of truth
 
 ### Timer Configuration Flow
 
 ```
-Game Initialization
+Timer Values Declaration
     ↓
-game_event_coordinator._handleStartMatch()
+ServerGameStateCallbackImpl.getAllTimerValues()
+    ├─ Single source of truth for all timer values
+    └─ Returns Map<String, int> with all durations
     ↓
-Add timerConfig to game_state
-    ↓
-Backend Logic (game_registry.dart)
-    ├─ Reads timer values from switch cases
-    └─ Returns turnTimeLimit based on phase/status
-    ↓
-UI (unified_game_board_widget.dart)
-    ├─ Reads timerConfig from game_state
-    └─ Calculates timer based on phase/status
+    ├─→ Backend Logic (game_registry.dart)
+    │   └─ getTimerConfig() reads from getAllTimerValues()
+    │       └─ Returns turnTimeLimit based on phase/status
+    │
+    └─→ Game Initialization (game_event_coordinator.dart)
+        └─ _handleStartMatch() reads from getAllTimerValues()
+            └─ Adds timerConfig to game_state
+                └─→ UI (unified_game_board_widget.dart)
+                    ├─ Reads timerConfig from game_state
+                    └─ Calculates timer based on phase/status
 ```
 
 ## Timer Value Declaration
 
-### Backend Declaration (game_registry.dart)
+### Single Source of Truth (game_registry.dart)
 
-Timer values are declared directly in switch cases within `getTimerConfig()`:
+Timer values are declared **once** in `ServerGameStateCallbackImpl.getAllTimerValues()`:
 
 ```dart
+/// Get all timer values as a map (for UI consumption)
+/// This is the single source of truth for all timer durations
+/// Static method - doesn't require roomId since values are constant
+static Map<String, int> getAllTimerValues() {
+  return {
+    'initial_peek': 15,
+    'drawing_card': 3420,
+    'playing_card': 30,
+    'same_rank_window': 10,
+    'queen_peek': 15,
+    'jack_swap': 20,
+    'peeking': 10,
+    'waiting': 0,
+    'default': 30,
+  };
+}
+```
+
+### Backend Usage (getTimerConfig)
+
+The `getTimerConfig()` method reads from `getAllTimerValues()` and applies priority logic:
+
+```dart
+// Get all timer values from single source of truth
+final allTimerValues = ServerGameStateCallbackImpl.getAllTimerValues();
+
 // Status-based timers (checked first - more specific)
 switch (status) {
   case 'initial_peek':
-    turnTimeLimit = 15;
+    turnTimeLimit = allTimerValues['initial_peek'];
     break;
   case 'drawing_card':
-    turnTimeLimit = 10;  // Current value
+    turnTimeLimit = allTimerValues['drawing_card'];
     break;
   case 'playing_card':
-    turnTimeLimit = 30;
+    turnTimeLimit = allTimerValues['playing_card'];
     break;
-  case 'same_rank_window':
-    turnTimeLimit = 10;
-    break;
-  case 'queen_peek':
-    turnTimeLimit = 15;
-    break;
-  case 'jack_swap':
-    turnTimeLimit = 20;
-    break;
-  case 'peeking':
-    turnTimeLimit = 10;
-    break;
-  case 'waiting':
-    turnTimeLimit = 0;
-    break;
+  // ... other status cases
 }
 
 // Phase-based timers (fallback if status not available)
 switch (phase) {
   case 'initial_peek':
-    turnTimeLimit = 15;
+    turnTimeLimit = allTimerValues['initial_peek'];
     break;
   case 'player_turn':
   case 'playing':
-    turnTimeLimit = 30;  // Default for player turn
+    turnTimeLimit = allTimerValues['playing_card'];
     break;
-  case 'same_rank_window':
-    turnTimeLimit = 10;
-    break;
-  case 'queen_peek_window':
-    turnTimeLimit = 15;
-    break;
-  case 'special_play_window':
-    turnTimeLimit = 20;
-    break;
+  // ... other phase cases
   default:
-    turnTimeLimit = 30;  // Final fallback
+    turnTimeLimit = allTimerValues['default'];
 }
 ```
 
@@ -94,7 +105,7 @@ switch (phase) {
 | Status/Phase | Duration (seconds) | Description |
 |--------------|-------------------|-------------|
 | `initial_peek` | 15 | Initial card peek phase |
-| `drawing_card` | 10 | Player drawing a card |
+| `drawing_card` | 3420 | Player drawing a card |
 | `playing_card` | 30 | Player playing a card |
 | `same_rank_window` | 10 | Window for same rank plays |
 | `queen_peek` | 15 | Queen card peek action |
@@ -102,6 +113,8 @@ switch (phase) {
 | `peeking` | 10 | General peeking action |
 | `waiting` | 0 | No timer (waiting state) |
 | `default` | 30 | Fallback timer |
+
+**Note**: All values are defined in `ServerGameStateCallbackImpl.getAllTimerValues()` and automatically used by both backend and UI.
 
 ## Timer Priority System
 
@@ -136,26 +149,18 @@ Check Phase: 'player_turn' → 30 seconds ✅
 
 ### timerConfig in game_state
 
-During game initialization, `timerConfig` is added to `game_state`:
+During game initialization, `timerConfig` is added to `game_state` by reading from the single source of truth:
 
 ```dart
 // In game_event_coordinator._handleStartMatch()
-'timerConfig': {
-  'initial_peek': 15,
-  'drawing_card': 10,
-  'playing_card': 30,
-  'same_rank_window': 10,
-  'queen_peek': 15,
-  'jack_swap': 20,
-  'peeking': 10,
-  'waiting': 0,
-  'default': 30,
-}
+'timerConfig': ServerGameStateCallbackImpl.getAllTimerValues(), // Get timer values from registry (single source of truth)
 ```
 
 **Purpose**: Allows UI to read timer values from `game_state` without hardcoding
 
 **Location**: `game_state['timerConfig']` (nested in `games[gameId]['gameData']['game_state']`)
+
+**Source**: Values are automatically read from `ServerGameStateCallbackImpl.getAllTimerValues()`, ensuring consistency between backend and UI.
 
 ## Backend Timer Usage
 
@@ -163,12 +168,15 @@ During game initialization, `timerConfig` is added to `game_state`:
 
 The `getTimerConfig()` method:
 - Reads current `phase` and `status` from `game_state`
-- Uses hardcoded switch cases (not reading from `timerConfig` map)
-- Returns `turnTimeLimit` based on priority (status → phase → default)
+- Gets timer values from `ServerGameStateCallbackImpl.getAllTimerValues()` (single source of truth)
+- Applies priority logic (status → phase → default)
+- Returns `turnTimeLimit` based on priority
 
 **Files**:
 - `flutter_base_05/lib/modules/dutch_game/backend_core/services/game_registry.dart`
 - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/services/game_registry.dart`
+
+**Key Method**: `ServerGameStateCallbackImpl.getAllTimerValues()` - static method that returns all timer values as a map
 
 ### Timer Usage Points
 
@@ -223,35 +231,37 @@ final timerConfig = timerConfigRaw?.map((key, value) =>
 
 ### To Change Timer Durations
 
-1. **Update game_registry.dart** (both Flutter and Dart backend):
-   - Modify values in `getTimerConfig()` switch cases
-   - Update status-based timers first
-   - Update phase-based timers if needed
+**Single Location Update**: Timer values are declared in one place, and all other code automatically uses the updated values.
 
-2. **Update game_event_coordinator.dart** (both Flutter and Dart backend):
-   - Update `timerConfig` map in `_handleStartMatch()`
-   - This ensures UI receives correct values
+1. **Update `ServerGameStateCallbackImpl.getAllTimerValues()`** in both Flutter and Dart backend:
+   - Modify the map returned by `getAllTimerValues()`
+   - This is the **single source of truth** - all other code reads from here
+   - No need to update switch cases or coordinator - they automatically use the new values
 
-3. **Files to Update**:
+2. **Files to Update**:
    - `flutter_base_05/lib/modules/dutch_game/backend_core/services/game_registry.dart`
    - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/services/game_registry.dart`
-   - `flutter_base_05/lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart`
-   - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart`
+
+**Note**: The coordinator (`game_event_coordinator.dart`) automatically reads from `getAllTimerValues()`, so no changes needed there.
 
 ### Example: Changing Drawing Card Timer
 
 ```dart
-// In game_registry.dart
-case 'drawing_card':
-  turnTimeLimit = 20;  // Changed from 10 to 20
-  break;
-
-// In game_event_coordinator.dart
-'timerConfig': {
-  'drawing_card': 20,  // Must match game_registry value
-  // ... other timers
+// In game_registry.dart - ServerGameStateCallbackImpl.getAllTimerValues()
+static Map<String, int> getAllTimerValues() {
+  return {
+    'initial_peek': 15,
+    'drawing_card': 20,  // Changed from 3420 to 20
+    'playing_card': 30,
+    // ... other timers
+  };
 }
 ```
+
+**That's it!** The change automatically applies to:
+- Backend logic (`getTimerConfig()` reads from `getAllTimerValues()`)
+- UI initialization (coordinator reads from `getAllTimerValues()`)
+- No duplication, no manual synchronization needed
 
 ## Timer Lifecycle
 
@@ -306,8 +316,10 @@ The `timerConfig` field is part of `game_state` schema:
 
 ## Summary
 
-- **Single Source**: Timer values declared in `game_registry.dart` switch cases
-- **Priority**: Status checked before phase (status is more specific)
-- **UI Integration**: `timerConfig` added to `game_state` for UI to read
+- **Single Source of Truth**: Timer values declared **once** in `ServerGameStateCallbackImpl.getAllTimerValues()` static method
+- **Automatic Propagation**: Both backend logic (`getTimerConfig()`) and UI initialization (coordinator) read from the same source
+- **Priority System**: Status checked before phase (status is more specific)
+- **UI Integration**: `timerConfig` added to `game_state` by reading from `getAllTimerValues()`
 - **Type Safety**: UI safely converts `Map<String, dynamic>` to `Map<String, int>`
-- **No Duplication**: Removed `PhaseTimerConfig` class, values only in registry
+- **No Duplication**: Single location for all timer values - no manual synchronization needed
+- **Easy Updates**: Change timer values in one place (`getAllTimerValues()`), and all code automatically uses the new values

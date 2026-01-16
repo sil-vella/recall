@@ -8,7 +8,7 @@ export '../dutch_game/managers/dutch_module_manager.dart';
 export 'screens/lobby_room/lobby_screen.dart';
 
 // Utils
-export 'utils/game_constants.dart';
+// Removed: game_constants.dart - timer values now use SSOT in game_registry.dart
 // Removed: card_utils.dart - redundant since backend handles all card logic
 
 // Main

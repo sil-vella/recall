@@ -7,6 +7,7 @@ import '../../utils/platform/shared_imports.dart';
 import '../utils/rank_matcher.dart';
 import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
+import '../services/game_registry.dart';
 
 const bool LOGGING_SWITCH = true; // Enabled for timer configuration testing
 
@@ -3865,15 +3866,17 @@ class DutchGameRound {
       
       // Get timer duration based on special power type directly (not from state, as state update may not be applied yet)
       // This prevents race condition where getTimerConfig() reads "waiting" status before "queen_peek"/"jack_swap" is applied
+      // Use SSOT: ServerGameStateCallbackImpl.getAllTimerValues()
+      final allTimerValues = ServerGameStateCallbackImpl.getAllTimerValues();
       int specialCardTimerDuration;
       if (specialPower == 'queen_peek') {
-        specialCardTimerDuration = 15; // queen_peek timer from timerConfig
+        specialCardTimerDuration = allTimerValues['queen_peek'] ?? 10; // queen_peek timer from SSOT
       } else if (specialPower == 'jack_swap') {
-        specialCardTimerDuration = 20; // jack_swap timer from timerConfig
+        specialCardTimerDuration = allTimerValues['jack_swap'] ?? 10; // jack_swap timer from SSOT
       } else {
-        // Fallback: try to get from config, but use direct value as fallback
+        // Fallback: try to get from config, but use SSOT default as fallback
         final config = _stateCallback.getTimerConfig();
-        specialCardTimerDuration = config['turnTimeLimit'] as int? ?? 15;
+        specialCardTimerDuration = config['turnTimeLimit'] as int? ?? allTimerValues['default'] ?? 30;
       }
       
       // Start phase-based timer for this player's special card play

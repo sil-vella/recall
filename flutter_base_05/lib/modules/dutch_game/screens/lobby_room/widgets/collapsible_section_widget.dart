@@ -8,6 +8,8 @@ class CollapsibleSectionWidget extends StatefulWidget {
   final Widget child;
   final IconData? icon;
   final bool initiallyExpanded;
+  final bool? isExpanded; // External control for accordion behavior (nullable for optional use)
+  final VoidCallback? onExpandedChanged; // Callback when expansion state changes
 
   const CollapsibleSectionWidget({
     Key? key,
@@ -15,6 +17,8 @@ class CollapsibleSectionWidget extends StatefulWidget {
     required this.child,
     this.icon,
     this.initiallyExpanded = false,
+    this.isExpanded,
+    this.onExpandedChanged,
   }) : super(key: key);
 
   @override
@@ -30,7 +34,7 @@ class _CollapsibleSectionWidgetState extends State<CollapsibleSectionWidget>
   @override
   void initState() {
     super.initState();
-    _isExpanded = widget.initiallyExpanded;
+    _isExpanded = widget.isExpanded ?? widget.initiallyExpanded;
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -46,20 +50,37 @@ class _CollapsibleSectionWidgetState extends State<CollapsibleSectionWidget>
   }
 
   @override
+  void didUpdateWidget(CollapsibleSectionWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update expansion state if externally controlled
+    if (widget.isExpanded != null && widget.isExpanded != _isExpanded) {
+      _isExpanded = widget.isExpanded!;
+      if (_isExpanded) {
+        _animationController.forward();
+      } else {
+        _animationController.reverse();
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
   }
 
   void _toggleExpanded() {
+    final newExpanded = !_isExpanded;
     setState(() {
-      _isExpanded = !_isExpanded;
+      _isExpanded = newExpanded;
       if (_isExpanded) {
         _animationController.forward();
       } else {
         _animationController.reverse();
       }
     });
+    // Notify parent of expansion change for accordion behavior
+    widget.onExpandedChanged?.call();
   }
 
   @override

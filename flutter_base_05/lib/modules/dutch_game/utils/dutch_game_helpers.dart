@@ -926,7 +926,10 @@ class DutchGameHelpers {
       clearGameState();
       
       // 6. Clear additional state that might interfere
-      _stateUpdater.updateState({
+      // Use updateStateSync to ensure synchronous clearing before proceeding
+      // This is critical when staying in the same mode (e.g., WebSocket to WebSocket)
+      // to ensure state is fully cleared before the next join attempt
+      _stateUpdater.updateStateSync({
         // Clear player-specific state
         'playerStatus': 'unknown',
         'myScore': 0,
@@ -943,7 +946,7 @@ class DutchGameHelpers {
         // Clear action errors
         'actionError': null,
         
-        // Clear random join flags
+        // Clear random join flags (CRITICAL: Must be cleared when staying in same mode)
         'isRandomJoinInProgress': false,
         'randomJoinIsClearAndCollect': null,
         

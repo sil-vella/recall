@@ -9,7 +9,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for timer configuration testing
+const bool LOGGING_SWITCH = false; // Enabled for timer configuration testing
 
 class DutchGameRound {
   final Logger _logger = Logger();

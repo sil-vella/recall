@@ -6,6 +6,7 @@ import '../../../models/card_display_config.dart';
 import '../../../widgets/card_widget.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
+import '../../../../../utils/consts/theme_consts.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
@@ -229,6 +230,28 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
     }
   }
 
+  /// Build empty slot widget (matches unified_game_board_widget style)
+  Widget _buildEmptySlot(Size dimensions) {
+    final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
+        .withSaturation(0.2)
+        .toColor();
+    return SizedBox(
+      width: dimensions.width,
+      height: dimensions.height,
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBackColor,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: AppColors.borderDefault,
+            width: 1,
+            style: BorderStyle.solid,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Get card data for animation
   CardModel _getCardData(String cardId, bool showFaceUp) {
     // Try to get full card data from game state
@@ -324,6 +347,105 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
             //     ),
             //   ),
             // ),
+            // Render empty slots based on animation type
+            ..._activeAnimations.entries.expand((entry) {
+              final animation = entry.value;
+              final emptySlots = <Widget>[];
+              
+              // Convert positions to stack coordinates
+              final startPos = _convertToStackCoordinates(animation.startPosition.position);
+              final endPos = _convertToStackCoordinates(animation.endPosition.position);
+              
+              switch (animation.type) {
+                case AnimationType.draw:
+                  // Draw: empty slot at end only (state already shows card in hand)
+                  emptySlots.add(
+                    Positioned(
+                      left: endPos.dx,
+                      top: endPos.dy,
+                      width: animation.endPosition.size.width,
+                      height: animation.endPosition.size.height,
+                      child: _buildEmptySlot(animation.endPosition.size),
+                    ),
+                  );
+                  break;
+                  
+                case AnimationType.play:
+                case AnimationType.sameRankPlay:
+                  // Play/SameRank: empty slot at start (card leaving hand)
+                  // End position shows previous discard pile card (handled by state)
+                  emptySlots.add(
+                    Positioned(
+                      left: startPos.dx,
+                      top: startPos.dy,
+                      width: animation.startPosition.size.width,
+                      height: animation.startPosition.size.height,
+                      child: _buildEmptySlot(animation.startPosition.size),
+                    ),
+                  );
+                  break;
+                  
+                case AnimationType.reposition:
+                  // Reposition: empty slot at start AND end
+                  emptySlots.add(
+                    Positioned(
+                      left: startPos.dx,
+                      top: startPos.dy,
+                      width: animation.startPosition.size.width,
+                      height: animation.startPosition.size.height,
+                      child: _buildEmptySlot(animation.startPosition.size),
+                    ),
+                  );
+                  emptySlots.add(
+                    Positioned(
+                      left: endPos.dx,
+                      top: endPos.dy,
+                      width: animation.endPosition.size.width,
+                      height: animation.endPosition.size.height,
+                      child: _buildEmptySlot(animation.endPosition.size),
+                    ),
+                  );
+                  break;
+                  
+                case AnimationType.jackSwap:
+                  // JackSwap: empty slot at start
+                  emptySlots.add(
+                    Positioned(
+                      left: startPos.dx,
+                      top: startPos.dy,
+                      width: animation.startPosition.size.width,
+                      height: animation.startPosition.size.height,
+                      child: _buildEmptySlot(animation.startPosition.size),
+                    ),
+                  );
+                  break;
+                  
+                case AnimationType.collect:
+                  // Collect: empty slot at start (discard pile) and end (hand)
+                  emptySlots.add(
+                    Positioned(
+                      left: startPos.dx,
+                      top: startPos.dy,
+                      width: animation.startPosition.size.width,
+                      height: animation.startPosition.size.height,
+                      child: _buildEmptySlot(animation.startPosition.size),
+                    ),
+                  );
+                  emptySlots.add(
+                    Positioned(
+                      left: endPos.dx,
+                      top: endPos.dy,
+                      width: animation.endPosition.size.width,
+                      height: animation.endPosition.size.height,
+                      child: _buildEmptySlot(animation.endPosition.size),
+                    ),
+                  );
+                  break;
+              }
+              
+              return emptySlots;
+            }),
+            // Render animated cards
             ..._activeAnimations.entries.map((entry) {
             final cardId = entry.key;
             final animation = entry.value;

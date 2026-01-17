@@ -86,7 +86,7 @@ class CardWidget extends StatelessWidget {
       height: dimensions.height,
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(config.borderRadius),
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withOpacity(0.1),
@@ -101,7 +101,7 @@ class CardWidget extends StatelessWidget {
           if (isSpecialCard && specialCardImagePath != null)
             Positioned.fill(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(config.borderRadius),
                 child: Image(
                   image: AssetImage(specialCardImagePath),
                   fit: BoxFit.cover,
@@ -580,7 +580,7 @@ class CardWidget extends StatelessWidget {
       height: dimensions.height,
       decoration: BoxDecoration(
         color: AppColors.primaryColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(config.borderRadius),
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withOpacity(0.1),
@@ -678,7 +678,7 @@ class CardWidget extends StatelessWidget {
   Widget _buildSelectionWrapper(Widget child, Size dimensions) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(config.borderRadius),
         boxShadow: [
           BoxShadow(
             color: AppColors.accentColor2.withValues(alpha: 0.3),

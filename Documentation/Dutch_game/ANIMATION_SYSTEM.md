@@ -89,7 +89,7 @@ Animation completes → Cleanup
 
 ### 1. CardPositionScanner
 
-**Location**: `flutter_base_05/lib/modules/cleco_game/utils/card_position_scanner.dart`
+**Location**: `flutter_base_05/lib/modules/dutch_game/utils/card_position_scanner.dart`
 
 **Purpose**: Singleton utility that scans and tracks all card positions on the screen.
 
@@ -132,7 +132,7 @@ class CardPosition {
 
 ### 2. CardAnimationDetector
 
-**Location**: `flutter_base_05/lib/modules/cleco_game/utils/card_animation_detector.dart`
+**Location**: `flutter_base_05/lib/modules/dutch_game/utils/card_animation_detector.dart`
 
 **Purpose**: Singleton utility that detects card movements and determines animation types.
 
@@ -195,7 +195,7 @@ Future.microtask(() {
 
 ### 3. CardAnimationLayer
 
-**Location**: `flutter_base_05/lib/modules/cleco_game/screens/game_play/widgets/card_animation_layer.dart`
+**Location**: `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/card_animation_layer.dart`
 
 **Purpose**: Full-screen overlay widget that renders animated cards.
 
@@ -229,6 +229,12 @@ CardModel _getCardData(String cardId, bool showFaceUp)
 
 **Animation Controller Setup**:
 ```dart
+// Create animation controller with fixed duration
+final controller = AnimationController(
+  duration: const Duration(milliseconds: 900),
+  vsync: this,
+);
+
 // Position animation (always created)
 final positionTween = Tween<Offset>(
   begin: _convertToStackCoordinates(animation.startPosition.position),
@@ -251,7 +257,12 @@ if (animation.startPosition.size != animation.endPosition.size) {
 }
 ```
 
-**Animation Duration**: 600ms (constant)
+**Animation Duration**: 
+- **Value**: 600ms (constant)
+- **Location**: Set in `CardAnimationLayer._startAnimation()` method at line 99 of `card_animation_layer.dart`
+- **Code**: `duration: const Duration(milliseconds: 900)`
+- **Applies to**: All card movement animations (draw, play, collect, reposition, jack swap)
+- **Animation Curve**: `Curves.easeOutCubic` (used for both position and size animations)
 
 **Coordinate Conversion**:
 - Cards are positioned using global screen coordinates
@@ -263,7 +274,7 @@ if (animation.startPosition.size != animation.endPosition.size) {
 
 ### 4. UnifiedGameBoardWidget
 
-**Location**: `flutter_base_05/lib/modules/cleco_game/screens/game_play/widgets/unified_game_board_widget.dart`
+**Location**: `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/unified_game_board_widget.dart`
 
 **Purpose**: Main widget that combines all game board components and manages animation tracking.
 
@@ -826,7 +837,7 @@ if (cardId.startsWith('draw_pile_') || cardId == 'discard_pile_empty') {
 
 ### UnifiedGameBoardWidget
 
-**Location**: `flutter_base_05/lib/modules/cleco_game/screens/game_play/widgets/unified_game_board_widget.dart`
+**Location**: `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/unified_game_board_widget.dart`
 
 **Responsibilities**:
 - Manage GlobalKeys for all cards
@@ -862,7 +873,7 @@ Widget build(BuildContext context) {
 
 ### GamePlayScreen
 
-**Location**: `flutter_base_05/lib/modules/cleco_game/screens/game_play/game_play_screen.dart`
+**Location**: `flutter_base_05/lib/modules/dutch_game/screens/game_play/game_play_screen.dart`
 
 **Responsibilities**:
 - Provide Stack with GlobalKey for coordinate conversion
@@ -896,39 +907,39 @@ Widget buildContent(BuildContext context) {
 ### Core Animation Files
 
 1. **CardPositionScanner**
-   - `flutter_base_05/lib/modules/cleco_game/utils/card_position_scanner.dart`
+   - `flutter_base_05/lib/modules/dutch_game/utils/card_position_scanner.dart`
    - Position tracking and scanning
 
 2. **CardAnimationDetector**
-   - `flutter_base_05/lib/modules/cleco_game/utils/card_animation_detector.dart`
+   - `flutter_base_05/lib/modules/dutch_game/utils/card_animation_detector.dart`
    - Animation detection and type determination
 
 3. **CardAnimationLayer**
-   - `flutter_base_05/lib/modules/cleco_game/screens/game_play/widgets/card_animation_layer.dart`
+   - `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/card_animation_layer.dart`
    - Animation rendering and overlay
 
 ### Integration Files
 
 4. **UnifiedGameBoardWidget**
-   - `flutter_base_05/lib/modules/cleco_game/screens/game_play/widgets/unified_game_board_widget.dart`
+   - `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/unified_game_board_widget.dart`
    - Main widget that manages animation tracking
 
 5. **GamePlayScreen**
-   - `flutter_base_05/lib/modules/cleco_game/screens/game_play/game_play_screen.dart`
+   - `flutter_base_05/lib/modules/dutch_game/screens/game_play/game_play_screen.dart`
    - Screen that renders animation layer
 
 ### Supporting Files
 
 6. **CardModel**
-   - `flutter_base_05/lib/modules/cleco_game/models/card_model.dart`
+   - `flutter_base_05/lib/modules/dutch_game/models/card_model.dart`
    - Card data model
 
 7. **CardWidget**
-   - `flutter_base_05/lib/modules/cleco_game/widgets/card_widget.dart`
+   - `flutter_base_05/lib/modules/dutch_game/widgets/card_widget.dart`
    - Card rendering widget
 
 8. **CardDisplayConfig**
-   - `flutter_base_05/lib/modules/cleco_game/models/card_display_config.dart`
+   - `flutter_base_05/lib/modules/dutch_game/models/card_display_config.dart`
    - Card display configuration
 
 ---

@@ -27,11 +27,15 @@ class CardDisplayConfig {
   /// Card is selectable
   final bool isSelectable;
   
+  /// Border radius for the card
+  final double borderRadius;
+  
   const CardDisplayConfig({
     this.displayMode = CardDisplayMode.fullCorners,
     this.showPoints = false,
     this.showSpecialPower = false,
     this.isSelectable = false,
+    this.borderRadius = 8.0,
   });
   
   /// Factory constructor for player's own hand cards
@@ -80,12 +84,14 @@ class CardDisplayConfig {
     bool? showPoints,
     bool? showSpecialPower,
     bool? isSelectable,
+    double? borderRadius,
   }) {
     return CardDisplayConfig(
       displayMode: displayMode ?? this.displayMode,
       showPoints: showPoints ?? this.showPoints,
       showSpecialPower: showSpecialPower ?? this.showSpecialPower,
       isSelectable: isSelectable ?? this.isSelectable,
+      borderRadius: borderRadius ?? this.borderRadius,
     );
   }
 }

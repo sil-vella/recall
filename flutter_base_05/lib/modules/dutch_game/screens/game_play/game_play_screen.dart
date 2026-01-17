@@ -14,7 +14,6 @@ import 'widgets/card_animation_layer.dart';
 import 'widgets/action_text_widget.dart';
 import '../../../../core/managers/websockets/websocket_manager.dart';
 import '../../managers/feature_registry_manager.dart';
-import '../../../../core/widgets/state_aware_features/game_phase_chip_feature.dart';
 import '../../utils/game_instructions_provider.dart' as instructions;
 import '../../managers/game_coordinator.dart';
 import '../demo/demo_action_handler.dart';
@@ -315,29 +314,10 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   void initState() {
     super.initState();
     
-    // Register game phase chip feature in app bar
-    _registerGamePhaseChipFeature();
-    
     _initializeWebSocket().then((_) {
       _setupEventCallbacks();
       _initializeGameState();
     });
-  }
-  
-  /// Register game phase chip feature in app bar
-  void _registerGamePhaseChipFeature() {
-    final gamePhaseFeature = FeatureDescriptor(
-      featureId: 'game_phase_chip',
-      slotId: 'app_bar_actions',
-      builder: (context) => const StateAwareGamePhaseChipFeature(),
-      priority: 5, // Lowest priority - appears first (leftmost, before connection)
-    );
-    
-    FeatureRegistryManager.instance.register(
-      scopeKey: featureScopeKey, // Screen-specific scope
-      feature: gamePhaseFeature,
-      context: context,
-    );
   }
   
   @override
@@ -410,12 +390,6 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
     // Don't cancel timer here - it's managed by GameCoordinator and needs to survive disposal
     // The timer will be cancelled if user returns to the same game (in initState)
     _logger.info('GamePlay: Disposing - leave timer continues in GameCoordinator', isOn: LOGGING_SWITCH);
-    
-    // Unregister game phase chip feature
-    FeatureRegistryManager.instance.unregister(
-      scopeKey: featureScopeKey,
-      featureId: 'game_phase_chip',
-    );
     
     // Clean up any game-specific resources
     super.dispose();

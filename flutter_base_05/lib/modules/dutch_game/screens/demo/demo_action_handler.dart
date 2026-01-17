@@ -169,51 +169,34 @@ class DemoActionHandler {
 
   /// Clear all state before starting new demo
   /// This must be called BEFORE setting _activeDemoActionType to prevent false completion detection
+  /// Uses the same comprehensive clearing logic as clearAllGameStateBeforeNewGame() to ensure
+  /// complete cleanup when switching from any mode (practice, WebSocket, or another demo) to a demo
   Future<void> _clearAllState() async {
     try {
-      _logger.info('🧹 DemoActionHandler: Clearing all state', isOn: LOGGING_SWITCH);
+      _logger.info('🧹 DemoActionHandler: Clearing all state before starting demo', isOn: LOGGING_SWITCH);
 
       // 1. Clear active demo action type FIRST to prevent completion detection
+      // This must happen before calling clearAllGameStateBeforeNewGame() to prevent false detection
       _activeDemoActionType = null;
 
-      // 2. Get current game ID if any
-      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-      final currentGameId = currentState['currentGameId']?.toString() ?? '';
-
-      // 3. Remove player from game (clears all game state)
-      if (currentGameId.isNotEmpty) {
-        DutchGameHelpers.removePlayerFromGame(gameId: currentGameId);
-      }
-
-      // 4. End any existing practice session
-      final practiceBridge = PracticeModeBridge.instance;
-      practiceBridge.endPracticeSession();
-
-      // 5. Clear all games from GameStateStore to remove any leftover game states
-      final gameStateStore = GameStateStore.instance;
-      final currentGames = currentState['games'] as Map<String, dynamic>? ?? {};
-      for (final gameId in currentGames.keys) {
-        gameStateStore.clear(gameId.toString());
-        _logger.info('🧹 DemoActionHandler: Cleared GameStateStore for game: $gameId', isOn: LOGGING_SWITCH);
-      }
-
-      // 6. Clear all state fields including previousPlayerStatus to prevent false completion detection
+      // 2. Use the same comprehensive clearing logic as used for random join, create/join room, and practice match
+      // This ensures complete cleanup when switching from any mode (practice, WebSocket, or another demo) to a demo
+      // The method handles:
+      // - Cancelling leave game timers
+      // - Resetting transport mode to WebSocket (before leaving rooms)
+      // - Leaving current game (WebSocket or practice)
+      // - Leaving other games in games map
+      // - Clearing GameStateStore entries
+      // - Ending practice sessions
+      // - Clearing practice user data and settings
+      // - Clearing all game state
+      // - Clearing additional state fields
+      await DutchGameHelpers.clearAllGameStateBeforeNewGame();
+      
+      // 3. Clear demo-specific state fields that aren't covered by clearAllGameStateBeforeNewGame()
+      // These are demo-specific and need to be cleared separately
       final stateUpdater = DutchGameStateUpdater.instance;
       stateUpdater.updateStateSync({
-        'currentGameId': '',
-        'currentRoomId': '',
-        'isInRoom': false,
-        'isRoomOwner': false,
-        'isGameActive': false,
-        'gamePhase': 'waiting',
-        'games': <String, dynamic>{},
-        'playerStatus': 'waiting',
-        'currentPlayer': null,
-        'currentPlayerStatus': 'waiting',
-        'roundNumber': 0,
-        'discardPile': <Map<String, dynamic>>[],
-        'drawPileCount': 0,
-        'turn_events': <Map<String, dynamic>>[],
         'actionText': {
           'isVisible': false,
           'text': '',
@@ -226,12 +209,11 @@ class DemoActionHandler {
           'hasDemonstration': false,
         },
         'previousPlayerStatus': null, // CRITICAL: Clear to prevent false completion detection
-        'lastUpdated': DateTime.now().toIso8601String(),
       });
-
-      _logger.info('✅ DemoActionHandler: All state cleared', isOn: LOGGING_SWITCH);
-    } catch (e) {
-      _logger.error('❌ DemoActionHandler: Error clearing state: $e', isOn: LOGGING_SWITCH);
+      
+      _logger.info('✅ DemoActionHandler: All state cleared successfully before starting demo', isOn: LOGGING_SWITCH);
+    } catch (e, stackTrace) {
+      _logger.error('❌ DemoActionHandler: Error clearing state: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
       // Don't rethrow - continue with demo setup
     }
   }

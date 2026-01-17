@@ -663,16 +663,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         final timerConfigRaw = gameState?['timerConfig'] as Map<String, dynamic>?;
         final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
     
-        // Reorder opponents for clockwise UI rotation:
-        // Original: [player1, player2, player3] → Top: player1, Middle: player2, Bottom: player3
-        // New: [player2, player1, player3] → Top: player2, Middle: player1, Bottom: player3
-        // This creates a clockwise rotation effect while keeping players list order unchanged
+        // Order opponents: opp1 to column 1 (left), opp2 to middle column
         List<dynamic> reorderedOpponents = [];
         if (opponents.length >= 2) {
           reorderedOpponents = [
-            opponents[1], // player2 goes to top row (center aligned)
-            opponents[0], // player1 goes to middle row (left aligned)
-            if (opponents.length > 2) ...opponents.sublist(2), // player3+ stays in same relative position
+            opponents[0], // opp1 goes to column 1 (left)
+            opponents[1], // opp2 goes to middle column
+            if (opponents.length > 2) ...opponents.sublist(2), // opp3+ goes to right column
           ];
         } else {
           reorderedOpponents = opponents; // If less than 2 opponents, keep original order
@@ -688,13 +685,13 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           }
         }
     
-        // Build list of opponent widgets with spacers to spread them evenly
+        // Build list of opponent widgets with equal width columns
         final opponentWidgets = <Widget>[];
         final entries = reorderedOpponents.asMap().entries.toList();
         
         for (int i = 0; i < entries.length; i++) {
           final entry = entries[i];
-          final displayIndex = entry.key; // Position in UI (0=top, 1=middle, 2=bottom)
+          final displayIndex = entry.key; // Position in UI (0=left, 1=middle, 2=right)
           final player = entry.value as Map<String, dynamic>;
           final playerId = player['id']?.toString() ?? '';
           // Use original index from opponents list for turn calculation
@@ -703,15 +700,9 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           final isCurrentPlayer = playerId == currentPlayerId;
           final knownCards = player['known_cards'] as Map<String, dynamic>?;
           
-          // Add spacer before each opponent (except the first) to spread them evenly
-          if (i > 0) {
-            opponentWidgets.add(const Spacer());
-          }
-          
-          // Add opponent widget
+          // Add opponent widget wrapped in Expanded for equal width
           opponentWidgets.add(
-            SizedBox(
-              width: double.infinity,
+            Expanded(
               child: _buildOpponentCard(
                 player, 
                 cardsToPeek, 
@@ -724,13 +715,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                 isInitialPeekPhase,
                 phase, // Pass phase for timer calculation
                 timerConfig, // Pass timerConfig from game_state
-                opponentIndex: displayIndex, // Pass display index for alignment (0=top, 1=middle, 2=bottom)
+                opponentIndex: displayIndex, // Pass display index for alignment (0=left, 1=middle, 2=right)
               ),
             ),
           );
         }
         
-        return Column(
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch, // Expand columns to fill available height
           children: opponentWidgets,
         );
       },
@@ -850,48 +842,29 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final shouldHighlightBackground = _shouldHighlightCurrentPlayer(playerStatus) 
         || (isCurrentPlayer && playerStatus == 'same_rank_window');
     
-    // Determine alignment based on opponent index
-    // Opponent 0: center, Opponent 1: left, Opponent 2: right
-    final Alignment cardAlignment;
-    final MainAxisAlignment nameAlignment;
-    final CrossAxisAlignment columnAlignment;
+    // All opponents align left and wrap
+    final Alignment cardAlignment = Alignment.centerLeft;
+    final MainAxisAlignment nameAlignment = MainAxisAlignment.start;
+    final CrossAxisAlignment columnAlignment = CrossAxisAlignment.start;
     
-    switch (opponentIndex) {
-      case 0:
-        cardAlignment = Alignment.center;
-        nameAlignment = MainAxisAlignment.center;
-        columnAlignment = CrossAxisAlignment.center;
-        break;
-      case 1:
-        cardAlignment = Alignment.centerLeft;
-        nameAlignment = MainAxisAlignment.start;
-        columnAlignment = CrossAxisAlignment.start;
-        break;
-      case 2:
-        cardAlignment = Alignment.centerRight;
-        nameAlignment = MainAxisAlignment.end;
-        columnAlignment = CrossAxisAlignment.end;
-        break;
-      default:
-        // Fallback to center for any additional opponents
-        cardAlignment = Alignment.center;
-        nameAlignment = MainAxisAlignment.center;
-        columnAlignment = CrossAxisAlignment.center;
-    }
+    // Vertical alignment: col 1 (index 0) center, col 2 (index 1) top, col 3+ (index 2+) center
+    final MainAxisAlignment columnMainAlignment = (opponentIndex == 0 || opponentIndex >= 2)
+        ? MainAxisAlignment.center
+        : MainAxisAlignment.start; // col 2 (index 1) aligns to top
     
     if (drawnCard != null) {
     }
     
     return Column(
       crossAxisAlignment: columnAlignment,
-      mainAxisSize: MainAxisSize.min,
-            children: [
+      mainAxisAlignment: columnMainAlignment, // Center vertically for col 1 and 2
+      mainAxisSize: MainAxisSize.max, // Expand to fill available height
+      children: [
         // Top row: Name and status chip on same level
-        Row(
-          mainAxisAlignment: nameAlignment,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-                      children: [
+        Wrap(
+          alignment: WrapAlignment.start,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
                         // Profile picture (circular, 1.5x status chip height)
                         _buildPlayerProfilePicture(
                           player['id']?.toString() ?? '',
@@ -960,7 +933,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
                   ],
                 ),
         
-        // Bottom: Cards aligned based on opponent index
+        // Bottom: Cards aligned left and wrap
         const SizedBox(height: 8),
         Align(
           alignment: cardAlignment,
@@ -982,7 +955,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         if (containerWidth <= 0 || !containerWidth.isFinite) {
           return const SizedBox.shrink();
         }
-        final cardWidth = containerWidth * 0.06;
+        final cardWidth = containerWidth * 0.15; // 15% of container width
         final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
         final cardDimensions = Size(cardWidth, cardHeight);
         final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
@@ -3057,38 +3030,20 @@ _updateMyHandHeight();
 
   Widget _buildMyHandBlankCardSlot([Size? cardDimensions]) {
     final dimensions = cardDimensions ?? CardDimensions.getUnifiedDimensions();
+    final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
+        .withSaturation(0.2)
+        .toColor();
     return SizedBox(
       width: dimensions.width,
       height: dimensions.height,
       child: Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.borderDefault,
-          width: 2,
-          style: BorderStyle.solid,
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.space_bar,
-              size: 24,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Empty',
-              style: TextStyle(
-                fontSize: 10,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+        decoration: BoxDecoration(
+          color: cardBackColor,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: AppColors.borderDefault,
+            width: 1,
+            style: BorderStyle.solid,
           ),
         ),
       ),
@@ -3219,18 +3174,25 @@ _updateMyHandHeight();
     // 1.5x = ~27-30px, using 28px for a nice round number
     const double profilePictureSize = 28.0;
     
-    // Check if this is the current user
-    final currentUserId = _getCurrentUserId();
-    final isCurrentUser = playerId == currentUserId;
-    
-    // Get profile picture URL:
-    // 1. Use provided profilePictureUrl (for opponents from player data)
-    // 2. For current user, get from StateManager if not provided
+    // Get profile picture URL from game_state (SSOT) if not provided
     if (profilePictureUrl == null || profilePictureUrl.isEmpty) {
-      if (isCurrentUser) {
-        final stateManager = StateManager();
-        final loginState = stateManager.getModuleState<Map<String, dynamic>>("login") ?? {};
-        profilePictureUrl = loginState["profilePicture"] as String?;
+      final stateManager = StateManager();
+      final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+      final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+      final gameData = games[currentGameId] as Map<String, dynamic>?;
+      final gameDataInner = gameData?['gameData'] as Map<String, dynamic>?;
+      final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
+      final players = gameState?['players'] as List<dynamic>? ?? [];
+      
+      // Find player in game_state by playerId
+      try {
+        final player = players.cast<Map<String, dynamic>>().firstWhere(
+          (p) => p['id']?.toString() == playerId,
+        );
+        profilePictureUrl = player['profile_picture']?.toString();
+      } catch (e) {
+        // Player not found in game_state, profilePictureUrl remains null
       }
     }
     

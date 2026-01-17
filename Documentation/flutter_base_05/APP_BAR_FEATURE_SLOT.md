@@ -40,8 +40,10 @@ lib/
 │   │   ├── feature_slot.dart                    # Core feature rendering widget
 │   │   └── state_aware_features/
 │   │       ├── index.dart                       # Exports all state-aware features
+│   │       ├── coins_display_feature.dart       # User coins display widget
 │   │       ├── connection_status_feature.dart   # WebSocket connection status widget
-│   │       ├── profile_feature.dart             # User profile widget
+│   │       ├── game_phase_chip_feature.dart     # Game phase chip widget (optional, screen-specific)
+│   │       ├── profile_feature.dart             # User profile widget (available but not registered globally)
 │   │       └── state_aware_feature_registry.dart # Registration helper
 │   └── 00_base/
 │       └── screen_base.dart                     # BaseScreen with feature integration
@@ -108,8 +110,8 @@ All state-aware features follow this pattern:
 
 The `BaseScreen` class automatically adds state-aware global features to **all screens** that extend it:
 
-- **🔌 Connection Status Icon** (Priority: 10) - Shows real-time WebSocket connection status
-- **👤 Profile Icon** (Priority: 20) - Shows user profile and navigates to account screen
+- **💰 Coins Display** (Priority: 50) - Shows user's coin count from game state
+- **🔌 Connection Status Icon** (Priority: 100) - Shows real-time WebSocket connection status
 
 ### Global Feature Registration
 
@@ -128,21 +130,41 @@ void _registerGlobalAppBarFeatures() {
 
 ### State-Aware Feature Details
 
+#### Coins Display
+- **Widget**: `StateAwareCoinsDisplayFeature`
+- **State**: Subscribes to `dutch_game` state slice, specifically `userStats.coins`
+- **Updates**: Automatically updates when coin count changes
+- **Display**: Chip widget with monetization icon and coin count
+- **Visibility**: Hidden if `userStats` is null (user not logged in or stats not loaded)
+- **Priority**: 50 (appears first, leftmost)
+
 #### Connection Status Icon
 - **Widget**: `StateAwareConnectionStatusFeature`
 - **State**: Subscribes to `websocket` state slice
 - **Updates**: Automatically updates when WebSocket connection changes
-- **Icon**: WiFi icon (green when connected, red when disconnected)
-- **Action**: Shows connection status in snackbar
-- **Priority**: 10 (appears first)
+- **Icon**: WiFi icon (green when connected, red when disconnected), sync icon when connecting
+- **Action**: Toggle WebSocket connection (tap to connect/disconnect)
+- **Priority**: 100 (appears last, rightmost)
+
+### Available But Unregistered Features
+
+The following state-aware features are available but not automatically registered globally. They can be registered on a per-screen basis if needed:
+
+#### Game Phase Chip
+- **Widget**: `StateAwareGamePhaseChipFeature`
+- **State**: Subscribes to `dutch_game` state slice, specifically `gameInfo.currentGameId`
+- **Updates**: Automatically updates when game phase changes
+- **Display**: Game phase chip showing current game phase
+- **Usage**: Can be registered in screen-specific scope (e.g., `GamePlayScreen`)
+- **Note**: Previously registered globally but removed for cleaner app bar
 
 #### Profile Icon
 - **Widget**: `StateAwareProfileFeature`
 - **State**: Subscribes to `login` state slice
 - **Updates**: Automatically updates when user profile changes
 - **Icon**: Account circle icon
-- **Action**: Navigates to `/account` using NavigationManager
-- **Priority**: 20 (appears second)
+- **Action**: Navigates to account screen
+- **Usage**: Available for registration but not currently used globally
 
 ## Creating Custom State-Aware Features
 
@@ -370,12 +392,12 @@ Features are rendered in priority order (lowest number first):
 
 ```dart
 // Global features (automatic)
-// Connection Status: priority 10
-// Profile: priority 20
+// Coins Display: priority 50 (appears first, leftmost)
+// Connection Status: priority 100 (appears last, rightmost)
 
 // Screen-specific features
-registerAppBarAction(featureId: 'help', priority: 100, ...);
-registerAppBarAction(featureId: 'notifications', priority: 150, ...);
+registerAppBarAction(featureId: 'help', priority: 150, ...);
+registerAppBarAction(featureId: 'notifications', priority: 200, ...);
 ```
 
 ## Available Methods

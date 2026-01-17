@@ -3466,10 +3466,28 @@ class DutchGameRound {
   /// - Kings (Black): 10 points
   /// - Joker Cards: 0 points
   /// - Red King: 0 points
+  /// 
+  /// Collection cards are averaged: sum of collection card points / number of collection cards
+  /// The average is added once to the total, along with non-collection card points
   int _calculatePlayerPoints(Map<String, dynamic> player, Map<String, dynamic> gameState) {
     try {
       final hand = player['hand'] as List<dynamic>? ?? [];
       int totalPoints = 0;
+      int collectionCardPoints = 0;
+      int collectionCardCount = 0;
+      int nonCollectionCardPoints = 0;
+      
+      // Get collection rank cards to identify collection cards in hand
+      final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+      final collectionCardIds = <String>{};
+      for (final collectionCard in collectionRankCards) {
+        if (collectionCard is Map<String, dynamic>) {
+          final cardId = collectionCard['cardId']?.toString();
+          if (cardId != null && cardId.isNotEmpty) {
+            collectionCardIds.add(cardId);
+          }
+        }
+      }
       
       // Get original deck to look up full card data
       final originalDeck = gameState['originalDeck'] as List<dynamic>? ?? [];
@@ -3478,8 +3496,10 @@ class DutchGameRound {
         if (card == null) continue; // Skip blank slots
         
         Map<String, dynamic>? fullCard;
+        String? cardId;
+        
         if (card is Map<String, dynamic>) {
-          final cardId = card['cardId']?.toString();
+          cardId = card['cardId']?.toString();
           if (cardId != null) {
             // Try to get full card data from original deck
             for (final deckCard in originalDeck) {
@@ -3497,36 +3517,59 @@ class DutchGameRound {
         
         if (fullCard == null) continue;
         
+        // Calculate card points
+        int cardPoints = 0;
+        
         // Get card points (may already be calculated)
         if (fullCard.containsKey('points')) {
-          final points = fullCard['points'] as int? ?? 0;
-          totalPoints += points;
-          continue;
-        }
-        
-        // Calculate points based on rank if not already set
-        final rank = fullCard['rank']?.toString().toLowerCase() ?? '';
-        final suit = fullCard['suit']?.toString().toLowerCase() ?? '';
-        
-        if (rank == 'joker') {
-          totalPoints += 0; // Jokers are 0 points
-        } else if (rank == 'king' && suit == 'hearts') {
-          totalPoints += 0; // Red King is 0 points
-        } else if (rank == 'ace') {
-          totalPoints += 1; // Ace is 1 point
-        } else if (rank == 'queen' || rank == 'jack') {
-          totalPoints += 10; // Queens and Jacks are 10 points
-        } else if (rank == 'king') {
-          totalPoints += 10; // Black Kings are 10 points
+          cardPoints = fullCard['points'] as int? ?? 0;
         } else {
-          // Numbered cards (2-10): points equal to card number
-          final cardNumber = int.tryParse(rank);
-          if (cardNumber != null && cardNumber >= 2 && cardNumber <= 10) {
-            totalPoints += cardNumber;
+          // Calculate points based on rank if not already set
+          final rank = fullCard['rank']?.toString().toLowerCase() ?? '';
+          final suit = fullCard['suit']?.toString().toLowerCase() ?? '';
+          
+          if (rank == 'joker') {
+            cardPoints = 0; // Jokers are 0 points
+          } else if (rank == 'king' && suit == 'hearts') {
+            cardPoints = 0; // Red King is 0 points
+          } else if (rank == 'ace') {
+            cardPoints = 1; // Ace is 1 point
+          } else if (rank == 'queen' || rank == 'jack') {
+            cardPoints = 10; // Queens and Jacks are 10 points
+          } else if (rank == 'king') {
+            cardPoints = 10; // Black Kings are 10 points
           } else {
-            _logger.warning('Dutch: Unknown card rank for point calculation: $rank', isOn: LOGGING_SWITCH);
+            // Numbered cards (2-10): points equal to card number
+            final cardNumber = int.tryParse(rank);
+            if (cardNumber != null && cardNumber >= 2 && cardNumber <= 10) {
+              cardPoints = cardNumber;
+            } else {
+              _logger.warning('Dutch: Unknown card rank for point calculation: $rank', isOn: LOGGING_SWITCH);
+              cardPoints = 0;
+            }
           }
         }
+        
+        // Check if this card is a collection card
+        if (cardId != null && collectionCardIds.contains(cardId)) {
+          // This is a collection card - add to collection card points sum
+          collectionCardPoints += cardPoints;
+          collectionCardCount++;
+          _logger.info('Dutch: Collection card found in hand: $cardId, points: $cardPoints (total collection points: $collectionCardPoints, count: $collectionCardCount)', isOn: LOGGING_SWITCH);
+        } else {
+          // This is a regular card - add to non-collection points
+          nonCollectionCardPoints += cardPoints;
+        }
+      }
+      
+      // Calculate average of collection cards (if any)
+      if (collectionCardCount > 0) {
+        final collectionCardAverage = (collectionCardPoints / collectionCardCount).round();
+        totalPoints = collectionCardAverage + nonCollectionCardPoints;
+        _logger.info('Dutch: Points calculation - Collection cards: $collectionCardPoints points / $collectionCardCount cards = $collectionCardAverage average, Non-collection: $nonCollectionCardPoints, Total: $totalPoints', isOn: LOGGING_SWITCH);
+      } else {
+        // No collection cards, just use non-collection points
+        totalPoints = nonCollectionCardPoints;
       }
       
       return totalPoints;

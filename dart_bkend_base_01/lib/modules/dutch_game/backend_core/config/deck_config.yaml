@@ -7,7 +7,7 @@
 # Global deck settings
 deck_settings:
   include_jokers: true
-  testing_mode: false  # Set to false for standard deck, true for testing deck
+  testing_mode: falses  # Set to false for standard deck, true for testing deck
 
 # Standard deck configuration (52 cards + 2 jokers = 54 total)
 standard_deck:

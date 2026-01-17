@@ -781,6 +781,7 @@ switch (event) {
 2. `MyHandWidget._handleCardSelection()` creates `PlayerAction.sameRankPlay()`
 3. Action executes and emits `same_rank_play` event
 4. Backend `handleSameRankPlay()` processes:
+   - ⚠️ **Validates card is NOT a collection rank card** - **Only in collection mode**
    - Validates rank match with discard pile top
    - Moves card to discard pile
    - Updates known_cards
@@ -793,6 +794,7 @@ switch (event) {
 - 5-second window after card play
 - Multiple players can play same rank cards
 - Timer automatically ends window and moves to next player
+- ⚠️ **Collection rank cards CANNOT be played** - Rejected with error message: "This card is in your collection and cannot be played for same rank." - **Only validated in collection mode**
 
 ### 4. Collect from Discard Action ⚠️ **Collection Mode Only**
 
@@ -804,10 +806,11 @@ switch (event) {
 4. Backend `handleCollectFromDiscard()` processes:
    - **Early return if `isClearAndCollect: false`** - Collection is disabled
    - Validates top card matches collection rank
-   - Moves card to `collection_rank_cards` list
+   - Removes card from discard pile
+   - ⚠️ **Adds card to BOTH `player['hand']` (ID-only) AND `collection_rank_cards` (full data)**
    - Updates collection rank if not set
 5. State update broadcasts
-6. UI shows card in collection rank cards (stacked display)
+6. UI shows card in collection rank cards (stacked display) and in hand
 
 **Special Handling:**
 - ⚠️ **Only available in collection mode** (`isClearAndCollect: true`)
@@ -831,7 +834,7 @@ switch (event) {
    - **If `isClearAndCollect: true` (Collection Mode)**:
    - Selects collection rank card (least points, priority)
    - Stores non-collection card in `known_cards`
-   - Adds collection card to `collection_rank_cards`
+   - ⚠️ **Adds collection card to `collection_rank_cards` (full data) - card REMAINS in hand**
    - Checks if all players completed
    - Starts first turn if all completed
 6. State update broadcasts
@@ -928,6 +931,7 @@ switch (event) {
 5. State update broadcasts with final round status
 6. When final round completes (all active players have had their turn):
    - Calculates points for all active players
+   - ⚠️ **Points calculation includes ALL cards in `player['hand']`** - Collection rank cards **ARE** included in point totals (they exist in both `hand` and `collection_rank_cards`)
    - Sorts by lowest points, then fewer cards
    - Applies tie-breaking: if points and cards tie, final round caller wins (if involved in tie)
    - Sets `winType: 'lowest_points'` for winners
@@ -940,6 +944,7 @@ switch (event) {
 - Winner determination uses lowest points (not "final round" as win reason)
 - Final round caller only matters for tie-breaking, not as the win reason itself
 - Win reason displayed in winners modal: "Lowest Points" (not "Final Round")
+- ⚠️ **Collection cards included in points**: In collection mode, collection cards are stored in BOTH `hand` and `collection_rank_cards`, so they contribute to point totals (see [Collection Cards Verification](./COLLECTION_CARDS_VERIFICATION.md) for details)
 
 ---
 

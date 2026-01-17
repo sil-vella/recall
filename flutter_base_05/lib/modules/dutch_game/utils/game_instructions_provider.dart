@@ -148,8 +148,8 @@ Jack swap also enables you to swap out **collection cards** from any hand. You c
 
 You can collect cards from the **discard pile** if they are the same rank as your collection rank at any time, **except during same rank play**.
 
-**Important:** Collecting all 4 cards of a rank wins the game. Collections score as one card regardless of how many cards they contain.
-During same rank play, you cannot collect cards from the discard pile, but you can choose to either clear your collection (if rank matches the last played card) or keep it and collect it after same rank window ends.''',
+**Important:** Collecting all 4 cards of a rank wins the game. Collections score as one card regardless of how many cards they contain. Eg: 3 collectiion cards of rank 7 scores as 1 card of rank 7.
+During same rank play, you cannot collect cards from the discard pile, but you can collect it after same rank window ends.''',
       };
     }
 
@@ -166,7 +166,7 @@ If you know you have a card in hand with the **same rank** as the last played ca
 **Warning:** Attempting to play a wrong rank will get you a **penalty card**.
 
 ** For Dutch: Clear and Collect mode **
-During same rank play, you cannot collect cards from the discard pile, but you can choose to either clear your collection (if rank matches the last played card) or keep it and collect it after same rank window ends.''',
+During same rank play, you cannot collect cards from the discard pile, but you can collect it after same rank window ends.''',
       };
     }
 

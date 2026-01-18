@@ -3463,9 +3463,8 @@ class DutchGameRound {
   /// - Numbered Cards (2-10): Points equal to card number
   /// - Ace Cards: 1 point
   /// - Queens & Jacks: 10 points
-  /// - Kings (Black): 10 points
+  /// - Kings (All, including Red King): 10 points
   /// - Joker Cards: 0 points
-  /// - Red King: 0 points
   /// 
   /// Collection cards are averaged: sum of collection card points / number of collection cards
   /// The average is added once to the total, along with non-collection card points
@@ -3526,18 +3525,15 @@ class DutchGameRound {
         } else {
           // Calculate points based on rank if not already set
           final rank = fullCard['rank']?.toString().toLowerCase() ?? '';
-          final suit = fullCard['suit']?.toString().toLowerCase() ?? '';
           
           if (rank == 'joker') {
             cardPoints = 0; // Jokers are 0 points
-          } else if (rank == 'king' && suit == 'hearts') {
-            cardPoints = 0; // Red King is 0 points
           } else if (rank == 'ace') {
             cardPoints = 1; // Ace is 1 point
           } else if (rank == 'queen' || rank == 'jack') {
             cardPoints = 10; // Queens and Jacks are 10 points
           } else if (rank == 'king') {
-            cardPoints = 10; // Black Kings are 10 points
+            cardPoints = 10; // All Kings (including Red King) are 10 points
           } else {
             // Numbered cards (2-10): points equal to card number
             final cardNumber = int.tryParse(rank);

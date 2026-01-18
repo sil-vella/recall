@@ -21,27 +21,30 @@ class GameInstructionsProvider {
       'content': '''🎯 **How to Play Dutch**
 
 **Main Goal:**
-Clear all cards **OR** Collect all 4 cards of your rank. Hence **Cle Co** = **Dutch**.
+Clear all cards from your hand or end the game with the least points possible.
 
 **Gameplay:**
 • Tap the draw pile to draw a card
-• Select a card from your hand to play (excluding collection card)
-• Collect cards from discard pile if they match your collection rank
-• Play cards with same rank as last played card (out of turn)
-• Queens let you peek at face down cards
-• Jacks let you swap any 2 cards, including collection cards
+• Select a card from your hand to play (**Clear and collect mode** - excluding collection cards)
+• Play cards with same rank as last played card (out of turn) (**Clear and collect mode** - excluding collection cards)
+• Queens let you peek at face down cards from any player's hand, including your own.
+• Jacks let you swap any 2 cards from any player's hand, including your own (**Clear and collect mode** - Includingcollection cards)
+
+• **Clear and collect mode** - Collect cards from discard pile if they match your collection rank. Collecting all 4 cards of your rank wins the game.
+
 
 **Final Round:**
 If you think you have the least points during your turn, you can call **final round** just before you play a card. This will trigger the final round - this was your final round so you won't play again.
 
 **Winning:**
 • Player with **no cards** wins
-• Player that collects all 4 cards of their rank wins
 • Player with **least points** wins
 • If same points, player with **least cards** wins
 • If same points and same cards, player who **called final round** wins
 
-You'll get helpful instructions as you play. You can mark any instruction as "Understood, don't show again" if you don't need to see it anymore.''',
+• **Clear and collect mode** - Player that collects all 4 cards of their rank wins
+
+''',
     };
   }
 

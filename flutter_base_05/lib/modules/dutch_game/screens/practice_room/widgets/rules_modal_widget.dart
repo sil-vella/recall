@@ -52,7 +52,7 @@ Finish with no cards OR have the fewest points when someone calls "Dutch".
 • **Queens**: Let you peek at any opponent's card
 • **Jacks**: Let you swap any two cards between players
 • **Jokers**: 0 points - very valuable!
-• **Red King**: 0 points - very valuable!
+• **Red King**: 10 points (same as other Kings)
 
 🏆 WINNING
 • **Immediate Win**: First player to have no cards
@@ -95,8 +95,8 @@ Finish with no cards OR have the fewest points when someone calls "Dutch".
             '''• Numbered cards (2-10): Points equal to card number
 • Ace: 1 point
 • Queens & Jacks: 10 points
-• Kings (Black): 10 points
-• Joker & Red King: 0 points''',
+• Kings (All, including Red King): 10 points
+• Joker: 0 points''',
           ),
           
           const SizedBox(height: 20),
@@ -119,7 +119,7 @@ Finish with no cards OR have the fewest points when someone calls "Dutch".
             '''• **Queens**: Let you peek at any opponent's card
 • **Jacks**: Let you swap any two cards between players
 • **Jokers**: 0 points - very valuable!
-• **Red King**: 0 points - very valuable!''',
+• **Red King**: 10 points (same as other Kings)''',
           ),
           
           const SizedBox(height: 20),

@@ -2175,9 +2175,8 @@ _updateMyHandHeight();
     
     return Container(
       key: _myHandKey,
-      margin: EdgeInsets.symmetric(horizontal: AppPadding.smallPadding.left),
       child: Padding(
-        padding: AppPadding.cardPadding,
+        padding: const EdgeInsets.all(1.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2362,8 +2361,8 @@ _updateMyHandHeight();
             
             Map<String, Widget> collectionRankWidgets = {};
             
-            // Calculate card dimensions as 15% of container width, clamped to max
-            final cardWidth = CardDimensions.clampCardWidth(containerWidth * 0.15); // 15% of container width, clamped to max
+            // Calculate card dimensions as 12% of container width, clamped to max
+            final cardWidth = CardDimensions.clampCardWidth(containerWidth * 0.12); // 12% of container width, clamped to max
             final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
             final cardDimensions = Size(cardWidth, cardHeight);
             final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;

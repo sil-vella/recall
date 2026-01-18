@@ -63,7 +63,7 @@ class HomeScreenFeatureRegistrar {
     final feature = HomeScreenButtonFeatureDescriptor(
       featureId: 'dutch_game_demo',
       slotId: HomeScreenFeatureSlots.slotButtons,
-      text: 'Take a quick demo',
+      text: 'Demo',
       onTap: () {
         _logger.info('HomeScreen: Dutch game demo button pressed', isOn: LOGGING_SWITCH);
         try {
@@ -75,7 +75,7 @@ class HomeScreenFeatureRegistrar {
           _logger.error('HomeScreen: Error in Dutch game demo button handler', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
         }
       },
-      backgroundColor: AppColors.accentColor,
+      imagePath: 'assets/images/backgrounds/demo-feature-background.png',
       heightPercentage: 0.5, // 50% of available height
       priority: 90, // Lower priority than play button (appears after)
       textStyle: AppTextStyles.headingMedium().copyWith(

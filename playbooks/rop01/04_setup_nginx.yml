@@ -14,7 +14,8 @@
         'domain': 'dutch.reignofplay.com',
         'root_dir': '/var/www/dutch.reignofplay.com',
         'backend_port': 5001,
-        'backend_ws_port': 8080
+        'backend_ws_port': 8080,
+        'serve_flutter_web': true
       }
     ]) }}"
     # Email for Let's Encrypt notifications

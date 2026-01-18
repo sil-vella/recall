@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../core/00_base/screen_base.dart';
 import '../../core/managers/module_manager.dart';
 import '../../core/managers/state_manager.dart';
+import '../../core/managers/navigation_manager.dart';
 import '../../modules/login_module/login_module.dart';
 import '../../modules/analytics_module/analytics_module.dart';
+import '../../modules/connections_api_module/connections_api_module.dart';
 import '../../modules/dutch_game/utils/dutch_game_helpers.dart';
 import '../../core/services/shared_preferences.dart';
+import '../../core/services/version_check_service.dart';
 import '../../tools/logging/logger.dart';
 import '../../utils/consts/theme_consts.dart';
 
@@ -65,6 +69,10 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     _checkGuestAccountStatus();
     _trackScreenView();
     _fetchUserProfile();
+    // Check for app updates on every account screen load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForAppUpdates();
+    });
   }
   
   /// Track screen view
@@ -125,6 +133,73 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
     _analyticsModule = _moduleManager.getModuleByType<AnalyticsModule>();
     if (_loginModule == null) {
       _logger.error('❌ Login module not available', isOn: LOGGING_SWITCH);
+    }
+  }
+  
+  /// Check for app updates - runs on every account screen load
+  /// This ensures users get update notifications even after skipping
+  Future<void> _checkForAppUpdates() async {
+    // Skip version check on web - web apps update automatically
+    if (kIsWeb) {
+      _logger.info('AccountScreen: Skipping version check on web platform', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
+    try {
+      _logger.info('AccountScreen: Starting version check', isOn: LOGGING_SWITCH);
+      
+      // Get ConnectionsApiModule
+      final apiModule = _moduleManager.getModuleByType<ConnectionsApiModule>();
+      
+      if (apiModule == null) {
+        _logger.warning('AccountScreen: ConnectionsApiModule not available for version check', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Initialize VersionCheckService if needed
+      final versionCheckService = VersionCheckService();
+      if (!versionCheckService.isInitialized) {
+        await versionCheckService.initialize();
+      }
+      
+      // Check for updates
+      final result = await versionCheckService.checkForUpdates(apiModule);
+      
+      if (result['success'] == true) {
+        final updateAvailable = result['update_available'] == true;
+        final updateRequired = result['update_required'] == true;
+        final currentVersion = result['current_version'];
+        final serverVersion = result['server_version'];
+        final downloadLink = result['download_link']?.toString() ?? '';
+        
+        _logger.info('AccountScreen: Version check completed - Current: $currentVersion, Server: $serverVersion, Update Available: $updateAvailable, Update Required: $updateRequired', isOn: LOGGING_SWITCH);
+        
+        // If update is required, navigate to update screen
+        if (updateRequired && downloadLink.isNotEmpty) {
+          _logger.info('AccountScreen: Update required - navigating to update screen', isOn: LOGGING_SWITCH);
+          
+          // Wait a moment to ensure context is ready
+          await Future.delayed(const Duration(milliseconds: 300));
+          
+          if (!mounted) return;
+          
+          // Navigate to update screen with download link as parameter
+          final navigationManager = NavigationManager();
+          final router = navigationManager.router;
+          final updateRoute = '/update-required?download_link=${Uri.encodeComponent(downloadLink)}';
+          router.go(updateRoute);
+          _logger.info('AccountScreen: Navigated to update screen', isOn: LOGGING_SWITCH);
+        } else if (updateAvailable && !updateRequired) {
+          _logger.info('AccountScreen: Optional update available (not required)', isOn: LOGGING_SWITCH);
+          // Optional updates can be shown as a non-blocking notification if desired
+        }
+      } else {
+        _logger.warning('AccountScreen: Version check failed: ${result['error']}', isOn: LOGGING_SWITCH);
+      }
+      
+    } catch (e) {
+      // Don't let version check errors affect account screen
+      _logger.error('AccountScreen: Error during version check: $e', isOn: LOGGING_SWITCH);
     }
   }
   

@@ -4,6 +4,7 @@ import '../../../utils/card_animation_detector.dart';
 import '../../../models/card_model.dart';
 import '../../../models/card_display_config.dart';
 import '../../../widgets/card_widget.dart';
+import '../../../utils/card_dimensions.dart';
 import '../../../../../core/managers/state_manager.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../../utils/consts/theme_consts.dart';
@@ -235,13 +236,15 @@ class CardAnimationLayerState extends State<CardAnimationLayer> with TickerProvi
     final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
         .withSaturation(0.2)
         .toColor();
+    // Use dynamic border radius from SSOT to match card widgets
+    final borderRadius = CardDimensions.calculateBorderRadius(dimensions);
     return SizedBox(
       width: dimensions.width,
       height: dimensions.height,
       child: Container(
         decoration: BoxDecoration(
           color: cardBackColor,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(borderRadius),
           border: Border.all(
             color: AppColors.borderDefault,
             width: 1,

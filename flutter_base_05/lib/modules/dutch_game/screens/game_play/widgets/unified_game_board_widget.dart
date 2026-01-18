@@ -1206,13 +1206,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
         .withSaturation(0.2)
         .toColor();
+    // Use dynamic border radius from SSOT to match card widgets
+    final borderRadius = CardDimensions.calculateBorderRadius(dimensions);
     return SizedBox(
       width: dimensions.width,
       height: dimensions.height,
       child: Container(
         decoration: BoxDecoration(
           color: cardBackColor,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(borderRadius),
           border: Border.all(
             color: AppColors.borderDefault,
             width: 1,
@@ -1905,6 +1907,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final matchPot = centerBoard['matchPot'] as int? ?? 0;
     final gamePhase = dutchGameState['gamePhase']?.toString() ?? 'waiting';
     final isGameActive = dutchGameState['isGameActive'] ?? false;
+    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+    
+    // Check if this is a practice game (practice games start with 'practice_room_')
+    final isPracticeGame = currentGameId.startsWith('practice_room_');
+    
+    // Only show match pot if not a practice game
+    if (isPracticeGame) {
+      return const SizedBox.shrink();
+    }
     
     final shouldShowPot = isGameActive && gamePhase != 'waiting';
     
@@ -2653,7 +2664,7 @@ _updateMyHandHeight();
               height: cardHeight,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start, // Align cards to the left
                 children: cardWidgets,
               ),
             );
@@ -3046,13 +3057,15 @@ _updateMyHandHeight();
     final cardBackColor = HSLColor.fromColor(AppColors.primaryColor)
         .withSaturation(0.2)
         .toColor();
+    // Use dynamic border radius from SSOT to match card widgets
+    final borderRadius = CardDimensions.calculateBorderRadius(dimensions);
     return SizedBox(
       width: dimensions.width,
       height: dimensions.height,
       child: Container(
         decoration: BoxDecoration(
           color: cardBackColor,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(borderRadius),
           border: Border.all(
             color: AppColors.borderDefault,
             width: 1,

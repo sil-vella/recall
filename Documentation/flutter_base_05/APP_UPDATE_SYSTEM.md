@@ -51,6 +51,8 @@ Update screen that:
 
 **Note**: While updates are recommended, users can skip and continue using the app. The update screen is informative rather than fully blocking.
 
+**Important**: When users skip an update, the version check will run again the next time they visit the account screen, ensuring they don't miss critical updates.
+
 #### 3. AppManager Integration
 **Location**: `lib/core/managers/app_manager.dart`
 
@@ -62,7 +64,24 @@ Integrates version checking into app initialization:
 
 **Method**: `_checkForAppUpdates(BuildContext context)`
 
-#### 4. Python API Endpoint
+#### 4. AccountScreen Integration
+**Location**: `lib/screens/account_screen/account_screen.dart`
+
+Integrates version checking into account screen:
+- Calls version check on every account screen load
+- Ensures users get update notifications even after skipping
+- Runs asynchronously after screen initialization (non-blocking)
+- Uses same logic as AppManager for consistency
+
+**Method**: `_checkForAppUpdates()`
+
+**Key Behavior**:
+- Version check runs automatically when account screen loads
+- If user previously skipped an update, they'll be checked again
+- Prevents users from permanently missing critical updates
+- Non-blocking - account screen loads normally while check runs in background
+
+#### 5. Python API Endpoint
 **Location**: `python_base_04/core/modules/system_actions_module/system_actions_main.py`
 
 Backend endpoint that:
@@ -144,6 +163,26 @@ update_required == true?
     ├─ Yes → Navigate to /update-required?download_link={link}
     │        └─ UpdateRequiredScreen (blocking)
     └─ No → Continue normal app flow
+
+Account Screen Load
+    ↓
+initState()
+    ↓
+addPostFrameCallback()
+    ↓
+_checkForAppUpdates()
+    ↓
+Platform Check (kIsWeb?)
+    ├─ Web → Skip (return early)
+    └─ Mobile → Continue
+         ↓
+VersionCheckService.checkForUpdates()
+    ↓
+[Same flow as App Startup]
+    ↓
+If update_required → Navigate to update screen
+    ↓
+If user skips → Next account screen load will check again
 ```
 
 ### Version Comparison Logic
@@ -184,7 +223,11 @@ update_required == true?
 
 ### Automatic (Default)
 
-The version check runs automatically after app initialization. No manual intervention required.
+The version check runs automatically:
+1. **After app initialization** - Checks when app first starts
+2. **On every account screen load** - Ensures users get update notifications even after skipping
+
+No manual intervention required. Users who skip an update will be checked again the next time they visit the account screen.
 
 ### Manual Version Check
 
@@ -239,6 +282,13 @@ AppManager().hooksManager.registerHookWithData('app_version_checked', (data) {
    - Instructions for installation
 4. User taps download button → Opens download link in browser
 5. User installs update → Opens updated app
+
+**Skip Update Flow**:
+1. User taps "Skip for Now" → Navigates to account screen
+2. User continues using app
+3. Next time user visits account screen → Version check runs again
+4. If update still required → User sees update screen again
+5. This ensures users don't permanently miss critical updates
 
 ## Error Handling
 
@@ -319,6 +369,7 @@ Enable logging by setting switches to `true` in respective files.
 - `lib/core/services/version_check_service.dart` - Version check service
 - `lib/screens/update_required_screen/update_required_screen.dart` - Update screen
 - `lib/core/managers/app_manager.dart` - App initialization and version check trigger
+- `lib/screens/account_screen/account_screen.dart` - Account screen with version check on load
 - `lib/core/managers/navigation_manager.dart` - Route registration
 
 ### Python Files

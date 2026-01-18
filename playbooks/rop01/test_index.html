@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dutch Game - Flutter Web Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            text-align: center;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 2.5em;
+        }
+        .status {
+            background: rgba(76, 175, 80, 0.3);
+            border: 2px solid #4CAF50;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .info {
+            background: rgba(33, 150, 243, 0.3);
+            border: 2px solid #2196F3;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .info h3 {
+            margin-top: 0;
+        }
+        .info ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .timestamp {
+            margin-top: 20px;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Dutch Game</h1>
+        <h2>Flutter Web App - Test Page</h2>
+        
+        <div class="status">
+            <h3>✅ Configuration Status</h3>
+            <p><strong>Nginx is correctly configured to serve Flutter web app!</strong></p>
+            <p>This test page confirms that:</p>
+            <ul style="text-align: left; display: inline-block;">
+                <li>Root domain serves static files</li>
+                <li>SPA routing is configured</li>
+                <li>Flutter web build can be deployed here</li>
+            </ul>
+        </div>
+
+        <div class="info">
+            <h3>📋 Next Steps</h3>
+            <ol style="text-align: left;">
+                <li>Build Flutter web: <code>flutter build web --release</code></li>
+                <li>Upload build files to: <code>/var/www/dutch.reignofplay.com/</code></li>
+                <li>Replace this test file with Flutter's <code>index.html</code></li>
+            </ol>
+        </div>
+
+        <div class="info">
+            <h3>🔗 Routing Test</h3>
+            <p>Try these URLs to test SPA routing:</p>
+            <ul style="text-align: left;">
+                <li><a href="/account" style="color: #90CAF9;">/account</a></li>
+                <li><a href="/game" style="color: #90CAF9;">/game</a></li>
+                <li><a href="/demo" style="color: #90CAF9;">/demo</a></li>
+            </ul>
+            <p><small>These should all serve this page (or Flutter app) due to <code>try_files</code> configuration.</small></p>
+        </div>
+
+        <div class="timestamp">
+            <p>Test page deployed: <span id="timestamp"></span></p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+    </script>
+</body>
+</html>

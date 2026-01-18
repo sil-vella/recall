@@ -142,8 +142,9 @@ class MessagesWidget extends StatelessWidget {
                   child: Text(
                     content,
                     style: AppTextStyles.bodyMedium().copyWith(
-                      color: AppColors.textOnCard,
+                      color: AppColors.white, // Use white for maximum contrast on dark widgetContainerBackground
                       height: 1.5,
+                      fontWeight: FontWeight.w500, // Slightly bolder for better readability
                     ),
                     textAlign: TextAlign.center,
                   ),

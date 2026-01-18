@@ -53,6 +53,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   bool _isMyHandCardsToPeekProtected = false;
   List<dynamic>? _protectedMyHandCardsToPeek;
   Timer? _myHandCardsToPeekProtectionTimer;
+  String? _previousPlayerStatus; // Track previous status to detect transitions
   
   // ========== Animation System State ==========
   /// Map of cardId -> GlobalKey for all cards (reused across rebuilds)
@@ -968,7 +969,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         if (containerWidth <= 0 || !containerWidth.isFinite) {
           return const SizedBox.shrink();
         }
-        final cardWidth = CardDimensions.clampCardWidth(containerWidth * 0.15); // 15% of container width, clamped to max
+        final cardWidth = CardDimensions.clampCardWidth(containerWidth * 0.22); // 22% of container width, clamped to max
         final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
         final cardDimensions = Size(cardWidth, cardHeight);
         final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
@@ -2159,6 +2160,33 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         });
       });
     }
+    
+    // Reset selectedIndex when status changes from jack_swap to waiting (timer expired)
+    if (_previousPlayerStatus == 'jack_swap' && playerStatus == 'waiting') {
+      _logger.info('🃏 UnifiedGameBoardWidget: Status changed from jack_swap to waiting - resetting selectedIndex', isOn: LOGGING_SWITCH);
+      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final currentGames = Map<String, dynamic>.from(currentState['games'] as Map<String, dynamic>? ?? {});
+      final currentGameId = currentState['currentGameId']?.toString() ?? '';
+      if (currentGameId.isNotEmpty && currentGames.containsKey(currentGameId)) {
+        final currentGame = Map<String, dynamic>.from(currentGames[currentGameId]);
+        currentGame['selectedCardIndex'] = -1;
+        currentGames[currentGameId] = currentGame;
+        // Also reset in myHand slice
+        final myHand = Map<String, dynamic>.from(currentState['myHand'] as Map<String, dynamic>? ?? {});
+        myHand['selectedIndex'] = -1;
+        // Update both in a single state update
+        StateManager().updateModuleState('dutch_game', {
+          ...currentState,
+          'games': currentGames,
+          'myHand': myHand,
+        });
+      }
+      // Also clear jack swap selections in PlayerAction
+      PlayerAction.resetJackSwapSelections();
+    }
+    
+    // Update previous status for next check
+    _previousPlayerStatus = playerStatus;
     
     if (playerStatus != 'initial_peek' && _initialPeekSelectionCount > 0) {
       _initialPeekSelectionCount = 0;

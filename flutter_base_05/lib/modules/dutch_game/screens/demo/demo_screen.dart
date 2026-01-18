@@ -101,12 +101,17 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
-    return Stack(
-      children: [
-        _buildDemoActionButtons(),
-        // Instructions Modal Widget - handles its own state subscription
-        const InstructionsWidget(),
-      ],
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1000),
+        child: Stack(
+          children: [
+            _buildDemoActionButtons(),
+            // Instructions Modal Widget - handles its own state subscription
+            const InstructionsWidget(),
+          ],
+        ),
+      ),
     );
   }
 

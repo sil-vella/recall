@@ -18,6 +18,9 @@ class HooksManager {
   
   // Map of hooks with data support
   final Map<String, List<MapEntry<int, HookCallbackWithData>>> _hooksWithData = {};
+  
+  // Track hooks that have been triggered and their last data (for late-registering listeners)
+  final Map<String, Map<String, dynamic>?> _triggeredHooksData = {};
 
   void registerHook(String hookName, HookCallback callback, {int priority = 10}) {
 
@@ -31,7 +34,6 @@ class HooksManager {
   }
 
   void registerHookWithData(String hookName, HookCallbackWithData callback, {int priority = 10}) {
-
     if (_hooksWithData.containsKey(hookName) &&
         _hooksWithData[hookName]!.any((entry) => entry.value == callback)) {
       return;
@@ -39,6 +41,16 @@ class HooksManager {
 
     _hooksWithData.putIfAbsent(hookName, () => []).add(MapEntry(priority, callback));
     _hooksWithData[hookName]!.sort((a, b) => a.key.compareTo(b.key)); // Sort by priority
+    
+    // If this hook was already triggered, immediately call the new callback with the last data
+    // This ensures late-registering modules (like after async initialization) still get the hook
+    if (_triggeredHooksData.containsKey(hookName) && _isAppInitialized) {
+      final lastData = _triggeredHooksData[hookName];
+      if (lastData != null) {
+        // Execute the newly registered callback immediately with the last data
+        callback(lastData);
+      }
+    }
   }
 
   void triggerHook(String hookName) {
@@ -73,6 +85,9 @@ class HooksManager {
       return;
     }
 
+    // Store the data for this hook so late-registering listeners can receive it
+    _triggeredHooksData[hookName] = data;
+
     if (_hooksWithData[hookName]!.isNotEmpty) {
       for (final entry in _hooksWithData[hookName]!) {
         entry.value(data); // Execute the callback with data
@@ -85,6 +100,7 @@ class HooksManager {
   void deregisterHook(String hookName) {
     _hooks.remove(hookName);
     _hooksWithData.remove(hookName);
+    _triggeredHooksData.remove(hookName); // Clean up triggered data
   }
 
   /// Deregister a specific callback from a hook

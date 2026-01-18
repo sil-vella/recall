@@ -39,6 +39,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   void initState() {
     super.initState();
     
+    // Set Current Rooms section to be expanded on load
+    _expandedSection = 'Current Rooms';
+    
     _initializeWebSocket().then((_) {
       _setupEventCallbacks();
       _initializeRoomState();
@@ -431,60 +434,65 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Current Rooms Section (Collapsible) - First
-          CollapsibleSectionWidget(
-            title: 'Current Rooms',
-            icon: Icons.meeting_room,
-            isExpanded: _expandedSection == 'Current Rooms',
-            onExpandedChanged: () => _handleSectionToggled('Current Rooms'),
-            child: CurrentRoomWidget(
-              onJoinRoom: _joinRoom,
-            ),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1000),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Current Rooms Section (Collapsible) - First
+              CollapsibleSectionWidget(
+                title: 'Current Rooms',
+                icon: Icons.meeting_room,
+                isExpanded: _expandedSection == 'Current Rooms',
+                onExpandedChanged: () => _handleSectionToggled('Current Rooms'),
+                child: CurrentRoomWidget(
+                  onJoinRoom: _joinRoom,
+                ),
+              ),
+              
+              // Join Random Game Section (Collapsible) - Second
+              CollapsibleSectionWidget(
+                title: 'Join Random Game',
+                icon: Icons.flash_on,
+                isExpanded: _expandedSection == 'Join Random Game',
+                onExpandedChanged: () => _handleSectionToggled('Join Random Game'),
+                child: JoinRandomGameWidget(
+                  onJoinRandomGame: () {
+                    // Callback after successful random game join
+                  },
+                ),
+              ),
+              
+              // Practice Match Section (Collapsible) - Third
+              CollapsibleSectionWidget(
+                title: 'Practice Match',
+                icon: Icons.school,
+                isExpanded: _expandedSection == 'Practice Match',
+                onExpandedChanged: () => _handleSectionToggled('Practice Match'),
+                child: PracticeMatchWidget(
+                  onStartPractice: _startPracticeMatch,
+                ),
+              ),
+              
+              // Create & Join Room Section (Collapsible) - Last
+              CollapsibleSectionWidget(
+                title: 'Create & Join Room',
+                icon: Icons.group_add,
+                isExpanded: _expandedSection == 'Create & Join Room',
+                onExpandedChanged: () => _handleSectionToggled('Create & Join Room'),
+                child: CreateJoinGameWidget(
+                  onCreateRoom: _createRoom,
+                  onJoinRoom: () {
+                    // Callback after successful join request
+                  },
+                ),
+              ),
+            ],
           ),
-          
-          // Join Random Game Section (Collapsible) - Second
-          CollapsibleSectionWidget(
-            title: 'Join Random Game',
-            icon: Icons.flash_on,
-            isExpanded: _expandedSection == 'Join Random Game',
-            onExpandedChanged: () => _handleSectionToggled('Join Random Game'),
-            child: JoinRandomGameWidget(
-              onJoinRandomGame: () {
-                // Callback after successful random game join
-              },
-            ),
-          ),
-          
-          // Practice Match Section (Collapsible) - Third
-          CollapsibleSectionWidget(
-            title: 'Practice Match',
-            icon: Icons.school,
-            isExpanded: _expandedSection == 'Practice Match',
-            onExpandedChanged: () => _handleSectionToggled('Practice Match'),
-            child: PracticeMatchWidget(
-              onStartPractice: _startPracticeMatch,
-            ),
-          ),
-          
-          // Create & Join Room Section (Collapsible) - Last
-          CollapsibleSectionWidget(
-            title: 'Create & Join Room',
-            icon: Icons.group_add,
-            isExpanded: _expandedSection == 'Create & Join Room',
-            onExpandedChanged: () => _handleSectionToggled('Create & Join Room'),
-            child: CreateJoinGameWidget(
-              onCreateRoom: _createRoom,
-              onJoinRoom: () {
-                // Callback after successful join request
-              },
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

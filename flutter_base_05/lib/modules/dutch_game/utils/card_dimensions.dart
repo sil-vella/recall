@@ -12,6 +12,9 @@ class CardDimensions {
   /// This ensures all cards (hand, opponent, discard, draw, collection) have the same dimensions
   static const CardSize UNIFIED_CARD_SIZE = CardSize.medium;
   
+  /// Maximum card width - all cards are capped at this size
+  static const double MAX_CARD_WIDTH = 65.0;
+  
   /// Standard poker card aspect ratio (width:height)
   /// Matches physical poker cards: 2.5 inches x 3.5 inches
   static const double CARD_ASPECT_RATIO = 5.0 / 7.0;
@@ -19,9 +22,9 @@ class CardDimensions {
   /// Base widths for each card size
   static const Map<CardSize, double> _baseWidths = {
     CardSize.small: 50.0,
-    CardSize.medium: 70.0,
-    CardSize.large: 80.0,
-    CardSize.extraLarge: 100.0,
+    CardSize.medium: 65.0, // Updated to match MAX_CARD_WIDTH
+    CardSize.large: 65.0,  // Capped at max
+    CardSize.extraLarge: 65.0, // Capped at max
   };
   
   /// Stack offset percentage (15% of card height)
@@ -30,18 +33,27 @@ class CardDimensions {
   /// Container height padding (additional height for container beyond card height)
   static const double CONTAINER_HEIGHT_PADDING = 20.0;
   
+  /// Clamp card width to maximum allowed size
+  /// 
+  /// Ensures all card widths never exceed MAX_CARD_WIDTH
+  static double clampCardWidth(double width) {
+    return width.clamp(0.0, MAX_CARD_WIDTH);
+  }
+  
   /// Get card dimensions for a given size
   /// 
   /// Returns a Size object with width and height maintaining poker card aspect ratio
+  /// Width is automatically clamped to MAX_CARD_WIDTH
   static Size getDimensions(CardSize size) {
-    final width = _baseWidths[size] ?? 70.0;
+    final width = clampCardWidth(_baseWidths[size] ?? 65.0);
     final height = width / CARD_ASPECT_RATIO;
     return Size(width, height);
   }
   
   /// Get card width for a given size
+  /// Width is automatically clamped to MAX_CARD_WIDTH
   static double getWidth(CardSize size) {
-    return _baseWidths[size] ?? 70.0;
+    return clampCardWidth(_baseWidths[size] ?? 65.0);
   }
   
   /// Get card height for a given size (calculated from width using aspect ratio)

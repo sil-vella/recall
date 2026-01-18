@@ -968,7 +968,7 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         if (containerWidth <= 0 || !containerWidth.isFinite) {
           return const SizedBox.shrink();
         }
-        final cardWidth = containerWidth * 0.15; // 15% of container width
+        final cardWidth = CardDimensions.clampCardWidth(containerWidth * 0.15); // 15% of container width, clamped to max
         final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
         final cardDimensions = Size(cardWidth, cardHeight);
         final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
@@ -1018,117 +1018,118 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           }
         }
         
-        // Calculate total width needed for all cards
-        // Always reserve space for drawn card extra padding (even if no drawn card currently)
-        // Drawn cards get cardPadding * 2 as left padding, so we need one extra cardPadding
-        final totalCardsWidth = (cards.length * (cardWidth + cardPadding)) + cardPadding;
+        // Build list of card widgets
+        List<Widget> cardWidgets = [];
         
-        return SizedBox(
-          height: cardHeight,
-          width: totalCardsWidth,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            physics: totalCardsWidth > constraints.maxWidth 
-                ? const ClampingScrollPhysics() 
-                : const NeverScrollableScrollPhysics(),
-            itemCount: cards.length,
-            itemBuilder: (context, index) {
-              final card = cards[index];
-              if (card == null) {
-                return Padding(
-                  padding: EdgeInsets.only(right: cardPadding),
-                  child: _buildBlankCardSlot(cardDimensions),
-                );
+        for (int index = 0; index < cards.length; index++) {
+          final card = cards[index];
+          if (card == null) {
+            cardWidgets.add(
+              Padding(
+                padding: EdgeInsets.only(right: cardPadding),
+                child: _buildBlankCardSlot(cardDimensions),
+              ),
+            );
+            continue;
+          }
+          final cardMap = card as Map<String, dynamic>;
+          final cardId = cardMap['cardId']?.toString();
+          final drawnCardId = drawnCard?['cardId']?.toString();
+          final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
+          Map<String, dynamic>? peekedCardData;
+          if (cardId != null && cardsToPeek.isNotEmpty) {
+            for (var peekedCard in cardsToPeek) {
+              if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
+                peekedCardData = peekedCard;
+                break;
               }
-              final cardMap = card as Map<String, dynamic>;
-              final cardId = cardMap['cardId']?.toString();
-              final drawnCardId = drawnCard?['cardId']?.toString();
-              final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
-              Map<String, dynamic>? peekedCardData;
-              if (cardId != null && cardsToPeek.isNotEmpty) {
-                for (var peekedCard in cardsToPeek) {
-                  if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
-                    peekedCardData = peekedCard;
-                    break;
+            }
+          }
+          Map<String, dynamic>? collectionRankCardData;
+          bool isCollectionRankCard = false;
+          if (cardId != null && playerCollectionRankCards.isNotEmpty) {
+            for (var collectionCard in playerCollectionRankCards) {
+              if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+                collectionRankCardData = collectionCard;
+                isCollectionRankCard = true;
+                break;
+              }
+            }
+          }
+          final cardDataToUse = isDrawnCard && drawnCard != null 
+              ? drawnCard 
+              : (peekedCardData ?? collectionRankCardData ?? cardMap);
+          
+          if (isCollectionRankCard && collectionRankWidgets.containsKey(cardId)) {
+            bool isFirstCollectionCard = true;
+            for (int i = 0; i < index; i++) {
+              final prevCard = cards[i];
+              if (prevCard != null && prevCard is Map<String, dynamic>) {
+                final prevCardId = prevCard['cardId']?.toString();
+                if (prevCardId != null && collectionRankCardIds.contains(prevCardId)) {
+                  isFirstCollectionCard = false;
+                  break;
+                }
+              }
+            }
+            if (isFirstCollectionCard) {
+              List<Widget> orderedCollectionWidgets = [];
+              for (var collectionCard in playerCollectionRankCards) {
+                if (collectionCard is Map<String, dynamic>) {
+                  final collectionCardId = collectionCard['cardId']?.toString();
+                  if (collectionCardId != null && collectionRankWidgets.containsKey(collectionCardId)) {
+                    orderedCollectionWidgets.add(collectionRankWidgets[collectionCardId]!);
                   }
                 }
               }
-              Map<String, dynamic>? collectionRankCardData;
-              bool isCollectionRankCard = false;
-              if (cardId != null && playerCollectionRankCards.isNotEmpty) {
-                for (var collectionCard in playerCollectionRankCards) {
-                  if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-                    collectionRankCardData = collectionCard;
-                    isCollectionRankCard = true;
-                    break;
-                  }
-                }
-              }
-              final cardDataToUse = isDrawnCard && drawnCard != null 
-                  ? drawnCard 
-                  : (peekedCardData ?? collectionRankCardData ?? cardMap);
-              
-              if (isCollectionRankCard && collectionRankWidgets.containsKey(cardId)) {
-                bool isFirstCollectionCard = true;
-                for (int i = 0; i < index; i++) {
-                  final prevCard = cards[i];
-                  if (prevCard != null && prevCard is Map<String, dynamic>) {
-                    final prevCardId = prevCard['cardId']?.toString();
-                    if (prevCardId != null && collectionRankCardIds.contains(prevCardId)) {
-                      isFirstCollectionCard = false;
-                      break;
-                    }
-                  }
-                }
-                if (isFirstCollectionCard) {
-                  List<Widget> orderedCollectionWidgets = [];
-                  for (var collectionCard in playerCollectionRankCards) {
-                    if (collectionCard is Map<String, dynamic>) {
-                      final collectionCardId = collectionCard['cardId']?.toString();
-                      if (collectionCardId != null && collectionRankWidgets.containsKey(collectionCardId)) {
-                        orderedCollectionWidgets.add(collectionRankWidgets[collectionCardId]!);
-                      }
-                    }
-                  }
-                  final cardWidth = cardDimensions.width;
-                  final cardHeight = cardDimensions.height;
-                  final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
-                  final stackWidget = SizedBox(
-                    width: cardWidth,
-                    height: stackHeight,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: orderedCollectionWidgets.asMap().entries.map((entry) {
-                        return Positioned(
-                          left: 0,
-                          top: entry.key * stackOffset,
-                          child: entry.value,
-                        );
-                      }).toList(),
-                    ),
-                  );
-                  return Padding(
-                    padding: EdgeInsets.only(right: cardPadding),
-                    child: stackWidget,
-                  );
-                } else {
-                  return const SizedBox.shrink();
-                }
-              }
-              if (cardId == null) {
-                return const SizedBox.shrink();
-              }
-              final cardKey = _getOrCreateCardKey(cardId, 'opponent_$playerId');
-              final cardWidget = _buildOpponentCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey, currentPlayerStatus: currentPlayerStatus);
-              return Padding(
-                padding: EdgeInsets.only(
-                  right: cardPadding,
-                  left: isDrawnCard ? cardPadding * 2 : 0,
+              final cardWidth = cardDimensions.width;
+              final cardHeight = cardDimensions.height;
+              final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
+              final stackWidget = SizedBox(
+                width: cardWidth,
+                height: stackHeight,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: orderedCollectionWidgets.asMap().entries.map((entry) {
+                    return Positioned(
+                      left: 0,
+                      top: entry.key * stackOffset,
+                      child: entry.value,
+                    );
+                  }).toList(),
                 ),
-                child: cardWidget,
               );
-            },
-          ),
+              cardWidgets.add(
+                Padding(
+                  padding: EdgeInsets.only(right: cardPadding),
+                  child: stackWidget,
+                ),
+              );
+            }
+            // Skip non-first collection cards (they're already in the stack)
+            continue;
+          }
+          if (cardId == null) {
+            continue;
+          }
+          final cardKey = _getOrCreateCardKey(cardId, 'opponent_$playerId');
+          final cardWidget = _buildOpponentCardWidget(cardDataToUse, isDrawnCard, playerId, false, cardDimensions, cardKey: cardKey, currentPlayerStatus: currentPlayerStatus);
+          cardWidgets.add(
+            Padding(
+              padding: EdgeInsets.only(
+                right: cardPadding,
+                left: isDrawnCard ? cardPadding * 2 : 0,
+              ),
+              child: cardWidget,
+            ),
+          );
+        }
+        
+        // Use Wrap widget to allow cards to wrap to next line
+        return Wrap(
+          spacing: 0, // Spacing is handled by card padding
+          runSpacing: cardPadding, // Vertical spacing between wrapped rows
+          children: cardWidgets,
         );
       },
     );
@@ -2323,196 +2324,62 @@ _updateMyHandHeight();
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-        final currentPlayerStatus = _getCurrentUserStatus();
-        final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
-        final drawnCardId = drawnCard?['cardId']?.toString();
-        final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-        final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-        final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-        final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-        final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-        final players = gameState['players'] as List<dynamic>? ?? [];
-        final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-        
-        List<dynamic> myCollectionRankCards = [];
-        for (var player in players) {
-          if (player is Map<String, dynamic> && player['id']?.toString() == currentUserId) {
-            myCollectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
-            break;
-          }
-        }
-        
-        final collectionRankCardIds = myCollectionRankCards
-            .where((c) => c is Map<String, dynamic>)
-            .map((c) => (c as Map<String, dynamic>)['cardId']?.toString())
-            .where((id) => id != null)
-            .toSet();
-        
-        Map<String, Widget> collectionRankWidgets = {};
-        
-        for (int i = 0; i < cards.length; i++) {
-          final card = cards[i];
-          if (card == null) continue;
-          final cardMap = card as Map<String, dynamic>;
-          final cardId = cardMap['cardId']?.toString();
-          if (cardId == null) continue;
-          final isSelected = i == selectedIndex;
-          final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
-          Map<String, dynamic>? peekedCardData;
-          if (cardsToPeek.isNotEmpty) {
-            for (var peekedCard in cardsToPeek) {
-              if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
-                peekedCardData = peekedCard;
-                break;
-              }
-            }
-          }
-          Map<String, dynamic>? collectionRankCardData;
-          if (myCollectionRankCards.isNotEmpty) {
-            for (var collectionCard in myCollectionRankCards) {
-              if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-                collectionRankCardData = collectionCard;
-                break;
-              }
-            }
-          }
-          if (collectionRankCardData != null) {
-            final cardDataToUse = isDrawnCard && drawnCard != null
-                ? drawnCard 
-                : (peekedCardData ?? collectionRankCardData);
-            // Use default dimensions here - will be rebuilt with calculated dimensions in LayoutBuilder
-            final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
-            final defaultDimensions = CardDimensions.getUnifiedDimensions();
-            final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey, defaultDimensions, currentPlayerStatus: currentPlayerStatus);
-            collectionRankWidgets[cardId] = cardWidget;
-          }
-        }
-        
-        // Use LayoutBuilder to get container width and calculate card dimensions
-        // Auto-rescale cards if they would overflow, maintaining 5:7 aspect ratio
         return LayoutBuilder(
           builder: (context, constraints) {
-            // Get current player status for glow effect (using same source as status chip)
-            final currentPlayerStatusForGlow = _getCurrentUserStatus();
-            // Get container width - prioritize constraints, but ensure we have a value immediately
-            // If constraints are not yet available, use a reasonable default based on screen width
-            // Note: constraints.maxWidth already accounts for the Padding widget's horizontal padding
-            double containerWidth;
-            if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
-              containerWidth = constraints.maxWidth;
-            } else {
-              // Fallback: use screen width minus padding as estimate
-              // This ensures we have a value immediately, even if constraints aren't ready
-              final screenWidth = MediaQuery.of(context).size.width;
-              containerWidth = screenWidth > 0 ? screenWidth : 500; // Final fallback
+            final containerWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+                ? constraints.maxWidth
+                : (MediaQuery.of(context).size.width > 0 ? MediaQuery.of(context).size.width * 0.5 : 500.0);
+            // Ensure containerWidth is valid before calculations
+            if (containerWidth <= 0 || !containerWidth.isFinite) {
+              return const SizedBox.shrink();
             }
             
-            // Get default unified dimensions
-            final defaultDimensions = CardDimensions.getUnifiedDimensions();
-            final defaultCardWidth = defaultDimensions.width; // 70px
-            const cardPadding = 8.0; // Padding between cards
+            final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+            final currentPlayerStatus = _getCurrentUserStatus();
+            final drawnCard = dutchGameState['myDrawnCard'] as Map<String, dynamic>?;
+            final drawnCardId = drawnCard?['cardId']?.toString();
+            final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
+            final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+            final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+            final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+            final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+            final players = gameState['players'] as List<dynamic>? ?? [];
+            final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+            
+            List<dynamic> myCollectionRankCards = [];
+            for (var player in players) {
+              if (player is Map<String, dynamic> && player['id']?.toString() == currentUserId) {
+                myCollectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
+                break;
+              }
+            }
+            
+            final collectionRankCardIds = myCollectionRankCards
+                .where((c) => c is Map<String, dynamic>)
+                .map((c) => (c as Map<String, dynamic>)['cardId']?.toString())
+                .where((id) => id != null)
+                .toSet();
+            
+            Map<String, Widget> collectionRankWidgets = {};
+            
+            // Calculate card dimensions as 15% of container width, clamped to max
+            final cardWidth = CardDimensions.clampCardWidth(containerWidth * 0.15); // 15% of container width, clamped to max
+            final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
+            final cardDimensions = Size(cardWidth, cardHeight);
+            final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
+            final cardPadding = containerWidth * 0.02;
             const drawnCardExtraPadding = 16.0; // Extra left padding for drawn card
             
-            // Count non-null cards (excluding blank slots)
-            int nonNullCardCount = 0;
-            bool hasDrawnCard = false;
-            for (var card in cards) {
-              if (card != null) {
-                nonNullCardCount++;
-                final cardMap = card as Map<String, dynamic>;
-                final cardId = cardMap['cardId']?.toString();
-                if (drawnCardId != null && cardId == drawnCardId) {
-                  hasDrawnCard = true;
-                }
-              }
-            }
-            
-            // Calculate total width needed with default size
-            // Count total items (cards + blank slots) for padding calculation
-            int totalItems = cards.length;
-            double totalWidthNeeded = 0;
             for (int i = 0; i < cards.length; i++) {
               final card = cards[i];
-              if (card != null) {
-                final cardMap = card as Map<String, dynamic>;
-                final cardId = cardMap['cardId']?.toString();
-                final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
-                totalWidthNeeded += defaultCardWidth;
-                if (isDrawnCard) {
-                  totalWidthNeeded += drawnCardExtraPadding;
-                }
-              } else {
-                // Blank slot still takes space
-                totalWidthNeeded += defaultCardWidth;
-              }
-              // Add padding after each item except the last
-              if (i < cards.length - 1) {
-                totalWidthNeeded += cardPadding;
-              }
-            }
-            
-            // Calculate card dimensions - rescale if needed
-            // Add safety margin to prevent rounding errors and small overflows
-            // Account for border (4px total when highlighted) and extra safety margin
-            const safetyMargin = 12.0; // Increased from 8px to account for border and rounding
-            Size cardDimensions;
-            if (totalWidthNeeded > (containerWidth - safetyMargin) && nonNullCardCount > 0 && totalItems > 0) {
-              // Need to rescale - calculate new width that fits all cards
-              // Account for padding between all items and drawn card extra padding
-              final totalPadding = (totalItems - 1) * cardPadding;
-              final drawnCardPadding = hasDrawnCard ? drawnCardExtraPadding : 0;
-              final availableWidth = containerWidth - totalPadding - drawnCardPadding - safetyMargin;
-              // Prevent division by zero and ensure valid width
-              if (availableWidth > 0 && totalItems > 0) {
-                final newCardWidth = availableWidth / totalItems;
-                // Ensure newCardWidth is valid before creating Size
-                if (newCardWidth.isFinite && newCardWidth > 0) {
-                  // Maintain 5:7 aspect ratio
-                  final newCardHeight = newCardWidth / CardDimensions.CARD_ASPECT_RATIO;
-                  if (newCardHeight.isFinite && newCardHeight > 0) {
-                    cardDimensions = Size(newCardWidth, newCardHeight);
-                  } else {
-                    cardDimensions = defaultDimensions;
-                  }
-                } else {
-                  cardDimensions = defaultDimensions;
-                }
-              } else {
-                cardDimensions = defaultDimensions;
-              }
-            } else {
-              // Use default unified dimensions
-              cardDimensions = defaultDimensions;
-            }
-            
-            final cardHeight = cardDimensions.height;
-            final stackOffset = CardDimensions.getUnifiedStackOffset();
-            
-            // Build all card widgets with calculated dimensions
-            List<Widget> cardWidgets = [];
-            for (int index = 0; index < cards.length; index++) {
-              final card = cards[index];
-              
-              // Handle null cards (blank slots from same-rank plays)
-              if (card == null) {
-                cardWidgets.add(
-                  Padding(
-                    padding: const EdgeInsets.only(right: cardPadding),
-                    child: _buildMyHandBlankCardSlot(cardDimensions),
-                  ),
-                );
-                continue;
-              }
-              
+              if (card == null) continue;
               final cardMap = card as Map<String, dynamic>;
               final cardId = cardMap['cardId']?.toString();
-              final isSelected = index == selectedIndex;
+              if (cardId == null) continue;
+              final isSelected = i == selectedIndex;
               final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
-              
-              // Check if this card is in cardsToPeek (peeked cards have full data)
               Map<String, dynamic>? peekedCardData;
-              if (cardId != null && cardsToPeek.isNotEmpty) {
+              if (cardsToPeek.isNotEmpty) {
                 for (var peekedCard in cardsToPeek) {
                   if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
                     peekedCardData = peekedCard;
@@ -2520,156 +2387,206 @@ _updateMyHandHeight();
                   }
                 }
               }
-              
-              // Check if this card is in player's collection_rank_cards
               Map<String, dynamic>? collectionRankCardData;
-              bool isCollectionRankCard = false;
-              if (cardId != null && myCollectionRankCards.isNotEmpty) {
+              if (myCollectionRankCards.isNotEmpty) {
                 for (var collectionCard in myCollectionRankCards) {
                   if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
                     collectionRankCardData = collectionCard;
-                    isCollectionRankCard = true;
                     break;
                   }
                 }
               }
-              
-              // Determine which data to use (priority: drawn card > peeked card > collection rank card > ID-only hand card)
-              // For drawn cards, ensure we have full data (rank and suit not '?')
-              Map<String, dynamic> cardDataToUse;
-              if (isDrawnCard && drawnCard != null) {
-                // Validate drawn card has full data
-                final hasFullData = drawnCard.containsKey('rank') && 
-                                   drawnCard['rank'] != null && 
-                                   drawnCard['rank'] != '?' &&
-                                   drawnCard.containsKey('suit') && 
-                                   drawnCard['suit'] != null && 
-                                   drawnCard['suit'] != '?';
-                if (hasFullData) {
-                  cardDataToUse = drawnCard;
-                } else {
-                  // Drawn card data is incomplete, fall back to other sources
-                  cardDataToUse = peekedCardData ?? collectionRankCardData ?? cardMap;
-                }
-              } else {
-                cardDataToUse = peekedCardData ?? collectionRankCardData ?? cardMap;
-              }
-              
-              // If this is a collection rank card, render the stack (only once, at the first collection card)
-              if (isCollectionRankCard && collectionRankWidgets.containsKey(cardId)) {
-                // Check if this is the first collection card in the hand
-                bool isFirstCollectionCard = true;
-                for (int i = 0; i < index; i++) {
-                  final prevCard = cards[i];
-                  if (prevCard != null && prevCard is Map<String, dynamic>) {
-                    final prevCardId = prevCard['cardId']?.toString();
-                    if (prevCardId != null && collectionRankCardIds.contains(prevCardId)) {
-                      isFirstCollectionCard = false;
-                      break;
-                    }
-                  }
-                }
-                
-                if (isFirstCollectionCard) {
-                  // This is the first collection card, render the entire stack
-                  // Get all collection rank widgets in order
-                  List<Widget> orderedCollectionWidgets = [];
-                  for (var collectionCard in myCollectionRankCards) {
-                    if (collectionCard is Map<String, dynamic>) {
-                      final collectionCardId = collectionCard['cardId']?.toString();
-                      if (collectionCardId != null && collectionRankWidgets.containsKey(collectionCardId)) {
-                        // Rebuild collection widgets with new dimensions
-                        final collectionCardKey = _getOrCreateCardKey(collectionCardId, 'my_hand');
-                        final collectionCardWidget = _buildMyHandCardWidget(
-                          collectionCard, 
-                          false, 
-                          false, 
-                          false, 
-                          index, 
-                          collectionCard, 
-                          collectionCardKey,
-                          currentPlayerStatus: currentPlayerStatusForGlow,
-                          cardDimensions,
-                        );
-                        orderedCollectionWidgets.add(collectionCardWidget);
-                      }
-                    }
-                  }
-                  
-                  // Stack needs size constraint to render
-                  final cardWidth = cardDimensions.width;
-                  final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
-                  
-                  final stackWidget = SizedBox(
-                    width: cardWidth,
-                    height: stackHeight,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: orderedCollectionWidgets.asMap().entries.map((entry) {
-                        // Stack cards perfectly on top of each other with offset
-                        return Positioned(
-                          left: 0,
-                          top: entry.key * stackOffset,
-                          child: entry.value,
-                        );
-                      }).toList(),
-                    ),
-                  );
-                  
-                  cardWidgets.add(
-                    Padding(
-                      padding: EdgeInsets.only(
-                        right: cardPadding,
-                        left: isDrawnCard ? drawnCardExtraPadding : 0,
-                      ),
-                      child: stackWidget,
-                    ),
-                  );
-                } else {
-                  // Not the first collection card, skip rendering (already handled in stack)
-                  // Don't add anything to cardWidgets
-                }
-              } else {
-                // Normal card rendering (non-collection rank)
-                if (cardId == null) {
-                  continue;
-                }
+              if (collectionRankCardData != null) {
+                final cardDataToUse = isDrawnCard && drawnCard != null
+                    ? drawnCard 
+                    : (peekedCardData ?? collectionRankCardData);
+                // Use calculated dimensions from LayoutBuilder
                 final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
-                final cardWidget = _buildMyHandCardWidget(
-                  cardDataToUse, 
-                  isSelected, 
-                  isDrawnCard, 
-                  false, 
-                  index, 
-                  cardMap, 
-                  cardKey,
-                  cardDimensions,
-                  currentPlayerStatus: currentPlayerStatusForGlow,
-                );
-                
-                cardWidgets.add(
-                  Padding(
-                    padding: EdgeInsets.only(
-                      right: cardPadding,
-                      left: isDrawnCard ? drawnCardExtraPadding : 0,
-                    ),
-                    child: cardWidget,
-                  ),
-                );
+                final cardWidget = _buildMyHandCardWidget(cardDataToUse, isSelected, isDrawnCard, false, i, cardMap, cardKey, cardDimensions, currentPlayerStatus: currentPlayerStatus);
+                collectionRankWidgets[cardId] = cardWidget;
+              }
+            }
+        
+        // Get current player status for glow effect (using same source as status chip)
+        final currentPlayerStatusForGlow = _getCurrentUserStatus();
+        
+        // Build all card widgets with fixed dimensions
+        List<Widget> cardWidgets = [];
+        for (int index = 0; index < cards.length; index++) {
+          final card = cards[index];
+          
+          // Handle null cards (blank slots from same-rank plays)
+          if (card == null) {
+            cardWidgets.add(
+              Padding(
+                padding: EdgeInsets.only(right: cardPadding),
+                child: _buildMyHandBlankCardSlot(cardDimensions),
+              ),
+            );
+            continue;
+          }
+          
+          final cardMap = card as Map<String, dynamic>;
+          final cardId = cardMap['cardId']?.toString();
+          final isSelected = index == selectedIndex;
+          final isDrawnCard = drawnCardId != null && cardId == drawnCardId;
+          
+          // Check if this card is in cardsToPeek (peeked cards have full data)
+          Map<String, dynamic>? peekedCardData;
+          if (cardId != null && cardsToPeek.isNotEmpty) {
+            for (var peekedCard in cardsToPeek) {
+              if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
+                peekedCardData = peekedCard;
+                break;
+              }
+            }
+          }
+          
+          // Check if this card is in player's collection_rank_cards
+          Map<String, dynamic>? collectionRankCardData;
+          bool isCollectionRankCard = false;
+          if (cardId != null && myCollectionRankCards.isNotEmpty) {
+            for (var collectionCard in myCollectionRankCards) {
+              if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
+                collectionRankCardData = collectionCard;
+                isCollectionRankCard = true;
+                break;
+              }
+            }
+          }
+          
+          // Determine which data to use (priority: drawn card > peeked card > collection rank card > ID-only hand card)
+          // For drawn cards, ensure we have full data (rank and suit not '?')
+          Map<String, dynamic> cardDataToUse;
+          if (isDrawnCard && drawnCard != null) {
+            // Validate drawn card has full data
+            final hasFullData = drawnCard.containsKey('rank') && 
+                               drawnCard['rank'] != null && 
+                               drawnCard['rank'] != '?' &&
+                               drawnCard.containsKey('suit') && 
+                               drawnCard['suit'] != null && 
+                               drawnCard['suit'] != '?';
+            if (hasFullData) {
+              cardDataToUse = drawnCard;
+            } else {
+              // Drawn card data is incomplete, fall back to other sources
+              cardDataToUse = peekedCardData ?? collectionRankCardData ?? cardMap;
+            }
+          } else {
+            cardDataToUse = peekedCardData ?? collectionRankCardData ?? cardMap;
+          }
+          
+          // If this is a collection rank card, render the stack (only once, at the first collection card)
+          if (isCollectionRankCard && collectionRankWidgets.containsKey(cardId)) {
+            // Check if this is the first collection card in the hand
+            bool isFirstCollectionCard = true;
+            for (int i = 0; i < index; i++) {
+              final prevCard = cards[i];
+              if (prevCard != null && prevCard is Map<String, dynamic>) {
+                final prevCardId = prevCard['cardId']?.toString();
+                if (prevCardId != null && collectionRankCardIds.contains(prevCardId)) {
+                  isFirstCollectionCard = false;
+                  break;
+                }
               }
             }
             
-            return SizedBox(
-              width: containerWidth,
-              height: cardHeight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.start, // Align cards to the left
-                children: cardWidgets,
-              ),
+            if (isFirstCollectionCard) {
+              // This is the first collection card, render the entire stack
+              // Get all collection rank widgets in order
+              List<Widget> orderedCollectionWidgets = [];
+              for (var collectionCard in myCollectionRankCards) {
+                if (collectionCard is Map<String, dynamic>) {
+                  final collectionCardId = collectionCard['cardId']?.toString();
+                  if (collectionCardId != null && collectionRankWidgets.containsKey(collectionCardId)) {
+                    // Rebuild collection widgets with fixed dimensions
+                    final collectionCardKey = _getOrCreateCardKey(collectionCardId, 'my_hand');
+                    final collectionCardWidget = _buildMyHandCardWidget(
+                      collectionCard, 
+                      false, 
+                      false, 
+                      false, 
+                      index, 
+                      collectionCard, 
+                      collectionCardKey,
+                      cardDimensions,
+                      currentPlayerStatus: currentPlayerStatusForGlow,
+                    );
+                    orderedCollectionWidgets.add(collectionCardWidget);
+                  }
+                }
+              }
+              
+              // Stack needs size constraint to render
+              final cardWidth = cardDimensions.width;
+              final stackHeight = cardHeight + (orderedCollectionWidgets.length - 1) * stackOffset;
+              
+              final stackWidget = SizedBox(
+                width: cardWidth,
+                height: stackHeight,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: orderedCollectionWidgets.asMap().entries.map((entry) {
+                    // Stack cards perfectly on top of each other with offset
+                    return Positioned(
+                      left: 0,
+                      top: entry.key * stackOffset,
+                      child: entry.value,
+                    );
+                  }).toList(),
+                ),
+              );
+              
+              cardWidgets.add(
+                Padding(
+                  padding: EdgeInsets.only(
+                    right: cardPadding,
+                    left: isDrawnCard ? drawnCardExtraPadding : 0,
+                  ),
+                  child: stackWidget,
+                ),
+              );
+            }
+            // Skip non-first collection cards (they're already in the stack)
+          } else {
+            // Normal card rendering (non-collection rank)
+            if (cardId == null) {
+              continue;
+            }
+            final cardKey = _getOrCreateCardKey(cardId, 'my_hand');
+            final cardWidget = _buildMyHandCardWidget(
+              cardDataToUse, 
+              isSelected, 
+              isDrawnCard, 
+              false, 
+              index, 
+              cardMap, 
+              cardKey,
+              cardDimensions,
+              currentPlayerStatus: currentPlayerStatusForGlow,
             );
-          },
-        );
+            
+              cardWidgets.add(
+                Padding(
+                  padding: EdgeInsets.only(
+                    right: cardPadding,
+                    left: isDrawnCard ? drawnCardExtraPadding : 0,
+                  ),
+                  child: cardWidget,
+                ),
+              );
+            }
+          }
+          
+          // Use Wrap widget to allow cards to wrap to next line
+          return Wrap(
+            spacing: 0, // Spacing is handled by card padding
+            runSpacing: cardPadding, // Vertical spacing between wrapped rows
+            alignment: WrapAlignment.start, // Align cards to the left
+            children: cardWidgets,
+          );
+        },
+      );
       },
     );
   }

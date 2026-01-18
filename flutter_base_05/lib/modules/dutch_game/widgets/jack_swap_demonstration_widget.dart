@@ -617,7 +617,7 @@ class _JackSwapDemonstrationWidgetState extends State<JackSwapDemonstrationWidge
                 final containerWidth = constraints.maxWidth.isFinite 
                     ? constraints.maxWidth 
                     : MediaQuery.of(context).size.width * 0.5;
-                final cardWidth = containerWidth * 0.10; // 10% of Expanded(flex: 2) width
+                final cardWidth = CardDimensions.clampCardWidth(containerWidth * 0.10); // 10% of Expanded(flex: 2) width, clamped to max
                 final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO; // Maintain 5:7 ratio
                 final cardDimensions = Size(cardWidth, cardHeight);
                 final cardPadding = containerWidth * 0.02; // 2% of Expanded(flex: 2) width for spacing

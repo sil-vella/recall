@@ -121,12 +121,9 @@ class _FeatureSlotState extends State<FeatureSlot> {
       );
     }
 
-    // For home screen buttons, return as column (full-width buttons stacked vertically)
+    // For home screen buttons, return as swipeable carousel
     if (widget.contract == 'home_screen_button') {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: widgets,
-      );
+      return _HomeScreenCarousel(features: features, widgets: widgets);
     }
 
     return Row(
@@ -222,6 +219,209 @@ class _FeatureSlotState extends State<FeatureSlot> {
     return Padding(
       padding: widget.iconPadding,
       child: feature.builder(context),
+    );
+  }
+}
+
+/// Swipeable carousel widget for home screen features
+/// Shows current item at full opacity, with previous/next items visible at 50% opacity
+class _HomeScreenCarousel extends StatefulWidget {
+  final List<FeatureDescriptor> features;
+  final List<Widget> widgets;
+
+  const _HomeScreenCarousel({
+    required this.features,
+    required this.widgets,
+  });
+
+  @override
+  State<_HomeScreenCarousel> createState() => _HomeScreenCarouselState();
+}
+
+class _HomeScreenCarouselState extends State<_HomeScreenCarousel> {
+  late PageController _pageController;
+  int _currentPage = 0;
+  late List<Widget> _sortedWidgets;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Sort features by priority (ascending - lower priority first)
+    // Demo has priority 90, Play has priority 100, so demo comes first
+    final sortedFeatures = List<MapEntry<int, Widget>>.generate(
+      widget.features.length,
+      (index) => MapEntry(
+        widget.features[index].priority,
+        widget.widgets[index],
+      ),
+    )..sort((a, b) => a.key.compareTo(b.key));
+
+    _sortedWidgets = sortedFeatures.map((entry) => entry.value).toList();
+
+    // Find demo button index (priority 90) to start there
+    final demoIndex = sortedFeatures.indexWhere((entry) => entry.key == 90);
+    _currentPage = demoIndex >= 0 ? demoIndex : 0;
+
+    _pageController = PageController(
+      initialPage: _currentPage,
+      viewportFraction: 0.6, // Each item takes 60% of viewport
+    );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _goToPreviousPage() {
+    if (_currentPage > 0) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _goToNextPage() {
+    if (_currentPage < _sortedWidgets.length - 1) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.features.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final screenHeight = MediaQuery.of(context).size.height;
+    final availableHeight = screenHeight * 0.5; // 50% of screen height
+    final canGoLeft = _currentPage > 0;
+    final canGoRight = _currentPage < _sortedWidgets.length - 1;
+
+    return SizedBox(
+      height: availableHeight,
+      child: Stack(
+        children: [
+          // PageView carousel
+          PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentPage = index;
+              });
+            },
+            itemCount: _sortedWidgets.length,
+            itemBuilder: (context, index) {
+              return AnimatedBuilder(
+                animation: _pageController,
+                builder: (context, child) {
+                  double opacity = 0.5; // Default to 50% for side items
+                  
+                  if (_pageController.position.haveDimensions) {
+                    final page = _pageController.page!;
+                    final distance = (page - index).abs();
+                    
+                    // Current page (or very close to it) gets full opacity
+                    // Adjacent pages get 50% opacity
+                    if (distance < 0.5) {
+                      opacity = 1.0 - (distance * 1.0); // Smooth transition from 1.0 to 0.5
+                      opacity = opacity.clamp(0.5, 1.0);
+                    } else {
+                      opacity = 0.5;
+                    }
+                  } else {
+                    // Before PageView is ready, use simple distance calculation
+                    final distance = (index - _currentPage).abs();
+                    opacity = distance == 0 ? 1.0 : 0.5;
+                  }
+
+                  return Opacity(
+                    opacity: opacity,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: _sortedWidgets[index],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          
+          // Left arrow button
+          if (canGoLeft)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _goToPreviousPage,
+                    borderRadius: BorderRadius.circular(30),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor.withOpacity(0.8),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.accentColor.withOpacity(0.5),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.arrow_back_ios,
+                        color: AppColors.textOnPrimary,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          
+          // Right arrow button
+          if (canGoRight)
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _goToNextPage,
+                    borderRadius: BorderRadius.circular(30),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor.withOpacity(0.8),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.accentColor.withOpacity(0.5),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward_ios,
+                        color: AppColors.textOnPrimary,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

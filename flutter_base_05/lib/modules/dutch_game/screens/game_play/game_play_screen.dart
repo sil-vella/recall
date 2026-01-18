@@ -526,8 +526,11 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
   Widget buildContent(BuildContext context) {
     _logger.info('GamePlayScreen: buildContent called', isOn: LOGGING_SWITCH);
     
-    return LayoutBuilder(
-      builder: (context, constraints) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1000),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
         _logger.info(
           'GamePlayScreen: LayoutBuilder - maxHeight=${constraints.maxHeight}, '
           'maxWidth=${constraints.maxWidth}',
@@ -638,6 +641,8 @@ class GamePlayScreenState extends BaseScreenState<GamePlayScreen> {
           ],
         );
       },
+      ),
+    ),
     );
   }
 }

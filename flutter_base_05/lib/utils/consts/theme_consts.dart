@@ -167,11 +167,11 @@ class ThemeConfig {
   static Color get statusReady => const Color(0xFF2196F3); // Blue (uses infoColor)
   static Color get statusDrawing => const Color(0xFFFF9800); // Orange (uses warningColor)
   static Color get statusPlaying => const Color(0xFF4CAF50); // Green (uses successColor)
-  static Color get statusSameRank => const Color(0xFF9C27B0); // Purple
+  static Color get statusSameRank => const Color(0xFF4CAF50);  // Green (uses successColor)
   static Color get statusQueenPeek => const Color(0xFFE91E63); // Pink
-  static Color get statusJackSwap => const Color(0xFF3F51B5); // Indigo
-  static Color get statusPeeking => const Color(0xFF00BCD4); // Cyan
-  static Color get statusInitialPeek => const Color(0xFF009688); // Teal
+  static Color get statusJackSwap => const Color(0xFF00BCD4); // Cyan
+  static Color get statusPeeking => const Color(0xFFD131A6); // Pink/Magenta
+  static Color get statusInitialPeek => const Color(0xFFD131A6); // Pink/Magenta
   static Color get statusWinner => const Color(0xFF4CAF50); // Green (uses successColor)
   static Color get statusFinished => const Color(0xFFE53935); // Red (uses errorColor)
 

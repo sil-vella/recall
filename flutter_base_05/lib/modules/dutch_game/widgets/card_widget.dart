@@ -694,13 +694,10 @@ class CardWidget extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(config.borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.accentColor2.withValues(alpha: 0.3),
-            blurRadius: 8,
-            spreadRadius: 2,
-          ),
-        ],
+        border: Border.all(
+          color: AppColors.successColor,
+          width: 6.0,
+        ),
       ),
       child: child,
     );

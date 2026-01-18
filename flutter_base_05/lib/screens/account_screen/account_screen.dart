@@ -964,10 +964,13 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
           
           // If user is logged in and not showing registration form, show user profile
           if (isLoggedIn && !_showRegistrationForm) {
-            return SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 40),
@@ -1173,21 +1176,26 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                       ),
                     ),
                 ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          );
-        }
+            );
+          }
         
         // If user is not logged in, or showing registration form while logged in, show login/register forms
-        return SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Back button (if showing registration form while logged in)
-            if (isLoggedIn && _showRegistrationForm)
-              Align(
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Back button (if showing registration form while logged in)
+                    if (isLoggedIn && _showRegistrationForm)
+                      Align(
                 alignment: Alignment.topLeft,
                 child: IconButton(
                   icon: const Icon(Icons.arrow_back),
@@ -1583,10 +1591,12 @@ class _AccountScreenState extends BaseScreenState<AccountScreen> {
                 ),
               ),
             ),
-          ],
-        ),
-      ),
-    );
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
         } catch (e, stackTrace) {
           _logger.error('AccountScreen: Error in AnimatedBuilder builder', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
           // Return a safe fallback widget to prevent red screen

@@ -15,19 +15,21 @@ This document describes how card sizes are determined for different widgets in t
 **Purpose**: Single Source of Truth (SSOT) for all card dimensions, maintaining consistent aspect ratio across all card displays.
 
 **Key Constants**:
-- `UNIFIED_CARD_SIZE = CardSize.medium` (70px width)
+- `UNIFIED_CARD_SIZE = CardSize.medium` (65px width)
+- `MAX_CARD_WIDTH = 65.0` (maximum width for all cards)
 - `CARD_ASPECT_RATIO = 5.0 / 7.0` (standard poker card ratio)
 - `STACK_OFFSET_PERCENTAGE = 0.15` (15% of card height for stacked cards)
 
-**Base Widths**:
+**Base Widths** (all capped at MAX_CARD_WIDTH):
 - `small`: 50px
-- `medium`: 70px (unified default)
-- `large`: 80px
-- `extraLarge`: 100px
+- `medium`: 65px (unified default, matches MAX_CARD_WIDTH)
+- `large`: 65px (capped at max)
+- `extraLarge`: 65px (capped at max)
 
 **Methods**:
-- `getUnifiedDimensions()` → Returns `Size(70, 98)` (medium size with 5:7 ratio)
-- `getDimensions(CardSize)` → Returns dimensions for specific size
+- `clampCardWidth(double)` → Clamps any card width to MAX_CARD_WIDTH (65px)
+- `getUnifiedDimensions()` → Returns `Size(65, 91)` (medium size with 5:7 ratio)
+- `getDimensions(CardSize)` → Returns dimensions for specific size (automatically clamped)
 - `getStackOffset()` → Returns offset for stacked collection cards
 - `calculateBorderRadius(Size)` → Calculates border radius as 5% of card width (clamped 2.0-12.0)
 - `getBorderRadius(CardSize)` → Returns border radius for a given card size
@@ -37,26 +39,25 @@ This document describes how card sizes are determined for different widgets in t
 
 ## Card Sizing Strategies
 
-### 1. Fixed Unified Dimensions (Player's Hand, Draw Pile, Discard Pile)
+### 1. Fixed Unified Dimensions (Draw Pile, Discard Pile)
 
 **Used By**:
-- `MyHandWidget` - Player's own hand
 - `DrawPileWidget` - Draw pile display
 - `DiscardPileWidget` - Discard pile display
 
 **Implementation**:
 ```dart
 final cardDimensions = CardDimensions.getUnifiedDimensions();
-// Returns: Size(70.0, 98.0) - fixed size
+// Returns: Size(65.0, 91.0) - fixed size (capped at MAX_CARD_WIDTH)
 ```
 
 **Characteristics**:
-- ✅ Fixed size: 70px width × 98px height (5:7 aspect ratio)
+- ✅ Fixed size: 65px width × 91px height (5:7 aspect ratio)
 - ✅ Consistent across all cards in the widget
-- ✅ Better for interaction (player's hand needs precise tapping)
 - ✅ Predictable layout (no responsive calculations)
+- ✅ Respects MAX_CARD_WIDTH constraint
 
-**Example** (`my_hand_widget.dart`):
+**Example** (`draw_pile_widget.dart`):
 ```dart
 Widget _buildCardWidget(...) {
   // Size determined at widget level using CardDimensions
@@ -64,8 +65,8 @@ Widget _buildCardWidget(...) {
   
   Widget cardWidget = CardWidget(
     card: updatedCardModel,
-    dimensions: cardDimensions, // Fixed: 70x98
-    config: CardDisplayConfig.forMyHand(),
+    dimensions: cardDimensions, // Fixed: 65x91
+    config: CardDisplayConfig.forDrawPile(),
     // ...
   );
 }
@@ -73,9 +74,10 @@ Widget _buildCardWidget(...) {
 
 ---
 
-### 2. Responsive Container-Based Sizing (Opponents Panel)
+### 2. Responsive Container-Based Sizing (Player's Hand & Opponents Panel)
 
 **Used By**:
+- `MyHandWidget` - Player's own hand
 - `OpponentsPanelWidget` - Opponent cards display
 
 **Implementation**:
@@ -87,8 +89,8 @@ return LayoutBuilder(
         ? constraints.maxWidth 
         : MediaQuery.of(context).size.width * 0.5; // Fallback
     
-    // Calculate card dimensions: 15% of container width
-    final cardWidth = containerWidth * 0.15; // 15% of container width
+    // Calculate card dimensions: 15% of container width, clamped to MAX_CARD_WIDTH
+    final cardWidth = CardDimensions.clampCardWidth(containerWidth * 0.15); // 15% of container width, clamped to 65px max
     final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO; // Maintain 5:7 ratio
     final cardDimensions = Size(cardWidth, cardHeight);
     
@@ -102,7 +104,8 @@ return LayoutBuilder(
 
 **Characteristics**:
 - ✅ Responsive: Scales based on container width
-- ✅ Percentage-based: 6% of container width per card
+- ✅ Percentage-based: 15% of container width per card
+- ✅ **Maximum constraint**: All cards capped at 50px width (MAX_CARD_WIDTH)
 - ✅ Maintains aspect ratio: Always 5:7 (width:height)
 - ✅ Adaptive spacing: 2% of container width between cards
 - ✅ Better for fitting multiple opponent cards in limited space
@@ -141,12 +144,12 @@ Widget _buildCardsRow(...) {
 
 ## Size Comparison
 
-| Widget | Sizing Strategy | Width | Height | Aspect Ratio | Responsive? |
-|--------|----------------|-------|--------|--------------|-------------|
-| **Player's Hand** | Fixed Unified | 70px | 98px | 5:7 | ❌ No |
-| **Draw Pile** | Fixed Unified | 70px | 98px | 5:7 | ❌ No |
-| **Discard Pile** | Fixed Unified | 70px | 98px | 5:7 | ❌ No |
-| **Opponents Panel** | Responsive | 15% of container | Calculated (5:7) | 5:7 | ✅ Yes |
+| Widget | Sizing Strategy | Width | Height | Aspect Ratio | Responsive? | Max Width |
+|--------|----------------|-------|--------|--------------|-------------|-----------|
+| **Player's Hand** | Responsive | 15% of container (max 65px) | Calculated (5:7) | 5:7 | ✅ Yes | 65px |
+| **Draw Pile** | Fixed Unified | 65px | 91px | 5:7 | ❌ No | 65px |
+| **Discard Pile** | Fixed Unified | 65px | 91px | 5:7 | ❌ No | 65px |
+| **Opponents Panel** | Responsive | 15% of container (max 65px) | Calculated (5:7) | 5:7 | ✅ Yes | 65px |
 
 ---
 
@@ -238,9 +241,11 @@ final borderRadius = CardDimensions.calculateBorderRadius(dimensions);
 - Maximum: 12.0px (for very large cards)
 
 **Examples**:
-- Opponent cards (responsive, ~30px width): borderRadius = 1.5px → clamped to **2.0px**
-- My Hand (fixed 70px width): borderRadius = **3.5px**
-- Draw/Discard Pile (fixed 70px width): borderRadius = **3.5px**
+- Small responsive cards (~30px width): borderRadius = 1.5px → clamped to **2.0px**
+- Medium responsive cards (~45px width): borderRadius = 2.25px → clamped to **2.25px**
+- My Hand/Opponents (responsive, ~60px width): borderRadius = 3.0px
+- My Hand/Opponents (at max 65px width): borderRadius = **3.25px**
+- Draw/Discard Pile (fixed 65px width): borderRadius = **3.25px**
 - Large cards (240px width): borderRadius = 12px → clamped to **12.0px**
 
 **Implementation**:
@@ -276,10 +281,12 @@ final containerWidth = constraints.maxWidth.isFinite
 final cardWidth = containerWidth * 0.15; // 15% of container width
 ```
 
-**Examples**:
-- Container width: 200px → Card width: 30px
-- Container width: 300px → Card width: 45px
-- Container width: 400px → Card width: 60px
+**Examples** (all clamped to 65px max):
+- Container width: 200px → Card width: 30px (15% = 30px, under max)
+- Container width: 300px → Card width: 45px (15% = 45px, under max)
+- Container width: 400px → Card width: 60px (15% = 60px, under max)
+- Container width: 433px → Card width: 65px (15% = 65px, at max)
+- Container width: 500px → Card width: 65px (15% = 75px, clamped to 65px max)
 
 ### Card Height Calculation
 
@@ -292,6 +299,7 @@ final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
 - Card width: 30px → Card height: 42px (30 / 0.714)
 - Card width: 45px → Card height: 63px (45 / 0.714)
 - Card width: 60px → Card height: 84px (60 / 0.714)
+- Card width: 65px (max) → Card height: 91px (65 / 0.714)
 
 ### Card Padding Calculation
 
@@ -330,9 +338,9 @@ height = width / CARD_ASPECT_RATIO
 - **Purpose**: SSOT for card dimensions, aspect ratio, and border radius calculations
 
 ### Player's Hand Widget
-- **File**: `flutter_base_05/lib/modules/cleco_game/screens/game_play/widgets/my_hand_widget.dart`
-- **Method**: `_buildCardWidget()` (line ~1093)
-- **Sizing**: Fixed unified dimensions
+- **File**: `flutter_base_05/lib/modules/dutch_game/screens/game_play/widgets/unified_game_board_widget.dart`
+- **Method**: `_buildMyHandCardsGrid()` (line ~2323)
+- **Sizing**: Responsive (15% of container width, clamped to 65px max)
 
 ### Opponents Panel Widget
 - **File**: `flutter_base_05/lib/modules/cleco_game/screens/game_play/widgets/opponents_panel_widget.dart`
@@ -352,14 +360,15 @@ height = width / CARD_ASPECT_RATIO
 ## Best Practices
 
 ### When to Use Fixed Dimensions
-- ✅ Player's own hand (better interaction)
 - ✅ Single card displays (draw pile, discard pile)
 - ✅ When consistent size is more important than space efficiency
+- ✅ When only one card is shown at a time
 
 ### When to Use Responsive Dimensions
 - ✅ Multiple cards in limited horizontal space
-- ✅ Opponent displays (less interaction needed)
+- ✅ Player's hand and opponent displays
 - ✅ When cards need to fit regardless of screen size
+- ✅ When cards should wrap to new lines instead of scrolling
 
 ### Always Maintain Aspect Ratio
 - ✅ Always use `CARD_ASPECT_RATIO` when calculating height
@@ -439,38 +448,59 @@ Widget _buildCenteredRankAndSuit(Size dimensions) {
 ## Future Considerations
 
 ### Potential Improvements
-1. **Adaptive Sizing**: Could make player's hand responsive on very small screens
-2. **Card Count Scaling**: Could adjust opponent card size based on number of opponents
-3. **Screen Size Detection**: Could use different strategies for tablet vs phone
-4. **User Preferences**: Could allow users to adjust card sizes
+1. **Card Count Scaling**: Could adjust card size based on number of cards in hand
+2. **Screen Size Detection**: Could use different strategies for tablet vs phone
+3. **User Preferences**: Could allow users to adjust card sizes
+4. **Dynamic Percentage**: Could adjust percentage based on available space
 
 ### Current Limitations
-- Player's hand uses fixed size (may be too large on small screens)
-- Opponent cards use fixed percentage (may be too small on large screens)
+- Both player's hand and opponents use fixed 15% percentage (may be too small on large screens)
 - No dynamic adjustment based on number of cards
+- Cards wrap to new lines but don't adjust size based on wrap count
 
 ---
+
+## Maximum Card Width Constraint
+
+**All cards are capped at 65px width** (`MAX_CARD_WIDTH = 65.0`).
+
+This ensures:
+- ✅ Consistent maximum size across all card displays
+- ✅ Better space efficiency on all screen sizes
+- ✅ Prevents cards from becoming too large on wide screens
+- ✅ Applied automatically via `CardDimensions.clampCardWidth()`
+
+**Implementation**:
+- Fixed unified dimensions: Set to 65px (was 70px)
+- Responsive calculations: Automatically clamped to 65px max
+- All size options (small, medium, large, extraLarge): Capped at 65px (except small which is 50px)
 
 ## Summary
 
-The card sizing system uses two strategies:
+The card sizing system uses two strategies, both respecting the 65px maximum width:
 
-1. **Fixed Unified Dimensions** (70px × 98px):
-   - Player's hand, draw pile, discard pile
-   - Better for interaction and visibility
+1. **Fixed Unified Dimensions** (65px × 91px):
+   - Draw pile, discard pile
    - Consistent size regardless of screen size
+   - Capped at MAX_CARD_WIDTH (65px)
+   - Used for single card displays
 
-2. **Responsive Container-Based** (15% of container width for opponents):
-   - Opponents panel
-   - Scales with available space
+2. **Responsive Container-Based** (15% of container width, max 65px):
+   - Player's hand and opponents panel
+   - Scales with available space (15% of container width)
+   - Automatically clamped to 65px maximum
    - Maintains aspect ratio (5:7)
-   - Better for fitting multiple cards
+   - Cards wrap to new lines when needed (using Wrap widget)
+   - Better for fitting multiple cards in limited space
 
 **Key Principles**:
-1. **Aspect Ratio**: All cards maintain the 5:7 aspect ratio (standard poker card ratio) regardless of sizing strategy
-2. **Border Radius**: All cards use dynamic border radius calculation (5% of card width, clamped 2.0-12.0px) for proportional corner rounding
-3. **SSOT**: All card dimensions and styling calculations use `CardDimensions` utility class for consistency
+1. **Maximum Width**: All cards are capped at 65px width (`MAX_CARD_WIDTH = 65.0`)
+2. **Aspect Ratio**: All cards maintain the 5:7 aspect ratio (standard poker card ratio) regardless of sizing strategy
+3. **Border Radius**: All cards use dynamic border radius calculation (5% of card width, clamped 2.0-12.0px) for proportional corner rounding
+4. **SSOT**: All card dimensions and styling calculations use `CardDimensions` utility class for consistency
+5. **Automatic Clamping**: All responsive calculations automatically use `clampCardWidth()` to enforce the maximum
+6. **Consistent Sizing**: Both player's hand and opponents use the same 15% responsive sizing for visual consistency
 
 ---
 
-**Last Updated**: 2025-01-XX
+**Last Updated**: 2026-01-18

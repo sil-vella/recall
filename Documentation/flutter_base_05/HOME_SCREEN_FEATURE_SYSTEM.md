@@ -1,10 +1,10 @@
 # Home Screen Feature System
 
-This document explains the home screen feature system in Flutter Base 05, which allows modules to register full-width buttons with customizable appearance and behavior.
+This document explains the home screen feature system in Flutter Base 05, which allows modules to register full-width buttons with customizable appearance and behavior, displayed as a swipeable carousel.
 
 ## Overview
 
-The home screen feature system provides a flexible way for modules to dynamically add, remove, and manage full-width buttons on the home screen. The system integrates with the existing `FeatureRegistryManager` and supports priority ordering, custom heights (including percentage-based), images, colors, and text styling.
+The home screen feature system provides a flexible way for modules to dynamically add, remove, and manage full-width buttons on the home screen. The system integrates with the existing `FeatureRegistryManager` and supports priority ordering, custom heights (including percentage-based), images, colors, and text styling. **Home screen buttons are displayed as a swipeable carousel** with visual effects and navigation arrows.
 
 ## Architecture
 
@@ -21,6 +21,7 @@ The home screen feature system provides a flexible way for modules to dynamicall
    - Supports both local and global scopes
    - Renders features in priority order
    - Handles home screen button rendering with height calculation
+   - **Carousel Mode**: When `contract: 'home_screen_button'` is specified, renders buttons as a swipeable carousel
 
 3. **HomeScreenButtonFeatureDescriptor** (`lib/modules/dutch_game/managers/feature_contracts.dart`)
    - Feature descriptor for home screen buttons
@@ -109,18 +110,60 @@ if (feature.heightPercentage != null) {
 
 ### Button Rendering
 
-Home screen buttons are rendered as full-width containers with:
+Home screen buttons are rendered in **carousel mode** when the `contract: 'home_screen_button'` is specified in `FeatureSlot`. The carousel provides an interactive, swipeable interface with visual effects.
+
+#### Carousel Features
+
+- **Viewport Fraction**: Each item takes 60% of the viewport width (`viewportFraction: 0.6`)
+- **Opacity Effects**: 
+  - Current item: 100% opacity
+  - Adjacent items: 50% opacity
+  - Smooth transitions between items
+- **Navigation Arrows**: 
+  - Left and right arrow buttons appear when navigation is possible
+  - Arrows are vertically centered on each side
+  - Circular design with semi-transparent background
+- **Priority Sorting**: Items are automatically sorted by priority (ascending)
+- **Initial Page**: Carousel starts on the item with the lowest priority (typically the "Demo" button with priority 90)
+- **Swipeable**: Users can swipe left/right to navigate between items
+- **Tap Navigation**: Arrow buttons provide tap-based navigation
+
+#### Carousel Layout
+
+```dart
+// Carousel takes 50% of screen height
+SizedBox(
+  height: screenHeight * 0.5,
+  child: Stack(
+    children: [
+      // PageView with 60% viewport fraction
+      PageView.builder(
+        viewportFraction: 0.6,
+        // ... items with opacity transitions
+      ),
+      // Left arrow (when can go left)
+      Positioned(left: 0, ...),
+      // Right arrow (when can go right)
+      Positioned(right: 0, ...),
+    ],
+  ),
+)
+```
+
+#### Individual Button Rendering
+
+Each button in the carousel is rendered as a full-width container with:
 - **Background**: Solid color (`backgroundColor`) or image (`imagePath`)
 - **Content**: Centered text (horizontally and vertically)
 - **Styling**: Custom text style, padding, and height
 - **Interaction**: Tap callback (`onTap`)
 
-**Rendering Example**:
+**Button Example**:
 ```dart
 Container(
   width: double.infinity,
   height: calculatedHeight,
-  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  margin: const EdgeInsets.symmetric(horizontal: 8.0),
   decoration: BoxDecoration(
     color: feature.backgroundColor,
     image: feature.imagePath != null
@@ -139,7 +182,10 @@ Container(
       child: Center(
         child: Text(
           feature.text,
-          style: feature.textStyle ?? AppTextStyles.headingMedium(),
+          style: feature.textStyle ?? AppTextStyles.headingLarge().copyWith(
+            fontSize: 56, // Larger text for carousel
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     ),
@@ -183,28 +229,54 @@ void _registerHomeScreenFeatures(BuildContext context) {
 
 ### Home Screen Integration
 
-The home screen uses `FeatureSlot` to render registered buttons:
+The home screen uses `FeatureSlot` to render registered buttons in carousel mode:
 
 ```dart
 // In home_screen.dart
-FeatureSlot(
-  scopeKey: HomeScreenFeatureSlots.scopeKey,
-  slotId: HomeScreenFeatureSlots.slotButtons,
+Center(
+  child: ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 1000), // Max width constraint
+    child: SingleChildScrollView(
+      child: Column(
+        children: [
+          FeatureSlot(
+            scopeKey: featureScopeKey, // 'HomeScreen'
+            slotId: 'home_screen_buttons',
+            contract: 'home_screen_button', // Enables carousel mode
+            useTemplate: false, // No template wrapper
+          ),
+        ],
+      ),
+    ),
+  ),
 )
 ```
 
+**Key Parameters**:
+- `contract: 'home_screen_button'`: Enables carousel rendering mode
+- `useTemplate: false`: Disables the default template wrapper
+- **Max Width**: Home screen content is constrained to 1000px and centered for better desktop/web display
+
 ### Feature Slots
 
-**Scope Key**: `'home_screen_main'`
+**Scope Key**: `'HomeScreen'` (Note: Updated from `'home_screen_main'`)
 
 **Slot ID**: `'home_screen_buttons'`
 
+**Contract**: `'home_screen_button'` (enables carousel mode)
+
 **Constants**:
 ```dart
-class HomeScreenFeatureSlots {
-  static const String scopeKey = 'home_screen_main';
-  static const String slotButtons = 'home_screen_buttons';
-}
+// In home_screen.dart
+@override
+String get featureScopeKey => 'HomeScreen';
+
+// Usage
+FeatureSlot(
+  scopeKey: featureScopeKey, // 'HomeScreen'
+  slotId: 'home_screen_buttons',
+  contract: 'home_screen_button', // Carousel mode
+)
 ```
 
 ## Priority System
@@ -309,43 +381,100 @@ FeatureRegistryManager.instance.clearScope(
    - Use `heightPercentage` for responsive designs
    - Use `height` for fixed-size buttons
    - Consider available screen space when setting percentages
+   - Carousel height is fixed at 50% of screen height
 
 2. **Priority Management**:
-   - Use consistent priority ranges (e.g., 100, 200, 300)
+   - Use consistent priority ranges (e.g., 90, 100, 200, 300)
+   - Lower priorities appear first in the carousel
    - Leave gaps for future features
    - Document priority assignments
+   - **Recommended**: Use priority 90 for primary/demo features
 
 3. **Styling Consistency**:
    - Use theme constants (`AppColors`, `AppTextStyles`)
    - Maintain consistent button appearance
    - Follow app design guidelines
+   - Consider larger text sizes for carousel visibility (default is 56px)
 
-4. **Lifecycle Management**:
+4. **Carousel Usage**:
+   - Always specify `contract: 'home_screen_button'` for carousel mode
+   - Set `useTemplate: false` to avoid template wrapper
+   - Ensure buttons have sufficient visual contrast for 50% opacity on adjacent items
+   - Test swipe gestures and arrow navigation
+
+5. **Layout Constraints**:
+   - Home screen content is constrained to 1000px max width
+   - Content is centered for better desktop/web display
+   - Consider responsive design for different screen sizes
+
+6. **Lifecycle Management**:
    - Register features in module initialization
    - Unregister features in module disposal
    - Clean up resources properly
 
-5. **Error Handling**:
+7. **Error Handling**:
    - Handle navigation errors gracefully
    - Provide user feedback for failed actions
    - Log errors for debugging
 
+## Carousel Implementation Details
+
+### _HomeScreenCarousel Widget
+
+The carousel is implemented as a private widget (`_HomeScreenCarousel`) within `FeatureSlot`:
+
+**Key Features**:
+- Uses `PageController` with `viewportFraction: 0.6` for 60% item width
+- `AnimatedBuilder` provides smooth opacity transitions
+- Navigation arrows use `Positioned` widgets for overlay placement
+- Automatically sorts features by priority on initialization
+- Finds and starts on the item with priority 90 (Demo button)
+
+**Opacity Calculation**:
+```dart
+// Current page gets full opacity (1.0)
+// Adjacent pages get 50% opacity
+// Smooth transition based on page distance
+double opacity = distance < 0.5 
+  ? 1.0 - (distance * 1.0).clamp(0.5, 1.0)
+  : 0.5;
+```
+
+**Navigation Arrows**:
+- Circular buttons with semi-transparent background
+- Only visible when navigation is possible (`canGoLeft`, `canGoRight`)
+- Vertically centered using `Positioned` with `top: 0, bottom: 0` and `Center` widget
+- 300ms animated transitions using `Curves.easeInOut`
+
 ## Related Files
 
-- `lib/core/widgets/feature_slot.dart` - Feature rendering widget
+- `lib/core/widgets/feature_slot.dart` - Feature rendering widget (includes `_HomeScreenCarousel`)
 - `lib/modules/dutch_game/managers/feature_registry_manager.dart` - Feature registry
 - `lib/modules/dutch_game/managers/feature_contracts.dart` - Feature descriptors
 - `lib/modules/dutch_game/screens/home_screen/features/home_screen_features.dart` - Home screen feature registration
-- `lib/modules/dutch_game/screens/home_screen/home_screen.dart` - Home screen implementation
+- `lib/modules/home_module/home_screen.dart` - Home screen implementation
 - `lib/core/00_base/screen_base.dart` - BaseScreen with feature helpers
+
+## Recent Updates
+
+### 2025-01-XX - Carousel Implementation
+- **Added**: Swipeable carousel mode for home screen buttons
+- **Added**: Navigation arrows (left/right) with visual feedback
+- **Added**: Opacity transitions (100% current, 50% adjacent)
+- **Added**: 1000px max width constraint for home screen content
+- **Changed**: Scope key from `'home_screen_main'` to `'HomeScreen'`
+- **Changed**: Buttons now use 60% viewport width in carousel
+- **Changed**: Automatic priority-based sorting and initial page selection
 
 ## Future Improvements
 
-1. **Animation Support**: Add entrance/exit animations for buttons
+1. **Animation Support**: Enhanced entrance/exit animations for carousel items
 2. **State-Aware Buttons**: Support buttons that update based on state
 3. **Badge Support**: Add badge indicators to buttons
-4. **Accessibility**: Enhanced accessibility features
-5. **Analytics**: Built-in analytics tracking for button taps
+4. **Accessibility**: Enhanced accessibility features for carousel navigation
+5. **Analytics**: Built-in analytics tracking for button taps and carousel interactions
+6. **Indicators**: Add page indicators (dots) to show current position
+7. **Auto-play**: Optional auto-advancing carousel mode
 
 ---
 

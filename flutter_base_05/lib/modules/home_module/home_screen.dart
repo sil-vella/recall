@@ -20,11 +20,17 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
   static const bool LOGGING_SWITCH = false; // Enabled for debugging navigation issues
   static final Logger _logger = Logger();
   
+  // Override featureScopeKey to match the scope used by Dutch game module
+  @override
+  String get featureScopeKey => 'HomeScreen';
+  
   @override
   void initState() {
     super.initState();
     _logger.info('HomeScreen: initState called', isOn: LOGGING_SWITCH);
     // Trigger home screen main hook
+    // Note: HooksManager automatically re-triggers hooks for late-registering modules,
+    // so modules that register after this trigger will still receive the hook
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         _logger.debug('HomeScreen: Triggering home screen main hook', isOn: LOGGING_SWITCH);
@@ -59,19 +65,22 @@ class _HomeScreenState extends BaseScreenState<HomeScreen> {
     
     try {
       return Center(
-        child: SingleChildScrollView(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-              // Home screen button features slot - full-width buttons registered by modules
-              FeatureSlot(
-                scopeKey: featureScopeKey,
-                slotId: 'home_screen_buttons',
-                contract: 'home_screen_button',
-                useTemplate: false,
-                  ),
-                ],
-              ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1000),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Home screen button features slot - full-width buttons registered by modules
+                FeatureSlot(
+                  scopeKey: featureScopeKey,
+                  slotId: 'home_screen_buttons',
+                  contract: 'home_screen_button',
+                  useTemplate: false,
+                ),
+              ],
+            ),
+          ),
         ),
       );
     } catch (e, stackTrace) {

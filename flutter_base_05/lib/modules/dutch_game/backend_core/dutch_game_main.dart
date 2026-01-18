@@ -3,7 +3,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for rank-based matching testing
+const bool LOGGING_SWITCH = false; // Enabled for testing game initialization
 
 /// Entry point for registering Dutch game module components with the server.
 class DutchGameModule {
@@ -104,23 +104,24 @@ class DutchGameModule {
       // Fetch user profile data (full name, profile picture) for creator
       String playerName = 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}';
       String? profilePicture;
+      String? usernameFromProfile;
       
       if (ownerId != null && ownerId.isNotEmpty) {
         try {
           final profileResult = await server.pythonClient.getUserProfile(ownerId);
           if (profileResult['success'] == true) {
             final fullName = profileResult['full_name'] as String?;
-            final username = profileResult['username'] as String? ?? '';
+            usernameFromProfile = profileResult['username'] as String?;
             profilePicture = profileResult['profile_picture'] as String?;
             
             // Use full name if available, otherwise fallback to username, otherwise keep default
             if (fullName != null && fullName.isNotEmpty) {
               playerName = fullName;
-            } else if (username.isNotEmpty) {
-              playerName = username;
+            } else if (usernameFromProfile != null && usernameFromProfile.isNotEmpty) {
+              playerName = usernameFromProfile;
             }
             
-            _logger.info('✅ Fetched creator profile: name=$playerName, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
+            _logger.info('✅ Fetched creator profile: name=$playerName, username=$usernameFromProfile, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
           } else {
             _logger.warning('⚠️ Failed to fetch creator profile: ${profileResult['error']}', isOn: LOGGING_SWITCH);
           }
@@ -162,6 +163,7 @@ class DutchGameModule {
               'collection_rank_cards': <String>[],
               'isActive': true,  // Required for winner calculation and same rank play filtering
               'userId': ownerId,  // Store userId (MongoDB ObjectId) for coin deduction
+              if (usernameFromProfile != null && usernameFromProfile.isNotEmpty) 'username': usernameFromProfile,  // Store username for display
               if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
             }
           ],
@@ -254,23 +256,24 @@ class DutchGameModule {
       // Fetch user profile data (full name, profile picture) if userId is available
       String playerName = 'Player_${sessionId.substring(0, sessionId.length > 8 ? 8 : sessionId.length)}';
       String? profilePicture;
+      String? usernameFromProfile;
       
       if (userId != null && userId.isNotEmpty) {
         try {
           final profileResult = await server.pythonClient.getUserProfile(userId);
           if (profileResult['success'] == true) {
             final fullName = profileResult['full_name'] as String?;
-            final username = profileResult['username'] as String? ?? '';
+            usernameFromProfile = profileResult['username'] as String?;
             profilePicture = profileResult['profile_picture'] as String?;
             
             // Use full name if available, otherwise fallback to username, otherwise keep default
             if (fullName != null && fullName.isNotEmpty) {
               playerName = fullName;
-            } else if (username.isNotEmpty) {
-              playerName = username;
+            } else if (usernameFromProfile != null && usernameFromProfile.isNotEmpty) {
+              playerName = usernameFromProfile;
             }
             
-            _logger.info('✅ Fetched user profile: name=$playerName, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
+            _logger.info('✅ Fetched user profile: name=$playerName, username=$usernameFromProfile, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
           } else {
             _logger.warning('⚠️ Failed to fetch user profile: ${profileResult['error']}', isOn: LOGGING_SWITCH);
           }
@@ -293,6 +296,7 @@ class DutchGameModule {
         'collection_rank_cards': <String>[],
         'isActive': true,  // Required for winner calculation and same rank play filtering
         if (userId != null && userId.isNotEmpty) 'userId': userId,  // Store userId for coin deduction
+        if (usernameFromProfile != null && usernameFromProfile.isNotEmpty) 'username': usernameFromProfile,  // Store username for display
         if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
       });
 

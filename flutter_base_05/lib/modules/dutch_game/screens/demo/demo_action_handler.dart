@@ -418,11 +418,7 @@ class DemoActionHandler {
         'previousPlayerStatus': null, // CRITICAL: Clear to prevent false detection on next demo
       });
       
-      // 2. Wait 0.5 seconds before navigating
-      // During this time, _activeDemoActionType is still set, so instructions won't show
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // 3. Clear all game state to ensure clean slate for next demo
+      // 2. Clear all game state immediately to ensure clean slate for next demo
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final currentGameId = currentState['currentGameId']?.toString() ?? '';
       
@@ -436,11 +432,11 @@ class DemoActionHandler {
         _logger.info('🧹 DemoActionHandler: Cleared GameStateStore for ended demo: $currentGameId', isOn: LOGGING_SWITCH);
       }
       
-      // 4. End practice session
+      // 3. End practice session
       final practiceBridge = PracticeModeBridge.instance;
       practiceBridge.endPracticeSession();
       
-      // 5. Check if we're in sequential demo mode
+      // 4. Check if we're in sequential demo mode
       if (_isSequentialDemoMode && _currentSequentialDemoIndex < _sequentialDemoActions.length - 1) {
         // Continue to next demo in sequence
         _currentSequentialDemoIndex++;
@@ -467,7 +463,7 @@ class DemoActionHandler {
           _sequentialDemoActions = [];
         }
       
-      // 5. Navigate back to demo screen
+      // 5. Navigate back to demo screen (non-sequential mode)
       _logger.info('🎮 DemoActionHandler: Navigating back to demo screen', isOn: LOGGING_SWITCH);
       NavigationManager().navigateTo('/dutch/demo');
       

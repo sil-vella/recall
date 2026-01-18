@@ -10,7 +10,7 @@ import '../managers/hooks_manager.dart';
 import '../modules/dutch_game/dutch_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for rank-based matching testing
+const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization
 
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};
@@ -67,6 +67,11 @@ class WebSocketServer {
     _hooksManager.registerHook('room_closed');
     
     _logger.info('🎣 Hooks initialized for room events', isOn: LOGGING_SWITCH);
+  }
+
+  /// Check if a session is authenticated
+  bool isSessionAuthenticated(String sessionId) {
+    return _authenticatedSessions[sessionId] == true;
   }
 
   /// Get user ID for a session

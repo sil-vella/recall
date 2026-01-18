@@ -18,7 +18,7 @@ import '../../utils/consts/config.dart';
 
 class LoginModule extends ModuleBase {
   // Logging switch for guest registration, login, and backend connectivity
-  static const bool LOGGING_SWITCH = false; // Enabled for debugging navigation issues
+  static const bool LOGGING_SWITCH = false; // Enabled for testing auto-guest creation
 
   late ServicesManager _servicesManager;
   late ModuleManager _localModuleManager;

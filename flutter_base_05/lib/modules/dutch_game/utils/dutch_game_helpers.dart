@@ -1,9 +1,12 @@
+import 'package:flutter/material.dart';
 import '../../../core/managers/module_manager.dart';
 import '../../../core/managers/state_manager.dart';
 import '../../../core/managers/navigation_manager.dart';
 import '../../connections_api_module/connections_api_module.dart';
 import '../../../core/managers/websockets/websocket_manager.dart';
 import '../../../tools/logging/logger.dart';
+import '../../../core/services/shared_preferences.dart';
+import '../../login_module/login_module.dart';
 import '../managers/validated_event_emitter.dart';
 import '../../dutch_game/managers/dutch_game_state_updater.dart';
 import '../backend_core/services/game_state_store.dart';
@@ -18,7 +21,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for mode switching verification
+  static const bool LOGGING_SWITCH = false; // Enabled for testing auto-guest creation
   
   // ========================================
   // EVENT EMISSION HELPERS
@@ -175,8 +178,13 @@ class DutchGameHelpers {
   }
   
   /// Ensure WebSocket is ready (user logged in, initialized, and connected)
+  /// 
+  /// If user is not logged in and no user data exists in SharedPreferences,
+  /// automatically creates a guest user and retries.
+  /// 
+  /// [context] - Optional BuildContext. If not provided, will attempt to get from NavigationManager.
   /// Returns true if ready, false otherwise
-  static Future<bool> ensureWebSocketReady() async {
+  static Future<bool> ensureWebSocketReady({BuildContext? context}) async {
     _logger.info('DutchGameHelpers: ensureWebSocketReady called', isOn: LOGGING_SWITCH);
     
     // Check if user is logged in
@@ -186,8 +194,62 @@ class DutchGameHelpers {
     _logger.info('DutchGameHelpers: User login status - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
     
     if (!isLoggedIn) {
-      _logger.warning('DutchGameHelpers: User is not logged in, cannot ensure WebSocket ready', isOn: LOGGING_SWITCH);
-      return false;
+      _logger.info('DutchGameHelpers: User is not logged in, checking for existing user data', isOn: LOGGING_SWITCH);
+      
+      // Check SharedPreferences for username and email
+      try {
+        final sharedPref = SharedPrefManager();
+        await sharedPref.initialize();
+        final username = sharedPref.getString('username');
+        final email = sharedPref.getString('email');
+        
+        _logger.info('DutchGameHelpers: SharedPreferences check - username: ${username != null && username.isNotEmpty ? "exists" : "null"}, email: ${email != null && email.isNotEmpty ? "exists" : "null"}', isOn: LOGGING_SWITCH);
+        
+        // If either username or email exists, user data exists - navigate to account screen
+        if ((username != null && username.isNotEmpty) || (email != null && email.isNotEmpty)) {
+          _logger.info('DutchGameHelpers: User data found in SharedPreferences, navigating to account screen', isOn: LOGGING_SWITCH);
+          navigateToAccountScreen('ws_auth_required', 'Please log in to connect to game server.');
+          return false;
+        }
+        
+        // No user data found - attempt auto-guest creation
+        _logger.info('DutchGameHelpers: No user data found, attempting auto-guest creation', isOn: LOGGING_SWITCH);
+        
+        // Get context from NavigationManager if not provided
+        final navigationManager = NavigationManager();
+        final effectiveContext = context ?? navigationManager.navigatorKey.currentContext;
+        
+        if (effectiveContext == null) {
+          _logger.warning('DutchGameHelpers: Cannot auto-create guest - no context available', isOn: LOGGING_SWITCH);
+          return false;
+        }
+        
+        // Get LoginModule
+        final moduleManager = ModuleManager();
+        final loginModule = moduleManager.getModuleByType<LoginModule>();
+        
+        if (loginModule == null) {
+          _logger.warning('DutchGameHelpers: Cannot auto-create guest - LoginModule not available', isOn: LOGGING_SWITCH);
+          return false;
+        }
+        
+        // Attempt guest registration
+        _logger.info('DutchGameHelpers: Calling LoginModule.registerGuestUser', isOn: LOGGING_SWITCH);
+        final result = await loginModule.registerGuestUser(context: effectiveContext);
+        
+        if (result['success'] != null) {
+          _logger.info('DutchGameHelpers: Guest user created successfully, retrying ensureWebSocketReady', isOn: LOGGING_SWITCH);
+          // Recursively retry - now user should be logged in
+          // Pass context to avoid re-fetching it
+          return await ensureWebSocketReady(context: effectiveContext);
+        } else {
+          _logger.warning('DutchGameHelpers: Guest creation failed: ${result['error']}', isOn: LOGGING_SWITCH);
+          return false;
+        }
+      } catch (e, stackTrace) {
+        _logger.error('DutchGameHelpers: Error during auto-guest creation check: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+        return false;
+      }
     }
     
     // Get WebSocket manager
@@ -219,8 +281,40 @@ class DutchGameHelpers {
       _logger.info('DutchGameHelpers: WebSocket already connected', isOn: LOGGING_SWITCH);
     }
     
+    // Wait for authentication to complete (with timeout)
+    _logger.info('DutchGameHelpers: Waiting for authentication to complete...', isOn: LOGGING_SWITCH);
+    final authCompleted = await _waitForAuthentication(timeoutSeconds: 5);
+    if (!authCompleted) {
+      _logger.warning('DutchGameHelpers: Authentication did not complete within timeout', isOn: LOGGING_SWITCH);
+      return false;
+    }
+    _logger.info('DutchGameHelpers: Authentication completed', isOn: LOGGING_SWITCH);
+    
     _logger.info('DutchGameHelpers: WebSocket is ready', isOn: LOGGING_SWITCH);
     return true;
+  }
+  
+  /// Wait for WebSocket authentication to complete
+  /// Returns true if authenticated, false if timeout
+  static Future<bool> _waitForAuthentication({int timeoutSeconds = 5}) async {
+    final stateManager = StateManager();
+    final startTime = DateTime.now();
+    const checkInterval = Duration(milliseconds: 100);
+    
+    while (DateTime.now().difference(startTime).inSeconds < timeoutSeconds) {
+      final wsState = stateManager.getModuleState<Map<String, dynamic>>('websocket') ?? {};
+      final isAuthenticated = wsState['is_authenticated'] == true;
+      
+      if (isAuthenticated) {
+        _logger.info('DutchGameHelpers: Authentication confirmed', isOn: LOGGING_SWITCH);
+        return true;
+      }
+      
+      await Future.delayed(checkInterval);
+    }
+    
+    _logger.warning('DutchGameHelpers: Authentication timeout after ${timeoutSeconds}s', isOn: LOGGING_SWITCH);
+    return false;
   }
   
   /// Update connection status

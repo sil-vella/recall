@@ -860,78 +860,91 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
       mainAxisAlignment: columnMainAlignment, // Center vertically for col 1 and 2
       mainAxisSize: MainAxisSize.max, // Expand to fill available height
       children: [
-        // Top row: Name and status chip on same level
-        Wrap(
-          alignment: WrapAlignment.start,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        // Top row: Profile pic and timer, aligned left
+        Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-                        // Profile picture (circular, 1.5x status chip height)
-                        _buildPlayerProfilePicture(
-                          player['id']?.toString() ?? '',
-                          profilePictureUrl: player['profile_picture']?.toString(),
-                        ),
-                        const SizedBox(width: 8),
-                        if (hasCalledDutch) ...[
-                          Icon(
-                            Icons.flag,
-                            size: 16,
-                            color: AppColors.errorColor,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        if (isCurrentTurn && !isCurrentPlayer) ...[
-                          Icon(
-                            Icons.play_arrow,
-                            size: 16,
-                            color: AppColors.accentColor2,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-            Text(
-                            playerName,
-                            style: AppTextStyles.label().copyWith(
-                              fontWeight: FontWeight.bold,
-                color: AppColors.white,
-                // Add very prominent glow effect using status chip color logic (excludes 'waiting' and 'same_rank_window')
-                shadows: statusChipColor != null
-                    ? [
-                        Shadow(
-                          color: statusChipColor,
-                          blurRadius: 16,
-                        ),
-                        Shadow(
-                          color: statusChipColor.withOpacity(0.9),
-                          blurRadius: 24,
-                        ),
-                        Shadow(
-                          color: statusChipColor.withOpacity(0.7),
-                          blurRadius: 32,
-                        ),
-                        Shadow(
-                          color: statusChipColor.withOpacity(0.5),
-                          blurRadius: 40,
-                        ),
-                        Shadow(
-                          color: statusChipColor.withOpacity(0.3),
-                          blurRadius: 48,
-                        ),
-                      ]
-                    : null,
+            // Profile picture (circular, 1.5x status chip height)
+            _buildPlayerProfilePicture(
+              player['id']?.toString() ?? '',
+              profilePictureUrl: player['profile_picture']?.toString(),
+            ),
+            const SizedBox(width: 8),
+            if (hasCalledDutch) ...[
+              Icon(
+                Icons.flag,
+                size: 16,
+                color: AppColors.errorColor,
               ),
-                    ),
-                    // Show circular timer (right side) when shouldShowTimer is true
-                    if (shouldShowTimer) ...[
-                      const SizedBox(width: 6),
-                      CircularTimerWidget(
-                        key: ValueKey('timer_${player['id']}_${playerStatus}'), // Reset timer when player or status changes
-                        durationSeconds: effectiveTimer,
-                        size: 28.0, // Match profile picture size
-                        color: timerColor,
-                        backgroundColor: AppColors.surfaceVariant,
+              const SizedBox(width: 4),
+            ],
+            if (isCurrentTurn && !isCurrentPlayer) ...[
+              Icon(
+                Icons.play_arrow,
+                size: 16,
+                color: AppColors.accentColor2,
+              ),
+              const SizedBox(width: 4),
+            ],
+            // Show circular timer when shouldShowTimer is true
+            if (shouldShowTimer) ...[
+              const SizedBox(width: 6),
+              CircularTimerWidget(
+                key: ValueKey('timer_${player['id']}_${playerStatus}'), // Reset timer when player or status changes
+                durationSeconds: effectiveTimer,
+                size: 28.0, // Match profile picture size
+                color: timerColor,
+                backgroundColor: AppColors.surfaceVariant,
+              ),
+            ],
+          ],
+        ),
+        
+        // Second row: Username
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            // Use username if available, otherwise fallback to name
+            // For comp players, name IS the username
+            // For human players, name might be "Player_<sessionId>" if username not stored
+            (username != null && username.isNotEmpty) 
+                ? username 
+                : (playerNameRaw != null && playerNameRaw.isNotEmpty) 
+                    ? playerNameRaw 
+                    : 'Unknown',
+            style: AppTextStyles.label().copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.white,
+              // Add very prominent glow effect using status chip color logic (excludes 'waiting' and 'same_rank_window')
+              shadows: statusChipColor != null
+                  ? [
+                      Shadow(
+                        color: statusChipColor,
+                        blurRadius: 16,
                       ),
-                    ],
-                  ],
-                ),
+                      Shadow(
+                        color: statusChipColor.withOpacity(0.9),
+                        blurRadius: 24,
+                      ),
+                      Shadow(
+                        color: statusChipColor.withOpacity(0.7),
+                        blurRadius: 32,
+                      ),
+                      Shadow(
+                        color: statusChipColor.withOpacity(0.5),
+                        blurRadius: 40,
+                      ),
+                      Shadow(
+                        color: statusChipColor.withOpacity(0.3),
+                        blurRadius: 48,
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
+        ),
         
         // Bottom: Cards aligned left and wrap
         const SizedBox(height: 8),

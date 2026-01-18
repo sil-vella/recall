@@ -8,7 +8,7 @@ import '../../../../core/managers/state_manager.dart';
 import '../../../../tools/logging/logger.dart';
 import 'widgets/game_info_widget.dart';
 import 'widgets/unified_game_board_widget.dart';
-import 'widgets/instructions_widget.dart';
+import '../../widgets/instructions_widget.dart';
 import 'widgets/messages_widget.dart';
 import 'widgets/card_animation_layer.dart';
 import 'widgets/action_text_widget.dart';

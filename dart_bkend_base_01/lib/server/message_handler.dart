@@ -10,7 +10,7 @@ import '../modules/dutch_game/utils/platform/shared_imports.dart';
 import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for rank-based matching testing
+const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -27,13 +27,33 @@ class MessageHandler {
     final event = data['event'] as String?;
 
     if (event == null) {
+      _logger.websocket('❌ Event validation failed: Missing event field from session: $sessionId, data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
       _sendError(sessionId, 'Missing event field');
       return;
     }
 
-    _logger.websocket('📨 Event: $event from session: $sessionId', isOn: LOGGING_SWITCH);
+    // Event validation logging
+    _logger.websocket('📨 Event validation: Received event "$event" from session: $sessionId', isOn: LOGGING_SWITCH);
+    _logger.websocket('📦 Event validation: Event data keys: ${data.keys.join(', ')}', isOn: LOGGING_SWITCH);
+    _logger.websocket('📦 Event validation: Event data: $data', isOn: LOGGING_SWITCH);
+    
     if (event == 'leave_room') {
       _logger.websocket('🎯 LEAVE_ROOM: Received leave_room event from session: $sessionId, data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+    }
+
+    // Events that don't require authentication
+    final publicEvents = {'ping', 'authenticate'};
+    
+    // Check authentication for room/game events
+    if (!publicEvents.contains(event)) {
+      if (!_server.isSessionAuthenticated(sessionId)) {
+        _logger.auth('❌ Event validation failed: Event $event requires authentication but session $sessionId is not authenticated', isOn: LOGGING_SWITCH);
+        _sendError(sessionId, 'Authentication required. Please wait for authentication to complete.');
+        return;
+      }
+      _logger.auth('✅ Event validation: Event $event authentication check passed for session: $sessionId', isOn: LOGGING_SWITCH);
+    } else {
+      _logger.auth('✅ Event validation: Event $event is a public event, skipping authentication', isOn: LOGGING_SWITCH);
     }
 
     // Unified switch for ALL events
@@ -96,7 +116,14 @@ class MessageHandler {
   // ========= ROOM MANAGEMENT HANDLERS =========
   
   void _handleCreateRoom(String sessionId, Map<String, dynamic> data) {
-    final userId = data['user_id'] as String? ?? sessionId;
+    // Get userId from server's session mapping (should be set after authentication)
+    final userId = _server.getUserIdForSession(sessionId);
+    
+    if (userId == null) {
+      _logger.error('❌ _handleCreateRoom: Session $sessionId is authenticated but userId is null', isOn: LOGGING_SWITCH);
+      _sendError(sessionId, 'User ID not available. Please reconnect.');
+      return;
+    }
     
     // Extract room settings from data (matching Python backend)
     final maxPlayers = 4; // Hardcoded to 4, no options
@@ -204,9 +231,16 @@ class MessageHandler {
   
   void _handleJoinRoom(String sessionId, Map<String, dynamic> data) {
     final roomId = data['room_id'] as String?;
-    // Use sessionId directly as player ID (userId kept for backward compatibility in events)
-    final userId = data['user_id'] as String? ?? sessionId;
     final password = data['password'] as String?;
+    
+    // Get userId from server's session mapping (should be set after authentication)
+    final userId = _server.getUserIdForSession(sessionId);
+    
+    if (userId == null) {
+      _logger.error('❌ _handleJoinRoom: Session $sessionId is authenticated but userId is null', isOn: LOGGING_SWITCH);
+      _sendError(sessionId, 'User ID not available. Please reconnect.');
+      return;
+    }
     
     if (roomId == null) {
       _server.sendToSession(sessionId, {
@@ -429,11 +463,25 @@ class MessageHandler {
   /// Handle join random game event
   /// Searches for available public games or auto-creates and auto-starts a new one
   void _handleJoinRandomGame(String sessionId, Map<String, dynamic> data) {
-    // Get userId from server's session mapping (more reliable than data)
-    final userId = _server.getUserIdForSession(sessionId) ?? sessionId;
+    // Get userId from server's session mapping (should be set after authentication)
+    final userId = _server.getUserIdForSession(sessionId);
+    
+    if (userId == null) {
+      _logger.error('❌ _handleJoinRandomGame: Session $sessionId is authenticated but userId is null', isOn: LOGGING_SWITCH);
+      _sendError(sessionId, 'User ID not available. Please reconnect.');
+      return;
+    }
     
     // Extract isClearAndCollect from event data (default to true for backward compatibility)
-    final isClearAndCollect = data['isClearAndCollect'] as bool? ?? true;
+    // Handle both bool and string values (JSON serialization can convert bools to strings)
+    final isClearAndCollectValue = data['isClearAndCollect'];
+    _logger.room('🔍 _handleJoinRandomGame: raw isClearAndCollect from event data: value=$isClearAndCollectValue (type: ${isClearAndCollectValue.runtimeType})', isOn: LOGGING_SWITCH);
+    final isClearAndCollect = isClearAndCollectValue is bool 
+        ? isClearAndCollectValue 
+        : (isClearAndCollectValue is String 
+            ? (isClearAndCollectValue.toLowerCase() == 'true')
+            : true); // Default to true for backward compatibility
+    _logger.room('✅ _handleJoinRandomGame: parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})', isOn: LOGGING_SWITCH);
     
     _logger.room('🔍 _handleJoinRandomGame: sessionId=$sessionId, userId=$userId, isClearAndCollect=$isClearAndCollect', isOn: LOGGING_SWITCH);
     
@@ -482,7 +530,9 @@ class MessageHandler {
       // Store isClearAndCollect in game state store for later use when starting match
       final store = GameStateStore.instance;
       final roomState = store.ensure(roomId);
+      _logger.room('💾 Storing isClearAndCollect in roomState: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})', isOn: LOGGING_SWITCH);
       roomState['isClearAndCollect'] = isClearAndCollect;
+      _logger.room('✅ Stored isClearAndCollect in roomState[$roomId]: ${roomState['isClearAndCollect']} (type: ${roomState['isClearAndCollect'].runtimeType})', isOn: LOGGING_SWITCH);
       
       // Get room info
       final room = _roomManager.getRoomInfo(roomId);
@@ -615,16 +665,26 @@ class MessageHandler {
       
       // Get isClearAndCollect from game state store (stored when room was created)
       final roomState = stateStore.getState(roomId);
-      final isClearAndCollect = roomState['isClearAndCollect'] as bool? ?? true; // Default to true for backward compatibility
+      final isClearAndCollectValue = roomState['isClearAndCollect'];
+      _logger.game('🔍 Retrieved isClearAndCollect from roomState: value=$isClearAndCollectValue (type: ${isClearAndCollectValue.runtimeType})', isOn: LOGGING_SWITCH);
+      // Handle both bool and string values (JSON serialization can convert bools to strings)
+      final isClearAndCollect = isClearAndCollectValue is bool 
+          ? isClearAndCollectValue 
+          : (isClearAndCollectValue is String 
+              ? (isClearAndCollectValue.toLowerCase() == 'true')
+              : true); // Default to true for backward compatibility
+      _logger.game('✅ Parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})', isOn: LOGGING_SWITCH);
       
       // Start the match
       _logger.game('🎮 Starting match for random join room: $roomId (isClearAndCollect=$isClearAndCollect)', isOn: LOGGING_SWITCH);
+      _logger.game('📤 Passing isClearAndCollect to start_match: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})', isOn: LOGGING_SWITCH);
       _gameCoordinator.handle(sessionId, 'start_match', {
         'game_id': roomId,
         'min_players': room.minPlayers,
         'max_players': room.maxSize,
         'isClearAndCollect': isClearAndCollect,
       });
+      _logger.game('✅ Called _gameCoordinator.handle with isClearAndCollect=$isClearAndCollect', isOn: LOGGING_SWITCH);
 
       // Cleanup timer state
       RandomJoinTimerManager.instance.cleanup(roomId);

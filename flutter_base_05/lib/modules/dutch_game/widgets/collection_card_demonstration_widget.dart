@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import '../../../models/card_model.dart';
-import '../../../models/card_display_config.dart';
-import '../../../utils/card_dimensions.dart';
-import '../../../widgets/card_widget.dart';
-import '../../../../../utils/consts/theme_consts.dart';
-import '../../../../../tools/logging/logger.dart';
+import '../models/card_model.dart';
+import '../models/card_display_config.dart';
+import '../utils/card_dimensions.dart';
+import 'card_widget.dart';
+import '../../../utils/consts/theme_consts.dart';
+import '../../../tools/logging/logger.dart';
 
 /// Demonstration widget for collection card phase
 /// 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../../../core/managers/state_manager.dart';
-import '../../../../../core/managers/navigation_manager.dart';
-import '../../../../../tools/logging/logger.dart';
-import '../../../utils/modal_template_widget.dart';
-import '../../../../../utils/consts/theme_consts.dart';
+import '../../../core/managers/state_manager.dart';
+import '../../../core/managers/navigation_manager.dart';
+import '../../../tools/logging/logger.dart';
+import '../utils/modal_template_widget.dart';
+import '../../../utils/consts/theme_consts.dart';
 import 'initial_peek_demonstration_widget.dart';
 import 'drawing_card_demonstration_widget.dart';
 import 'playing_card_demonstration_widget.dart';

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/00_base/screen_base.dart';
+import '../../../../core/managers/state_manager.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../../tools/logging/logger.dart';
+import '../../widgets/instructions_widget.dart';
+import '../../utils/game_instructions_provider.dart';
 import 'demo_action_handler.dart';
 
 class DemoScreen extends BaseScreen {
@@ -45,6 +48,49 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
   @override
   void initState() {
     super.initState();
+    // Show initial instructions when demo screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showInitialInstructions();
+    });
+  }
+
+  /// Show initial instructions from GameInstructionsProvider
+  void _showInitialInstructions() {
+    try {
+      _logger.info('📚 DemoScreen: Showing initial instructions on screen load', isOn: LOGGING_SWITCH);
+      
+      // Get initial instructions from provider
+      final initialInstructions = GameInstructionsProvider.getInitialInstructions();
+      
+      // Get current dontShowAgain map
+      final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final instructionsData = dutchGameState['instructions'] as Map<String, dynamic>? ?? {};
+      final dontShowAgain = Map<String, bool>.from(
+        instructionsData['dontShowAgain'] as Map<String, dynamic>? ?? {},
+      );
+      
+      // Check if user has marked this instruction as "don't show again"
+      if (dontShowAgain[GameInstructionsProvider.KEY_INITIAL] == true) {
+        _logger.info('📚 DemoScreen: Initial instructions marked as "don\'t show again", skipping', isOn: LOGGING_SWITCH);
+        return;
+      }
+      
+      // Update state to show instructions
+      StateManager().updateModuleState('dutch_game', {
+        'instructions': {
+          'isVisible': true,
+          'title': initialInstructions['title'] ?? 'Welcome to Dutch!',
+          'content': initialInstructions['content'] ?? '',
+          'key': initialInstructions['key'] ?? GameInstructionsProvider.KEY_INITIAL,
+          'hasDemonstration': initialInstructions['hasDemonstration'] ?? false,
+          'dontShowAgain': dontShowAgain,
+        },
+      });
+      
+      _logger.info('✅ DemoScreen: Initial instructions shown', isOn: LOGGING_SWITCH);
+    } catch (e) {
+      _logger.error('❌ DemoScreen: Error showing initial instructions: $e', isOn: LOGGING_SWITCH);
+    }
   }
 
   @override
@@ -55,7 +101,13 @@ class DemoScreenState extends BaseScreenState<DemoScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
-    return _buildDemoActionButtons();
+    return Stack(
+      children: [
+        _buildDemoActionButtons(),
+        // Instructions Modal Widget - handles its own state subscription
+        const InstructionsWidget(),
+      ],
+    );
   }
 
   Widget _buildDemoActionButtons() {

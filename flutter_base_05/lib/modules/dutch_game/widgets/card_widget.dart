@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../models/card_display_config.dart';
+import '../utils/card_dimensions.dart';
 import '../../../../utils/consts/theme_consts.dart';
 import '../../../../utils/consts/config.dart';
 import '../../../../core/managers/state_manager.dart';
@@ -81,12 +82,19 @@ class CardWidget extends StatelessWidget {
     final maxPadding = safeWidth * 0.08;
     final padding = (safeWidth * 0.05).clamp(2.0, maxPadding > 2.0 ? maxPadding : 2.0);
     
+    // Calculate border radius from card dimensions (SSOT approach)
+    // Use dynamic calculation from CardDimensions if using default borderRadius (8.0)
+    // Otherwise use the explicitly set borderRadius from config
+    final borderRadius = (config.borderRadius == 8.0) 
+        ? CardDimensions.calculateBorderRadius(dimensions)
+        : config.borderRadius;
+    
     return Container(
       width: dimensions.width,
       height: dimensions.height,
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(config.borderRadius),
+        borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withOpacity(0.1),
@@ -575,12 +583,19 @@ class CardWidget extends StatelessWidget {
   /// Build the card back
   /// Structure must EXACTLY match front face: Container -> Padding -> Column -> same children structure
   Widget _buildCardBack(Size dimensions) {
+    // Calculate border radius from card dimensions (SSOT approach)
+    // Use dynamic calculation from CardDimensions if using default borderRadius (8.0)
+    // Otherwise use the explicitly set borderRadius from config
+    final borderRadius = (config.borderRadius == 8.0) 
+        ? CardDimensions.calculateBorderRadius(dimensions)
+        : config.borderRadius;
+    
     return Container(
       width: dimensions.width,
       height: dimensions.height,
       decoration: BoxDecoration(
         color: AppColors.primaryColor,
-        borderRadius: BorderRadius.circular(config.borderRadius),
+        borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withOpacity(0.1),

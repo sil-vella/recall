@@ -594,11 +594,18 @@ class StateQueueValidator {
   /// Returns a map of validated updates.
   /// Throws DutchStateException if validation fails.
   Map<String, dynamic> validateUpdate(Map<String, dynamic> update) {
+    if (LOGGING_SWITCH) {
+      _log('📋 StateQueueValidator: Starting validation for update with keys: ${update.keys.join(', ')}', isError: false);
+    }
     final validatedUpdates = <String, dynamic>{};
 
     for (final entry in update.entries) {
       final key = entry.key;
       final value = entry.value;
+
+      if (LOGGING_SWITCH) {
+        _log('🔍 StateQueueValidator: Validating field "$key" with value: $value (type: ${value.runtimeType})', isError: false);
+      }
 
       // Check if field exists in schema
       final fieldSpec = _stateSchema[key];
@@ -608,14 +615,25 @@ class StateQueueValidator {
         throw DutchStateException(error, fieldName: key);
       }
 
+      if (LOGGING_SWITCH) {
+        _log('✅ StateQueueValidator: Field "$key" found in schema (type: ${fieldSpec.type}, required: ${fieldSpec.required}, nullable: ${fieldSpec.nullable})', isError: false);
+      }
+
       // Validate field value
       try {
         final validatedValue = _validateStateFieldValue(key, value, fieldSpec);
         validatedUpdates[key] = validatedValue;
+        if (LOGGING_SWITCH) {
+          _log('✅ StateQueueValidator: Field "$key" validated successfully: $validatedValue (type: ${validatedValue.runtimeType})', isError: false);
+        }
       } catch (e) {
         _log('StateQueueValidator: Field validation failed for "$key": $e', isError: true);
         rethrow;
       }
+    }
+
+    if (LOGGING_SWITCH) {
+      _log('✅ StateQueueValidator: Validation complete. Validated ${validatedUpdates.length} fields', isError: false);
     }
 
     return validatedUpdates;
@@ -639,6 +657,9 @@ class StateQueueValidator {
   dynamic _validateStateFieldValue(String key, dynamic value, DutchStateFieldSpec spec) {
     // Handle null values
     if (value == null) {
+      if (LOGGING_SWITCH) {
+        _log('🔍 StateQueueValidator: Field "$key" is null (required: ${spec.required}, nullable: ${spec.nullable})', isError: false);
+      }
       if (spec.required) {
         final error = 'Field "$key" is required and cannot be null';
         _log('StateQueueValidator: $error', isError: true);
@@ -646,16 +667,28 @@ class StateQueueValidator {
       }
       // If field is nullable, allow null values
       if (spec.nullable == true) {
+        if (LOGGING_SWITCH) {
+          _log('✅ StateQueueValidator: Field "$key" is nullable, allowing null', isError: false);
+        }
         return null;
+      }
+      if (LOGGING_SWITCH) {
+        _log('✅ StateQueueValidator: Field "$key" using default value: ${spec.defaultValue}', isError: false);
       }
       return spec.defaultValue;
     }
 
     // Type validation
+    if (LOGGING_SWITCH) {
+      _log('🔍 StateQueueValidator: Type check for "$key": expected ${spec.type}, got ${value.runtimeType}', isError: false);
+    }
     if (!ValidationUtils.isValidType(value, spec.type)) {
       final error = 'Field "$key" must be of type ${spec.type}, got ${value.runtimeType}';
       _log('StateQueueValidator: $error', isError: true);
       throw DutchStateException(error, fieldName: key);
+    }
+    if (LOGGING_SWITCH) {
+      _log('✅ StateQueueValidator: Type check passed for "$key"', isError: false);
     }
 
     // Allowed values validation

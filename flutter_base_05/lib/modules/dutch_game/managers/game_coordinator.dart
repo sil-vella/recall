@@ -4,7 +4,7 @@ import '../../../../tools/logging/logger.dart';
 import 'player_action.dart';
 import '../utils/dutch_game_helpers.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for practice match debugging
+const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization
 
 /// Game Coordinator for handling all player game actions
 /// 

@@ -66,11 +66,23 @@ class DeckConfig {
   /// Get deck settings
   Map<String, dynamic> get deckSettings => _config['deck_settings'] ?? {};
   
+  /// Parse a value that might be bool or string to a bool
+  /// Handles YAML/JSON serialization where bools can become strings
+  static bool _parseBoolValue(dynamic value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    if (value is String) {
+      return value.toLowerCase() == 'true';
+    }
+    return defaultValue;
+  }
+  
   /// Check if testing mode is enabled
-  bool get isTestingMode => deckSettings['testing_mode'] ?? false;
+  bool get isTestingMode => _parseBoolValue(deckSettings['testing_mode'], defaultValue: false);
   
   /// Check if jokers should be included
-  bool get includeJokers => deckSettings['include_jokers'] ?? true;
+  bool get includeJokers => _parseBoolValue(deckSettings['include_jokers'], defaultValue: true);
   
   /// Get standard deck configuration
   Map<String, dynamic> get standardDeck => _config['standard_deck'] ?? {};

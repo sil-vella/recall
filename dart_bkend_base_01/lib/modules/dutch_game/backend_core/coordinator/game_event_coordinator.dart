@@ -7,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for timer configuration testing
+const bool LOGGING_SWITCH = false; // Enabled for testing game initialization
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -70,19 +70,27 @@ class GameEventCoordinator {
 
   /// Handle a unified game event from a session
   Future<void> handle(String sessionId, String event, Map<String, dynamic> data) async {
+    _logger.info('🎮 GameEventCoordinator: Event validation - Received event "$event" from session: $sessionId', isOn: LOGGING_SWITCH);
+    _logger.info('📦 GameEventCoordinator: Event validation - Event data keys: ${data.keys.join(', ')}', isOn: LOGGING_SWITCH);
+    _logger.info('📦 GameEventCoordinator: Event validation - Event data: $data', isOn: LOGGING_SWITCH);
+    
     final roomId = roomManager.getRoomForSession(sessionId);
     if (roomId == null) {
+      _logger.error('❌ GameEventCoordinator: Event validation failed - Session $sessionId is not in a room', isOn: LOGGING_SWITCH);
       server.sendToSession(sessionId, {
         'event': 'error',
         'message': 'Not in a room',
       });
       return;
     }
+    
+    _logger.info('✅ GameEventCoordinator: Event validation - Session $sessionId is in room: $roomId', isOn: LOGGING_SWITCH);
 
     // Get or create the game round for this room
     final round = _registry.getOrCreate(roomId, server);
 
     try {
+      _logger.info('🎯 GameEventCoordinator: Event validation - Processing event "$event" for room: $roomId', isOn: LOGGING_SWITCH);
       switch (event) {
         case 'start_match':
           await _handleStartMatch(roomId, round, data);
@@ -207,8 +215,9 @@ class GameEventCoordinator {
         'room_id': roomId,
         'timestamp': DateTime.now().toIso8601String(),
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
       _logger.error('GameEventCoordinator: error on $event -> $e', isOn: LOGGING_SWITCH);
+      _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
       server.sendToSession(sessionId, {
         'event': '${event}_error',
         'room_id': roomId,
@@ -220,6 +229,8 @@ class GameEventCoordinator {
 
   /// Initialize match: create base state, players (human/computers), deck, then initialize round
   Future<void> _handleStartMatch(String roomId, DutchGameRound round, Map<String, dynamic> data) async {
+    _logger.info('🎮 _handleStartMatch: Starting match for room $roomId, data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
+    _logger.info('🔍 _handleStartMatch: data[\'isClearAndCollect\'] = ${data['isClearAndCollect']} (type: ${data['isClearAndCollect']?.runtimeType})', isOn: LOGGING_SWITCH);
     // Prepare initial state compatible with DutchGameRound
     final stateRoot = _store.getState(roomId);
     final current = Map<String, dynamic>.from(stateRoot['game_state'] as Map<String, dynamic>? ?? {});
@@ -243,8 +254,15 @@ class GameEventCoordinator {
     // For autoStart rooms: fill to maxPlayers (rooms with autoStart=true)
     // For regular multiplayer: only fill to minPlayers (wait for real players to join)
     final isPracticeMode = roomId.startsWith('practice_room_');
-    final isRandomJoin = data['is_random_join'] == true;
-    final isAutoStart = roomInfo?.autoStart == true;
+    final isRandomJoinRaw = data['is_random_join'];
+    _logger.info('🔍 _handleStartMatch: is_random_join from data: value=$isRandomJoinRaw (type: ${isRandomJoinRaw.runtimeType})', isOn: LOGGING_SWITCH);
+    final isRandomJoin = _parseBoolValue(isRandomJoinRaw, defaultValue: false);
+    _logger.info('✅ _handleStartMatch: parsed isRandomJoin: value=$isRandomJoin', isOn: LOGGING_SWITCH);
+    
+    final autoStartRaw = roomInfo?.autoStart;
+    _logger.info('🔍 _handleStartMatch: autoStart from roomInfo: value=$autoStartRaw (type: ${autoStartRaw.runtimeType})', isOn: LOGGING_SWITCH);
+    final isAutoStart = _parseBoolValue(autoStartRaw, defaultValue: false);
+    _logger.info('✅ _handleStartMatch: parsed isAutoStart: value=$isAutoStart', isOn: LOGGING_SWITCH);
     int needed = (isPracticeMode || isRandomJoin || isAutoStart)
         ? maxPlayers - players.length  // Practice mode, random join, or autoStart: fill to maxPlayers
         : minPlayers - players.length; // Regular multiplayer: only fill to minPlayers
@@ -373,6 +391,7 @@ class GameEventCoordinator {
               'level': level,  // Store player level for reference
               'userId': userId,  // Store userId for coin deduction logic
               'email': email,  // Store email for reference
+              'username': username,  // Store username for display (name is also username for comp players)
               if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
             });
             
@@ -439,6 +458,7 @@ class GameEventCoordinator {
                     'level': level,  // Store player level for reference
                     'userId': userId,
                     'email': email,
+                    'username': username,  // Store username for display (name is also username for comp players)
                     if (profilePicture != null && profilePicture.isNotEmpty) 'profile_picture': profilePicture,
                   });
                   
@@ -489,7 +509,10 @@ class GameEventCoordinator {
 
     // Extract showInstructions from data (practice mode) or default to false
     // This is extracted early so we can use it for deck selection
-    final showInstructions = data['showInstructions'] as bool? ?? false;
+    final showInstructionsRaw = data['showInstructions'];
+    _logger.info('🔍 _handleStartMatch: raw showInstructions from data: value=$showInstructionsRaw (type: ${showInstructionsRaw.runtimeType})', isOn: LOGGING_SWITCH);
+    final showInstructions = _parseBoolValue(showInstructionsRaw, defaultValue: false);
+    _logger.info('✅ _handleStartMatch: parsed showInstructions: value=$showInstructions (type: ${showInstructions.runtimeType})', isOn: LOGGING_SWITCH);
     
     // Build deck and deal 4 cards per player (as in practice)
     // In practice mode: showInstructions=true uses test deck, showInstructions=false uses standard deck
@@ -538,7 +561,11 @@ class GameEventCoordinator {
     // Predefined hands are only enabled when instructions are ON (for learning/testing)
     final predefinedHandsLoader = PredefinedHandsLoader();
     final predefinedHandsConfig = await predefinedHandsLoader.loadConfig();
-    bool usePredefinedHands = predefinedHandsConfig['enabled'] == true && showInstructions;
+    final enabledRaw = predefinedHandsConfig['enabled'];
+    _logger.info('🔍 _handleStartMatch: predefinedHandsConfig[\'enabled\']: value=$enabledRaw (type: ${enabledRaw.runtimeType})', isOn: LOGGING_SWITCH);
+    final enabledParsed = _parseBoolValue(enabledRaw, defaultValue: false);
+    _logger.info('✅ _handleStartMatch: parsed predefinedHands enabled: value=$enabledParsed', isOn: LOGGING_SWITCH);
+    bool usePredefinedHands = enabledParsed && showInstructions;
     
     if (usePredefinedHands) {
       _logger.info('GameEventCoordinator: Predefined hands enabled (instructions ON)', isOn: LOGGING_SWITCH);
@@ -681,30 +708,52 @@ class GameEventCoordinator {
     
     _logger.info('GameEventCoordinator: Calculated pot for game $roomId - coin_cost: $coinCost, players: $activePlayerCount, pot: $pot', isOn: LOGGING_SWITCH);
     
+    _logger.info('🔍 _handleStartMatch: About to create gameState map with isClearAndCollect', isOn: LOGGING_SWITCH);
     // Build updated game_state - set to initial_peek phase
     // Add timer configuration to game_state (game-specific, not room-specific)
-    final gameState = <String, dynamic>{
-      'gameId': roomId,
-      'gameName': 'Dutch Game $roomId',
-      'players': players,
-      'discardPile': discardPile, // Full data (face-up)
-      'drawPile': drawPileIds,    // ID-only (face-down)
-      'originalDeck': originalDeckMaps,
-      'gameType': 'multiplayer',
-      'isGameActive': true,
-      'phase': 'initial_peek', // Set to initial_peek phase
-      'playerCount': players.length,
-      'maxPlayers': maxPlayers,
-      'minPlayers': minPlayers,
-      'showInstructions': showInstructions, // Store instructions switch
-      'match_class': 'standard', // Placeholder for future match class system
-      'coin_cost_per_player': coinCost,
-      'match_pot': pot,
-      'isClearAndCollect': data['isClearAndCollect'] as bool? ?? true, // Collection mode flag - false = clear mode (no collection), true = collection mode (default to true for backward compatibility)
-      'timerConfig': ServerGameStateCallbackImpl.getAllTimerValues(), // Get timer values from registry (single source of truth)
-    };
-    
-    _logger.info('GameEventCoordinator: Added timerConfig to game_state for room $roomId: ${gameState['timerConfig']}', isOn: LOGGING_SWITCH);
+    Map<String, dynamic> gameState;
+    try {
+      _logger.info('🔍 _handleStartMatch: Starting gameState map creation...', isOn: LOGGING_SWITCH);
+      gameState = <String, dynamic>{
+        'gameId': roomId,
+        'gameName': 'Dutch Game $roomId',
+        'players': players,
+        'discardPile': discardPile, // Full data (face-up)
+        'drawPile': drawPileIds,    // ID-only (face-down)
+        'originalDeck': originalDeckMaps,
+        'gameType': 'multiplayer',
+        'isGameActive': true,
+        'phase': 'initial_peek', // Set to initial_peek phase
+        'playerCount': players.length,
+        'maxPlayers': maxPlayers,
+        'minPlayers': minPlayers,
+        'showInstructions': showInstructions, // Store instructions switch
+        'match_class': 'standard', // Placeholder for future match class system
+        'coin_cost_per_player': coinCost,
+        'match_pot': pot,
+        'isClearAndCollect': () {
+          try {
+            final rawValue = data['isClearAndCollect'];
+            _logger.info('🔍 _handleStartMatch: raw isClearAndCollect from data: value=$rawValue (type: ${rawValue.runtimeType})', isOn: LOGGING_SWITCH);
+            final parsedValue = _parseBoolValue(rawValue, defaultValue: true);
+            _logger.info('✅ _handleStartMatch: parsed isClearAndCollect: value=$parsedValue (type: ${parsedValue.runtimeType})', isOn: LOGGING_SWITCH);
+            return parsedValue;
+          } catch (e, stackTrace) {
+            _logger.error('❌ _handleStartMatch: Error in isClearAndCollect IIFE: $e', isOn: LOGGING_SWITCH);
+            _logger.error('❌ _handleStartMatch: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
+            rethrow;
+          }
+        }(), // Collection mode flag - false = clear mode (no collection), true = collection mode (default to true for backward compatibility)
+        'timerConfig': ServerGameStateCallbackImpl.getAllTimerValues(), // Get timer values from registry (single source of truth)
+      };
+      _logger.info('✅ _handleStartMatch: Created gameState map successfully', isOn: LOGGING_SWITCH);
+      _logger.info('🔍 _handleStartMatch: gameState[\'isClearAndCollect\'] in map: value=${gameState['isClearAndCollect']} (type: ${gameState['isClearAndCollect'].runtimeType})', isOn: LOGGING_SWITCH);
+      _logger.info('GameEventCoordinator: Added timerConfig to game_state for room $roomId: ${gameState['timerConfig']}', isOn: LOGGING_SWITCH);
+    } catch (e, stackTrace) {
+      _logger.error('❌ _handleStartMatch: Error creating gameState map: $e', isOn: LOGGING_SWITCH);
+      _logger.error('❌ _handleStartMatch: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
+      rethrow;
+    }
 
     // Set all players to initial_peek status
     for (final player in players) {
@@ -821,7 +870,10 @@ class GameEventCoordinator {
     }
 
     // Check if collection mode is enabled
-    final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
+    final isClearAndCollectRaw = gameState['isClearAndCollect'];
+    _logger.info('🔍 _processAIInitialPeek: raw isClearAndCollect from gameState: value=$isClearAndCollectRaw (type: ${isClearAndCollectRaw.runtimeType})', isOn: LOGGING_SWITCH);
+    final isClearAndCollect = _parseBoolValue(isClearAndCollectRaw, defaultValue: false);
+    _logger.info('✅ _processAIInitialPeek: parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})', isOn: LOGGING_SWITCH);
 
     // Initialize known_cards structure
     final knownCards = computerPlayer['known_cards'] as Map<String, dynamic>? ?? {};
@@ -943,6 +995,23 @@ class GameEventCoordinator {
       }
     }
     return null;
+  }
+
+  /// Parse a value that might be bool or string to a bool
+  /// Handles JSON serialization where bools can become strings
+  bool _parseBoolValue(dynamic value, {bool defaultValue = false}) {
+    _logger.info('🔍 _parseBoolValue: input value=$value (type: ${value.runtimeType}), defaultValue=$defaultValue', isOn: LOGGING_SWITCH);
+    if (value is bool) {
+      _logger.info('✅ _parseBoolValue: value is bool, returning: $value', isOn: LOGGING_SWITCH);
+      return value;
+    }
+    if (value is String) {
+      final result = value.toLowerCase() == 'true';
+      _logger.info('✅ _parseBoolValue: value is String "$value", converted to bool: $result', isOn: LOGGING_SWITCH);
+      return result;
+    }
+    _logger.info('✅ _parseBoolValue: value is neither bool nor String, using defaultValue: $defaultValue', isOn: LOGGING_SWITCH);
+    return defaultValue;
   }
 
   /// Check if all players have completed initial peek
@@ -1097,7 +1166,10 @@ class GameEventCoordinator {
       humanPlayer['cardsToPeek'] = cardsToPeek;
 
       // Check if collection mode is enabled
-      final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
+      final isClearAndCollectRaw = gameState['isClearAndCollect'];
+      _logger.info('🔍 _handleCompletedInitialPeek: raw isClearAndCollect from gameState: value=$isClearAndCollectRaw (type: ${isClearAndCollectRaw.runtimeType})', isOn: LOGGING_SWITCH);
+      final isClearAndCollect = _parseBoolValue(isClearAndCollectRaw, defaultValue: false);
+      _logger.info('✅ _handleCompletedInitialPeek: parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})', isOn: LOGGING_SWITCH);
 
       // Initialize known_cards structure
       final humanKnownCards = humanPlayer['known_cards'] as Map<String, dynamic>? ?? {};

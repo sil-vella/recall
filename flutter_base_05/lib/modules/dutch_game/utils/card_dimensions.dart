@@ -102,5 +102,35 @@ class CardDimensions {
   static double getUnifiedContainerHeight() {
     return getContainerHeight(UNIFIED_CARD_SIZE);
   }
+  
+  /// Calculate border radius as a percentage of card size
+  /// 
+  /// Uses 5% of card width as the border radius, with minimum of 2.0 and maximum of 12.0
+  /// This ensures cards have proportional corner rounding regardless of size
+  /// 
+  /// [dimensions] - The card dimensions (Size object with width and height)
+  /// Returns the calculated border radius
+  static double calculateBorderRadius(Size dimensions) {
+    final safeWidth = dimensions.width > 0 ? dimensions.width : 1.0;
+    // Use 5% of card width for border radius (standard for playing cards)
+    final calculatedRadius = safeWidth * 0.05;
+    // Clamp between 2.0 (minimum for very small cards) and 12.0 (maximum for very large cards)
+    return calculatedRadius.clamp(2.0, 12.0);
+  }
+  
+  /// Calculate border radius for a given card size
+  /// 
+  /// Convenience method that uses getDimensions() to calculate borderRadius
+  static double getBorderRadius(CardSize size) {
+    final dimensions = getDimensions(size);
+    return calculateBorderRadius(dimensions);
+  }
+  
+  /// Get unified border radius (convenience method for placement widgets)
+  /// 
+  /// Returns border radius for UNIFIED_CARD_SIZE
+  static double getUnifiedBorderRadius() {
+    return getBorderRadius(UNIFIED_CARD_SIZE);
+  }
 }
 

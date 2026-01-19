@@ -702,22 +702,35 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           final knownCards = player['known_cards'] as Map<String, dynamic>?;
           
           // Add opponent widget wrapped in Expanded for equal width
+          // Rotate column 1 (left column, displayIndex == 0) 90 degrees clockwise
+          final opponentCard = _buildOpponentCard(
+            player, 
+            cardsToPeek, 
+            player['collection_rank_cards'] as List<dynamic>? ?? [],
+            isCurrentTurn, 
+            isGameActive, 
+            isCurrentPlayer, 
+            currentPlayerStatus,
+            knownCards,
+            isInitialPeekPhase,
+            phase, // Pass phase for timer calculation
+            timerConfig, // Pass timerConfig from game_state
+            opponentIndex: displayIndex, // Pass display index for alignment (0=left, 1=middle, 2=right)
+          );
+          
           opponentWidgets.add(
             Expanded(
-              child: _buildOpponentCard(
-                player, 
-                cardsToPeek, 
-                player['collection_rank_cards'] as List<dynamic>? ?? [],
-                isCurrentTurn, 
-                isGameActive, 
-                isCurrentPlayer, 
-                currentPlayerStatus,
-                knownCards,
-                isInitialPeekPhase,
-                phase, // Pass phase for timer calculation
-                timerConfig, // Pass timerConfig from game_state
-                opponentIndex: displayIndex, // Pass display index for alignment (0=left, 1=middle, 2=right)
-              ),
+              child: displayIndex == 0
+                  ? RotatedBox(
+                      quarterTurns: 1, // 90 degrees clockwise
+                      child: opponentCard,
+                    )
+                  : displayIndex == 2
+                      ? RotatedBox(
+                          quarterTurns: 3, // 90 degrees counter-clockwise (270 degrees clockwise)
+                          child: opponentCard,
+                        )
+                      : opponentCard,
             ),
           );
         }

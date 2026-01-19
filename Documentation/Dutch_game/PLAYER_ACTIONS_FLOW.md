@@ -993,6 +993,8 @@ When a room needs computer players (after initial delay or for practice mode):
 5. **Map Difficulty**: For each comp player, map their `rank` to YAML `difficulty` using `RankMatcher.rankToDifficulty()`
 6. **Store in Player Object**: Include `rank`, `level`, and `difficulty` in the player object for AI decision-making
 
+**Note**: Computer players use timer-based delays (40-80% of action timer) and miss chance mechanics. See [Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md) for details.
+
 ### Rank Hierarchy
 
 The system uses 10 ranks in ascending order:
@@ -1153,7 +1155,8 @@ Player ranks are mapped to YAML difficulty levels for AI behavior:
 
 **Computer Player Actions:**
 - YAML-based decision making
-- Configurable delays
+- Timer-based delays (40-80% of action timer) - see [Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md)
+- Miss chance mechanics (difficulty-based error simulation)
 - Efficient AI decision trees
 
 ---

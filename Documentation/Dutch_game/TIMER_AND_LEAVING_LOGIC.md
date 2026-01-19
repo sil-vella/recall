@@ -16,6 +16,7 @@ This document describes the complete timer system and game leaving logic in the 
 ## Related Documentation
 
 - **[Phase-Based Timer System](./PHASE_BASED_TIMER_SYSTEM.md)** - Complete documentation of the phase-based timer configuration system, timer value declaration, and priority logic
+- **[Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md)** - How computer players use timer values for decision delays and miss chance mechanics
 
 ---
 

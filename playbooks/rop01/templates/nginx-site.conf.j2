@@ -82,12 +82,29 @@ server {
     {% if item.serve_flutter_web is defined and item.serve_flutter_web %}
     # Flutter web app mode: Proxy API routes to Flask, serve Flutter files for everything else
     
-    # Proxy API routes to Flask backend (must come before catch-all location /)
-    location ~ ^/(public|userauth|keyauth|api-auth|metrics)/ {
+    # Explicit API routes - proxy known Flask routes to backend (security: only known routes)
+    # Must come before catch-all location / to ensure proper matching
+    location ~ ^/(public|userauth|api-keys|api|api-auth|metrics|actions|modules|wallet|transactions|get-db-data|test-jwt|health) {
         proxy_pass http://127.0.0.1:{{ item.backend_port }};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Fallback: Proxy routes that don't match static file patterns (catches new API routes)
+    # This matches paths that:
+    # - Have at least one character after / (excludes root path /)
+    # - Don't have common static file extensions (js, css, png, etc.)
+    # - Don't start with known static directories (assets, downloads, sponsors, sim_players, ws)
+    # - Don't match Flutter-specific files (main.dart.js, flutter.js, canvaskit, index.html)
+    # Note: This uses negative lookahead patterns to exclude static files while allowing multi-segment API routes
+    location ~ ^/(?!(assets|downloads|sponsors|sim_players|ws|main\.dart\.js|flutter\.js|canvaskit|index\.html))[^/].+(?!\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|html|json|wasm|bin|map)$) {
+        proxy_pass http://127.0.0.1:{{ item.backend_port }};
+        proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

@@ -107,10 +107,23 @@ def classify_gender_improved(image):
     
     if len(colors) < 10:
         import random
-        for _ in range(50):
-            x = random.randint(margin, width - margin - 1)
-            y = random.randint(margin, height - margin - 1)
-            colors.append(pixels[x, y])
+        # Ensure valid range for random sampling
+        x_min = max(0, margin)
+        x_max = max(x_min + 1, width - margin - 1)
+        y_min = max(0, margin)
+        y_max = max(y_min + 1, height - margin - 1)
+        
+        if x_max > x_min and y_max > y_min:
+            for _ in range(50):
+                x = random.randint(x_min, x_max)
+                y = random.randint(y_min, y_max)
+                colors.append(pixels[x, y])
+        else:
+            # Fallback: sample from entire image if margins are invalid
+            for _ in range(50):
+                x = random.randint(0, width - 1)
+                y = random.randint(0, height - 1)
+                colors.append(pixels[x, y])
     
     # Calculate statistics
     avg_r = sum(c[0] for c in colors) / len(colors)

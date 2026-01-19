@@ -4,7 +4,7 @@ import '../../../utils/platform/shared_imports.dart';
 import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for rank-based matching and debugging
+const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system and miss chance testing
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {
@@ -13,6 +13,24 @@ class ComputerPlayerFactory {
   final Logger _logger = Logger();
 
   ComputerPlayerFactory(this.config);
+  
+  /// Calculate timer-based delay (randomized between 0.4 and 0.8 of timer value)
+  /// [timerValue] The timer duration in seconds
+  /// Returns delay in seconds (between 0.4 * timerValue and 0.8 * timerValue)
+  double _calculateTimerBasedDelay(int timerValue) {
+    final minDelay = timerValue * 0.4;
+    final maxDelay = timerValue * 0.8;
+    final delay = minDelay + (_random.nextDouble() * (maxDelay - minDelay));
+    return delay;
+  }
+  
+  /// Check if computer player misses the action (doesn't play)
+  /// [difficulty] The difficulty level
+  /// Returns true if player misses (should not play), false if should play
+  bool _checkMissChance(String difficulty) {
+    final missChance = config.getMissChanceToPlay(difficulty);
+    return _random.nextDouble() < missChance;
+  }
 
   /// Create factory from YAML file
   static Future<ComputerPlayerFactory> fromFile(String configPath) async {
@@ -28,7 +46,14 @@ class ComputerPlayerFactory {
 
   /// Get computer player decision for draw card event
   Map<String, dynamic> getDrawCardDecision(String difficulty, Map<String, dynamic> gameState) {
-    final decisionDelay = config.getDecisionDelay(difficulty);
+    // Get timer config from gameState
+    final timerConfigRaw = gameState['timerConfig'] as Map<String, dynamic>?;
+    final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
+    final drawingCardTimeLimit = timerConfig['drawing_card'] ?? 5;
+    
+    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    final decisionDelay = _calculateTimerBasedDelay(drawingCardTimeLimit);
+    
     final drawFromDiscardProb = config.getDrawFromDiscardProbability(difficulty);
     
     // Simulate decision making with delay
@@ -52,13 +77,34 @@ class ComputerPlayerFactory {
     final playerName = currentPlayer?['name']?.toString() ?? 'unknown';
     final playerRank = currentPlayer?['rank']?.toString() ?? 'unknown';
     
-    _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getPlayCardDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, AvailableCards: ${availableCards.length}', isOn: LOGGING_SWITCH);
+    // Get timer config from gameState (if available) to influence decisions based on time pressure
+    final timerConfigRaw = gameState['timerConfig'] as Map<String, dynamic>?;
+    final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
+    final playingCardTimeLimit = timerConfig['playing_card'] ?? 15;
     
-    final decisionDelay = config.getDecisionDelay(difficulty);
+    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    final decisionDelay = _calculateTimerBasedDelay(playingCardTimeLimit);
+    
+    _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getPlayCardDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, AvailableCards: ${availableCards.length}, TimeLimit: ${playingCardTimeLimit}s, Delay: ${decisionDelay.toStringAsFixed(2)}s', isOn: LOGGING_SWITCH);
+    
+    // Check miss chance first (before selecting card)
+    if (_checkMissChance(difficulty)) {
+      final missChance = config.getMissChanceToPlay(difficulty);
+      _logger.info('Dutch: ⚠️ MISS CHANCE - Player $playerName missed play action (${(missChance * 100).toStringAsFixed(1)}% miss chance)', isOn: LOGGING_SWITCH);
+      return {
+        'action': 'play_card',
+        'card_id': null,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'missed': true,
+        'reasoning': 'Missed play action (${(missChance * 100).toStringAsFixed(1)}% miss chance)',
+      };
+    }
+    
     final cardSelection = config.getCardSelectionStrategy(difficulty);
     final evaluationWeights = config.getCardEvaluationWeights();
     
-    _logger.info('Dutch: 📋 YAML Config Loaded - Difficulty: $difficulty, DecisionDelay: ${decisionDelay}s, Strategy: ${cardSelection['strategy']}, Weights: $evaluationWeights', isOn: LOGGING_SWITCH);
+    _logger.info('Dutch: 📋 YAML Config Loaded - Difficulty: $difficulty, DecisionDelay: ${decisionDelay.toStringAsFixed(2)}s, Strategy: ${cardSelection['strategy']}, Weights: $evaluationWeights', isOn: LOGGING_SWITCH);
     
     if (availableCards.isEmpty) {
       _logger.warning('Dutch: DEBUG - No cards available to play', isOn: LOGGING_SWITCH);
@@ -74,7 +120,8 @@ class ComputerPlayerFactory {
     _logger.info('Dutch: DEBUG - Available cards: $availableCards', isOn: LOGGING_SWITCH);
     
     // Select card based on strategy
-    final selectedCard = _selectCard(availableCards, cardSelection, evaluationWeights, gameState);
+    // Pass timerConfig to _selectCard so it can adjust strategy based on time pressure
+    final selectedCard = _selectCard(availableCards, cardSelection, evaluationWeights, gameState, timerConfig: timerConfig);
     
     _logger.info('Dutch: ✅ AFTER YAML PARSING (getPlayCardDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, SelectedCard: $selectedCard, Strategy: ${cardSelection['strategy']}', isOn: LOGGING_SWITCH);
     
@@ -89,11 +136,33 @@ class ComputerPlayerFactory {
 
   /// Get computer player decision for same rank play event with YAML-driven intelligence
   Map<String, dynamic> getSameRankPlayDecision(String difficulty, Map<String, dynamic> gameState, List<String> availableCards) {
-    final decisionDelay = config.getDecisionDelay(difficulty);
+    // Get timer config from gameState
+    final timerConfigRaw = gameState['timerConfig'] as Map<String, dynamic>?;
+    final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
+    final sameRankTimeLimit = timerConfig['same_rank_window'] ?? 5;
+    
+    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    final decisionDelay = _calculateTimerBasedDelay(sameRankTimeLimit);
+    
+    // Check miss chance first (before checking play probability)
+    if (_checkMissChance(difficulty)) {
+      final missChance = config.getMissChanceToPlay(difficulty);
+      _logger.info('Dutch: ⚠️ MISS CHANCE - Same rank play missed (${(missChance * 100).toStringAsFixed(1)}% miss chance)', isOn: LOGGING_SWITCH);
+      return {
+        'action': 'same_rank_play',
+        'play': false,
+        'card_id': null,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'missed': true,
+        'reasoning': 'Missed same rank play (${(missChance * 100).toStringAsFixed(1)}% miss chance)',
+      };
+    }
+    
     final playProbability = config.getSameRankPlayProbability(difficulty);
     final wrongRankProbability = config.getWrongRankProbability(difficulty);
     
-    // Check if computer player will attempt to play (miss chance)
+    // Check if computer player will attempt to play (existing play probability logic)
     final shouldAttempt = _random.nextDouble() < playProbability;
     
     if (!shouldAttempt || availableCards.isEmpty) {
@@ -163,9 +232,29 @@ class ComputerPlayerFactory {
     final playerName = player['name']?.toString() ?? playerId;
     final playerRank = player['rank']?.toString() ?? 'unknown';
     
-    _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getJackSwapDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty', isOn: LOGGING_SWITCH);
+    // Get timer config from gameState
+    final timerConfigRaw = gameState['timerConfig'] as Map<String, dynamic>?;
+    final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
+    final jackSwapTimeLimit = timerConfig['jack_swap'] ?? 10;
     
-    final decisionDelay = config.getDecisionDelay(difficulty);
+    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    final decisionDelay = _calculateTimerBasedDelay(jackSwapTimeLimit);
+    
+    _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getJackSwapDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, TimeLimit: ${jackSwapTimeLimit}s, Delay: ${decisionDelay.toStringAsFixed(2)}s', isOn: LOGGING_SWITCH);
+    
+    // Check miss chance first
+    if (_checkMissChance(difficulty)) {
+      final missChance = config.getMissChanceToPlay(difficulty);
+      _logger.info('Dutch: ⚠️ MISS CHANCE - Jack swap missed (${(missChance * 100).toStringAsFixed(1)}% miss chance)', isOn: LOGGING_SWITCH);
+      return {
+        'action': 'jack_swap',
+        'use': false,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'missed': true,
+        'reasoning': 'Missed Jack swap (${(missChance * 100).toStringAsFixed(1)}% miss chance)',
+      };
+    }
     
     // Prepare game data for YAML rules engine
     final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
@@ -203,7 +292,7 @@ class ComputerPlayerFactory {
     
     _logger.info('Dutch: ✅ AFTER YAML PARSING (getJackSwapDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, Use: ${decision['use']}, Reasoning: ${decision['reasoning']}', isOn: LOGGING_SWITCH);
     
-    // Merge decision with delay and difficulty
+    // Merge decision with timer-based delay and difficulty
     return {
       'action': 'jack_swap',
       'use': decision['use'] as bool? ?? false,
@@ -228,9 +317,29 @@ class ComputerPlayerFactory {
     final playerName = player['name']?.toString() ?? playerId;
     final playerRank = player['rank']?.toString() ?? 'unknown';
     
-    _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getQueenPeekDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty', isOn: LOGGING_SWITCH);
+    // Get timer config from gameState
+    final timerConfigRaw = gameState['timerConfig'] as Map<String, dynamic>?;
+    final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
+    final queenPeekTimeLimit = timerConfig['queen_peek'] ?? 10;
     
-    final decisionDelay = config.getDecisionDelay(difficulty);
+    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    final decisionDelay = _calculateTimerBasedDelay(queenPeekTimeLimit);
+    
+    _logger.info('Dutch: 🎯 BEFORE YAML PARSING (getQueenPeekDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, TimeLimit: ${queenPeekTimeLimit}s, Delay: ${decisionDelay.toStringAsFixed(2)}s', isOn: LOGGING_SWITCH);
+    
+    // Check miss chance first
+    if (_checkMissChance(difficulty)) {
+      final missChance = config.getMissChanceToPlay(difficulty);
+      _logger.info('Dutch: ⚠️ MISS CHANCE - Queen peek missed (${(missChance * 100).toStringAsFixed(1)}% miss chance)', isOn: LOGGING_SWITCH);
+      return {
+        'action': 'queen_peek',
+        'use': false,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'missed': true,
+        'reasoning': 'Missed Queen peek (${(missChance * 100).toStringAsFixed(1)}% miss chance)',
+      };
+    }
     
     // Prepare game data for YAML rules engine
     final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
@@ -268,7 +377,7 @@ class ComputerPlayerFactory {
     
     _logger.info('Dutch: ✅ AFTER YAML PARSING (getQueenPeekDecision) - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, Use: ${decision['use']}, Reasoning: ${decision['reasoning']}', isOn: LOGGING_SWITCH);
     
-    // Merge decision with delay and difficulty
+    // Merge decision with timer-based delay and difficulty
     return {
       'action': 'queen_peek',
       'use': decision['use'] as bool? ?? false,
@@ -286,7 +395,27 @@ class ComputerPlayerFactory {
   Map<String, dynamic> getCollectFromDiscardDecision(String difficulty, Map<String, dynamic> gameState, String playerId) {
     _logger.info('Dutch: DEBUG - getCollectFromDiscardDecision called with difficulty: $difficulty, playerId: $playerId', isOn: LOGGING_SWITCH);
     
-    final decisionDelay = config.getDecisionDelay(difficulty);
+    // Get timer config from gameState (collect uses same_rank_window timer since it's part of collection phase)
+    final timerConfigRaw = gameState['timerConfig'] as Map<String, dynamic>?;
+    final timerConfig = timerConfigRaw?.map((key, value) => MapEntry(key, value is int ? value : (value as num?)?.toInt() ?? 30)) ?? <String, int>{};
+    final collectTimeLimit = timerConfig['same_rank_window'] ?? 5; // Use same_rank_window timer for collection
+    
+    // Calculate timer-based delay (0.4 to 0.8 of timer)
+    final decisionDelay = _calculateTimerBasedDelay(collectTimeLimit);
+    
+    // Check miss chance first
+    if (_checkMissChance(difficulty)) {
+      final missChance = config.getMissChanceToPlay(difficulty);
+      _logger.info('Dutch: ⚠️ MISS CHANCE - Collect from discard missed (${(missChance * 100).toStringAsFixed(1)}% miss chance)', isOn: LOGGING_SWITCH);
+      return {
+        'action': 'collect_from_discard',
+        'collect': false,
+        'delay_seconds': decisionDelay,
+        'difficulty': difficulty,
+        'missed': true,
+        'reasoning': 'Missed collect from discard (${(missChance * 100).toStringAsFixed(1)}% miss chance)',
+      };
+    }
     
     // Prepare game data for YAML rules engine (includes discard pile top card)
     final gameData = _prepareSpecialPlayGameData(gameState, playerId, difficulty);
@@ -339,7 +468,7 @@ class ComputerPlayerFactory {
     // Convert 'use' to 'collect' for consistency with existing code
     final shouldCollect = decision['use'] as bool? ?? false;
     
-    // Merge decision with delay and difficulty
+    // Merge decision with timer-based delay and difficulty
     return {
       'action': 'collect_from_discard',
       'collect': shouldCollect,
@@ -350,11 +479,21 @@ class ComputerPlayerFactory {
   }
 
   /// Select a card based on strategy and evaluation weights
-  String _selectCard(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState) {
+  /// [timerConfig] Optional timer configuration to influence decisions based on time pressure
+  String _selectCard(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState, {Map<String, int>? timerConfig}) {
     _logger.info('Dutch: DEBUG - _selectCard called with ${availableCards.length} available cards', isOn: LOGGING_SWITCH);
     
+    // Use timer config to influence decision-making based on time pressure
+    // If time is short, prefer simpler/faster strategies
+    final playingCardTimeLimit = timerConfig?['playing_card'] ?? 30;
+    final isTimePressure = playingCardTimeLimit < 10; // Less than 10 seconds = time pressure
+    
+    if (isTimePressure) {
+      _logger.info('Dutch: DEBUG - Time pressure detected (${playingCardTimeLimit}s) - using faster decision strategy', isOn: LOGGING_SWITCH);
+    }
+    
     final strategy = cardSelection['strategy'] ?? 'random';
-    _logger.info('Dutch: DEBUG - Strategy: $strategy', isOn: LOGGING_SWITCH);
+    _logger.info('Dutch: DEBUG - Strategy: $strategy, TimeLimit: ${playingCardTimeLimit}s, TimePressure: $isTimePressure', isOn: LOGGING_SWITCH);
     
     // Get current player from game state
     final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
@@ -386,14 +525,25 @@ class ComputerPlayerFactory {
     if (strategyRules.isEmpty) {
       _logger.info('Dutch: DEBUG - No YAML rules defined, using legacy logic', isOn: LOGGING_SWITCH);
       // Fallback to old logic if no YAML rules defined
-      return _selectCardLegacy(availableCards, cardSelection, evaluationWeights, gameState);
+      return _selectCardLegacy(availableCards, cardSelection, evaluationWeights, gameState, timerConfig: timerConfig);
     }
     
     // Determine if we should play optimally
-    final optimalPlayProb = _getOptimalPlayProbability(strategy);
+    // Adjust optimal play probability based on time pressure (less time = simpler decisions)
+    var optimalPlayProb = _getOptimalPlayProbability(strategy);
+    if (isTimePressure) {
+      // Reduce optimal play probability under time pressure (favor simpler/faster decisions)
+      optimalPlayProb = optimalPlayProb * 0.7; // 30% reduction in optimal play probability
+      _logger.info('Dutch: DEBUG - Time pressure: Reduced optimal play probability from ${_getOptimalPlayProbability(strategy)} to $optimalPlayProb', isOn: LOGGING_SWITCH);
+    }
     final shouldPlayOptimal = _random.nextDouble() < optimalPlayProb;
     
     _logger.info('Dutch: DEBUG - Optimal play probability: $optimalPlayProb, Should play optimal: $shouldPlayOptimal', isOn: LOGGING_SWITCH);
+    
+    // Add timer config to gameData so YAML rules engine can access it
+    gameData['timer_config'] = timerConfig;
+    gameData['time_pressure'] = isTimePressure;
+    gameData['playing_card_time_limit'] = playingCardTimeLimit;
     
     // Execute YAML rules
     final rulesEngine = YamlRulesEngine();
@@ -491,7 +641,7 @@ class ComputerPlayerFactory {
   }
   
   /// Legacy card selection (fallback if YAML rules not defined)
-  String _selectCardLegacy(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState) {
+  String _selectCardLegacy(List<String> availableCards, Map<String, dynamic> cardSelection, Map<String, double> evaluationWeights, Map<String, dynamic> gameState, {Map<String, int>? timerConfig}) {
     final strategy = cardSelection['strategy'] ?? 'random';
     
     // Get current player from game state

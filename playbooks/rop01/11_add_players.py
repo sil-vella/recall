@@ -14,6 +14,8 @@ import sys
 import os
 import argparse
 import subprocess
+import shutil
+import tempfile
 from datetime import datetime
 from typing import Dict, Any, List, Set
 from pathlib import Path
@@ -259,47 +261,54 @@ def upload_images(ssh_base: str, players_data: List[Dict[str, Any]], local_image
         print("✅ All images already exist on VPS, skipping upload")
         return
     
-    print(f"   Uploading {len(images_to_upload)} new images...")
+    print(f"   Uploading {len(images_to_upload)} new images using rsync (fast bulk transfer)...")
     
-    uploaded = 0
-    failed = 0
+    # Create temporary local directory with only files to upload
+    temp_upload_dir = tempfile.mkdtemp(prefix='player_images_')
     
-    for filename, local_path in images_to_upload.items():
-        remote_tmp = f'/tmp/{filename}'
-        remote_final = f'{VPS_IMAGE_DIR}/{filename}'
+    try:
+        # Copy files to upload to temp directory
+        for filename, local_path in images_to_upload.items():
+            shutil.copy2(local_path, os.path.join(temp_upload_dir, filename))
         
-        # Step 1: Upload to temporary location
-        scp_cmd = [
-            'scp',
-            '-i', ssh_key,
-            str(local_path),
-            f'{ssh_user}@{ssh_host}:{remote_tmp}'
+        # Use rsync for fast bulk transfer with compression and progress
+        # rsync is much faster than scp for multiple files:
+        # - Single SSH connection for all files
+        # - Compression for faster transfer
+        # - Can resume if interrupted
+        # - Only transfers what's needed
+        rsync_cmd = [
+            'rsync',
+            '-avz',  # archive mode, verbose, compress
+            '--progress',  # show progress
+            '--chmod=u=rw,go=r',  # set permissions (644 = rw-r--r--)
+            f'--rsync-path=sudo mkdir -p {VPS_IMAGE_DIR} && sudo rsync',  # ensure directory exists and use sudo
+            '-e', f'ssh -i {ssh_key}',  # SSH options
+            f'{temp_upload_dir}/',  # source directory (trailing slash = contents)
+            f'{ssh_user}@{ssh_host}:{VPS_IMAGE_DIR}/'  # destination
         ]
         
+        # After rsync, set ownership via SSH (rsync can't set ownership without root)
         try:
-            subprocess.run(scp_cmd, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            error_msg = e.stderr if isinstance(e.stderr, str) else (e.stderr.decode() if e.stderr else 'Unknown error')
-            print(f"  ❌ Failed to upload {filename}: {error_msg}", file=sys.stderr)
-            failed += 1
-            continue
-        
-        # Step 2: Move to final location and set permissions
-        ssh_cmd = f'sudo mkdir -p {VPS_IMAGE_DIR} && sudo mv {remote_tmp} {remote_final} && sudo chown www-data:www-data {remote_final} && sudo chmod 644 {remote_final}'
-        full_cmd = f'{ssh_base} "{ssh_cmd}"'
-        
-        try:
+            result = subprocess.run(rsync_cmd, check=True, capture_output=True, text=True)
+            uploaded = len(images_to_upload)
+            failed = 0
+            
+            # Set ownership and permissions for directory and files
+            # Ensure directory has proper permissions (755) and files have read permissions (644)
+            chown_cmd = f'sudo chown -R www-data:www-data {VPS_IMAGE_DIR} && sudo find {VPS_IMAGE_DIR} -type d -exec chmod 755 {{}} \\; && sudo find {VPS_IMAGE_DIR} -type f -exec chmod 644 {{}} \\;'
+            full_cmd = f'{ssh_base} "{chown_cmd}"'
             subprocess.run(full_cmd, shell=True, check=True, capture_output=True, text=True)
-            uploaded += 1
-            if uploaded % 10 == 0:
-                print(f"   Progress: {uploaded}/{len(images_to_upload)} uploaded...")
+            
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr if isinstance(e.stderr, str) else (e.stderr.decode() if e.stderr else 'Unknown error')
-            print(f"  ❌ Failed to move {filename} to final location: {error_msg}", file=sys.stderr)
-            # Try to clean up temp file
-            cleanup_cmd = f'{ssh_base} "rm -f {remote_tmp}"'
-            subprocess.run(cleanup_cmd, shell=True, check=False)
-            failed += 1
+            print(f"  ❌ Failed to upload images: {error_msg}", file=sys.stderr)
+            uploaded = 0
+            failed = len(images_to_upload)
+    
+    finally:
+        # Clean up temporary directory
+        shutil.rmtree(temp_upload_dir, ignore_errors=True)
     
     print(f"\n✅ Image upload complete: {uploaded} uploaded, {failed} failed")
     if uploaded > 0:

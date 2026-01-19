@@ -111,7 +111,15 @@
         loop_var: item
       when: domains | length > 0
 
-    - name: Create default index.html for each domain
+    - name: Check if index.html exists for each domain
+      stat:
+        path: "{{ item.root_dir | default('/var/www/' + item.domain) }}/index.html"
+      register: index_html_stat
+      loop: "{{ domains }}"
+      loop_control:
+        loop_var: item
+
+    - name: Create default index.html for each domain (only if it doesn't exist)
       copy:
         content: |
           <!DOCTYPE html>
@@ -126,14 +134,16 @@
               <p>This site is under construction.</p>
           </body>
           </html>
-        dest: "{{ item.root_dir | default('/var/www/' + item.domain) }}/index.html"
+        dest: "{{ item.item.root_dir | default('/var/www/' + item.item.domain) }}/index.html"
         owner: "{{ nginx_user }}"
         group: "{{ nginx_user }}"
         mode: '0644'
-      loop: "{{ domains }}"
+      loop: "{{ index_html_stat.results }}"
       loop_control:
         loop_var: item
-      when: domains | length > 0
+      when: 
+        - domains | length > 0
+        - not item.stat.exists
 
     - name: Create basic Nginx configuration for each domain
       template:

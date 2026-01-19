@@ -11,6 +11,8 @@ The multiplayer game system uses real computer player users from the database in
 5. **Rank-to-difficulty mapping** for AI behavior configuration
 6. **Level and rank fields** stored in player data and game state
 7. **Profile picture support** - comp players include `profile_picture` URLs in player data, displayed in the unified game board widget
+8. **Timer-based delay system** - AI decision delays adapt to game phase timers (see [Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md))
+9. **Miss chance mechanics** - Difficulty-based probability of missing actions (see [Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md))
 
 ## Database Changes
 

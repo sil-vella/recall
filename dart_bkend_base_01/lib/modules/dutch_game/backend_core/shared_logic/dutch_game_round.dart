@@ -9,7 +9,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for timer configuration testing
+const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system and miss chance testing
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -715,6 +715,20 @@ class DutchGameRound {
           break;
           
         case 'play_card':
+          final missed = decision['missed'] as bool? ?? false;
+          if (missed) {
+            _logger.info('Dutch: Computer player $playerId missed play action (miss chance)', isOn: LOGGING_SWITCH);
+            // Increment missed action counter
+            _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
+            _logger.info('Dutch: Player $playerId missed action count: ${_missedActionCounts[playerId]}', isOn: LOGGING_SWITCH);
+            // Check if threshold reached (2 missed actions)
+            if (_missedActionCounts[playerId] == 2) {
+              _onMissedActionThresholdReached(playerId);
+            }
+            _moveToNextPlayer();
+            break;
+          }
+          
           final cardId = decision['card_id'] as String?;
           if (cardId != null) {
             // CRITICAL: Pass playerId to handlePlayCard to prevent stale state issues
@@ -736,6 +750,14 @@ class DutchGameRound {
           break;
           
         case 'same_rank_play':
+          final missed = decision['missed'] as bool? ?? false;
+          if (missed) {
+            _logger.info('Dutch: Computer player $playerId missed same rank play (miss chance)', isOn: LOGGING_SWITCH);
+            // Move to next player (same rank window continues for other players)
+            _moveToNextPlayer();
+            break;
+          }
+          
           final shouldPlay = decision['play'] as bool? ?? false;
           if (shouldPlay) {
             final cardId = decision['card_id'] as String?;
@@ -757,6 +779,15 @@ class DutchGameRound {
           break;
           
         case 'jack_swap':
+          final missed = decision['missed'] as bool? ?? false;
+          if (missed) {
+            _logger.info('Dutch: Computer player $playerId missed Jack swap (miss chance)', isOn: LOGGING_SWITCH);
+            // Reset status and move to next player
+            _updatePlayerStatusInGamesMap('waiting', playerId: playerId);
+            _moveToNextPlayer();
+            break;
+          }
+          
           final shouldUse = decision['use'] as bool? ?? false;
           if (shouldUse) {
             final success = await handleJackSwap(
@@ -776,6 +807,15 @@ class DutchGameRound {
           break;
           
         case 'queen_peek':
+          final missed = decision['missed'] as bool? ?? false;
+          if (missed) {
+            _logger.info('Dutch: Computer player $playerId missed Queen peek (miss chance)', isOn: LOGGING_SWITCH);
+            // Reset status and move to next player
+            _updatePlayerStatusInGamesMap('waiting', playerId: playerId);
+            _moveToNextPlayer();
+            break;
+          }
+          
           final shouldUse = decision['use'] as bool? ?? false;
           if (shouldUse) {
             final success = await handleQueenPeek(
@@ -794,6 +834,14 @@ class DutchGameRound {
           break;
           
         case 'collect_from_discard':
+          final missed = decision['missed'] as bool? ?? false;
+          if (missed) {
+            _logger.info('Dutch: Computer player $playerId missed collect from discard (miss chance)', isOn: LOGGING_SWITCH);
+            // Move to next player (collection skipped)
+            _moveToNextPlayer();
+            break;
+          }
+          
           final shouldCollect = decision['collect'] as bool? ?? false;
           if (shouldCollect) {
             // DEBUG: Log the playerId being passed to handleCollectFromDiscard

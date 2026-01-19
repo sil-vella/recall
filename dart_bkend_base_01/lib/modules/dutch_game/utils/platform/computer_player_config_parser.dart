@@ -148,6 +148,13 @@ class ComputerPlayerConfig {
     return (probabilities[difficulty] ?? 0.0).toDouble();
   }
   
+  /// Get miss chance to play for a difficulty level
+  /// Returns probability of NOT playing when action is available (0.0 to 1.0)
+  double getMissChanceToPlay(String difficulty) {
+    final missChances = computerSettings['miss_chance_to_play'] ?? {};
+    return (missChances[difficulty] ?? 0.0).toDouble();
+  }
+  
   /// Get card evaluation weights for play_card event
   Map<String, double> getCardEvaluationWeights() {
     final playCardConfig = getEventConfig('play_card');

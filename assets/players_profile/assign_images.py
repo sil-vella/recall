@@ -70,10 +70,36 @@ def assign_and_rename_images():
     with open(json_path, 'r') as f:
         players = json.load(f)
     
-    # Get first 171 players
-    first_171 = players[:171]
+    # Check which images already exist
+    existing_images = set()
+    if os.path.exists(target_dir):
+        for f in os.listdir(target_dir):
+            if f.startswith('img') and f.endswith('.jpg'):
+                existing_images.add(f)
     
-    print(f"Processing first {len(first_171)} players...\n")
+    # Find the highest existing image number
+    max_existing = -1
+    for img_file in existing_images:
+        match = re.search(r'img(\d+)\.jpg', img_file)
+        if match:
+            max_existing = max(max_existing, int(match.group(1)))
+    
+    # Process all players, but skip those that already have images
+    print(f"Total players in JSON: {len(players)}")
+    print(f"Existing images found: {len(existing_images)} (up to img{max_existing:03d}.jpg)\n")
+    
+    # Filter to only players that don't have images yet
+    players_to_process = []
+    for i, player in enumerate(players):
+        picture_url = player.get('picture', '')
+        img_match = re.search(r'img(\d+)\.jpg', picture_url)
+        if img_match:
+            img_number = int(img_match.group(1))
+            target_filename = f"img{str(img_number).zfill(3)}.jpg"
+            if target_filename not in existing_images:
+                players_to_process.append((i, player, img_number))
+    
+    print(f"Players needing images: {len(players_to_process)}\n")
     
     # Count available images
     available_male = len([f for f in os.listdir(source_dir) if f.startswith('male') and f.endswith('.jpg')])
@@ -89,19 +115,10 @@ def assign_and_rename_images():
     assignments = []
     errors = []
     
-    # First pass: create assignments
-    for i, player in enumerate(first_171):
+    # First pass: create assignments for players that need images
+    for i, player, img_number in players_to_process:
         first_name = player.get('first_name', '')
         last_name = player.get('last_name', '')
-        picture_url = player.get('picture', '')
-        
-        # Extract image number from URL
-        img_match = re.search(r'img(\d+)\.jpg', picture_url)
-        if not img_match:
-            errors.append(f"Player {i}: {first_name} {last_name} - No img number in URL")
-            continue
-        
-        img_number = int(img_match.group(1))
         target_filename = f"img{str(img_number).zfill(3)}.jpg"
         
         # Determine gender
@@ -143,6 +160,7 @@ def assign_and_rename_images():
     print("Copying and renaming images...\n")
     
     copied = 0
+    skipped = 0
     failed = 0
     
     for assignment in assignments:
@@ -152,6 +170,13 @@ def assign_and_rename_images():
         if not os.path.exists(source_path):
             print(f"⚠️  Source not found: {assignment['source']} (for {assignment['player']})")
             failed += 1
+            continue
+        
+        # Skip if target already exists (don't overwrite existing images)
+        if os.path.exists(target_path):
+            skipped += 1
+            if skipped <= 5 or skipped % 20 == 0:
+                print(f"  ⏭️  Skipping {assignment['target']} (already exists)")
             continue
         
         # Copy and rename
@@ -168,6 +193,7 @@ def assign_and_rename_images():
     print(f"✅ Complete!")
     print(f"{'='*60}")
     print(f"  Images copied: {copied}")
+    print(f"  Images skipped (already exist): {skipped}")
     print(f"  Failed: {failed}")
     print(f"  Saved to: {target_dir}/")
     print(f"\n  Images are named: img000.jpg to img{str(len(assignments)-1).zfill(3)}.jpg")

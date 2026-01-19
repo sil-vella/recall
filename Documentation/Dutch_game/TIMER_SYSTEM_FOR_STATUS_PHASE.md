@@ -313,6 +313,7 @@ The `timerConfig` field is part of `game_state` schema:
 - [Timer and Leaving Logic](./TIMER_AND_LEAVING_LOGIC.md) - Detailed timer lifecycle and leaving scenarios
 - [State Management](./STATE_MANAGEMENT.md) - Complete game state schema including timerConfig
 - [Player Actions Flow](./PLAYER_ACTIONS_FLOW.md) - How timers interact with player actions
+- [Computer Player Delay System](./COMPUTER_PLAYER_DELAY_SYSTEM.md) - How computer players use timer values for decision delays
 
 ## Summary
 

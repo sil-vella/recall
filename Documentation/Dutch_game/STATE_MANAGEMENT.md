@@ -822,7 +822,7 @@ ListenableBuilder(
   listenable: StateManager(),
   builder: (context, child) {
     // Read state
-    final state = StateManager().getModuleState<Map<String, dynamic>>('cleco_game') ?? {};
+    final state = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
     
     // Read from slice
     final myHand = state['myHand'] as Map<String, dynamic>? ?? {};
@@ -839,6 +839,267 @@ ListenableBuilder(
 - When `StateManager.notifyListeners()` is called, all listeners rebuild
 - Widgets read from computed slices, not raw state
 - Only widgets with changed dependencies rebuild (efficiency)
+
+---
+
+## Unified Widget Inner Widgets Update System
+
+### Overview
+
+The `UnifiedGameBoardWidget` is the main container that combines multiple game widgets. It uses a hierarchical listening pattern where:
+
+1. **Main Widget Level**: The root `UnifiedGameBoardWidget` wraps everything in a `ListenableBuilder` listening to `StateManager()`
+2. **Inner Widget Level**: Each inner widget section reads from specific state slices computed by `DutchGameStateUpdater`
+3. **Slice Computation**: Slices are recomputed only when their dependencies change
+
+### Main Widget Structure
+
+```dart
+@override
+Widget build(BuildContext context) {
+  return ListenableBuilder(
+    listenable: StateManager(),  // ← Listens to ALL state changes
+    builder: (context, child) {
+      return Column(
+        children: [
+          _buildOpponentsPanel(),  // ← Reads from 'opponentsPanel' slice
+          _buildGameBoard(),        // ← Reads from 'centerBoard' slice
+          _buildMyHand(),          // ← Reads from 'myHand' slice
+        ],
+      );
+    },
+  );
+}
+```
+
+**When Main Widget Rebuilds:**
+- **Trigger**: Any change to `StateManager` module state `'dutch_game'`
+- **Frequency**: Every time `StateManager.notifyListeners()` is called
+- **Scope**: Entire widget tree rebuilds, but inner widgets read from slices
+
+### Inner Widgets and Their State Slices
+
+#### 1. Opponents Panel (`_buildOpponentsPanel()`)
+
+**State Slice**: `state['opponentsPanel']`
+
+**Reads From Slice:**
+```dart
+final opponentsPanel = dutchGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
+final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
+final currentTurnIndex = opponentsPanel['currentTurnIndex'] ?? -1;
+```
+
+**Also Reads Directly:**
+- `state['myCardsToPeek']` - For Queen peek functionality
+- `state['playerStatus']` - Current user's status
+- `state['isGameActive']` - Game active flag
+- `state['currentPlayer']` - Current player data (in nested ListenableBuilder)
+- `state['gamePhase']` - Game phase
+- `state['games'][gameId]['gameData']['game_state']` - For timer config and phase
+
+**Dependencies** (from `_widgetDependencies`):
+```dart
+'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'turn_events'}
+```
+
+**When Slice Recomputes:**
+- When `currentGameId` changes
+- When `games` map changes (any game data update)
+- When `currentPlayer` changes (turn changes)
+- When `turn_events` changes (animation events)
+
+**Slice Computation Method**: `_computeOpponentsPanelSlice()`
+- Extracts opponents from `game_state['players']` (filters out current user)
+- Finds current player index in reordered opponents list
+- Includes `turn_events` for animations
+- Computes `currentPlayerStatus` from SSOT
+
+**Nested ListenableBuilder:**
+- `_buildOpponentsGrid()` has its own `ListenableBuilder` for fine-grained updates
+- Reads `currentPlayer`, `gamePhase`, and timer config on each rebuild
+
+---
+
+#### 2. Center Board (`_buildGameBoard()`)
+
+**Contains**: Draw Pile, Match Pot, Discard Pile widgets
+
+**State Slice**: `state['centerBoard']`
+
+**Draw Pile Widget (`_buildDrawPile()`):**
+- **Reads Directly** (not from slice):
+  - `state['games'][gameId]['gameData']['game_state']['drawPile']` - Full draw pile list
+  - `state['myHand']['playerStatus']` - For drawing status glow effect
+
+**Discard Pile Widget (`_buildDiscardPile()`):**
+- **Reads Directly**:
+  - `state['games'][gameId]['gameData']['game_state']['discardPile']` - Full discard pile list
+
+**Match Pot Widget (`_buildMatchPot()`):**
+- **Reads From Slice**:
+  ```dart
+  final centerBoard = dutchGameState['centerBoard'] as Map<String, dynamic>? ?? {};
+  final matchPot = centerBoard['matchPot'] as int? ?? 0;
+  ```
+
+**Dependencies** (from `_widgetDependencies`):
+```dart
+'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'}
+```
+
+**When Slice Recomputes:**
+- When `currentGameId` changes
+- When `games` map changes
+- When `gamePhase` changes
+- When `isGameActive` changes
+- When `discardPile` changes (in main state)
+- When `drawPile` changes (in main state)
+
+**Slice Computation Method**: `_computeCenterBoardSlice()`
+- Extracts `drawPileCount` from `game_state['drawPile']`
+- Gets `topDiscard` from `game_state['discardPile']` (last card)
+- Converts `topDraw` from ID-only to full card data (lookup in `originalDeck`)
+- Computes `canDrawFromDeck` and `canTakeFromDiscard` flags
+- Extracts `matchPot` from `game_state['match_pot']`
+- Computes `playerStatus` from SSOT
+
+**Note**: Draw and Discard Pile widgets read directly from `game_state` (SSOT) rather than the slice, but they still rebuild when the slice recomputes because the main widget listens to all state changes.
+
+---
+
+#### 3. My Hand (`_buildMyHand()`)
+
+**State Slice**: `state['myHand']`
+
+**Reads From Slice:**
+```dart
+final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
+final cards = myHand['cards'] as List<dynamic>? ?? [];
+final selectedIndex = myHand['selectedIndex'] ?? -1;
+final playerStatus = myHand['playerStatus']?.toString() ?? 'unknown';
+```
+
+**Also Reads Directly:**
+- `state['myCardsToPeek']` - Cards available to peek (with 5-second protection)
+- `state['protectedCardsToPeek']` - Protected cardsToPeek data
+- `state['protectedCardsToPeekTimestamp']` - Protection timestamp
+- `state['isGameActive']` - Game active flag
+- `state['isMyTurn']` - Whether it's current user's turn
+- `state['games'][gameId]['gameData']['game_state']` - For timer config, phase, final round status
+- `state['actionError']` - Action error messages
+
+**Dependencies** (from `_widgetDependencies`):
+```dart
+'myHand': {'currentGameId', 'games', 'isMyTurn', 'turn_events'}
+```
+
+**When Slice Recomputes:**
+- When `currentGameId` changes
+- When `games` map changes (any game data update)
+- When `isMyTurn` changes (turn changes)
+- When `turn_events` changes (animation events)
+
+**Slice Computation Method**: `_computeMyHandSlice()`
+- Extracts cards from `games[gameId]['myHandCards']` (derived from SSOT)
+- Gets `selectedIndex` from `games[gameId]['selectedCardIndex']`
+- Computes `canSelectCards` based on `isMyTurn` and `canPlayCard`
+- Includes `turn_events` for animations
+- Computes `playerStatus` from SSOT
+
+**Card Selection Updates:**
+- Card selection is updated **directly** via `StateManager.updateModuleState()` when user taps a card
+- Updates both `games[gameId]['selectedCardIndex']` and `myHand['selectedIndex']` slice
+- This triggers immediate UI update without waiting for backend response
+
+---
+
+### State Update Flow for Inner Widgets
+
+**Complete Flow:**
+
+```
+1. Backend Event Received
+   ↓
+2. DutchEventHandlerCallbacks.handleGameStateUpdated()
+   ↓
+3. Updates games map with new game_state (SSOT)
+   ↓
+4. _syncWidgetStatesFromGameState() extracts widget data
+   ↓
+5. DutchGameHelpers.updateUIState() called
+   ↓
+6. DutchGameStateUpdater.updateState() called
+   ↓
+7. StateQueueValidator validates and queues update
+   ↓
+8. DutchGameStateUpdater._applyValidatedUpdates() called
+   ↓
+9. _updateWidgetSlices() checks changed fields
+   ↓
+10. For each slice with changed dependencies:
+    - Calls _compute*Slice() method
+    - Extracts data from SSOT (game_state)
+    - Computes derived values
+    - Returns new slice map
+   ↓
+11. StateManager.updateModuleState('dutch_game', updatedState)
+   ↓
+12. StateManager.notifyListeners() called (via Future.microtask)
+   ↓
+13. All ListenableBuilder widgets rebuild:
+    - Main UnifiedGameBoardWidget rebuilds
+    - Inner widgets read from updated slices
+    - UI updates reflect new state
+```
+
+### Slice Computation Timing
+
+**When Slices Are Computed:**
+
+1. **On State Update**: Slices are recomputed in `_updateWidgetSlices()` when their dependencies change
+2. **Dependency Check**: Only slices whose dependencies are in the `changedFields` set are recomputed
+3. **Efficiency**: Unchanged slices keep their previous reference (equality check prevents unnecessary rebuilds)
+
+**Example:**
+```dart
+// If only 'isMyTurn' changes:
+changedFields = {'isMyTurn'}
+
+// Check dependencies:
+'myHand' depends on {'currentGameId', 'games', 'isMyTurn', 'turn_events'}
+// 'isMyTurn' is in dependencies → recompute myHand slice
+
+'centerBoard' depends on {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'}
+// 'isMyTurn' NOT in dependencies → skip centerBoard slice
+```
+
+### Direct State Reads vs Slice Reads
+
+**Widgets That Read Directly from SSOT:**
+- **Draw Pile**: Reads `game_state['drawPile']` directly (needs full list for stacking effect)
+- **Discard Pile**: Reads `game_state['discardPile']` directly (needs full list)
+- **Opponents Panel**: Reads `game_state['players']` for timer config and phase
+- **My Hand**: Reads `game_state` for timer config, phase, final round status
+
+**Why Direct Reads:**
+- Some widgets need data not included in slices (e.g., full pile lists for animations)
+- Timer configuration is stored in `game_state['timerConfig']` (not in slices)
+- Phase information needed for conditional rendering
+
+**Widgets That Read Only from Slices:**
+- **Match Pot**: Reads `centerBoard['matchPot']` from slice
+- **Action Bar**: Reads `actionBar` slice (not in unified widget, but follows same pattern)
+- **Status Bar**: Reads `statusBar` slice (not in unified widget, but follows same pattern)
+
+### Key Takeaways
+
+1. **Main Widget Listens to All Changes**: The root `ListenableBuilder` rebuilds on any state change
+2. **Slices Are Computed On-Demand**: Only when dependencies change
+3. **Efficient Rebuilds**: Unchanged slices keep same reference, preventing unnecessary widget rebuilds
+4. **SSOT is Source**: All slice computation reads from `games[gameId]['gameData']['game_state']` (SSOT)
+5. **Mixed Reading Pattern**: Some widgets read from slices, others read directly from SSOT for specific needs
+6. **Nested Listeners**: Some inner widgets have their own `ListenableBuilder` for fine-grained updates
 
 ---
 

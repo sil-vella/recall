@@ -168,7 +168,9 @@ class StateQueueValidator {
     'games': DutchStateFieldSpec(
       type: Map,
       defaultValue: {},
-      description: 'Map of games by ID with their complete state data',
+      description: 'Map of games by ID with their complete state data. '
+          'Note: Player objects in game_state[\'players\'] may contain optional \'action\' and \'actionData\' fields '
+          'for animation tracking (e.g., \'drawn_card\', \'play_card\', \'same_rank\', \'jack_swap\').',
     ),
     
     // Room Lists

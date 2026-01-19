@@ -11,17 +11,12 @@ import '../../../managers/player_action.dart';
 import '../../../../../tools/logging/logger.dart';
 import '../../../../dutch_game/managers/dutch_event_handler_callbacks.dart';
 import '../../../../../utils/consts/theme_consts.dart';
-import '../../../utils/card_position_scanner.dart';
-import '../../../utils/card_animation_detector.dart';
 import '../../demo/demo_functionality.dart';
 
 const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
 
 /// Unified widget that combines OpponentsPanelWidget, DrawPileWidget, 
 /// DiscardPileWidget, MatchPotWidget, and MyHandWidget into a single widget.
-/// 
-/// This widget maintains all existing logic and layout structure while
-/// providing a unified coordinate system for future animation implementation.
 class UnifiedGameBoardWidget extends StatefulWidget {
   const UnifiedGameBoardWidget({Key? key}) : super(key: key);
 
@@ -55,37 +50,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   Timer? _myHandCardsToPeekProtectionTimer;
   String? _previousPlayerStatus; // Track previous status to detect transitions
   
-  // ========== Animation System State ==========
+  // ========== Card Keys (for widget identification) ==========
   /// Map of cardId -> GlobalKey for all cards (reused across rebuilds)
   final Map<String, GlobalKey> _cardKeys = {};
   
-  /// GlobalKey for myhand section (used for measuring height in overlays)
+  /// GlobalKey for myhand section
   final GlobalKey _myHandKey = GlobalKey(debugLabel: 'my_hand_section');
   
-  /// GlobalKey for game board section (used for measuring height in overlays)
+  /// GlobalKey for game board section
   final GlobalKey _gameBoardKey = GlobalKey(debugLabel: 'game_board_section');
-  
-  /// CardPositionScanner instance
-  final CardPositionScanner _positionScanner = CardPositionScanner();
-  
-  /// CardAnimationDetector instance
-  final CardAnimationDetector _animationDetector = CardAnimationDetector();
-  
-  // ========== Position Scanning Optimization State ==========
-  /// Previous card-related state snapshot for change detection
-  Map<String, dynamic>? _previousCardState;
-  
-  /// Flag to prevent multiple scans in the same frame
-  bool _isScanScheduled = false;
-  
-  /// Timer for throttling scans (max once per 100ms)
-  Timer? _scanThrottleTimer;
-  
-  /// Last scan timestamp for throttling
-  DateTime _lastScanTime = DateTime(0);
-  
-  /// Minimum time between scans (100ms)
-  static const Duration _minScanInterval = Duration(milliseconds: 100);
 
   @override
   void initState() {
@@ -109,8 +82,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   void dispose() {
     _cardsToPeekProtectionTimer?.cancel();
     _myHandCardsToPeekProtectionTimer?.cancel();
-    _scanThrottleTimer?.cancel();
-    _positionScanner.clearPositions();
     _glowAnimationController?.dispose();
     super.dispose();
   }
@@ -120,9 +91,6 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
-        // Check if card-related state changed and schedule scan if needed
-        _checkAndScheduleScan();
-        
         return LayoutBuilder(
           builder: (context, constraints) {
             // New layout: Opponents spread evenly, Game Board above My Hand
@@ -152,388 +120,15 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     );
   }
   
-  // ========== Animation System Methods ==========
+  // ========== Card Key Management ==========
   
-  /// Get or create GlobalKey for a card
+  /// Get or create GlobalKey for a card (for widget identification)
   GlobalKey _getOrCreateCardKey(String cardId, String keyType) {
     final key = '${keyType}_$cardId';
     if (!_cardKeys.containsKey(key)) {
       _cardKeys[key] = GlobalKey(debugLabel: key);
     }
     return _cardKeys[key]!;
-  }
-  
-  /// Check if card-related state changed and schedule scan if needed
-  /// Optimization 1: Only scan when card-related state changes
-  void _checkAndScheduleScan() {
-    if (!mounted) return;
-    
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-    
-    // Extract card-related state for comparison
-    final currentCardState = _extractCardRelatedState(dutchGameState);
-    
-    // Check if game changed (new game started/ended)
-    if (_previousCardState != null && 
-        _previousCardState!['currentGameId'] != currentCardState['currentGameId']) {
-      // Game changed - clear previous state and positions
-      _logger.info('🎬 UnifiedGameBoardWidget: Game changed, clearing previous state', isOn: LOGGING_SWITCH);
-      _previousCardState = null;
-      _positionScanner.clearPositions();
-    }
-    
-    // Check if card-related state actually changed
-    if (_previousCardState != null && _statesAreEqual(_previousCardState!, currentCardState)) {
-      // No card-related changes, skip scan
-      return;
-    }
-    
-    // State changed, update previous and schedule scan
-    _previousCardState = currentCardState;
-    
-    // Optimization 2 & 3: Throttle scans and use dirty flag
-    _scheduleThrottledScan();
-  }
-  
-  /// Extract only card-related state for change detection
-  Map<String, dynamic> _extractCardRelatedState(Map<String, dynamic> fullState) {
-    final currentGameId = fullState['currentGameId']?.toString() ?? '';
-    final games = fullState['games'] as Map<String, dynamic>? ?? {};
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-    
-    // Extract card-related fields
-    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
-    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
-    
-    // Extract my hand
-    final myHand = fullState['myHand'] as Map<String, dynamic>? ?? {};
-    final myHandCards = myHand['cards'] as List<dynamic>? ?? [];
-    
-    // Extract opponents hands
-    final opponentsPanel = fullState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-    final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
-    final opponentsHands = opponents.map((opponent) {
-      if (opponent is Map<String, dynamic>) {
-        final hand = opponent['hand'] as List<dynamic>? ?? [];
-        return {
-          'id': opponent['id']?.toString(),
-          'hand': hand.map((card) {
-            if (card is Map<String, dynamic>) {
-              return card['cardId']?.toString();
-            }
-            return null;
-          }).where((id) => id != null).toList(),
-        };
-      }
-      return null;
-    }).where((o) => o != null).toList();
-    
-    return {
-      'currentGameId': currentGameId,
-      'drawPile': drawPile.map((card) {
-        if (card is Map<String, dynamic>) {
-          return card['cardId']?.toString();
-        }
-        return null;
-      }).where((id) => id != null).toList(),
-      'discardPile': discardPile.map((card) {
-        if (card is Map<String, dynamic>) {
-          return card['cardId']?.toString();
-        }
-        return null;
-      }).where((id) => id != null).toList(),
-      'myHand': myHandCards.map((card) {
-        if (card is Map<String, dynamic>) {
-          return card['cardId']?.toString();
-        }
-        return null;
-      }).where((id) => id != null).toList(),
-      'opponentsHands': opponentsHands,
-    };
-  }
-  
-  /// Compare two state maps for equality
-  bool _statesAreEqual(Map<String, dynamic> state1, Map<String, dynamic> state2) {
-    // Compare currentGameId
-    if (state1['currentGameId'] != state2['currentGameId']) {
-      return false;
-    }
-    
-    // Compare drawPile
-    final drawPile1 = state1['drawPile'] as List? ?? [];
-    final drawPile2 = state2['drawPile'] as List? ?? [];
-    if (!_listsEqual(drawPile1, drawPile2)) {
-      return false;
-    }
-    
-    // Compare discardPile
-    final discardPile1 = state1['discardPile'] as List? ?? [];
-    final discardPile2 = state2['discardPile'] as List? ?? [];
-    if (!_listsEqual(discardPile1, discardPile2)) {
-      return false;
-    }
-    
-    // Compare myHand
-    final myHand1 = state1['myHand'] as List? ?? [];
-    final myHand2 = state2['myHand'] as List? ?? [];
-    if (!_listsEqual(myHand1, myHand2)) {
-      return false;
-    }
-    
-    // Compare opponentsHands
-    final opponents1 = state1['opponentsHands'] as List? ?? [];
-    final opponents2 = state2['opponentsHands'] as List? ?? [];
-    if (opponents1.length != opponents2.length) {
-      return false;
-    }
-    
-    for (int i = 0; i < opponents1.length; i++) {
-      final opp1 = opponents1[i] as Map<String, dynamic>?;
-      final opp2 = opponents2[i] as Map<String, dynamic>?;
-      if (opp1 == null || opp2 == null) {
-        if (opp1 != opp2) return false;
-        continue;
-      }
-      if (opp1['id'] != opp2['id']) {
-        return false;
-      }
-      final hand1 = opp1['hand'] as List? ?? [];
-      final hand2 = opp2['hand'] as List? ?? [];
-      if (!_listsEqual(hand1, hand2)) {
-        return false;
-      }
-    }
-    
-    return true;
-  }
-  
-  /// Compare two lists for equality (order-sensitive)
-  bool _listsEqual(List list1, List list2) {
-    if (list1.length != list2.length) {
-      return false;
-    }
-    for (int i = 0; i < list1.length; i++) {
-      if (list1[i] != list2[i]) {
-        return false;
-      }
-    }
-    return true;
-  }
-  
-  /// Schedule a throttled scan (Optimization 2: Throttle scans)
-  void _scheduleThrottledScan() {
-    // Cancel any pending throttle timer
-    _scanThrottleTimer?.cancel();
-    
-    final now = DateTime.now();
-    final timeSinceLastScan = now.difference(_lastScanTime);
-    
-    // If enough time has passed, scan immediately
-    if (timeSinceLastScan >= _minScanInterval) {
-      _lastScanTime = now;
-      _scheduleScan();
-      return;
-    }
-    
-    // Otherwise, schedule scan after remaining time
-    final remainingTime = _minScanInterval - timeSinceLastScan;
-    _scanThrottleTimer = Timer(remainingTime, () {
-      _lastScanTime = DateTime.now();
-      _scheduleScan();
-    });
-  }
-  
-  /// Schedule scan using PostFrameCallback (Optimization 3: Dirty flag)
-  void _scheduleScan() {
-    // Prevent multiple scans in the same frame
-    if (_isScanScheduled) {
-      _logger.debug('🎬 UnifiedGameBoardWidget: Scan already scheduled for this frame', isOn: LOGGING_SWITCH);
-      return;
-    }
-    
-    _isScanScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _isScanScheduled = false;
-      _scanCardPositions();
-    });
-  }
-  
-  /// Scan all card positions after build
-  void _scanCardPositions() {
-    if (!mounted) return;
-    
-    _logger.info('🎬 UnifiedGameBoardWidget: Starting position scan', isOn: LOGGING_SWITCH);
-    
-    final dutchGameState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-    final Map<String, CardKeyData> cardKeys = {};
-    
-    // Collect all card keys with metadata
-    
-    // 1. Draw Pile - Track all cards in draw pile
-    final currentGameId = dutchGameState['currentGameId']?.toString() ?? '';
-    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-    final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-    final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-    final drawPile = gameState['drawPile'] as List<dynamic>? ?? [];
-    
-    if (drawPile.isEmpty) {
-      // Empty draw pile - track placeholder
-      final emptyKey = _getOrCreateCardKey('draw_pile_empty', 'draw_pile');
-      cardKeys['draw_pile_empty'] = CardKeyData(
-        key: emptyKey,
-        location: 'draw_pile',
-        isFaceUp: false,
-      );
-    } else {
-      for (final cardData in drawPile) {
-        if (cardData is Map<String, dynamic>) {
-          final cardId = cardData['cardId']?.toString();
-          if (cardId != null && cardId.isNotEmpty) {
-            final cardKey = _getOrCreateCardKey(cardId, 'draw_pile');
-            cardKeys[cardId] = CardKeyData(
-              key: cardKey,
-              location: 'draw_pile',
-              isFaceUp: false,
-            );
-          }
-        }
-      }
-    }
-    
-    // 2. Discard Pile - Track all cards in discard pile
-    final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
-    
-    if (discardPile.isEmpty) {
-      // Empty discard pile
-      final emptyKey = _getOrCreateCardKey('discard_pile_empty', 'discard_pile');
-      cardKeys['discard_pile_empty'] = CardKeyData(
-        key: emptyKey,
-        location: 'discard_pile',
-        isFaceUp: true,
-      );
-    } else {
-      for (final cardData in discardPile) {
-        if (cardData is Map<String, dynamic>) {
-          final cardId = cardData['cardId']?.toString();
-          if (cardId != null && cardId.isNotEmpty) {
-            final cardKey = _getOrCreateCardKey(cardId, 'discard_pile');
-            cardKeys[cardId] = CardKeyData(
-              key: cardKey,
-              location: 'discard_pile',
-              isFaceUp: true,
-            );
-          }
-        }
-      }
-    }
-    
-    // 3. Opponent Cards
-    final opponentsPanel = dutchGameState['opponentsPanel'] as Map<String, dynamic>? ?? {};
-    final opponents = opponentsPanel['opponents'] as List<dynamic>? ?? [];
-    final cardsToPeekFromState = dutchGameState['myCardsToPeek'] as List<dynamic>? ?? [];
-    final cardsToPeek = _isCardsToPeekProtected && _protectedCardsToPeek != null
-        ? _protectedCardsToPeek!
-        : cardsToPeekFromState;
-    
-    for (final opponent in opponents) {
-      if (opponent is Map<String, dynamic>) {
-        final playerId = opponent['id']?.toString() ?? '';
-        final hand = opponent['hand'] as List<dynamic>? ?? [];
-        final drawnCard = opponent['drawnCard'] as Map<String, dynamic>?;
-        final playerCollectionRankCards = opponent['collection_rank_cards'] as List<dynamic>? ?? [];
-        
-        for (int i = 0; i < hand.length; i++) {
-          final card = hand[i];
-          if (card == null) continue;
-          final cardMap = card as Map<String, dynamic>;
-          final cardId = cardMap['cardId']?.toString();
-          if (cardId == null) continue;
-          
-          // Check if card is peeked (face up)
-          bool isFaceUp = false;
-          for (var peekedCard in cardsToPeek) {
-            if (peekedCard is Map<String, dynamic> && peekedCard['cardId']?.toString() == cardId) {
-              isFaceUp = true;
-              break;
-            }
-          }
-          
-          // Check if card is in collection rank cards (has full data)
-          bool hasFullData = false;
-          for (var collectionCard in playerCollectionRankCards) {
-            if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-              hasFullData = true;
-              break;
-            }
-          }
-          
-          // If drawn card, it has full data
-          if (drawnCard != null && drawnCard['cardId']?.toString() == cardId) {
-            hasFullData = true;
-          }
-          
-          // Face up if peeked or has full data
-          isFaceUp = isFaceUp || hasFullData;
-          
-          final key = _getOrCreateCardKey(cardId, 'opponent_$playerId');
-          cardKeys[cardId] = CardKeyData(
-            key: key,
-            location: 'opponent_hand_$playerId',
-            isFaceUp: isFaceUp,
-            playerId: playerId,
-            index: i,
-          );
-        }
-      }
-    }
-    
-    // 4. My Hand Cards
-    final myHand = dutchGameState['myHand'] as Map<String, dynamic>? ?? {};
-    final myHandCards = myHand['cards'] as List<dynamic>? ?? [];
-    
-    for (int i = 0; i < myHandCards.length; i++) {
-      final card = myHandCards[i];
-      if (card == null) continue;
-      final cardMap = card as Map<String, dynamic>;
-      final cardId = cardMap['cardId']?.toString();
-      if (cardId == null) continue;
-      
-      // My hand cards are always face up
-      bool isFaceUp = true;
-      
-      final key = _getOrCreateCardKey(cardId, 'my_hand');
-      cardKeys[cardId] = CardKeyData(
-        key: key,
-        location: 'my_hand',
-        isFaceUp: isFaceUp,
-        index: i,
-      );
-    }
-    
-    // Scan positions
-    final currentPositions = _positionScanner.scanAllCards(context, cardKeys);
-    
-    // Detect animations
-    _detectAndTriggerAnimations(currentPositions);
-  }
-  
-  /// Detect animations and trigger them
-  void _detectAndTriggerAnimations(Map<String, CardPosition> currentPositions) {
-    final previousPositions = _positionScanner.getAllPreviousPositions();
-    
-    // Detect animations
-    final animations = _animationDetector.detectAnimations(currentPositions, previousPositions);
-    
-    if (animations.isNotEmpty) {
-      _logger.info('🎬 UnifiedGameBoardWidget: Detected ${animations.length} animations', isOn: LOGGING_SWITCH);
-      // Animations are automatically triggered via CardAnimationDetector.animationTriggers ValueNotifier
-    }
-    
-    // Save current positions as previous for next comparison
-    _positionScanner.saveCurrentAsPrevious();
   }
 
   // ========== Opponents Panel Methods ==========
@@ -702,35 +297,26 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
           final knownCards = player['known_cards'] as Map<String, dynamic>?;
           
           // Add opponent widget wrapped in Expanded for equal width
-          // Rotate column 1 (left column, displayIndex == 0) 90 degrees clockwise
-          final opponentCard = _buildOpponentCard(
-            player, 
-            cardsToPeek, 
-            player['collection_rank_cards'] as List<dynamic>? ?? [],
-            isCurrentTurn, 
-            isGameActive, 
-            isCurrentPlayer, 
-            currentPlayerStatus,
-            knownCards,
-            isInitialPeekPhase,
-            phase, // Pass phase for timer calculation
-            timerConfig, // Pass timerConfig from game_state
-            opponentIndex: displayIndex, // Pass display index for alignment (0=left, 1=middle, 2=right)
-          );
-          
+          // Add horizontal padding to both sides of each column
           opponentWidgets.add(
             Expanded(
-              child: displayIndex == 0
-                  ? RotatedBox(
-                      quarterTurns: 1, // 90 degrees clockwise
-                      child: opponentCard,
-                    )
-                  : displayIndex == 2
-                      ? RotatedBox(
-                          quarterTurns: 3, // 90 degrees counter-clockwise (270 degrees clockwise)
-                          child: opponentCard,
-                        )
-                      : opponentCard,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: AppPadding.mediumPadding.left),
+                child: _buildOpponentCard(
+                  player, 
+                  cardsToPeek, 
+                  player['collection_rank_cards'] as List<dynamic>? ?? [],
+                  isCurrentTurn, 
+                  isGameActive, 
+                  isCurrentPlayer, 
+                  currentPlayerStatus,
+                  knownCards,
+                  isInitialPeekPhase,
+                  phase, // Pass phase for timer calculation
+                  timerConfig, // Pass timerConfig from game_state
+                  opponentIndex: displayIndex, // Pass display index for alignment (0=left, 1=middle, 2=right)
+                ),
+              ),
             ),
           );
         }
@@ -861,8 +447,8 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final MainAxisAlignment nameAlignment = MainAxisAlignment.start;
     final CrossAxisAlignment columnAlignment = CrossAxisAlignment.start;
     
-    // Vertical alignment: col 1 (index 0) and col 3+ (index 2+) start at 1/3 from top, col 2 (index 1) top
-    final bool shouldStartAtOneThird = (opponentIndex == 0 || opponentIndex >= 2);
+    // Vertical alignment: col 1 (index 0) and col 3+ (index 2+) start at 1/4 from top, col 2 (index 1) top
+    final bool shouldStartAtOneFourth = (opponentIndex == 0 || opponentIndex >= 2);
     final MainAxisAlignment columnMainAlignment = MainAxisAlignment.start; // All columns align to start
     
     if (drawnCard != null) {
@@ -870,16 +456,16 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Calculate 1/3 of the opponents section height (from top to game board)
-        final oneThirdHeight = constraints.maxHeight / 3;
+        // Calculate 1/4 of the opponents section height (from top to game board)
+        final oneFourthHeight = constraints.maxHeight / 4;
         
         return Column(
           crossAxisAlignment: columnAlignment,
           mainAxisAlignment: columnMainAlignment,
           mainAxisSize: MainAxisSize.max, // Expand to fill available height
           children: [
-            // Add spacer at top for columns 1 and 3 to position content at 1/3 from top
-            if (shouldStartAtOneThird) SizedBox(height: oneThirdHeight),
+            // Add spacer at top for columns 1 and 3 to position content at 1/4 from top
+            if (shouldStartAtOneFourth) SizedBox(height: oneFourthHeight),
             // Top row: Profile pic and timer, aligned left
             Row(
               mainAxisAlignment: MainAxisAlignment.start,
@@ -983,18 +569,22 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
   Widget _buildOpponentsCardsRow(List<dynamic> cards, List<dynamic> cardsToPeek, List<dynamic> playerCollectionRankCards, Map<String, dynamic>? drawnCard, String playerId, Map<String, dynamic>? knownCards, bool isInitialPeekPhase, Map<String, dynamic> player, {MainAxisAlignment? nameAlignment, String? currentPlayerStatus}) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final containerWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+        // Use available width (after column padding) for all calculations
+        // constraints.maxWidth is already the available space after padding
+        final availableWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
             ? constraints.maxWidth
             : (MediaQuery.of(context).size.width > 0 ? MediaQuery.of(context).size.width * 0.5 : 500.0);
-        // Ensure containerWidth is valid before calculations
-        if (containerWidth <= 0 || !containerWidth.isFinite) {
+        // Ensure availableWidth is valid before calculations
+        if (availableWidth <= 0 || !availableWidth.isFinite) {
           return const SizedBox.shrink();
         }
-        final cardWidth = CardDimensions.clampCardWidth(containerWidth * 0.22); // 22% of container width, clamped to max
+        // All card sizes are relative to available space (after padding), not total column width
+        final cardWidth = CardDimensions.clampCardWidth(availableWidth * 0.22); // 22% of available width, clamped to max
         final cardHeight = cardWidth / CardDimensions.CARD_ASPECT_RATIO;
         final cardDimensions = Size(cardWidth, cardHeight);
         final stackOffset = cardHeight * CardDimensions.STACK_OFFSET_PERCENTAGE;
-        final cardPadding = containerWidth * 0.02;
+        // Card padding is relative to available width (after column padding)
+        final cardPadding = availableWidth * 0.02;
         
         final collectionRankCardIds = playerCollectionRankCards
             .where((c) => c is Map<String, dynamic>)

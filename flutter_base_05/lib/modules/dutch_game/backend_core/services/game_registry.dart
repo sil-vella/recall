@@ -345,9 +345,6 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     };
   }
 
-  void saveCardPositionsAsPrevious() {
-    // No-op for backend - card position tracking is handled on the frontend
-  }
 
   @override
   List<Map<String, dynamic>> getCurrentTurnEvents() {

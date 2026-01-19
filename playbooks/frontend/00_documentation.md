@@ -6,6 +6,7 @@ Scripts:
 - `launch_chrome.sh` – run the Flutter web app in Chrome, pointing at either LOCAL or VPS backend.
 - `launch_oneplus.sh` – run the Flutter app on a physical Android device (OnePlus, id `84fbcf31`) with the same backend options.
 - `build_apk.sh` – build a release APK, bump the platform version, upload it to the VPS downloads directory, and update the mobile release manifest.
+- `optimize_logging_calls.py` – optimize logging calls by converting runtime checks to compile-time conditionals for better performance.
 
 ---
 
@@ -224,6 +225,86 @@ echo "2.1.0" > python_base_04/secrets/app_version
 # 4) Use a custom SSH target (if needed)
 VPS_SSH_TARGET="rop01_user@65.181.125.135" ./playbooks/frontend/build_apk.sh
 ```
+
+---
+
+### 4. `optimize_logging_calls.py`
+
+**Purpose**:
+- Optimizes logging performance by converting runtime checks to compile-time conditionals.
+- Allows Dart's compiler to eliminate dead code when `LOGGING_SWITCH = false`.
+- Creates automatic backups before making changes.
+
+**What it does**:
+
+1. **Creates backups** (Step 1):
+   - Creates timestamped backup directory: `backups/YYYYMMDD_HHMMSS_logging_optimization/`
+   - Makes exact copies of:
+     - `flutter_base_05/`
+     - `dart_bkend_base_01/`
+   - Verifies backups by checking file counts and sizes
+   - Aborts if backup fails
+
+2. **Optimizes logging calls** (Step 2):
+   - Scans `backend_core/shared_logic/` directories in both Flutter and Dart backend projects
+   - Finds all logger calls with `isOn: LOGGING_SWITCH` parameter
+   - Converts from:
+     ```dart
+     _logger.info('message', isOn: LOGGING_SWITCH);
+     ```
+   - To:
+     ```dart
+     if (LOGGING_SWITCH) {
+       _logger.info('message');
+     }
+     ```
+
+**Performance benefits**:
+- **Zero runtime overhead** when `LOGGING_SWITCH = false`:
+  - No method call overhead
+  - No string interpolation overhead
+  - No runtime checks
+- **Smaller bundle size**: Dead code is eliminated at compile-time by Dart's tree-shaking
+- **Better performance**: Especially important for Flutter web builds where every millisecond counts
+
+**Why this matters**:
+- The old pattern (`isOn: LOGGING_SWITCH`) still executes method calls and string interpolation even when disabled
+- The new pattern (`if (LOGGING_SWITCH)`) allows the compiler to completely remove the code block when the constant is `false`
+- With hundreds of logging calls, this can significantly improve performance
+
+**Usage**:
+
+```bash
+cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
+python3 playbooks/frontend/optimize_logging_calls.py
+```
+
+**Output**:
+- Shows backup creation progress
+- Lists each file processed and number of calls converted
+- Displays summary with backup location
+- Backup location is shown for easy restoration if needed
+
+**Restoring from backup**:
+
+If you need to restore the original code:
+
+```bash
+cd /Users/sil/Documents/Work/reignofplay/Dutch/app_dev
+# Find the backup directory
+ls backups/
+
+# Restore (example)
+cp -r backups/20260119_155914_logging_optimization/flutter_base_05/* flutter_base_05/
+cp -r backups/20260119_155914_logging_optimization/dart_bkend_base_01/* dart_bkend_base_01/
+```
+
+**When to run**:
+- After adding new logging calls with `isOn: LOGGING_SWITCH`
+- Before production builds to ensure optimal performance
+- Periodically to keep codebase optimized
+
+**Note**: This script only processes files in `backend_core/shared_logic/` directories. Other logging calls in the codebase may still use the old pattern.
 
 ---
 

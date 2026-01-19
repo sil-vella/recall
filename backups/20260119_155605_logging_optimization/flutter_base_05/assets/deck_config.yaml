@@ -1,0 +1,159 @@
+# Deck Configuration for Dutch Game
+# This file defines the composition and properties of playing cards
+# Used by both Dart and Python deck factories
+#  For the flutter side, this file is in the assets directory, and for the dart bkend side, this file is in the  bkend_core  config directory.
+
+
+# Global deck settings
+deck_settings:
+  include_jokers: true
+  testing_mode: false  # Set to false for standard deck, true for testing deck
+
+# Standard deck configuration (52 cards + 2 jokers = 54 total)
+standard_deck:
+  suits:
+    - hearts
+    - diamonds
+    - clubs
+    - spades
+  
+  ranks:
+    ace:
+      points: 1
+      special_power: null
+      quantity_per_suit: 1
+    "2":
+      points: 2
+      special_power: null
+      quantity_per_suit: 1
+    "3":
+      points: 3
+      special_power: null
+      quantity_per_suit: 1
+    "4":
+      points: 4
+      special_power: null
+      quantity_per_suit: 1
+    "5":
+      points: 5
+      special_power: null
+      quantity_per_suit: 1
+    "6":
+      points: 6
+      special_power: null
+      quantity_per_suit: 1
+    "7":
+      points: 7
+      special_power: null
+      quantity_per_suit: 1
+    "8":
+      points: 8
+      special_power: null
+      quantity_per_suit: 1
+    "9":
+      points: 9
+      special_power: null
+      quantity_per_suit: 1
+    "10":
+      points: 10
+      special_power: null
+      quantity_per_suit: 1
+    jack:
+      points: 10
+      special_power: "switch_cards"
+      quantity_per_suit: 1
+    queen:
+      points: 10
+      special_power: "peek_at_card"
+      quantity_per_suit: 1
+    king:
+      points: 10
+      special_power: null
+      quantity_per_suit: 1
+  
+  jokers:
+    joker:
+      points: 0
+      special_power: null
+      quantity_total: 2
+      suit: "joker"
+
+# Testing deck configuration - 20 cards total: 8 jacks, 8 queens, 4 aces
+testing_deck:
+  suits:
+    - hearts
+    - diamonds
+    - clubs
+    - spades
+  
+  ranks:
+    ace:
+      points: 1
+      special_power: null
+      quantity_per_suit: 1  # 1 per suit × 4 suits = 4 cards
+    jack:
+      points: 10
+      special_power: "switch_cards"
+      quantity_per_suit: 2  # 2 per suit × 4 suits = 8 cards
+    queen:
+      points: 10
+      special_power: "peek_at_card"
+      quantity_per_suit: 2  # 2 per suit × 4 suits = 8 cards
+  
+  jokers:
+    joker:
+      points: 0
+      special_power: null
+      quantity_total: 0  # No jokers in test deck
+      suit: "joker"
+
+# Card display symbols and names
+card_display:
+  suits:
+    hearts: "♥"
+    diamonds: "♦"
+    clubs: "♣"
+    spades: "♠"
+    joker: "🃏"
+  
+  ranks:
+    ace: "A"
+    jack: "J"
+    queen: "Q"
+    king: "K"
+    joker: "🃏"
+  
+  names:
+    ace: "Ace"
+    jack: "Jack"
+    queen: "Queen"
+    king: "King"
+    joker: "Joker"
+
+# Special powers configuration
+special_powers:
+  peek_at_card:
+    name: "Peek at Card"
+    description: "Look at any one card from any player's hand"
+    icon: "👁️"
+  
+  switch_cards:
+    name: "Switch Cards"
+    description: "Switch any two cards between any players"
+    icon: "🔄"
+
+# Deck statistics (for validation)
+deck_stats:
+  standard:
+    total_cards: 54
+    suits: 4
+    ranks_per_suit: 13
+    jokers: 2
+    special_cards: 8  # 4 queens + 4 jacks
+  
+  testing:
+    total_cards: 20  # 4 aces + 8 jacks + 8 queens = 20 cards
+    suits: 4
+    ranks_per_suit: 3  # ace (1) + jacks (2) + queens (2) = 5 per suit, but only 3 ranks
+    jokers: 0
+    special_cards: 16  # 8 queens + 8 jacks

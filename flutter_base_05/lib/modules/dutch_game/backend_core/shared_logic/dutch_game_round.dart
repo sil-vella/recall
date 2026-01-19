@@ -9,7 +9,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system and miss chance testing
+const bool LOGGING_SWITCH = false; // Enabled for timer-based delay system and miss chance testing
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -83,13 +83,17 @@ class DutchGameRound {
                 'rank': '?',
                 'points': 0,
               };
-              _logger.info('🔒 SECURITY: Sanitized player $pId drawnCard to ID-only before broadcast${context != null ? ' ($context)' : ''}', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('🔒 SECURITY: Sanitized player $pId drawnCard to ID-only before broadcast${context != null ? ' ($context)' : ''}');
+              };
             }
           }
         }
       }
     } catch (e) {
-      _logger.error('Dutch: Error sanitizing drawnCards: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error sanitizing drawnCards: $e');
+      };
     }
   }
 
@@ -129,41 +133,61 @@ class DutchGameRound {
   /// Replicates backend _initial_peek_timeout() and start_turn() logic
   void initializeRound() {
     try {
-      _logger.info('Dutch: ===== INITIALIZING ROUND FOR GAME $_gameId =====', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: ===== INITIALIZING ROUND FOR GAME $_gameId =====');
+      };
       
       // Get current game state
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.error('Dutch: Failed to get game state for round initialization', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get game state for round initialization');
+        };
         return;
       }
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       
-      _logger.info('Dutch: Current game state - Players: ${players.length}, Current Player: ${currentPlayer?['name'] ?? 'None'}', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: All players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']}, status: ${p['status']})').join(', ')}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Current game state - Players: ${players.length}, Current Player: ${currentPlayer?['name'] ?? 'None'}');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: All players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']}, status: ${p['status']})').join(', ')}');
+      };
       
       // 1. Clear cards_to_peek for all players (peek phase is over)
-      _logger.info('Dutch: Step 1 - Clearing cards_to_peek for all players', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Step 1 - Clearing cards_to_peek for all players');
+      };
       _clearPeekedCards(gameState);
       
       // 2. Set all players back to WAITING status
-      _logger.info('Dutch: Step 2 - Setting all players to WAITING status', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Step 2 - Setting all players to WAITING status');
+      };
       _setAllPlayersToWaiting(gameState);
       
       // 3. Initialize round state (replicates backend start_turn logic)
-      _logger.info('Dutch: Step 3 - Initializing round state', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Step 3 - Initializing round state');
+      };
       _initializeRoundState(gameState);
       
       // 4. Start the first turn (this will set the current player to DRAWING_CARD status)
-      _logger.info('Dutch: Step 4 - Starting first turn (will select current player)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Step 4 - Starting first turn (will select current player)');
+      };
       _startNextTurn();
       
-      _logger.info('Dutch: ===== ROUND INITIALIZATION COMPLETED SUCCESSFULLY =====', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: ===== ROUND INITIALIZATION COMPLETED SUCCESSFULLY =====');
+      };
       
     } catch (e) {
-      _logger.error('Dutch: Failed to initialize round: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Failed to initialize round: $e');
+      };
     }
   }
 
@@ -180,10 +204,14 @@ class DutchGameRound {
         }
       }
       
-      _logger.info('Dutch: Cleared cards_to_peek for $clearedCount players', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Cleared cards_to_peek for $clearedCount players');
+      };
       
     } catch (e) {
-      _logger.error('Dutch: Failed to clear peeked cards: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Failed to clear peeked cards: $e');
+      };
     }
   }
 
@@ -196,10 +224,14 @@ class DutchGameRound {
         player['status'] = 'waiting';
       }
       
-      _logger.info('Dutch: Set ${players.length} players back to WAITING status', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Set ${players.length} players back to WAITING status');
+      };
       
     } catch (e) {
-      _logger.error('Dutch: Failed to set players to waiting: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Failed to set players to waiting: $e');
+      };
     }
   }
 
@@ -226,10 +258,14 @@ class DutchGameRound {
       // Set game phase to PLAYER_TURN (already set in matchStart, but ensure consistency)
       gameState['phase'] = 'player_turn';
       
-      _logger.info('Dutch: Round state initialized - phase: player_turn, status: active', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Round state initialized - phase: player_turn, status: active');
+      };
       
     } catch (e) {
-      _logger.error('Dutch: Failed to initialize round state: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Failed to initialize round state: $e');
+      };
     }
   }
 
@@ -260,7 +296,9 @@ class DutchGameRound {
 
   /// Handle when a player reaches the missed action threshold (2 missed actions)
   void _onMissedActionThresholdReached(String playerId) {
-    _logger.info('Dutch: Player $playerId has reached missed action threshold (2 missed actions)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Player $playerId has reached missed action threshold (2 missed actions)');
+    };
     
     // Trigger auto-leave through GameStateCallback
     // The callback implementation will handle multiplayer vs practice distinction
@@ -272,7 +310,9 @@ class DutchGameRound {
     try {
       return _stateCallback.getCurrentGameState();
     } catch (e) {
-      _logger.error('Dutch: Failed to get current game state: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Failed to get current game state: $e');
+      };
       return null;
     }
   }
@@ -300,7 +340,9 @@ class DutchGameRound {
   void _addToDiscardPile(Map<String, dynamic> card) {
     final gameState = _getCurrentGameState();
     if (gameState == null) {
-      _logger.error('Dutch: Cannot add to discard pile - game state is null', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Cannot add to discard pile - game state is null');
+      };
       return;
     }
 
@@ -315,17 +357,23 @@ class DutchGameRound {
   /// Start the next player's turn
   void _startNextTurn() {
     try {
-      _logger.info('Dutch: Starting next turn...', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Starting next turn...');
+      };
       
       // Check if game has ended (winners exist) - prevent progression if game is over
       if (_winnersList.isNotEmpty) {
-        _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s) found. Preventing turn start.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s) found. Preventing turn start.');
+        };
         return;
       }
       
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.error('Dutch: Failed to get game state for _startNextTurn', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get game state for _startNextTurn');
+        };
         return;
       }
       
@@ -340,27 +388,39 @@ class DutchGameRound {
       final currentPlayer = mainStateCurrentPlayer ?? gameStateCurrentPlayer;
       final currentPlayerId = currentPlayer?['id']?.toString();
       
-      _logger.info('Dutch: Current player ID: $currentPlayerId (from ${mainStateCurrentPlayer != null ? 'main state' : 'games map'})', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: Available players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']})').join(', ')}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Current player ID: $currentPlayerId (from ${mainStateCurrentPlayer != null ? 'main state' : 'games map'})');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Available players: ${players.map((p) => '${p['name']} (${p['id']}, isHuman: ${p['isHuman']})').join(', ')}');
+      };
       
       // Find next player
       final nextPlayer = _getNextPlayer(players, currentPlayerId);
       if (nextPlayer == null) {
-        _logger.error('Dutch: No next player found', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: No next player found');
+        };
         return;
       }
       
-      _logger.info('Dutch: Selected next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Selected next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})');
+      };
       
       // Reset previous current player's status to waiting (if there was one)
       if (currentPlayerId != null) {
-        _logger.info('Dutch: Resetting previous current player $currentPlayerId to waiting status', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Resetting previous current player $currentPlayerId to waiting status');
+        };
         _updatePlayerStatusInGamesMap('waiting', playerId: currentPlayerId);
       }
       
       // Update current player in game state (in place for local use)
       gameState['currentPlayer'] = nextPlayer;
-      _logger.info('Dutch: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Updated game state currentPlayer to: ${nextPlayer['name']}');
+      };
       
       // CRITICAL: Create reference to games map to update state
       // The modified gameState is already part of currentGames (in-place modification)
@@ -378,7 +438,9 @@ class DutchGameRound {
           if (gameStateData != null) {
             // Update currentPlayer in the games map structure
             gameStateData['currentPlayer'] = nextPlayer;
-            _logger.info('Dutch: Updated currentPlayer in games map to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Updated currentPlayer in games map to: ${nextPlayer['name']}');
+            };
           }
         }
       }
@@ -393,7 +455,9 @@ class DutchGameRound {
               'currentPlayer': nextPlayer, // Also update main state's currentPlayer field for immediate access
               'turn_events': [], // Clear all turn events for new turn
             });
-            _logger.info('Dutch: Updated games map with new currentPlayer and cleared turn_events for new turn', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Updated games map with new currentPlayer and cleared turn_events for new turn');
+            };
       
       // Set new current player status to DRAWING_CARD (first action is to draw a card)
       // This matches backend behavior where first player status is DRAWING_CARD
@@ -410,14 +474,20 @@ class DutchGameRound {
       // Check if this is a computer player and trigger computer turn logic
       final isHuman = nextPlayer['isHuman'] as bool? ?? false;
       if (!isHuman) {
-        _logger.info('Dutch: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Computer player detected - triggering computer turn logic');
+        };
         _initComputerTurn(gameState);
       } else {
-        _logger.info('Dutch: Started turn for human player ${nextPlayer['name']} - status: drawing_card', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Started turn for human player ${nextPlayer['name']} - status: drawing_card');
+        };
       }
       
     } catch (e) {
-      _logger.error('Dutch: Failed to start next turn: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Failed to start next turn: $e');
+      };
     }
   }
 
@@ -428,33 +498,45 @@ class DutchGameRound {
     try {
       // Check if game has ended - if so, stop computer turn initialization
       if (_isGameEnded()) {
-        _logger.info('Dutch: Game has ended - stopping computer turn initialization', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - stopping computer turn initialization');
+        };
         return;
       }
       
-      _logger.info('Dutch: ===== INITIALIZING COMPUTER TURN =====', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: ===== INITIALIZING COMPUTER TURN =====');
+      };
       
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       if (currentPlayer == null) {
-        _logger.error('Dutch: No current player found for computer turn', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: No current player found for computer turn');
+        };
         return;
       }
       
       final playerId = currentPlayer['id']?.toString() ?? 'unknown';
       final playerName = currentPlayer['name']?.toString() ?? 'Unknown';
       
-      _logger.info('Dutch: Computer player $playerName ($playerId) starting turn', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Computer player $playerName ($playerId) starting turn');
+      };
       
       // Initialize computer player factory if not already done
       await _ensureComputerFactory();
       
       // Get computer player difficulty from game state
       final difficulty = _getComputerDifficulty(gameState, playerId);
-      _logger.info('Dutch: Computer player difficulty: $difficulty', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Computer player difficulty: $difficulty');
+      };
       
       // Determine the current event/action needed
       final eventName = _getCurrentEventName(gameState, playerId);
-      _logger.info('Dutch: Current event needed: $eventName', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Current event needed: $eventName');
+      };
       
       // Use YAML-based computer player factory for decision making
       if (_computerPlayerFactory != null) {
@@ -465,7 +547,9 @@ class DutchGameRound {
       }
       
     } catch (e) {
-      _logger.error('Dutch: Error in _initComputerTurn: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _initComputerTurn: $e');
+      };
     }
   }
 
@@ -475,13 +559,19 @@ class DutchGameRound {
       if (_computerPlayerFactory == null) {
         try {
           _computerPlayerFactory = await ComputerPlayerFactory.fromFile('assets/computer_player_config.yaml');
-          _logger.info('Dutch: Computer player factory initialized with YAML config', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Computer player factory initialized with YAML config');
+          };
         } catch (e) {
-          _logger.error('Dutch: Failed to load computer player config, using default behavior: $e', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Dutch: Failed to load computer player config, using default behavior: $e');
+          };
         }
       }
     } catch (e) {
-      _logger.error('Dutch: Error ensuring computer factory: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error ensuring computer factory: $e');
+      };
     }
   }
 
@@ -504,7 +594,9 @@ class DutchGameRound {
       }
       
       if (player == null) {
-        _logger.warning('Dutch: Player $playerId not found in game state, using default difficulty', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('Dutch: Player $playerId not found in game state, using default difficulty');
+        };
         return 'medium';
       }
       
@@ -513,27 +605,37 @@ class DutchGameRound {
       final playerRank = player['rank']?.toString();
       final playerLevel = player['level']?.toString();
       
-      _logger.info('Dutch: 🎯 BEFORE YAML PARSING - Player: $playerName (ID: $playerId), Rank: $playerRank, Level: $playerLevel', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🎯 BEFORE YAML PARSING - Player: $playerName (ID: $playerId), Rank: $playerRank, Level: $playerLevel');
+      };
       
       // Try to get difficulty directly (if already set)
       final difficulty = player['difficulty']?.toString();
       if (difficulty != null && difficulty.isNotEmpty) {
-        _logger.info('Dutch: ✅ Using stored difficulty for player $playerName: $difficulty (from rank: $playerRank)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: ✅ Using stored difficulty for player $playerName: $difficulty (from rank: $playerRank)');
+        };
         return difficulty;
       }
       
       // If no difficulty, try to map from rank
       if (playerRank != null && playerRank.isNotEmpty) {
         final mappedDifficulty = RankMatcher.rankToDifficulty(playerRank);
-        _logger.info('Dutch: ✅ Mapped rank $playerRank to YAML difficulty $mappedDifficulty for player $playerName', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: ✅ Mapped rank $playerRank to YAML difficulty $mappedDifficulty for player $playerName');
+        };
         return mappedDifficulty;
       }
       
       // Fallback to default
-      _logger.warning('Dutch: ⚠️ No difficulty or rank found for player $playerName, using default difficulty: medium', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('Dutch: ⚠️ No difficulty or rank found for player $playerName, using default difficulty: medium');
+      };
       return 'medium';
     } catch (e) {
-      _logger.error('Dutch: ❌ Error getting computer difficulty: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: ❌ Error getting computer difficulty: $e');
+      };
       return 'medium';
     }
   }
@@ -562,11 +664,15 @@ class DutchGameRound {
         case 'queen_peek':
           return 'queen_peek';
         default:
-          _logger.warning('Dutch: Unknown player status for event mapping: $playerStatus', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('Dutch: Unknown player status for event mapping: $playerStatus');
+          };
           return 'draw_card'; // Default to drawing a card
       }
     } catch (e) {
-      _logger.error('Dutch: Error getting current event name: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error getting current event name: $e');
+      };
       return 'draw_card';
     }
   }
@@ -577,7 +683,9 @@ class DutchGameRound {
     try {
       // Check if game has ended - if so, stop handling computer actions
       if (_isGameEnded()) {
-        _logger.info('Dutch: Game has ended - stopping computer action handling for event: $eventName', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - stopping computer action handling for event: $eventName');
+        };
         return;
       }
       
@@ -590,10 +698,14 @@ class DutchGameRound {
       final playerName = computerPlayer['name']?.toString() ?? playerId;
       final playerRank = computerPlayer['rank']?.toString() ?? 'unknown';
       
-      _logger.info('Dutch: 🎯 BEFORE YAML PARSING - Player: $playerName (ID: $playerId), Rank: $playerRank, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🎯 BEFORE YAML PARSING - Player: $playerName (ID: $playerId), Rank: $playerRank, Difficulty: $difficulty, Event: $eventName');
+      };
       
       if (_computerPlayerFactory == null) {
-        _logger.error('Dutch: ❌ Computer player factory not initialized', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: ❌ Computer player factory not initialized');
+        };
         _moveToNextPlayer();
         return;
       }
@@ -612,7 +724,9 @@ class DutchGameRound {
             orElse: () => <String, dynamic>{},
           );
           final hand = computerPlayer['hand'] as List<dynamic>? ?? [];
-          _logger.info('Dutch: DEBUG - Computer player hand: $hand', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: DEBUG - Computer player hand: $hand');
+          };
           
           // Map hand to card IDs, filtering out null cards
           final availableCards = hand
@@ -629,7 +743,9 @@ class DutchGameRound {
               .where((cardId) => cardId.isNotEmpty) // Filter out empty strings (null conversions)
               .toList();
           
-          _logger.info('Dutch: DEBUG - Available cards after mapping (nulls filtered): $availableCards', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: DEBUG - Available cards after mapping (nulls filtered): $availableCards');
+          };
           
           decision = _computerPlayerFactory!.getPlayCardDecision(difficulty, gameState, availableCards);
           break;
@@ -648,12 +764,16 @@ class DutchGameRound {
           decision = _computerPlayerFactory!.getCollectFromDiscardDecision(difficulty, gameState, playerId);
           break;
         default:
-          _logger.warning('Dutch: Unknown event for computer action: $eventName', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('Dutch: Unknown event for computer action: $eventName');
+          };
           _moveToNextPlayer();
           return;
       }
       
-      _logger.info('Dutch: ✅ AFTER YAML PARSING - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, Decision: ${decision['action']}, Card: ${decision['card_id']}, Reasoning: ${decision['reasoning']}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: ✅ AFTER YAML PARSING - Player: $playerName, Rank: $playerRank, Difficulty: $difficulty, Decision: ${decision['action']}, Card: ${decision['card_id']}, Reasoning: ${decision['reasoning']}');
+      };
       
       // Execute decision with delay from YAML config
       final delaySeconds = (decision['delay_seconds'] ?? 1.0).toDouble();
@@ -662,7 +782,9 @@ class DutchGameRound {
       });
       
     } catch (e) {
-      _logger.error('Dutch: Error in _handleComputerActionWithYAML: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _handleComputerActionWithYAML: $e');
+      };
       _moveToNextPlayer();
     }
   }
@@ -672,44 +794,62 @@ class DutchGameRound {
     try {
       // Check if game has ended - if so, stop executing computer decisions
       if (_isGameEnded()) {
-        _logger.info('Dutch: Game has ended - stopping computer decision execution for event: $eventName', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - stopping computer decision execution for event: $eventName');
+        };
         return;
       }
       
-      _logger.info('Dutch: Executing computer decision: $decision', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Executing computer decision: $decision');
+      };
       
       switch (eventName) {
         case 'draw_card':
           final source = decision['source'] as String?;
           // Convert YAML source to handleDrawCard parameter
           final drawSource = source == 'discard' ? 'discard' : 'deck';
-          _logger.info('Dutch: Computer drawing from ${source == 'discard' ? 'discard pile' : 'deck'}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Computer drawing from ${source == 'discard' ? 'discard pile' : 'deck'}');
+          };
           
           // CRITICAL: Pass playerId to handleDrawCard to prevent stale state issues
           // This ensures the correct player draws, even if currentPlayer in games map is stale
           final success = await handleDrawCard(drawSource, playerId: playerId);
           if (!success) {
-            _logger.error('Dutch: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('Dutch: Computer player $playerId failed to draw card');
+            };
             _moveToNextPlayer();
           } else {
             // Check if game has ended before continuing to play_card action
             if (_isGameEnded()) {
-              _logger.info('Dutch: Game has ended after draw - stopping computer turn progression', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: Game has ended after draw - stopping computer turn progression');
+              };
               return;
             }
             
             // After successful draw, continue computer turn with play_card action
-            _logger.info('Dutch: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Computer player $playerId successfully drew card, continuing with play_card action');
+            };
             
             // Continue computer turn with play_card action (delay already handled by YAML config)
             final gameState = _getCurrentGameState();
             if (gameState != null) {
               final difficulty = _getComputerDifficulty(gameState, playerId);
-              _logger.info('Dutch: DEBUG - About to call _handleComputerActionWithYAML for play_card', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: DEBUG - About to call _handleComputerActionWithYAML for play_card');
+              };
               _handleComputerActionWithYAML(gameState, playerId, difficulty, 'play_card');
-              _logger.info('Dutch: DEBUG - _handleComputerActionWithYAML call completed', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: DEBUG - _handleComputerActionWithYAML call completed');
+              };
             } else {
-              _logger.error('Dutch: DEBUG - Game state is null, cannot continue with play_card', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('Dutch: DEBUG - Game state is null, cannot continue with play_card');
+              };
             }
           }
           break;
@@ -717,10 +857,14 @@ class DutchGameRound {
         case 'play_card':
           final missed = decision['missed'] as bool? ?? false;
           if (missed) {
-            _logger.info('Dutch: Computer player $playerId missed play action (miss chance)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Computer player $playerId missed play action (miss chance)');
+            };
             // Increment missed action counter
             _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
-            _logger.info('Dutch: Player $playerId missed action count: ${_missedActionCounts[playerId]}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Player $playerId missed action count: ${_missedActionCounts[playerId]}');
+            };
             // Check if threshold reached (2 missed actions)
             if (_missedActionCounts[playerId] == 2) {
               _onMissedActionThresholdReached(playerId);
@@ -735,16 +879,22 @@ class DutchGameRound {
             // This ensures the correct player plays, even if currentPlayer in games map is stale
             final success = await handlePlayCard(cardId, playerId: playerId);
             if (!success) {
-              _logger.error('Dutch: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('Dutch: Computer player $playerId failed to play card');
+              };
               _moveToNextPlayer();
             } else {
-              _logger.info('Dutch: Computer player $playerId successfully played card', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: Computer player $playerId successfully played card');
+              };
               // Note: Do NOT call _moveToNextPlayer() here
               // The same rank window (triggered in handlePlayCard) will handle moving to next player
               // Flow: _handleSameRankWindow() -> 5s timer -> _endSameRankWindow() -> _handleSpecialCardsWindow() -> _moveToNextPlayer()
             }
           } else {
-            _logger.warning('Dutch: No card selected for computer play', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.warning('Dutch: No card selected for computer play');
+            };
             _moveToNextPlayer();
           }
           break;
@@ -752,7 +902,9 @@ class DutchGameRound {
         case 'same_rank_play':
           final missed = decision['missed'] as bool? ?? false;
           if (missed) {
-            _logger.info('Dutch: Computer player $playerId missed same rank play (miss chance)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Computer player $playerId missed same rank play (miss chance)');
+            };
             // Move to next player (same rank window continues for other players)
             _moveToNextPlayer();
             break;
@@ -765,15 +917,21 @@ class DutchGameRound {
               // cardId is guaranteed non-null after _isValidCardId check
               final success = await handleSameRankPlay(playerId, cardId);
               if (!success) {
-                _logger.error('Dutch: Computer player $playerId failed same rank play', isOn: LOGGING_SWITCH);
+                if (LOGGING_SWITCH) {
+                  _logger.error('Dutch: Computer player $playerId failed same rank play');
+                };
                 _moveToNextPlayer();
               }
             } else {
-              _logger.warning('Dutch: No card selected for computer same rank play', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.warning('Dutch: No card selected for computer same rank play');
+              };
               _moveToNextPlayer();
             }
           } else {
-            _logger.info('Dutch: Computer decided not to play same rank', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Computer decided not to play same rank');
+            };
             _moveToNextPlayer();
           }
           break;
@@ -781,7 +939,9 @@ class DutchGameRound {
         case 'jack_swap':
           final missed = decision['missed'] as bool? ?? false;
           if (missed) {
-            _logger.info('Dutch: Computer player $playerId missed Jack swap (miss chance)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Computer player $playerId missed Jack swap (miss chance)');
+            };
             // Reset status and move to next player
             _updatePlayerStatusInGamesMap('waiting', playerId: playerId);
             _moveToNextPlayer();
@@ -797,11 +957,15 @@ class DutchGameRound {
               secondPlayerId: decision['second_player_id'] as String? ?? 'placeholder_target_player',
             );
             if (!success) {
-              _logger.error('Dutch: Computer player $playerId failed Jack swap', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('Dutch: Computer player $playerId failed Jack swap');
+              };
               // Note: Don't call _moveToNextPlayer() here - special card window timer will handle it
             }
           } else {
-            _logger.info('Dutch: Computer decided not to use Jack swap', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Computer decided not to use Jack swap');
+            };
             // Note: Timer will continue running and expire naturally - don't cancel it
           }
           break;
@@ -809,7 +973,9 @@ class DutchGameRound {
         case 'queen_peek':
           final missed = decision['missed'] as bool? ?? false;
           if (missed) {
-            _logger.info('Dutch: Computer player $playerId missed Queen peek (miss chance)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Computer player $playerId missed Queen peek (miss chance)');
+            };
             // Reset status and move to next player
             _updatePlayerStatusInGamesMap('waiting', playerId: playerId);
             _moveToNextPlayer();
@@ -824,11 +990,15 @@ class DutchGameRound {
               targetPlayerId: decision['target_player_id'] as String? ?? 'placeholder_target_player',
             );
             if (!success) {
-              _logger.error('Dutch: Computer player $playerId failed Queen peek', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('Dutch: Computer player $playerId failed Queen peek');
+              };
               // Note: Don't call _moveToNextPlayer() here - special card window timer will handle it
             }
           } else {
-            _logger.info('Dutch: Computer decided not to use Queen peek', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Computer decided not to use Queen peek');
+            };
             // Note: Timer will continue running and expire naturally - don't cancel it
           }
           break;
@@ -836,7 +1006,9 @@ class DutchGameRound {
         case 'collect_from_discard':
           final missed = decision['missed'] as bool? ?? false;
           if (missed) {
-            _logger.info('Dutch: Computer player $playerId missed collect from discard (miss chance)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Computer player $playerId missed collect from discard (miss chance)');
+            };
             // Move to next player (collection skipped)
             _moveToNextPlayer();
             break;
@@ -845,28 +1017,40 @@ class DutchGameRound {
           final shouldCollect = decision['collect'] as bool? ?? false;
           if (shouldCollect) {
             // DEBUG: Log the playerId being passed to handleCollectFromDiscard
-            _logger.info('Dutch: DEBUG - Executing collect_from_discard for playerId: $playerId, decision: $decision', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: DEBUG - Executing collect_from_discard for playerId: $playerId, decision: $decision');
+            };
             final success = await handleCollectFromDiscard(playerId);
             if (!success) {
-              _logger.error('Dutch: Computer player $playerId failed to collect from discard', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('Dutch: Computer player $playerId failed to collect from discard');
+              };
               // Note: No status change needed - player continues in current state
             } else {
-              _logger.info('Dutch: Computer player $playerId successfully collected from discard', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: Computer player $playerId successfully collected from discard');
+              };
               // Note: No status change needed - player continues in current state
             }
           } else {
-            _logger.info('Dutch: Computer decided not to collect from discard', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Computer decided not to collect from discard');
+            };
             // Note: No status change needed - player continues in current state
           }
           break;
           
         default:
-          _logger.warning('Dutch: Unknown event for computer decision execution: $eventName', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('Dutch: Unknown event for computer decision execution: $eventName');
+          };
           _moveToNextPlayer();
       }
       
     } catch (e) {
-      _logger.error('Dutch: Error executing computer decision: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error executing computer decision: $e');
+      };
       _moveToNextPlayer();
     }
   }
@@ -876,11 +1060,15 @@ class DutchGameRound {
     try {
       // Check if game has ended - if so, stop handling computer actions
       if (_isGameEnded()) {
-        _logger.info('Dutch: Game has ended - stopping fallback computer action handling for event: $eventName', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - stopping fallback computer action handling for event: $eventName');
+        };
         return;
       }
       
-      _logger.info('Dutch: Handling computer action - Player: $playerId, Difficulty: $difficulty, Event: $eventName', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Handling computer action - Player: $playerId, Difficulty: $difficulty, Event: $eventName');
+      };
       
       // TODO: Load and parse declarative YAML configuration
       // The YAML will define:
@@ -889,7 +1077,9 @@ class DutchGameRound {
       // - Card selection strategies
       // - Special card usage patterns
       
-      _logger.info('Dutch: Declarative YAML configuration will be implemented here', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Declarative YAML configuration will be implemented here');
+      };
       
       // Wire directly to existing human player methods - computers perform the same actions
       switch (eventName) {
@@ -899,17 +1089,23 @@ class DutchGameRound {
             // CRITICAL: Pass playerId to handleDrawCard to prevent stale state issues
             final success = await handleDrawCard('deck', playerId: playerId);
             if (!success) {
-              _logger.error('Dutch: Computer player $playerId failed to draw card', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('Dutch: Computer player $playerId failed to draw card');
+              };
               _moveToNextPlayer();
             } else {
               // Check if game has ended before continuing to play_card action
               if (_isGameEnded()) {
-                _logger.info('Dutch: Game has ended after draw - stopping fallback computer turn progression', isOn: LOGGING_SWITCH);
+                if (LOGGING_SWITCH) {
+                  _logger.info('Dutch: Game has ended after draw - stopping fallback computer turn progression');
+                };
                 return;
               }
               
               // After successful draw, continue computer turn with play_card action
-              _logger.info('Dutch: Computer player $playerId successfully drew card, continuing with play_card action', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: Computer player $playerId successfully drew card, continuing with play_card action');
+              };
               
               // Continue computer turn with play_card action (delay already handled by Timer above)
               final gameState = _getCurrentGameState();
@@ -917,11 +1113,15 @@ class DutchGameRound {
                 // Try to use YAML-based method if factory is available, otherwise use fallback
                 if (_computerPlayerFactory != null) {
                   final difficulty = _getComputerDifficulty(gameState, playerId);
-                  _logger.info('Dutch: DEBUG - About to call _handleComputerActionWithYAML for play_card', isOn: LOGGING_SWITCH);
+                  if (LOGGING_SWITCH) {
+                    _logger.info('Dutch: DEBUG - About to call _handleComputerActionWithYAML for play_card');
+                  };
                   _handleComputerActionWithYAML(gameState, playerId, difficulty, 'play_card');
                 } else {
                   // Fallback: continue with simple play logic
-                  _logger.info('Dutch: DEBUG - Factory not available, using fallback play_card logic', isOn: LOGGING_SWITCH);
+                  if (LOGGING_SWITCH) {
+                    _logger.info('Dutch: DEBUG - Factory not available, using fallback play_card logic');
+                  };
                   // Trigger play_card action in fallback
                   Timer(const Duration(seconds: 1), () async {
                     // Get available cards from player's hand
@@ -945,21 +1145,29 @@ class DutchGameRound {
                     if (availableCards.isNotEmpty) {
                       // Play the first available card as a simple fallback
                       final cardId = availableCards.first;
-                      _logger.info('Dutch: Fallback - Playing card $cardId', isOn: LOGGING_SWITCH);
+                      if (LOGGING_SWITCH) {
+                        _logger.info('Dutch: Fallback - Playing card $cardId');
+                      };
                       // CRITICAL: Pass playerId to handlePlayCard to prevent stale state issues
                       final success = await handlePlayCard(cardId, playerId: playerId);
                       if (!success) {
-                        _logger.error('Dutch: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
+                        if (LOGGING_SWITCH) {
+                          _logger.error('Dutch: Computer player $playerId failed to play card');
+                        };
                         _moveToNextPlayer();
                       }
                     } else {
-                      _logger.warning('Dutch: No cards available for computer player $playerId to play', isOn: LOGGING_SWITCH);
+                      if (LOGGING_SWITCH) {
+                        _logger.warning('Dutch: No cards available for computer player $playerId to play');
+                      };
                       _moveToNextPlayer();
                     }
                   });
                 }
               } else {
-                _logger.error('Dutch: DEBUG - Game state is null, cannot continue with play_card', isOn: LOGGING_SWITCH);
+                if (LOGGING_SWITCH) {
+                  _logger.error('Dutch: DEBUG - Game state is null, cannot continue with play_card');
+                };
               }
             }
           });
@@ -972,7 +1180,9 @@ class DutchGameRound {
             // CRITICAL: Pass playerId to handlePlayCard to prevent stale state issues
             final success = await handlePlayCard('placeholder_card_id', playerId: playerId);
             if (!success) {
-              _logger.error('Dutch: Computer player $playerId failed to play card', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('Dutch: Computer player $playerId failed to play card');
+              };
               _moveToNextPlayer();
             }
           });
@@ -984,7 +1194,9 @@ class DutchGameRound {
             // For now, use a placeholder card ID
             final success = await handleSameRankPlay(playerId, 'placeholder_card_id');
             if (!success) {
-              _logger.error('Dutch: Computer player $playerId failed same rank play', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('Dutch: Computer player $playerId failed same rank play');
+              };
               _moveToNextPlayer();
             }
           });
@@ -999,7 +1211,9 @@ class DutchGameRound {
               secondPlayerId: 'placeholder_target_player',
             );
             if (!success) {
-              _logger.error('Dutch: Computer player $playerId failed Jack swap', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('Dutch: Computer player $playerId failed Jack swap');
+              };
               _moveToNextPlayer();
             }
           });
@@ -1013,33 +1227,45 @@ class DutchGameRound {
               targetPlayerId: 'placeholder_target_player',
             );
             if (!success) {
-              _logger.error('Dutch: Computer player $playerId failed Queen peek', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('Dutch: Computer player $playerId failed Queen peek');
+              };
               _moveToNextPlayer();
             }
           });
           break;
         default:
-          _logger.warning('Dutch: Unknown event for computer action: $eventName', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('Dutch: Unknown event for computer action: $eventName');
+          };
           _moveToNextPlayer();
       }
       
     } catch (e) {
-      _logger.error('Dutch: Error in _handleComputerAction: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _handleComputerAction: $e');
+      };
     }
   }
 
   
   /// Get the next player in rotation
   Map<String, dynamic>? _getNextPlayer(List<Map<String, dynamic>> players, String? currentPlayerId) {
-    _logger.info('Dutch: _getNextPlayer called with currentPlayerId: $currentPlayerId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: _getNextPlayer called with currentPlayerId: $currentPlayerId');
+    };
     
     if (players.isEmpty) {
-      _logger.error('Dutch: No players available for _getNextPlayer', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: No players available for _getNextPlayer');
+      };
       return null;
     }
     
     if (currentPlayerId == null) {
-      _logger.info('Dutch: No current player ID - this is the first turn', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: No current player ID - this is the first turn');
+      };
       
       // Check if this is practice mode (practice rooms start with "practice_room_")
       final isPracticeMode = _gameId.startsWith('practice_room_');
@@ -1052,13 +1278,17 @@ class DutchGameRound {
         );
         
         if (firstOpponent.isNotEmpty) {
-          _logger.info('Dutch: Practice mode - Selected first opponent as starting player: ${firstOpponent['name']} (${firstOpponent['id']}, isHuman: ${firstOpponent['isHuman']})', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Practice mode - Selected first opponent as starting player: ${firstOpponent['name']} (${firstOpponent['id']}, isHuman: ${firstOpponent['isHuman']})');
+          };
           // Check if computer players can collect from discard pile (first turn)
           _checkComputerPlayerCollectionFromDiscard();
           return firstOpponent;
         } else {
           // Fallback: if no opponent found, use first player
-          _logger.warning('Dutch: Practice mode - No opponent player found, using first player as fallback: ${players.first['name']}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('Dutch: Practice mode - No opponent player found, using first player as fallback: ${players.first['name']}');
+          };
           _checkComputerPlayerCollectionFromDiscard();
           return players.first;
         }
@@ -1068,7 +1298,9 @@ class DutchGameRound {
       final randomIndex = random.nextInt(players.length);
       final randomPlayer = players[randomIndex];
       
-        _logger.info('Dutch: Multiplayer mode - Randomly selected starting player: ${randomPlayer['name']} (${randomPlayer['id']}, isHuman: ${randomPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Multiplayer mode - Randomly selected starting player: ${randomPlayer['name']} (${randomPlayer['id']}, isHuman: ${randomPlayer['isHuman']})');
+        };
       
       // Check if computer players can collect from discard pile (first turn)
       _checkComputerPlayerCollectionFromDiscard();
@@ -1077,12 +1309,16 @@ class DutchGameRound {
       }
     }
     
-    _logger.info('Dutch: Looking for current player with ID: $currentPlayerId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Looking for current player with ID: $currentPlayerId');
+    };
     
     // Find current player index
     final currentIndex = players.indexWhere((p) => p['id'] == currentPlayerId);
     if (currentIndex == -1) {
-      _logger.warning('Dutch: Current player $currentPlayerId not found in players list', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('Dutch: Current player $currentPlayerId not found in players list');
+      };
       
       // Current player not found, find human player
       final humanPlayer = players.firstWhere(
@@ -1091,22 +1327,30 @@ class DutchGameRound {
       );
       
       if (humanPlayer.isNotEmpty) {
-        _logger.info('Dutch: Setting human player as current: ${humanPlayer['name']} (${humanPlayer['id']})', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Setting human player as current: ${humanPlayer['name']} (${humanPlayer['id']})');
+        };
         return humanPlayer;
       } else {
         // Fallback to first player
-        _logger.warning('Dutch: No human player found, using first player as fallback: ${players.first['name']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('Dutch: No human player found, using first player as fallback: ${players.first['name']}');
+        };
         return players.first;
       }
     }
     
-    _logger.info('Dutch: Found current player at index $currentIndex: ${players[currentIndex]['name']}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Found current player at index $currentIndex: ${players[currentIndex]['name']}');
+    };
     
     // Get next player (wrap around)
     final nextIndex = (currentIndex + 1) % players.length;
     final nextPlayer = players[nextIndex];
     
-    _logger.info('Dutch: Next player index: $nextIndex, next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Next player index: $nextIndex, next player: ${nextPlayer['name']} (${nextPlayer['id']}, isHuman: ${nextPlayer['isHuman']})');
+    };
     
     return nextPlayer;
   }
@@ -1118,11 +1362,15 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleDrawCard(String source, {String? playerId, Map<String, dynamic>? gamesMap}) async {
     try {
-      _logger.info('Dutch: Handling draw card from $source pile', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Handling draw card from $source pile');
+      };
       
       // Validate source
       if (source != 'deck' && source != 'discard') {
-        _logger.error('Dutch: Invalid source for draw card: $source', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Invalid source for draw card: $source');
+        };
         return false;
       }
       
@@ -1134,12 +1382,16 @@ class DutchGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        _logger.error('Dutch: Game state is null for draw card', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Game state is null for draw card');
+        };
         return false;
       }
       
       if (gamesMap != null) {
-        _logger.info('Dutch: handleDrawCard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: handleDrawCard using provided gamesMap (avoiding stale state read)');
+        };
       }
       
       // Use provided playerId if available, otherwise read from currentPlayer
@@ -1148,18 +1400,24 @@ class DutchGameRound {
         // Fallback to reading from currentPlayer (for backward compatibility with human player calls)
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       if (currentPlayer == null) {
-          _logger.error('Dutch: No current player found for draw card and no playerId provided', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Dutch: No current player found for draw card and no playerId provided');
+          };
         return false;
       }
         actualPlayerId = currentPlayer['id']?.toString() ?? '';
       }
       
       if (actualPlayerId.isEmpty) {
-        _logger.error('Dutch: Invalid playerId for draw card', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Invalid playerId for draw card');
+        };
         return false;
       }
       
-      _logger.info('Dutch: Drawing card for player $actualPlayerId from $source pile', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Drawing card for player $actualPlayerId from $source pile');
+      };
       
       // Draw card based on source
       Map<String, dynamic>? drawnCard;
@@ -1172,7 +1430,9 @@ class DutchGameRound {
           final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
           
           if (discardPile.length <= 1) {
-            _logger.error('Dutch: Cannot reshuffle - draw pile is empty and discard pile has ${discardPile.length} card(s)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('Dutch: Cannot reshuffle - draw pile is empty and discard pile has ${discardPile.length} card(s)');
+            };
             return false;
           }
           
@@ -1180,7 +1440,9 @@ class DutchGameRound {
           final topCard = discardPile.last; // Keep this in discard pile
           final cardsToReshuffle = discardPile.sublist(0, discardPile.length - 1);
           
-          _logger.info('Dutch: Draw pile empty - reshuffling ${cardsToReshuffle.length} cards from discard pile (keeping top card: ${topCard['cardId']})', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Draw pile empty - reshuffling ${cardsToReshuffle.length} cards from discard pile (keeping top card: ${topCard['cardId']})');
+          };
           
           // Convert full data cards to ID-only format (draw pile uses ID-only)
           final idOnlyCards = cardsToReshuffle.map((card) => <String, dynamic>{
@@ -1200,19 +1462,25 @@ class DutchGameRound {
           // Keep only the top card in discard pile
           gameState['discardPile'] = [topCard];
           
-          _logger.info('Dutch: Reshuffled ${idOnlyCards.length} cards into draw pile. Draw pile now has ${drawPile.length} cards, discard pile has 1 card', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Reshuffled ${idOnlyCards.length} cards into draw pile. Draw pile now has ${drawPile.length} cards, discard pile has 1 card');
+          };
         }
         
         // Now draw from the (potentially reshuffled) draw pile
         // Re-fetch drawPile in case it was reshuffled above
         final currentDrawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
         if (currentDrawPile.isEmpty) {
-          _logger.error('Dutch: Draw pile is empty after reshuffle check - cannot draw', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Dutch: Draw pile is empty after reshuffle check - cannot draw');
+          };
           return false;
         }
         
         final idOnlyCard = currentDrawPile.removeLast(); // Remove last card (top of pile)
-        _logger.info('Dutch: Drew card ${idOnlyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Drew card ${idOnlyCard['cardId']} from draw pile');
+        };
         
         // Update gameState with modified draw pile
         gameState['drawPile'] = currentDrawPile;
@@ -1220,29 +1488,39 @@ class DutchGameRound {
         // Convert ID-only card to full card data using the coordinator's method
         drawnCard = _stateCallback.getCardById(gameState, idOnlyCard['cardId']);
         if (drawnCard == null) {
-          _logger.error('Dutch: Failed to get full card data for ${idOnlyCard['cardId']}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Dutch: Failed to get full card data for ${idOnlyCard['cardId']}');
+          };
           return false;
         }
         
         // Check if draw pile is now empty
         if (currentDrawPile.isEmpty) {
-          _logger.info('Dutch: Draw pile is now empty', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Draw pile is now empty');
+          };
         }
         
       } else if (source == 'discard') {
         // Take from discard pile
         final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
         if (discardPile.isEmpty) {
-          _logger.error('Dutch: Cannot draw from empty discard pile', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Dutch: Cannot draw from empty discard pile');
+          };
           return false;
         }
         
         drawnCard = discardPile.removeLast(); // Remove last card (top of pile)
-        _logger.info('Dutch: Drew card ${drawnCard['cardId']} from discard pile', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Drew card ${drawnCard['cardId']} from discard pile');
+        };
       }
       
       if (drawnCard == null) {
-        _logger.error('Dutch: Failed to draw card from $source pile', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to draw card from $source pile');
+        };
         return false;
       }
       
@@ -1251,7 +1529,9 @@ class DutchGameRound {
       final playerIndex = players.indexWhere((p) => p['id'] == actualPlayerId);
       
       if (playerIndex == -1) {
-        _logger.error('Dutch: Player $actualPlayerId not found in players list', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Player $actualPlayerId not found in players list');
+        };
         return false;
       }
       
@@ -1272,19 +1552,31 @@ class DutchGameRound {
       // This matches backend logic in player.py add_card_to_hand() lines 78-88
       // Blank slots are only filled by penalty cards, not drawn cards
       hand.add(idOnlyCard);
-      _logger.info('Dutch: Added drawn card to end of hand (index ${hand.length - 1})', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Added drawn card to end of hand (index ${hand.length - 1})');
+      };
       
       // Log player state after drawing card
-      _logger.info('Dutch: === AFTER DRAW CARD for $actualPlayerId ===', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: === AFTER DRAW CARD for $actualPlayerId ===');
+      };
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Dutch: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player hand: $handCardIds');
+      };
       final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
-      _logger.info('Dutch: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player known_cards: $knownCards');
+      };
       final collectionRank = player['collection_rank']?.toString() ?? 'none';
-      _logger.info('Dutch: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player collection_rank: $collectionRank');
+      };
       final collectionRankCardsList = player['collection_rank_cards'] as List<dynamic>? ?? [];
       final collectionCardIds = collectionRankCardsList.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Dutch: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player collection_rank_cards: $collectionCardIds');
+      };
       
       // TWO-STEP APPROACH: First broadcast ID-only drawnCard to all players,
       // then send full card details only to the drawing player
@@ -1321,40 +1613,57 @@ class DutchGameRound {
           'specialPower': drawnCard['specialPower'],
         };
         player['known_cards'] = knownCards;
-        _logger.info('Dutch: Added drawn card ${drawnCard['cardId']} to computer player $actualPlayerId known_cards', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Added drawn card ${drawnCard['cardId']} to computer player $actualPlayerId known_cards');
+        };
       }
       
-      _logger.info('Dutch: Added card ${drawnCard['cardId']} to player $actualPlayerId hand as ID-only', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Added card ${drawnCard['cardId']} to player $actualPlayerId hand as ID-only');
+      };
       
       // Debug: Log all cards in hand after adding drawn card
-      _logger.info('Dutch: DEBUG - Player hand after draw:', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Player hand after draw:');
+      };
       for (int i = 0; i < hand.length; i++) {
         final card = hand[i];
         if (card == null) {
-          _logger.info('Dutch: DEBUG -   Index $i: EMPTY SLOT (null)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: DEBUG -   Index $i: EMPTY SLOT (null)');
+          };
         } else {
-          _logger.info('Dutch: DEBUG -   Index $i: cardId=${card['cardId']}, hasFullData=${card.containsKey('rank')}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: DEBUG -   Index $i: cardId=${card['cardId']}, hasFullData=${card.containsKey('rank')}');
+          };
         }
       }
       
       // Add turn event for draw action
       final drawnCardId = drawnCard['cardId']?.toString() ?? '';
       final currentTurnEvents = _getCurrentTurnEvents();
-      _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding draw event: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding draw event: ${currentTurnEvents.length} events');
+      };
       
       final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
         ..add(_createTurnEvent(drawnCardId, 'draw'));
-      _logger.info(
+      if (LOGGING_SWITCH) {
+        _logger.info(
         'Dutch: Added turn event - cardId: $drawnCardId, actionType: draw, total events: ${turnEvents.length}',
-        isOn: LOGGING_SWITCH,
       );
-      _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}');
+      };
       
       
       // STEP 1: Broadcast ID-only drawnCard to all players EXCEPT the drawing player
       // This shows other players that a card was drawn without revealing sensitive details
       // The drawing player will receive the complete update in STEP 2
-      _logger.info('Dutch: STEP 1 - Broadcasting ID-only drawnCard to all players except $actualPlayerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: STEP 1 - Broadcasting ID-only drawnCard to all players except $actualPlayerId');
+      };
       if (source == 'discard') {
         final updatedDiscardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
         _stateCallback.broadcastGameStateExcept(actualPlayerId, {
@@ -1377,7 +1686,9 @@ class DutchGameRound {
       // STEP 2: If human player, send full card details ONLY to the drawing player
       // This ensures the drawing player receives only one complete state update
       if (isHuman) {
-        _logger.info('Dutch: STEP 2 - Sending full drawnCard details to player $actualPlayerId only', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: STEP 2 - Sending full drawnCard details to player $actualPlayerId only');
+        };
         
         // Update player's drawnCard with full card data and status (player is a reference to the object in currentGames)
         player['drawnCard'] = drawnCard; // Full card data for human player
@@ -1397,26 +1708,42 @@ class DutchGameRound {
       // Start play timer for ALL players (human and CPU) if status is playing_card
       _startPlayActionTimer(actualPlayerId);
       
-      _logger.info('Dutch: Player $actualPlayerId status changed from drawing_card to playing_card', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player $actualPlayerId status changed from drawing_card to playing_card');
+      };
       
       // Log pile contents after successful draw
       final drawPileCount = (gameState['drawPile'] as List?)?.length ?? 0;
       final discardPileCount = (gameState['discardPile'] as List?)?.length ?? 0;
       
-      _logger.info('Dutch: === PILE CONTENTS AFTER DRAW ===', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: Draw Pile Count: $drawPileCount', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: Drawn Card: ${drawnCard['cardId']}', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: ================================', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: === PILE CONTENTS AFTER DRAW ===');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Draw Pile Count: $drawPileCount');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Discard Pile Count: $discardPileCount');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Drawn Card: ${drawnCard['cardId']}');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: ================================');
+      };
       
       // Reset missed action counter on successful draw
       _missedActionCounts[actualPlayerId] = 0;
-      _logger.info('Dutch: Reset missed action count for player $actualPlayerId (successful draw)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Reset missed action count for player $actualPlayerId (successful draw)');
+      };
       
       return true;
       
     } catch (e) {
-      _logger.error('Dutch: Error handling draw card: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error handling draw card: $e');
+      };
       return false;
     }
   }
@@ -1426,7 +1753,9 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleCallFinalRound(String playerId, {Map<String, dynamic>? gamesMap}) async {
     try {
-      _logger.info('Dutch: Handling call final round for player $playerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Handling call final round for player $playerId');
+      };
       
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
@@ -1436,17 +1765,23 @@ class DutchGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        _logger.error('Dutch: Failed to get game state for call final round', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get game state for call final round');
+        };
         return false;
       }
       
       if (gamesMap != null) {
-        _logger.info('Dutch: handleCallFinalRound using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: handleCallFinalRound using provided gamesMap (avoiding stale state read)');
+        };
       }
       
       // Check if game has ended - cannot call final round after game ends
       if (_isGameEnded()) {
-        _logger.info('Dutch: Cannot call final round - game has ended', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Cannot call final round - game has ended');
+        };
         
         _stateCallback.onActionError(
           'Cannot call final round - game has ended',
@@ -1458,7 +1793,9 @@ class DutchGameRound {
       
       // Check if final round has already been called
       if (_finalRoundCaller != null) {
-        _logger.info('Dutch: Cannot call final round - already called by $_finalRoundCaller', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Cannot call final round - already called by $_finalRoundCaller');
+        };
         
         _stateCallback.onActionError(
           'Final round has already been called',
@@ -1476,13 +1813,17 @@ class DutchGameRound {
       );
       
       if (player.isEmpty) {
-        _logger.error('Dutch: Player $playerId not found in players list', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Player $playerId not found in players list');
+        };
         return false;
       }
       
       final isActive = player['isActive'] as bool? ?? true;
       if (!isActive) {
-        _logger.info('Dutch: Cannot call final round - player $playerId is not active', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Cannot call final round - player $playerId is not active');
+        };
         
         _stateCallback.onActionError(
           'Cannot call final round - player is not active',
@@ -1494,14 +1835,18 @@ class DutchGameRound {
       
       // Set final round caller
       _finalRoundCaller = playerId;
-      _logger.info('Dutch: Final round called by player $playerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Final round called by player $playerId');
+      };
       
       // Clear final round players completed set (will be populated as players complete their turns)
       _finalRoundPlayersCompleted.clear();
       
       // Mark the caller as having completed their turn (they called it after their turn)
       _finalRoundPlayersCompleted.add(playerId);
-      _logger.info('Dutch: Marked caller $playerId as completed in final round', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Marked caller $playerId as completed in final round');
+      };
       
       // Update game state to indicate final round is active
       gameState['finalRoundCalledBy'] = playerId;
@@ -1520,17 +1865,23 @@ class DutchGameRound {
         'finalRoundActive': true,
       });
       
-      _logger.info('Dutch: Final round activated - all players will get one last turn', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Final round activated - all players will get one last turn');
+      };
       
       // Check if all players have already completed their turn (e.g., single-player game or all players already had their turn)
       final activePlayers = players.where((p) => (p['isActive'] as bool? ?? true) == true).toList();  // Default to true if missing
       final activePlayerIds = activePlayers.map((p) => p['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
       
-      _logger.info('Dutch: Checking if final round should end immediately. Active players: ${activePlayerIds.length}, Completed: ${_finalRoundPlayersCompleted.length}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Checking if final round should end immediately. Active players: ${activePlayerIds.length}, Completed: ${_finalRoundPlayersCompleted.length}');
+      };
       
       // If all active players have completed their turn, end the game immediately
       if (_finalRoundPlayersCompleted.length >= activePlayerIds.length) {
-        _logger.info('Dutch: All players have completed their turn in final round - ending game immediately', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: All players have completed their turn in final round - ending game immediately');
+        };
         _endFinalRoundAndCalculateWinners();
         return true;
       }
@@ -1538,7 +1889,9 @@ class DutchGameRound {
       return true;
       
     } catch (e) {
-      _logger.error('Dutch: Error handling call final round: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error handling call final round: $e');
+      };
       return false;
     }
   }
@@ -1547,7 +1900,9 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleCollectFromDiscard(String playerId, {Map<String, dynamic>? gamesMap}) async {
     try {
-      _logger.info('Dutch: Handling collect from discard for player $playerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Handling collect from discard for player $playerId');
+      };
       
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
@@ -1557,18 +1912,24 @@ class DutchGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        _logger.error('Dutch: Failed to get game state', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get game state');
+        };
         return false;
       }
       
       if (gamesMap != null) {
-        _logger.info('Dutch: handleCollectFromDiscard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: handleCollectFromDiscard using provided gamesMap (avoiding stale state read)');
+        };
       }
       
       // Check if collection mode is enabled
       final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
       if (!isClearAndCollect) {
-        _logger.info('Dutch: Collection disabled - isClearAndCollect is false', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Collection disabled - isClearAndCollect is false');
+        };
         _stateCallback.onActionError(
           'Collection is not enabled in this game mode',
           data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
@@ -1578,7 +1939,9 @@ class DutchGameRound {
       
       // Check if game has ended - prevent collection after game ends
       if (_isGameEnded()) {
-        _logger.info('Dutch: Cannot collect - game has ended', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Cannot collect - game has ended');
+        };
         
         _stateCallback.onActionError(
           'Cannot collect cards - game has ended',
@@ -1591,7 +1954,9 @@ class DutchGameRound {
       // Check if game is in restricted phases
       final gamePhase = gameState['gamePhase']?.toString() ?? 'unknown';
       if (gamePhase == 'same_rank_window' || gamePhase == 'initial_peek' || gamePhase == 'game_ended') {
-        _logger.info('Dutch: Cannot collect during $gamePhase phase', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Cannot collect during $gamePhase phase');
+        };
         
         // Show error message
         _stateCallback.onActionError(
@@ -1606,13 +1971,17 @@ class DutchGameRound {
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
       
       // DEBUG: Log all players' IDs and collection card counts before finding the player
-      _logger.info('Dutch: DEBUG - Looking for playerId: $playerId in players list', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Looking for playerId: $playerId in players list');
+      };
       for (final p in players) {
         final pId = p['id']?.toString() ?? 'unknown';
         final pName = p['name']?.toString() ?? 'unknown';
         final pCollectionCards = p['collection_rank_cards'] as List<dynamic>? ?? [];
         final pCollectionRank = p['collection_rank']?.toString() ?? 'none';
-        _logger.info('Dutch: DEBUG - Player in state: $pName ($pId), collection_rank: $pCollectionRank, collection_cards: ${pCollectionCards.length}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: DEBUG - Player in state: $pName ($pId), collection_rank: $pCollectionRank, collection_cards: ${pCollectionCards.length}');
+        };
       }
       
       final player = players.firstWhere(
@@ -1621,19 +1990,25 @@ class DutchGameRound {
       );
       
       if (player.isEmpty) {
-        _logger.error('Dutch: Player $playerId not found', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Player $playerId not found');
+        };
         return false;
       }
       
       // DEBUG: Verify we got the correct player
       final foundPlayerId = player['id']?.toString() ?? 'unknown';
       final foundPlayerName = player['name']?.toString() ?? 'unknown';
-      _logger.info('Dutch: DEBUG - Found player: $foundPlayerName ($foundPlayerId) - matches requested playerId: ${foundPlayerId == playerId}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Found player: $foundPlayerName ($foundPlayerId) - matches requested playerId: ${foundPlayerId == playerId}');
+      };
       
       // Get top card from discard pile
       final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
       if (discardPile.isEmpty) {
-        _logger.info('Dutch: Discard pile is empty', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Discard pile is empty');
+        };
         
         _stateCallback.onActionError(
           'Discard pile is empty',
@@ -1651,11 +2026,15 @@ class DutchGameRound {
       
       // DEBUG: Log validation details
       final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
-      _logger.info('Dutch: DEBUG - Collect validation - Top discard rank: $topDiscardRank, Player collection rank: $playerCollectionRank, Collection cards count: ${collectionRankCards.length}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Collect validation - Top discard rank: $topDiscardRank, Player collection rank: $playerCollectionRank, Collection cards count: ${collectionRankCards.length}');
+      };
       
       // Check if player already has 4 collection cards (winning condition) - prevent collecting 5th card
       if (collectionRankCards.length >= 4) {
-        _logger.info('Dutch: Player already has ${collectionRankCards.length} collection cards (4 is the maximum for winning) - cannot collect more', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Player already has ${collectionRankCards.length} collection cards (4 is the maximum for winning) - cannot collect more');
+        };
         
         _stateCallback.onActionError(
           'You already have 4 cards of your collection rank - cannot collect more',
@@ -1667,7 +2046,9 @@ class DutchGameRound {
       
       // Check if ranks match
       if (topDiscardRank.toLowerCase() != playerCollectionRank.toLowerCase()) {
-        _logger.info('Dutch: Card rank $topDiscardRank doesn\'t match collection rank $playerCollectionRank', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Card rank $topDiscardRank doesn\'t match collection rank $playerCollectionRank');
+        };
         
         _stateCallback.onActionError(
           'You can only collect cards from the discard pile that match your collection rank',
@@ -1678,7 +2059,9 @@ class DutchGameRound {
       }
       
       // DEBUG: Log successful validation
-      _logger.info('Dutch: DEBUG - Collect validation passed - ranks match: $topDiscardRank == $playerCollectionRank', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Collect validation passed - ranks match: $topDiscardRank == $playerCollectionRank');
+      };
       
       // Get the card ID of the top discard card before removing it
       final topDiscardCardId = topDiscardCard['cardId']?.toString() ?? '';
@@ -1692,7 +2075,9 @@ class DutchGameRound {
       }).where((id) => id.isNotEmpty).toList();
       
       if (existingCardIds.contains(topDiscardCardId)) {
-        _logger.error('Dutch: ERROR - Card $topDiscardCardId is already in player $playerId collection_rank_cards! Preventing duplicate collection.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: ERROR - Card $topDiscardCardId is already in player $playerId collection_rank_cards! Preventing duplicate collection.');
+        };
         _stateCallback.onActionError(
           'Card is already in your collection',
           data: {'timestamp': DateTime.now().millisecondsSinceEpoch},
@@ -1706,11 +2091,15 @@ class DutchGameRound {
       
       // Verify the card we removed matches what we expected
       if (collectedCardId != topDiscardCardId) {
-        _logger.error('Dutch: ERROR - Card ID mismatch! Expected $topDiscardCardId but removed $collectedCardId from discard pile', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: ERROR - Card ID mismatch! Expected $topDiscardCardId but removed $collectedCardId from discard pile');
+        };
         // This shouldn't happen, but if it does, we should still continue
       }
       
-      _logger.info('Dutch: Collected card $collectedCardId from discard pile', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Collected card $collectedCardId from discard pile');
+      };
       
       // Add to player's hand as ID-only (same format as regular hand cards)
       final hand = player['hand'] as List<dynamic>? ?? [];
@@ -1728,7 +2117,9 @@ class DutchGameRound {
       // Update player's collection_rank to match the collected card's rank
       player['collection_rank'] = collectedCard['rank']?.toString() ?? 'unknown';
       
-      _logger.info('Dutch: Added card to hand and collection_rank_cards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Added card to hand and collection_rank_cards');
+      };
       
       // CRITICAL: Batch state update with both hand and discard pile changes
       // This ensures widgets rebuild atomically and card position tracking works correctly
@@ -1741,15 +2132,20 @@ class DutchGameRound {
       
       // Add turn event for collect action
       final currentTurnEvents = _getCurrentTurnEvents();
-      _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding collect event: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding collect event: ${currentTurnEvents.length} events');
+      };
       
       final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
         ..add(_createTurnEvent(collectedCardId, 'collect'));
-      _logger.info(
+      if (LOGGING_SWITCH) {
+        _logger.info(
         'Dutch: Added turn event - cardId: $collectedCardId, actionType: collect, total events: ${turnEvents.length}',
-        isOn: LOGGING_SWITCH,
       );
-      _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}');
+      };
       
       // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
       _sanitizeDrawnCardsInGamesMap(currentGames, context: 'collect_from_discard');
@@ -1765,7 +2161,9 @@ class DutchGameRound {
       // Note: isClearAndCollect is already defined earlier in this method
       if (isClearAndCollect && collectionRankCards.length == 4) {
         final playerName = player['name']?.toString() ?? 'Unknown';
-        _logger.info('Dutch: Player $playerName ($playerId) has collected all 4 cards of rank ${player['collection_rank']} - FOUR OF A KIND WIN!', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Player $playerName ($playerId) has collected all 4 cards of rank ${player['collection_rank']} - FOUR OF A KIND WIN!');
+        };
         
         // Set all players to waiting status
         _updatePlayerStatusInGamesMap('waiting', playerId: null);
@@ -1777,7 +2175,9 @@ class DutchGameRound {
           'winType': 'four_of_a_kind',
         });
         
-        _logger.info('Dutch: Added player $playerName ($playerId) to winners list with winType: four_of_a_kind', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Added player $playerName ($playerId) to winners list with winType: four_of_a_kind');
+        };
         
         // Trigger game ending check
         _checkGameEnding();
@@ -1786,7 +2186,9 @@ class DutchGameRound {
       return true;
       
     } catch (e) {
-      _logger.error('Dutch: Error handling collect from discard: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error handling collect from discard: $e');
+      };
       return false;
     }
   }
@@ -1795,7 +2197,9 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handlePlayCard(String cardId, {String? playerId, Map<String, dynamic>? gamesMap}) async {
     try {
-      _logger.info('Dutch: Handling play card: $cardId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Handling play card: $cardId');
+      };
       
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
@@ -1805,11 +2209,15 @@ class DutchGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gamesMap != null) {
-        _logger.info('Dutch: handlePlayCard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: handlePlayCard using provided gamesMap (avoiding stale state read)');
+        };
       }
       
       if (gameState == null) {
-        _logger.error('Dutch: Game state is null for play card', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Game state is null for play card');
+        };
         return false;
       }
       
@@ -1819,14 +2227,18 @@ class DutchGameRound {
         // Fallback to reading from currentPlayer (for backward compatibility with human player calls)
       final currentPlayer = gameState['currentPlayer'] as Map<String, dynamic>?;
       if (currentPlayer == null) {
-          _logger.error('Dutch: No current player found for play card and no playerId provided', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Dutch: No current player found for play card and no playerId provided');
+          };
         return false;
         }
         actualPlayerId = currentPlayer['id']?.toString() ?? '';
       }
       
       if (actualPlayerId.isEmpty) {
-        _logger.error('Dutch: Invalid playerId for play card', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Invalid playerId for play card');
+        };
         return false;
       }
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
@@ -1838,7 +2250,9 @@ class DutchGameRound {
       );
       
       if (player.isEmpty) {
-        _logger.error('Dutch: Player $actualPlayerId not found in players list', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Player $actualPlayerId not found in players list');
+        };
         return false;
       }
       
@@ -1859,11 +2273,15 @@ class DutchGameRound {
       }
       
       if (cardToPlay == null) {
-        _logger.error('Dutch: Card $cardId not found in player $playerId hand', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Card $cardId not found in player $playerId hand');
+        };
         return false;
       }
       
-      _logger.info('Dutch: Found card $cardId at index $cardIndex in player $playerId hand', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Found card $cardId at index $cardIndex in player $playerId hand');
+      };
       
       // Check if card is in player's collection_rank_cards (cannot be played) - only if collection mode is enabled
       final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
@@ -1871,7 +2289,9 @@ class DutchGameRound {
         final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
         for (var collectionCard in collectionRankCards) {
           if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-            _logger.info('Dutch: Card $cardId is a collection rank card and cannot be played', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Card $cardId is a collection rank card and cannot be played');
+            };
             
             // Show error message to user
             _stateCallback.onActionError(
@@ -1881,7 +2301,9 @@ class DutchGameRound {
             
             // CRITICAL: Restore player status to playing_card so they can retry
             _updatePlayerStatusInGamesMap('playing_card', playerId: playerId);
-            _logger.info('Dutch: Restored player $playerId status to playing_card after failed collection rank play', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Restored player $playerId status to playing_card after failed collection rank play');
+            };
             
             return false;
           }
@@ -1894,46 +2316,72 @@ class DutchGameRound {
       // Check if we should create a blank slot or remove the card entirely
       bool shouldCreateBlankSlot;
       try {
-        _logger.info('Dutch: About to call _shouldCreateBlankSlotAtIndex for index $cardIndex, hand.length=${hand.length}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: About to call _shouldCreateBlankSlotAtIndex for index $cardIndex, hand.length=${hand.length}');
+        };
         shouldCreateBlankSlot = _shouldCreateBlankSlotAtIndex(hand, cardIndex);
-        _logger.info('Dutch: _shouldCreateBlankSlotAtIndex returned: $shouldCreateBlankSlot', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: _shouldCreateBlankSlotAtIndex returned: $shouldCreateBlankSlot');
+        };
       } catch (e) {
-        _logger.error('Dutch: Error in _shouldCreateBlankSlotAtIndex: $e', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Error in _shouldCreateBlankSlotAtIndex: $e');
+        };
         rethrow;
       }
       
       if (shouldCreateBlankSlot) {
         // Replace the card with null (blank slot) to maintain index positions
         try {
-          _logger.info('Dutch: About to set hand[$cardIndex] = null', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: About to set hand[$cardIndex] = null');
+          };
           hand[cardIndex] = null;
-          _logger.info('Dutch: Created blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Created blank slot at index $cardIndex');
+          };
         } catch (e) {
-          _logger.error('Dutch: Error creating blank slot: $e', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Dutch: Error creating blank slot: $e');
+          };
           rethrow;
         }
       } else {
         // Remove the card entirely and shift remaining cards
         try {
-          _logger.info('Dutch: About to removeAt($cardIndex)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: About to removeAt($cardIndex)');
+          };
           hand.removeAt(cardIndex);
-          _logger.info('Dutch: Removed card entirely from index $cardIndex, shifted remaining cards', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Removed card entirely from index $cardIndex, shifted remaining cards');
+          };
         } catch (e) {
-          _logger.error('Dutch: Error removing card: $e', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Dutch: Error removing card: $e');
+          };
           rethrow;
         }
       }
       
       // Convert card to full data before adding to discard pile
       // The player's hand contains ID-only cards, but discard pile needs full card data
-      _logger.info('Dutch: About to get full card data for $cardId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: About to get full card data for $cardId');
+      };
       final cardToPlayFullData = _stateCallback.getCardById(gameState, cardId);
-      _logger.info('Dutch: Got full card data for $cardId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Got full card data for $cardId');
+      };
       if (cardToPlayFullData == null) {
-        _logger.error('Dutch: Failed to get full data for card $cardId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get full data for card $cardId');
+        };
         return false;
       }
-      _logger.info('Dutch: Converted card $cardId to full data for discard pile', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Converted card $cardId to full data for discard pile');
+      };
       
       // Update player's hand back to game state (hand list was modified with nulls)
       player['hand'] = hand;
@@ -1950,7 +2398,9 @@ class DutchGameRound {
       
       // Add turn events for play action and potential reposition
       final currentTurnEvents = _getCurrentTurnEvents();
-      _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding play event: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding play event: ${currentTurnEvents.length} events');
+      };
       
       final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
         ..add(_createTurnEvent(cardId, 'play'));
@@ -1959,51 +2409,84 @@ class DutchGameRound {
       if (drawnCard != null && drawnCard['cardId'] != cardId) {
         final drawnCardId = drawnCard['cardId']?.toString() ?? '';
         turnEvents.add(_createTurnEvent(drawnCardId, 'reposition'));
-        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Added reposition event for drawn card: $drawnCardId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Added reposition event for drawn card: $drawnCardId');
+        };
       }
       
-      _logger.info(
+      if (LOGGING_SWITCH) {
+        _logger.info(
         'Dutch: Added turn events - play: $cardId${drawnCard != null && drawnCard['cardId'] != cardId ? ', reposition: ${drawnCard['cardId']}' : ''}, total events: ${turnEvents.length}',
-        isOn: LOGGING_SWITCH,
       );
-      _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}');
+      };
       
       // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
       // This prevents opponents from seeing full card data when a player plays a card
       // The games map may contain full drawnCard data from STEP 2 of draw action
       _sanitizeDrawnCardsInGamesMap(currentGamesForPlay, context: 'play_card');
       
-      _logger.info('🔍 STATE_UPDATE DEBUG - Sending state update at line 1629 with hand BEFORE reposition', isOn: LOGGING_SWITCH);
-      _logger.info('🔍 STATE_UPDATE DEBUG - Hand at this point: ${hand.map((c) => c is Map ? c['cardId'] : c.toString()).toList()}', isOn: LOGGING_SWITCH);
-      _logger.info('🔍 STATE_UPDATE DEBUG - Turn events: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 STATE_UPDATE DEBUG - Sending state update at line 1629 with hand BEFORE reposition');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 STATE_UPDATE DEBUG - Hand at this point: ${hand.map((c) => c is Map ? c['cardId'] : c.toString()).toList()}');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 STATE_UPDATE DEBUG - Turn events: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}');
+      };
       _stateCallback.onGameStateChanged({
         'games': currentGamesForPlay, // Games map with modifications (drawnCard sanitized)
         'discardPile': updatedDiscardPile, // Updated discard pile
         'turn_events': turnEvents, // Add turn events for animations
       });
-      _logger.info('🔍 STATE_UPDATE DEBUG - State update sent. Reposition will happen AFTER this and AFTER _handleSameRankWindow()', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 STATE_UPDATE DEBUG - State update sent. Reposition will happen AFTER this and AFTER _handleSameRankWindow()');
+      };
       
       // Log player state after playing card
-      _logger.info('Dutch: === AFTER PLAY CARD for $playerId ===', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: === AFTER PLAY CARD for $playerId ===');
+      };
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Dutch: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player hand: $handCardIds');
+      };
       final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
-      _logger.info('Dutch: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player known_cards: $knownCards');
+      };
       final collectionRank = player['collection_rank']?.toString() ?? 'none';
-      _logger.info('Dutch: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player collection_rank: $collectionRank');
+      };
       final collectionRankCardsList = player['collection_rank_cards'] as List<dynamic>? ?? [];
       final collectionCardIds = collectionRankCardsList.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Dutch: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player collection_rank_cards: $collectionCardIds');
+      };
       
       // Log pile contents after successful play
       final drawPileCount = (gameState['drawPile'] as List?)?.length ?? 0;
       final discardPileCount = (gameState['discardPile'] as List?)?.length ?? 0;
 
-      _logger.info('Dutch: === PILE CONTENTS AFTER PLAY ===', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: Draw Pile Count: $drawPileCount', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: Discard Pile Count: $discardPileCount', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: Played Card: ${cardToPlay['cardId']}', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: ================================', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: === PILE CONTENTS AFTER PLAY ===');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Draw Pile Count: $drawPileCount');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Discard Pile Count: $discardPileCount');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Played Card: ${cardToPlay['cardId']}');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: ================================');
+      };
       
       // Check if the played card has special powers (Jack/Queen)
       // Replicates backend flow: check special card FIRST (game_round.py line 989)
@@ -2033,7 +2516,9 @@ class DutchGameRound {
           'playerName': playerName,
           'winType': 'empty_hand',
         });
-        _logger.info('Dutch: Player $playerName ($playerId) has no cards left - added to winners list', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Player $playerName ($playerId) has no cards left - added to winners list');
+        };
       }
       
       // Handle drawn card repositioning with smart blank slot system
@@ -2041,8 +2526,12 @@ class DutchGameRound {
       if (drawnCard != null && drawnCard['cardId'] != cardId) {
         // The drawn card should fill the blank slot left by the played card
         // The blank slot is at cardIndex (where the played card was)
-        _logger.info('🔍 REPOSITION DEBUG - Repositioning drawn card ${drawnCard['cardId']} to index $cardIndex', isOn: LOGGING_SWITCH);
-        _logger.info('🔍 REPOSITION DEBUG - This happens AFTER state update at line 1529 and AFTER _handleSameRankWindow()', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 REPOSITION DEBUG - Repositioning drawn card ${drawnCard['cardId']} to index $cardIndex');
+        };
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 REPOSITION DEBUG - This happens AFTER state update at line 1529 and AFTER _handleSameRankWindow()');
+        };
         
         // First, find and remove the drawn card from its original position
         int? originalIndex;
@@ -2059,10 +2548,14 @@ class DutchGameRound {
           
           if (shouldKeepOriginalSlot) {
             hand[originalIndex] = null;  // Create blank slot
-            _logger.info('Dutch: Created blank slot at original position $originalIndex', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Created blank slot at original position $originalIndex');
+            };
           } else {
             hand.removeAt(originalIndex);  // Remove entirely
-            _logger.info('Dutch: Removed card entirely from original position $originalIndex', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Removed card entirely from original position $originalIndex');
+            };
             // Adjust target index if we removed a card before it
             if (originalIndex < cardIndex) {
               cardIndex -= 1;
@@ -2087,36 +2580,54 @@ class DutchGameRound {
           // Place it in the blank slot left by the played card
           if (cardIndex < hand.length) {
             hand[cardIndex] = drawnCardIdOnly;
-            _logger.info('Dutch: Placed drawn card in blank slot at index $cardIndex', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Placed drawn card in blank slot at index $cardIndex');
+            };
           } else {
             hand.insert(cardIndex, drawnCardIdOnly);
-            _logger.info('Dutch: Inserted drawn card at index $cardIndex', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Inserted drawn card at index $cardIndex');
+            };
           }
         } else {
           // The slot shouldn't exist, so append the drawn card to the end
           hand.add(drawnCardIdOnly);
-          _logger.info('Dutch: Appended drawn card to end of hand (slot $cardIndex should not exist)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Appended drawn card to end of hand (slot $cardIndex should not exist)');
+          };
         }
         
         // Remove the drawn card property completely since it's no longer "drawn"
         // Using remove() instead of setting to null ensures the property doesn't exist at all
         // This prevents the UI from showing the card as glowing after reposition
         player.remove('drawnCard');
-        _logger.info('Dutch: Removed drawn card property after repositioning', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Removed drawn card property after repositioning');
+        };
         
         // Update player's hand back to game state (hand list was modified)
         player['hand'] = hand;
         
-        _logger.info('🔍 REPOSITION DEBUG - Hand updated with repositioned card. Hand now: ${hand.map((c) => c is Map ? c['cardId'] : c.toString()).toList()}', isOn: LOGGING_SWITCH);
-        _logger.info('🔍 REPOSITION DEBUG - CRITICAL: This hand update is NOT sent in a state update! The repositioned hand exists only in memory.', isOn: LOGGING_SWITCH);
-        _logger.info('🔍 REPOSITION DEBUG - The UI will only see the repositioned hand when the next state update includes the games map.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 REPOSITION DEBUG - Hand updated with repositioned card. Hand now: ${hand.map((c) => c is Map ? c['cardId'] : c.toString()).toList()}');
+        };
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 REPOSITION DEBUG - CRITICAL: This hand update is NOT sent in a state update! The repositioned hand exists only in memory.');
+        };
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 REPOSITION DEBUG - The UI will only see the repositioned hand when the next state update includes the games map.');
+        };
         
         // CRITICAL: Send a state update with the repositioned hand so the UI can see it immediately
         // This ensures the repositioned card is visible in the UI, not just in memory
         // Preserve turn_events so the reposition animation can still be triggered
         final currentTurnEventsForReposition = _getCurrentTurnEvents();
-        _logger.info('🔍 REPOSITION DEBUG - Sending state update with repositioned hand...', isOn: LOGGING_SWITCH);
-        _logger.info('🔍 REPOSITION DEBUG - Preserving ${currentTurnEventsForReposition.length} turn_events for animation', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 REPOSITION DEBUG - Sending state update with repositioned hand...');
+        };
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 REPOSITION DEBUG - Preserving ${currentTurnEventsForReposition.length} turn_events for animation');
+        };
         
         // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting reposition update
         // Even though drawnCard should be cleared at line 1752, defensive sanitization ensures no leaks
@@ -2126,7 +2637,9 @@ class DutchGameRound {
           'games': currentGames, // Games map with repositioned hand (drawnCard sanitized)
           'turn_events': currentTurnEventsForReposition, // Preserve turn_events for reposition animation
         });
-        _logger.info('🔍 REPOSITION DEBUG - State update sent with repositioned hand and preserved turn_events', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🔍 REPOSITION DEBUG - State update sent with repositioned hand and preserved turn_events');
+        };
         
         // NOTE: Do NOT update status here - all players already have 'same_rank_window' status
         // set by _handleSameRankWindow() (called earlier). Updating to 'waiting' would overwrite
@@ -2136,7 +2649,9 @@ class DutchGameRound {
         // Remove the drawn card property completely since it's now in the discard pile
         // Using remove() instead of setting to null ensures the property doesn't exist at all
         player.remove('drawnCard');
-        _logger.info('Dutch: Removed drawn card property (played card was the drawn card)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Removed drawn card property (played card was the drawn card)');
+        };
         
         // NOTE: Do NOT update status here - all players already have 'same_rank_window' status
         // set by _handleSameRankWindow() (called earlier). Updating to 'waiting' would overwrite
@@ -2154,12 +2669,16 @@ class DutchGameRound {
       
       // Reset missed action count on successful play
       _missedActionCounts[actualPlayerId] = 0;
-      _logger.info('Dutch: Reset missed action count for player $actualPlayerId (successful play)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Reset missed action count for player $actualPlayerId (successful play)');
+      };
       
       return true;
       
     } catch (e) {
-      _logger.error('Dutch: Error handling play card: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error handling play card: $e');
+      };
       return false;
     }
   }
@@ -2174,7 +2693,9 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<bool> handleSameRankPlay(String playerId, String cardId, {Map<String, dynamic>? gamesMap}) async {
     try {
-      _logger.info('Dutch: Handling same rank play for player $playerId, card $cardId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Handling same rank play for player $playerId, card $cardId');
+      };
       
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
@@ -2184,12 +2705,16 @@ class DutchGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        _logger.error('Dutch: Failed to get game state for same rank play', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get game state for same rank play');
+        };
         return false;
       }
       
       if (gamesMap != null) {
-        _logger.info('Dutch: handleSameRankPlay using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: handleSameRankPlay using provided gamesMap (avoiding stale state read)');
+        };
       }
       
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
@@ -2201,7 +2726,9 @@ class DutchGameRound {
       );
       
       if (player.isEmpty) {
-        _logger.error('Dutch: Player $playerId not found for same rank play', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Player $playerId not found for same rank play');
+        };
         return false;
       }
       
@@ -2222,16 +2749,22 @@ class DutchGameRound {
       }
       
       if (playedCard == null) {
-        _logger.info('Dutch: Card $cardId not found in player $playerId hand for same rank play (likely already played by another player)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Card $cardId not found in player $playerId hand for same rank play (likely already played by another player)');
+        };
         return false;
       }
       
-      _logger.info('Dutch: Found card $cardId for same rank play in player $playerId hand at index $cardIndex', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Found card $cardId for same rank play in player $playerId hand at index $cardIndex');
+      };
       
       // Get full card data
       final playedCardFullData = _stateCallback.getCardById(gameState, cardId);
       if (playedCardFullData == null) {
-        _logger.error('Dutch: Failed to get full card data for $cardId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get full card data for $cardId');
+        };
         return false;
       }
       
@@ -2244,7 +2777,9 @@ class DutchGameRound {
         final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
         for (var collectionCard in collectionRankCards) {
           if (collectionCard is Map<String, dynamic> && collectionCard['cardId']?.toString() == cardId) {
-            _logger.info('Dutch: Card $cardId is a collection rank card and cannot be played for same rank', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Card $cardId is a collection rank card and cannot be played for same rank');
+            };
             
             // Show error message to user via actionError state
             _stateCallback.onActionError(
@@ -2253,7 +2788,9 @@ class DutchGameRound {
             );
             
             // No status change needed - status will change automatically when same rank window expires
-            _logger.info('Dutch: Collection rank card rejected - status will auto-expire with same rank window', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Collection rank card rejected - status will auto-expire with same rank window');
+            };
             
             return false;
           }
@@ -2262,10 +2799,14 @@ class DutchGameRound {
       
       // Validate that this is actually a same rank play
       if (!_validateSameRankPlay(gameState, cardRank)) {
-        _logger.info('Dutch: Same rank validation failed for card $cardId with rank $cardRank (expected behavior - player forgot/wrong card)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Same rank validation failed for card $cardId with rank $cardRank (expected behavior - player forgot/wrong card)');
+        };
         
         // Apply penalty: draw a card from the draw pile and add to player's hand
-        _logger.info('Dutch: Applying penalty for wrong same rank play - drawing card from draw pile', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Applying penalty for wrong same rank play - drawing card from draw pile');
+        };
         
         final drawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
         final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
@@ -2274,7 +2815,9 @@ class DutchGameRound {
         if (drawPile.isEmpty) {
           // Draw pile is empty - reshuffle discard pile (except top card) into draw pile
           if (discardPile.length <= 1) {
-            _logger.error('Dutch: Cannot apply penalty - draw pile is empty and discard pile has ${discardPile.length} card(s)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('Dutch: Cannot apply penalty - draw pile is empty and discard pile has ${discardPile.length} card(s)');
+            };
             return false;
           }
           
@@ -2282,7 +2825,9 @@ class DutchGameRound {
           final topCard = discardPile.last;
           final cardsToReshuffle = discardPile.sublist(0, discardPile.length - 1);
           
-          _logger.info('Dutch: Draw pile empty during penalty - reshuffling ${cardsToReshuffle.length} cards from discard pile (keeping top card: ${topCard['cardId']})', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Draw pile empty during penalty - reshuffling ${cardsToReshuffle.length} cards from discard pile (keeping top card: ${topCard['cardId']})');
+          };
           
           // Convert full card data to ID-only for reshuffled cards
           final idOnlyCards = cardsToReshuffle.map((card) => <String, dynamic>{
@@ -2304,19 +2849,25 @@ class DutchGameRound {
           // Update game state with reshuffled draw pile
           gameState['drawPile'] = drawPile;
           
-          _logger.info('Dutch: Reshuffled ${idOnlyCards.length} cards into draw pile for penalty. Draw pile now has ${drawPile.length} cards, discard pile has 1 card', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Reshuffled ${idOnlyCards.length} cards into draw pile for penalty. Draw pile now has ${drawPile.length} cards, discard pile has 1 card');
+          };
         }
         
         // Re-fetch drawPile in case it was reshuffled above
         final currentDrawPile = gameState['drawPile'] as List<Map<String, dynamic>>? ?? [];
         if (currentDrawPile.isEmpty) {
-          _logger.error('Dutch: Draw pile is empty after reshuffle check - cannot apply penalty', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Dutch: Draw pile is empty after reshuffle check - cannot apply penalty');
+          };
           return false;
         }
         
         // Draw a card from the draw pile (remove last card)
         final penaltyCard = currentDrawPile.removeLast();
-        _logger.info('Dutch: Drew penalty card ${penaltyCard['cardId']} from draw pile', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Drew penalty card ${penaltyCard['cardId']} from draw pile');
+        };
         
         // Add penalty card to player's hand as ID-only (same format as regular hand cards)
         // Format matches dutch game: {'cardId': 'xxx', 'suit': '?', 'rank': '?', 'points': 0}
@@ -2328,7 +2879,9 @@ class DutchGameRound {
         };
         
         hand.add(penaltyCardIdOnly);
-        _logger.info('Dutch: Added penalty card ${penaltyCard['cardId']} to player $playerId hand as ID-only', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Added penalty card ${penaltyCard['cardId']} to player $playerId hand as ID-only');
+        };
         
         // CRITICAL: Persist changes to game state
         player['hand'] = hand;  // Update player's hand with the penalty card
@@ -2347,13 +2900,17 @@ class DutchGameRound {
           'games': currentGames,
         });
         
-        _logger.info('Dutch: Penalty applied successfully - player $playerId now has ${hand.length} cards', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Penalty applied successfully - player $playerId now has ${hand.length} cards');
+        };
         
         // Return true since using penalty was handled successfully (expected gameplay, not an error)
         return true;
       }
       
-      _logger.info('Dutch: Same rank validation passed for card $cardId with rank $cardRank', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Same rank validation passed for card $cardId with rank $cardRank');
+      };
       
       // SUCCESSFUL SAME RANK PLAY - Remove card from hand and add to discard pile
       // Check if we should create a blank slot or remove the card entirely
@@ -2362,11 +2919,15 @@ class DutchGameRound {
       if (shouldCreateBlankSlot) {
         // Replace the card with null (blank slot) to maintain index positions
         hand[cardIndex] = null;
-        _logger.info('Dutch: Created blank slot at index $cardIndex for same rank play', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Created blank slot at index $cardIndex for same rank play');
+        };
       } else {
         // Remove the card entirely and shift remaining cards
         hand.removeAt(cardIndex);
-        _logger.info('Dutch: Removed same rank card entirely from index $cardIndex', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Removed same rank card entirely from index $cardIndex');
+        };
       }
       
       // Update player's hand back to game state (hand list was modified with nulls)
@@ -2384,15 +2945,20 @@ class DutchGameRound {
       
       // Add turn event for same rank play (actionType is 'play' - same as regular play)
       final currentTurnEvents = _getCurrentTurnEvents();
-      _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding same rank play event: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding same rank play event: ${currentTurnEvents.length} events');
+      };
       
       final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
         ..add(_createTurnEvent(cardId, 'play'));
-      _logger.info(
+      if (LOGGING_SWITCH) {
+        _logger.info(
         'Dutch: Added turn event - cardId: $cardId, actionType: play (same rank), total events: ${turnEvents.length}',
-        isOn: LOGGING_SWITCH,
       );
-      _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}');
+      };
       
       // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
       _sanitizeDrawnCardsInGamesMap(currentGamesForSameRank, context: 'same_rank_play');
@@ -2403,19 +2969,31 @@ class DutchGameRound {
         'turn_events': turnEvents, // Add turn event for animation
       });
       
-      _logger.info('Dutch: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile');
+      };
       
       // Log player state after same rank play
-      _logger.info('Dutch: === AFTER SAME RANK PLAY for $playerId ===', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: === AFTER SAME RANK PLAY for $playerId ===');
+      };
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Dutch: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player hand: $handCardIds');
+      };
       final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
-      _logger.info('Dutch: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player known_cards: $knownCards');
+      };
       final collectionRank = player['collection_rank']?.toString() ?? 'none';
-      _logger.info('Dutch: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player collection_rank: $collectionRank');
+      };
       final collectionRankCardsList = player['collection_rank_cards'] as List<dynamic>? ?? [];
       final collectionCardIds = collectionRankCardsList.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Dutch: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player collection_rank_cards: $collectionCardIds');
+      };
       
       // Check for special cards (Jack/Queen) and store data if applicable
       _checkSpecialCard(playerId, {
@@ -2426,7 +3004,9 @@ class DutchGameRound {
       
       // TODO: Store the play in same_rank_data for tracking (future implementation)
       // For now, we just log the successful play
-      _logger.info('Dutch: Same rank play data would be stored here (future implementation)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Same rank play data would be stored here (future implementation)');
+      };
       
       // Update all players' known_cards after successful same rank play
       updateKnownCards('same_rank_play', playerId, [cardId]);
@@ -2443,13 +3023,17 @@ class DutchGameRound {
           'playerName': playerName,
           'winType': 'empty_hand',
         });
-        _logger.info('Dutch: Player $playerName ($playerId) has no cards left - added to winners list', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Player $playerName ($playerId) has no cards left - added to winners list');
+        };
       }
       
       return true;
       
     } catch (e) {
-      _logger.error('Dutch: Error handling same rank play: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error handling same rank play: $e');
+      };
       return false;
     }
   }
@@ -2465,7 +3049,9 @@ class DutchGameRound {
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
-      _logger.info('Dutch: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Handling Jack swap for cards: $firstCardId (player $firstPlayerId) <-> $secondCardId (player $secondPlayerId)');
+      };
 
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
@@ -2475,22 +3061,30 @@ class DutchGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        _logger.error('Dutch: Failed to get game state for Jack swap', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get game state for Jack swap');
+        };
         return false;
       }
       
       if (gamesMap != null) {
-        _logger.info('Dutch: handleJackSwap using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: handleJackSwap using provided gamesMap (avoiding stale state read)');
+        };
       }
 
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
 
       // Validate both players exist
       // Log all player IDs for debugging
-      _logger.info('Dutch: Validating jack swap players - firstPlayerId: $firstPlayerId (type: ${firstPlayerId.runtimeType}), secondPlayerId: $secondPlayerId (type: ${secondPlayerId.runtimeType})', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Validating jack swap players - firstPlayerId: $firstPlayerId (type: ${firstPlayerId.runtimeType}), secondPlayerId: $secondPlayerId (type: ${secondPlayerId.runtimeType})');
+      };
       for (final p in players) {
         final pId = p['id'];
-        _logger.info('Dutch: Player in state - name: ${p['name']}, id: $pId (type: ${pId.runtimeType}, toString: ${pId?.toString()})', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Player in state - name: ${p['name']}, id: $pId (type: ${pId.runtimeType}, toString: ${pId?.toString()})');
+        };
       }
       
       // Try both direct comparison and toString comparison for robustness
@@ -2511,11 +3105,15 @@ class DutchGameRound {
       );
 
       if (firstPlayer.isEmpty || secondPlayer.isEmpty) {
-        _logger.error('Dutch: Invalid Jack swap - one or both players not found. firstPlayerId: $firstPlayerId (found: ${firstPlayer.isNotEmpty}), secondPlayerId: $secondPlayerId (found: ${secondPlayer.isNotEmpty})', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Invalid Jack swap - one or both players not found. firstPlayerId: $firstPlayerId (found: ${firstPlayer.isNotEmpty}), secondPlayerId: $secondPlayerId (found: ${secondPlayer.isNotEmpty})');
+        };
         return false;
       }
       
-      _logger.info('Dutch: Both players validated successfully - firstPlayer: ${firstPlayer['name']} (${firstPlayer['id']}), secondPlayer: ${secondPlayer['name']} (${secondPlayer['id']})', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Both players validated successfully - firstPlayer: ${firstPlayer['name']} (${firstPlayer['id']}), secondPlayer: ${secondPlayer['name']} (${secondPlayer['id']})');
+      };
 
       // Get player hands
       final firstPlayerHand = firstPlayer['hand'] as List<dynamic>? ?? [];
@@ -2549,18 +3147,24 @@ class DutchGameRound {
 
       // Validate cards found
       if (firstCard == null || secondCard == null || firstCardIndex == null || secondCardIndex == null) {
-        _logger.error('Dutch: Invalid Jack swap - one or both cards not found in players\' hands', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Invalid Jack swap - one or both cards not found in players\' hands');
+        };
         return false;
       }
 
-      _logger.info('Dutch: Found cards - First card at index $firstCardIndex in player $firstPlayerId hand, Second card at index $secondCardIndex in player $secondPlayerId hand', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Found cards - First card at index $firstCardIndex in player $firstPlayerId hand, Second card at index $secondCardIndex in player $secondPlayerId hand');
+      };
 
       // Get full card data for both cards to ensure we have the correct cardId
       final firstCardFullData = _stateCallback.getCardById(gameState, firstCardId);
       final secondCardFullData = _stateCallback.getCardById(gameState, secondCardId);
       
       if (firstCardFullData == null || secondCardFullData == null) {
-        _logger.error('Dutch: Failed to get full card data for swap - firstCard: ${firstCardFullData != null}, secondCard: ${secondCardFullData != null}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get full card data for swap - firstCard: ${firstCardFullData != null}, secondCard: ${secondCardFullData != null}');
+        };
         return false;
       }
 
@@ -2593,7 +3197,9 @@ class DutchGameRound {
           if (card is Map<String, dynamic>) {
             final cardId = card['cardId']?.toString() ?? '';
             if (cardId == firstCardId) {
-              _logger.info('Dutch: Removed card $firstCardId from player $firstPlayerId collection_rank_cards (swapped out)', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: Removed card $firstCardId from player $firstPlayerId collection_rank_cards (swapped out)');
+              };
               return true;
             }
           }
@@ -2606,7 +3212,9 @@ class DutchGameRound {
           if (card is Map<String, dynamic>) {
             final cardId = card['cardId']?.toString() ?? '';
             if (cardId == secondCardId) {
-              _logger.info('Dutch: Removed card $secondCardId from player $secondPlayerId collection_rank_cards (swapped out)', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: Removed card $secondCardId from player $secondPlayerId collection_rank_cards (swapped out)');
+              };
               return true;
             }
           }
@@ -2614,9 +3222,15 @@ class DutchGameRound {
         });
       }
 
-      _logger.info('Dutch: Successfully swapped cards: $firstCardId <-> $secondCardId', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: Player $firstPlayerId now has card $secondCardId at index $firstCardIndex', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: Player $secondPlayerId now has card $firstCardId at index $secondCardIndex', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Successfully swapped cards: $firstCardId <-> $secondCardId');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player $firstPlayerId now has card $secondCardId at index $firstCardIndex');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player $secondPlayerId now has card $firstCardId at index $secondCardIndex');
+      };
 
       // Update game state to trigger UI updates
       // Use the games map we're working with (currentGames already has modifications)
@@ -2624,16 +3238,21 @@ class DutchGameRound {
       
       // Add turn events for jack swap (both cards are repositioned)
       final currentTurnEvents = _getCurrentTurnEvents();
-      _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding jack swap events: ${currentTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Current turn_events before adding jack swap events: ${currentTurnEvents.length} events');
+      };
       
       final turnEvents = List<Map<String, dynamic>>.from(currentTurnEvents)
         ..add(_createTurnEvent(firstCardId, 'reposition'))
         ..add(_createTurnEvent(secondCardId, 'reposition'));
-      _logger.info(
+      if (LOGGING_SWITCH) {
+        _logger.info(
         'Dutch: Added turn events - jack swap: $firstCardId <-> $secondCardId (both reposition), total events: ${turnEvents.length}',
-        isOn: LOGGING_SWITCH,
       );
-      _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}', isOn: LOGGING_SWITCH);
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: 🔍 TURN_EVENTS DEBUG - Turn events being passed to onGameStateChanged: ${turnEvents.map((e) => '${e['cardId']}:${e['actionType']}').join(', ')}');
+      };
       
       // 🔒 CRITICAL: Sanitize all players' drawnCard data to ID-only before broadcasting
       _sanitizeDrawnCardsInGamesMap(currentGames, context: 'jack_swap');
@@ -2643,7 +3262,9 @@ class DutchGameRound {
         'turn_events': turnEvents, // Add turn events for animations
       });
 
-      _logger.info('Dutch: Jack swap completed - state updated', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Jack swap completed - state updated');
+      };
 
       // Update all players' known_cards after successful Jack swap
       updateKnownCards('jack_swap', firstPlayerId, [firstCardId, secondCardId], swapData: {
@@ -2653,11 +3274,15 @@ class DutchGameRound {
 
       // Action completed successfully - cancel timer and move to next special card
       _specialCardTimer?.cancel();
-      _logger.info('Dutch: Cancelled special card timer after Jack swap completion', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Cancelled special card timer after Jack swap completion');
+      };
 
       // Check if we're already ending the window (prevent race condition with timer expiration)
       if (_isEndingSpecialCardsWindow) {
-        _logger.info('Dutch: Special cards window is already ending - skipping processing after Jack swap', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Special cards window is already ending - skipping processing after Jack swap');
+        };
         return true;
       }
 
@@ -2670,18 +3295,24 @@ class DutchGameRound {
         if (currentPlayerId != null && currentPlayerId.isNotEmpty) {
           // Set player status to waiting
           _updatePlayerStatusInGamesMap('waiting', playerId: currentPlayerId);
-          _logger.info('Dutch: Player $currentPlayerId status set to waiting after Jack swap completion', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Player $currentPlayerId status set to waiting after Jack swap completion');
+          };
           
           // Remove the processed card from the list
           _specialCardPlayers.removeAt(0);
-          _logger.info('Dutch: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}');
+          };
         }
       }
 
       // Add 1-second delay for visual indication before processing next special card
       // This matches the behavior in _onSpecialCardTimerExpired and prevents the game
       // from appearing halted by immediately processing the next special card
-      _logger.info('Dutch: Waiting 1 second before processing next special card...', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Waiting 1 second before processing next special card...');
+      };
       Timer(const Duration(seconds: 1), () {
         // Process next special card or end window
         _processNextSpecialCard();
@@ -2690,7 +3321,9 @@ class DutchGameRound {
       return true;
 
     } catch (e) {
-      _logger.error('Dutch: Error in handleJackSwap: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in handleJackSwap: $e');
+      };
       return false;
     }
   }
@@ -2705,7 +3338,9 @@ class DutchGameRound {
     Map<String, dynamic>? gamesMap,
   }) async {
     try {
-      _logger.info('Dutch: Handling Queen peek - player $peekingPlayerId peeking at card $targetCardId from player $targetPlayerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Handling Queen peek - player $peekingPlayerId peeking at card $targetCardId from player $targetPlayerId');
+      };
 
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
@@ -2715,12 +3350,16 @@ class DutchGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        _logger.error('Dutch: Failed to get game state for Queen peek', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get game state for Queen peek');
+        };
         return false;
       }
       
       if (gamesMap != null) {
-        _logger.info('Dutch: handleQueenPeek using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: handleQueenPeek using provided gamesMap (avoiding stale state read)');
+        };
       }
 
       final players = gameState['players'] as List<Map<String, dynamic>>? ?? [];
@@ -2732,7 +3371,9 @@ class DutchGameRound {
       );
 
       if (targetPlayer.isEmpty) {
-        _logger.error('Dutch: Target player $targetPlayerId not found for Queen peek', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Target player $targetPlayerId not found for Queen peek');
+        };
         return false;
       }
 
@@ -2743,7 +3384,9 @@ class DutchGameRound {
       );
 
       if (peekingPlayer.isEmpty) {
-        _logger.error('Dutch: Peeking player $peekingPlayerId not found for Queen peek', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Peeking player $peekingPlayerId not found for Queen peek');
+        };
         return false;
       }
 
@@ -2753,7 +3396,9 @@ class DutchGameRound {
       final drawnCard = targetPlayer['drawnCard'] as Map<String, dynamic>?;
       if (drawnCard != null && drawnCard['cardId'] == targetCardId) {
         targetCard = drawnCard;
-        _logger.info('Dutch: Found target card in drawnCard: ${drawnCard['rank']} of ${drawnCard['suit']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Found target card in drawnCard: ${drawnCard['rank']} of ${drawnCard['suit']}');
+        };
       }
 
       // If not found in drawnCard, search in hand
@@ -2768,29 +3413,41 @@ class DutchGameRound {
       }
 
       if (targetCard == null) {
-        _logger.error('Dutch: Card $targetCardId not found in target player $targetPlayerId hand or drawnCard', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Card $targetCardId not found in target player $targetPlayerId hand or drawnCard');
+        };
         return false;
       }
 
-      _logger.info('Dutch: Found target card: ${targetCard['rank']} of ${targetCard['suit']}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Found target card: ${targetCard['rank']} of ${targetCard['suit']}');
+      };
 
       // Get full card data (convert from ID-only if needed)
       final fullCardData = _stateCallback.getCardById(gameState, targetCardId);
       if (fullCardData == null) {
-        _logger.error('Dutch: Failed to get full card data for $targetCardId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get full card data for $targetCardId');
+        };
         return false;
       }
 
-      _logger.info('Dutch: Full card data: ${fullCardData['rank']} of ${fullCardData['suit']} (${fullCardData['points']} points)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Full card data: ${fullCardData['rank']} of ${fullCardData['suit']} (${fullCardData['points']} points)');
+      };
 
       // Clear any existing cards_to_peek from previous peeks (backend line 1304)
       final existingCardsToPeek = peekingPlayer['cardsToPeek'] as List<dynamic>? ?? [];
       existingCardsToPeek.clear();
-      _logger.info('Dutch: Cleared existing cards_to_peek for player $peekingPlayerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Cleared existing cards_to_peek for player $peekingPlayerId');
+      };
 
       // Set player status to PEEKING (backend line 1311)
       peekingPlayer['status'] = 'peeking';
-      _logger.info('Dutch: Set player $peekingPlayerId status to peeking', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Set player $peekingPlayerId status to peeking');
+      };
 
       final isHuman = peekingPlayer['isHuman'] as bool? ?? false;
 
@@ -2806,7 +3463,9 @@ class DutchGameRound {
       _stateCallback.broadcastGameStateExcept(peekingPlayerId, {
         'games': currentGames,
       });
-      _logger.info('Dutch: STEP 1 - Broadcast ID-only cardsToPeek to all except player $peekingPlayerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: STEP 1 - Broadcast ID-only cardsToPeek to all except player $peekingPlayerId');
+      };
 
       // STEP 2: Set cardsToPeek to full card data and send only to peeking player
       peekingPlayer['cardsToPeek'] = [fullCardData];
@@ -2817,16 +3476,22 @@ class DutchGameRound {
           'myCardsToPeek': [fullCardData],
           'games': currentGames,
         });
-        _logger.info('Dutch: STEP 2 - Sent full cardsToPeek data to human player $peekingPlayerId only', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: STEP 2 - Sent full cardsToPeek data to human player $peekingPlayerId only');
+        };
       } else {
         // For computer players, just send games map update
         _stateCallback.sendGameStateToPlayer(peekingPlayerId, {
           'games': currentGames,
         });
-        _logger.info('Dutch: STEP 2 - Sent full cardsToPeek data to computer player $peekingPlayerId only', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: STEP 2 - Sent full cardsToPeek data to computer player $peekingPlayerId only');
+        };
       }
 
-      _logger.info('Dutch: Queen peek completed successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Queen peek completed successfully');
+      };
 
       // Update all players' known_cards after successful Queen peek
       // This adds the peeked card to the peeking player's known_cards
@@ -2837,7 +3502,9 @@ class DutchGameRound {
       return true;
 
     } catch (e) {
-      _logger.error('Dutch: Error in handleQueenPeek: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in handleQueenPeek: $e');
+      };
       return false;
     }
   }
@@ -2850,33 +3517,45 @@ class DutchGameRound {
       final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
       
       if (discardPile.isEmpty) {
-        _logger.info('Dutch: Same rank validation failed: No cards in discard pile', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Same rank validation failed: No cards in discard pile');
+        };
         return false;
       }
       
       // Get the last card from the discard pile
       final lastCard = discardPile.last as Map<String, dynamic>?;
       if (lastCard == null) {
-        _logger.info('Dutch: Same rank validation failed: Last card is null', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Same rank validation failed: Last card is null');
+        };
         return false;
       }
       
       final lastCardRank = lastCard['rank']?.toString() ?? '';
       
-      _logger.info('Dutch: Same rank validation: played_card_rank=\'$cardRank\', last_card_rank=\'$lastCardRank\'', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Same rank validation: played_card_rank=\'$cardRank\', last_card_rank=\'$lastCardRank\'');
+      };
       
       // During same rank window, cards must match the rank of the last played card
       // No special cases - the window is triggered by a played card, so there's always a rank to match
       if (cardRank.toLowerCase() == lastCardRank.toLowerCase()) {
-        _logger.info('Dutch: Same rank validation: Ranks match, allowing play', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Same rank validation: Ranks match, allowing play');
+        };
         return true;
       } else {
-        _logger.info('Dutch: Same rank validation: Ranks don\'t match (played: $cardRank, required: $lastCardRank), denying play', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Same rank validation: Ranks don\'t match (played: $cardRank, required: $lastCardRank), denying play');
+        };
         return false;
       }
       
     } catch (e) {
-      _logger.error('Dutch: Same rank validation error: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Same rank validation error: $e');
+      };
       return false;
     }
   }
@@ -2901,10 +3580,16 @@ class DutchGameRound {
           'description': 'Can switch any two cards between players'
         };
         
-        _logger.info('Dutch: DEBUG: special_card_data length before adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: DEBUG: special_card_data length before adding Jack: ${_specialCardData.length}');
+        };
         _specialCardData.add(specialCardInfo);
-        _logger.info('Dutch: DEBUG: special_card_data length after adding Jack: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
-        _logger.info('Dutch: Added Jack special card for player $playerId: $cardRank of $cardSuit (chronological order)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: DEBUG: special_card_data length after adding Jack: ${_specialCardData.length}');
+        };
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Added Jack special card for player $playerId: $cardRank of $cardSuit (chronological order)');
+        };
         
       } else if (cardRank == 'queen') {
         // Store special card data chronologically (not grouped by player)
@@ -2918,18 +3603,28 @@ class DutchGameRound {
           'description': 'Can look at one card from any player\'s hand'
         };
         
-        _logger.info('Dutch: DEBUG: special_card_data length before adding Queen: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: DEBUG: special_card_data length before adding Queen: ${_specialCardData.length}');
+        };
         _specialCardData.add(specialCardInfo);
-        _logger.info('Dutch: DEBUG: special_card_data length after adding Queen: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
-        _logger.info('Dutch: Added Queen special card for player $playerId: $cardRank of $cardSuit (chronological order)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: DEBUG: special_card_data length after adding Queen: ${_specialCardData.length}');
+        };
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Added Queen special card for player $playerId: $cardRank of $cardSuit (chronological order)');
+        };
         
       } else {
         // Not a special card, no action needed
-        _logger.info('Dutch: Card $cardRank is not a special card', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Card $cardRank is not a special card');
+        };
       }
       
     } catch (e) {
-      _logger.error('Dutch: Error in _checkSpecialCard: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _checkSpecialCard: $e');
+      };
     }
   }
 
@@ -2937,26 +3632,38 @@ class DutchGameRound {
   /// Replicates backend's _handle_same_rank_window method in game_round.py lines 566-585
   void _handleSameRankWindow() {
     try {
-      _logger.info('Dutch: Starting same rank window - setting all players to same_rank_window status', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Starting same rank window - setting all players to same_rank_window status');
+      };
       
       // Update all players' status to same_rank_window
       _updatePlayerStatusInGamesMap('same_rank_window', playerId: null);
       
-      _logger.info('Dutch: Successfully set all players to same_rank_window status', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Successfully set all players to same_rank_window status');
+      };
       // This ensures collection from discard pile is properly blocked during same rank window
-      _logger.info('🔍 SAME_RANK_WINDOW DEBUG - Sending state update with ONLY gamePhase, NO turn_events, NO games update', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 SAME_RANK_WINDOW DEBUG - Sending state update with ONLY gamePhase, NO turn_events, NO games update');
+      };
       _stateCallback.onGameStateChanged({
         'gamePhase': 'same_rank_window',
       });
-      _logger.info('Dutch: Set gamePhase to same_rank_window', isOn: LOGGING_SWITCH);
-      _logger.info('🔍 SAME_RANK_WINDOW DEBUG - This state update does NOT include the repositioned hand or turn_events', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Set gamePhase to same_rank_window');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 SAME_RANK_WINDOW DEBUG - This state update does NOT include the repositioned hand or turn_events');
+      };
       
       // Start 5-second timer to automatically end same rank window
       // Matches backend behavior (game_round.py line 579)
       _startSameRankTimer();
       
     } catch (e) {
-      _logger.error('Dutch: Error in _handleSameRankWindow: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _handleSameRankWindow: $e');
+      };
     }
   }
 
@@ -2968,7 +3675,9 @@ class DutchGameRound {
       final config = _stateCallback.getTimerConfig();
       final sameRankTimerDuration = config['turnTimeLimit'] as int? ?? 10;
       
-      _logger.info('Dutch: Starting ${sameRankTimerDuration}-second same rank window timer (phase-based)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Starting ${sameRankTimerDuration}-second same rank window timer (phase-based)');
+      };
       
       // Cancel existing timer if any
       _sameRankTimer?.cancel();
@@ -2979,7 +3688,9 @@ class DutchGameRound {
       });
       
     } catch (e) {
-      _logger.error('Dutch: Error starting same rank timer: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error starting same rank timer: $e');
+      };
     }
   }
 
@@ -2987,16 +3698,22 @@ class DutchGameRound {
   /// Replicates backend's _end_same_rank_window method in game_round.py lines 599-643
   Future<void> _endSameRankWindow() async {
     try {
-      _logger.info('Dutch: Ending same rank window - resetting all players to waiting status', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Ending same rank window - resetting all players to waiting status');
+      };
       
       // TODO: Log same_rank_data if any players played matching cards (future implementation)
       // For now, we just log that window is ending
-      _logger.info('Dutch: No same rank plays recorded (simplified dutch mode)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: No same rank plays recorded (simplified dutch mode)');
+      };
       
       // Update all players' status to WAITING
       _updatePlayerStatusInGamesMap('waiting', playerId: null);
       
-      _logger.info('Dutch: Successfully reset all players to waiting status', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Successfully reset all players to waiting status');
+      };
       
       // CRITICAL: Reset gamePhase back to player_turn to match backend behavior
       // Backend transitions to ENDING_TURN phase (game_round.py line 634)
@@ -3004,7 +3721,9 @@ class DutchGameRound {
       _stateCallback.onGameStateChanged({
         'gamePhase': 'player_turn',
       });
-      _logger.info('Dutch: Reset gamePhase to player_turn', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Reset gamePhase to player_turn');
+      };
       
       // CRITICAL: AWAIT computer same rank plays to complete BEFORE processing special cards
       // This ensures all queens played during same rank window are added to _specialCardData
@@ -3016,7 +3735,9 @@ class DutchGameRound {
       // Check if game has ended (winners exist) - prevent progression if game is over
       // Winners might be added during same rank plays (empty hand win condition)
       if (_winnersList.isNotEmpty) {
-        _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s) found after same rank plays. Preventing further game progression.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s) found after same rank plays. Preventing further game progression.');
+        };
         _checkGameEnding();
         return;
       }
@@ -3030,7 +3751,9 @@ class DutchGameRound {
       // Check if game has ended (winners exist) - prevent progression if game is over
       // Winners might be added during collection check (four of a kind win condition)
       if (_winnersList.isNotEmpty) {
-        _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s) found after collection check. Preventing further game progression.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s) found after collection check. Preventing further game progression.');
+        };
         _checkGameEnding();
         return;
       }
@@ -3040,7 +3763,9 @@ class DutchGameRound {
       _handleSpecialCardsWindow();
       
     } catch (e) {
-      _logger.error('Dutch: Error ending same rank window: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error ending same rank window: $e');
+      };
     }
   }
 
@@ -3049,7 +3774,9 @@ class DutchGameRound {
   /// [gamesMap] Optional games map to use instead of reading from state. Use this when called immediately after updating the games map to avoid stale state.
   Future<void> _checkComputerPlayerSameRankPlays({Map<String, dynamic>? gamesMap}) async {
     try {
-      _logger.info('Dutch: Processing computer player same rank plays', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Processing computer player same rank plays');
+      };
       
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
@@ -3059,12 +3786,16 @@ class DutchGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        _logger.info('Dutch: Failed to get game state', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Failed to get game state');
+        };
         return;
       }
       
       if (gamesMap != null) {
-        _logger.info('Dutch: _checkComputerPlayerSameRankPlays using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: _checkComputerPlayerSameRankPlays using provided gamesMap (avoiding stale state read)');
+        };
       }
       
       final players = gameState['players'] as List<dynamic>? ?? [];
@@ -3077,11 +3808,15 @@ class DutchGameRound {
       ).toList();
       
       if (computerPlayers.isEmpty) {
-        _logger.info('Dutch: No computer players to process', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: No computer players to process');
+        };
         return;
       }
       
-      _logger.info('Dutch: Found ${computerPlayers.length} computer players', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Found ${computerPlayers.length} computer players');
+      };
       
       // Debug: Log computer player details
       for (final player in computerPlayers) {
@@ -3089,7 +3824,9 @@ class DutchGameRound {
         final playerName = player['name']?.toString() ?? 'Unknown';
         final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
         final hand = player['hand'] as List<dynamic>? ?? [];
-        _logger.info('Dutch: Computer player $playerName ($playerId) - hand: ${hand.length} cards, known_cards: ${knownCards.keys.length} players tracked', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Computer player $playerName ($playerId) - hand: ${hand.length} cards, known_cards: ${knownCards.keys.length} players tracked');
+        };
       }
       
       // Shuffle for random order
@@ -3112,10 +3849,14 @@ class DutchGameRound {
       // AWAIT all computer plays to complete
       await Future.wait(playFutures);
       
-      _logger.info('Dutch: All computer same rank plays completed', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: All computer same rank plays completed');
+      };
       
     } catch (e) {
-      _logger.error('Dutch: Error in _checkComputerPlayerSameRankPlays: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _checkComputerPlayerSameRankPlays: $e');
+      };
     }
   }
 
@@ -3126,14 +3867,18 @@ class DutchGameRound {
   ///            This function refreshes gamesMap in each loop iteration to get the latest state after collections.
   Future<void> _checkComputerPlayerCollectionFromDiscard({Map<String, dynamic>? gamesMap}) async {
     try {
-      _logger.info('Dutch: Checking computer players for collection from discard pile', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Checking computer players for collection from discard pile');
+      };
       
       // Use provided gamesMap if available (avoids stale state when called immediately after games map update)
       // Otherwise read from state
       Map<String, dynamic> currentGames = gamesMap ?? _stateCallback.currentGamesMap;
       
       if (gamesMap != null) {
-        _logger.info('Dutch: _checkComputerPlayerCollectionFromDiscard using provided gamesMap (avoiding stale state read)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: _checkComputerPlayerCollectionFromDiscard using provided gamesMap (avoiding stale state read)');
+        };
       }
       
       // Extract gameState from gamesMap
@@ -3142,14 +3887,18 @@ class DutchGameRound {
       var gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        _logger.info('Dutch: Failed to get game state for collection check', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Failed to get game state for collection check');
+        };
         return;
       }
       
       // Check if collection mode is enabled
       final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
       if (!isClearAndCollect) {
-        _logger.info('Dutch: Collection disabled - skipping computer player collection check', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Collection disabled - skipping computer player collection check');
+        };
         return;
       }
       
@@ -3163,15 +3912,21 @@ class DutchGameRound {
       ).toList();
       
       if (computerPlayers.isEmpty) {
-        _logger.info('Dutch: No computer players to check for collection', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: No computer players to check for collection');
+        };
         return;
       }
       
-      _logger.info('Dutch: Found ${computerPlayers.length} computer players to check', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Found ${computerPlayers.length} computer players to check');
+      };
       
       // Shuffle computer players list to randomize the order
       computerPlayers.shuffle(Random());
-      _logger.info('Dutch: Shuffled computer players list for random collection order', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Shuffled computer players list for random collection order');
+      };
       
       // Keep checking until no one can collect or decides not to collect
       // This handles cases where multiple cards of the same rank are in the discard pile (from same rank plays)
@@ -3181,7 +3936,9 @@ class DutchGameRound {
       
       while (continueChecking && iteration < maxIterations) {
         iteration++;
-        _logger.info('Dutch: Collection check iteration $iteration', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Collection check iteration $iteration');
+        };
         
         // CRITICAL: Refresh games map in each iteration to get updated state after collections
         // This prevents stale state reads when handleCollectFromDiscard updates the games map
@@ -3191,7 +3948,9 @@ class DutchGameRound {
         gameState = refreshedGameDataInner?['game_state'] as Map<String, dynamic>?;
         
         if (gameState == null) {
-          _logger.info('Dutch: Failed to get game state for collection check iteration', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Failed to get game state for collection check iteration');
+          };
           continueChecking = false;
           break;
         }
@@ -3215,7 +3974,9 @@ class DutchGameRound {
         // Get discard pile - check if not empty
         final discardPile = gameState['discardPile'] as List<Map<String, dynamic>>? ?? [];
         if (discardPile.isEmpty) {
-          _logger.info('Dutch: Discard pile is empty, stopping collection checks', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Discard pile is empty, stopping collection checks');
+          };
           continueChecking = false;
           break;
         }
@@ -3225,12 +3986,16 @@ class DutchGameRound {
         final topDiscardRank = topDiscardCard['rank']?.toString() ?? '';
         
         if (topDiscardRank.isEmpty) {
-          _logger.info('Dutch: Top discard card has no rank, stopping collection checks', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Top discard card has no rank, stopping collection checks');
+          };
           continueChecking = false;
           break;
         }
         
-        _logger.info('Dutch: Top discard card rank: $topDiscardRank', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Top discard card rank: $topDiscardRank');
+        };
         
         // Find the first computer player (in shuffled order) whose collection rank matches the top discard card rank
         Map<String, dynamic>? matchingPlayer;
@@ -3246,7 +4011,9 @@ class DutchGameRound {
         
         // If no matching player found, stop checking
         if (matchingPlayer == null) {
-          _logger.info('Dutch: No computer player has a collection rank matching $topDiscardRank, stopping collection checks', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: No computer player has a collection rank matching $topDiscardRank, stopping collection checks');
+          };
           continueChecking = false;
           break;
         }
@@ -3256,39 +4023,53 @@ class DutchGameRound {
         final playerCollectionRank = matchingPlayer['collection_rank']?.toString() ?? '';
         final difficulty = matchingPlayer['difficulty']?.toString() ?? 'medium';
         
-        _logger.info('Dutch: Found matching player $playerName ($playerId) - collection rank: $playerCollectionRank', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Found matching player $playerName ($playerId) - collection rank: $playerCollectionRank');
+        };
         
         // Get YAML decision (synchronous - decision is made immediately)
         if (_computerPlayerFactory == null) {
-          _logger.error('Dutch: Computer player factory not initialized', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Dutch: Computer player factory not initialized');
+          };
           continueChecking = false;
           break;
         }
         
         final decision = _computerPlayerFactory!.getCollectFromDiscardDecision(difficulty, gameState, playerId);
-        _logger.info('Dutch: YAML decision for $playerName: $decision', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: YAML decision for $playerName: $decision');
+        };
         
         // Check if player decided to collect
         final shouldCollect = decision['collect'] as bool? ?? false;
         
         if (!shouldCollect) {
-          _logger.info('Dutch: Player $playerName decided not to collect, stopping collection checks', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Player $playerName decided not to collect, stopping collection checks');
+          };
           continueChecking = false;
           break;
         }
         
         // Player decided to collect - execute collection immediately (no delay for collection checks)
-        _logger.info('Dutch: Player $playerName decided to collect, executing collection', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Player $playerName decided to collect, executing collection');
+        };
         // Pass currentGames to handleCollectFromDiscard to avoid stale state
         final success = await handleCollectFromDiscard(playerId, gamesMap: currentGames);
         
         if (!success) {
-          _logger.warning('Dutch: Player $playerName failed to collect, stopping collection checks', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('Dutch: Player $playerName failed to collect, stopping collection checks');
+          };
           continueChecking = false;
           break;
         }
         
-        _logger.info('Dutch: Player $playerName successfully collected, checking for more collection opportunities', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Player $playerName successfully collected, checking for more collection opportunities');
+        };
         
         // After successful collection, refresh game state and continue checking
         // The loop will check the new top card on the next iteration
@@ -3297,13 +4078,19 @@ class DutchGameRound {
       }
       
       if (iteration >= maxIterations) {
-        _logger.warning('Dutch: Reached max iterations ($maxIterations) in collection check loop, stopping', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('Dutch: Reached max iterations ($maxIterations) in collection check loop, stopping');
+        };
       }
       
-      _logger.info('Dutch: Finished checking computer players for collection from discard pile', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Finished checking computer players for collection from discard pile');
+      };
       
     } catch (e) {
-      _logger.error('Dutch: Error in _checkComputerPlayerCollectionFromDiscard: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _checkComputerPlayerCollectionFromDiscard: $e');
+      };
     }
   }
 
@@ -3312,11 +4099,15 @@ class DutchGameRound {
   /// The final round caller (_finalRoundCaller) gets special tie-breaking logic
   void _endFinalRoundAndCalculateWinners() {
     try {
-      _logger.info('Dutch: Ending final round and calculating winners. Final round caller: $_finalRoundCaller', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Ending final round and calculating winners. Final round caller: $_finalRoundCaller');
+      };
       
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.error('Dutch: Cannot end final round - game state is null', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Cannot end final round - game state is null');
+        };
         return;
       }
       
@@ -3326,7 +4117,9 @@ class DutchGameRound {
           .toList();
       
       if (players.isEmpty) {
-        _logger.error('Dutch: No active players found for final round calculation', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: No active players found for final round calculation');
+        };
         return;
       }
       
@@ -3346,7 +4139,9 @@ class DutchGameRound {
           'cardCount': cardCount,
         };
         
-        _logger.info('Dutch: Player $playerName ($playerId) - Points: $points, Cards: $cardCount', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Player $playerName ($playerId) - Points: $points, Cards: $cardCount');
+        };
       }
       
       // Find winners: lowest points wins, if tie then fewer cards, if still tie then final round caller wins
@@ -3371,7 +4166,9 @@ class DutchGameRound {
       
       // Get the best score (first in sorted list)
       if (sortedPlayers.isEmpty) {
-        _logger.error('Dutch: No players to determine winner', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: No players to determine winner');
+        };
         return;
       }
       
@@ -3399,14 +4196,20 @@ class DutchGameRound {
           );
           winners.clear();
           winners.add(callerWinner);
-          _logger.info('Dutch: Tie broken - final round caller ${callerWinner['playerName']} wins (was involved in tie)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Tie broken - final round caller ${callerWinner['playerName']} wins (was involved in tie)');
+          };
         } else {
           // Final round caller is NOT in the tie - it's a draw (all tied players win)
-          _logger.info('Dutch: Tie between ${winners.length} players, but final round caller is not involved - draw (all tied players win)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Tie between ${winners.length} players, but final round caller is not involved - draw (all tied players win)');
+          };
         }
       } else if (winners.length == 1) {
         // Single winner - no tie
-        _logger.info('Dutch: Single winner - ${winners.first['playerName']} with ${winners.first['points']} points and ${winners.first['cardCount']} cards', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Single winner - ${winners.first['playerName']} with ${winners.first['points']} points and ${winners.first['cardCount']} cards');
+        };
       }
       
       // Add all winners to winners list
@@ -3419,14 +4222,18 @@ class DutchGameRound {
           'points': winner['points'],
           'cardCount': winner['cardCount'],
         });
-        _logger.info('Dutch: Final round winner - ${winner['playerName']} (${winner['playerId']}) - Points: ${winner['points']}, Cards: ${winner['cardCount']}, Win Type: lowest_points', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Final round winner - ${winner['playerName']} (${winner['playerId']}) - Points: ${winner['points']}, Cards: ${winner['cardCount']}, Win Type: lowest_points');
+        };
       }
       
       // End the game
       _checkGameEnding();
       
     } catch (e) {
-      _logger.error('Dutch: Error ending final round and calculating winners: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error ending final round and calculating winners: $e');
+      };
     }
   }
 
@@ -3439,28 +4246,40 @@ class DutchGameRound {
     try {
       // Prevent duplicate processing if onGameEnded has already been called
       if (_gameEndedCallbackCalled) {
-        _logger.info('Dutch: Game ending callback already called, skipping duplicate processing', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game ending callback already called, skipping duplicate processing');
+        };
         return;
       }
       
-      _logger.info('Dutch: Checking if game should end', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Checking if game should end');
+      };
       
       // Check if winners list contains any players - if so, game is over
       if (_winnersList.isNotEmpty) {
-        _logger.info('Dutch: Game is over - ${_winnersList.length} winner(s) found', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game is over - ${_winnersList.length} winner(s) found');
+        };
         
         // Stop all active timers
         _sameRankTimer?.cancel();
         _sameRankTimer = null;
-        _logger.info('Dutch: Cancelled same rank timer', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Cancelled same rank timer');
+        };
         
         _specialCardTimer?.cancel();
         _specialCardTimer = null;
-        _logger.info('Dutch: Cancelled special card timer', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Cancelled special card timer');
+        };
         
         // Set all players to waiting status
         _updatePlayerStatusInGamesMap('waiting', playerId: null);
-        _logger.info('Dutch: Set all players to waiting status', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Set all players to waiting status');
+        };
         
         // Update game phase to game_ended and include winners list (must match validator allowed values)
         _stateCallback.onGameStateChanged({
@@ -3468,9 +4287,13 @@ class DutchGameRound {
           'winners': List<Map<String, dynamic>>.from(_winnersList), // Send winners list to frontend
         });
         
-        _logger.info('Dutch: Set gamePhase to game_ended with ${_winnersList.length} winner(s) - all timers stopped and players set to waiting', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Set gamePhase to game_ended with ${_winnersList.length} winner(s) - all timers stopped and players set to waiting');
+        };
         for (final winner in _winnersList) {
-          _logger.info('Dutch: Winner - ${winner['playerName']} (${winner['playerId']}) - Win Type: ${winner['winType']}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Winner - ${winner['playerName']} (${winner['playerId']}) - Win Type: ${winner['winType']}');
+          };
         }
         
         // Get all players from current game state for stats update
@@ -3488,7 +4311,9 @@ class DutchGameRound {
           final storedGameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
           final matchPot = storedGameState?['match_pot'] as int? ?? 0;
           
-          _logger.info('Dutch: Game ending - match_pot: $matchPot, winners: ${_winnersList.length}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Game ending - match_pot: $matchPot, winners: ${_winnersList.length}');
+          };
           
           // Mark that onGameEnded has been called to prevent duplicate processing
           _gameEndedCallbackCalled = true;
@@ -3498,11 +4323,15 @@ class DutchGameRound {
           _stateCallback.onGameEnded(_winnersList, players, matchPot: matchPot);
         }
       } else {
-        _logger.info('Dutch: No winners yet - game continues', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: No winners yet - game continues');
+        };
       }
       
     } catch (e) {
-      _logger.error('Dutch: Error in _checkGameEnding: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _checkGameEnding: $e');
+      };
     }
   }
   
@@ -3588,7 +4417,9 @@ class DutchGameRound {
             if (cardNumber != null && cardNumber >= 2 && cardNumber <= 10) {
               cardPoints = cardNumber;
             } else {
-              _logger.warning('Dutch: Unknown card rank for point calculation: $rank', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.warning('Dutch: Unknown card rank for point calculation: $rank');
+              };
               cardPoints = 0;
             }
           }
@@ -3599,7 +4430,9 @@ class DutchGameRound {
           // This is a collection card - add to collection card points sum
           collectionCardPoints += cardPoints;
           collectionCardCount++;
-          _logger.info('Dutch: Collection card found in hand: $cardId, points: $cardPoints (total collection points: $collectionCardPoints, count: $collectionCardCount)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Collection card found in hand: $cardId, points: $cardPoints (total collection points: $collectionCardPoints, count: $collectionCardCount)');
+          };
         } else {
           // This is a regular card - add to non-collection points
           nonCollectionCardPoints += cardPoints;
@@ -3610,7 +4443,9 @@ class DutchGameRound {
       if (collectionCardCount > 0) {
         final collectionCardAverage = (collectionCardPoints / collectionCardCount).round();
         totalPoints = collectionCardAverage + nonCollectionCardPoints;
-        _logger.info('Dutch: Points calculation - Collection cards: $collectionCardPoints points / $collectionCardCount cards = $collectionCardAverage average, Non-collection: $nonCollectionCardPoints, Total: $totalPoints', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Points calculation - Collection cards: $collectionCardPoints points / $collectionCardCount cards = $collectionCardAverage average, Non-collection: $nonCollectionCardPoints, Total: $totalPoints');
+        };
       } else {
         // No collection cards, just use non-collection points
         totalPoints = nonCollectionCardPoints;
@@ -3618,7 +4453,9 @@ class DutchGameRound {
       
       return totalPoints;
     } catch (e) {
-      _logger.error('Dutch: Error calculating player points: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error calculating player points: $e');
+      };
       return 0;
     }
   }
@@ -3634,7 +4471,9 @@ class DutchGameRound {
       final gamePhase = gameState['gamePhase']?.toString() ?? '';
       return gamePhase == 'game_ended';
     } catch (e) {
-      _logger.error('Dutch: Error checking if game ended: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error checking if game ended: $e');
+      };
       return false;
     }
   }
@@ -3653,7 +4492,9 @@ class DutchGameRound {
       final gameState = gameDataInner?['game_state'] as Map<String, dynamic>?;
       
       if (gameState == null) {
-        _logger.error('Dutch: Failed to get game state for computer same rank play', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get game state for computer same rank play');
+        };
         return;
       }
 
@@ -3661,20 +4502,28 @@ class DutchGameRound {
       final availableCards = _getAvailableSameRankCards(playerId, gameState);
       
       if (availableCards.isEmpty) {
-        _logger.info('Dutch: Computer player $playerId has no same rank cards', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Computer player $playerId has no same rank cards');
+        };
         return;
       }
       
-      _logger.info('Dutch: Computer player $playerId has ${availableCards.length} available same rank cards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Computer player $playerId has ${availableCards.length} available same rank cards');
+      };
       
       // Get YAML decision
       if (_computerPlayerFactory == null) {
-        _logger.warning('Dutch: Computer factory not initialized; skipping same rank decision for $playerId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('Dutch: Computer factory not initialized; skipping same rank decision for $playerId');
+        };
         return;
       }
       final Map<String, dynamic> decision = _computerPlayerFactory!
           .getSameRankPlayDecision(difficulty, gameState, availableCards);
-      _logger.info('Dutch: Computer same rank decision: $decision', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Computer same rank decision: $decision');
+      };
       
       // Execute decision with delay
       if (decision['play'] == true) {
@@ -3690,7 +4539,9 @@ class DutchGameRound {
             orElse: () => '',
           );
           if (!_isValidCardId(cardId)) {
-            _logger.info('Dutch: No valid cardId for same rank after fallback; skipping play for $playerId', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: No valid cardId for same rank after fallback; skipping play for $playerId');
+            };
             return;
           }
         }
@@ -3698,12 +4549,16 @@ class DutchGameRound {
           // cardId is guaranteed non-null after _isValidCardId check
           await handleSameRankPlay(playerId, cardId);
         } else {
-          _logger.info('Dutch: Computer player $playerId same rank play skipped - invalid card ID', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Computer player $playerId same rank play skipped - invalid card ID');
+          };
         }
       }
       
     } catch (e) {
-      _logger.error('Dutch: Error in _handleComputerSameRankPlay: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _handleComputerSameRankPlay: $e');
+      };
     }
   }
 
@@ -3712,22 +4567,30 @@ class DutchGameRound {
     final availableCards = <String>[];
     
     try {
-      _logger.info('Dutch: DEBUG - Getting available same rank cards for player $playerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Getting available same rank cards for player $playerId');
+      };
       
       // Get discard pile to determine target rank
       final discardPile = gameState['discardPile'] as List<dynamic>? ?? [];
       if (discardPile.isEmpty) {
-        _logger.info('Dutch: DEBUG - Discard pile is empty, no same rank cards possible', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: DEBUG - Discard pile is empty, no same rank cards possible');
+        };
         return availableCards;
       }
       
       final lastCard = discardPile.last as Map<String, dynamic>?;
       final targetRank = lastCard?['rank']?.toString() ?? '';
       
-      _logger.info('Dutch: DEBUG - Target rank for same rank play: $targetRank', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Target rank for same rank play: $targetRank');
+      };
       
       if (targetRank.isEmpty) {
-        _logger.info('Dutch: DEBUG - Target rank is empty, no same rank cards possible', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: DEBUG - Target rank is empty, no same rank cards possible');
+        };
         return availableCards;
       }
       
@@ -3746,9 +4609,15 @@ class DutchGameRound {
       final knownCards = player['known_cards'] as Map<String, dynamic>? ?? {};
       final collectionRankCards = player['collection_rank_cards'] as List<dynamic>? ?? [];
       
-      _logger.info('Dutch: DEBUG - Player $playerId has ${hand.length} cards in hand', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: DEBUG - Player $playerId known_cards structure: ${knownCards.keys.toList()}', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: DEBUG - Player $playerId collection_rank_cards: ${collectionRankCards.length} cards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Player $playerId has ${hand.length} cards in hand');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Player $playerId known_cards structure: ${knownCards.keys.toList()}');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Player $playerId collection_rank_cards: ${collectionRankCards.length} cards');
+      };
       
       // Get collection card IDs - only exclude collection cards if collection mode is enabled
       final isClearAndCollect = gameState['isClearAndCollect'] as bool? ?? false;
@@ -3759,7 +4628,9 @@ class DutchGameRound {
             .toSet()
         : <String>{};
       
-      _logger.info('Dutch: DEBUG - Collection card IDs: ${collectionCardIds.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Collection card IDs: ${collectionCardIds.toList()}');
+      };
       
       // Get player's own known card IDs (card-ID-based structure)
       final knownCardIds = <String>{};
@@ -3776,15 +4647,21 @@ class DutchGameRound {
         }
       }
       
-      _logger.info('Dutch: DEBUG - Known card IDs: ${knownCardIds.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Known card IDs: ${knownCardIds.toList()}');
+      };
       
       // Find matching rank cards in hand
-      _logger.info('Dutch: DEBUG - Checking ${hand.length} cards in hand for matching rank $targetRank', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Checking ${hand.length} cards in hand for matching rank $targetRank');
+      };
       
       for (int i = 0; i < hand.length; i++) {
         final card = hand[i];
         if (card == null || card is! Map<String, dynamic>) {
-          _logger.info('Dutch: DEBUG - Card at index $i is null or not a map, skipping', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: DEBUG - Card at index $i is null or not a map, skipping');
+          };
           continue;
         }
         
@@ -3793,37 +4670,53 @@ class DutchGameRound {
         // CRITICAL: Get full card data to check rank (hand contains ID-only cards with rank=?)
         final fullCardData = _stateCallback.getCardById(gameState, cardId);
         if (fullCardData == null) {
-          _logger.info('Dutch: DEBUG - Failed to get full card data for $cardId, skipping', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: DEBUG - Failed to get full card data for $cardId, skipping');
+          };
           continue;
         }
         
         final cardRank = fullCardData['rank']?.toString() ?? '';
         
-        _logger.info('Dutch: DEBUG - Card at index $i: id=$cardId, rank=$cardRank (from full data)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: DEBUG - Card at index $i: id=$cardId, rank=$cardRank (from full data)');
+        };
         
         if (cardRank != targetRank) {
-          _logger.info('Dutch: DEBUG - Card rank $cardRank != target rank $targetRank, skipping', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: DEBUG - Card rank $cardRank != target rank $targetRank, skipping');
+          };
           continue;
         }
         
         if (!knownCardIds.contains(cardId)) {
-          _logger.info('Dutch: DEBUG - Card $cardId not in known_cards, skipping', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: DEBUG - Card $cardId not in known_cards, skipping');
+          };
           continue;
         }
         
         if (collectionCardIds.contains(cardId)) {
-          _logger.info('Dutch: DEBUG - Card $cardId is a collection card, skipping', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: DEBUG - Card $cardId is a collection card, skipping');
+          };
           continue;
         }
         
-        _logger.info('Dutch: DEBUG - Card $cardId is available for same rank play!', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: DEBUG - Card $cardId is available for same rank play!');
+        };
         availableCards.add(cardId);
       }
       
-      _logger.info('Dutch: DEBUG - Found ${availableCards.length} available same rank cards: ${availableCards.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG - Found ${availableCards.length} available same rank cards: ${availableCards.toList()}');
+      };
       
     } catch (e) {
-      _logger.error('Dutch: Error in _getAvailableSameRankCards: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _getAvailableSameRankCards: $e');
+      };
     }
     
     return availableCards;
@@ -3835,14 +4728,20 @@ class DutchGameRound {
     try {
       // Check if we have any special cards played
       if (_specialCardData.isEmpty) {
-        _logger.info('Dutch: No special cards played in this round - moving to next player', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: No special cards played in this round - moving to next player');
+        };
         // No special cards, go directly to next player
         _moveToNextPlayer();
         return;
       }
       
-      _logger.info('Dutch: === SPECIAL CARDS WINDOW ===', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch: DEBUG: special_card_data length: ${_specialCardData.length}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: === SPECIAL CARDS WINDOW ===');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: DEBUG: special_card_data length: ${_specialCardData.length}');
+      };
       
       // Reset flag when starting new special cards window
       _isEndingSpecialCardsWindow = false;
@@ -3853,28 +4752,38 @@ class DutchGameRound {
       _stateCallback.onGameStateChanged({
         'gamePhase': 'special_play_window',
       });
-      _logger.info('Dutch: Game phase changed to special_play_window (special cards found)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Game phase changed to special_play_window (special cards found)');
+      };
       
       // Count total special cards (stored chronologically)
       final totalSpecialCards = _specialCardData.length;
-      _logger.info('Dutch: Found $totalSpecialCards special cards played in chronological order', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Found $totalSpecialCards special cards played in chronological order');
+      };
       
       // Log details of all special cards in chronological order
       for (int i = 0; i < _specialCardData.length; i++) {
         final card = _specialCardData[i];
-        _logger.info('Dutch:   ${i+1}. Player ${card['player_id']}: ${card['rank']} of ${card['suit']} (${card['special_power']})', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch:   ${i+1}. Player ${card['player_id']}: ${card['rank']} of ${card['suit']} (${card['special_power']})');
+        };
       }
       
       // Create a working copy for processing (we'll remove cards as we process them)
       _specialCardPlayers = List<Map<String, dynamic>>.from(_specialCardData);
       
-      _logger.info('Dutch: Starting special card processing with ${_specialCardPlayers.length} cards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Starting special card processing with ${_specialCardPlayers.length} cards');
+      };
       
       // Start processing the first player's special card
       _processNextSpecialCard();
       
     } catch (e) {
-      _logger.error('Dutch: Error in _handleSpecialCardsWindow: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _handleSpecialCardsWindow: $e');
+      };
     }
   }
 
@@ -3884,13 +4793,17 @@ class DutchGameRound {
     try {
       // Check if we're already ending the window (prevent race condition)
       if (_isEndingSpecialCardsWindow) {
-        _logger.info('Dutch: Special cards window is already ending - skipping duplicate call', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Special cards window is already ending - skipping duplicate call');
+        };
         return;
       }
       
       // Check if we've processed all special cards (list is empty)
       if (_specialCardPlayers.isEmpty) {
-        _logger.info('Dutch: All special cards processed - moving to next player', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: All special cards processed - moving to next player');
+        };
         _endSpecialCardsWindow();
         return;
       }
@@ -3903,10 +4816,18 @@ class DutchGameRound {
       final specialPower = specialData['special_power']?.toString() ?? 'unknown';
       final description = specialData['description']?.toString() ?? 'No description';
       
-      _logger.info('Dutch: Processing special card for player $playerId: $cardRank of $cardSuit', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch:   Special Power: $specialPower', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch:   Description: $description', isOn: LOGGING_SWITCH);
-      _logger.info('Dutch:   Remaining cards to process: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Processing special card for player $playerId: $cardRank of $cardSuit');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch:   Special Power: $specialPower');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch:   Description: $description');
+      };
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch:   Remaining cards to process: ${_specialCardPlayers.length}');
+      };
       
       // Set player status based on special power
       if (specialPower == 'jack_swap') {
@@ -3914,7 +4835,9 @@ class DutchGameRound {
       } else if (specialPower == 'queen_peek') {
         _updatePlayerStatusInGamesMap('queen_peek', playerId: playerId);
       } else {
-        _logger.warning('Dutch: Unknown special power: $specialPower for player $playerId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('Dutch: Unknown special power: $specialPower for player $playerId');
+        };
         // Remove this card and move to next
         _specialCardPlayers.removeAt(0);
         _processNextSpecialCard();
@@ -3936,7 +4859,9 @@ class DutchGameRound {
           // Get player's difficulty
           final difficulty = player['difficulty']?.toString() ?? 'medium';
           
-          _logger.info('Dutch: Computer player $playerId detected for jack_swap - triggering decision logic', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Computer player $playerId detected for jack_swap - triggering decision logic');
+          };
           
           // Trigger computer decision logic
           _handleComputerActionWithYAML(gameState, playerId, difficulty, 'jack_swap');
@@ -3944,7 +4869,9 @@ class DutchGameRound {
           // Get player's difficulty
           final difficulty = player['difficulty']?.toString() ?? 'medium';
           
-          _logger.info('Dutch: Computer player $playerId detected for queen_peek - triggering decision logic', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Computer player $playerId detected for queen_peek - triggering decision logic');
+          };
           
           // Trigger computer decision logic
           _handleComputerActionWithYAML(gameState, playerId, difficulty, 'queen_peek');
@@ -3971,10 +4898,14 @@ class DutchGameRound {
       _specialCardTimer = Timer(Duration(seconds: specialCardTimerDuration), () {
         _onSpecialCardTimerExpired();
       });
-      _logger.info('Dutch: ${specialCardTimerDuration}-second timer started for player $playerId\'s $specialPower (phase-based, using direct specialPower value)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: ${specialCardTimerDuration}-second timer started for player $playerId\'s $specialPower (phase-based, using direct specialPower value)');
+      };
       
     } catch (e) {
-      _logger.error('Dutch: Error in _processNextSpecialCard: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _processNextSpecialCard: $e');
+      };
     }
   }
 
@@ -3984,7 +4915,9 @@ class DutchGameRound {
     try {
       // Check if we're already ending the window (prevent race condition with jack swap completion)
       if (_isEndingSpecialCardsWindow) {
-        _logger.info('Dutch: Special cards window is already ending - skipping timer expiration processing', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Special cards window is already ending - skipping timer expiration processing');
+        };
         return;
       }
       
@@ -4005,35 +4938,47 @@ class DutchGameRound {
           if (player.isNotEmpty) {
             // Clear the player's cardsToPeek list (revert to ID-only cards)
             player['cardsToPeek'] = [];
-            _logger.info('Dutch: Cleared cardsToPeek for player $playerId - cards reverted to ID-only', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Cleared cardsToPeek for player $playerId - cards reverted to ID-only');
+            };
             
             // Update main state for human player
             if (playerId == 'dutch_user') {
               _stateCallback.onGameStateChanged({
                 'myCardsToPeek': [],
               });
-              _logger.info('Dutch: Updated main state myCardsToPeek to empty list', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.info('Dutch: Updated main state myCardsToPeek to empty list');
+              };
             }
           }
         }
         
         _updatePlayerStatusInGamesMap('waiting', playerId: playerId);
-        _logger.info('Dutch: Player $playerId special card timer expired - status reset to waiting', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Player $playerId special card timer expired - status reset to waiting');
+        };
         
         // Remove the processed card from the list
         _specialCardPlayers.removeAt(0);
-        _logger.info('Dutch: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Removed processed card from list. Remaining cards: ${_specialCardPlayers.length}');
+        };
       }
       
       // Add 1-second delay for visual indication before processing next special card
-      _logger.info('Dutch: Waiting 1 second before processing next special card...', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Waiting 1 second before processing next special card...');
+      };
       Timer(const Duration(seconds: 1), () {
         // Process next special card or end window
         _processNextSpecialCard();
       });
       
     } catch (e) {
-      _logger.error('Dutch: Error in _onSpecialCardTimerExpired: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _onSpecialCardTimerExpired: $e');
+      };
     }
   }
 
@@ -4043,7 +4988,9 @@ class DutchGameRound {
     try {
       // Prevent multiple calls to this method (race condition protection)
       if (_isEndingSpecialCardsWindow) {
-        _logger.info('Dutch: Special cards window is already ending - preventing duplicate call', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Special cards window is already ending - preventing duplicate call');
+        };
         return;
       }
       
@@ -4057,7 +5004,9 @@ class DutchGameRound {
       _specialCardData.clear();
       _specialCardPlayers.clear();
       
-      _logger.info('Dutch: Special cards window ended - cleared all special card data', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Special cards window ended - cleared all special card data');
+      };
       
       // Check if any players have empty collection_rank_cards list after special plays
       // If empty, clear their collection_rank property (they can no longer collect cards)
@@ -4065,7 +5014,9 @@ class DutchGameRound {
       
       // Check if game has ended (winners exist) - prevent progression if game is over
       if (_winnersList.isNotEmpty) {
-        _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s) found. Preventing game phase reset and player progression.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s) found. Preventing game phase reset and player progression.');
+        };
         return;
       }
       
@@ -4074,17 +5025,23 @@ class DutchGameRound {
       _stateCallback.onGameStateChanged({
         'gamePhase': 'player_turn',
       });
-      _logger.info('Dutch: Game phase reset to player_turn after special cards window', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Game phase reset to player_turn after special cards window');
+      };
       
       // Now move to the next player
-      _logger.info('Dutch: Moving to next player after special cards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Moving to next player after special cards');
+      };
       _moveToNextPlayer();
       
       // Reset flag after moving to next player (allows new special cards window to start)
       _isEndingSpecialCardsWindow = false;
       
     } catch (e) {
-      _logger.error('Dutch: Error in _endSpecialCardsWindow: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _endSpecialCardsWindow: $e');
+      };
       // Reset flag on error to prevent permanent lock
       _isEndingSpecialCardsWindow = false;
     }
@@ -4094,11 +5051,15 @@ class DutchGameRound {
   /// This should be called after special plays are completed (e.g., after Jack swap)
   void _checkAndClearEmptyCollectionRanks() {
     try {
-      _logger.info('Dutch: Checking all players for empty collection_rank_cards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Checking all players for empty collection_rank_cards');
+      };
       
       final gameState = _getCurrentGameState();
       if (gameState == null) {
-        _logger.error('Dutch: Failed to get game state for collection rank check', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Failed to get game state for collection rank check');
+        };
         return;
       }
       
@@ -4117,15 +5078,21 @@ class DutchGameRound {
           // Only clear if collection_rank is set (not already empty/null)
           if (currentCollectionRank.isNotEmpty && currentCollectionRank != 'null') {
             player['collection_rank'] = null;
-            _logger.info('Dutch: Cleared collection_rank for player $playerName ($playerId) - collection_rank_cards is empty', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Cleared collection_rank for player $playerName ($playerId) - collection_rank_cards is empty');
+            };
           }
         }
       }
       
-      _logger.info('Dutch: Finished checking all players for empty collection_rank_cards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Finished checking all players for empty collection_rank_cards');
+      };
       
     } catch (e) {
-      _logger.error('Dutch: Error in _checkAndClearEmptyCollectionRanks: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error in _checkAndClearEmptyCollectionRanks: $e');
+      };
     }
   }
 
@@ -4137,19 +5104,25 @@ class DutchGameRound {
 
   Future<void> _moveToNextPlayer() async {
     try {
-      _logger.info('Dutch: Moving to next player (with 2 second delay)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Moving to next player (with 2 second delay)');
+      };
       
       // Add 2 second delay before moving to next player
       await Future.delayed(const Duration(seconds: 2));
       
-      _logger.info('Dutch: Delay complete, proceeding with move to next player', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Delay complete, proceeding with move to next player');
+      };
       
       // Cancel all action timers at start of move to next player
       _cancelActionTimers();
       
       // Check if game has ended (winners exist) - prevent progression if game is over
       if (_winnersList.isNotEmpty) {
-        _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s) found. Preventing game progression.', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Game has ended - ${_winnersList.length} winner(s) found. Preventing game progression.');
+        };
         return;
       }
       
@@ -4157,7 +5130,9 @@ class DutchGameRound {
       final gameState = _getCurrentGameState();
       
       if (gameState == null) {
-        _logger.error('Dutch: Game state is null for move to next player', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Game state is null for move to next player');
+        };
         return;
       }
       
@@ -4167,13 +5142,17 @@ class DutchGameRound {
       // Check if final round is active and if we've completed it
       // This check happens BEFORE moving to next player, so currentPlayer is the one who just finished
       if (_finalRoundCaller != null && currentPlayer != null) {
-        _logger.info('Dutch: Final round is active (called by $_finalRoundCaller)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Final round is active (called by $_finalRoundCaller)');
+        };
         
         // Mark the current player (who just finished their turn) as completed in final round
         final currentPlayerId = currentPlayer['id']?.toString() ?? '';
         if (currentPlayerId.isNotEmpty) {
           _finalRoundPlayersCompleted.add(currentPlayerId);
-          _logger.info('Dutch: Player $currentPlayerId completed their turn in final round. Completed: ${_finalRoundPlayersCompleted.length}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Player $currentPlayerId completed their turn in final round. Completed: ${_finalRoundPlayersCompleted.length}');
+          };
         }
         
         // Get all active players to check if final round is complete
@@ -4182,26 +5161,34 @@ class DutchGameRound {
         
         // Check if all active players have completed their turn in the final round
         if (_finalRoundPlayersCompleted.length >= activePlayerIds.length) {
-          _logger.info('Dutch: Final round complete! All ${activePlayerIds.length} active players have had their turn. Ending game and calculating winners.', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Final round complete! All ${activePlayerIds.length} active players have had their turn. Ending game and calculating winners.');
+          };
           
           // Final round is complete - end the game and calculate winners based on points
           // The caller (_finalRoundCaller) needs special logic during winner decision
           _endFinalRoundAndCalculateWinners();
           return;
         } else {
-          _logger.info('Dutch: Final round in progress. ${_finalRoundPlayersCompleted.length}/${activePlayerIds.length} players completed.', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Final round in progress. ${_finalRoundPlayersCompleted.length}/${activePlayerIds.length} players completed.');
+          };
         }
       }
       
       if (currentPlayer == null || players.isEmpty) {
-        _logger.error('Dutch: No current player or players list for move to next player', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: No current player or players list for move to next player');
+        };
         return;
       }
       
       // Set current player status to waiting before moving to next player
       final currentPlayerId = currentPlayer['id']?.toString() ?? '';
       _updatePlayerStatusInGamesMap('waiting', playerId: currentPlayerId);
-      _logger.info('Dutch: Set current player $currentPlayerId status to waiting', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Set current player $currentPlayerId status to waiting');
+      };
       
       // Find current player index
       int currentIndex = -1;
@@ -4213,7 +5200,9 @@ class DutchGameRound {
       }
       
       if (currentIndex == -1) {
-        _logger.error('Dutch: Current player $currentPlayerId not found in players list', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('Dutch: Current player $currentPlayerId not found in players list');
+        };
         return;
       }
       
@@ -4224,7 +5213,9 @@ class DutchGameRound {
       
       // Update current player in game state
       gameState['currentPlayer'] = nextPlayer;
-      _logger.info('Dutch: Updated game state currentPlayer to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Updated game state currentPlayer to: ${nextPlayer['name']}');
+      };
       
       // CRITICAL: Update currentPlayer in the games map before updating status
       // This ensures we read the correct currentPlayer
@@ -4237,7 +5228,9 @@ class DutchGameRound {
           final gameStateData = gameDataInner['game_state'] as Map<String, dynamic>?;
           if (gameStateData != null) {
             gameStateData['currentPlayer'] = nextPlayer;
-            _logger.info('Dutch: Updated currentPlayer in games map to: ${nextPlayer['name']}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Updated currentPlayer in games map to: ${nextPlayer['name']}');
+            };
           }
         }
       }
@@ -4270,23 +5263,37 @@ class DutchGameRound {
         'playerStatus': 'drawing_card', // Update main state playerStatus
         'turn_events': [], // Clear all turn events for new turn
       });
-      _logger.info('Dutch: Updated games map with new currentPlayer, status, and cleared turn_events for new turn', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Updated games map with new currentPlayer, status, and cleared turn_events for new turn');
+      };
       
       // Log player state at start of turn
-      _logger.info('Dutch: === TURN START for $nextPlayerId ===', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: === TURN START for $nextPlayerId ===');
+      };
       final hand = nextPlayer['hand'] as List<dynamic>? ?? [];
       final handCardIds = hand.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Dutch: Player hand: $handCardIds', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player hand: $handCardIds');
+      };
       final knownCards = nextPlayer['known_cards'] as Map<String, dynamic>? ?? {};
-      _logger.info('Dutch: Player known_cards: $knownCards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player known_cards: $knownCards');
+      };
       final collectionRank = nextPlayer['collection_rank']?.toString() ?? 'none';
-      _logger.info('Dutch: Player collection_rank: $collectionRank', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player collection_rank: $collectionRank');
+      };
       final collectionRankCards = nextPlayer['collection_rank_cards'] as List<dynamic>? ?? [];
       final collectionCardIds = collectionRankCards.map((c) => c is Map ? (c['cardId'] ?? c['id'] ?? 'unknown') : c.toString()).toList();
-      _logger.info('Dutch: Player collection_rank_cards: $collectionCardIds', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Player collection_rank_cards: $collectionCardIds');
+      };
       
       // Status already updated in games map above, no need for separate call
-      _logger.info('Dutch: Set next player ${nextPlayer['name']} to drawing_card status', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Set next player ${nextPlayer['name']} to drawing_card status');
+      };
       
       // Start draw timer for ALL players (human and CPU)
       // Note: CPU players will still use YAML delays for their actions, but timer acts as a safety timeout
@@ -4295,14 +5302,20 @@ class DutchGameRound {
       // Check if this is a computer player and trigger computer turn logic
       final isHuman = nextPlayer['isHuman'] as bool? ?? false;
       if (!isHuman) {
-        _logger.info('Dutch: Computer player detected - triggering computer turn logic', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Computer player detected - triggering computer turn logic');
+        };
         _initComputerTurn(gameState);
       } else {
-        _logger.info('Dutch: Started turn for human player ${nextPlayer['name']} - status: drawing_card', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Started turn for human player ${nextPlayer['name']} - status: drawing_card');
+        };
       }
       
     } catch (e) {
-      _logger.error('Dutch: Error moving to next player: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error moving to next player: $e');
+      };
     }
   }
 
@@ -4365,10 +5378,14 @@ class DutchGameRound {
       // Update state to trigger UI updates
       _stateCallback.onGameStateChanged({'games': currentGames});
       
-      _logger.info('Dutch: Updated known_cards for all players after $eventType', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Updated known_cards for all players after $eventType');
+      };
       
     } catch (e) {
-      _logger.error('Dutch: Failed to update known_cards: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Failed to update known_cards: $e');
+      };
     }
   }
 
@@ -4413,7 +5430,9 @@ class DutchGameRound {
           knownCards[actingPlayerId] = actingPlayerCards;
         }
         
-        _logger.info('Dutch: Removed just-drawn card $playedCardId from $actingPlayerId known_cards (100% certainty)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Removed just-drawn card $playedCardId from $actingPlayerId known_cards (100% certainty)');
+        };
       }
     }
     
@@ -4570,7 +5589,9 @@ class DutchGameRound {
     // Get full card data for the peeked card
     final fullCardData = _stateCallback.getCardById(gameState, peekedCardId);
     if (fullCardData == null) {
-      _logger.warning('Dutch: Failed to get full card data for peeked card $peekedCardId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('Dutch: Failed to get full card data for peeked card $peekedCardId');
+      };
       return;
     }
     
@@ -4592,7 +5613,9 @@ class DutchGameRound {
     peekingPlayerCards[peekedCardId] = fullCardData;
     knownCards[actingPlayerId] = peekingPlayerCards;
     
-    _logger.info('Dutch: Added peeked card $peekedCardId to player $actingPlayerId known_cards (from player $targetPlayerId)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Added peeked card $peekedCardId to player $actingPlayerId known_cards (from player $targetPlayerId)');
+    };
   }
 
   /// Check if timer should be started (timer enabled when instructions are OFF)
@@ -4608,14 +5631,18 @@ class DutchGameRound {
     _drawActionTimer = null;
 
     if (!_shouldStartTimer()) {
-      _logger.info('Dutch: Timer disabled (showInstructions=true) - not starting draw timer for player $playerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Timer disabled (showInstructions=true) - not starting draw timer for player $playerId');
+      };
       return;
     }
 
     final config = _stateCallback.getTimerConfig();
     final turnTimeLimit = config['turnTimeLimit'] as int? ?? 30;
 
-    _logger.info('Dutch: Starting draw action timer for player $playerId (${turnTimeLimit}s)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Starting draw action timer for player $playerId (${turnTimeLimit}s)');
+    };
     _drawActionTimer = Timer(Duration(seconds: turnTimeLimit), () {
       _onDrawActionTimerExpired(playerId);
     });
@@ -4628,14 +5655,18 @@ class DutchGameRound {
     _playActionTimer = null;
 
     if (!_shouldStartTimer()) {
-      _logger.info('Dutch: Timer disabled (showInstructions=true) - not starting play timer for player $playerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Timer disabled (showInstructions=true) - not starting play timer for player $playerId');
+      };
       return;
     }
 
     final config = _stateCallback.getTimerConfig();
     final turnTimeLimit = config['turnTimeLimit'] as int? ?? 30;
 
-    _logger.info('Dutch: Starting play action timer for player $playerId (${turnTimeLimit}s)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Starting play action timer for player $playerId (${turnTimeLimit}s)');
+    };
     _playActionTimer = Timer(Duration(seconds: turnTimeLimit), () {
       _onPlayActionTimerExpired(playerId);
     });
@@ -4643,7 +5674,9 @@ class DutchGameRound {
 
   /// Handle draw action timer expiration
   void _onDrawActionTimerExpired(String playerId) {
-    _logger.info('Dutch: Draw action timer expired for player $playerId - skipping turn', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Draw action timer expired for player $playerId - skipping turn');
+    };
     
     // Cancel play timer if active (draw expired, no play timer needed)
     _playActionTimer?.cancel();
@@ -4654,7 +5687,9 @@ class DutchGameRound {
     
     // Then check missed action threshold and trigger auto-leave if needed
     _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
-    _logger.info('Dutch: Player $playerId missed action count: ${_missedActionCounts[playerId]}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Player $playerId missed action count: ${_missedActionCounts[playerId]}');
+    };
     
     // Check if threshold reached (2 missed actions)
     if (_missedActionCounts[playerId] == 2) {
@@ -4664,7 +5699,9 @@ class DutchGameRound {
 
   /// Handle play action timer expiration
   void _onPlayActionTimerExpired(String playerId) {
-    _logger.info('Dutch: Play action timer expired for player $playerId - skipping turn (drawn card remains in hand)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Play action timer expired for player $playerId - skipping turn (drawn card remains in hand)');
+    };
     
     // Cancel draw timer if active
     _drawActionTimer?.cancel();
@@ -4690,12 +5727,16 @@ class DutchGameRound {
           // Remove the key entirely to ensure it's not visible to other players
           if (player.containsKey('drawnCard')) {
             player.remove('drawnCard');
-            _logger.info('Dutch: Removed drawnCard property for player $playerId (timer expired, card remains in hand)', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('Dutch: Removed drawnCard property for player $playerId (timer expired, card remains in hand)');
+            };
           }
           
           // Update player status to waiting
           player['status'] = 'waiting';
-          _logger.info('Dutch: Updated player $playerId status to waiting (timer expired)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Updated player $playerId status to waiting (timer expired)');
+          };
           
           // CRITICAL: Sanitize drawnCard for all players before broadcasting
           // Even though we removed it from the current player, we need to ensure
@@ -4711,7 +5752,9 @@ class DutchGameRound {
                   'rank': '?',
                   'points': 0,
                 };
-                _logger.info('Dutch: Sanitized drawnCard for player ${p['id']} before broadcast (timer expiration)', isOn: LOGGING_SWITCH);
+                if (LOGGING_SWITCH) {
+                  _logger.info('Dutch: Sanitized drawnCard for player ${p['id']} before broadcast (timer expiration)');
+                };
               }
             }
           }
@@ -4720,11 +5763,15 @@ class DutchGameRound {
           _stateCallback.onGameStateChanged({
             'games': currentGames,
           });
-          _logger.info('Dutch: Broadcasted state update after play timer expiration for player $playerId (drawnCard removed/sanitized)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('Dutch: Broadcasted state update after play timer expiration for player $playerId (drawnCard removed/sanitized)');
+          };
         }
       }
     } catch (e) {
-      _logger.error('Dutch: Error clearing drawnCard on play timer expiration: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error clearing drawnCard on play timer expiration: $e');
+      };
     }
     
     // Move to next player first (normal flow)
@@ -4732,7 +5779,9 @@ class DutchGameRound {
     
     // Then check missed action threshold and trigger auto-leave if needed
     _missedActionCounts[playerId] = (_missedActionCounts[playerId] ?? 0) + 1;
-    _logger.info('Dutch: Player $playerId missed action count: ${_missedActionCounts[playerId]}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: Player $playerId missed action count: ${_missedActionCounts[playerId]}');
+    };
     
     // Check if threshold reached (2 missed actions)
     if (_missedActionCounts[playerId] == 2) {
@@ -4753,6 +5802,8 @@ class DutchGameRound {
     _sameRankTimer?.cancel();
     _specialCardTimer?.cancel();
     _cancelActionTimers();
-    _logger.info('Dutch: DutchGameRound disposed for game $_gameId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('Dutch: DutchGameRound disposed for game $_gameId');
+    };
   }
 }

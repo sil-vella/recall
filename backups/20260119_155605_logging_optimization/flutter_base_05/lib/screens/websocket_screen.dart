@@ -1,0 +1,435 @@
+import 'package:flutter/material.dart';
+import 'dart:convert';
+import '../core/00_base/screen_base.dart';
+import '../core/managers/module_manager.dart';
+import '../core/managers/websockets/websocket_manager.dart';
+import '../core/managers/websockets/websocket_events.dart';
+import '../utils/consts/theme_consts.dart';
+
+class WebSocketScreen extends BaseScreen {
+  const WebSocketScreen({Key? key}) : super(key: key);
+
+  @override
+  String computeTitle(BuildContext context) => 'WebSocket Test';
+
+  @override
+  BaseScreenState<WebSocketScreen> createState() => _WebSocketScreenState();
+}
+
+class _WebSocketScreenState extends BaseScreenState<WebSocketScreen> {
+  List<String> messages = [];
+  Map<String, dynamic>? sessionData;
+  String? sessionId;
+  
+  // Controllers for input fields
+  final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _customMessageController = TextEditingController();
+
+  // Module manager for accessing LoginModule
+  final ModuleManager _moduleManager = ModuleManager();
+  
+  // WebSocket manager singleton
+  final WebSocketManager _websocketManager = WebSocketManager.instance;
+
+  // Helper methods to get state from WebSocketManager
+  bool get isConnected => _websocketManager.isConnected;
+
+  String get connectionStatus {
+    return isConnected ? 'Connected' : 'Disconnected';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Don't auto-connect - let user press connect button
+  }
+
+  void _connect() async {
+    // Check if already connected first
+    if (_websocketManager.isConnected) {
+      setState(() {
+        messages.add('✅ WebSocket already connected');
+      });
+      return;
+    }
+    
+    final success = await _websocketManager.connect();
+    if (success) {
+      setState(() {
+        messages.add('✅ Connected to WebSocket server');
+      });
+    } else {
+      setState(() {
+        messages.add('❌ Failed to connect to WebSocket server');
+      });
+    }
+  }
+
+  void _disconnect() {
+    _websocketManager.disconnect();
+    setState(() {
+      messages.add('🔌 Disconnected from WebSocket server');
+    });
+  }
+
+  void _sendMessage() async {
+    final message = _customMessageController.text.trim();
+    if (message.isEmpty) {
+      messages.add('⚠️ Please enter a message');
+      return;
+    }
+    
+    final result = await _websocketManager.broadcastMessage(message);
+    if (result['success'] != null) {
+      messages.add('💬 Sent message: $message');
+      _customMessageController.clear(); // Clear the input
+    } else {
+      messages.add('🚨 Failed to send message: ${result['error']}');
+    }
+  }
+
+  void _sendTestMessage() async {
+    final message = _messageController.text.trim();
+    if (message.isEmpty) {
+      messages.add('⚠️ Please enter a test message');
+      return;
+    }
+    
+    final result = await _websocketManager.broadcastMessage(message);
+    if (result['success'] != null) {
+      messages.add('💬 Sent test message: $message');
+      _messageController.clear(); // Clear the input
+    } else {
+      messages.add('🚨 Failed to send test message: ${result['error']}');
+    }
+  }
+
+  void _clearMessages() {
+    setState(() {
+      messages.clear();
+    });
+  }
+
+  @override
+  void dispose() {
+
+    // Don't disconnect the WebSocket manager - keep it alive for other screens
+    _messageController.dispose();
+    _customMessageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget buildContent(BuildContext context) {
+    return StreamBuilder<ConnectionStatusEvent>(
+      stream: _websocketManager.connectionStatus,
+      builder: (context, connectionSnapshot) {
+        final isConnected = connectionSnapshot.data?.status == ConnectionStatus.connected || _websocketManager.isConnected;
+        
+        return StreamBuilder<WebSocketEvent>(
+          stream: _websocketManager.events,
+          builder: (context, eventSnapshot) {
+            // Handle incoming events
+            if (eventSnapshot.hasData) {
+              final event = eventSnapshot.data!;
+              if (event is SessionDataEvent) {
+                sessionData = event.sessionData;
+                sessionId = event.sessionData['session_id'];
+              } else if (event is MessageEvent) {
+                messages.add('💬 [${event.sender}]: ${event.message}');
+              } else if (event is ErrorEvent) {
+                messages.add('🚨 Error: ${event.error}');
+              }
+            }
+            
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Connection Status
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    color: isConnected ? AppColors.successColor : AppColors.errorColor,
+                    child: Row(
+                      children: [
+                        Icon(
+                          isConnected ? Icons.wifi : Icons.wifi_off,
+                          color: AppColors.textOnAccent,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            isConnected ? 'Connected' : 'Disconnected',
+                            style: AppTextStyles.bodyMedium().copyWith(
+                              color: AppColors.textOnAccent,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (sessionId != null)
+                          Text(
+                            'ID: ${sessionId!.substring(0, 8)}...',
+                            style: AppTextStyles.bodyMedium().copyWith(
+                              color: AppColors.textOnAccent,
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // Session Data Display
+                  if (sessionData != null)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.infoColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.infoColor.withOpacity(0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Session Data:',
+                            style: AppTextStyles.bodyMedium().copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            json.encode(sessionData),
+                            style: AppTextStyles.bodySmall(),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Connection Controls
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        // Connect/Disconnect Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: Semantics(
+                            label: isConnected ? 'ws_disconnect' : 'ws_connect',
+                            identifier: isConnected ? 'ws_disconnect' : 'ws_connect',
+                            button: true,
+                            child: ElevatedButton(
+                            onPressed: isConnected ? _disconnect : _connect,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isConnected ? AppColors.errorColor : AppColors.successColor,
+                              foregroundColor: AppColors.textOnAccent,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: Text(
+                              isConnected ? 'Disconnect' : 'Connect',
+                              style: AppTextStyles.bodyMedium().copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 16),
+                        
+                        // Message Sending
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.successColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.successColor.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Send Messages',
+                                style: AppTextStyles.bodyMedium().copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Semantics(
+                                      label: 'ws_field_custom_message',
+                                      identifier: 'ws_field_custom_message',
+                                      textField: true,
+                                      child: TextField(
+                                      controller: _customMessageController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Custom Message',
+                                        hintText: 'Enter your message',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Semantics(
+                                    label: 'ws_send_custom',
+                                    identifier: 'ws_send_custom',
+                                    button: true,
+                                    child: ElevatedButton(
+                                    onPressed: isConnected ? _sendMessage : null,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.successColor,
+                                      foregroundColor: AppColors.textOnAccent,
+                                    ),
+                                    child: const Text('Send'),
+                                  ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Semantics(
+                                      label: 'ws_field_test_message',
+                                      identifier: 'ws_field_test_message',
+                                      textField: true,
+                                      child: TextField(
+                                      controller: _messageController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Test Message',
+                                        hintText: 'Quick test message',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Semantics(
+                                    label: 'ws_send_test',
+                                    identifier: 'ws_send_test',
+                                    button: true,
+                                    child: ElevatedButton(
+                                    onPressed: isConnected ? _sendTestMessage : null,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.infoColor,
+                                      foregroundColor: AppColors.textOnAccent,
+                                    ),
+                                    child: const Text('Send Test'),
+                                  ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Clear Messages Button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Semantics(
+                            label: 'ws_clear_messages',
+                            identifier: 'ws_clear_messages',
+                            button: true,
+                            child: ElevatedButton(
+                            onPressed: _clearMessages,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.disabledColor,
+                              foregroundColor: AppColors.textOnAccent,
+                            ),
+                            child: const Text('Clear Messages'),
+                          ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Messages List
+                  Container(
+                    height: 300,
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.borderDefault),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceVariant,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(8),
+                              topRight: Radius.circular(8),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.message),
+                              const SizedBox(width: 8),
+                              Text(
+                                'WebSocket Messages',
+                                style: AppTextStyles.bodyMedium().copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${messages.length} messages',
+                                style: AppTextStyles.bodySmall().copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.all(8),
+                            itemCount: messages.length,
+                            itemBuilder: (context, index) {
+                              final message = messages[index];
+                              Color messageColor = AppColors.surfaceVariant;
+                              
+                              // Color code messages based on type
+                              if (message.contains('✅')) messageColor = AppColors.successColor.withOpacity(0.1);
+                              else if (message.contains('❌') || message.contains('🚨')) messageColor = AppColors.errorColor.withOpacity(0.1);
+                              else if (message.contains('💬')) messageColor = AppColors.infoColor.withOpacity(0.1);
+                              
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 4),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: messageColor,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  message,
+                                  style: AppTextStyles.bodySmall(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+} 

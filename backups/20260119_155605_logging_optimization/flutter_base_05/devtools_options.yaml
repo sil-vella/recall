@@ -1,0 +1,9 @@
+description: This file stores settings for Dart & Flutter DevTools.
+documentation: https://docs.flutter.dev/tools/devtools/extensions#configure-extension-enablement-states
+extensions:
+  # Prevent screen lock during debug mode
+  keep_awake:
+    enabled: true
+    settings:
+      debug_only: true
+      prevent_screen_lock: true

@@ -25,7 +25,7 @@ class AccountScreen extends BaseScreen {
 }
 
 class _AccountScreenState extends BaseScreenState<AccountScreen> {
-  static const bool LOGGING_SWITCH = true; // Enable for debugging guest account creation and game creation loops
+  static const bool LOGGING_SWITCH = false; // Enable for debugging guest account creation and game creation loops
   static final Logger _logger = Logger();
   
   // Form controllers

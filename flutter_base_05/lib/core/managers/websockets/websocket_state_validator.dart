@@ -1,7 +1,7 @@
 import '../state_manager.dart';
 import '../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for debugging WebSocket state validation
+const bool LOGGING_SWITCH = false; // Enabled for debugging WebSocket state validation
 
 /// WebSocket State Field Specification
 class WebSocketStateFieldSpec {

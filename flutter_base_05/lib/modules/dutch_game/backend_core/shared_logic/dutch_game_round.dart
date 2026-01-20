@@ -9,7 +9,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system and miss chance testing, and action data tracking
+const bool LOGGING_SWITCH = false; // Enabled for timer-based delay system and miss chance testing, and action data tracking
 
 class DutchGameRound {
   final Logger _logger = Logger();

@@ -33,7 +33,7 @@ class PlayerAction {
   static final DutchGameStateUpdater _stateUpdater = DutchGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for practice match debugging
+  static const bool LOGGING_SWITCH = false; // Enabled for practice match debugging and match creation
   
   // Analytics module cache
   static AnalyticsModule? _analyticsModule;

@@ -11,7 +11,7 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Enabled for testing game initialization
+  static const bool LOGGING_SWITCH = true; // Enabled for testing game initialization and duplicate game detection
   static final Logger _logger = Logger();
   
   // Analytics module cache
@@ -1313,19 +1313,31 @@ When anyone has played a card with the **same rank** as your **collection card**
       final gameInMap = currentGamesForJoined[gameId] as Map<String, dynamic>? ?? {};
       final gameData = gameInMap['gameData'] as Map<String, dynamic>? ?? {};
       
+      // Ensure gameData has game_id for proper duplicate detection
+      if (gameData['game_id'] == null || gameData['game_id'] != gameId) {
+        gameData['game_id'] = gameId;
+        _logger.info('🔍 handleGameStateUpdated: Added missing game_id to gameData: $gameId', isOn: LOGGING_SWITCH);
+      }
+      
       // Get current joinedGames list
       final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final currentJoinedGames = List<Map<String, dynamic>>.from(currentState['joinedGames'] as List<dynamic>? ?? []);
       
-      // Check if this game is already in joinedGames
-      final existingIndex = currentJoinedGames.indexWhere((game) => game['game_id'] == gameId);
+      // Check if this game is already in joinedGames - use multiple checks for robustness
+      final existingIndex = currentJoinedGames.indexWhere((game) {
+        final gameIdFromGame = game['game_id']?.toString() ?? 
+                              game['game_state']?['gameId']?.toString() ?? '';
+        return gameIdFromGame == gameId && gameIdFromGame.isNotEmpty;
+      });
       
       if (existingIndex >= 0) {
         // Update existing game
         currentJoinedGames[existingIndex] = gameData;
+        _logger.info('🔄 handleGameStateUpdated: Updated existing game in joinedGames: $gameId (index: $existingIndex, total: ${currentJoinedGames.length})', isOn: LOGGING_SWITCH);
       } else {
         // Add new game to joinedGames
         currentJoinedGames.add(gameData);
+        _logger.info('➕ handleGameStateUpdated: Added new game to joinedGames: $gameId (total: ${currentJoinedGames.length})', isOn: LOGGING_SWITCH);
       }
       
       // Update joinedGames state

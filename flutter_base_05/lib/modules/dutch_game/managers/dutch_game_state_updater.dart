@@ -7,6 +7,7 @@ import '../utils/state_queue_validator.dart';
 import '../../dutch_game/models/state/dutch_game_state.dart';
 import '../models/state/games_map.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
+import '../screens/game_play/widgets/card_animation_manager.dart';
 // ignore: unused_import
 import '../models/state/my_hand_state.dart'; // For future migration
 // ignore: unused_import
@@ -25,7 +26,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for draw card debugging and animation system testing - testing if animation system interrupts computer player logic
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -224,6 +225,71 @@ class DutchGameStateUpdater {
       };
       _logger.debug('🎬 DutchGameStateUpdater: New state keys: ${newState.keys.toList()}', isOn: LOGGING_SWITCH);
       
+      // ========== ACTION DETECTION AND ANIMATION QUEUEING ==========
+      // TEMPORARILY DISABLED - Testing if this is blocking computer player logic
+      // Detect player actions BEFORE slice recomputation
+      // This allows us to capture previous state and queue animations
+      // NOTE: Wrapped in try-catch to prevent animation system from blocking state updates
+      // NOTE: Action detection happens on a COPY of newState to avoid mutating the original
+      /*
+      try {
+        // Create a deep copy for action detection to avoid mutating the original state
+        final stateCopyForDetection = _deepConvertToMapStringDynamic(newState) as Map<String, dynamic>;
+        final actionInfo = _detectPlayerActions(stateCopyForDetection);
+        if (actionInfo != null) {
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 DutchGameStateUpdater: Action detected - action: ${actionInfo['action']}, playerId: ${actionInfo['playerId']}', isOn: LOGGING_SWITCH);
+          }
+          
+          // Capture previous state slices (before recomputation)
+          final previousSlices = {
+            'myHand': currentState['myHand'],
+            'centerBoard': currentState['centerBoard'],
+            'opponentsPanel': currentState['opponentsPanel'],
+          };
+          
+          // Pass previous slices to animation manager (wrapped in try-catch to prevent blocking)
+          try {
+            CardAnimationManager.instance.capturePreviousState(previousSlices);
+            
+            // Queue animation with action data
+            CardAnimationManager.instance.queueAnimation(
+              actionInfo['action'] as String,
+              actionInfo['actionData'] as Map<String, dynamic>,
+              actionInfo['playerId'] as String,
+            );
+          } catch (e, stackTrace) {
+            // Animation system error should not block state updates
+            _logger.error('🎬 DutchGameStateUpdater: Error in animation manager (non-blocking): $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+          }
+          
+          // CRITICAL: Clear action from state immediately to prevent re-queueing
+          // BUT: Only clear actions for the current user (human player), not CPU players
+          // CPU player actions should be managed by the backend, not cleared in frontend
+          // NOTE: We modify newState here, but only for human players, and only after animation is queued
+          final actionPlayerId = actionInfo['playerId'] as String;
+          final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+          if (actionPlayerId == currentUserId) {
+            // Only clear actions for the current user to prevent re-queueing
+            // This modifies newState which will be used for widget slices
+            _clearActionFromState(newState, actionPlayerId);
+          } else {
+            // CPU player action - don't clear it, let backend manage it
+            if (LOGGING_SWITCH) {
+              _logger.debug('🎬 DutchGameStateUpdater: Skipping action clear for CPU player $actionPlayerId (backend will manage)', isOn: LOGGING_SWITCH);
+            }
+          }
+          
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 DutchGameStateUpdater: Previous state captured, animation queued, and action cleared from state', isOn: LOGGING_SWITCH);
+          }
+        }
+      } catch (e, stackTrace) {
+        // Action detection error should not block state updates
+        _logger.error('🎬 DutchGameStateUpdater: Error in action detection (non-blocking): $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      }
+      */
+      
       // Rebuild dependent widget slices only if relevant fields changed
       _logger.debug('🎬 DutchGameStateUpdater: Updating widget slices for changed keys: ${validatedUpdates.keys.toSet()}', isOn: LOGGING_SWITCH);
       final updatedStateWithSlices = _updateWidgetSlices(
@@ -359,6 +425,128 @@ class DutchGameStateUpdater {
       }
     }
     return 'unknown';
+  }
+
+  /// Clear action and actionData from a player in the state
+  /// Prevents re-detection and re-queueing of the same action
+  /// [state] The state map to modify
+  /// [playerId] The player ID whose action should be cleared
+  void _clearActionFromState(Map<String, dynamic> state, String playerId) {
+    try {
+      final currentGameId = state['currentGameId']?.toString() ?? '';
+      if (currentGameId.isEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 DutchGameStateUpdater: No currentGameId, cannot clear action', isOn: LOGGING_SWITCH);
+        }
+        return;
+      }
+      
+      final games = state['games'] as Map<String, dynamic>? ?? {};
+      final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+      if (currentGame.isEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 DutchGameStateUpdater: Current game not found, cannot clear action', isOn: LOGGING_SWITCH);
+        }
+        return;
+      }
+      
+      final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+      final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+      if (gameState.isEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 DutchGameStateUpdater: Game state not found, cannot clear action', isOn: LOGGING_SWITCH);
+        }
+        return;
+      }
+      
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      
+      // Find and clear action for the specified player
+      for (final player in players) {
+        if (player is! Map<String, dynamic>) continue;
+        
+        final pId = player['id']?.toString() ?? '';
+        if (pId == playerId) {
+          final hadAction = player.containsKey('action');
+          final actionType = player['action']?.toString();
+          player.remove('action');
+          player.remove('actionData');
+          
+          if (LOGGING_SWITCH && hadAction) {
+            _logger.info('🎬 DutchGameStateUpdater: Cleared action from state for player $playerId - previous action: $actionType', isOn: LOGGING_SWITCH);
+          }
+          break;
+        }
+      }
+    } catch (e, stackTrace) {
+      _logger.error('🎬 DutchGameStateUpdater: Error clearing action from state: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+    }
+  }
+
+  /// Detect player actions from game state
+  /// Checks players in game_state for 'action' and 'actionData' fields
+  /// Returns action info if found, null otherwise
+  /// Returns: {'playerId': String, 'action': String, 'actionData': Map} or null
+  Map<String, dynamic>? _detectPlayerActions(Map<String, dynamic> newState) {
+    try {
+      final currentGameId = newState['currentGameId']?.toString() ?? '';
+      if (currentGameId.isEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 DutchGameStateUpdater: No currentGameId, skipping action detection', isOn: LOGGING_SWITCH);
+        }
+        return null;
+      }
+      
+      final games = newState['games'] as Map<String, dynamic>? ?? {};
+      final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+      if (currentGame.isEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 DutchGameStateUpdater: Current game not found, skipping action detection', isOn: LOGGING_SWITCH);
+        }
+        return null;
+      }
+      
+      final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+      final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+      if (gameState.isEmpty) {
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 DutchGameStateUpdater: Game state not found, skipping action detection', isOn: LOGGING_SWITCH);
+        }
+        return null;
+      }
+      
+      final players = gameState['players'] as List<dynamic>? ?? [];
+      
+      // Iterate through players to find one with action
+      for (final player in players) {
+        if (player is! Map<String, dynamic>) continue;
+        
+        final action = player['action']?.toString();
+        final actionData = player['actionData'] as Map<String, dynamic>?;
+        final playerId = player['id']?.toString() ?? '';
+        
+        if (action != null && action.isNotEmpty && actionData != null && playerId.isNotEmpty) {
+          if (LOGGING_SWITCH) {
+            _logger.info('🎬 DutchGameStateUpdater: Found action in player $playerId - action: $action, actionData: $actionData', isOn: LOGGING_SWITCH);
+          }
+          
+          return {
+            'playerId': playerId,
+            'action': action,
+            'actionData': actionData,
+          };
+        }
+      }
+      
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 DutchGameStateUpdater: No actions detected in any player', isOn: LOGGING_SWITCH);
+      }
+      return null;
+      
+    } catch (e, stackTrace) {
+      _logger.error('🎬 DutchGameStateUpdater: Error detecting player actions: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      return null;
+    }
   }
 
   /// Get current player status from SSOT (games[gameId].gameData.game_state.currentPlayer)
@@ -686,7 +874,7 @@ class DutchGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for draw card debugging and animation system testing - testing if animation system interrupts computer player logic
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

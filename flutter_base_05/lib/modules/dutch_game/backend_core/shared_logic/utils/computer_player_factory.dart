@@ -4,7 +4,7 @@ import '../../../utils/platform/shared_imports.dart';
 import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for timer-based delay system and miss chance testing
+const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system and miss chance testing - testing computer player AI decisions
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {

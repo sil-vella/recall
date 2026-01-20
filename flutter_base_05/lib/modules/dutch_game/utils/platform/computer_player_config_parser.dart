@@ -30,6 +30,8 @@ class ComputerPlayerConfig {
   }
   
   /// Load configuration from YAML file (Flutter: loads from assets)
+  /// Matches Dart backend logic but uses rootBundle for Flutter asset loading
+  /// Same simple approach as DeckConfig.fromFile() - no extra complexity
   static Future<ComputerPlayerConfig> fromFile(String filePath) async {
     try {
       // Flutter: map file path to asset path
@@ -46,6 +48,7 @@ class ComputerPlayerConfig {
         assetPath = 'assets/$filename';
       }
       
+      // Load asset directly - same approach as DeckConfig.fromFile() and previous working version
       final yamlString = await rootBundle.loadString(assetPath);
       
       final yamlMap = loadYaml(yamlString);

@@ -1,6 +1,6 @@
 import '../../../utils/platform/shared_imports.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system and time pressure testing - testing YAML parsing
+const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system, time pressure testing, and YAML parsing
 
 /// YAML Rules Engine - Generic interpreter for YAML-defined decision rules
 class YamlRulesEngine {

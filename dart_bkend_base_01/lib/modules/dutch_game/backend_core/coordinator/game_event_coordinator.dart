@@ -796,7 +796,7 @@ class GameEventCoordinator {
       final initialPeekTimerDuration = timerConfig['initial_peek'] ?? allTimerValues['initial_peek'] ?? 10;
       
       _initialPeekTimers[roomId] = Timer(Duration(seconds: initialPeekTimerDuration), () {
-        _onInitialPeekTimerExpired(roomId, round);
+        _onInitialPeekTimerExpired(roomId, round); // Fire and forget - async handled internally
       });
       _logger.info('GameEventCoordinator: Initial peek phase started - ${initialPeekTimerDuration}-second timer started (from game_state timerConfig)', isOn: LOGGING_SWITCH);
     } else {
@@ -1259,7 +1259,7 @@ class GameEventCoordinator {
         _initialPeekTimers[roomId]?.cancel();
         _initialPeekTimers[roomId] = null;
         // Complete initial peek phase immediately
-        _completeInitialPeek(roomId, round);
+        await _completeInitialPeek(roomId, round);
       } else {
         _logger.info('GameEventCoordinator: Player completed initial peek, waiting for others or timer expiry', isOn: LOGGING_SWITCH);
       }
@@ -1321,7 +1321,7 @@ class GameEventCoordinator {
   }
 
   /// Handle initial peek timer expiration
-  void _onInitialPeekTimerExpired(String roomId, DutchGameRound round) {
+  Future<void> _onInitialPeekTimerExpired(String roomId, DutchGameRound round) async {
     try {
       _logger.info('GameEventCoordinator: Initial peek timer expired for room $roomId', isOn: LOGGING_SWITCH);
       
@@ -1339,14 +1339,14 @@ class GameEventCoordinator {
       }
       
       // Now complete initial peek phase (all players should be done)
-      _completeInitialPeek(roomId, round);
+      await _completeInitialPeek(roomId, round);
     } catch (e) {
       _logger.error('GameEventCoordinator: Failed to handle initial peek timer expiry: $e', isOn: LOGGING_SWITCH);
     }
   }
 
   /// Complete initial peek phase: clear cardsToPeek, set all status='waiting', phase='player_turn', then initialize round
-  void _completeInitialPeek(String roomId, DutchGameRound round) {
+  Future<void> _completeInitialPeek(String roomId, DutchGameRound round) async {
     try {
       final gameState = _store.getGameState(roomId);
       final players = gameState['players'] as List<dynamic>? ?? [];
@@ -1376,8 +1376,8 @@ class GameEventCoordinator {
 
       _logger.info('GameEventCoordinator: Initial peek phase completed - transitioning to player_turn', isOn: LOGGING_SWITCH);
 
-      // NOW initialize the round (starts actual gameplay)
-      round.initializeRound();
+      // NOW initialize the round (starts actual gameplay) - await to ensure factory is loaded
+      await round.initializeRound();
     } catch (e) {
       _logger.error('GameEventCoordinator: Failed to complete initial peek: $e', isOn: LOGGING_SWITCH);
     }

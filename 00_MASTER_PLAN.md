@@ -96,6 +96,14 @@ This document tracks high-level development plans, todos, and architectural deci
 
 ### Medium Priority
 
+#### UI/Visual Issues
+- [ ] **Fix opponents columns spacing causing vertical layout issues when match pot image is showing (Dart backend version)**
+  - **Issue**: Opponents panel columns have spacing issues that cause vertical layout problems when the match pot image is displayed
+  - **Current Behavior**: Layout breaks or overlaps when match pot image is visible
+  - **Expected Behavior**: Opponents columns should maintain proper spacing and layout regardless of match pot image visibility
+  - **Location**: Flutter UI components for opponents panel (likely in `unified_game_board_widget.dart` or related opponent display widgets)
+  - **Impact**: User experience - layout issues affect game playability and visual consistency
+
 #### Room Management Features
 - [ ] Implement `get_public_rooms` endpoint (matching Python backend)
 - [ ] Implement `user_joined_rooms` event (list rooms user is in)

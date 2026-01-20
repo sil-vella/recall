@@ -131,7 +131,7 @@ class DutchGameRound {
   
   /// Initialize the round with the current game state
   /// Replicates backend _initial_peek_timeout() and start_turn() logic
-  void initializeRound() {
+  Future<void> initializeRound() async {
     try {
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: ===== INITIALIZING ROUND FOR GAME $_gameId =====');
@@ -173,6 +173,15 @@ class DutchGameRound {
         _logger.info('Dutch: Step 3 - Initializing round state');
       };
       _initializeRoundState(gameState);
+      
+      // 3.5. Pre-load computer player factory during initialization (safer - before gameplay starts)
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Step 3.5 - Pre-loading computer player factory');
+      };
+      await _ensureComputerFactory();
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: Step 3.5 - Computer player factory pre-loaded - factory is ${_computerPlayerFactory != null ? "initialized" : "NULL"}');
+      };
       
       // 4. Start the first turn (this will set the current player to DRAWING_CARD status)
       if (LOGGING_SWITCH) {
@@ -556,22 +565,41 @@ class DutchGameRound {
   /// Ensure the YAML-based computer player factory is initialized
   Future<void> _ensureComputerFactory() async {
     try {
+      if (LOGGING_SWITCH) {
+        _logger.info('Dutch: _ensureComputerFactory() START - factory is ${_computerPlayerFactory != null ? "already initialized" : "NULL"}');
+      }
+      
       if (_computerPlayerFactory == null) {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Loading computer player config from assets/computer_player_config.yaml');
+          _logger.info('Dutch: About to call ComputerPlayerFactory.fromFile()');
+        }
+        
         try {
           _computerPlayerFactory = await ComputerPlayerFactory.fromFile('assets/computer_player_config.yaml');
+          
           if (LOGGING_SWITCH) {
+            _logger.info('Dutch: ComputerPlayerFactory.fromFile() completed successfully');
             _logger.info('Dutch: Computer player factory initialized with YAML config');
-          };
-        } catch (e) {
+          }
+        } catch (e, stackTrace) {
           if (LOGGING_SWITCH) {
-            _logger.error('Dutch: Failed to load computer player config, using default behavior: $e');
-          };
+            _logger.error('Dutch: Failed to load computer player config, using default behavior: $e', error: e, stackTrace: stackTrace);
+          }
+        }
+      } else {
+        if (LOGGING_SWITCH) {
+          _logger.info('Dutch: Computer player factory already initialized, skipping load');
         }
       }
-    } catch (e) {
+      
       if (LOGGING_SWITCH) {
-        _logger.error('Dutch: Error ensuring computer factory: $e');
-      };
+        _logger.info('Dutch: _ensureComputerFactory() completed - factory is ${_computerPlayerFactory != null ? "initialized" : "NULL"}');
+      }
+    } catch (e, stackTrace) {
+      if (LOGGING_SWITCH) {
+        _logger.error('Dutch: Error ensuring computer factory: $e', error: e, stackTrace: stackTrace);
+      }
     }
   }
 

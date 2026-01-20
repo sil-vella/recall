@@ -26,7 +26,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for draw card debugging and animation system testing - testing if animation system interrupts computer player logic
+  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging and animation system testing
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -226,69 +226,50 @@ class DutchGameStateUpdater {
       _logger.debug('🎬 DutchGameStateUpdater: New state keys: ${newState.keys.toList()}', isOn: LOGGING_SWITCH);
       
       // ========== ACTION DETECTION AND ANIMATION QUEUEING ==========
-      // TEMPORARILY DISABLED - Testing if this is blocking computer player logic
       // Detect player actions BEFORE slice recomputation
       // This allows us to capture previous state and queue animations
-      // NOTE: Wrapped in try-catch to prevent animation system from blocking state updates
-      // NOTE: Action detection happens on a COPY of newState to avoid mutating the original
-      /*
-      try {
-        // Create a deep copy for action detection to avoid mutating the original state
-        final stateCopyForDetection = _deepConvertToMapStringDynamic(newState) as Map<String, dynamic>;
-        final actionInfo = _detectPlayerActions(stateCopyForDetection);
-        if (actionInfo != null) {
+      final actionInfo = _detectPlayerActions(newState);
+      if (actionInfo != null) {
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 DutchGameStateUpdater: Action detected - action: ${actionInfo['action']}, playerId: ${actionInfo['playerId']}', isOn: LOGGING_SWITCH);
+        }
+        
+        // Capture previous state slices (before recomputation)
+        final previousSlices = {
+          'myHand': currentState['myHand'],
+          'centerBoard': currentState['centerBoard'],
+          'opponentsPanel': currentState['opponentsPanel'],
+        };
+        
+        // Pass previous slices to animation manager
+        CardAnimationManager.instance.capturePreviousState(previousSlices);
+        
+        // Queue animation with action data
+        CardAnimationManager.instance.queueAnimation(
+          actionInfo['action'] as String,
+          actionInfo['actionData'] as Map<String, dynamic>,
+          actionInfo['playerId'] as String,
+        );
+        
+        // CRITICAL: Clear action from state immediately to prevent re-queueing
+        // BUT: Only clear actions for the current user (human player), not CPU players
+        // CPU player actions should be managed by the backend, not cleared in frontend
+        final actionPlayerId = actionInfo['playerId'] as String;
+        final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
+        if (actionPlayerId == currentUserId) {
+          // Only clear actions for the current user to prevent re-queueing
+          _clearActionFromState(newState, actionPlayerId);
+        } else {
+          // CPU player action - don't clear it, let backend manage it
           if (LOGGING_SWITCH) {
-            _logger.info('🎬 DutchGameStateUpdater: Action detected - action: ${actionInfo['action']}, playerId: ${actionInfo['playerId']}', isOn: LOGGING_SWITCH);
-          }
-          
-          // Capture previous state slices (before recomputation)
-          final previousSlices = {
-            'myHand': currentState['myHand'],
-            'centerBoard': currentState['centerBoard'],
-            'opponentsPanel': currentState['opponentsPanel'],
-          };
-          
-          // Pass previous slices to animation manager (wrapped in try-catch to prevent blocking)
-          try {
-            CardAnimationManager.instance.capturePreviousState(previousSlices);
-            
-            // Queue animation with action data
-            CardAnimationManager.instance.queueAnimation(
-              actionInfo['action'] as String,
-              actionInfo['actionData'] as Map<String, dynamic>,
-              actionInfo['playerId'] as String,
-            );
-          } catch (e, stackTrace) {
-            // Animation system error should not block state updates
-            _logger.error('🎬 DutchGameStateUpdater: Error in animation manager (non-blocking): $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
-          }
-          
-          // CRITICAL: Clear action from state immediately to prevent re-queueing
-          // BUT: Only clear actions for the current user (human player), not CPU players
-          // CPU player actions should be managed by the backend, not cleared in frontend
-          // NOTE: We modify newState here, but only for human players, and only after animation is queued
-          final actionPlayerId = actionInfo['playerId'] as String;
-          final currentUserId = DutchEventHandlerCallbacks.getCurrentUserId();
-          if (actionPlayerId == currentUserId) {
-            // Only clear actions for the current user to prevent re-queueing
-            // This modifies newState which will be used for widget slices
-            _clearActionFromState(newState, actionPlayerId);
-          } else {
-            // CPU player action - don't clear it, let backend manage it
-            if (LOGGING_SWITCH) {
-              _logger.debug('🎬 DutchGameStateUpdater: Skipping action clear for CPU player $actionPlayerId (backend will manage)', isOn: LOGGING_SWITCH);
-            }
-          }
-          
-          if (LOGGING_SWITCH) {
-            _logger.info('🎬 DutchGameStateUpdater: Previous state captured, animation queued, and action cleared from state', isOn: LOGGING_SWITCH);
+            _logger.debug('🎬 DutchGameStateUpdater: Skipping action clear for CPU player $actionPlayerId (backend will manage)', isOn: LOGGING_SWITCH);
           }
         }
-      } catch (e, stackTrace) {
-        // Action detection error should not block state updates
-        _logger.error('🎬 DutchGameStateUpdater: Error in action detection (non-blocking): $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+        
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 DutchGameStateUpdater: Previous state captured, animation queued, and action cleared from state', isOn: LOGGING_SWITCH);
+        }
       }
-      */
       
       // Rebuild dependent widget slices only if relevant fields changed
       _logger.debug('🎬 DutchGameStateUpdater: Updating widget slices for changed keys: ${validatedUpdates.keys.toSet()}', isOn: LOGGING_SWITCH);
@@ -874,7 +855,7 @@ class DutchGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for draw card debugging and animation system testing - testing if animation system interrupts computer player logic
+  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging and animation system testing
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

@@ -1399,7 +1399,7 @@ class GameEventCoordinator {
 
       _logger.info('GameEventCoordinator: Initial peek phase completed - transitioning to player_turn', isOn: LOGGING_SWITCH);
 
-      // NOW initialize the round (starts actual gameplay)
+      // NOW initialize the round (starts actual gameplay) - await to ensure factory is loaded
       await round.initializeRound();
     } catch (e) {
       _logger.error('GameEventCoordinator: Failed to complete initial peek: $e', isOn: LOGGING_SWITCH);

@@ -4,7 +4,7 @@ import '../../../utils/platform/shared_imports.dart';
 import '../../../utils/platform/computer_player_config_parser.dart';
 import 'yaml_rules_engine.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system and miss chance testing - testing computer player AI decisions
+const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system, miss chance testing, and YAML loading
 
 /// Factory for creating computer player behavior based on YAML configuration
 class ComputerPlayerFactory {
@@ -34,8 +34,33 @@ class ComputerPlayerFactory {
 
   /// Create factory from YAML file
   static Future<ComputerPlayerFactory> fromFile(String configPath) async {
-    final config = await ComputerPlayerConfig.fromFile(configPath);
-    return ComputerPlayerFactory(config);
+    final logger = Logger();
+    if (LOGGING_SWITCH) {
+      logger.info('🏭 ComputerPlayerFactory.fromFile() START - configPath: $configPath');
+    }
+    
+    try {
+      final config = await ComputerPlayerConfig.fromFile(configPath);
+      
+      if (LOGGING_SWITCH) {
+        logger.info('🏭 ComputerPlayerFactory: Config loaded successfully');
+        final summary = config.getSummary();
+        logger.info('🏭 ComputerPlayerFactory: Config summary - difficulties: ${summary['total_difficulties']}, events: ${summary['supported_events']}, version: ${summary['config_version']}');
+      }
+      
+      final factory = ComputerPlayerFactory(config);
+      
+      if (LOGGING_SWITCH) {
+        logger.info('🏭 ComputerPlayerFactory.fromFile() SUCCESS');
+      }
+      
+      return factory;
+    } catch (e, stackTrace) {
+      if (LOGGING_SWITCH) {
+        logger.error('🏭 ComputerPlayerFactory.fromFile() ERROR: $e', error: e, stackTrace: stackTrace);
+      }
+      rethrow;
+    }
   }
 
   /// Create factory from YAML string

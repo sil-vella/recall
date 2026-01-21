@@ -513,11 +513,26 @@ class DutchGameStateUpdater {
     
     _logger.debug('🎬 DutchGameStateUpdater: _updateWidgetSlices - Changed fields: $changedFields', isOn: LOGGING_SWITCH);
     
-    // CRITICAL: Always ensure joinedGamesSlice is computed if games map exists
-    // This ensures lobby screen shows games even on initial load
+    // CRITICAL: Always ensure joinedGamesSlice matches games map state
+    // - If games map is empty, clear joinedGamesSlice
+    // - If games map has games but slice is missing/empty, compute it
+    // This ensures lobby screen shows correct games and clears stale data when switching modes
     final gamesMap = updatedState['games'] as Map<String, dynamic>? ?? {};
     final existingJoinedGamesSlice = updatedState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
-    if (gamesMap.isNotEmpty && (existingJoinedGamesSlice.isEmpty || !existingJoinedGamesSlice.containsKey('games'))) {
+    final existingJoinedGames = existingJoinedGamesSlice['games'] as List<dynamic>? ?? [];
+    
+    if (gamesMap.isEmpty) {
+      // Games map is empty - clear joinedGamesSlice to match
+      if (existingJoinedGames.isNotEmpty) {
+        _logger.info('🎬 DutchGameStateUpdater: Games map is empty but joinedGamesSlice has ${existingJoinedGames.length} games - clearing slice', isOn: LOGGING_SWITCH);
+        updatedState['joinedGamesSlice'] = {
+          'games': <Map<String, dynamic>>[],
+          'totalGames': 0,
+          'isLoadingGames': false,
+        };
+      }
+    } else if (existingJoinedGamesSlice.isEmpty || !existingJoinedGamesSlice.containsKey('games')) {
+      // Games map has games but slice is missing/empty - compute it
       _logger.info('🎬 DutchGameStateUpdater: Games map has ${gamesMap.length} games but joinedGamesSlice missing/empty - computing it', isOn: LOGGING_SWITCH);
       updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
     }

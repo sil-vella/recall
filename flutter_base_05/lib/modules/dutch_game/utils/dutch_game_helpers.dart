@@ -920,6 +920,14 @@ class DutchGameHelpers {
         'joinedGames': <Map<String, dynamic>>[],
         'totalJoinedGames': 0,
         // Removed joinedGamesTimestamp - causes unnecessary state updates
+        
+        // CRITICAL: Clear joinedGamesSlice when games map is cleared
+        // This ensures lobby screen doesn't show stale games when switching modes
+        'joinedGamesSlice': {
+          'games': <Map<String, dynamic>>[],
+          'totalGames': 0,
+          'isLoadingGames': false,
+        },
       });
       
       _logger.info('✅ DutchGameHelpers: Game state cleared successfully', isOn: LOGGING_SWITCH);

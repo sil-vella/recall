@@ -8,7 +8,7 @@ import '../utils/platform/practice/stubs/websocket_server_stub.dart';
 import '../utils/platform/practice/stubs/room_manager_stub.dart';
 import '../../dutch_game/managers/dutch_event_manager.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for practice match debugging
+const bool LOGGING_SWITCH = false; // Enabled for mode switching debugging
 
 /// Practice Mode Bridge
 /// 
@@ -152,15 +152,40 @@ class PracticeModeBridge {
 
   /// End the current practice session
   void endPracticeSession() {
-    if (_currentRoomId != null) {
-      _registry.dispose(_currentRoomId!);
-      _store.clear(_currentRoomId!);
-      _roomManager.closeRoom(_currentRoomId!, 'practice_ended');
+    try {
+      final roomIdToDispose = _currentRoomId;
+      if (roomIdToDispose != null) {
+        _logger.info('🏁 PracticeModeBridge: Ending practice session for room: $roomIdToDispose', isOn: LOGGING_SWITCH);
+        try {
+          _registry.dispose(roomIdToDispose);
+        } catch (e) {
+          _logger.warning('⚠️ PracticeModeBridge: Error disposing registry for $roomIdToDispose: $e', isOn: LOGGING_SWITCH);
+        }
+        try {
+          _store.clear(roomIdToDispose);
+        } catch (e) {
+          _logger.warning('⚠️ PracticeModeBridge: Error clearing store for $roomIdToDispose: $e', isOn: LOGGING_SWITCH);
+        }
+        try {
+          _roomManager.closeRoom(roomIdToDispose, 'practice_ended');
+        } catch (e) {
+          _logger.warning('⚠️ PracticeModeBridge: Error closing room $roomIdToDispose: $e', isOn: LOGGING_SWITCH);
+        }
+      } else {
+        _logger.info('🏁 PracticeModeBridge: No active practice session to end', isOn: LOGGING_SWITCH);
+      }
+      _currentRoomId = null;
+      _currentSessionId = null;
+      _currentUserId = null;
+      _logger.info('✅ PracticeModeBridge: Ended practice session successfully', isOn: LOGGING_SWITCH);
+    } catch (e, stackTrace) {
+      _logger.error('❌ PracticeModeBridge: Error ending practice session: $e', isOn: LOGGING_SWITCH);
+      _logger.error('❌ PracticeModeBridge: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
+      // Still clear state even if there was an error
+      _currentRoomId = null;
+      _currentSessionId = null;
+      _currentUserId = null;
     }
-    _currentRoomId = null;
-    _currentSessionId = null;
-    _currentUserId = null;
-    _logger.info('🏁 PracticeModeBridge: Ended practice session', isOn: LOGGING_SWITCH);
   }
 
   /// Handle sendToSession from backend (routes to event manager)

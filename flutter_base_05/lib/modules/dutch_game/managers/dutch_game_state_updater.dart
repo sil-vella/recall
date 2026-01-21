@@ -26,7 +26,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging and animation system testing
+  static const bool LOGGING_SWITCH = false; // Enabled for initial peek clearing debugging
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -70,7 +70,7 @@ class DutchGameStateUpdater {
     'centerBoard': {'currentGameId', 'games', 'gamePhase', 'isGameActive', 'discardPile', 'drawPile'},
     'opponentsPanel': {'currentGameId', 'games', 'currentPlayer', 'turn_events'},
     'gameInfo': {'currentGameId', 'games', 'gamePhase', 'isGameActive'},
-    'joinedGamesSlice': {'joinedGames', 'totalJoinedGames'},
+    'joinedGamesSlice': {'games'}, // SIMPLIFIED: Compute from games map (SSOT) instead of joinedGames list
   };
   
   /// Update state with validation
@@ -513,6 +513,15 @@ class DutchGameStateUpdater {
     
     _logger.debug('🎬 DutchGameStateUpdater: _updateWidgetSlices - Changed fields: $changedFields', isOn: LOGGING_SWITCH);
     
+    // CRITICAL: Always ensure joinedGamesSlice is computed if games map exists
+    // This ensures lobby screen shows games even on initial load
+    final gamesMap = updatedState['games'] as Map<String, dynamic>? ?? {};
+    final existingJoinedGamesSlice = updatedState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
+    if (gamesMap.isNotEmpty && (existingJoinedGamesSlice.isEmpty || !existingJoinedGamesSlice.containsKey('games'))) {
+      _logger.info('🎬 DutchGameStateUpdater: Games map has ${gamesMap.length} games but joinedGamesSlice missing/empty - computing it', isOn: LOGGING_SWITCH);
+      updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
+    }
+    
     // Only rebuild slices that depend on changed fields
     for (final entry in _widgetDependencies.entries) {
       final sliceName = entry.key;
@@ -551,8 +560,7 @@ class DutchGameStateUpdater {
     
     // Extract currentPlayer from current game data and put it in main state
     final currentGameId = updatedState['currentGameId']?.toString() ?? '';
-    final games = updatedState['games'] as Map<String, dynamic>? ?? {};
-    final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+    final currentGame = gamesMap[currentGameId] as Map<String, dynamic>? ?? {};
     
     // Look for currentPlayer in the nested gameData.game_state structure
     final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
@@ -895,15 +903,36 @@ class DutchGameStateUpdater {
   }
 
   /// Compute joined games widget slice
+  /// SIMPLIFIED: Compute from games map - if a game is in the games map, the user has joined it
+  /// No need to check userId/player IDs - the games map is the source of truth
   Map<String, dynamic> _computeJoinedGamesSlice(Map<String, dynamic> state) {
-    final joinedGames = state['joinedGames'] as List<dynamic>? ?? [];
-    final totalJoinedGames = state['totalJoinedGames'] ?? 0;
-    // Removed joinedGamesTimestamp - causes unnecessary state updates
+    final games = state['games'] as Map<String, dynamic>? ?? {};
+    
+    _logger.info('🎬 DutchGameStateUpdater: Computing joinedGamesSlice - games map has ${games.length} games', isOn: LOGGING_SWITCH);
+    
+    // Build joined games list from games map (single source of truth)
+    // If a game is in the games map, the user has joined it - no need to check player IDs
+    final joinedGamesList = <Map<String, dynamic>>[];
+    
+    for (final entry in games.entries) {
+      final gameId = entry.key;
+      final gameEntry = entry.value as Map<String, dynamic>? ?? {};
+      final gameData = gameEntry['gameData'] as Map<String, dynamic>? ?? {};
+      
+      // Only include games with valid gameData
+      if (gameData.isNotEmpty && gameData['game_id'] != null) {
+        _logger.debug('🎬 DutchGameStateUpdater: Adding game $gameId to joinedGamesSlice', isOn: LOGGING_SWITCH);
+        joinedGamesList.add(gameData);
+      } else {
+        _logger.debug('🎬 DutchGameStateUpdater: Game $gameId skipped - gameData empty: ${gameData.isEmpty}, game_id: ${gameData['game_id']}', isOn: LOGGING_SWITCH);
+      }
+    }
+    
+    _logger.info('🎬 DutchGameStateUpdater: Computed joinedGamesSlice from games map - found ${joinedGamesList.length} games', isOn: LOGGING_SWITCH);
     
     return {
-      'games': joinedGames,
-      'totalGames': totalJoinedGames,
-      // Removed timestamp - causes unnecessary state updates
+      'games': joinedGamesList,
+      'totalGames': joinedGamesList.length,
       'isLoadingGames': false,
     };
   }
@@ -924,7 +953,7 @@ class DutchGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for draw card debugging and animation system testing
+  static const bool LOGGING_SWITCH = false; // Enabled for initial peek clearing debugging
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

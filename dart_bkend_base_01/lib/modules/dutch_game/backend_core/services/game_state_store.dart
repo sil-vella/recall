@@ -1,6 +1,6 @@
 import '../../utils/platform/shared_imports.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for timestamp removal testing
+const bool LOGGING_SWITCH = false; // Enabled for initial peek clearing debugging
 
 /// In-memory game state store keyed by roomId.
 /// Holds a mutable Map<String,dynamic> representing the current game state

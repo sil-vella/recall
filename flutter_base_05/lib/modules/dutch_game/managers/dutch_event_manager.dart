@@ -294,19 +294,17 @@ class DutchEventManager {
         _logger.info('🔍 websocket_join_room: isRandomJoinInProgress=$isRandomJoinInProgress, dutchState keys: ${dutchState.keys.toList()}', isOn: LOGGING_SWITCH);
         
         if (status == 'success' && isRandomJoinInProgress && roomId.isNotEmpty) {
-          _logger.info('🎮 Random join: joined existing room, navigating to game play screen', isOn: LOGGING_SWITCH);
+          _logger.info('🎮 Random join: joined existing room, waiting for game_state_updated before navigating', isOn: LOGGING_SWITCH);
           
           // Clear the random join flag
           DutchGameHelpers.updateUIState({
             'isRandomJoinInProgress': false,
           });
           
-          // Navigate to game play screen
-          // Use a small delay to ensure state is fully updated
-          Future.delayed(const Duration(milliseconds: 300), () {
-            _logger.info('🎮 Executing navigation to /dutch/game-play', isOn: LOGGING_SWITCH);
-            NavigationManager().navigateTo('/dutch/game-play');
-          });
+          // CRITICAL: Don't navigate immediately - wait for game_state_updated event
+          // This ensures the game has actual player data before showing the screen
+          // Navigation will be handled by handleGameStateUpdated when it receives valid game state
+          _logger.info('🎮 Random join: Deferring navigation until game_state_updated is received', isOn: LOGGING_SWITCH);
         } else {
           _logger.info('🔍 websocket_join_room: Navigation skipped - status=$status, isRandomJoinInProgress=$isRandomJoinInProgress, roomId=$roomId', isOn: LOGGING_SWITCH);
         }

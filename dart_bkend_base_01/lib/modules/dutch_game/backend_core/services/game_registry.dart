@@ -135,6 +135,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       // Owner info for gating
       final ownerId = server.getRoomOwner(roomId);
       
+      // Extract myCardsToPeek from validated updates if present (for initial peek clearing)
+      final myCardsToPeek = validatedUpdates['myCardsToPeek'] as List<dynamic>?;
+      
       // Send to single player (playerId = sessionId in this system)
       server.sendToSession(playerId, {
         'event': 'game_state_updated',
@@ -142,6 +145,7 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
         'game_state': gameState,
         'turn_events': turnEvents,
         if (ownerId != null) 'owner_id': ownerId,
+        if (myCardsToPeek != null) 'myCardsToPeek': myCardsToPeek, // Include myCardsToPeek if present in updates
         'timestamp': DateTime.now().toIso8601String(),
       });
       

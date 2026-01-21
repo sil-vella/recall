@@ -7,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for testing game initialization and action data tracking
+const bool LOGGING_SWITCH = false; // Enabled for initial peek clearing debugging
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -1497,10 +1497,31 @@ class GameEventCoordinator {
         playerInGamesMap['cardsToPeek'] = <Map<String, dynamic>>[];
       }
       
+      // CRITICAL: Also update the store's game_state to ensure it's synchronized
+      // The store's game_state is what gets sent to the frontend
+      final store = GameStateStore.instance;
+      final storeState = store.getState(roomId);
+      final storeGameState = storeState['game_state'] as Map<String, dynamic>? ?? {};
+      final storePlayers = storeGameState['players'] as List<dynamic>? ?? [];
+      
+      // Find and update the player in the store's game_state
+      final playerIndex = storePlayers.indexWhere(
+        (p) => p is Map<String, dynamic> && p['id'] == playerId,
+      );
+      
+      if (playerIndex >= 0) {
+        final storePlayer = storePlayers[playerIndex] as Map<String, dynamic>;
+        storePlayer['cardsToPeek'] = <Map<String, dynamic>>[];
+        _logger.info('GameEventCoordinator: Updated store game_state - cleared cardsToPeek for player $playerId', isOn: LOGGING_SWITCH);
+      } else {
+        _logger.warning('GameEventCoordinator: Player $playerId not found in store game_state players list', isOn: LOGGING_SWITCH);
+      }
+      
       // Create callback instance for this room
       final callback = ServerGameStateCallbackImpl(roomId, server);
       
       // Send state update to the player to clear cardsToPeek
+      // Pass updated games map and also ensure myCardsToPeek is cleared
       callback.sendGameStateToPlayer(playerId, {
         'games': currentGames,
         'myCardsToPeek': <Map<String, dynamic>>[], // Also clear myCardsToPeek in main state

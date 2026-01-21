@@ -1615,14 +1615,52 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final cardsToPeekFromState = dutchGameState['myCardsToPeek'] as List<dynamic>? ?? [];
     final protectedCardsToPeek = dutchGameState['protectedCardsToPeek'] as List<dynamic>?;
     
+    // CRITICAL: Also check games map directly (SSOT) for cardsToPeek
+    // This ensures we catch the cleared state even if myCardsToPeek hasn't updated yet
+    final currentGameIdForPeek = dutchGameState['currentGameId']?.toString() ?? '';
+    final gamesForPeek = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final currentGameForPeek = gamesForPeek[currentGameIdForPeek] as Map<String, dynamic>? ?? {};
+    final gameDataForPeek = currentGameForPeek['gameData'] as Map<String, dynamic>? ?? {};
+    final gameStateForPeek = gameDataForPeek['game_state'] as Map<String, dynamic>? ?? {};
+    final playersForPeek = gameStateForPeek['players'] as List<dynamic>? ?? [];
+    
+    // Get current user ID
+    final loginStateForPeek = StateManager().getModuleState<Map<String, dynamic>>('login') ?? {};
+    final currentUserIdForPeek = loginStateForPeek['userId']?.toString() ?? '';
+    
+    // Find current user's player data in game state (SSOT)
+    final myPlayerInGameState = playersForPeek.firstWhere(
+      (p) => p is Map<String, dynamic> && p['id']?.toString() == currentUserIdForPeek,
+      orElse: () => <String, dynamic>{},
+    ) as Map<String, dynamic>;
+    
+    final cardsToPeekFromGameState = myPlayerInGameState['cardsToPeek'] as List<dynamic>? ?? [];
+    
+    // CRITICAL: Clear protection if EITHER myCardsToPeek OR game state cardsToPeek is empty
+    // This ensures cards don't remain visible after the 8-second timer clears them
+    // Must defer setState() until after build completes
+    final isCardsToPeekEmpty = cardsToPeekFromState.isEmpty && cardsToPeekFromGameState.isEmpty;
+    if (isCardsToPeekEmpty && _isMyHandCardsToPeekProtected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Re-check state in callback to avoid race conditions
+        final updatedState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final updatedCardsToPeek = updatedState['myCardsToPeek'] as List<dynamic>? ?? [];
+        if (mounted && updatedCardsToPeek.isEmpty && _isMyHandCardsToPeekProtected) {
+          _clearMyHandCardsToPeekProtection();
+        }
+      });
+    }
+    
     // Use widget-level timer instead of timestamp from state
     // When protectedCardsToPeek is set, start the 5-second protection timer
     if (protectedCardsToPeek != null && !_isMyHandCardsToPeekProtected) {
       _protectMyHandCardsToPeek(protectedCardsToPeek);
     }
     
-    if (cardsToPeekFromState.isNotEmpty && !_isMyHandCardsToPeekProtected) {
-      final hasFullCardData = cardsToPeekFromState.any((card) {
+    // Only protect if cardsToPeek is not empty (check both sources)
+    if (!isCardsToPeekEmpty && !_isMyHandCardsToPeekProtected) {
+      final cardsToCheck = cardsToPeekFromState.isNotEmpty ? cardsToPeekFromState : cardsToPeekFromGameState;
+      final hasFullCardData = cardsToCheck.any((card) {
         if (card is Map<String, dynamic>) {
           final hasSuit = card.containsKey('suit') && card['suit'] != '?' && card['suit'] != null;
           final hasRank = card.containsKey('rank') && card['rank'] != '?' && card['rank'] != null;
@@ -1631,13 +1669,14 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
         return false;
       });
       if (hasFullCardData) {
-        _protectMyHandCardsToPeek(cardsToPeekFromState);
+        _protectMyHandCardsToPeek(cardsToCheck);
       }
     }
     
+    // Use protected cards if available, otherwise use state (prioritize state over game state)
     final cardsToPeek = _isMyHandCardsToPeekProtected && _protectedMyHandCardsToPeek != null
         ? _protectedMyHandCardsToPeek!
-        : cardsToPeekFromState;
+        : (cardsToPeekFromState.isNotEmpty ? cardsToPeekFromState : cardsToPeekFromGameState);
     
     final isGameActive = dutchGameState['isGameActive'] ?? false;
     final isMyTurn = dutchGameState['isMyTurn'] ?? false;

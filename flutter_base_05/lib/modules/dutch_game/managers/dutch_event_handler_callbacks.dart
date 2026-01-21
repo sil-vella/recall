@@ -11,7 +11,7 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Enabled for timestamp removal testing
+  static const bool LOGGING_SWITCH = false; // Enabled for initial peek clearing debugging
   static final Logger _logger = Logger();
   
   // Analytics module cache
@@ -646,6 +646,13 @@ When anyone has played a card with the **same rank** as your **collection card**
           'protectedCardsToPeek': cardsToPeek, // Store protected data
           // Removed protectedCardsToPeekTimestamp - widget will use internal timer
         });
+      } else if (cardsToPeek.isEmpty) {
+        // CRITICAL: Clear protectedCardsToPeek when cardsToPeek is empty
+        // This ensures the widget doesn't show stale protected data
+        _logger.info('🔍 _syncWidgetStatesFromGameState: cardsToPeek is empty - clearing protectedCardsToPeek', isOn: LOGGING_SWITCH);
+        _updateMainGameState({
+          'protectedCardsToPeek': null, // Clear protected data
+        });
       }
       
       // Extract score (can be 'points' or 'score' field)
@@ -1064,6 +1071,7 @@ When anyone has played a card with the **same rank** as your **collection card**
     final gameState = data['game_state'] as Map<String, dynamic>? ?? {};
     final ownerId = data['owner_id']?.toString(); // Extract owner_id from main payload
     final turnEvents = data['turn_events'] as List<dynamic>? ?? []; // Extract turn_events for animations
+    final myCardsToPeekFromEvent = data['myCardsToPeek'] as List<dynamic>?; // Extract root-level myCardsToPeek if present
     
     // 🔍 DEBUG: Check drawnCard data in received game_state
     final players = gameState['players'] as List<dynamic>? ?? [];
@@ -1089,6 +1097,7 @@ When anyone has played a card with the **same rank** as your **collection card**
     _logger.info('  ownerId: $ownerId', isOn: LOGGING_SWITCH);
     _logger.info('  data keys: ${data.keys.toList()}', isOn: LOGGING_SWITCH);
     _logger.info('  turn_events count: ${turnEvents.length}', isOn: LOGGING_SWITCH);
+    _logger.info('  myCardsToPeekFromEvent: ${myCardsToPeekFromEvent != null ? "${myCardsToPeekFromEvent.length} items" : "null"}', isOn: LOGGING_SWITCH);
     if (turnEvents.isNotEmpty) {
       _logger.info('  🔍 JACK SWAP DEBUG - turn_events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
     }
@@ -1205,6 +1214,17 @@ When anyone has played a card with the **same rank** as your **collection card**
       };
       
       _updateGameInMap(gameId, updateData);
+    }
+    
+    // 🎯 CRITICAL: If root-level myCardsToPeek is provided in event, use it directly
+    // This ensures we clear myCardsToPeek immediately when backend sends explicit clear
+    if (myCardsToPeekFromEvent != null) {
+      _logger.info('🔍 handleGameStateUpdated: Root-level myCardsToPeek provided in event: ${myCardsToPeekFromEvent.length} items', isOn: LOGGING_SWITCH);
+      _updateMainGameState({
+        'myCardsToPeek': myCardsToPeekFromEvent,
+        // Clear protectedCardsToPeek if myCardsToPeek is empty
+        if (myCardsToPeekFromEvent.isEmpty) 'protectedCardsToPeek': null,
+      });
     }
     
     // 🎯 CRITICAL: Sync widget states from game state FIRST (matches practice mode pattern)

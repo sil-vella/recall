@@ -31,7 +31,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization
+  static const bool LOGGING_SWITCH = false; // Enabled for mode switching debugging
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -42,11 +42,38 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     // Set Current Rooms section to be expanded on load
     _expandedSection = 'Current Rooms';
     
+    // CRITICAL: Ensure joinedGamesSlice is computed from games map on lobby screen load
+    // This ensures games appear even if no state updates have occurred yet
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureJoinedGamesSliceComputed();
+    });
+    
     _initializeWebSocket().then((_) {
       _setupEventCallbacks();
       _initializeRoomState();
       _featureRegistrar.registerDefaults(context);
     });
+  }
+  
+  /// Ensure joinedGamesSlice is computed from games map if it doesn't exist or is stale
+  void _ensureJoinedGamesSliceComputed() {
+    final Logger _logger = Logger();
+    final stateManager = StateManager();
+    final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+    final joinedGamesSlice = dutchGameState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
+    final currentJoinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
+    
+    _logger.info('LobbyScreen: _ensureJoinedGamesSliceComputed - games map has ${games.length} games, joinedGamesSlice has ${currentJoinedGames.length} games', isOn: LOGGING_SWITCH);
+    
+    // If games map has games but joinedGamesSlice is empty or missing, trigger recomputation
+    if (games.isNotEmpty && (joinedGamesSlice.isEmpty || currentJoinedGames.isEmpty)) {
+      _logger.info('LobbyScreen: Games map has ${games.length} games but joinedGamesSlice is empty - triggering recomputation', isOn: LOGGING_SWITCH);
+      // Trigger recomputation by updating games (even if unchanged, this will recompute the slice)
+      DutchGameHelpers.updateUIState({
+        'games': games, // This will trigger _updateWidgetSlices which will recompute joinedGamesSlice
+      });
+    }
   }
 
   Future<void> _initializeWebSocket() async {

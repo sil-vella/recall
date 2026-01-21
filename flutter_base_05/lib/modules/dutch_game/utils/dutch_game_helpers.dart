@@ -21,7 +21,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = true; // Enabled for auto-guest creation flow testing
+  static const bool LOGGING_SWITCH = false; // Enabled for mode switching debugging
   
   // ========================================
   // EVENT EMISSION HELPERS
@@ -1036,12 +1036,15 @@ class DutchGameHelpers {
       
       // 4. End any existing practice session (catch-all to ensure practice bridge is fully cleaned up)
       // This ensures practice bridge is cleaned up even if current game wasn't a practice room
+      // NOTE: This is safe to call even if no practice session exists (method handles null checks)
       try {
         final practiceBridge = PracticeModeBridge.instance;
         practiceBridge.endPracticeSession();
         _logger.info('🧹 DutchGameHelpers: Ended existing practice session (catch-all cleanup)', isOn: LOGGING_SWITCH);
-      } catch (e) {
+      } catch (e, stackTrace) {
         _logger.warning('⚠️ DutchGameHelpers: Error ending practice session: $e', isOn: LOGGING_SWITCH);
+        _logger.warning('⚠️ DutchGameHelpers: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
+        // Continue execution - don't let practice session cleanup block mode switching
       }
       
       // 4a. Clear practice user data and settings to ensure clean mode switch

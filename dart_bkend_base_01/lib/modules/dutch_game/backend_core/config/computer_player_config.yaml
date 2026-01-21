@@ -8,12 +8,6 @@ computer_settings:
   default_difficulty: "medium"
   decision_delay_seconds: 1.0
   error_rate: 0.05
-  # Miss chance to play (probability of not playing when action is available)
-  miss_chance_to_play:
-    easy: 0.06    # 6% miss chance
-    medium: 0.04  # 4% miss chance
-    hard: 0.02    # 2% miss chance
-    expert: 0.01  # 1% miss chance
 
 # Difficulty levels and their corresponding behaviors
 difficulties:

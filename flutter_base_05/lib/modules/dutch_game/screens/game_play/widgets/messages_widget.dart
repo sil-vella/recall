@@ -234,7 +234,7 @@ class MessagesWidget extends StatelessWidget {
           'autoClose': false,
           'autoCloseDelay': 3000,
         },
-        'lastUpdated': DateTime.now().toIso8601String(),
+        // Removed lastUpdated - causes unnecessary state updates
       });
       
     } catch (e) {

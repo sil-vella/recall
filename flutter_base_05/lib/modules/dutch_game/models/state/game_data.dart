@@ -12,7 +12,7 @@ class GameData extends ImmutableState with EquatableMixin {
   final GameStateData gameState;
   final CardData? myDrawnCard; // For human player
   final List<CardData> myHandCards; // For human player (with full data where known)
-  final String lastUpdated;
+  // Removed lastUpdated - causes unnecessary state updates
   
   const GameData({
     required this.gameId,
@@ -20,7 +20,7 @@ class GameData extends ImmutableState with EquatableMixin {
     required this.gameState,
     this.myDrawnCard,
     required this.myHandCards,
-    required this.lastUpdated,
+    // Removed lastUpdated - causes unnecessary state updates
   });
   
   @override
@@ -30,7 +30,7 @@ class GameData extends ImmutableState with EquatableMixin {
     GameStateData? gameState,
     CardData? myDrawnCard,
     List<CardData>? myHandCards,
-    String? lastUpdated,
+    // Removed lastUpdated parameter - causes unnecessary state updates
   }) {
     return GameData(
       gameId: gameId ?? this.gameId,
@@ -38,7 +38,7 @@ class GameData extends ImmutableState with EquatableMixin {
       gameState: gameState ?? this.gameState,
       myDrawnCard: myDrawnCard ?? this.myDrawnCard,
       myHandCards: myHandCards ?? this.myHandCards,
-      lastUpdated: lastUpdated ?? this.lastUpdated,
+      // Removed lastUpdated - causes unnecessary state updates
     );
   }
   
@@ -57,7 +57,7 @@ class GameData extends ImmutableState with EquatableMixin {
       },
       if (myDrawnCard != null) 'myDrawnCard': myDrawnCard!.toJson(),
       'myHandCards': myHandCards.map((c) => c.toJson()).toList(),
-      'lastUpdated': lastUpdated,
+      // Removed lastUpdated - causes unnecessary state updates
     };
   }
   
@@ -77,12 +77,12 @@ class GameData extends ImmutableState with EquatableMixin {
       gameState: GameStateData.fromJson(gameStateJson),
       myDrawnCard: myDrawnCard,
       myHandCards: myHandCards,
-      lastUpdated: json['lastUpdated'] as String? ?? DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     );
   }
   
   @override
-  List<Object?> get props => [gameId, gameName, gameState, myDrawnCard, myHandCards, lastUpdated];
+  List<Object?> get props => [gameId, gameName, gameState, myDrawnCard, myHandCards];
   
   @override
   String toString() => 'GameData($gameId: $gameName)';

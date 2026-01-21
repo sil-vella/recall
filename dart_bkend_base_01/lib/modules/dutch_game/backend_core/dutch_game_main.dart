@@ -3,7 +3,7 @@ import 'coordinator/game_event_coordinator.dart';
 import 'services/game_registry.dart';
 import 'services/game_state_store.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing game initialization and match creation
+const bool LOGGING_SWITCH = false; // Enabled for testing game initialization
 
 /// Entry point for registering Dutch game module components with the server.
 class DutchGameModule {

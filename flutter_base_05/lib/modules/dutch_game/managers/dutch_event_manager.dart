@@ -329,10 +329,10 @@ class DutchEventManager {
           DutchGameHelpers.updateUIState({
             'joinedGames': <Map<String, dynamic>>[],
             'totalJoinedGames': 0,
-            'joinedGamesTimestamp': DateTime.now().toIso8601String(),
+            // Removed joinedGamesTimestamp - causes unnecessary state updates
             'currentRoomId': '',
             'isInRoom': false,
-            'lastUpdated': DateTime.now().toIso8601String(),
+            // Removed lastUpdated - causes unnecessary state updates
           });
         
       } else {

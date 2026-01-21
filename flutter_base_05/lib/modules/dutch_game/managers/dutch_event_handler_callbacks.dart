@@ -11,7 +11,7 @@ import '../screens/demo/demo_action_handler.dart';
 /// Dedicated event handlers for Dutch game events
 /// Contains all the business logic for processing specific event types
 class DutchEventHandlerCallbacks {
-  static const bool LOGGING_SWITCH = false; // Enabled for testing game initialization
+  static const bool LOGGING_SWITCH = false; // Enabled for timestamp removal testing
   static final Logger _logger = Logger();
   
   // Analytics module cache
@@ -64,10 +64,10 @@ class DutchEventHandlerCallbacks {
       final currentGame = currentGames[gameId] as Map<String, dynamic>? ?? {};
       
       // Merge updates with current game data
+      // Removed lastUpdated - causes unnecessary state updates
       currentGames[gameId] = {
         ...currentGame,
         ...updates,
-        'lastUpdated': DateTime.now().toIso8601String(),
       };
       
       // Update global state
@@ -641,9 +641,10 @@ When anyone has played a card with the **same rank** as your **collection card**
         _logger.info('🔍 _syncWidgetStatesFromGameState: Full card data detected - storing in protectedCardsToPeek', isOn: LOGGING_SWITCH);
         // Store protected data in main state so widgets can access it
         // This persists even when cardsToPeek is cleared
+        // Use widget-level timer instead of timestamp in state
         _updateMainGameState({
           'protectedCardsToPeek': cardsToPeek, // Store protected data
-          'protectedCardsToPeekTimestamp': DateTime.now().millisecondsSinceEpoch, // Store timestamp for 5-second timer
+          // Removed protectedCardsToPeekTimestamp - widget will use internal timer
         });
       }
       
@@ -827,7 +828,7 @@ When anyone has played a card with the **same rank** as your **collection card**
     _updateMainGameState({
       'joinedGames': games.cast<Map<String, dynamic>>(),
       'totalJoinedGames': totalGames,
-      'joinedGamesTimestamp': DateTime.now().toIso8601String(),
+      // Removed joinedGamesTimestamp - causes unnecessary state updates
       if (currentGameId != null) 'currentGameId': currentGameId,
     });
     
@@ -1010,12 +1011,12 @@ When anyone has played a card with the **same rank** as your **collection card**
       _updateMainGameState({
         'isMyTurn': true,
         'turnTimeout': turnTimeout,
-        'turnStartTime': DateTime.now().toIso8601String(),
+        // Removed turnStartTime - causes unnecessary state updates
         'playerStatus': playerStatus,
         'statusBar': {
           'currentPhase': 'my_turn',
           'turnTimer': turnTimeout,
-          'turnStartTime': DateTime.now().toIso8601String(),
+          // Removed turnStartTime - causes unnecessary state updates
           'playerStatus': playerStatus,
         },
       });
@@ -1307,33 +1308,36 @@ When anyone has played a card with the **same rank** as your **collection card**
       isMyTurn: isMyTurn,
     );
     
-    // Also update joinedGames list for lobby widgets (if this is a new game)
+    // Add game to joinedGames list if it's not already there (one-time addition)
+    // This ensures games appear in current rooms widget even if joined_games event is delayed
+    // Only add if game is in games map (user is actually in the game) and not already in joinedGames
     final currentGamesForJoined = _getCurrentGamesMap();
     if (currentGamesForJoined.containsKey(gameId)) {
       final gameInMap = currentGamesForJoined[gameId] as Map<String, dynamic>? ?? {};
       final gameData = gameInMap['gameData'] as Map<String, dynamic>? ?? {};
       
-      // Get current joinedGames list
-      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-      final currentJoinedGames = List<Map<String, dynamic>>.from(currentState['joinedGames'] as List<dynamic>? ?? []);
-      
-      // Check if this game is already in joinedGames
-      final existingIndex = currentJoinedGames.indexWhere((game) => game['game_id'] == gameId);
-      
-      if (existingIndex >= 0) {
-        // Update existing game
-        currentJoinedGames[existingIndex] = gameData;
-      } else {
-        // Add new game to joinedGames
-        currentJoinedGames.add(gameData);
+      // Only proceed if we have valid gameData
+      if (gameData.isNotEmpty && gameData['game_id'] != null) {
+        // Get current joinedGames list
+        final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+        final currentJoinedGames = List<Map<String, dynamic>>.from(currentState['joinedGames'] as List<dynamic>? ?? []);
+        
+        // Check if this game is already in joinedGames
+        final existingIndex = currentJoinedGames.indexWhere((game) => game['game_id'] == gameId);
+        
+        if (existingIndex < 0) {
+          // Game not in joinedGames - add it (one-time addition)
+          _logger.info('DutchEventHandlerCallbacks: Adding game $gameId to joinedGames list (first time)', isOn: LOGGING_SWITCH);
+          currentJoinedGames.add(gameData);
+          
+          // Update joinedGames state
+          _updateMainGameState({
+            'joinedGames': currentJoinedGames,
+            'totalJoinedGames': currentJoinedGames.length,
+          });
+        }
+        // If game already exists in joinedGames, don't update it (prevents duplicates)
       }
-      
-      // Update joinedGames state
-      _updateMainGameState({
-        'joinedGames': currentJoinedGames,
-        'totalJoinedGames': currentJoinedGames.length,
-        'joinedGamesTimestamp': DateTime.now().toIso8601String(),
-      });
     }
     
     // Check for demo action completion

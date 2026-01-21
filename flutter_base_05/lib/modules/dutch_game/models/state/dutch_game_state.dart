@@ -35,7 +35,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
   final Map<String, dynamic> instructions;
   
   // Metadata
-  final String lastUpdated;
+  // Removed lastUpdated - causes unnecessary state updates
   
   const DutchGameState({
     required this.isLoading,
@@ -54,7 +54,6 @@ class DutchGameState extends ImmutableState with EquatableMixin {
     this.actionError,
     required this.messages,
     required this.instructions,
-    required this.lastUpdated,
   });
   
   /// Create an initial empty state
@@ -88,7 +87,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
       turnEvents: const [],
       messages: const {'session': [], 'rooms': {}},
       instructions: const {'isVisible': false, 'title': '', 'content': '', 'key': '', 'dontShowAgain': {}},
-      lastUpdated: DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     );
   }
   
@@ -110,7 +109,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
     Map<String, dynamic>? actionError,
     Map<String, dynamic>? messages,
     Map<String, dynamic>? instructions,
-    String? lastUpdated,
+    // Removed lastUpdated parameter - causes unnecessary state updates
   }) {
     return DutchGameState(
       isLoading: isLoading ?? this.isLoading,
@@ -129,7 +128,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
       actionError: actionError ?? this.actionError,
       messages: messages ?? this.messages,
       instructions: instructions ?? this.instructions,
-      lastUpdated: lastUpdated ?? DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     );
   }
   
@@ -152,7 +151,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
       if (actionError != null) 'actionError': actionError,
       'messages': messages,
       'instructions': instructions,
-      'lastUpdated': lastUpdated,
+      // Removed lastUpdated - causes unnecessary state updates
     };
   }
   
@@ -195,7 +194,7 @@ class DutchGameState extends ImmutableState with EquatableMixin {
       actionError: json['actionError'] as Map<String, dynamic>?,
       messages: json['messages'] as Map<String, dynamic>? ?? {'session': [], 'rooms': {}},
       instructions: json['instructions'] as Map<String, dynamic>? ?? {'isVisible': false, 'title': '', 'content': ''},
-      lastUpdated: json['lastUpdated'] as String? ?? DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     );
   }
   
@@ -203,7 +202,8 @@ class DutchGameState extends ImmutableState with EquatableMixin {
   List<Object?> get props => [
     isLoading, isConnected, currentRoomId, isInRoom, currentGameId,
     games, joinedGames, totalJoinedGames, myHand, centerBoard, opponentsPanel,
-    cardsToPeek, turnEvents, actionError, messages, instructions, lastUpdated
+    cardsToPeek, turnEvents, actionError, messages, instructions
+    // Removed lastUpdated - causes unnecessary state updates
   ];
   
   @override

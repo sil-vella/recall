@@ -88,11 +88,7 @@ class StateQueueValidator {
       defaultValue: 30,
       description: 'Turn timeout duration in seconds',
     ),
-    'turnStartTime': DutchStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'ISO timestamp when the current turn started',
-    ),
+    // Removed turnStartTime - causes unnecessary state updates
     'playerStatus': DutchStateFieldSpec(
       type: String,
       required: false,
@@ -168,7 +164,9 @@ class StateQueueValidator {
     'games': DutchStateFieldSpec(
       type: Map,
       defaultValue: {},
-      description: 'Map of games by ID with their complete state data',
+      description: 'Map of games by ID with their complete state data. '
+          'Note: Player objects in game_state[\'players\'] may contain optional \'action\' and \'actionData\' fields '
+          'for animation tracking (e.g., \'drawn_card\', \'play_card\', \'same_rank\', \'jack_swap\').',
     ),
     
     // Room Lists
@@ -216,11 +214,7 @@ class StateQueueValidator {
       defaultValue: 0,
       description: 'Total number of games the user is currently in',
     ),
-    'joinedGamesTimestamp': DutchStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'Timestamp of last joined games update',
-    ),
+    // Removed joinedGamesTimestamp - causes unnecessary state updates
     
     // Widget Slices
     'actionBar': DutchStateFieldSpec(
@@ -389,11 +383,7 @@ class StateQueueValidator {
       required: false,
       description: 'Last error message, if any',
     ),
-    'lastUpdated': DutchStateFieldSpec(
-      type: String,
-      required: false,
-      description: 'Timestamp of last state update',
-    ),
+    // Removed lastUpdated - causes unnecessary state updates
     
     // Game State Fields
     'isGameActive': DutchStateFieldSpec(
@@ -484,12 +474,7 @@ class StateQueueValidator {
       nullable: true,
       description: 'User dutch_game module statistics from database (wins, losses, points, coins, level, rank, etc.)',
     ),
-    'userStatsLastUpdated': DutchStateFieldSpec(
-      type: String,
-      required: false,
-      nullable: true,
-      description: 'ISO timestamp when userStats was last fetched from the database',
-    ),
+    // Removed userStatsLastUpdated - causes unnecessary state updates
     
     // Coin Deduction Tracking
     'coinsDeductedGames': DutchStateFieldSpec(

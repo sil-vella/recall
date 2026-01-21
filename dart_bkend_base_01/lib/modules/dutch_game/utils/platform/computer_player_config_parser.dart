@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:yaml/yaml.dart';
 import 'shared_imports.dart'; // Provides Logger
 
-const bool LOGGING_SWITCH = true; // Enabled for YAML loading and parsing debugging
+const bool LOGGING_SWITCH = false; // Enabled for YAML loading and parsing debugging
 
 /// YAML Configuration Parser for Computer Player Behavior
 /// 

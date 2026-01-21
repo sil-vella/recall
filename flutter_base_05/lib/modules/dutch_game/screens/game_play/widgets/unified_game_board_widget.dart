@@ -1614,13 +1614,10 @@ class _UnifiedGameBoardWidgetState extends State<UnifiedGameBoardWidget> with Ti
     final selectedIndex = myHand['selectedIndex'] ?? -1;
     final cardsToPeekFromState = dutchGameState['myCardsToPeek'] as List<dynamic>? ?? [];
     final protectedCardsToPeek = dutchGameState['protectedCardsToPeek'] as List<dynamic>?;
-    final protectedTimestamp = dutchGameState['protectedCardsToPeekTimestamp'] as int?;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final isProtectedDataValid = protectedCardsToPeek != null && 
-        protectedTimestamp != null && 
-        (now - protectedTimestamp) < 5000;
     
-    if (isProtectedDataValid && !_isMyHandCardsToPeekProtected) {
+    // Use widget-level timer instead of timestamp from state
+    // When protectedCardsToPeek is set, start the 5-second protection timer
+    if (protectedCardsToPeek != null && !_isMyHandCardsToPeekProtected) {
       _protectMyHandCardsToPeek(protectedCardsToPeek);
     }
     

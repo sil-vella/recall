@@ -20,7 +20,7 @@ import '../dutch_game/screens/home_screen/features/home_screen_features.dart';
 /// Dutch Game Module
 /// Main module for the Dutch card game functionality
 class DutchGameMain extends ModuleBase {
-  static const bool LOGGING_SWITCH = false; // Enabled for testing game initialization
+  static const bool LOGGING_SWITCH = true; // Enabled for testing auto-guest creation flow (auth_login_complete hook)
   final Logger _logger = Logger();
   
   final navigationManager = NavigationManager();
@@ -145,13 +145,13 @@ class DutchGameMain extends ModuleBase {
           // 🎯 NEW: Game-related state for joined games
           'joinedGames': <Map<String, dynamic>>[],
           'totalJoinedGames': 0,
-          'joinedGamesTimestamp': '',
+          // Removed joinedGamesTimestamp - causes unnecessary state updates
           'currentGameId': '',
           'games': <String, dynamic>{},
           
           // User statistics (from database)
           'userStats': null,
-          'userStatsLastUpdated': null,
+          // Removed userStatsLastUpdated - causes unnecessary state updates
           
           // UI control state
           'showCreateRoom': true,
@@ -170,7 +170,7 @@ class DutchGameMain extends ModuleBase {
           'turn_events': <Map<String, dynamic>>[],
           
           // Metadata
-          'lastUpdated': DateTime.now().toIso8601String(),
+          // Removed lastUpdated - causes unnecessary state updates
         });
       }
     });

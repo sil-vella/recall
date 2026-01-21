@@ -7,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing game initialization and match creation
+const bool LOGGING_SWITCH = true; // Enabled for testing game initialization and action data tracking
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -17,6 +17,10 @@ class GameEventCoordinator {
   final _store = GameStateStore.instance;
   final Logger _logger = Logger();
   final Map<String, Timer?> _initialPeekTimers = {};
+  // Map to track per-player initial peek cards clear timers: key = "$roomId:$playerId"
+  final Map<String, Timer?> _playerInitialPeekClearTimers = {};
+  // Map to store snapshot of cardsToPeek data when timer starts: key = "$roomId:$playerId", value = List of cardIds
+  final Map<String, List<String>> _playerInitialPeekSnapshots = {};
 
   GameEventCoordinator(this.roomManager, this.server);
 
@@ -1156,14 +1160,57 @@ class GameEventCoordinator {
       // This matches the draw card pattern exactly
       playerInGamesMap['cardsToPeek'] = cardsToPeek;
       
+      // Find card indexes in player's hand for action data
+      final playerHand = playerInGamesMap['hand'] as List<dynamic>? ?? [];
+      final cardIndexes = <int>[];
+      for (final cardId in cardIds) {
+        int cardIndex = -1;
+        for (int i = 0; i < playerHand.length; i++) {
+          final card = playerHand[i];
+          if (card != null && card is Map<String, dynamic> && card['cardId'] == cardId) {
+            cardIndex = i;
+            break;
+          }
+        }
+        cardIndexes.add(cardIndex);
+      }
+      
+      // Add action data for animation system
+      playerInGamesMap['action'] = 'initial_peek';
+      playerInGamesMap['actionData'] = {
+        'cardIndex1': cardIndexes[0],
+        'cardIndex2': cardIndexes[1],
+      };
+      _logger.info('🎬 ACTION_DATA: Set initial_peek action for player $playerId - cardIndex1: ${cardIndexes[0]}, cardIndex2: ${cardIndexes[1]}', isOn: LOGGING_SWITCH);
+      
       // Use callback method to send to player (matches draw card pattern)
       callback.sendGameStateToPlayer(playerId, {
-        'games': currentGames, // Games map with full cardsToPeek
+        'games': currentGames, // Games map with full cardsToPeek and action data
       });
       _logger.info('GameEventCoordinator: STEP 2 - Sent full cardsToPeek data to player $playerId only', isOn: LOGGING_SWITCH);
       
+      // Clear action immediately after state update is sent
+      if (playerInGamesMap.containsKey('action')) {
+        final actionType = playerInGamesMap['action']?.toString();
+        playerInGamesMap.remove('action');
+        playerInGamesMap.remove('actionData');
+        _logger.info('🎬 ACTION_DATA: Cleared initial_peek action for player $playerId - previous action: $actionType', isOn: LOGGING_SWITCH);
+      }
+      
       // Also update the humanPlayer reference for subsequent logic (known_cards, collection_rank, etc.)
       humanPlayer['cardsToPeek'] = cardsToPeek;
+      
+      // Start 8-second timer to auto-clear initial peek cards data
+      // Store snapshot of card IDs to verify data hasn't changed when timer fires
+      final timerKey = '$roomId:$playerId';
+      final cardIdsSnapshot = cardsToPeek.map((card) => card['cardId'] as String).toList();
+      _playerInitialPeekSnapshots[timerKey] = cardIdsSnapshot;
+      
+      _playerInitialPeekClearTimers[timerKey]?.cancel();
+      _playerInitialPeekClearTimers[timerKey] = Timer(Duration(seconds: 8), () {
+        _clearPlayerInitialPeekCards(roomId, playerId, cardIdsSnapshot);
+      });
+      _logger.info('GameEventCoordinator: Started 8-second timer to auto-clear initial peek cards for player $playerId in room $roomId - snapshot: $cardIdsSnapshot', isOn: LOGGING_SWITCH);
 
       // Check if collection mode is enabled
       final isClearAndCollectRaw = gameState['isClearAndCollect'];
@@ -1351,6 +1398,11 @@ class GameEventCoordinator {
       final gameState = _store.getGameState(roomId);
       final players = gameState['players'] as List<dynamic>? ?? [];
 
+      // Note: We do NOT cancel player initial peek clear timers here
+      // The timers will fire and check if data matches snapshot
+      // If phase already cleared cardsToPeek, timer will still send state update to clear myCardsToPeek
+      // This ensures frontend gets the clear signal even if backend already cleared it
+
       // Clear cardsToPeek for all players
       for (final player in players) {
         if (player is Map<String, dynamic>) {
@@ -1383,10 +1435,112 @@ class GameEventCoordinator {
     }
   }
 
+  /// Clear initial peek cards data for a specific player after 8 seconds
+  /// Only clears if the current cardsToPeek data matches the snapshot from when timer started
+  void _clearPlayerInitialPeekCards(String roomId, String playerId, List<String> snapshotCardIds) {
+    try {
+      final timerKey = '$roomId:$playerId';
+      _logger.info('GameEventCoordinator: Auto-clear timer fired for player $playerId in room $roomId - checking if data matches snapshot: $snapshotCardIds', isOn: LOGGING_SWITCH);
+      
+      // Get current games map
+      final currentGames = _getCurrentGamesMap(roomId);
+      final gameData = currentGames[roomId]?['gameData']?['game_state'] as Map<String, dynamic>?;
+      if (gameData == null) {
+        _logger.error('GameEventCoordinator: Failed to get game data when clearing initial peek cards', isOn: LOGGING_SWITCH);
+        _cleanupPlayerInitialPeekTimer(timerKey);
+        return;
+      }
+      
+      final playersInGamesMap = gameData['players'] as List<dynamic>? ?? [];
+      final playerInGamesMap = playersInGamesMap.firstWhere(
+        (p) => p is Map<String, dynamic> && p['id'] == playerId,
+        orElse: () => <String, dynamic>{},
+      ) as Map<String, dynamic>;
+      
+      if (playerInGamesMap.isEmpty) {
+        _logger.warning('GameEventCoordinator: Player $playerId not found when clearing initial peek cards', isOn: LOGGING_SWITCH);
+        _cleanupPlayerInitialPeekTimer(timerKey);
+        return;
+      }
+      
+      // Get current cardsToPeek data
+      final currentCardsToPeek = playerInGamesMap['cardsToPeek'] as List<dynamic>? ?? [];
+      
+      // Extract current card IDs
+      final currentCardIds = currentCardsToPeek
+          .whereType<Map<String, dynamic>>()
+          .map((card) => card['cardId'] as String? ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+      
+      // Check if cardsToPeek is already empty (phase completion may have cleared it)
+      final isAlreadyEmpty = currentCardIds.isEmpty;
+      
+      // Compare with snapshot - check if data matches OR is already empty
+      final snapshotMatches = currentCardIds.length == snapshotCardIds.length &&
+          currentCardIds.every((id) => snapshotCardIds.contains(id)) &&
+          snapshotCardIds.every((id) => currentCardIds.contains(id));
+      
+      if (!isAlreadyEmpty && !snapshotMatches) {
+        // Data was updated (e.g., queen peek) - don't clear
+        _logger.info('GameEventCoordinator: cardsToPeek data changed for player $playerId - snapshot: $snapshotCardIds, current: $currentCardIds - NOT clearing (data was updated)', isOn: LOGGING_SWITCH);
+        _cleanupPlayerInitialPeekTimer(timerKey);
+        return;
+      }
+      
+      // Either data matches snapshot OR is already empty - safe to ensure it's cleared
+      if (isAlreadyEmpty) {
+        _logger.info('GameEventCoordinator: cardsToPeek already empty for player $playerId (phase may have cleared it) - sending state update to clear myCardsToPeek', isOn: LOGGING_SWITCH);
+      } else {
+        _logger.info('GameEventCoordinator: cardsToPeek data matches snapshot for player $playerId - clearing initial peek cards', isOn: LOGGING_SWITCH);
+        // Clear cardsToPeek data in games map
+        playerInGamesMap['cardsToPeek'] = <Map<String, dynamic>>[];
+      }
+      
+      // Create callback instance for this room
+      final callback = ServerGameStateCallbackImpl(roomId, server);
+      
+      // Send state update to the player to clear cardsToPeek
+      callback.sendGameStateToPlayer(playerId, {
+        'games': currentGames,
+        'myCardsToPeek': <Map<String, dynamic>>[], // Also clear myCardsToPeek in main state
+      });
+      
+      _logger.info('GameEventCoordinator: Sent state update to clear initial peek cards for player $playerId', isOn: LOGGING_SWITCH);
+      
+      // Clean up timer and snapshot
+      _cleanupPlayerInitialPeekTimer(timerKey);
+      
+    } catch (e, stackTrace) {
+      _logger.error('GameEventCoordinator: Error clearing initial peek cards for player $playerId: $e', isOn: LOGGING_SWITCH);
+      _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
+      final timerKey = '$roomId:$playerId';
+      _cleanupPlayerInitialPeekTimer(timerKey);
+    }
+  }
+  
+  /// Helper to clean up player initial peek timer and snapshot
+  void _cleanupPlayerInitialPeekTimer(String timerKey) {
+    _playerInitialPeekClearTimers[timerKey]?.cancel();
+    _playerInitialPeekClearTimers.remove(timerKey);
+    _playerInitialPeekSnapshots.remove(timerKey);
+  }
+
   /// Cleanup resources for a room
   void cleanup(String roomId) {
     _initialPeekTimers[roomId]?.cancel();
     _initialPeekTimers.remove(roomId);
+    
+    // Cancel all player initial peek clear timers for this room
+    final keysToRemove = <String>[];
+    for (final key in _playerInitialPeekClearTimers.keys) {
+      if (key.startsWith('$roomId:')) {
+        keysToRemove.add(key);
+      }
+    }
+    for (final key in keysToRemove) {
+      _cleanupPlayerInitialPeekTimer(key);
+    }
   }
 }
 

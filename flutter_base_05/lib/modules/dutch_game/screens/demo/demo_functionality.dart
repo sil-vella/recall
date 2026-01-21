@@ -322,7 +322,7 @@ class DemoFunctionality {
       'playerStatus': 'playing_card', // Update main state
       'currentPlayerStatus': 'playing_card',
       'games': games, // Update games map with modified game state
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
     
     // Update widget slices and UI-only fields using state updater
@@ -583,7 +583,7 @@ class DemoFunctionality {
       'currentPlayerStatus': 'same_rank_window',
       'games': games, // Update games map with modified game state
       'discardPile': discardPile, // Update discard pile
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
     
     // Cancel any pending same rank instructions timer (player is playing, not waiting for opponent)
@@ -882,7 +882,7 @@ class DemoFunctionality {
       'drawPileCount': (restored['drawPile'] as List<dynamic>).length,
       'myDrawnCard': null, // Clear drawn card
       'currentPlayer': userPlayer, // Set currentPlayer so _getCurrentUserStatus can find it
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
     
     // Update widget slices and UI-only fields using state updater (same pattern as regular play)
@@ -897,7 +897,7 @@ class DemoFunctionality {
     // Only set demoInstructionsPhase which controls the instructions widget
     stateUpdater.updateState({
       'demoInstructionsPhase': 'queen_peek', // Show queen peek instructions
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
     
     _logger.info('✅ DemoFunctionality: Updated user status to queen_peek in SSOT', isOn: LOGGING_SWITCH);
@@ -1156,7 +1156,7 @@ class DemoFunctionality {
       'drawPileCount': (restored['drawPile'] as List<dynamic>).length,
       'myDrawnCard': null, // Clear drawn card
       'currentPlayer': userPlayer, // Set currentPlayer so _getCurrentUserStatus can find it
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
     
     // Update widget slices and UI-only fields using state updater (same pattern as regular play)
@@ -1171,7 +1171,7 @@ class DemoFunctionality {
     // Only set demoInstructionsPhase which controls the instructions widget
     stateUpdater.updateState({
       'demoInstructionsPhase': 'jack_swap', // Show jack swap instructions
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
     
     _logger.info('✅ DemoFunctionality: Updated user status to jack_swap in SSOT', isOn: LOGGING_SWITCH);
@@ -1391,7 +1391,7 @@ class DemoFunctionality {
       final stateUpdater = DutchGameStateUpdater.instance;
       stateUpdater.updateStateSync({
         'games': games,
-        'lastUpdated': DateTime.now().toIso8601String(),
+        // Removed lastUpdated - causes unnecessary state updates
       });
       
       // Cancel same rank window timer - user will control when to proceed via "Let's go" button
@@ -1489,7 +1489,7 @@ class DemoFunctionality {
       'games': games,
       'discardPile': updatedDiscardPile,
       'turn_events': turnEvents,
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
     
     // Update widget slices and UI-only fields using state updater
@@ -1755,7 +1755,7 @@ class DemoFunctionality {
             'games': gamesAfterDelay, // Updated games map with modified game state
             'discardPile': discardPile, // Updated discard pile
             'turn_events': turnEvents, // Add turn event for animation
-            'lastUpdated': DateTime.now().toIso8601String(),
+            // Removed lastUpdated - causes unnecessary state updates
           });
           
           // Update widget slices using state updater
@@ -1951,7 +1951,7 @@ class DemoFunctionality {
       'centerBoard': centerBoard,
       'myHand': myHand,
       'demoInstructionsPhase': 'playing', // Show playing phase after calling Dutch
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
     
     _logger.info('✅ DemoFunctionality: Final round called successfully - player can still play cards', isOn: LOGGING_SWITCH);
@@ -2260,7 +2260,7 @@ class DemoFunctionality {
       'centerBoard': centerBoard,
       'myHand': myHand,
       'opponentsPanel': opponentsPanel,
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     };
     
     if (userInvolved) {
@@ -2380,7 +2380,7 @@ class DemoFunctionality {
       'currentPlayer': userPlayer, // Set currentPlayer so _getCurrentUserStatus can find it
       'currentPlayerStatus': 'waiting',
       'playerStatus': 'waiting',
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
     
     // Step 2: Update widget slices using updateStateSync
@@ -2392,7 +2392,7 @@ class DemoFunctionality {
     // Step 3: Clear queen peek instructions (user is waiting during peek)
     stateUpdater.updateState({
       'demoInstructionsPhase': '', // Clear instructions during peek
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
     
     _logger.info('✅ DemoFunctionality: Queen peek card selected, showing card and setting status to waiting', isOn: LOGGING_SWITCH);
@@ -2523,7 +2523,7 @@ class DemoFunctionality {
         'currentPlayer': timerUserPlayer,
         'currentPlayerStatus': 'playing_card',
         'playerStatus': 'playing_card',
-        'lastUpdated': DateTime.now().toIso8601String(),
+        // Removed lastUpdated - causes unnecessary state updates
       });
       
       // Step 2: Update widget slices using updateStateSync
@@ -2535,7 +2535,7 @@ class DemoFunctionality {
       // Step 3: Show special plays instructions (for jack swap demo)
       timerStateUpdater.updateState({
         'demoInstructionsPhase': 'special_plays', // Show special plays instructions
-        'lastUpdated': DateTime.now().toIso8601String(),
+        // Removed lastUpdated - causes unnecessary state updates
       });
       
       _logger.info('✅ DemoFunctionality: Queen peek timer expired - updated hand to 4 jacks and status to playing_card', isOn: LOGGING_SWITCH);
@@ -2914,7 +2914,7 @@ class DemoFunctionality {
           'playerStatus': 'drawing_card', // Set player status for draw pile click
           'currentPlayerStatus': 'drawing_card',
           'games': games, // Update games map with modified player status
-          'lastUpdated': DateTime.now().toIso8601String(),
+          // Removed lastUpdated - causes unnecessary state updates
         });
         
         // Update widget slices and demo-specific UI fields using state updater
@@ -3043,7 +3043,7 @@ class DemoFunctionality {
         'currentPlayer': userPlayerForCurrent, // Set user as current player
         'currentPlayerStatus': 'waiting', // Update widget slice
         'playerStatus': 'waiting', // Update widget slice
-        'lastUpdated': DateTime.now().toIso8601String(),
+        // Removed lastUpdated - causes unnecessary state updates
       });
       
       _logger.info('✅ DemoFunctionality: Same rank window ended, reset all players to waiting in SSOT', isOn: LOGGING_SWITCH);
@@ -3092,7 +3092,7 @@ class DemoFunctionality {
         stateUpdater.updateStateSync({
           'currentGameId': currentGameId,
           'games': fixedGamesCopy, // SSOT: Updated games map with all players confirmed as waiting
-          'lastUpdated': DateTime.now().toIso8601String(),
+          // Removed lastUpdated - causes unnecessary state updates
         });
         
         _logger.info('✅ DemoFunctionality: Re-updated SSOT with all players confirmed as waiting', isOn: LOGGING_SWITCH);
@@ -3161,7 +3161,7 @@ class DemoFunctionality {
           'games': freshGames,
           'currentPlayer': freshOpponent,
           'currentPlayerStatus': 'drawing_card',
-          'lastUpdated': DateTime.now().toIso8601String(),
+          // Removed lastUpdated - causes unnecessary state updates
         });
         
         // 1. Draw a card from draw pile
@@ -3220,7 +3220,7 @@ class DemoFunctionality {
           'currentPlayer': freshOpponent,
           'currentPlayerStatus': 'drawing_card',
           'drawPileCount': drawPile.length,
-          'lastUpdated': DateTime.now().toIso8601String(),
+          // Removed lastUpdated - causes unnecessary state updates
         });
         
         // Wait 2 seconds after drawing before playing
@@ -3282,7 +3282,7 @@ class DemoFunctionality {
           'games': freshGames,
           'currentPlayer': freshOpponent,
           'currentPlayerStatus': 'playing_card',
-          'lastUpdated': DateTime.now().toIso8601String(),
+          // Removed lastUpdated - causes unnecessary state updates
         });
         
         // Remove card from hand (create blank slot)
@@ -3371,7 +3371,7 @@ class DemoFunctionality {
           'discardPile': discardPile, // For centerBoard slice
           'drawPileCount': drawPile.length,
           'turn_events': turnEvents, // For animations
-          'lastUpdated': DateTime.now().toIso8601String(),
+          // Removed lastUpdated - causes unnecessary state updates
         });
         
         _logger.info('✅ DemoFunctionality: $opponentName played card, same rank window started', isOn: LOGGING_SWITCH);
@@ -3417,7 +3417,7 @@ class DemoFunctionality {
       stateUpdater.updateState({
         'currentGameId': currentGameId,
         'games': gamesWithWaitingOpponents, // SSOT with opponents status = 'waiting'
-        'lastUpdated': DateTime.now().toIso8601String(),
+        // Removed lastUpdated - causes unnecessary state updates
       });
       
       _logger.info('✅ DemoFunctionality: Set all opponents to waiting status', isOn: LOGGING_SWITCH);
@@ -3516,7 +3516,7 @@ class DemoFunctionality {
           'currentPlayer': userPlayer, // Set currentPlayer so _getCurrentUserStatus can find it
           'currentPlayerStatus': 'playing_card',
           'playerStatus': 'playing_card',
-          'lastUpdated': DateTime.now().toIso8601String(),
+          // Removed lastUpdated - causes unnecessary state updates
         });
         
         _logger.info('✅ DemoFunctionality: Updated state - widget slices will be recomputed with playerStatus=playing_card', isOn: LOGGING_SWITCH);
@@ -3527,7 +3527,7 @@ class DemoFunctionality {
         // Still show instruction even if user not found
         stateUpdater.updateState({
           'demoInstructionsPhase': 'special_plays',
-          'lastUpdated': DateTime.now().toIso8601String(),
+          // Removed lastUpdated - causes unnecessary state updates
         });
         _logger.info('✅ DemoFunctionality: Showing special plays instruction (user not found)', isOn: LOGGING_SWITCH);
       }

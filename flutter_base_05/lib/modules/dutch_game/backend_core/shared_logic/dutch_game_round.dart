@@ -9,7 +9,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
+const bool LOGGING_SWITCH = false; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -1786,9 +1786,15 @@ class DutchGameRound {
           'games': currentGames, // Games map with full drawnCard and updated status for this player
           'turn_events': turnEvents, // Include turn events
         });
+        
+        // Clear action immediately after state update is sent
+        _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGames);
       } else {
         // For computer players, update status in games map
         _updatePlayerStatusInGamesMap('playing_card', playerId: actualPlayerId);
+        
+        // Clear action immediately after status update (for CPU players)
+        _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGames);
       }
       
       // Start play timer for ALL players (human and CPU) if status is playing_card
@@ -2539,6 +2545,10 @@ class DutchGameRound {
         'discardPile': updatedDiscardPile, // Updated discard pile
         'turn_events': turnEvents, // Add turn events for animations
       });
+      
+      // Clear action immediately after state update is sent
+      _clearPlayerAction(playerId: actualPlayerId, gamesMap: currentGamesForPlay);
+      
       if (LOGGING_SWITCH) {
         _logger.info('🔍 STATE_UPDATE DEBUG - State update sent. Reposition will happen AFTER this and AFTER _handleSameRankWindow()');
       };
@@ -3076,6 +3086,9 @@ class DutchGameRound {
         'turn_events': turnEvents, // Add turn event for animation
       });
       
+      // Clear action immediately after state update is sent
+      _clearPlayerAction(playerId: playerId, gamesMap: currentGamesForSameRank);
+      
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: ✅ Same rank play successful: $playerId played $cardRank of $cardSuit - card moved to discard pile');
       };
@@ -3395,6 +3408,11 @@ class DutchGameRound {
         'games': currentGames, // Games map with modifications (drawnCard sanitized)
         'turn_events': turnEvents, // Add turn events for animations
       });
+      
+      // Clear action immediately after state update is sent
+      if (actingPlayerId != null && actingPlayerId.isNotEmpty) {
+        _clearPlayerAction(playerId: actingPlayerId, gamesMap: currentGames);
+      }
 
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Jack swap completed - state updated');
@@ -3643,6 +3661,9 @@ class DutchGameRound {
           _logger.info('Dutch: STEP 2 - Sent full cardsToPeek data to computer player $peekingPlayerId only');
         };
       }
+      
+      // Clear action immediately after state update is sent
+      _clearPlayerAction(playerId: peekingPlayerId, gamesMap: currentGames);
 
       if (LOGGING_SWITCH) {
         _logger.info('Dutch: Queen peek completed successfully');

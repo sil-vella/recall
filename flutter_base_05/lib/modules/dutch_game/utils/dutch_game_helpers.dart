@@ -21,7 +21,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for testing auto-guest creation
+  static const bool LOGGING_SWITCH = true; // Enabled for auto-guest creation flow testing
   
   // ========================================
   // EVENT EMISSION HELPERS
@@ -238,8 +238,17 @@ class DutchGameHelpers {
         final result = await loginModule.registerGuestUser(context: effectiveContext);
         
         if (result['success'] != null) {
-          _logger.info('DutchGameHelpers: Guest user created successfully, retrying ensureWebSocketReady', isOn: LOGGING_SWITCH);
-          // Recursively retry - now user should be logged in
+          _logger.info('DutchGameHelpers: Guest user created successfully, waiting for login completion', isOn: LOGGING_SWITCH);
+          
+          // Wait for login process to fully complete
+          final loginCompleted = await _waitForLoginCompletion();
+          if (!loginCompleted) {
+            _logger.warning('DutchGameHelpers: Login completion timeout', isOn: LOGGING_SWITCH);
+            return false;
+          }
+          
+          _logger.info('DutchGameHelpers: Login completed, retrying ensureWebSocketReady', isOn: LOGGING_SWITCH);
+          // Recursively retry - now user should be fully logged in
           // Pass context to avoid re-fetching it
           return await ensureWebSocketReady(context: effectiveContext);
         } else {
@@ -314,6 +323,37 @@ class DutchGameHelpers {
     }
     
     _logger.warning('DutchGameHelpers: Authentication timeout after ${timeoutSeconds}s', isOn: LOGGING_SWITCH);
+    return false;
+  }
+  
+  /// Wait for login completion after guest creation
+  /// Returns true if login is complete (isLoggedIn, userId, username, email all set), false if timeout
+  static Future<bool> _waitForLoginCompletion({int timeoutSeconds = 10}) async {
+    final stateManager = StateManager();
+    final startTime = DateTime.now();
+    const checkInterval = Duration(milliseconds: 100);
+    
+    _logger.info('DutchGameHelpers: Waiting for login completion...', isOn: LOGGING_SWITCH);
+    
+    while (DateTime.now().difference(startTime).inSeconds < timeoutSeconds) {
+      final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
+      final isLoggedIn = loginState['isLoggedIn'] == true;
+      final userId = loginState['userId']?.toString() ?? '';
+      final username = loginState['username']?.toString() ?? '';
+      final email = loginState['email']?.toString() ?? '';
+      
+      if (isLoggedIn && userId.isNotEmpty && username.isNotEmpty && email.isNotEmpty) {
+        _logger.info('DutchGameHelpers: Login state complete - userId: $userId, username: $username, email: $email', isOn: LOGGING_SWITCH);
+        // Wait a bit more to ensure auth_login_complete hook has been processed
+        await Future.delayed(const Duration(milliseconds: 500));
+        _logger.info('DutchGameHelpers: Login completion confirmed', isOn: LOGGING_SWITCH);
+        return true;
+      }
+      
+      await Future.delayed(checkInterval);
+    }
+    
+    _logger.warning('DutchGameHelpers: Login completion timeout after ${timeoutSeconds}s', isOn: LOGGING_SWITCH);
     return false;
   }
   
@@ -625,7 +665,7 @@ class DutchGameHelpers {
       // Store in a separate key to preserve game state while having user stats available
       _stateUpdater.updateState({
         'userStats': dutchGameData,
-        'userStatsLastUpdated': DateTime.now().toIso8601String(),
+        // Removed userStatsLastUpdated - causes unnecessary state updates
       });
       
       _logger.info('✅ DutchGameHelpers: Successfully updated local state with dutch_game data', isOn: LOGGING_SWITCH);
@@ -879,7 +919,7 @@ class DutchGameHelpers {
         // Clear joined games list
         'joinedGames': <Map<String, dynamic>>[],
         'totalJoinedGames': 0,
-        'joinedGamesTimestamp': '',
+        // Removed joinedGamesTimestamp - causes unnecessary state updates
       });
       
       _logger.info('✅ DutchGameHelpers: Game state cleared successfully', isOn: LOGGING_SWITCH);
@@ -1035,7 +1075,7 @@ class DutchGameHelpers {
         
         // Clear protected data
         'protectedCardsToPeek': null,
-        'protectedCardsToPeekTimestamp': null,
+        // Removed protectedCardsToPeekTimestamp - widget uses internal timer
         
         // Clear action errors
         'actionError': null,

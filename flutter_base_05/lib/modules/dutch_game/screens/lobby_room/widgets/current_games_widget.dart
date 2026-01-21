@@ -42,8 +42,7 @@ class CurrentRoomWidget extends StatelessWidget {
         final joinedGamesSlice = dutchGameState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
         final joinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
         final totalJoinedGames = joinedGamesSlice['totalGames'] ?? 0;
-        final joinedGamesTimestamp = joinedGamesSlice['timestamp']?.toString() ?? '';
-        
+        // Removed joinedGamesTimestamp - causes unnecessary state updates
 
         // If not in any games, show empty state
         if (totalJoinedGames == 0 || joinedGames.isEmpty) {
@@ -55,7 +54,7 @@ class CurrentRoomWidget extends StatelessWidget {
           context,
           joinedGames: joinedGames.cast<Map<String, dynamic>>(),
           totalJoinedGames: totalJoinedGames,
-          timestamp: joinedGamesTimestamp,
+          // Removed timestamp parameter - no longer needed
           currentUserId: currentUserId,
         );
       },
@@ -104,7 +103,7 @@ class CurrentRoomWidget extends StatelessWidget {
     BuildContext context, {
     required List<Map<String, dynamic>> joinedGames,
     required int totalJoinedGames,
-    required String timestamp,
+    // Removed timestamp parameter - no longer needed
     required String currentUserId,
   }) {
     return Container(
@@ -118,23 +117,10 @@ class CurrentRoomWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with count and timestamp
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Joined Games ($totalJoinedGames)',
-                    style: AppTextStyles.headingSmall(),
-                  ),
-                ),
-                if (timestamp.isNotEmpty)
-                  Text(
-                    'Updated: ${_formatTimestamp(timestamp)}',
-                    style: AppTextStyles.overline().copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-              ],
+            // Header with count
+            Text(
+              'Joined Games ($totalJoinedGames)',
+              style: AppTextStyles.headingSmall(),
             ),
           
           const SizedBox(height: 16),
@@ -411,26 +397,7 @@ class CurrentRoomWidget extends StatelessWidget {
 
   /// Build status chip based on game phase and status
 
-  /// Format timestamp for display
-  String _formatTimestamp(String timestamp) {
-    try {
-      final dateTime = DateTime.parse(timestamp);
-      final now = DateTime.now();
-      final difference = now.difference(dateTime);
-      
-      if (difference.inMinutes < 1) {
-        return 'Just now';
-      } else if (difference.inMinutes < 60) {
-        return '${difference.inMinutes}m ago';
-      } else if (difference.inHours < 24) {
-        return '${difference.inHours}h ago';
-      } else {
-        return '${difference.inDays}d ago';
-      }
-    } catch (e) {
-      return 'Unknown';
-    }
-  }
+  // Removed _formatTimestamp - no longer needed after removing timestamps
 
   /// Leave room using GameCoordinator
   void _leaveRoom(String roomId) {

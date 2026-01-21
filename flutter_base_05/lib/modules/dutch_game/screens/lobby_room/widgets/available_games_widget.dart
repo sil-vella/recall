@@ -35,7 +35,7 @@ class AvailableGamesWidget extends StatelessWidget {
         final joinedGamesSlice = dutchState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
         final joinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
         final isLoading = dutchState['isLoading'] == true;
-        final lastUpdated = dutchState['lastUpdated'];
+        // Removed lastUpdated - causes unnecessary state updates
         
         // Create a set of game IDs that the user is already in for quick lookup
         final Set<String> userJoinedGameIds = joinedGames
@@ -94,14 +94,7 @@ class AvailableGamesWidget extends StatelessWidget {
                 
                 const SizedBox(height: 12),
                 
-                // Last updated info
-                if (lastUpdated != null)
-                  Text(
-                    'Last updated: ${_formatTimestamp(lastUpdated)}',
-                    style: AppTextStyles.bodySmall().copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
+                // Removed last updated info - causes unnecessary state updates
                 
                 const SizedBox(height: 16),
                 
@@ -347,20 +340,7 @@ class AvailableGamesWidget extends StatelessWidget {
     }
   }
 
-  /// Format timestamp for display
-  String _formatTimestamp(dynamic timestamp) {
-    if (timestamp == null) return 'Never';
-    
-    try {
-      if (timestamp is String) {
-        final dateTime = DateTime.parse(timestamp);
-        return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-      }
-      return 'Unknown';
-    } catch (e) {
-      return 'Invalid';
-    }
-  }
+  // Removed _formatTimestamp - no longer needed after removing timestamps
 
   /// Join a game using GameCoordinator
   Future<void> _joinGame(BuildContext context, String gameId) async {

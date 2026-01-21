@@ -1,6 +1,6 @@
 import '../../utils/platform/shared_imports.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for isClearAndCollect type debugging
+const bool LOGGING_SWITCH = false; // Enabled for timestamp removal testing
 
 /// In-memory game state store keyed by roomId.
 /// Holds a mutable Map<String,dynamic> representing the current game state
@@ -22,7 +22,7 @@ class GameStateStore {
         'discardPile': <Map<String, dynamic>>[],
         'drawPile': <String>[],
       },
-      'lastUpdated': DateTime.now().toIso8601String(),
+      // Removed lastUpdated - causes unnecessary state updates
     });
   }
 
@@ -58,7 +58,7 @@ class GameStateStore {
     }
     
     updates.forEach((k, v) => state[k] = v);
-    state['lastUpdated'] = DateTime.now().toIso8601String();
+    // Removed lastUpdated - causes unnecessary state updates
     _logger.info('GameStateStore: merged root for $roomId -> keys: ${updates.keys}', isOn: LOGGING_SWITCH);
     
     // Log turn_events after merge
@@ -78,7 +78,7 @@ class GameStateStore {
       _logger.info('💾 GameStateStore.setGameState: isClearAndCollect in gameState: value=$value (type: ${value.runtimeType})', isOn: LOGGING_SWITCH);
     }
     state['game_state'] = gameState;
-    state['lastUpdated'] = DateTime.now().toIso8601String();
+    // Removed lastUpdated - causes unnecessary state updates
     _logger.info('GameStateStore: set game_state for $roomId', isOn: LOGGING_SWITCH);
   }
 

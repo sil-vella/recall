@@ -342,7 +342,7 @@ class InstructionsWidget extends StatelessWidget {
           'dontShowAgain': currentDontShowAgain,
           'onClose': null, // Clear custom callback
         },
-        'lastUpdated': DateTime.now().toIso8601String(),
+        // Removed lastUpdated - causes unnecessary state updates
       });
       
     } catch (e) {

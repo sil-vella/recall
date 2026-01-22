@@ -294,7 +294,9 @@ class GameEventCoordinator {
       _logger.info('🔍 _handleStartMatch: autoStart from roomInfo: value=$autoStartRaw (type: ${autoStartRaw.runtimeType})');
     }
     final isAutoStart = _parseBoolValue(autoStartRaw, defaultValue: false);
-    _logger.info('✅ _handleStartMatch: parsed isAutoStart: value=$isAutoStart', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ _handleStartMatch: parsed isAutoStart: value=$isAutoStart');
+    }
     int needed = (isPracticeMode || isRandomJoin || isAutoStart)
         ? maxPlayers - players.length  // Practice mode, random join, or autoStart: fill to maxPlayers
         : minPlayers - players.length; // Regular multiplayer: only fill to minPlayers
@@ -577,7 +579,9 @@ class GameEventCoordinator {
     } else {
       // Instructions OFF or not set → no override, use YAML config default
       deckTypeOverride = null;
-      _logger.info('GameEventCoordinator: No deck override - using YAML config default deck', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: No deck override - using YAML config default deck');
+      }
     }
     
     final deckFactory = await YamlDeckFactory.fromFile(roomId, DECK_CONFIG_PATH, deckTypeOverride: deckTypeOverride);
@@ -681,7 +685,9 @@ class GameEventCoordinator {
         final predefinedHand = predefinedHandsLoader.getHandForPlayer(predefinedHandsConfig, playerIndex);
         
         if (predefinedHand != null && predefinedHand.length == 4) {
-          _logger.info('GameEventCoordinator: Using predefined hand for player $playerIndex: $predefinedHand', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('GameEventCoordinator: Using predefined hand for player $playerIndex: $predefinedHand');
+          }
           
           // Find and deal the predefined cards from the deck
           for (final cardSpec in predefinedHand) {
@@ -722,7 +728,9 @@ class GameEventCoordinator {
           while (hand.length < 4 && drawStack.isNotEmpty) {
             final c = drawStack.removeAt(0);
             hand.add(_cardToIdOnly(c));
-            _logger.warning('GameEventCoordinator: Added fallback card to player $playerIndex to complete hand', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.warning('GameEventCoordinator: Added fallback card to player $playerIndex to complete hand');
+            }
           }
         } else {
           // No predefined hand for this player, deal randomly
@@ -767,9 +775,10 @@ class GameEventCoordinator {
     final activePlayerCount = players.length;
     final pot = coinCost * activePlayerCount;
     
-    _logger.info('GameEventCoordinator: Calculated pot for game $roomId - coin_cost: $coinCost, players: $activePlayerCount, pot: $pot', isOn: LOGGING_SWITCH);
-    
-    _logger.info('🔍 _handleStartMatch: About to create gameState map with isClearAndCollect', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameEventCoordinator: Calculated pot for game $roomId - coin_cost: $coinCost, players: $activePlayerCount, pot: $pot');
+      _logger.info('🔍 _handleStartMatch: About to create gameState map with isClearAndCollect');
+    }
     // Build updated game_state - set to initial_peek phase
     // Add timer configuration to game_state (game-specific, not room-specific)
     Map<String, dynamic> gameState;
@@ -809,9 +818,11 @@ class GameEventCoordinator {
         }(), // Collection mode flag - false = clear mode (no collection), true = collection mode (default to true for backward compatibility)
         'timerConfig': ServerGameStateCallbackImpl.getAllTimerValues(), // Get timer values from registry (single source of truth)
       };
-      _logger.info('✅ _handleStartMatch: Created gameState map successfully', isOn: LOGGING_SWITCH);
-      _logger.info('🔍 _handleStartMatch: gameState[\'isClearAndCollect\'] in map: value=${gameState['isClearAndCollect']} (type: ${gameState['isClearAndCollect'].runtimeType})', isOn: LOGGING_SWITCH);
-      _logger.info('GameEventCoordinator: Added timerConfig to game_state for room $roomId: ${gameState['timerConfig']}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ _handleStartMatch: Created gameState map successfully');
+        _logger.info('🔍 _handleStartMatch: gameState[\'isClearAndCollect\'] in map: value=${gameState['isClearAndCollect']} (type: ${gameState['isClearAndCollect'].runtimeType})');
+        _logger.info('GameEventCoordinator: Added timerConfig to game_state for room $roomId: ${gameState['timerConfig']}');
+      }
     } catch (e, stackTrace) {
       _logger.error('❌ _handleStartMatch: Error creating gameState map: $e', isOn: LOGGING_SWITCH);
       _logger.error('❌ _handleStartMatch: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
@@ -1189,7 +1200,9 @@ class GameEventCoordinator {
       }
 
       if (cardsToPeek.length != 2) {
-        _logger.error('GameEventCoordinator: Only found ${cardsToPeek.length} out of 2 cards', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('GameEventCoordinator: Only found ${cardsToPeek.length} out of 2 cards');
+        }
         server.sendToSession(sessionId, {
           'event': 'completed_initial_peek_error',
           'room_id': roomId,
@@ -1367,7 +1380,9 @@ class GameEventCoordinator {
         playerInGamesMap['collection_rank_cards'] = <Map<String, dynamic>>[];
         playerInGamesMap['collection_rank'] = null;
 
-        _logger.info('GameEventCoordinator: Human player peeked at cards (clear mode - both cards stored in known_cards)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameEventCoordinator: Human player peeked at cards (clear mode - both cards stored in known_cards)');
+        }
       }
 
       // Set human player status to WAITING
@@ -1634,8 +1649,10 @@ class GameEventCoordinator {
       _cleanupPlayerInitialPeekTimer(timerKey);
       
     } catch (e, stackTrace) {
-      _logger.error('GameEventCoordinator: Error clearing initial peek cards for player $playerId: $e', isOn: LOGGING_SWITCH);
-      _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: Error clearing initial peek cards for player $playerId: $e');
+        _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace');
+      }
       final timerKey = '$roomId:$playerId';
       _cleanupPlayerInitialPeekTimer(timerKey);
     }

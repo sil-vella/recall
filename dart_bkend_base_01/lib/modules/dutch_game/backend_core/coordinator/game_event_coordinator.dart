@@ -376,7 +376,9 @@ class GameEventCoordinator {
       List<String>? rankFilter;
       if (roomDifficulty != null) {
         rankFilter = RankMatcher.getCompatibleRanks(roomDifficulty);
-        _logger.info('GameEventCoordinator: Room difficulty is $roomDifficulty, compatible ranks: $rankFilter', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameEventCoordinator: Room difficulty is $roomDifficulty, compatible ranks: $rankFilter');
+        }
       } else {
         if (LOGGING_SWITCH) {
           _logger.info('GameEventCoordinator: Room has no difficulty set, will fetch comp players without rank filter');
@@ -830,8 +832,10 @@ class GameEventCoordinator {
         _logger.info('GameEventCoordinator: Added timerConfig to game_state for room $roomId: ${gameState['timerConfig']}');
       }
     } catch (e, stackTrace) {
-      _logger.error('❌ _handleStartMatch: Error creating gameState map: $e', isOn: LOGGING_SWITCH);
-      _logger.error('❌ _handleStartMatch: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ _handleStartMatch: Error creating gameState map: $e');
+        _logger.error('❌ _handleStartMatch: Stack trace:\n$stackTrace');
+      }
       rethrow;
     }
 
@@ -1015,7 +1019,9 @@ class GameEventCoordinator {
       {'cardId': card1Id, 'suit': '?', 'rank': '?', 'points': 0},
       {'cardId': card2Id, 'suit': '?', 'rank': '?', 'points': 0},
     ];
-    _logger.info('GameEventCoordinator: Added ID-only cardsToPeek for CPU player ${computerPlayer['name']}: [$card1Id, $card2Id]', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameEventCoordinator: Added ID-only cardsToPeek for CPU player ${computerPlayer['name']}: [$card1Id, $card2Id]');
+    }
   }
 
   /// AI Decision Logic: Select which card should be marked as collection rank
@@ -1508,7 +1514,9 @@ class GameEventCoordinator {
   /// Handle initial peek timer expiration
   Future<void> _onInitialPeekTimerExpired(String roomId, DutchGameRound round) async {
     try {
-      _logger.info('GameEventCoordinator: Initial peek timer expired for room $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Initial peek timer expired for room $roomId');
+      }
       
       // Clear timer reference
       _initialPeekTimers[roomId] = null;
@@ -1526,7 +1534,9 @@ class GameEventCoordinator {
       // Now complete initial peek phase (all players should be done)
       await _completeInitialPeek(roomId, round);
     } catch (e) {
-      _logger.error('GameEventCoordinator: Failed to handle initial peek timer expiry: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: Failed to handle initial peek timer expiry: $e');
+      }
     }
   }
 
@@ -1634,7 +1644,9 @@ class GameEventCoordinator {
       if (isAlreadyEmpty) {
         _logger.info('GameEventCoordinator: cardsToPeek already empty for player $playerId (phase may have cleared it) - sending state update to clear myCardsToPeek', isOn: LOGGING_SWITCH);
       } else {
-        _logger.info('GameEventCoordinator: cardsToPeek data matches snapshot for player $playerId - clearing initial peek cards', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameEventCoordinator: cardsToPeek data matches snapshot for player $playerId - clearing initial peek cards');
+        }
         // Clear cardsToPeek data in games map
         playerInGamesMap['cardsToPeek'] = <Map<String, dynamic>>[];
       }
@@ -1658,7 +1670,9 @@ class GameEventCoordinator {
           _logger.info('GameEventCoordinator: Updated store game_state - cleared cardsToPeek for player $playerId');
         }
       } else {
-        _logger.warning('GameEventCoordinator: Player $playerId not found in store game_state players list', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('GameEventCoordinator: Player $playerId not found in store game_state players list');
+        }
       }
       
       // Create callback instance for this room

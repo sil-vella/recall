@@ -455,7 +455,9 @@ class GameEventCoordinator {
           
           // If rank filter was used and no players found, retry without filter
           if (rankFilter != null && rankFilter.isNotEmpty && remainingNeeded > 0) {
-            _logger.info('GameEventCoordinator: No comp players found with rank filter, retrying without filter', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('GameEventCoordinator: No comp players found with rank filter, retrying without filter');
+            }
             try {
               final fallbackResponse = await server.pythonClient.getCompPlayers(remainingNeeded);
               final fallbackSuccess = fallbackResponse['success'] as bool? ?? false;
@@ -695,7 +697,9 @@ class GameEventCoordinator {
             final suit = cardSpec['suit']?.toString();
             
             if (rank == null || suit == null) {
-              _logger.warning('GameEventCoordinator: Invalid card spec in predefined hand: $cardSpec', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.warning('GameEventCoordinator: Invalid card spec in predefined hand: $cardSpec');
+              }
               continue;
             }
             
@@ -900,9 +904,13 @@ class GameEventCoordinator {
 
       // Update store with modified game state
       _store.setGameState(roomId, gameState);
-      _logger.info('GameEventCoordinator: Processed AI initial peeks for all computer players', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Processed AI initial peeks for all computer players');
+      }
     } catch (e) {
-      _logger.error('GameEventCoordinator: Failed to process AI initial peeks: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: Failed to process AI initial peeks: $e');
+      }
     }
   }
 
@@ -945,7 +953,9 @@ class GameEventCoordinator {
     }
 
     if (card1 == null || card2 == null) {
-      _logger.error('GameEventCoordinator: Failed to get full card data for peeked cards', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: Failed to get full card data for peeked cards');
+      }
       return;
     }
 
@@ -1233,7 +1243,9 @@ class GameEventCoordinator {
       ) as Map<String, dynamic>;
       
       if (playerInGamesMap.isEmpty) {
-        _logger.error('GameEventCoordinator: Player $playerId not found in games map', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('GameEventCoordinator: Player $playerId not found in games map');
+        }
         return;
       }
 
@@ -1300,7 +1312,9 @@ class GameEventCoordinator {
         final actionType = playerInGamesMap['action']?.toString();
         playerInGamesMap.remove('action');
         playerInGamesMap.remove('actionData');
-        _logger.info('🎬 ACTION_DATA: Cleared initial_peek action for player $playerId - previous action: $actionType', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 ACTION_DATA: Cleared initial_peek action for player $playerId - previous action: $actionType');
+        }
       }
       
       // Also update the humanPlayer reference for subsequent logic (known_cards, collection_rank, etc.)
@@ -1564,7 +1578,9 @@ class GameEventCoordinator {
   void _clearPlayerInitialPeekCards(String roomId, String playerId, List<String> snapshotCardIds) {
     try {
       final timerKey = '$roomId:$playerId';
-      _logger.info('GameEventCoordinator: Auto-clear timer fired for player $playerId in room $roomId - checking if data matches snapshot: $snapshotCardIds', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Auto-clear timer fired for player $playerId in room $roomId - checking if data matches snapshot: $snapshotCardIds');
+      }
       
       // Get current games map
       final currentGames = _getCurrentGamesMap(roomId);
@@ -1582,7 +1598,9 @@ class GameEventCoordinator {
       ) as Map<String, dynamic>;
       
       if (playerInGamesMap.isEmpty) {
-        _logger.warning('GameEventCoordinator: Player $playerId not found when clearing initial peek cards', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('GameEventCoordinator: Player $playerId not found when clearing initial peek cards');
+        }
         _cleanupPlayerInitialPeekTimer(timerKey);
         return;
       }
@@ -1636,7 +1654,9 @@ class GameEventCoordinator {
       if (playerIndex >= 0) {
         final storePlayer = storePlayers[playerIndex] as Map<String, dynamic>;
         storePlayer['cardsToPeek'] = <Map<String, dynamic>>[];
-        _logger.info('GameEventCoordinator: Updated store game_state - cleared cardsToPeek for player $playerId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameEventCoordinator: Updated store game_state - cleared cardsToPeek for player $playerId');
+        }
       } else {
         _logger.warning('GameEventCoordinator: Player $playerId not found in store game_state players list', isOn: LOGGING_SWITCH);
       }
@@ -1651,14 +1671,18 @@ class GameEventCoordinator {
         'myCardsToPeek': <Map<String, dynamic>>[], // Also clear myCardsToPeek in main state
       });
       
-      _logger.info('GameEventCoordinator: Sent state update to clear initial peek cards for player $playerId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Sent state update to clear initial peek cards for player $playerId');
+      }
       
       // Clean up timer and snapshot
       _cleanupPlayerInitialPeekTimer(timerKey);
       
     } catch (e, stackTrace) {
-      _logger.error('GameEventCoordinator: Error clearing initial peek cards for player $playerId: $e', isOn: LOGGING_SWITCH);
-      _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: Error clearing initial peek cards for player $playerId: $e');
+        _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace');
+      }
       final timerKey = '$roomId:$playerId';
       _cleanupPlayerInitialPeekTimer(timerKey);
     }

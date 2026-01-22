@@ -7,7 +7,7 @@ import '../shared_logic/utils/deck_factory.dart';
 import '../shared_logic/models/card.dart';
 import '../../utils/platform/predefined_hands_loader.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for initial peek clearing debugging
+const bool LOGGING_SWITCH = true; // Enabled for deck config loading and YAML testing
 
 /// Coordinates WS game events to the DutchGameRound logic per room.
 class GameEventCoordinator {
@@ -519,29 +519,24 @@ class GameEventCoordinator {
     _logger.info('✅ _handleStartMatch: parsed showInstructions: value=$showInstructions (type: ${showInstructions.runtimeType})', isOn: LOGGING_SWITCH);
     
     // Build deck and deal 4 cards per player (as in practice)
-    // In practice mode: showInstructions=true uses test deck, showInstructions=false uses standard deck
-    // For multiplayer games, use YAML config default
-    final bool? testingModeOverride;
+    // showInstructions=true → use demo_deck
+    // showInstructions=false/null → no override, use YAML config default (testing_mode setting)
+    final String? deckTypeOverride;
     if (showInstructions) {
-      // Instructions ON → use test deck (testing_mode = true)
-      testingModeOverride = true;
-      _logger.info('GameEventCoordinator: Practice mode with instructions ON - using test deck', isOn: LOGGING_SWITCH);
+      // Instructions ON → use demo deck
+      deckTypeOverride = 'demo';
+      _logger.info('GameEventCoordinator: Demo mode with instructions ON - using demo deck', isOn: LOGGING_SWITCH);
     } else {
-      // Instructions OFF → use standard deck (testing_mode = false)
-      // Only override for practice mode (when showInstructions is explicitly set)
-      // For multiplayer, use YAML config default (null = no override)
-      testingModeOverride = data.containsKey('showInstructions') ? false : null;
-      if (testingModeOverride != null) {
-        _logger.info('GameEventCoordinator: Practice mode with instructions OFF - using standard deck', isOn: LOGGING_SWITCH);
-      } else {
-        _logger.info('GameEventCoordinator: Multiplayer mode - using YAML config default deck', isOn: LOGGING_SWITCH);
-      }
+      // Instructions OFF or not set → no override, use YAML config default
+      deckTypeOverride = null;
+      _logger.info('GameEventCoordinator: No deck override - using YAML config default deck', isOn: LOGGING_SWITCH);
     }
     
-    final deckFactory = await YamlDeckFactory.fromFile(roomId, DECK_CONFIG_PATH, testingModeOverride: testingModeOverride);
+    final deckFactory = await YamlDeckFactory.fromFile(roomId, DECK_CONFIG_PATH, deckTypeOverride: deckTypeOverride);
     final List<Card> fullDeck = deckFactory.buildDeck();
+    final summary = deckFactory.getSummary();
     
-    _logger.info('GameEventCoordinator: Built deck with ${fullDeck.length} cards (testing_mode: ${deckFactory.getSummary()['testing_mode']})', isOn: LOGGING_SWITCH);
+    _logger.info('GameEventCoordinator: Built deck with ${fullDeck.length} cards (deck_type: ${summary['deck_type']}, testing_mode: ${summary['testing_mode']})', isOn: LOGGING_SWITCH);
 
     // Helper to convert Card to Map (full data for originalDeck lookup)
     Map<String, dynamic> _cardToMap(Card c) => {

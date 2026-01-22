@@ -94,8 +94,24 @@ class DeckConfig {
   /// Get testing deck configuration
   Map<String, dynamic> get testingDeck => _config['testing_deck'] ?? {};
   
-  /// Get current deck configuration (standard or testing)
-  Map<String, dynamic> get currentDeck => isTestingMode ? testingDeck : standardDeck;
+  /// Get demo deck configuration
+  Map<String, dynamic> get demoDeck => _config['demo_deck'] ?? {};
+  
+  /// Deck type enum for explicit deck selection
+  String? _deckTypeOverride; // 'standard', 'testing', 'demo', or null (use YAML default)
+  
+  /// Get current deck configuration (standard, testing, or demo)
+  Map<String, dynamic> get currentDeck {
+    if (_deckTypeOverride == 'demo') {
+      return demoDeck;
+    } else if (_deckTypeOverride == 'testing') {
+      return testingDeck;
+    } else if (_deckTypeOverride == 'standard') {
+      return standardDeck;
+    }
+    // No override - use YAML config default
+    return isTestingMode ? testingDeck : standardDeck;
+  }
   
   /// Get suits for current deck
   List<String> get suits => List<String>.from(currentDeck['suits'] ?? []);
@@ -136,6 +152,14 @@ class DeckConfig {
   /// Get current deck statistics
   Map<String, dynamic> get currentDeckStats {
     final stats = deckStats;
+    if (_deckTypeOverride == 'demo') {
+      return stats['demo'] ?? {};
+    } else if (_deckTypeOverride == 'testing') {
+      return stats['testing'] ?? {};
+    } else if (_deckTypeOverride == 'standard') {
+      return stats['standard'] ?? {};
+    }
+    // No override - use YAML config default
     return isTestingMode ? (stats['testing'] ?? {}) : (stats['standard'] ?? {});
   }
   
@@ -221,6 +245,10 @@ class DeckConfig {
       errors.add('Missing testing_deck section');
     }
     
+    if (!_config.containsKey('demo_deck')) {
+      errors.add('Missing demo_deck section');
+    }
+    
     // Validate current deck configuration
     if (this.currentDeck.isEmpty) {
       errors.add('Current deck configuration is empty');
@@ -259,15 +287,28 @@ class DeckConfig {
     final deckSettings = Map<String, dynamic>.from(modifiedConfig['deck_settings'] as Map);
     deckSettings['testing_mode'] = testingMode;
     modifiedConfig['deck_settings'] = deckSettings;
-    return DeckConfig(modifiedConfig);
+    final newConfig = DeckConfig(modifiedConfig);
+    // Clear deck type override when using testing_mode
+    newConfig._deckTypeOverride = null;
+    return newConfig;
+  }
+  
+  /// Create a copy of this config with explicit deck type override
+  /// [deckType] can be 'standard', 'testing', 'demo', or null (use YAML default)
+  DeckConfig withDeckType(String? deckType) {
+    final newConfig = DeckConfig(Map<String, dynamic>.from(_config));
+    newConfig._deckTypeOverride = deckType;
+    return newConfig;
   }
 
   /// Get configuration summary
   Map<String, dynamic> getSummary() {
     final stats = currentDeckStats;
+    final deckType = _deckTypeOverride ?? (isTestingMode ? 'testing' : 'standard');
     
     return {
       'testing_mode': isTestingMode,
+      'deck_type': deckType,
       'include_jokers': includeJokers,
       'suits': suits,
       'ranks_count': ranks.length,

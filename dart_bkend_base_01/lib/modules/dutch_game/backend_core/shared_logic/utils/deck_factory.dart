@@ -194,12 +194,23 @@ class YamlDeckFactory {
   YamlDeckFactory(this.gameId, this.config);
 
   /// Create factory from YAML file
-  /// [testingModeOverride] if provided, overrides the testing_mode from YAML config
-  static Future<YamlDeckFactory> fromFile(String gameId, String configPath, {bool? testingModeOverride}) async {
+  /// [testingModeOverride] if provided, overrides the testing_mode from YAML config (deprecated, use deckTypeOverride)
+  /// [deckTypeOverride] if provided, explicitly selects deck type: 'standard', 'testing', 'demo', or null (use YAML default)
+  static Future<YamlDeckFactory> fromFile(String gameId, String configPath, {bool? testingModeOverride, String? deckTypeOverride}) async {
     final config = await DeckConfig.fromFile(configPath);
-    final finalConfig = testingModeOverride != null 
-        ? config.withTestingMode(testingModeOverride)
-        : config;
+    final DeckConfig finalConfig;
+    
+    if (deckTypeOverride != null) {
+      // Use explicit deck type override (takes precedence)
+      finalConfig = config.withDeckType(deckTypeOverride);
+    } else if (testingModeOverride != null) {
+      // Legacy support: use testing_mode override
+      finalConfig = config.withTestingMode(testingModeOverride);
+    } else {
+      // No override - use YAML config default
+      finalConfig = config;
+    }
+    
     return YamlDeckFactory(gameId, finalConfig);
   }
 

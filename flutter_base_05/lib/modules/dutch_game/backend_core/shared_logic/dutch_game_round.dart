@@ -9,7 +9,7 @@ import 'utils/computer_player_factory.dart';
 import 'game_state_callback.dart';
 import '../services/game_registry.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
+const bool LOGGING_SWITCH = true; // Enabled for timer-based delay system, miss chance testing, action data tracking, and YAML loading
 
 class DutchGameRound {
   final Logger _logger = Logger();
@@ -619,12 +619,12 @@ class DutchGameRound {
       
       if (_computerPlayerFactory == null) {
         if (LOGGING_SWITCH) {
-          _logger.info('Dutch: Loading computer player config from assets/computer_player_config.yaml');
+          _logger.info('Dutch: Loading computer player config from $COMPUTER_PLAYER_CONFIG_PATH');
           _logger.info('Dutch: About to call ComputerPlayerFactory.fromFile()');
         }
         
         try {
-          _computerPlayerFactory = await ComputerPlayerFactory.fromFile('assets/computer_player_config.yaml');
+          _computerPlayerFactory = await ComputerPlayerFactory.fromFile(COMPUTER_PLAYER_CONFIG_PATH);
           
           if (LOGGING_SWITCH) {
             _logger.info('Dutch: ComputerPlayerFactory.fromFile() completed successfully');

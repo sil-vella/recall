@@ -7,7 +7,7 @@
 # Global deck settings
 deck_settings:
   include_jokers: true
-  testing_mode: false  # Set to false for standard deck, true for testing deck
+  testing_mode: true  # Set to false for standard deck, true for testing deck
 
 # Standard deck configuration (52 cards + 2 jokers = 54 total)
 standard_deck:
@@ -107,6 +107,36 @@ testing_deck:
       quantity_total: 0  # No jokers in test deck
       suit: "joker"
 
+# Demo deck configuration - 20 cards total: 8 jacks, 8 queens, 4 aces
+# Used when showInstructions is true (demo mode with instructions)
+demo_deck:
+  suits:
+    - hearts
+    - diamonds
+    - clubs
+    - spades
+  
+  ranks:
+    ace:
+      points: 1
+      special_power: null
+      quantity_per_suit: 1  # 1 per suit × 4 suits = 4 cards
+    jack:
+      points: 10
+      special_power: "switch_cards"
+      quantity_per_suit: 2  # 2 per suit × 4 suits = 8 cards
+    queen:
+      points: 10
+      special_power: "peek_at_card"
+      quantity_per_suit: 2  # 2 per suit × 4 suits = 8 cards
+  
+  jokers:
+    joker:
+      points: 0
+      special_power: null
+      quantity_total: 0  # No jokers in demo deck
+      suit: "joker"
+
 # Card display symbols and names
 card_display:
   suits:
@@ -152,6 +182,13 @@ deck_stats:
     special_cards: 8  # 4 queens + 4 jacks
   
   testing:
+    total_cards: 20  # 4 aces + 8 jacks + 8 queens = 20 cards
+    suits: 4
+    ranks_per_suit: 3  # ace (1) + jacks (2) + queens (2) = 5 per suit, but only 3 ranks
+    jokers: 0
+    special_cards: 16  # 8 queens + 8 jacks
+  
+  demo:
     total_cards: 20  # 4 aces + 8 jacks + 8 queens = 20 cards
     suits: 4
     ranks_per_suit: 3  # ace (1) + jacks (2) + queens (2) = 5 per suit, but only 3 ranks

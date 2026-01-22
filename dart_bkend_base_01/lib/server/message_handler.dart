@@ -10,7 +10,7 @@ import '../modules/dutch_game/utils/platform/shared_imports.dart';
 import '../modules/dutch_game/backend_core/utils/rank_matcher.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization and match creation
+const bool LOGGING_SWITCH = true; // Enabled for testing game finding/initialization, match creation, and registration differences
 
 class MessageHandler {
   final RoomManager _roomManager;
@@ -80,7 +80,10 @@ class MessageHandler {
         _handleListRooms(sessionId);
         break;
       case 'join_random_game':
-        _handleJoinRandomGame(sessionId, data);
+        // Fire and forget - async operation for account type logging
+        _handleJoinRandomGame(sessionId, data).catchError((e) {
+          _logger.error('❌ Error in _handleJoinRandomGame: $e', isOn: LOGGING_SWITCH);
+        });
         break;
 
       // Game events (all handled uniformly)
@@ -462,9 +465,21 @@ class MessageHandler {
   
   /// Handle join random game event
   /// Searches for available public games or auto-creates and auto-starts a new one
-  void _handleJoinRandomGame(String sessionId, Map<String, dynamic> data) {
+  Future<void> _handleJoinRandomGame(String sessionId, Map<String, dynamic> data) async {
     // Get userId from server's session mapping (should be set after authentication)
-    final userId = _server.getUserIdForSession(sessionId);
+    var userId = _server.getUserIdForSession(sessionId);
+    
+    // CRITICAL: Check if event payload includes a user_id that differs from session mapping
+    // This handles account conversion scenarios (e.g., guest to Google) where the session
+    // mapping hasn't been updated yet but the event has the correct new user_id
+    final eventUserId = data['user_id'] as String?;
+    if (eventUserId != null && eventUserId != userId) {
+      _logger.warning('⚠️ _handleJoinRandomGame: Event user_id ($eventUserId) differs from session mapping ($userId) - using event user_id (likely account conversion)', isOn: LOGGING_SWITCH);
+      userId = eventUserId;
+      // Update session mapping to match event (session should be re-authenticated, but this is a safety measure)
+      // Note: This is a temporary fix - ideally the session should be re-authenticated with new token
+      _server.updateSessionUserId(sessionId, userId);
+    }
     
     if (userId == null) {
       _logger.error('❌ _handleJoinRandomGame: Session $sessionId is authenticated but userId is null', isOn: LOGGING_SWITCH);
@@ -484,6 +499,18 @@ class MessageHandler {
     _logger.room('✅ _handleJoinRandomGame: parsed isClearAndCollect: value=$isClearAndCollect (type: ${isClearAndCollect.runtimeType})', isOn: LOGGING_SWITCH);
     
     _logger.room('🔍 _handleJoinRandomGame: sessionId=$sessionId, userId=$userId, isClearAndCollect=$isClearAndCollect', isOn: LOGGING_SWITCH);
+    
+    // Log user account type for registration differences testing
+    try {
+      final profileResult = await _server.pythonClient.getUserProfile(userId);
+      if (profileResult['success'] == true) {
+        final accountType = profileResult['account_type'] as String? ?? 'unknown';
+        final username = profileResult['username'] as String? ?? 'unknown';
+        _logger.room('👤 _handleJoinRandomGame: User account info - userId=$userId, username=$username, account_type=$accountType', isOn: LOGGING_SWITCH);
+      }
+    } catch (e) {
+      _logger.warning('⚠️ _handleJoinRandomGame: Could not fetch user profile for account type logging: $e', isOn: LOGGING_SWITCH);
+    }
     
     try {
       // Get available rooms for random join

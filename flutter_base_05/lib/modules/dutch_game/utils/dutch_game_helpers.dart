@@ -21,7 +21,7 @@ class DutchGameHelpers {
   static final _stateUpdater = DutchGameStateUpdater.instance;
   static final _logger = Logger();
   
-  static const bool LOGGING_SWITCH = false; // Enabled for mode switching debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for mode switching debugging and leave_room event verification
   
   // ========================================
   // EVENT EMISSION HELPERS
@@ -1076,7 +1076,9 @@ class DutchGameHelpers {
       // to ensure state is fully cleared before the next join attempt
       _stateUpdater.updateStateSync({
         // Clear player-specific state
-        'playerStatus': 'unknown',
+        // Note: playerStatus must be one of the allowed values: waiting, ready, playing, same_rank_window, playing_card, drawing_card, queen_peek, jack_swap, peeking, initial_peek, finished, disconnected, winner
+        // Use 'waiting' as the default cleared state (not 'unknown' which is not allowed)
+        'playerStatus': 'waiting',
         'myScore': 0,
         'isMyTurn': false,
         'myDrawnCard': null,

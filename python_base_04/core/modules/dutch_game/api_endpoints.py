@@ -6,7 +6,7 @@ from bson import ObjectId
 dutch_api = Blueprint('dutch_api', __name__)
 
 # Logging switch for this module
-LOGGING_SWITCH = False  # Enabled for rank-based matching testing
+LOGGING_SWITCH = True  # Enabled for rank-based matching testing and registration differences
 
 # Store app_manager reference (will be set by module)
 _app_manager = None
@@ -53,9 +53,11 @@ def validate_token():
             
             custom_log(f"✅ API: Token validation successful for user: {user_id}", level="INFO", isOn=LOGGING_SWITCH)
             
-            # Fetch user rank and level from database
+            # Fetch user rank, level, and account_type from database
             rank = None
             level = None
+            account_type = None
+            username = None
             if _app_manager and user_id:
                 try:
                     db_manager = _app_manager.get_db_manager(role="read_only")
@@ -66,19 +68,28 @@ def validate_token():
                             # If ObjectId conversion fails, try with string
                             user_data = db_manager.find_one("users", {"_id": user_id})
                         
-                        if user_data and user_data.get("modules", {}).get("dutch_game"):
-                            dutch_game_data = user_data['modules']['dutch_game']
-                            rank = dutch_game_data.get('rank', 'beginner')
-                            level = dutch_game_data.get('level', 1)
-                            custom_log(f"✅ API: Fetched rank={rank}, level={level} for user {user_id}", level="INFO", isOn=LOGGING_SWITCH)
+                        if user_data:
+                            # Get account type and username
+                            account_type = user_data.get('account_type', 'regular')
+                            username = user_data.get('username', 'unknown')
+                            custom_log(f"✅ API: Fetched user info - userId={user_id}, username={username}, account_type={account_type}", level="INFO", isOn=LOGGING_SWITCH)
+                            
+                            # Get rank and level from dutch_game module
+                            if user_data.get("modules", {}).get("dutch_game"):
+                                dutch_game_data = user_data['modules']['dutch_game']
+                                rank = dutch_game_data.get('rank', 'beginner')
+                                level = dutch_game_data.get('level', 1)
+                                custom_log(f"✅ API: Fetched rank={rank}, level={level} for user {user_id}", level="INFO", isOn=LOGGING_SWITCH)
                 except Exception as e:
-                    custom_log(f"⚠️ API: Error fetching rank/level for user {user_id}: {e}", level="WARNING", isOn=LOGGING_SWITCH)
+                    custom_log(f"⚠️ API: Error fetching user data for user {user_id}: {e}", level="WARNING", isOn=LOGGING_SWITCH)
             
             return jsonify({
                 'valid': True,
                 'user_id': user_id,
                 'rank': rank,
                 'level': level,
+                'account_type': account_type,  # Include account type for registration differences testing
+                'username': username,  # Include username for logging
                 'payload': payload
             })
         except Exception as e:

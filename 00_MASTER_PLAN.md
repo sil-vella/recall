@@ -113,6 +113,36 @@ This document tracks high-level development plans, todos, and architectural deci
 - [ ] Add comprehensive error handling for game events
 - [ ] Implement game state persistence (optional, for recovery)
 - [ ] Add game replay/logging system
+- [ ] **Properly clear game maps and game-related state when switching from one match to another**
+  - **Issue**: When starting a new match, old game data may persist in game maps and state, causing conflicts or incorrect behavior
+  - **Current Behavior**: Game maps (`games` in state manager) and game-related state may retain data from previous matches when starting a new game
+  - **Expected Behavior**: All game maps and game-related state should be completely cleared before starting a new match to ensure clean state
+  - **State to Clear**:
+    - `games` map in state manager (remove all previous game entries)
+    - `currentGameId` and `currentRoomId` (reset to null/empty)
+    - Game state slices: `myHandCards`, `discardPile`, `drawPile`, `opponentsPanel`, `centerBoard`
+    - Game-related identifiers: `roundNumber`, `gamePhase`, `roundStatus`, `currentPlayer`
+    - Player state: `playerStatus`, `myScore`, `isMyTurn`, `myDrawnCard`
+    - Messages and turn events: `messages`, `turn_events`
+    - Animation data: any cached animation state or position tracking data
+    - Computer player factory state (if any cached state exists)
+  - **When to Clear**:
+    - Before starting a new match (`start_match` event handler)
+    - When leaving/ending a match
+    - When switching between practice and multiplayer modes
+    - On explicit game cleanup/exit actions
+  - **Location**: 
+    - `flutter_base_05/lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart` - `_handleStartMatch()` method (clear before new match)
+    - `flutter_base_05/lib/modules/dutch_game/managers/dutch_event_handler_callbacks.dart` - Match start/end handlers
+    - `flutter_base_05/lib/modules/dutch_game/managers/dutch_game_state_updater.dart` - State clearing utilities
+    - `dart_bkend_base_01/lib/modules/dutch_game/backend_core/coordinator/game_event_coordinator.dart` - Same for Dart backend
+  - **Implementation**:
+    - Create centralized `clearAllGameState()` function that clears all game-related state
+    - Call this function at the start of `_handleStartMatch()` before initializing new game
+    - Ensure cleanup happens in both Flutter and Dart backend versions
+    - Clear both state manager state and any in-memory game maps/registries
+    - Verify no stale references remain after cleanup
+  - **Impact**: Game integrity and reliability - prevents state conflicts between matches, ensures each new match starts with clean state
 - [ ] **Complete initial peek logic**
   - **Status**: Partially implemented - initial peek phase exists but needs completion
   - **Current State**: Game enters `initial_peek` phase on match start, players can peek at 2 cards

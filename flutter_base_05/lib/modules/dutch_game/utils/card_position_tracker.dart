@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = true; // Enabled for animation system testing
+const bool LOGGING_SWITCH = false; // Enabled for animation system testing
 
 /// Represents a card's position and size on screen
 class CardPosition {

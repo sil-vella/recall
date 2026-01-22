@@ -7,7 +7,7 @@ import '../../../managers/game_coordinator.dart';
 import '../../../../dutch_game/utils/dutch_game_helpers.dart';
 import '../../../../../utils/consts/theme_consts.dart';
 
-const bool LOGGING_SWITCH = false;
+const bool LOGGING_SWITCH = true; // Enabled for lobby screen recomputation debugging
 
 /// Widget to display all joined rooms with join functionality
 /// 
@@ -28,6 +28,21 @@ class CurrentRoomWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // CRITICAL: Force recomputation of joinedGamesSlice when widget builds
+    // This ensures the widget always reflects the current games map state
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final stateManager = StateManager();
+      final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
+      
+      _logger.info('CurrentRoomWidget: build() - Forcing joinedGamesSlice recomputation (games map has ${games.length} games)', isOn: LOGGING_SWITCH);
+      
+      // Trigger recomputation by updating games (even if unchanged, this will recompute the slice)
+      DutchGameHelpers.updateUIState({
+        'games': games, // This will trigger _updateWidgetSlices which will recompute joinedGamesSlice
+      });
+    });
+
     return ListenableBuilder(
       listenable: StateManager(),
       builder: (context, child) {
@@ -42,6 +57,8 @@ class CurrentRoomWidget extends StatelessWidget {
         final joinedGamesSlice = dutchGameState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
         final joinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
         final totalJoinedGames = joinedGamesSlice['totalGames'] ?? 0;
+        
+        _logger.info('CurrentRoomWidget: Rendering with ${totalJoinedGames} games from joinedGamesSlice', isOn: LOGGING_SWITCH);
         // Removed joinedGamesTimestamp - causes unnecessary state updates
 
         // If not in any games, show empty state

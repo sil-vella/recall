@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../utils/server_logger.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for rank-based matching and comp player testing
+const bool LOGGING_SWITCH = true; // Enabled for rank-based matching, comp player testing, and registration differences
 
 class PythonApiClient {
   final String baseUrl;
@@ -163,7 +163,9 @@ class PythonApiClient {
         final success = result['success'] as bool? ?? false;
         
         if (success) {
-          _logger.info('✅ Dart: Retrieved user profile for userId: $userId', isOn: LOGGING_SWITCH);
+          final accountType = result['account_type'] as String? ?? 'unknown';
+          final username = result['username'] as String? ?? 'unknown';
+          _logger.info('✅ Dart: Retrieved user profile for userId: $userId, username: $username, account_type: $accountType', isOn: LOGGING_SWITCH);
           return result;
         } else {
           _logger.warning('⚠️ Dart: API returned success=false: ${result['error']}', isOn: LOGGING_SWITCH);

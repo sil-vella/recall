@@ -33,7 +33,7 @@ class PlayerAction {
   static final DutchGameStateUpdater _stateUpdater = DutchGameStateUpdater.instance;
   
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for practice match debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for practice match debugging and leave_room event verification
   
   // Analytics module cache
   static AnalyticsModule? _analyticsModule;
@@ -71,7 +71,12 @@ class PlayerAction {
   /// Execute the player action with validation and state management
   Future<void> execute() async {
     try {
-      _logger.info('Executing action: ${actionType.name} with payload: $payload', isOn: LOGGING_SWITCH);
+      _logger.info('PlayerAction.execute: Executing action: ${actionType.name}, eventName: $eventName, payload: $payload', isOn: LOGGING_SWITCH);
+      
+      // Special logging for leave_room events
+      if (eventName == 'leave_room') {
+        _logger.info('PlayerAction.execute: LEAVE_ROOM event - gameId: ${payload['game_id']}', isOn: LOGGING_SWITCH);
+      }
       
       // Special handling for Jack swap - build complete payload from selections
       if (actionType == PlayerActionType.jackSwap) {

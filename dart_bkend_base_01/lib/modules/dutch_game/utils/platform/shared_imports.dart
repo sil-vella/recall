@@ -16,4 +16,5 @@ export '../../../../managers/hooks_manager.dart' hide LOGGING_SWITCH;
 
 // Platform-specific config paths (Dart backend)
 const String DECK_CONFIG_PATH = 'assets/deck_config.yaml';
+const String COMPUTER_PLAYER_CONFIG_PATH = 'assets/computer_player_config.yaml';
 

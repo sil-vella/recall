@@ -26,7 +26,7 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for animation system testing
+  static const bool LOGGING_SWITCH = true; // Enabled for animation system testing and joinedGamesSlice debugging
   
   // Dependencies
   final StateManager _stateManager = StateManager();
@@ -483,11 +483,15 @@ class DutchGameStateUpdater {
     
     // CRITICAL: Always ensure joinedGamesSlice matches games map state
     // - If games map is empty, clear joinedGamesSlice
-    // - If games map has games but slice is missing/empty, compute it
+    // - If games field changed, always recompute the slice (games were added/removed)
+    // - If slice is missing/empty but games map has games, recompute it
     // This ensures lobby screen shows correct games and clears stale data when switching modes
     final gamesMap = updatedState['games'] as Map<String, dynamic>? ?? {};
     final existingJoinedGamesSlice = updatedState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
     final existingJoinedGames = existingJoinedGamesSlice['games'] as List<dynamic>? ?? [];
+    
+    // Check if games field changed (this indicates games were added/removed)
+    final gamesChanged = changedFields.contains('games');
     
     if (gamesMap.isEmpty) {
       // Games map is empty - clear joinedGamesSlice to match
@@ -501,6 +505,13 @@ class DutchGameStateUpdater {
           'isLoadingGames': false,
         };
       }
+    } else if (gamesChanged) {
+      // Games map changed - always recompute the slice to reflect current state
+      // This ensures removed games are immediately removed from the slice
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 DutchGameStateUpdater: Games map changed - recomputing joinedGamesSlice (games map has ${gamesMap.length} games)');
+      }
+      updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
     } else if (existingJoinedGamesSlice.isEmpty || !existingJoinedGamesSlice.containsKey('games')) {
       // Games map has games but slice is missing/empty - compute it
       if (LOGGING_SWITCH) {
@@ -907,22 +918,46 @@ class DutchGameStateUpdater {
     // If a game is in the games map, the user has joined it - no need to check player IDs
     final joinedGamesList = <Map<String, dynamic>>[];
     
+    // Collect invalid game IDs to remove after iteration
+    final invalidGameIds = <String>[];
+    
     for (final entry in games.entries) {
       final gameId = entry.key;
       final gameEntry = entry.value as Map<String, dynamic>? ?? {};
       final gameData = gameEntry['gameData'] as Map<String, dynamic>? ?? {};
       
-      // Only include games with valid gameData
-      if (gameData.isNotEmpty && gameData['game_id'] != null) {
+      // Only include games with valid gameData and valid game_id
+      // CRITICAL: Skip games with null or empty game_id (these are stale/invalid entries)
+      final gameIdFromData = gameData['game_id']?.toString();
+      if (gameData.isNotEmpty && gameIdFromData != null && gameIdFromData.isNotEmpty) {
         if (LOGGING_SWITCH) {
           _logger.debug('🎬 DutchGameStateUpdater: Adding game $gameId to joinedGamesSlice');
         }
         joinedGamesList.add(gameData);
       } else {
         if (LOGGING_SWITCH) {
-          _logger.debug('🎬 DutchGameStateUpdater: Game $gameId skipped - gameData empty: ${gameData.isEmpty}, game_id: ${gameData['game_id']}');
+          _logger.warning('🎬 DutchGameStateUpdater: Game $gameId skipped - gameData empty: ${gameData.isEmpty}, game_id: $gameIdFromData (invalid entry, will be removed)');
         }
+        invalidGameIds.add(gameId);
       }
+    }
+    
+    // CRITICAL: Remove invalid game entries from games map to prevent stale data
+    // This ensures the games map only contains valid games
+    if (invalidGameIds.isNotEmpty) {
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 DutchGameStateUpdater: Removing ${invalidGameIds.length} invalid game(s) from games map: ${invalidGameIds.join(", ")}');
+      }
+      // Trigger state update to remove invalid games using the state updater
+      // This ensures proper validation and widget slice recomputation
+      final updatedGames = Map<String, dynamic>.from(games);
+      for (final invalidId in invalidGameIds) {
+        updatedGames.remove(invalidId);
+      }
+      // Use state updater to remove invalid games (this will trigger proper recomputation)
+      updateState({
+        'games': updatedGames,
+      });
     }
     
     if (LOGGING_SWITCH) {
@@ -952,7 +987,7 @@ class DutchGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enabled for animation system testing
+  static const bool LOGGING_SWITCH = true; // Enabled for animation system testing and joinedGamesSlice debugging
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found

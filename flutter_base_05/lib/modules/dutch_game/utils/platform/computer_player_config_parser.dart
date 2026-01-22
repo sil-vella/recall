@@ -3,7 +3,7 @@ import 'package:yaml/yaml.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import '../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for YAML loading and parsing debugging
+const bool LOGGING_SWITCH = true; // Enabled for YAML loading and parsing debugging
 
 /// YAML Configuration Parser for Computer Player Behavior
 /// 

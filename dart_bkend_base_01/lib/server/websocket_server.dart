@@ -10,7 +10,7 @@ import '../managers/hooks_manager.dart';
 import '../modules/dutch_game/dutch_main.dart';
 
 // Logging switch for this file
-const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization
+const bool LOGGING_SWITCH = true; // Enabled for testing game finding/initialization and registration differences
 
 class WebSocketServer {
   final Map<String, WebSocketChannel> _connections = {};
@@ -77,6 +77,15 @@ class WebSocketServer {
   /// Get user ID for a session
   String? getUserIdForSession(String sessionId) {
     return _sessionToUser[sessionId];
+  }
+
+  /// Update session to user mapping (for account conversion scenarios)
+  void updateSessionUserId(String sessionId, String userId) {
+    final oldUserId = _sessionToUser[sessionId];
+    _sessionToUser[sessionId] = userId;
+    if (oldUserId != null && oldUserId != userId) {
+      _logger.auth('🔄 Updated session $sessionId user mapping: $oldUserId -> $userId', isOn: LOGGING_SWITCH);
+    }
   }
 
   /// Get user rank for a session
@@ -172,7 +181,10 @@ class WebSocketServer {
       }
 
       // Check for authentication token
-      if (data.containsKey('token') && !_authenticatedSessions[sessionId]!) {
+      // Allow re-authentication if token is provided (for account conversion scenarios)
+      if (data.containsKey('token')) {
+        // Always validate token if provided, even if already authenticated
+        // This allows session remapping after account conversion (e.g., guest to Google)
         validateAndAuthenticate(sessionId, data['token'] as String);
       }
 
@@ -194,18 +206,27 @@ class WebSocketServer {
       final result = await _pythonClient.validateToken(token);
 
       if (result['valid'] == true) {
+        final newUserId = result['user_id'] ?? sessionId;
+        final oldUserId = _sessionToUser[sessionId];
+        
+        // Check if user ID changed (e.g., after account conversion)
+        if (oldUserId != null && oldUserId != newUserId) {
+          _logger.auth('🔄 User ID changed for session $sessionId: $oldUserId -> $newUserId (likely account conversion)', isOn: LOGGING_SWITCH);
+        }
+        
         _authenticatedSessions[sessionId] = true;
-        _sessionToUser[sessionId] = result['user_id'] ?? sessionId;
+        _sessionToUser[sessionId] = newUserId;
         
         // Store rank and level from validation response
         final rank = result['rank'] as String?;
         final level = result['level'] as int?;
+        final accountType = result['account_type'] as String?; // Get account type from token validation
         if (rank != null || level != null) {
           setUserRankAndLevel(sessionId, rank, level);
           _logger.auth('✅ Stored rank=$rank, level=$level for session: $sessionId', isOn: LOGGING_SWITCH);
         }
 
-        _logger.auth('✅ Session authenticated: $sessionId', isOn: LOGGING_SWITCH);
+        _logger.auth('✅ Session authenticated: $sessionId, userId=$newUserId, account_type=${accountType ?? 'unknown'}', isOn: LOGGING_SWITCH);
         sendToSession(sessionId, {
           'event': 'authenticated',
           'session_id': sessionId,

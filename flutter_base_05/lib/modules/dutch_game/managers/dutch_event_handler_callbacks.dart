@@ -62,18 +62,44 @@ class DutchEventHandlerCallbacks {
     
     if (currentGames.containsKey(gameId)) {
       final currentGame = currentGames[gameId] as Map<String, dynamic>? ?? {};
+      final currentGameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
       
-      // Merge updates with current game data
-      // Removed lastUpdated - causes unnecessary state updates
-      currentGames[gameId] = {
+      // CRITICAL: Preserve gameData if updates don't include it
+      // This prevents gameData from being lost or overwritten with empty/null values
+      final mergedGame = {
         ...currentGame,
         ...updates,
       };
+      
+      // CRITICAL: If updates don't include gameData, preserve the existing one
+      if (!updates.containsKey('gameData')) {
+        mergedGame['gameData'] = currentGameData;
+      } else {
+        // If updates includes gameData, ensure it has game_id set
+        final updatedGameData = updates['gameData'] as Map<String, dynamic>? ?? {};
+        if (updatedGameData.isNotEmpty && (updatedGameData['game_id'] == null || updatedGameData['game_id'].toString().isEmpty)) {
+          _logger.warning('⚠️  _updateGameInMap: Updated gameData missing game_id for game $gameId - setting it', isOn: LOGGING_SWITCH);
+          updatedGameData['game_id'] = gameId;
+          mergedGame['gameData'] = updatedGameData;
+        }
+      }
+      
+      // CRITICAL: Validate that gameData still has game_id after merge
+      final finalGameData = mergedGame['gameData'] as Map<String, dynamic>? ?? {};
+      if (finalGameData.isEmpty || finalGameData['game_id'] == null || finalGameData['game_id'].toString().isEmpty) {
+        _logger.error('❌ _updateGameInMap: Game $gameId has invalid gameData after update - gameData empty: ${finalGameData.isEmpty}, game_id: ${finalGameData['game_id']}', isOn: LOGGING_SWITCH);
+        // Don't update if gameData is invalid - this prevents corrupting the games map
+        return;
+      }
+      
+      currentGames[gameId] = mergedGame;
       
       // Update global state
       DutchGameHelpers.updateUIState({
         'games': currentGames,
       });
+    } else {
+      _logger.warning('⚠️  _updateGameInMap: Game $gameId not found in games map - cannot update', isOn: LOGGING_SWITCH);
     }
   }
   
@@ -192,6 +218,18 @@ class DutchEventHandlerCallbacks {
   static void _addGameToMap(String gameId, Map<String, dynamic> gameData, {String? gameStatus}) {
     final currentGames = _getCurrentGamesMap();
     
+    // CRITICAL: Validate gameData has required fields before adding
+    if (gameData.isEmpty) {
+      _logger.warning('⚠️  _addGameToMap: Attempted to add game $gameId with empty gameData - skipping', isOn: LOGGING_SWITCH);
+      return;
+    }
+    
+    // CRITICAL: Ensure game_id is set in gameData (required for joinedGamesSlice computation)
+    if (gameData['game_id'] == null || gameData['game_id'].toString().isEmpty) {
+      _logger.warning('⚠️  _addGameToMap: gameData missing game_id for game $gameId - setting it', isOn: LOGGING_SWITCH);
+      gameData['game_id'] = gameId; // Ensure game_id is set
+    }
+    
     // Determine game status (phase is now managed in main state only)
     final status = gameStatus ?? gameData['game_state']?['status']?.toString() ?? 'inactive';
     
@@ -209,6 +247,8 @@ class DutchEventHandlerCallbacks {
       'joinedAt': joinedAt,  // Preserve original joinedAt timestamp
       // Removed lastUpdated - causes unnecessary state updates
     };
+    
+    _logger.info('✅ _addGameToMap: Added game $gameId with gameData.game_id=${gameData['game_id']}', isOn: LOGGING_SWITCH);
     
     // Update global state
     DutchGameHelpers.updateUIState({
@@ -1118,8 +1158,25 @@ When anyone has played a card with the **same rank** as your **collection card**
     
     // Check if game exists in games map, if not add it
     final currentGames = _getCurrentGamesMap();
+    final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+    final currentGameId = currentState['currentGameId']?.toString() ?? '';
+    
+    // 🎯 CRITICAL: If games map is empty but currentGameId is set, this might be a stale event
+    // from a game that was just cleared. Only accept events for the current game or if currentGameId is empty.
+    if (currentGames.isEmpty && currentGameId.isNotEmpty && gameId != currentGameId) {
+      _logger.warning('⚠️  handleGameStateUpdated: Ignoring stale game_state_updated for $gameId - games map is empty and currentGameId is $currentGameId (likely from cleared game)', isOn: LOGGING_SWITCH);
+      return; // Ignore stale events from games that were just cleared
+    }
+    
     final wasNewGame = !currentGames.containsKey(gameId);
+    
     if (wasNewGame) {
+      // 🎯 CRITICAL: Only one game should exist in the games map at a time
+      // Remove all other games when adding a new game
+      if (currentGames.isNotEmpty) {
+        _logger.warning('⚠️  handleGameStateUpdated: Removing ${currentGames.length} old game(s) before adding new game $gameId', isOn: LOGGING_SWITCH);
+        currentGames.clear(); // Remove all existing games
+      }
       // Add the game to the games map with the complete game state.
       // IMPORTANT: Do not overwrite ownership with null. Only include owner_id if present.
       final base = {
@@ -1150,17 +1207,27 @@ When anyone has played a card with the **same rank** as your **collection card**
       final updatedGamesAfterAdd = _getCurrentGamesMap();
       
       // 🎯 CRITICAL: Set currentGameId and ensure games map is in main state (important for player 2 joining after match start)
-      final currentState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-      final currentGameId = currentState['currentGameId']?.toString();
+      // Note: currentState and currentGameId are already defined above
       _logger.info('🔍 handleGameStateUpdated: currentGameId check - existing: $currentGameId, new gameId: $gameId', isOn: LOGGING_SWITCH);
-      if (currentGameId == null || currentGameId.isEmpty) {
+      
+      // 🎯 CRITICAL: Set currentGameId and ensure games map is in main state
+      // Since we cleared all other games above, this is the only game in the map
+      // Note: currentGameId is a String (never null due to ?? ''), so only check isEmpty
+      if (currentGameId.isEmpty) {
         _logger.info('🔍 handleGameStateUpdated: Setting currentGameId to $gameId (was null or empty)', isOn: LOGGING_SWITCH);
         _updateMainGameState({
           'currentGameId': gameId,
           'games': updatedGamesAfterAdd, // 🎯 CRITICAL: Ensure games map is in main state
         });
+      } else if (currentGameId != gameId) {
+        // If currentGameId is different, update it to the new game
+        _logger.info('🔍 handleGameStateUpdated: Updating currentGameId from $currentGameId to $gameId', isOn: LOGGING_SWITCH);
+        _updateMainGameState({
+          'currentGameId': gameId,
+          'games': updatedGamesAfterAdd, // 🎯 CRITICAL: Ensure games map is in main state
+        });
       } else {
-        // Even if currentGameId is set, ensure games map is updated in main state
+        // Even if currentGameId matches, ensure games map is updated in main state
         _logger.info('🔍 handleGameStateUpdated: currentGameId already set to $currentGameId, updating games map only', isOn: LOGGING_SWITCH);
         _updateMainGameState({
           'games': updatedGamesAfterAdd, // 🎯 CRITICAL: Ensure games map is in main state
@@ -1173,6 +1240,30 @@ When anyone has played a card with the **same rank** as your **collection card**
       if (!currentGamesForCheck.containsKey(gameId)) {
         _logger.warning('⚠️  handleGameStateUpdated: Game $gameId not found in games map - user may have left. Skipping game state update.', isOn: LOGGING_SWITCH);
         return;
+      }
+      
+      // 🎯 CRITICAL: Only one game should exist in the games map at a time
+      // If this game is not the currentGameId, remove it and all other games
+      final currentStateForCheck = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
+      final currentGameIdForCheck = currentStateForCheck['currentGameId']?.toString() ?? '';
+      
+      if (currentGameIdForCheck.isNotEmpty && currentGameIdForCheck != gameId) {
+        // This is a stale game - remove it and keep only the current game
+        _logger.warning('⚠️  handleGameStateUpdated: Removing stale game $gameId - currentGameId is $currentGameIdForCheck', isOn: LOGGING_SWITCH);
+        final gamesToUpdate = _getCurrentGamesMap();
+        gamesToUpdate.remove(gameId);
+        // If the current game is still in the map, keep only that one
+        if (gamesToUpdate.containsKey(currentGameIdForCheck)) {
+          final currentGameData = gamesToUpdate[currentGameIdForCheck];
+          gamesToUpdate.clear();
+          gamesToUpdate[currentGameIdForCheck] = currentGameData;
+        } else {
+          gamesToUpdate.clear();
+        }
+        DutchGameHelpers.updateUIState({
+          'games': gamesToUpdate,
+        });
+        return; // Don't update stale games
       }
       
       // Update existing game's game_state

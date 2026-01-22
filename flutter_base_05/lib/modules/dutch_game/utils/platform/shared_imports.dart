@@ -17,4 +17,5 @@ typedef HooksManager = dynamic;
 
 // Platform-specific config paths (Flutter)
 const String DECK_CONFIG_PATH = 'assets/deck_config.yaml';
+const String COMPUTER_PLAYER_CONFIG_PATH = 'assets/computer_player_config.yaml';
 

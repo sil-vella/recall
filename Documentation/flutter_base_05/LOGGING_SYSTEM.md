@@ -299,7 +299,7 @@ The current codebase uses a pattern where modules define a `LOGGING_SWITCH` cons
 ```dart
 class MyModule extends ModuleBase {
   static final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true; // Enable/disable logging for this module
+  static const bool LOGGING_SWITCH = false; // Enable/disable logging for this module
   
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
@@ -386,7 +386,7 @@ class StateAwareWidget extends StatelessWidget {
 ```dart
 class CriticalSystem {
   static final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = true;
+  static const bool LOGGING_SWITCH = false;
   
   void handleCriticalEvent() {
     // Using LOGGING_SWITCH pattern

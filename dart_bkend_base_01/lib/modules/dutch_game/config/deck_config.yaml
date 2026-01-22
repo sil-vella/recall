@@ -121,6 +121,51 @@ testing_deck:
       quantity_total: 2
       suit: "joker"
 
+# Demo deck configuration (copy of testing deck for demo mode with instructions)
+demo_deck:
+  suits:
+    - hearts
+    - diamonds
+    - clubs
+    - spades
+  
+  ranks:
+    ace:
+      points: 1
+      special_power: null
+      quantity_per_suit: 1
+    "3":
+      points: 3
+      special_power: null
+      quantity_per_suit: 1
+    "4":
+      points: 4
+      special_power: null
+      quantity_per_suit: 1
+    "5":
+      points: 5
+      special_power: null
+      quantity_per_suit: 1
+    jack:
+      points: 10
+      special_power: "switch_cards"
+      quantity_per_suit: 4  # More jacks for testing
+    queen:
+      points: 10
+      special_power: "peek_at_card"
+      quantity_per_suit: 4  # More queens for testing
+    king:
+      points: 10
+      special_power: null
+      quantity_per_suit: 1
+  
+  jokers:
+    joker:
+      points: 0
+      special_power: null
+      quantity_total: 2
+      suit: "joker"
+
 # Card display symbols and names
 card_display:
   suits:
@@ -166,6 +211,14 @@ deck_stats:
     special_cards: 8  # 4 queens + 4 jacks
   
   testing:
+    total_cards: 38
+    suits: 4
+    special_cards: 32  # 16 queens + 16 jacks
+    numbered_cards: 12  # 3, 4, 5 of each suit
+    face_cards: 8  # 4 kings + 4 aces
+    jokers: 2
+  
+  demo:
     total_cards: 38
     suits: 4
     special_cards: 32  # 16 queens + 16 jacks

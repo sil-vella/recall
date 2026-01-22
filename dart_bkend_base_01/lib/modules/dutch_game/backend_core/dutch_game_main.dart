@@ -121,7 +121,8 @@ class DutchGameModule {
               playerName = usernameFromProfile;
             }
             
-            _logger.info('✅ Fetched creator profile: name=$playerName, username=$usernameFromProfile, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
+            final accountType = profileResult['account_type'] as String? ?? 'unknown';
+            _logger.info('✅ Fetched creator profile: name=$playerName, username=$usernameFromProfile, account_type=$accountType, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
           } else {
             _logger.warning('⚠️ Failed to fetch creator profile: ${profileResult['error']}', isOn: LOGGING_SWITCH);
           }
@@ -273,7 +274,8 @@ class DutchGameModule {
               playerName = usernameFromProfile;
             }
             
-            _logger.info('✅ Fetched user profile: name=$playerName, username=$usernameFromProfile, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
+            final accountType = profileResult['account_type'] as String? ?? 'unknown';
+            _logger.info('✅ Fetched user profile: name=$playerName, username=$usernameFromProfile, account_type=$accountType, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
           } else {
             _logger.warning('⚠️ Failed to fetch user profile: ${profileResult['error']}', isOn: LOGGING_SWITCH);
           }

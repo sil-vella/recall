@@ -4,7 +4,7 @@ import '../../../../tools/logging/logger.dart';
 import 'player_action.dart';
 import '../utils/dutch_game_helpers.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing game finding/initialization
+const bool LOGGING_SWITCH = true; // Enabled for testing game finding/initialization and leave_room event verification
 
 /// Game Coordinator for handling all player game actions
 /// 
@@ -52,11 +52,16 @@ class GameCoordinator {
   Future<bool> leaveGame({
     required String gameId,
   }) async {
+    _logger.info('GameCoordinator.leaveGame: Called with gameId: $gameId', isOn: LOGGING_SWITCH);
     try {
+      _logger.info('GameCoordinator.leaveGame: Creating PlayerAction.leaveGame for $gameId', isOn: LOGGING_SWITCH);
       final action = PlayerAction.leaveGame(gameId: gameId);
+      _logger.info('GameCoordinator.leaveGame: Executing leave_room event for $gameId', isOn: LOGGING_SWITCH);
       await action.execute();
+      _logger.info('GameCoordinator.leaveGame: Successfully executed leave_room event for $gameId', isOn: LOGGING_SWITCH);
       return true;
     } catch (e) {
+      _logger.error('GameCoordinator.leaveGame: Error leaving game $gameId: $e', isOn: LOGGING_SWITCH);
       return false;
     }
   }

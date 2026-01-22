@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:yaml/yaml.dart';
 import 'shared_imports.dart'; // Provides Logger
 
-const bool LOGGING_SWITCH = false; // Enabled for YAML loading and parsing debugging
+const bool LOGGING_SWITCH = true; // Enabled for YAML loading and parsing debugging
 
 /// YAML Configuration Parser for Computer Player Behavior
 /// 
@@ -41,8 +41,7 @@ class ComputerPlayerConfig {
       // Map Flutter asset path to server-relative path when possible
       var resolvedPath = filePath;
       if (filePath.startsWith('assets/')) {
-        // Try local module config fallback (if provided later)
-        // Keep original path if not found; will throw and caller may fallback
+        // Use config directory only (backend_core/config is removed)
         final candidate = File('lib/modules/dutch_game/config/computer_player_config.yaml');
         if (candidate.existsSync()) {
           resolvedPath = candidate.path;

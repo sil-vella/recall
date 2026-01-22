@@ -35,7 +35,7 @@ from core.services.analytics_service import AnalyticsService
 
 class UserManagementModule(BaseModule):
     # Logging switch for guest registration and conversion testing
-    LOGGING_SWITCH = False  # Enabled for rank-based matching and debugging
+    LOGGING_SWITCH = True  # Enabled for rank-based matching, debugging, and registration differences testing
     METRICS_SWITCH = True
     
     def __init__(self, app_manager=None):
@@ -1675,11 +1675,14 @@ class UserManagementModule(BaseModule):
             first_name = profile.get('first_name', '')
             last_name = profile.get('last_name', '')
             picture = profile.get('picture', '')
+            account_type = user.get('account_type', 'regular')  # Get account type for registration differences testing
             
             # Build full name (first_name + last_name, fallback to empty string)
             full_name = ''
             if first_name or last_name:
                 full_name = f"{first_name} {last_name}".strip()
+            
+            custom_log(f"UserManagement: get_user_profile_by_id - userId={user_id}, username={username}, account_type={account_type}", level="INFO", isOn=UserManagementModule.LOGGING_SWITCH)
             
             return jsonify({
                 'success': True,
@@ -1689,6 +1692,7 @@ class UserManagementModule(BaseModule):
                 'first_name': first_name,
                 'last_name': last_name,
                 'profile_picture': picture,
+                'account_type': account_type,  # Include account type for registration differences testing
             }), 200
             
         except Exception as e:

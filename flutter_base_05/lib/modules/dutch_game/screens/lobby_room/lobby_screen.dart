@@ -31,7 +31,7 @@ class LobbyScreen extends BaseScreen {
 }
 
 class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
-  static const bool LOGGING_SWITCH = false; // Enabled for mode switching debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for mode switching debugging and joinedGamesSlice recomputation
   final WebSocketManager _websocketManager = WebSocketManager.instance;
   final LobbyFeatureRegistrar _featureRegistrar = LobbyFeatureRegistrar();
 
@@ -54,8 +54,21 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       _featureRegistrar.registerDefaults(context);
     });
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Recompute joinedGamesSlice when screen becomes visible (e.g., navigating back to lobby)
+    // This ensures the widget always reflects current state
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _ensureJoinedGamesSliceComputed();
+      }
+    });
+  }
   
-  /// Ensure joinedGamesSlice is computed from games map if it doesn't exist or is stale
+  /// Ensure joinedGamesSlice is computed from games map - ALWAYS recompute on lobby screen load/build/focus
+  /// This ensures the widget always reflects the current games map state
   void _ensureJoinedGamesSliceComputed() {
     final Logger _logger = Logger();
     final stateManager = StateManager();
@@ -66,14 +79,13 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     
     _logger.info('LobbyScreen: _ensureJoinedGamesSliceComputed - games map has ${games.length} games, joinedGamesSlice has ${currentJoinedGames.length} games', isOn: LOGGING_SWITCH);
     
-    // If games map has games but joinedGamesSlice is empty or missing, trigger recomputation
-    if (games.isNotEmpty && (joinedGamesSlice.isEmpty || currentJoinedGames.isEmpty)) {
-      _logger.info('LobbyScreen: Games map has ${games.length} games but joinedGamesSlice is empty - triggering recomputation', isOn: LOGGING_SWITCH);
-      // Trigger recomputation by updating games (even if unchanged, this will recompute the slice)
-      DutchGameHelpers.updateUIState({
-        'games': games, // This will trigger _updateWidgetSlices which will recompute joinedGamesSlice
-      });
-    }
+    // ALWAYS trigger recomputation when lobby screen loads/builds/becomes visible
+    // This ensures the widget reflects the current games map state, even if stale data exists
+    _logger.info('LobbyScreen: Forcing joinedGamesSlice recomputation from games map (${games.length} games)', isOn: LOGGING_SWITCH);
+    // Trigger recomputation by updating games (even if unchanged, this will recompute the slice)
+    DutchGameHelpers.updateUIState({
+      'games': games, // This will trigger _updateWidgetSlices which will recompute joinedGamesSlice
+    });
   }
 
   Future<void> _initializeWebSocket() async {
@@ -461,6 +473,13 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   @override
   Widget buildContent(BuildContext context) {
+    // CRITICAL: Recompute joinedGamesSlice on every build to ensure widget reflects current state
+    // This handles cases where state contains stale games that need to be cleared
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _ensureJoinedGamesSliceComputed();
+      }
+    });
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1000),

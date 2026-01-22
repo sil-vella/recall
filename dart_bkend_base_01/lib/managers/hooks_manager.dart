@@ -132,9 +132,13 @@ class HooksManager {
     if (_hooks.containsKey(hookName)) {
       final count = _hooks[hookName]!.length;
       _hooks[hookName]!.clear();
-      _logger.info('🎣 Cleared hook: $hookName ($count callbacks removed)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎣 Cleared hook: $hookName ($count callbacks removed)');
+      }
     } else {
-      _logger.warning('🎣 Hook not found for clearing: $hookName', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('🎣 Hook not found for clearing: $hookName');
+      }
     }
   }
 

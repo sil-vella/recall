@@ -308,7 +308,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         'displayName': 'Practice Player',
         'isPracticeUser': true,
       };
-      _logger.info('🎮 _startPracticeMatch: Generated practice user: $currentUserId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Generated practice user: $currentUserId');
+      }
       
       // Force showInstructions to false for practice matches (instructions are only used in demo matches)
       final updatedPracticeSettings = Map<String, dynamic>.from(practiceSettings);
@@ -322,25 +324,29 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       });
       if (LOGGING_SWITCH) {
         _logger.info('🎮 _startPracticeMatch: Stored practice user data and settings in state');
-      }
-      if (LOGGING_SWITCH) {
         _logger.info('🎮 _startPracticeMatch: showInstructions = false (always disabled for practice matches)');
       }
       
       // Verify practice user data was stored (read back from state)
       final verifyState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final verifyPracticeUser = verifyState['practiceUser'] as Map<String, dynamic>?;
-      _logger.info('🎮 _startPracticeMatch: Verified practice user in state: $verifyPracticeUser', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Verified practice user in state: $verifyPracticeUser');
+      }
       
       // Switch event emitter to practice mode
       final eventEmitter = DutchGameEventEmitter.instance;
       eventEmitter.setTransportMode(EventTransportMode.practice);
-      _logger.info('🎮 _startPracticeMatch: Switched to practice mode', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Switched to practice mode');
+      }
       
       // Initialize and start practice session
       final practiceBridge = PracticeModeBridge.instance;
       await practiceBridge.initialize();
-      _logger.info('🎮 _startPracticeMatch: Practice bridge initialized', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Practice bridge initialized');
+      }
       
       // Get difficulty from practice settings
       final practiceDifficulty = updatedPracticeSettings['difficulty'] as String? ?? 'medium';
@@ -352,12 +358,16 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         gameType: 'practice',
         difficulty: practiceDifficulty, // Pass difficulty from lobby selection
       );
-      _logger.info('🎮 _startPracticeMatch: Practice room created: $practiceRoomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Practice room created: $practiceRoomId');
+      }
       
       // Get game state from GameStateStore (after hooks have initialized it)
       final gameStateStore = GameStateStore.instance;
       final gameState = gameStateStore.getGameState(practiceRoomId);
-      _logger.info('🎮 _startPracticeMatch: Got game state, phase = ${gameState['phase']}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Got game state, phase = ${gameState['phase']}');
+      }
       
       // Create gameData structure matching multiplayer format
       final maxPlayersValue = practiceSettings['maxPlayers'] as int? ?? 4;

@@ -703,7 +703,9 @@ When anyone has played a card with the **same rank** as your **collection card**
         }
       }
     } catch (e) {
-      _logger.error('Error checking demo action completion: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Error checking demo action completion: $e');
+      }
     }
   }
 

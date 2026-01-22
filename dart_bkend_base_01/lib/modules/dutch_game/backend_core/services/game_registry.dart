@@ -29,7 +29,9 @@ class GameRegistry {
   void dispose(String roomId) {
     _roomIdToRound.remove(roomId);
     GameStateStore.instance.clear(roomId);
-    _logger.info('GameRegistry: Disposed game for $roomId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameRegistry: Disposed game for $roomId');
+    }
   }
 }
 
@@ -171,7 +173,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
   void broadcastGameStateExcept(String excludePlayerId, Map<String, dynamic> updates) {
     // Validate and apply updates to state store (same as onGameStateChanged)
     // But broadcast to all players except the excluded one
-    _logger.info('📤 broadcastGameStateExcept: Broadcasting state update to all except player $excludePlayerId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('📤 broadcastGameStateExcept: Broadcasting state update to all except player $excludePlayerId');
+    }
     
     try {
       // Validate updates using the same validator (direct validation, not queued)
@@ -304,7 +308,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     
     // Owner info for gating
     final ownerId = server.getRoomOwner(roomId);
-    _logger.info('🔍 TURN_EVENTS DEBUG - Broadcasting game_state_updated with ${turnEvents.length} turn_events', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔍 TURN_EVENTS DEBUG - Broadcasting game_state_updated with ${turnEvents.length} turn_events');
+    }
     _logger.info('🔍 TURN_EVENTS DEBUG - Turn events in broadcast: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
     
     server.broadcastToRoom(roomId, {
@@ -577,7 +583,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
           'win_type': winType,
         });
         
-        _logger.info('GameStateCallback: Added game result for user $userId - winner: $isWinner, pot: $playerPot', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameStateCallback: Added game result for user $userId - winner: $isWinner, pot: $playerPot');
+        }
       }
       
       if (gameResults.isEmpty) {
@@ -590,13 +598,17 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       // Call Python API to update statistics
       _logger.info('GameStateCallback: Calling Python API to update game statistics', isOn: LOGGING_SWITCH);
       server.pythonClient.updateGameStats(gameResults).then((result) {
-        if (result['success'] == true) {
-          _logger.info('GameStateCallback: Successfully updated game statistics', isOn: LOGGING_SWITCH);
-        } else {
-          _logger.error('GameStateCallback: Failed to update game statistics: ${result['error']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          if (result['success'] == true) {
+            _logger.info('GameStateCallback: Successfully updated game statistics');
+          } else {
+            _logger.error('GameStateCallback: Failed to update game statistics: ${result['error']}');
+          }
         }
       }).catchError((error) {
-        _logger.error('GameStateCallback: Error updating game statistics: $error', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('GameStateCallback: Error updating game statistics: $error');
+        }
         // Don't throw - stats update failure shouldn't break the game
       });
       

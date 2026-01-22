@@ -51,14 +51,14 @@ class GameStateStore {
     }
     
     // Log turn_events if present in updates
-    if (updates.containsKey('turn_events')) {
+    if (updates.containsKey('turn_events') && LOGGING_SWITCH) {
       final turnEvents = updates['turn_events'] as List<dynamic>? ?? [];
-      _logger.info('🔍 TURN_EVENTS DEBUG - mergeRoot received turn_events: ${turnEvents.length} events', isOn: LOGGING_SWITCH);
-      _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
+      _logger.info('🔍 TURN_EVENTS DEBUG - mergeRoot received turn_events: ${turnEvents.length} events');
+      _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEvents.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}');
       
       // Log previous turn_events in state before merge
       final previousTurnEvents = state['turn_events'] as List<dynamic>? ?? [];
-      _logger.info('🔍 TURN_EVENTS DEBUG - Previous turn_events in state before merge: ${previousTurnEvents.length} events', isOn: LOGGING_SWITCH);
+      _logger.info('🔍 TURN_EVENTS DEBUG - Previous turn_events in state before merge: ${previousTurnEvents.length} events');
     }
     
     updates.forEach((k, v) => state[k] = v);
@@ -85,7 +85,9 @@ class GameStateStore {
     }
     state['game_state'] = gameState;
     // Removed lastUpdated - causes unnecessary state updates
-    _logger.info('GameStateStore: set game_state for $roomId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('GameStateStore: set game_state for $roomId');
+    }
   }
 
   Map<String, dynamic> getGameState(String roomId) {

@@ -250,7 +250,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
     // Log turn_events if present in validated updates
     if (validatedUpdates.containsKey('turn_events')) {
       final turnEventsInUpdates = validatedUpdates['turn_events'] as List<dynamic>? ?? [];
-      _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received turn_events in validatedUpdates: ${turnEventsInUpdates.length} events', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received turn_events in validatedUpdates: ${turnEventsInUpdates.length} events');
+      }
       _logger.info('🔍 TURN_EVENTS DEBUG - Turn events details: ${turnEventsInUpdates.map((e) => e is Map ? '${e['cardId']}:${e['actionType']}' : e.toString()).join(', ')}', isOn: LOGGING_SWITCH);
     } else {
       _logger.info('🔍 TURN_EVENTS DEBUG - _applyValidatedUpdates received NO turn_events in validatedUpdates. Keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
@@ -539,7 +541,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       for (final player in allPlayers) {
         final playerId = player['id']?.toString() ?? '';
         if (playerId.isEmpty) {
-          _logger.warning('GameStateCallback: Skipping player with empty ID', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('GameStateCallback: Skipping player with empty ID');
+          }
           continue;
         }
         

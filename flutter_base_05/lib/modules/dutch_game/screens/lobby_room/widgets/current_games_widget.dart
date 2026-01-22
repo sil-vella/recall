@@ -35,7 +35,9 @@ class CurrentRoomWidget extends StatelessWidget {
       final dutchGameState = stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final games = dutchGameState['games'] as Map<String, dynamic>? ?? {};
       
-      _logger.info('CurrentRoomWidget: build() - Forcing joinedGamesSlice recomputation (games map has ${games.length} games)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('CurrentRoomWidget: build() - Forcing joinedGamesSlice recomputation (games map has ${games.length} games)');
+      }
       
       // Trigger recomputation by updating games (even if unchanged, this will recompute the slice)
       DutchGameHelpers.updateUIState({
@@ -58,7 +60,9 @@ class CurrentRoomWidget extends StatelessWidget {
         final joinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
         final totalJoinedGames = joinedGamesSlice['totalGames'] ?? 0;
         
-        _logger.info('CurrentRoomWidget: Rendering with ${totalJoinedGames} games from joinedGamesSlice', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('CurrentRoomWidget: Rendering with ${totalJoinedGames} games from joinedGamesSlice');
+        }
         // Removed joinedGamesTimestamp - causes unnecessary state updates
 
         // If not in any games, show empty state

@@ -26,12 +26,16 @@ class HooksManager {
   /// Register a new hook with the given name
   void registerHook(String hookName) {
     if (_hooks.containsKey(hookName)) {
-      _logger.error('❌ Hook "$hookName" is already registered', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Hook "$hookName" is already registered');
+      }
       throw ArgumentError('Hook "$hookName" is already registered.');
     }
     
     _hooks[hookName] = [];
-    _logger.info('🎣 Hook registered: $hookName', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎣 Hook registered: $hookName');
+    }
   }
 
   /// Register a callback function to a specific hook with priority and optional context
@@ -84,13 +88,13 @@ class HooksManager {
     final callbacks = _hooks[hookName]!;
     int executedCount = 0;
     
-    _logger.info(
-      '🎣 Triggering hook: $hookName (${callbacks.length} callbacks registered)',
-      isOn: LOGGING_SWITCH,
-    );
-    
-    if (data != null) {
-      _logger.debug('🎣 Hook data: $data', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        '🎣 Triggering hook: $hookName (${callbacks.length} callbacks registered)',
+      );
+      if (data != null) {
+        _logger.debug('🎣 Hook data: $data');
+      }
     }
     
     for (final hookCallback in callbacks) {
@@ -116,10 +120,11 @@ class HooksManager {
       }
     }
     
-    _logger.info(
-      '🎣 Hook completed: $hookName ($executedCount callbacks executed)',
-      isOn: LOGGING_SWITCH,
-    );
+    if (LOGGING_SWITCH) {
+      _logger.info(
+        '🎣 Hook completed: $hookName ($executedCount callbacks executed)',
+      );
+    }
   }
 
   /// Clear all callbacks registered to a specific hook
@@ -152,6 +157,8 @@ class HooksManager {
   void dispose() {
     final hookCount = _hooks.length;
     _hooks.clear();
-    _logger.info('🎣 HooksManager disposed ($hookCount hooks cleared)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎣 HooksManager disposed ($hookCount hooks cleared)');
+    }
   }
 }

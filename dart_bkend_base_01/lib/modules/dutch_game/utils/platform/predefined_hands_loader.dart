@@ -24,11 +24,15 @@ class PredefinedHandsLoader {
       final yamlString = await file.readAsString();
       final yamlMap = loadYaml(yamlString);
       final config = Map<String, dynamic>.from(yamlMap as Map);
-      _logger.info('Loaded predefined hands config: enabled=${config['enabled']}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Loaded predefined hands config: enabled=${config['enabled']}');
+      }
       return config;
     } catch (e) {
       // Return disabled config if file doesn't exist
-      _logger.warning('Predefined hands config load failed, defaulting to disabled: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('Predefined hands config load failed, defaulting to disabled: $e');
+      }
       return {'enabled': false, 'hands': {}};
     }
   }
@@ -49,11 +53,15 @@ class PredefinedHandsLoader {
     final hand = hands[playerKey] as List<dynamic>?;
     
     if (hand == null) {
-      _logger.debug('No predefined hand found for player $playerIndex', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('No predefined hand found for player $playerIndex');
+      }
       return null;
     }
     
-    _logger.debug('Found predefined hand for player $playerIndex: ${hand.length} cards', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('Found predefined hand for player $playerIndex: ${hand.length} cards');
+    }
     return hand.map((card) => {
       'rank': card['rank'].toString(),
       'suit': card['suit'].toString(),

@@ -659,7 +659,9 @@ class GameEventCoordinator {
         
         if (!allCardsCompatible) {
           usePredefinedHands = false;
-          _logger.info('GameEventCoordinator: Predefined hands incompatible with current deck - falling back to random dealing', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('GameEventCoordinator: Predefined hands incompatible with current deck - falling back to random dealing');
+          }
         } else {
           _logger.info('GameEventCoordinator: Predefined hands validated - compatible with current deck (testing_mode: ${deckFactory.getSummary()['testing_mode']})', isOn: LOGGING_SWITCH);
         }
@@ -1507,7 +1509,9 @@ class GameEventCoordinator {
         _logger.info('GameEventCoordinator: Auto-completed initial peek for remaining human players');
       }
     } catch (e) {
-      _logger.error('GameEventCoordinator: Failed to auto-complete remaining human players: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: Failed to auto-complete remaining human players: $e');
+      }
     }
   }
 
@@ -1525,7 +1529,9 @@ class GameEventCoordinator {
       
       // Check if all players have completed
       if (!_allPlayersCompletedInitialPeek(roomId)) {
-        _logger.info('GameEventCoordinator: Not all players completed initial peek, applying auto logic', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameEventCoordinator: Not all players completed initial peek, applying auto logic');
+        }
         
         // Apply auto logic to remaining human players
         _autoCompleteRemainingHumanPlayers(roomId, gameState);
@@ -1574,7 +1580,9 @@ class GameEventCoordinator {
         'timestamp': DateTime.now().toIso8601String(),
       });
 
-      _logger.info('GameEventCoordinator: Initial peek phase completed - transitioning to player_turn', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Initial peek phase completed - transitioning to player_turn');
+      }
 
       // NOW initialize the round (starts actual gameplay) - await to ensure factory is loaded
       await round.initializeRound();
@@ -1596,7 +1604,9 @@ class GameEventCoordinator {
       final currentGames = _getCurrentGamesMap(roomId);
       final gameData = currentGames[roomId]?['gameData']?['game_state'] as Map<String, dynamic>?;
       if (gameData == null) {
-        _logger.error('GameEventCoordinator: Failed to get game data when clearing initial peek cards', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('GameEventCoordinator: Failed to get game data when clearing initial peek cards');
+        }
         _cleanupPlayerInitialPeekTimer(timerKey);
         return;
       }

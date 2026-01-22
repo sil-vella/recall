@@ -32,11 +32,15 @@ class WebSocketServer {
     _messageHandler = MessageHandler(_roomManager, this);
     // Python API URL is passed from app.dart (VPS) or app.debug.dart (local)
     _pythonClient = PythonApiClient(baseUrl: pythonApiUrl);
-    _logger.info('🔗 Python API client configured: $pythonApiUrl', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔗 Python API client configured: $pythonApiUrl');
+    }
     
     // Wire up room closure hook
     _roomManager.onRoomClosed = (roomId, reason) {
-      _logger.info('🎣 Room closure hook triggered: $roomId (reason: $reason)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎣 Room closure hook triggered: $roomId (reason: $reason)');
+      }
       
       // Cleanup timer if room is closed during delay period
       RandomJoinTimerManager.instance.cleanup(roomId);
@@ -55,7 +59,9 @@ class WebSocketServer {
     // Initialize Dutch Game module (registers hooks for game lifecycle)
     _dutchGameModule = DutchGameModule(this, _roomManager, _hooksManager);
     
-    _logger.info('📡 WebSocket server initialized', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('📡 WebSocket server initialized');
+    }
   }
   
   /// Initialize hooks for room events
@@ -66,7 +72,9 @@ class WebSocketServer {
     _hooksManager.registerHook('leave_room');
     _hooksManager.registerHook('room_closed');
     
-    _logger.info('🎣 Hooks initialized for room events', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎣 Hooks initialized for room events');
+    }
   }
 
   /// Check if a session is authenticated
@@ -84,7 +92,9 @@ class WebSocketServer {
     final oldUserId = _sessionToUser[sessionId];
     _sessionToUser[sessionId] = userId;
     if (oldUserId != null && oldUserId != userId) {
-      _logger.auth('🔄 Updated session $sessionId user mapping: $oldUserId -> $userId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.auth('🔄 Updated session $sessionId user mapping: $oldUserId -> $userId');
+      }
     }
   }
 
@@ -148,17 +158,20 @@ class WebSocketServer {
     _connectionHashes[sessionId] = webSocket.hashCode.toString();
     _authenticatedSessions[sessionId] = false;
 
-    _logger.connection('✅ Client connected: $sessionId (Total: ${_connections.length})', isOn: LOGGING_SWITCH);
-    _logger.connection('🔍 Connection hash: ${webSocket.hashCode}', isOn: LOGGING_SWITCH);
-
-    _logger.connection('📤 Sending connected event to session: $sessionId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.connection('✅ Client connected: $sessionId (Total: ${_connections.length})');
+      _logger.connection('🔍 Connection hash: ${webSocket.hashCode}');
+      _logger.connection('📤 Sending connected event to session: $sessionId');
+    }
     sendToSession(sessionId, {
       'event': 'connected',
       'session_id': sessionId,
       'message': 'Welcome to Dutch Game Server',
       'authenticated': false,
     });
-    _logger.connection('✅ Connected event sent to session: $sessionId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.connection('✅ Connected event sent to session: $sessionId');
+    }
 
     webSocket.stream.listen(
       (message) => _onMessage(sessionId, message),
@@ -191,7 +204,9 @@ class WebSocketServer {
       // Route to unified message handler
       _messageHandler.handleMessage(sessionId, data);
     } catch (e) {
-      _logger.error('❌ Message parse error: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Message parse error: $e');
+      }
       sendToSession(sessionId, {
         'event': 'error',
         'message': 'Invalid message format',
@@ -200,7 +215,9 @@ class WebSocketServer {
   }
   
   Future<void> validateAndAuthenticate(String sessionId, String token) async {
-    _logger.auth('🔐 Validating token for session: $sessionId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.auth('🔐 Validating token for session: $sessionId');
+    }
     
     try {
       final result = await _pythonClient.validateToken(token);
@@ -211,7 +228,9 @@ class WebSocketServer {
         
         // Check if user ID changed (e.g., after account conversion)
         if (oldUserId != null && oldUserId != newUserId) {
-          _logger.auth('🔄 User ID changed for session $sessionId: $oldUserId -> $newUserId (likely account conversion)', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.auth('🔄 User ID changed for session $sessionId: $oldUserId -> $newUserId (likely account conversion)');
+          }
         }
         
         _authenticatedSessions[sessionId] = true;
@@ -223,10 +242,14 @@ class WebSocketServer {
         final accountType = result['account_type'] as String?; // Get account type from token validation
         if (rank != null || level != null) {
           setUserRankAndLevel(sessionId, rank, level);
-          _logger.auth('✅ Stored rank=$rank, level=$level for session: $sessionId', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.auth('✅ Stored rank=$rank, level=$level for session: $sessionId');
+          }
         }
 
-        _logger.auth('✅ Session authenticated: $sessionId, userId=$newUserId, account_type=${accountType ?? 'unknown'}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.auth('✅ Session authenticated: $sessionId, userId=$newUserId, account_type=${accountType ?? 'unknown'}');
+        }
         sendToSession(sessionId, {
           'event': 'authenticated',
           'session_id': sessionId,
@@ -234,14 +257,18 @@ class WebSocketServer {
           'message': 'Authentication successful',
         });
       } else {
-        _logger.auth('❌ Authentication failed: ${result['error']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.auth('❌ Authentication failed: ${result['error']}');
+        }
         sendToSession(sessionId, {
           'event': 'authentication_failed',
           'message': result['error'] ?? 'Invalid token',
         });
       }
     } catch (e) {
-      _logger.auth('❌ Auth error: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.auth('❌ Auth error: $e');
+      }
       sendToSession(sessionId, {
           'event': 'authentication_error',
           'message': 'Authentication service unavailable',
@@ -250,7 +277,9 @@ class WebSocketServer {
   }
   
   void _onDisconnect(String sessionId) {
-    _logger.connection('👋 Client disconnected: $sessionId', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.connection('👋 Client disconnected: $sessionId');
+    }
     
     // Get user's current room before cleanup
     final roomId = _roomManager.getRoomForSession(sessionId);
@@ -269,7 +298,9 @@ class WebSocketServer {
     
     // Broadcast to remaining room members if user was in a room
     if (roomId != null && room != null) {
-      _logger.room('📢 Broadcasting player_left to room $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.room('📢 Broadcasting player_left to room $roomId');
+      }
       broadcastToRoom(roomId, {
         'event': 'player_left',
         'room_id': roomId,
@@ -278,11 +309,15 @@ class WebSocketServer {
       });
     }
     
-    _logger.connection('📊 Active connections: ${_connections.length}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.connection('📊 Active connections: ${_connections.length}');
+    }
   }
 
   void _onError(String sessionId, dynamic error) {
-    _logger.error('❌ Error on connection $sessionId: $error', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.error('❌ Error on connection $sessionId: $error');
+    }
   }
   
   void sendToSession(String sessionId, Map<String, dynamic> message) {
@@ -291,65 +326,85 @@ class WebSocketServer {
     
     // CRITICAL: Verify we're using sessionId, not userId
     final userIdInMessage = message['user_id'] as String?;
-    _logger.info('🔍 sendToSession called: sessionId=$sessionId, event=$eventName, userIdInMessage=$userIdInMessage', isOn: LOGGING_SWITCH);
-    _logger.info('🔍 VERIFY: sessionId != userIdInMessage? ${sessionId != userIdInMessage}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🔍 sendToSession called: sessionId=$sessionId, event=$eventName, userIdInMessage=$userIdInMessage');
+      _logger.info('🔍 VERIFY: sessionId != userIdInMessage? ${sessionId != userIdInMessage}');
+    }
     
     if (connection != null) {
       try {
         final messageJson = jsonEncode(message);
-        _logger.info('📤 Sending event "$eventName" to session: $sessionId', isOn: LOGGING_SWITCH);
-        _logger.debug('📤 Message payload: $messageJson', isOn: LOGGING_SWITCH);
-        _logger.debug('📤 Total connections: ${_connections.length}', isOn: LOGGING_SWITCH);
-        _logger.debug('📤 Connection type: ${connection.runtimeType}', isOn: LOGGING_SWITCH);
-        _logger.debug('📤 All session IDs in _connections: ${_connections.keys.toList()}', isOn: LOGGING_SWITCH);
-        _logger.debug('📤 Connection hash: ${connection.hashCode}, Stored hash: ${_connectionHashes[sessionId]}', isOn: LOGGING_SWITCH);
-        _logger.debug('📤 Connection identity match: ${connection.hashCode.toString() == _connectionHashes[sessionId]}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('📤 Sending event "$eventName" to session: $sessionId');
+          _logger.debug('📤 Message payload: $messageJson');
+          _logger.debug('📤 Total connections: ${_connections.length}');
+          _logger.debug('📤 Connection type: ${connection.runtimeType}');
+          _logger.debug('📤 All session IDs in _connections: ${_connections.keys.toList()}');
+          _logger.debug('📤 Connection hash: ${connection.hashCode}, Stored hash: ${_connectionHashes[sessionId]}');
+          _logger.debug('📤 Connection identity match: ${connection.hashCode.toString() == _connectionHashes[sessionId]}');
+        }
         
         // Check if sink is closed by attempting to add
         try {
           // Check sink.done Future to see if it's already completed (closed)
           connection.sink.done.then((_) {
-            _logger.warning('⚠️  Sink is done (closed) for session: $sessionId - message may not be delivered', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.warning('⚠️  Sink is done (closed) for session: $sessionId - message may not be delivered');
+            }
           }).catchError((e) {
             // Sink is not done, which is good
           });
           
           // Attempt to send the message
           connection.sink.add(messageJson);
-          _logger.info('✅ Event "$eventName" sent successfully to session: $sessionId', isOn: LOGGING_SWITCH);
-          _logger.debug('✅ Message length: ${messageJson.length} bytes', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('✅ Event "$eventName" sent successfully to session: $sessionId');
+            _logger.debug('✅ Message length: ${messageJson.length} bytes');
+          }
         } catch (sinkError) {
-          _logger.error('❌ Sink error when sending to $sessionId: $sinkError', isOn: LOGGING_SWITCH);
-          _logger.error('❌ Sink error type: ${sinkError.runtimeType}', isOn: LOGGING_SWITCH);
-          _logger.error('❌ Sink error stack: ${StackTrace.current}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('❌ Sink error when sending to $sessionId: $sinkError');
+            _logger.error('❌ Sink error type: ${sinkError.runtimeType}');
+            _logger.error('❌ Sink error stack: ${StackTrace.current}');
+          }
           // Check if sink is done
           connection.sink.done.then((_) {
-            _logger.warning('⚠️  Sink is done (closed) for session: $sessionId', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.warning('⚠️  Sink is done (closed) for session: $sessionId');
+            }
             _connections.remove(sessionId);
             _connectionHashes.remove(sessionId);
           }).catchError((e) {
-            _logger.error('❌ Error checking sink.done: $e', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.error('❌ Error checking sink.done: $e');
+            }
           });
           rethrow;
         }
       } catch (e) {
-        _logger.error('❌ Error sending to $sessionId: $e', isOn: LOGGING_SWITCH);
-        _logger.error('❌ Error stack trace: ${StackTrace.current}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('❌ Error sending to $sessionId: $e');
+          _logger.error('❌ Error stack trace: ${StackTrace.current}');
+        }
         // Clean up the connection if there's an error
         _connections.remove(sessionId);
         _connectionHashes.remove(sessionId);
       }
     } else {
-      _logger.warning('⚠️  Cannot send event "$eventName" to session $sessionId: connection not found', isOn: LOGGING_SWITCH);
-      _logger.warning('⚠️  Available sessions: ${_connections.keys.toList()}', isOn: LOGGING_SWITCH);
-      _logger.warning('⚠️  Looking for session: $sessionId', isOn: LOGGING_SWITCH);
-      _logger.warning('⚠️  Session exists in map: ${_connections.containsKey(sessionId)}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('⚠️  Cannot send event "$eventName" to session $sessionId: connection not found');
+        _logger.warning('⚠️  Available sessions: ${_connections.keys.toList()}');
+        _logger.warning('⚠️  Looking for session: $sessionId');
+        _logger.warning('⚠️  Session exists in map: ${_connections.containsKey(sessionId)}');
+      }
     }
   }
 
   void broadcastToRoom(String roomId, Map<String, dynamic> message) {
     final sessions = _roomManager.getSessionsInRoom(roomId);
-    _logger.room('📢 Broadcasting to room $roomId (${sessions.length} clients)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.room('📢 Broadcasting to room $roomId (${sessions.length} clients)');
+    }
     for (final sessionId in sessions) {
       sendToSession(sessionId, message);
     }
@@ -363,7 +418,9 @@ class WebSocketServer {
   void broadcastToRoomExcept(String roomId, Map<String, dynamic> message, String excludeSessionId) {
     final sessions = _roomManager.getSessionsInRoom(roomId);
     final filteredSessions = sessions.where((sessionId) => sessionId != excludeSessionId).toList();
-    _logger.room('📢 Broadcasting to room $roomId (${filteredSessions.length} clients, excluding $excludeSessionId)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.room('📢 Broadcasting to room $roomId (${filteredSessions.length} clients, excluding $excludeSessionId)');
+    }
     for (final sessionId in filteredSessions) {
       sendToSession(sessionId, message);
     }

@@ -77,11 +77,13 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
     final joinedGamesSlice = dutchGameState['joinedGamesSlice'] as Map<String, dynamic>? ?? {};
     final currentJoinedGames = joinedGamesSlice['games'] as List<dynamic>? ?? [];
     
-    _logger.info('LobbyScreen: _ensureJoinedGamesSliceComputed - games map has ${games.length} games, joinedGamesSlice has ${currentJoinedGames.length} games', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('LobbyScreen: _ensureJoinedGamesSliceComputed - games map has ${games.length} games, joinedGamesSlice has ${currentJoinedGames.length} games');
+      _logger.info('LobbyScreen: Forcing joinedGamesSlice recomputation from games map (${games.length} games)');
+    }
     
     // ALWAYS trigger recomputation when lobby screen loads/builds/becomes visible
     // This ensures the widget reflects the current games map state, even if stale data exists
-    _logger.info('LobbyScreen: Forcing joinedGamesSlice recomputation from games map (${games.length} games)', isOn: LOGGING_SWITCH);
     // Trigger recomputation by updating games (even if unchanged, this will recompute the slice)
     DutchGameHelpers.updateUIState({
       'games': games, // This will trigger _updateWidgetSlices which will recompute joinedGamesSlice
@@ -90,45 +92,65 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
 
   Future<void> _initializeWebSocket() async {
     final Logger _logger = Logger();
-    _logger.info('LobbyScreen: _initializeWebSocket called, mounted: $mounted', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('LobbyScreen: _initializeWebSocket called, mounted: $mounted');
+    }
     
     // Check if user is logged in before attempting WebSocket connection
     final stateManager = StateManager();
     final loginState = stateManager.getModuleState<Map<String, dynamic>>('login') ?? {};
     final isLoggedIn = loginState['isLoggedIn'] == true;
-    _logger.info('LobbyScreen: User login status - isLoggedIn: $isLoggedIn', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('LobbyScreen: User login status - isLoggedIn: $isLoggedIn');
+    }
     
     // Allow unauthenticated users to stay on lobby screen (they can see the lobby but can't play)
     // Individual game actions will check authentication and redirect if needed
     if (!isLoggedIn) {
-      _logger.info('LobbyScreen: User is not logged in, skipping WebSocket initialization. User can stay on lobby screen.', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('LobbyScreen: User is not logged in, skipping WebSocket initialization. User can stay on lobby screen.');
+      }
       return;
     }
     
     try {
       // Initialize WebSocket manager if not already initialized
       if (!_websocketManager.isInitialized) {
-        _logger.info('LobbyScreen: WebSocket not initialized, initializing...', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('LobbyScreen: WebSocket not initialized, initializing...');
+        }
         final initialized = await _websocketManager.initialize();
-        _logger.info('LobbyScreen: WebSocket initialization result: $initialized', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('LobbyScreen: WebSocket initialization result: $initialized');
+        }
         if (!initialized) {
-          _logger.warning('LobbyScreen: WebSocket initialization failed, mounted: $mounted', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('LobbyScreen: WebSocket initialization failed, mounted: $mounted');
+          }
           if (mounted) {
             _showSnackBar('Unable to initialize game connection', isError: true);
           }
           return;
         }
       } else {
-        _logger.info('LobbyScreen: WebSocket already initialized', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('LobbyScreen: WebSocket already initialized');
+        }
       }
       
       // Connect to WebSocket if not already connected
       if (!_websocketManager.isConnected) {
-        _logger.info('LobbyScreen: WebSocket not connected, connecting...', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('LobbyScreen: WebSocket not connected, connecting...');
+        }
         final connected = await _websocketManager.connect();
-        _logger.info('LobbyScreen: WebSocket connection result: $connected', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('LobbyScreen: WebSocket connection result: $connected');
+        }
         if (!connected) {
-          _logger.warning('LobbyScreen: WebSocket connection failed, mounted: $mounted', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('LobbyScreen: WebSocket connection failed, mounted: $mounted');
+          }
           if (mounted) {
             _showSnackBar('Unable to connect to game server', isError: true);
           }
@@ -138,13 +160,17 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         _showSnackBar('WebSocket connected successfully!');
         }
       } else {
-        _logger.info('LobbyScreen: WebSocket already connected', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('LobbyScreen: WebSocket already connected');
+        }
         if (mounted) {
         _showSnackBar('WebSocket already connected!');
       }
       }
     } catch (e, stackTrace) {
-      _logger.error('LobbyScreen: WebSocket initialization error: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('LobbyScreen: WebSocket initialization error: $e', error: e, stackTrace: stackTrace);
+      }
       if (mounted) {
         _showSnackBar('WebSocket connection error: $e', isError: true);
       }
@@ -267,7 +293,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
   Future<void> _startPracticeMatch(Map<String, dynamic> practiceSettings) async {
     try {
       final Logger _logger = Logger();
-      _logger.info('🎮 _startPracticeMatch: Starting practice match setup', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Starting practice match setup');
+      }
       
       // 🎯 CRITICAL: Clear all existing game state before starting new game
       // This prevents overlapping or old game state from interfering
@@ -292,8 +320,12 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         'practiceUser': practiceUserData,
         'practiceSettings': updatedPracticeSettings,
       });
-      _logger.info('🎮 _startPracticeMatch: Stored practice user data and settings in state', isOn: LOGGING_SWITCH);
-      _logger.info('🎮 _startPracticeMatch: showInstructions = false (always disabled for practice matches)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Stored practice user data and settings in state');
+      }
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: showInstructions = false (always disabled for practice matches)');
+      }
       
       // Verify practice user data was stored (read back from state)
       final verifyState = StateManager().getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -366,7 +398,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       // Update UI state to reflect practice game (matching multiplayer format)
       // Store normalized gamePhase in MAIN state (not in games map)
       // CRITICAL: Update currentGameId directly via StateManager first to ensure it's available for slice computation
-      _logger.info('🎮 _startPracticeMatch: Updating UI state with currentGameId = $practiceRoomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Updating UI state with currentGameId = $practiceRoomId');
+      }
       
       // Get current state and update critical fields directly (bypasses queue for immediate availability)
       final dutchStateManager = StateManager();
@@ -387,7 +421,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       
       // Update StateManager directly to ensure immediate availability
       dutchStateManager.updateModuleState('dutch_game', updatedDutchState);
-      _logger.info('🎮 _startPracticeMatch: Critical state fields updated directly', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Critical state fields updated directly');
+      }
       
       // Now trigger slice recomputation via the queue (this will use the updated currentGameId)
       DutchGameHelpers.updateUIState({
@@ -395,7 +431,9 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
         'games': games,  // Trigger gameInfo slice recomputation
         'gamePhase': uiPhase,  // Trigger gameInfo slice recomputation
       });
-      _logger.info('🎮 _startPracticeMatch: UI state updated and slices triggered', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: UI state updated and slices triggered');
+      }
       
       // Small delay to allow slice recomputation
       await Future.delayed(const Duration(milliseconds: 50));
@@ -404,23 +442,27 @@ class _LobbyScreenState extends BaseScreenState<LobbyScreen> {
       final verifyCurrentGameId = verifyGameInfo['currentGameId']?.toString() ?? '';
       final verifyIsRoomOwner = verifyGameInfo['isRoomOwner'] ?? false;
       final verifyIsInGame = verifyGameInfo['isInGame'] ?? false;
-      _logger.info('🎮 _startPracticeMatch: Verified gameInfo - currentGameId: $verifyCurrentGameId, isRoomOwner: $verifyIsRoomOwner, isInGame: $verifyIsInGame', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: Verified gameInfo - currentGameId: $verifyCurrentGameId, isRoomOwner: $verifyIsRoomOwner, isInGame: $verifyIsInGame');
+        _logger.info('🎮 _startPracticeMatch: Triggering handleGameStateUpdated for game_id = $practiceRoomId');
+      }
       
       // 🎯 CRITICAL: Trigger game_state_updated event to sync widget slices
       // This ensures widget slices (myHand, centerBoard, opponentsPanel, etc.) are computed
       // Multiplayer does this automatically via WebSocket events, practice mode needs to do it manually
       // This will call _syncWidgetStatesFromGameState and trigger widget slice recomputation
-      _logger.info('🎮 _startPracticeMatch: Triggering handleGameStateUpdated for game_id = $practiceRoomId', isOn: LOGGING_SWITCH);
       DutchEventManager().handleGameStateUpdated({
         'game_id': practiceRoomId,
         'game_state': gameState,
         'owner_id': currentUserId,
         'timestamp': DateTime.now().toIso8601String(),
       });
-      _logger.info('🎮 _startPracticeMatch: handleGameStateUpdated completed', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎮 _startPracticeMatch: handleGameStateUpdated completed');
+        _logger.info('🎮 _startPracticeMatch: Navigating to game play screen');
+      }
       
       // Navigate to game play screen
-      _logger.info('🎮 _startPracticeMatch: Navigating to game play screen', isOn: LOGGING_SWITCH);
       NavigationManager().navigateTo('/dutch/game-play');
       
       // Show success message

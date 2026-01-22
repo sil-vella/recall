@@ -13,8 +13,10 @@ class PythonApiClient {
   
   /// Validate JWT token with Python backend
   Future<Map<String, dynamic>> validateToken(String token) async {
-    _logger.auth('🔍 Dart: Starting token validation with Python API', isOn: LOGGING_SWITCH);
-    _logger.auth('🌐 Dart: Calling $baseUrl/api/auth/validate', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.auth('🔍 Dart: Starting token validation with Python API');
+      _logger.auth('🌐 Dart: Calling $baseUrl/api/auth/validate');
+    }
     
     try {
       final response = await http.post(
@@ -23,27 +25,37 @@ class PythonApiClient {
         body: jsonEncode({'token': token}),
       );
       
-      _logger.auth('📡 Dart: HTTP response status: ${response.statusCode}', isOn: LOGGING_SWITCH);
-      _logger.auth('📦 Dart: Response body: ${response.body}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.auth('📡 Dart: HTTP response status: ${response.statusCode}');
+        _logger.auth('📦 Dart: Response body: ${response.body}');
+      }
       
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
-        _logger.auth('✅ Dart: Token validation successful', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.auth('✅ Dart: Token validation successful');
+        }
         return result;
       } else {
-        _logger.auth('❌ Dart: HTTP error ${response.statusCode}: ${response.body}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.auth('❌ Dart: HTTP error ${response.statusCode}: ${response.body}');
+        }
         return {'valid': false, 'error': 'Invalid token'};
       }
     } catch (e) {
-      _logger.auth('❌ Dart: Network error validating token: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.auth('❌ Dart: Network error validating token: $e');
+      }
       return {'valid': false, 'error': 'Connection failed'};
     }
   }
   
   /// Update game statistics for players after a game ends
   Future<Map<String, dynamic>> updateGameStats(List<Map<String, dynamic>> gameResults) async {
-    _logger.info('📊 Dart: Updating game statistics for ${gameResults.length} player(s)', isOn: LOGGING_SWITCH);
-    _logger.info('🌐 Dart: Calling $baseUrl/public/dutch/update-game-stats', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('📊 Dart: Updating game statistics for ${gameResults.length} player(s)');
+      _logger.info('🌐 Dart: Calling $baseUrl/public/dutch/update-game-stats');
+    }
     
     try {
       final response = await http.post(
@@ -54,15 +66,21 @@ class PythonApiClient {
         }),
       );
       
-      _logger.info('📡 Dart: HTTP response status: ${response.statusCode}', isOn: LOGGING_SWITCH);
-      _logger.info('📦 Dart: Response body: ${response.body}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📡 Dart: HTTP response status: ${response.statusCode}');
+        _logger.info('📦 Dart: Response body: ${response.body}');
+      }
       
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
-        _logger.info('✅ Dart: Game statistics updated successfully', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ Dart: Game statistics updated successfully');
+        }
         return result;
       } else {
-        _logger.error('❌ Dart: HTTP error ${response.statusCode}: ${response.body}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('❌ Dart: HTTP error ${response.statusCode}: ${response.body}');
+        }
         return {
           'success': false,
           'error': 'Failed to update game statistics',
@@ -70,7 +88,9 @@ class PythonApiClient {
         };
       }
     } catch (e) {
-      _logger.error('❌ Dart: Network error updating game stats: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Dart: Network error updating game stats: $e');
+      }
       return {
         'success': false,
         'error': 'Connection failed',
@@ -83,8 +103,10 @@ class PythonApiClient {
   /// [count] Number of comp players to retrieve
   /// [rankFilter] Optional list of compatible ranks to filter by
   Future<Map<String, dynamic>> getCompPlayers(int count, {List<String>? rankFilter}) async {
-    _logger.info('🤖 Dart: Requesting $count comp player(s) from Python API' + (rankFilter != null ? ' with rank filter: $rankFilter' : ''), isOn: LOGGING_SWITCH);
-    _logger.info('🌐 Dart: Calling $baseUrl/public/dutch/get-comp-players', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🤖 Dart: Requesting $count comp player(s) from Python API' + (rankFilter != null ? ' with rank filter: $rankFilter' : ''));
+      _logger.info('🌐 Dart: Calling $baseUrl/public/dutch/get-comp-players');
+    }
     
     try {
       final requestBody = <String, dynamic>{
@@ -100,8 +122,10 @@ class PythonApiClient {
         body: jsonEncode(requestBody),
       );
       
-      _logger.info('📡 Dart: HTTP response status: ${response.statusCode}', isOn: LOGGING_SWITCH);
-      _logger.info('📦 Dart: Response body: ${response.body}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📡 Dart: HTTP response status: ${response.statusCode}');
+        _logger.info('📦 Dart: Response body: ${response.body}');
+      }
       
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body) as Map<String, dynamic>;
@@ -109,7 +133,9 @@ class PythonApiClient {
         final compPlayers = result['comp_players'] as List<dynamic>? ?? [];
         final returnedCount = result['count'] as int? ?? 0;
         
-        _logger.info('✅ Dart: Retrieved $returnedCount comp player(s) (requested $count)', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ Dart: Retrieved $returnedCount comp player(s) (requested $count)');
+        }
         
         return {
           'success': success,
@@ -120,7 +146,9 @@ class PythonApiClient {
           'message': result['message'] as String?,
         };
       } else {
-        _logger.error('❌ Dart: HTTP error ${response.statusCode}: ${response.body}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('❌ Dart: HTTP error ${response.statusCode}: ${response.body}');
+        }
         return {
           'success': false,
           'error': 'Failed to retrieve comp players',
@@ -130,7 +158,9 @@ class PythonApiClient {
         };
       }
     } catch (e) {
-      _logger.error('❌ Dart: Network error retrieving comp players: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Dart: Network error retrieving comp players: $e');
+      }
       return {
         'success': false,
         'error': 'Connection failed',
@@ -143,8 +173,10 @@ class PythonApiClient {
   
   /// Get user profile data (full name, profile picture) by userId
   Future<Map<String, dynamic>> getUserProfile(String userId) async {
-    _logger.info('👤 Dart: Requesting user profile for userId: $userId', isOn: LOGGING_SWITCH);
-    _logger.info('🌐 Dart: Calling $baseUrl/public/users/profile', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('👤 Dart: Requesting user profile for userId: $userId');
+      _logger.info('🌐 Dart: Calling $baseUrl/public/users/profile');
+    }
     
     try {
       final response = await http.post(
@@ -155,8 +187,10 @@ class PythonApiClient {
         }),
       );
       
-      _logger.info('📡 Dart: HTTP response status: ${response.statusCode}', isOn: LOGGING_SWITCH);
-      _logger.info('📦 Dart: Response body: ${response.body}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📡 Dart: HTTP response status: ${response.statusCode}');
+        _logger.info('📦 Dart: Response body: ${response.body}');
+      }
       
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body) as Map<String, dynamic>;
@@ -165,17 +199,23 @@ class PythonApiClient {
         if (success) {
           final accountType = result['account_type'] as String? ?? 'unknown';
           final username = result['username'] as String? ?? 'unknown';
-          _logger.info('✅ Dart: Retrieved user profile for userId: $userId, username: $username, account_type: $accountType', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('✅ Dart: Retrieved user profile for userId: $userId, username: $username, account_type: $accountType');
+          }
           return result;
         } else {
-          _logger.warning('⚠️ Dart: API returned success=false: ${result['error']}', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('⚠️ Dart: API returned success=false: ${result['error']}');
+          }
           return {
             'success': false,
             'error': result['error'] ?? 'Failed to retrieve user profile',
           };
         }
       } else {
-        _logger.error('❌ Dart: HTTP error ${response.statusCode}: ${response.body}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('❌ Dart: HTTP error ${response.statusCode}: ${response.body}');
+        }
         return {
           'success': false,
           'error': 'Failed to retrieve user profile',
@@ -183,7 +223,9 @@ class PythonApiClient {
         };
       }
     } catch (e) {
-      _logger.error('❌ Dart: Network error retrieving user profile: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Dart: Network error retrieving user profile: $e');
+      }
       return {
         'success': false,
         'error': 'Connection failed',

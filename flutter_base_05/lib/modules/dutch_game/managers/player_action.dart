@@ -73,11 +73,11 @@ class PlayerAction {
     try {
       if (LOGGING_SWITCH) {
         _logger.info('PlayerAction.execute: Executing action: ${actionType.name}, eventName: $eventName, payload: $payload');
-      }
-      
-      // Special logging for leave_room events
-      if (eventName == 'leave_room' && LOGGING_SWITCH) {
-        _logger.info('PlayerAction.execute: LEAVE_ROOM event - gameId: ${payload['game_id']}');
+        
+        // Special logging for leave_room events
+        if (eventName == 'leave_room') {
+          _logger.info('PlayerAction.execute: LEAVE_ROOM event - gameId: ${payload['game_id']}');
+        }
       }
       
       // Special handling for Jack swap - build complete payload from selections

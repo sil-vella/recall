@@ -103,7 +103,9 @@ class GameCoordinator {
   /// Called when user returns to the same game within 30 seconds
   void cancelLeaveGameTimer(String? gameId) {
     if (_leaveGameTimer != null && (gameId == null || _pendingLeaveGameId == gameId)) {
-      _logger.info('GameCoordinator: Cancelling leave timer for game $_pendingLeaveGameId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameCoordinator: Cancelling leave timer for game $_pendingLeaveGameId');
+      }
       _leaveGameTimer?.cancel();
       _leaveGameTimer = null;
       _pendingLeaveGameId = null;

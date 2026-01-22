@@ -783,7 +783,9 @@ class GameEventCoordinator {
     // Add timer configuration to game_state (game-specific, not room-specific)
     Map<String, dynamic> gameState;
     try {
-      _logger.info('🔍 _handleStartMatch: Starting gameState map creation...', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🔍 _handleStartMatch: Starting gameState map creation...');
+      }
       gameState = <String, dynamic>{
         'gameId': roomId,
         'gameName': 'Dutch Game $roomId',
@@ -1281,7 +1283,9 @@ class GameEventCoordinator {
         'cardIndex1': cardIndexes[0],
         'cardIndex2': cardIndexes[1],
       };
-      _logger.info('🎬 ACTION_DATA: Set initial_peek action for player $playerId - cardIndex1: ${cardIndexes[0]}, cardIndex2: ${cardIndexes[1]}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 ACTION_DATA: Set initial_peek action for player $playerId - cardIndex1: ${cardIndexes[0]}, cardIndex2: ${cardIndexes[1]}');
+      }
       
       // Use callback method to send to player (matches draw card pattern)
       callback.sendGameStateToPlayer(playerId, {
@@ -1405,7 +1409,9 @@ class GameEventCoordinator {
         'games': updatedGames, // Games map with updated status
       });
 
-      _logger.info('GameEventCoordinator: Completed initial peek - human player set to WAITING status', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Completed initial peek - human player set to WAITING status');
+      }
 
       // Check if all players have completed initial peek
       if (_allPlayersCompletedInitialPeek(roomId)) {
@@ -1418,7 +1424,9 @@ class GameEventCoordinator {
         // Complete initial peek phase immediately
         await _completeInitialPeek(roomId, round);
       } else {
-        _logger.info('GameEventCoordinator: Player completed initial peek, waiting for others or timer expiry', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameEventCoordinator: Player completed initial peek, waiting for others or timer expiry');
+        }
       }
 
     } catch (e) {
@@ -1649,10 +1657,8 @@ class GameEventCoordinator {
       _cleanupPlayerInitialPeekTimer(timerKey);
       
     } catch (e, stackTrace) {
-      if (LOGGING_SWITCH) {
-        _logger.error('GameEventCoordinator: Error clearing initial peek cards for player $playerId: $e');
-        _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace');
-      }
+      _logger.error('GameEventCoordinator: Error clearing initial peek cards for player $playerId: $e', isOn: LOGGING_SWITCH);
+      _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
       final timerKey = '$roomId:$playerId';
       _cleanupPlayerInitialPeekTimer(timerKey);
     }

@@ -600,7 +600,9 @@ class ServerGameStateCallbackImpl implements GameStateCallback {
       }
       
       // Call Python API to update statistics
-      _logger.info('GameStateCallback: Calling Python API to update game statistics', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameStateCallback: Calling Python API to update game statistics');
+      }
       server.pythonClient.updateGameStats(gameResults).then((result) {
         if (LOGGING_SWITCH) {
           if (result['success'] == true) {

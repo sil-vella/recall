@@ -41,7 +41,9 @@ class GameEventCoordinator {
         },
       };
     } catch (e) {
-      _logger.error('GameEventCoordinator: Failed to get current games map: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: Failed to get current games map: $e');
+      }
       return {};
     }
   }
@@ -64,23 +66,31 @@ class GameEventCoordinator {
         return sessionId; // Player ID = sessionId
       }
 
-      _logger.warning('GameEventCoordinator: No player found with sessionId $sessionId in room $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.warning('GameEventCoordinator: No player found with sessionId $sessionId in room $roomId');
+      }
       return null;
     } catch (e) {
-      _logger.error('GameEventCoordinator: Failed to get player ID from session: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: Failed to get player ID from session: $e');
+      }
       return null;
     }
   }
 
   /// Handle a unified game event from a session
   Future<void> handle(String sessionId, String event, Map<String, dynamic> data) async {
-    _logger.info('🎮 GameEventCoordinator: Event validation - Received event "$event" from session: $sessionId', isOn: LOGGING_SWITCH);
-    _logger.info('📦 GameEventCoordinator: Event validation - Event data keys: ${data.keys.join(', ')}', isOn: LOGGING_SWITCH);
-    _logger.info('📦 GameEventCoordinator: Event validation - Event data: $data', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎮 GameEventCoordinator: Event validation - Received event "$event" from session: $sessionId');
+      _logger.info('📦 GameEventCoordinator: Event validation - Event data keys: ${data.keys.join(', ')}');
+      _logger.info('📦 GameEventCoordinator: Event validation - Event data: $data');
+    }
     
     final roomId = roomManager.getRoomForSession(sessionId);
     if (roomId == null) {
-      _logger.error('❌ GameEventCoordinator: Event validation failed - Session $sessionId is not in a room', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ GameEventCoordinator: Event validation failed - Session $sessionId is not in a room');
+      }
       server.sendToSession(sessionId, {
         'event': 'error',
         'message': 'Not in a room',
@@ -163,7 +173,9 @@ class GameEventCoordinator {
           final secondCardId = (data['second_card_id'] as String?) ?? (data['secondCardId'] as String?);
           final secondPlayerId = (data['second_player_id'] as String?) ?? (data['secondPlayerId'] as String?);
           
-          _logger.info('🃏 GameEventCoordinator: jack_swap event received - firstCardId: $firstCardId, firstPlayerId: $firstPlayerId, secondCardId: $secondCardId, secondPlayerId: $secondPlayerId', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.info('🃏 GameEventCoordinator: jack_swap event received - firstCardId: $firstCardId, firstPlayerId: $firstPlayerId, secondCardId: $secondCardId, secondPlayerId: $secondPlayerId');
+          }
           
           if (firstCardId != null && firstCardId.isNotEmpty &&
               firstPlayerId != null && firstPlayerId.isNotEmpty &&
@@ -220,8 +232,10 @@ class GameEventCoordinator {
         'timestamp': DateTime.now().toIso8601String(),
       });
     } catch (e, stackTrace) {
-      _logger.error('GameEventCoordinator: error on $event -> $e', isOn: LOGGING_SWITCH);
-      _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: error on $event -> $e');
+        _logger.error('GameEventCoordinator: Stack trace:\n$stackTrace');
+      }
       server.sendToSession(sessionId, {
         'event': '${event}_error',
         'room_id': roomId,
@@ -261,7 +275,9 @@ class GameEventCoordinator {
     final isRandomJoinRaw = data['is_random_join'];
     _logger.info('🔍 _handleStartMatch: is_random_join from data: value=$isRandomJoinRaw (type: ${isRandomJoinRaw.runtimeType})', isOn: LOGGING_SWITCH);
     final isRandomJoin = _parseBoolValue(isRandomJoinRaw, defaultValue: false);
-    _logger.info('✅ _handleStartMatch: parsed isRandomJoin: value=$isRandomJoin', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ _handleStartMatch: parsed isRandomJoin: value=$isRandomJoin');
+    }
     
     final autoStartRaw = roomInfo?.autoStart;
     _logger.info('🔍 _handleStartMatch: autoStart from roomInfo: value=$autoStartRaw (type: ${autoStartRaw.runtimeType})', isOn: LOGGING_SWITCH);
@@ -285,7 +301,9 @@ class GameEventCoordinator {
       final roomDifficulty = roomInfo?.difficulty;
       if (roomDifficulty != null && roomDifficulty.isNotEmpty) {
         practiceDifficulty = roomDifficulty.toLowerCase();
-        _logger.info('GameEventCoordinator: Practice mode - using room difficulty: $practiceDifficulty', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('GameEventCoordinator: Practice mode - using room difficulty: $practiceDifficulty');
+        }
       } else {
         // Fallback to state
         final stateDifficulty = stateRoot['roomDifficulty'] as String?;
@@ -300,7 +318,9 @@ class GameEventCoordinator {
     
     // Skip comp player fetching for practice mode - use simulated CPU players
     if (isPracticeMode) {
-      _logger.info('GameEventCoordinator: Practice mode detected - using simulated CPU players with difficulty: $practiceDifficulty', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Practice mode detected - using simulated CPU players with difficulty: $practiceDifficulty');
+      }
       // Create simulated CPU players (existing logic)
       while (needed > 0 && players.length < maxPlayers) {
         String name;
@@ -326,7 +346,9 @@ class GameEventCoordinator {
       }
     } else {
       // Multiplayer mode: Try to fetch comp players from Flask backend
-      _logger.info('GameEventCoordinator: Multiplayer mode - fetching comp players from Flask backend', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Multiplayer mode - fetching comp players from Flask backend');
+      }
       
       int compPlayersAdded = 0;
       int remainingNeeded = needed;
@@ -402,7 +424,9 @@ class GameEventCoordinator {
             compPlayersAdded++;
             remainingNeeded--;
             
-            _logger.info('GameEventCoordinator: Added comp player - id: $playerId, name: $uniqueName, userId: $userId, rank: $rank, difficulty: $difficulty', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('GameEventCoordinator: Added comp player - id: $playerId, name: $uniqueName, userId: $userId, rank: $rank, difficulty: $difficulty');
+            }
           }
           
           _logger.info('GameEventCoordinator: Added $compPlayersAdded comp player(s) from database', isOn: LOGGING_SWITCH);
@@ -471,12 +495,16 @@ class GameEventCoordinator {
                 }
               }
             } catch (fallbackError) {
-              _logger.error('GameEventCoordinator: Error in fallback comp player fetch: $fallbackError', isOn: LOGGING_SWITCH);
+              if (LOGGING_SWITCH) {
+                _logger.error('GameEventCoordinator: Error in fallback comp player fetch: $fallbackError');
+              }
             }
           }
         }
       } catch (e) {
-        _logger.error('GameEventCoordinator: Error fetching comp players from Flask backend: $e', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('GameEventCoordinator: Error fetching comp players from Flask backend: $e');
+        }
         // Continue to fallback logic below
       }
       
@@ -525,7 +553,9 @@ class GameEventCoordinator {
     if (showInstructions) {
       // Instructions ON → use demo deck
       deckTypeOverride = 'demo';
-      _logger.info('GameEventCoordinator: Demo mode with instructions ON - using demo deck', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Demo mode with instructions ON - using demo deck');
+      }
     } else {
       // Instructions OFF or not set → no override, use YAML config default
       deckTypeOverride = null;
@@ -563,7 +593,9 @@ class GameEventCoordinator {
     final enabledRaw = predefinedHandsConfig['enabled'];
     _logger.info('🔍 _handleStartMatch: predefinedHandsConfig[\'enabled\']: value=$enabledRaw (type: ${enabledRaw.runtimeType})', isOn: LOGGING_SWITCH);
     final enabledParsed = _parseBoolValue(enabledRaw, defaultValue: false);
-    _logger.info('✅ _handleStartMatch: parsed predefinedHands enabled: value=$enabledParsed', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('✅ _handleStartMatch: parsed predefinedHands enabled: value=$enabledParsed');
+    }
     bool usePredefinedHands = enabledParsed && showInstructions;
     
     if (usePredefinedHands) {
@@ -607,9 +639,13 @@ class GameEventCoordinator {
     }
     
     if (usePredefinedHands) {
-      _logger.info('GameEventCoordinator: Predefined hands enabled - using predefined hands for dealing', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Predefined hands enabled - using predefined hands for dealing');
+      }
     } else {
-      _logger.info('GameEventCoordinator: Predefined hands disabled - using random dealing', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('GameEventCoordinator: Predefined hands disabled - using random dealing');
+      }
     }
 
     // Deal 4 to each player in order

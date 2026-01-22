@@ -292,27 +292,41 @@ class DutchGameEventEmitter {
         }
       }
 
-      _logger.info('Sending event to backend: $eventPayload', isOn: LOGGING_SWITCH);
-      _logger.info('🎯 EventEmitter: Transport mode is $_transportMode for event $eventType', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Sending event to backend: $eventPayload');
+        _logger.info('🎯 EventEmitter: Transport mode is $_transportMode for event $eventType');
+      }
       
       // Route based on transport mode
       if (_transportMode == EventTransportMode.practice) {
-        _logger.info('🎯 EventEmitter: Routing to PracticeModeBridge', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎯 EventEmitter: Routing to PracticeModeBridge');
+        }
         // Route to practice bridge
         await _practiceBridge.handleEvent(eventType, eventPayload);
-        _logger.info('✅ EventEmitter: PracticeModeBridge handled event', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ EventEmitter: PracticeModeBridge handled event');
+        }
         return {'success': true, 'mode': 'practice'};
       } else if (_transportMode == EventTransportMode.demo) {
-        _logger.info('🎯 EventEmitter: Routing to DemoModeBridge', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎯 EventEmitter: Routing to DemoModeBridge');
+        }
         // Route to demo bridge
         final result = await _demoBridge.handleEvent(eventType, eventPayload);
-        _logger.info('✅ EventEmitter: DemoModeBridge handled event', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ EventEmitter: DemoModeBridge handled event');
+        }
         return result;
       } else {
-        _logger.info('🎯 EventEmitter: Routing to WebSocket', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎯 EventEmitter: Routing to WebSocket');
+        }
         // Send via WebSocket (default)
         final result = await _wsManager.sendCustomEvent(eventType, eventPayload);
-        _logger.info('✅ EventEmitter: WebSocket sent event, result: $result', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('✅ EventEmitter: WebSocket sent event, result: $result');
+        }
         return result;
       }
       

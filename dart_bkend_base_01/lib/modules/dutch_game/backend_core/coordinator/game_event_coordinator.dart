@@ -1587,7 +1587,9 @@ class GameEventCoordinator {
       // NOW initialize the round (starts actual gameplay) - await to ensure factory is loaded
       await round.initializeRound();
     } catch (e) {
-      _logger.error('GameEventCoordinator: Failed to complete initial peek: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('GameEventCoordinator: Failed to complete initial peek: $e');
+      }
     }
   }
 

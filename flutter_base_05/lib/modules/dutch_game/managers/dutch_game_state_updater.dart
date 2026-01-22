@@ -7,13 +7,13 @@ import '../utils/state_queue_validator.dart';
 import '../../dutch_game/models/state/dutch_game_state.dart';
 import '../models/state/games_map.dart';
 import '../../dutch_game/managers/dutch_event_handler_callbacks.dart';
-import '../utils/card_animation_detector.dart';
 // ignore: unused_import
 import '../models/state/my_hand_state.dart'; // For future migration
 // ignore: unused_import
 import '../models/state/center_board_state.dart'; // For future migration
 // ignore: unused_import
 import '../models/state/opponents_panel_state.dart'; // For future migration
+import '../../dutch_game/utils/card_animation_detector.dart';
 
 /// Validated state updater for dutch game state management
 /// Ensures all state updates follow consistent structure and validation rules
@@ -26,35 +26,43 @@ class DutchGameStateUpdater {
   
   // Logger and constants (must be declared before constructor)
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for initial peek clearing debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for animation system testing
   
   // Dependencies
   final StateManager _stateManager = StateManager();
   final StateQueueValidator _validator = StateQueueValidator.instance;
   
-  // Track previous action state to detect changes (more robust solution)
-  // Key: playerId, Value: {'action': String, 'actionData': Map}
-  final Map<String, Map<String, dynamic>> _previousActionState = {};
-  
   DutchGameStateUpdater._internal() {
-    _logger.info('🎬 DutchGameStateUpdater: Instance created (singleton initialization)', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 DutchGameStateUpdater: Instance created (singleton initialization)');
+    }
     
     // Set update handler to apply validated updates
     final validator = StateQueueValidator.instance;
-    _logger.info('🎬 DutchGameStateUpdater: Setting update handler on StateQueueValidator', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 DutchGameStateUpdater: Setting update handler on StateQueueValidator');
+    }
     
     validator.setUpdateHandler((Map<String, dynamic> validatedUpdates) {
-      _logger.info('🎬 DutchGameStateUpdater: Handler callback invoked with keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 DutchGameStateUpdater: Handler callback invoked with keys: ${validatedUpdates.keys.toList()}');
+      }
       try {
         _applyValidatedUpdates(validatedUpdates);
-        _logger.info('🎬 DutchGameStateUpdater: Handler callback completed successfully', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 DutchGameStateUpdater: Handler callback completed successfully');
+        }
       } catch (e, stackTrace) {
-        _logger.error('🎬 DutchGameStateUpdater: Exception in handler callback: $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.error('🎬 DutchGameStateUpdater: Exception in handler callback: $e', error: e, stackTrace: stackTrace);
+        }
         rethrow;
       }
     });
     
-    _logger.info('🎬 DutchGameStateUpdater: Initialization complete - handler set and ready', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 DutchGameStateUpdater: Initialization complete - handler set and ready');
+    }
   }
   
   // Note: State schema validation has been moved to StateQueueValidator
@@ -85,7 +93,9 @@ class DutchGameStateUpdater {
       _validator.enqueueUpdate(updates);
       
     } catch (e) {
-      _logger.error('DutchGameStateUpdater: State update failed: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('DutchGameStateUpdater: State update failed: $e', error: e);
+      }
       rethrow;
     }
   }
@@ -96,11 +106,15 @@ class DutchGameStateUpdater {
   /// (e.g., isRandomJoinInProgress before emitting WebSocket events)
   void updateStateSync(Map<String, dynamic> updates) {
     try {
-      _logger.info('🎬 DutchGameStateUpdater: Synchronous state update with keys: ${updates.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 DutchGameStateUpdater: Synchronous state update with keys: ${updates.keys.toList()}');
+      }
       
       // Validate the update using the validator (but don't queue it)
       final validatedUpdates = _validator.validateUpdate(updates);
-      _logger.debug('🎬 DutchGameStateUpdater: Validation passed, applying updates synchronously', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 DutchGameStateUpdater: Validation passed, applying updates synchronously');
+      }
       
       // Apply validated updates directly to StateManager (synchronous)
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
@@ -110,10 +124,14 @@ class DutchGameStateUpdater {
       };
       
       _stateManager.updateModuleState('dutch_game', newState);
-      _logger.info('🎬 DutchGameStateUpdater: Synchronous state update completed successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 DutchGameStateUpdater: Synchronous state update completed successfully');
+      }
       
     } catch (e) {
-      _logger.error('DutchGameStateUpdater: Synchronous state update failed: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('DutchGameStateUpdater: Synchronous state update failed: $e', error: e);
+      }
       rethrow;
     }
   }
@@ -122,10 +140,14 @@ class DutchGameStateUpdater {
   /// This is the preferred method for new code
   void updateStateImmutable(DutchGameState newState) {
     try {
-      _logger.info('🎬 DutchGameStateUpdater: Immutable state update', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 DutchGameStateUpdater: Immutable state update');
+      }
       _stateManager.updateModuleState('dutch_game', newState);
     } catch (e) {
-      _logger.error('DutchGameStateUpdater: Immutable state update failed: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('DutchGameStateUpdater: Immutable state update failed: $e', error: e);
+      }
       rethrow;
     }
   }
@@ -135,7 +157,9 @@ class DutchGameStateUpdater {
     try {
       return GamesMap.fromJson(gamesMap);
     } catch (e) {
-      _logger.error('DutchGameStateUpdater: Failed to convert legacy games to immutable: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('DutchGameStateUpdater: Failed to convert legacy games to immutable: $e', error: e);
+      }
       return const GamesMap.empty();
     }
   }
@@ -153,12 +177,18 @@ class DutchGameStateUpdater {
   /// This is called by StateQueueValidator after validation
   /// Supports both legacy map-based updates and immutable state updates
   void _applyValidatedUpdates(Map<String, dynamic> validatedUpdates) {
-    _logger.info('🎬 DutchGameStateUpdater: _applyValidatedUpdates START with keys: ${validatedUpdates.keys.toList()}', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 DutchGameStateUpdater: _applyValidatedUpdates START with keys: ${validatedUpdates.keys.toList()}');
+    }
     try {
       // Get current state (legacy map-based for now)
-      _logger.debug('🎬 DutchGameStateUpdater: Getting current state from StateManager', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 DutchGameStateUpdater: Getting current state from StateManager');
+      }
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
-      _logger.debug('🎬 DutchGameStateUpdater: Current state keys: ${currentState.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 DutchGameStateUpdater: Current state keys: ${currentState.keys.toList()}');
+      }
       
       // Check if there are actual changes (excluding lastUpdated)
       // Use reference equality for immutable objects, structural equality for legacy data
@@ -211,276 +241,212 @@ class DutchGameStateUpdater {
       
       // Only proceed if there are actual changes
       if (!hasActualChanges) {
-        _logger.info('🎬 DutchGameStateUpdater: No actual changes detected, skipping update', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 DutchGameStateUpdater: No actual changes detected, skipping update');
+        }
         return;
       }
       
-      _logger.info('🎬 DutchGameStateUpdater: Has actual changes, proceeding with state update', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 DutchGameStateUpdater: Has actual changes, proceeding with state update');
+      }
       
       // Apply only the validated updates
       // Deep convert validatedUpdates to ensure all nested maps are Map<String, dynamic> (not LinkedMap from JSON decode)
-      _logger.debug('🎬 DutchGameStateUpdater: Converting validated updates to Map<String, dynamic>', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 DutchGameStateUpdater: Converting validated updates to Map<String, dynamic>');
+      }
       final convertedValidatedUpdates = _deepConvertToMapStringDynamic(validatedUpdates) as Map<String, dynamic>;
       
-      _logger.debug('🎬 DutchGameStateUpdater: Merging current state with validated updates', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 DutchGameStateUpdater: Merging current state with validated updates');
+      }
       final newState = {
         ...currentState,
         ...convertedValidatedUpdates,
       };
-      _logger.debug('🎬 DutchGameStateUpdater: New state keys: ${newState.keys.toList()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 DutchGameStateUpdater: New state keys: ${newState.keys.toList()}');
+      }
       
-      // ========== ACTION DETECTION AND ANIMATION QUEUEING ==========
+      // ========== ANIMATION DETECTION ==========
       // CRITICAL: Capture previous state slices BEFORE widget recomputation
+      // This preserves the old state for the animation layer to use
+      // The animation layer will animate from OLD state positions to NEW state positions
       // 
-      // Flow:
-      // 1. Capture previousSlices from currentState (OLD state - before updates)
-      // 2. Check if action has changed (ROBUST: only call detector if action changed)
-      // 3. If action changed, detect actions and queue animations SYNCHRONOUSLY (before widget recomputation)
-      // 4. CardAnimationManager stores previousSlices (shallow copy) for animation layer
-      // 5. Widgets recompute with newState (NEW state - after updates)
-      // 6. Animation layer uses OLD state to animate cards
-      // 7. After animation completes, NEW state is visible in background
-      //
-      // This ensures animations can work with the old state to animate into the new state.
-      // The new state will be visible in the background after the animation layer is off.
+      // NOTE: Only widget slices (myHand, centerBoard, opponentsPanel) are from OLD state
+      // The players state (with action fields) comes from NEW state (newState parameter)
+      // The animation detector extracts players from newState['games'][gameId]['gameData']['game_state']['players']
       final previousSlices = {
         'myHand': currentState['myHand'],      // OLD state - before widget recomputation
         'centerBoard': currentState['centerBoard'],  // OLD state - before widget recomputation
         'opponentsPanel': currentState['opponentsPanel'], // OLD state - before widget recomputation
       };
       
-      // ROBUST SOLUTION: Only call detector if action has changed
-      // OPTIMIZATION: Quick check if state might contain actions before full extraction
-      // Most state updates don't have actions, so we can skip expensive extraction
-      final hasActionsInState = _quickCheckForActions(newState);
-      
-      if (!hasActionsInState && _previousActionState.isEmpty) {
-        // No actions in new state and no previous actions - skip all processing
-        if (LOGGING_SWITCH) {
-          _logger.debug('🎬 DutchGameStateUpdater: No actions detected - skipping action change check', isOn: LOGGING_SWITCH);
-        }
-      } else {
-        // Extract current action state from currentState (before update)
-        final currentActionState = _extractActionState(currentState);
+      if (LOGGING_SWITCH) {
+        // Log widget slice state BEFORE recomputation (OLD state - passed to animation detector)
+        final myHandBefore = previousSlices['myHand'] as Map<String, dynamic>?;
+        final centerBoardBefore = previousSlices['centerBoard'] as Map<String, dynamic>?;
+        final opponentsPanelBefore = previousSlices['opponentsPanel'] as Map<String, dynamic>?;
         
-        // Extract new action state from newState (after update)
-        final newActionState = _extractActionState(newState);
+        final beforeSummary = {
+          'myHand': myHandBefore != null ? {
+            'cards': (myHandBefore['cards'] as List?)?.length ?? 0,
+            'selectedIndex': myHandBefore['selectedIndex'] ?? -1,
+            'playerStatus': myHandBefore['playerStatus'] ?? 'unknown',
+          } : null,
+          'centerBoard': centerBoardBefore != null ? {
+            'drawPileCount': centerBoardBefore['drawPileCount'] ?? 0,
+            'topDiscard': centerBoardBefore['topDiscard'] != null ? 'present' : 'null',
+            'topDraw': centerBoardBefore['topDraw'] != null ? 'present' : 'null',
+          } : null,
+          'opponentsPanel': opponentsPanelBefore != null ? {
+            'opponents': (opponentsPanelBefore['opponents'] as List?)?.length ?? 0,
+            'opponentsData': (opponentsPanelBefore['opponents'] as List?)?.map((opp) {
+              if (opp is Map<String, dynamic>) {
+                return {
+                  'id': opp['id']?.toString() ?? 'unknown',
+                  'handCount': (opp['hand'] as List?)?.length ?? 0,
+                  'status': opp['status']?.toString() ?? 'unknown',
+                  'score': opp['score'] ?? 0,
+                  'hasAction': opp['action'] != null ? opp['action'].toString() : null,
+                };
+              }
+              return null;
+            }).where((e) => e != null).toList(),
+            'currentTurnIndex': opponentsPanelBefore['currentTurnIndex'] ?? -1,
+            'turn_events': (opponentsPanelBefore['turn_events'] as List?)?.length ?? 0,
+            'currentPlayerStatus': opponentsPanelBefore['currentPlayerStatus']?.toString() ?? 'unknown',
+          } : null,
+        };
         
-        // Check if action has changed compared to both:
-        // 1. Current state (before this update) - catches new actions
-        // 2. Previous tracked state - catches actions that persist across multiple updates
-        final actionChangedFromCurrent = _hasActionChanged(currentActionState, newActionState);
-        final actionChangedFromPrevious = _previousActionState.isNotEmpty && 
-                                          _hasActionChanged(_previousActionState, newActionState);
-        final actionChanged = actionChangedFromCurrent || actionChangedFromPrevious;
+        _logger.info('🎬 DutchGameStateUpdater: Widget slices BEFORE recomputation (OLD state - passed to animation detector): $beforeSummary');
         
-        if (actionChanged) {
-          if (LOGGING_SWITCH) {
-            _logger.info('🎬 DutchGameStateUpdater: Action changed detected - calling animation detector', isOn: LOGGING_SWITCH);
-          }
-          
-          // Detect and queue animations SYNCHRONOUSLY (before widget recomputation)
-          // This must happen before widgets rebuild so we have the previous state preserved.
-          // The detector will:
-          // - Detect actions from newState
-          // - Capture previousSlices in CardAnimationManager (for animation layer)
-          // - Queue animations
-          // - Clear actions from newState (to prevent re-queueing)
-          // - Use deduplication as fallback (if action persists across multiple updates)
-          // Error handling is non-blocking - errors won't crash state updates
-          try {
-            CardAnimationDetector().detectAndQueueActionsFromState(previousSlices, newState);
+        // Log players state from newState (NEW state - contains action fields for detection)
+        try {
+          final currentGameId = newState['currentGameId']?.toString() ?? '';
+          if (currentGameId.isNotEmpty) {
+            final games = newState['games'] as Map<String, dynamic>? ?? {};
+            final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
+            final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
+            final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
+            final newPlayers = gameState['players'] as List<dynamic>? ?? [];
             
-            // Update tracked action state after successful detection
-            _previousActionState.clear();
-            _previousActionState.addAll(newActionState);
-          } catch (e, stackTrace) {
-            // Non-blocking error handling - animation detection should not block state updates
-            _logger.error('🎬 DutchGameStateUpdater: Error in animation detection (non-blocking): $e', error: e, stackTrace: stackTrace, isOn: LOGGING_SWITCH);
+            final newPlayersWithActions = <String, String>{};
+            for (final player in newPlayers) {
+              if (player is Map<String, dynamic>) {
+                final playerId = player['id']?.toString() ?? '';
+                final action = player['action']?.toString();
+                if (playerId.isNotEmpty && action != null && action.isNotEmpty) {
+                  newPlayersWithActions[playerId] = action;
+                }
+              }
+            }
+            
+            _logger.info('🎬 DutchGameStateUpdater: Players state in newState (NEW state - for action detection): count=${newPlayers.length}, playersWithActions=${newPlayersWithActions.isEmpty ? 'none' : newPlayersWithActions}');
           }
-        } else {
+        } catch (e) {
           if (LOGGING_SWITCH) {
-            _logger.debug('🎬 DutchGameStateUpdater: No action change detected - skipping animation detector call', isOn: LOGGING_SWITCH);
+            _logger.debug('🎬 DutchGameStateUpdater: Failed to extract new players state: $e');
           }
+        }
+        
+        _logger.info('🎬 DutchGameStateUpdater: Passing state to animation detector - currentGameId: ${newState['currentGameId']}, games: ${(newState['games'] as Map<String, dynamic>? ?? {}).length}');
+      }
+      
+      // Pass state to animation detector BEFORE widget recomputation
+      // The detector will:
+      // - Detect actions from newState (contains action data in players)
+      // - Capture previousSlices (OLD state) in CardAnimationManager for animation layer
+      // - Queue animations
+      // - Clear actions from newState (to prevent re-queueing)
+      try {
+        CardAnimationDetector().detectAndQueueActionsFromState(previousSlices, newState);
+      } catch (e, stackTrace) {
+        // Non-blocking error handling - animation detection should not block state updates
+        if (LOGGING_SWITCH) {
+          _logger.error('🎬 DutchGameStateUpdater: Error in animation detection (non-blocking): $e', error: e, stackTrace: stackTrace);
         }
       }
       
-      
       // Rebuild dependent widget slices only if relevant fields changed
-      _logger.debug('🎬 DutchGameStateUpdater: Updating widget slices for changed keys: ${validatedUpdates.keys.toSet()}', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 DutchGameStateUpdater: Updating widget slices for changed keys: ${validatedUpdates.keys.toSet()}');
+      }
       final updatedStateWithSlices = _updateWidgetSlices(
         currentState,
         newState,
         validatedUpdates.keys.toSet(),
       );
-      _logger.debug('🎬 DutchGameStateUpdater: Widget slices updated, final state keys: ${updatedStateWithSlices.keys.toList()}', isOn: LOGGING_SWITCH);
+      
+      // Log state AFTER widget slices computed
+      if (LOGGING_SWITCH) {
+        final finalGameId = updatedStateWithSlices['currentGameId']?.toString() ?? '';
+        final finalGames = updatedStateWithSlices['games'] as Map<String, dynamic>? ?? {};
+        final finalGameCount = finalGames.length;
+        
+        // Log detailed widget slice state AFTER recomputation
+        final myHandAfter = updatedStateWithSlices['myHand'] as Map<String, dynamic>?;
+        final centerBoardAfter = updatedStateWithSlices['centerBoard'] as Map<String, dynamic>?;
+        final opponentsPanelAfter = updatedStateWithSlices['opponentsPanel'] as Map<String, dynamic>?;
+        
+        final afterSummary = {
+          'myHand': myHandAfter != null ? {
+            'cards': (myHandAfter['cards'] as List?)?.length ?? 0,
+            'selectedIndex': myHandAfter['selectedIndex'] ?? -1,
+            'playerStatus': myHandAfter['playerStatus'] ?? 'unknown',
+          } : null,
+          'centerBoard': centerBoardAfter != null ? {
+            'drawPileCount': centerBoardAfter['drawPileCount'] ?? 0,
+            'topDiscard': centerBoardAfter['topDiscard'] != null ? 'present' : 'null',
+            'topDraw': centerBoardAfter['topDraw'] != null ? 'present' : 'null',
+          } : null,
+          'opponentsPanel': opponentsPanelAfter != null ? {
+            'opponents': (opponentsPanelAfter['opponents'] as List?)?.length ?? 0,
+            'opponentsData': (opponentsPanelAfter['opponents'] as List?)?.map((opp) {
+              if (opp is Map<String, dynamic>) {
+                return {
+                  'id': opp['id']?.toString() ?? 'unknown',
+                  'handCount': (opp['hand'] as List?)?.length ?? 0,
+                  'status': opp['status']?.toString() ?? 'unknown',
+                  'score': opp['score'] ?? 0,
+                  'hasAction': opp['action'] != null ? opp['action'].toString() : null,
+                };
+              }
+              return null;
+            }).where((e) => e != null).toList(),
+            'currentTurnIndex': opponentsPanelAfter['currentTurnIndex'] ?? -1,
+            'turn_events': (opponentsPanelAfter['turn_events'] as List?)?.length ?? 0,
+            'currentPlayerStatus': opponentsPanelAfter['currentPlayerStatus']?.toString() ?? 'unknown',
+          } : null,
+          'joinedGamesSlice': updatedStateWithSlices['joinedGamesSlice'] != null ? 'present' : 'null',
+          'gameInfo': updatedStateWithSlices['gameInfo'] != null ? 'present' : 'null',
+        };
+        
+        _logger.info('🎬 DutchGameStateUpdater: Widget slices AFTER recomputation: $afterSummary');
+        _logger.info('🎬 DutchGameStateUpdater: State AFTER widget slices computed - currentGameId: $finalGameId, games: $finalGameCount');
+      }
+      
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 DutchGameStateUpdater: Widget slices updated, final state keys: ${updatedStateWithSlices.keys.toList()}');
+      }
       
       // Update StateManager
-      _logger.debug('🎬 DutchGameStateUpdater: Updating StateManager with merged state', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('🎬 DutchGameStateUpdater: Updating StateManager with merged state');
+      }
       _stateManager.updateModuleState('dutch_game', updatedStateWithSlices);
-      _logger.info('🎬 DutchGameStateUpdater: StateManager updated successfully', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 DutchGameStateUpdater: StateManager updated successfully');
+      }
 
     } catch (e) {
-      _logger.error('DutchGameStateUpdater: Failed to apply validated updates: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('DutchGameStateUpdater: Failed to apply validated updates: $e', error: e);
+      }
       rethrow;
     }
   }
-  
-  /// Quick check if state might contain actions (optimization to avoid expensive extraction)
-  /// Returns true if actions might exist, false otherwise
-  /// This is a fast path check that avoids full state navigation when there are no actions
-  bool _quickCheckForActions(Map<String, dynamic> state) {
-    try {
-      // Quick check: if validatedUpdates contains 'games', actions might be present
-      // This is a heuristic - we'll do full extraction if this returns true
-      if (!state.containsKey('games')) {
-        return false;
-      }
-      
-      final currentGameId = state['currentGameId']?.toString() ?? '';
-      if (currentGameId.isEmpty) {
-        return false;
-      }
-      
-      final games = state['games'] as Map<String, dynamic>? ?? {};
-      if (!games.containsKey(currentGameId)) {
-        return false;
-      }
-      
-      // If we got here, there's a game - actions might exist
-      // Full extraction will confirm
-      return true;
-    } catch (e) {
-      // On error, assume actions might exist (safer)
-      return true;
-    }
-  }
-  
-  /// Extract action state from game state
-  /// Returns map of playerId -> {'action': String, 'actionData': Map}
-  /// OPTIMIZATION: Only call this after _quickCheckForActions returns true
-  Map<String, Map<String, dynamic>> _extractActionState(Map<String, dynamic> state) {
-    final actionState = <String, Map<String, dynamic>>{};
-    
-    try {
-      final currentGameId = state['currentGameId']?.toString() ?? '';
-      if (currentGameId.isEmpty) {
-        return actionState;
-      }
-      
-      final games = state['games'] as Map<String, dynamic>? ?? {};
-      final currentGame = games[currentGameId] as Map<String, dynamic>? ?? {};
-      if (currentGame.isEmpty) {
-        return actionState;
-      }
-      
-      final gameData = currentGame['gameData'] as Map<String, dynamic>? ?? {};
-      final gameState = gameData['game_state'] as Map<String, dynamic>? ?? {};
-      if (gameState.isEmpty) {
-        return actionState;
-      }
-      
-      final players = gameState['players'] as List<dynamic>? ?? [];
-      
-      for (final player in players) {
-        if (player is! Map<String, dynamic>) continue;
-        
-        final playerId = player['id']?.toString() ?? '';
-        final action = player['action']?.toString();
-        final actionData = player['actionData'] as Map<String, dynamic>?;
-        
-        if (playerId.isNotEmpty && action != null && action.isNotEmpty && actionData != null) {
-          actionState[playerId] = {
-            'action': action,
-            'actionData': Map<String, dynamic>.from(actionData), // Deep copy
-          };
-        }
-      }
-    } catch (e) {
-      if (LOGGING_SWITCH) {
-        _logger.error('🎬 DutchGameStateUpdater: Error extracting action state: $e', isOn: LOGGING_SWITCH);
-      }
-    }
-    
-    return actionState;
-  }
-  
-  /// Check if action state has changed
-  /// Compares current action state with new action state
-  /// Returns true if any action has changed (new action, removed action, or different action/actionData)
-  bool _hasActionChanged(
-    Map<String, Map<String, dynamic>> currentActionState,
-    Map<String, Map<String, dynamic>> newActionState,
-  ) {
-    // Check if any player has a new action (not in current state)
-    for (final entry in newActionState.entries) {
-      final playerId = entry.key;
-      final newAction = entry.value;
-      final currentAction = currentActionState[playerId];
-      
-      if (currentAction == null) {
-        // New action appeared
-        if (LOGGING_SWITCH) {
-          _logger.debug('🎬 DutchGameStateUpdater: New action detected for player $playerId: ${newAction['action']}', isOn: LOGGING_SWITCH);
-        }
-        return true;
-      }
-      
-      // Check if action or actionData changed
-      if (currentAction['action'] != newAction['action']) {
-        if (LOGGING_SWITCH) {
-          _logger.debug('🎬 DutchGameStateUpdater: Action changed for player $playerId: ${currentAction['action']} -> ${newAction['action']}', isOn: LOGGING_SWITCH);
-        }
-        return true;
-      }
-      
-      // OPTIMIZATION: Only do expensive JSON encoding if action strings match
-      // If action changed, we already returned true above
-      // Check if actionData changed (compare JSON strings for deep equality)
-      try {
-        final currentActionData = currentAction['actionData'] as Map<String, dynamic>?;
-        final newActionData = newAction['actionData'] as Map<String, dynamic>?;
-        
-        // Quick reference equality check first (fast path)
-        if (identical(currentActionData, newActionData)) {
-          return false; // Same reference, no change
-        }
-        
-        // If references differ, do deep comparison via JSON encoding
-        // This is expensive but only happens when actionData might have changed
-        final currentActionDataJson = jsonEncode(currentActionData);
-        final newActionDataJson = jsonEncode(newActionData);
-        if (currentActionDataJson != newActionDataJson) {
-          if (LOGGING_SWITCH) {
-            _logger.debug('🎬 DutchGameStateUpdater: ActionData changed for player $playerId: action ${newAction['action']}', isOn: LOGGING_SWITCH);
-          }
-          return true;
-        }
-      } catch (e) {
-        // If JSON encoding fails, assume there's a change (safer)
-        if (LOGGING_SWITCH) {
-          _logger.debug('🎬 DutchGameStateUpdater: ActionData comparison failed for player $playerId, assuming change', isOn: LOGGING_SWITCH);
-        }
-        return true;
-      }
-    }
-    
-    // Check if any action was removed (in current but not in new)
-    for (final entry in currentActionState.entries) {
-      final playerId = entry.key;
-      if (!newActionState.containsKey(playerId)) {
-        // Action was removed
-        if (LOGGING_SWITCH) {
-          _logger.debug('🎬 DutchGameStateUpdater: Action removed for player $playerId', isOn: LOGGING_SWITCH);
-        }
-        return true;
-      }
-    }
-    
-    // No changes detected
-    return false;
-  }
-  
   /// Recursively convert LinkedMap and other Map types to Map<String, dynamic>
   /// This ensures type safety when merging state from different sources (JSON decode vs. already-processed state)
   /// Returns the converted value (Map, List, or primitive)
@@ -511,7 +477,9 @@ class DutchGameStateUpdater {
     // Deep convert to ensure all nested maps are Map<String, dynamic> (not LinkedMap)
     final updatedState = _deepConvertToMapStringDynamic(newState) as Map<String, dynamic>;
     
-    _logger.debug('🎬 DutchGameStateUpdater: _updateWidgetSlices - Changed fields: $changedFields', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.debug('🎬 DutchGameStateUpdater: _updateWidgetSlices - Changed fields: $changedFields');
+    }
     
     // CRITICAL: Always ensure joinedGamesSlice matches games map state
     // - If games map is empty, clear joinedGamesSlice
@@ -524,7 +492,9 @@ class DutchGameStateUpdater {
     if (gamesMap.isEmpty) {
       // Games map is empty - clear joinedGamesSlice to match
       if (existingJoinedGames.isNotEmpty) {
-        _logger.info('🎬 DutchGameStateUpdater: Games map is empty but joinedGamesSlice has ${existingJoinedGames.length} games - clearing slice', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('🎬 DutchGameStateUpdater: Games map is empty but joinedGamesSlice has ${existingJoinedGames.length} games - clearing slice');
+        }
         updatedState['joinedGamesSlice'] = {
           'games': <Map<String, dynamic>>[],
           'totalGames': 0,
@@ -533,7 +503,9 @@ class DutchGameStateUpdater {
       }
     } else if (existingJoinedGamesSlice.isEmpty || !existingJoinedGamesSlice.containsKey('games')) {
       // Games map has games but slice is missing/empty - compute it
-      _logger.info('🎬 DutchGameStateUpdater: Games map has ${gamesMap.length} games but joinedGamesSlice missing/empty - computing it', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎬 DutchGameStateUpdater: Games map has ${gamesMap.length} games but joinedGamesSlice missing/empty - computing it');
+      }
       updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
     }
     
@@ -543,7 +515,9 @@ class DutchGameStateUpdater {
       final dependencies = entry.value;
       
       if (changedFields.any(dependencies.contains)) {
-        _logger.debug('🎬 DutchGameStateUpdater: Recomputing slice "$sliceName" due to changed fields: ${changedFields.where(dependencies.contains).toList()}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 DutchGameStateUpdater: Recomputing slice "$sliceName" due to changed fields: ${changedFields.where(dependencies.contains).toList()}');
+        }
         
         switch (sliceName) {
           case 'actionBar':
@@ -564,7 +538,9 @@ class DutchGameStateUpdater {
           case 'gameInfo':
             final gameInfoSlice = _computeGameInfoSlice(newState);
             updatedState['gameInfo'] = gameInfoSlice;
-            _logger.info('🎬 DutchGameStateUpdater: gameInfo slice recomputed - gamePhase: ${gameInfoSlice['gamePhase']}, currentGameId: ${gameInfoSlice['currentGameId']}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('🎬 DutchGameStateUpdater: gameInfo slice recomputed - gamePhase: ${gameInfoSlice['gamePhase']}, currentGameId: ${gameInfoSlice['currentGameId']}');
+            }
             break;
           case 'joinedGamesSlice':
             updatedState['joinedGamesSlice'] = _computeJoinedGamesSlice(newState);
@@ -923,7 +899,9 @@ class DutchGameStateUpdater {
   Map<String, dynamic> _computeJoinedGamesSlice(Map<String, dynamic> state) {
     final games = state['games'] as Map<String, dynamic>? ?? {};
     
-    _logger.info('🎬 DutchGameStateUpdater: Computing joinedGamesSlice - games map has ${games.length} games', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 DutchGameStateUpdater: Computing joinedGamesSlice - games map has ${games.length} games');
+    }
     
     // Build joined games list from games map (single source of truth)
     // If a game is in the games map, the user has joined it - no need to check player IDs
@@ -936,14 +914,20 @@ class DutchGameStateUpdater {
       
       // Only include games with valid gameData
       if (gameData.isNotEmpty && gameData['game_id'] != null) {
-        _logger.debug('🎬 DutchGameStateUpdater: Adding game $gameId to joinedGamesSlice', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 DutchGameStateUpdater: Adding game $gameId to joinedGamesSlice');
+        }
         joinedGamesList.add(gameData);
       } else {
-        _logger.debug('🎬 DutchGameStateUpdater: Game $gameId skipped - gameData empty: ${gameData.isEmpty}, game_id: ${gameData['game_id']}', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('🎬 DutchGameStateUpdater: Game $gameId skipped - gameData empty: ${gameData.isEmpty}, game_id: ${gameData['game_id']}');
+        }
       }
     }
     
-    _logger.info('🎬 DutchGameStateUpdater: Computed joinedGamesSlice from games map - found ${joinedGamesList.length} games', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('🎬 DutchGameStateUpdater: Computed joinedGamesSlice from games map - found ${joinedGamesList.length} games');
+    }
     
     return {
       'games': joinedGamesList,
@@ -968,30 +952,38 @@ class DutchGameStateAccessor {
   // Dependencies
   final StateManager _stateManager = StateManager();
   final Logger _logger = Logger();
-  static const bool LOGGING_SWITCH = false; // Enabled for initial peek clearing debugging
+  static const bool LOGGING_SWITCH = true; // Enabled for animation system testing
   
   /// Get the complete state for a specific game ID
   /// Returns null if the game is not found
   Map<String, dynamic>? getGameStateForId(String gameId) {
     try {
-      _logger.debug('DutchGameStateAccessor: Getting game state for ID: $gameId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('DutchGameStateAccessor: Getting game state for ID: $gameId');
+      }
       
       final currentState = _stateManager.getModuleState<Map<String, dynamic>>('dutch_game') ?? {};
       final games = currentState['games'] as Map<String, dynamic>? ?? {};
       
       if (!games.containsKey(gameId)) {
-        _logger.debug('DutchGameStateAccessor: Game ID "$gameId" not found in games map', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.debug('DutchGameStateAccessor: Game ID "$gameId" not found in games map');
+        }
         return null;
       }
       
       final gameState = games[gameId] as Map<String, dynamic>? ?? {};
       
-      _logger.debug('DutchGameStateAccessor: Successfully retrieved game state for ID: $gameId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.debug('DutchGameStateAccessor: Successfully retrieved game state for ID: $gameId');
+      }
       
       return gameState;
       
     } catch (e) {
-      _logger.error('DutchGameStateAccessor: Error getting game state for ID "$gameId": $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('DutchGameStateAccessor: Error getting game state for ID "$gameId": $e', error: e);
+      }
       return null;
     }
   }

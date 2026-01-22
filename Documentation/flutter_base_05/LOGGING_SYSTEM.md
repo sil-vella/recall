@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Flutter Base 05 application implements a sophisticated logging system that provides structured, configurable, and efficient logging throughout the application. The system supports multiple log levels, remote logging capabilities, and granular control over when logging occurs.
+The Flutter Base 05 application implements a structured logging system that provides configurable and efficient logging throughout the application. The system supports multiple log levels, console output, and centralized log file writing via launch scripts.
 
 ## Architecture
 
@@ -11,17 +11,23 @@ The Flutter Base 05 application implements a sophisticated logging system that p
 1. **Logger Class** (`lib/tools/logging/logger.dart`)
    - Centralized logging interface
    - Configurable log levels and output
-   - Remote logging support via HTTP
+   - Prints to stdout/stderr (captured by launch scripts)
    - Singleton pattern for consistent usage
+   - **Note**: Logger does NOT write directly to files - launch scripts handle file writing
 
-2. **Configuration System** (`lib/utils/consts/config.dart`)
+2. **Launch Scripts** (`playbooks/frontend/launch_*.sh`)
+   - Capture Flutter stdout/stderr output
+   - Filter and format log messages
+   - Write formatted logs to `server.log`
+   - Support for Chrome web and Android devices
+
+3. **Configuration System** (`lib/utils/consts/config.dart`)
    - Environment-based logging configuration
-   - Remote logging toggle
    - Platform-specific settings
 
-3. **Logging Integration**
+4. **Logging Integration**
    - Automatic integration with all managers
-   - Module-specific logging
+   - Module-specific logging with `LOGGING_SWITCH` constants
    - Service-level logging
    - Screen and widget logging
 
@@ -47,78 +53,81 @@ class Logger {
 ### Key Features
 
 - **Singleton Pattern**: Single instance across the application
-- **Configurable Logging**: Respects `Config.loggerOn` setting
-- **Remote Logging**: Optional HTTP-based remote logging
-- **Log Levels**: Multiple log levels for different types of messages
+- **Configurable Logging**: Respects `Config.loggerOn` setting and `isOn` parameter
+- **Console Output**: Prints formatted logs to stdout/stderr
+- **Log Levels**: Multiple log levels for different types of messages (DEBUG, INFO, WARNING, ERROR)
+- **Conditional Logging**: Use `if (LOGGING_SWITCH)` pattern before log calls
 - **Force Logging**: Override configuration for critical messages
-- **Structured Logging**: Consistent log format across the application
+- **Structured Logging**: Consistent log format: `[timestamp] [LEVEL] [AppLogger] message`
+- **File Writing**: Handled by launch scripts, not the Logger class
 
 ## Logging Methods
 
 ### Basic Logging Methods
 
-#### `void info(String message, {bool isOn = false})`
+#### `void info(String message, {bool? isOn})`
 Logs an informational message.
 
 **Parameters**:
 - `message` (String): Message to log
-- `isOn` (bool): Force logging regardless of configuration (default: false)
+- `isOn` (bool?): Force logging if `true`, skip if `false`, use `Config.loggerOn` if `null` (default: null)
 
 **Example**:
 ```dart
 final logger = Logger();
-logger.info("User logged in successfully");
-logger.info("Critical system event", isOn: true);
+logger.info("User logged in successfully"); // Uses Config.loggerOn
+logger.info("Critical system event", isOn: true); // Always logs
+logger.info("Debug info", isOn: false); // Never logs
 ```
 
-#### `void debug(String message, {bool isOn = false})`
+#### `void debug(String message, {bool? isOn})`
 Logs a debug message.
 
 **Parameters**:
 - `message` (String): Debug message to log
-- `isOn` (bool): Force logging regardless of configuration (default: false)
+- `isOn` (bool?): Force logging if `true`, skip if `false`, use `Config.loggerOn` if `null` (default: null)
 
 **Example**:
 ```dart
-logger.debug("Processing user data");
-logger.debug("Debug information", isOn: true);
+logger.debug("Processing user data"); // Uses Config.loggerOn
+logger.debug("Debug information", isOn: true); // Always logs
 ```
 
-#### `void warning(String message, {bool isOn = false})`
+#### `void warning(String message, {bool? isOn})`
 Logs a warning message.
 
 **Parameters**:
 - `message` (String): Warning message to log
-- `isOn` (bool): Force logging regardless of configuration (default: false)
+- `isOn` (bool?): Force logging if `true`, skip if `false`, use `Config.loggerOn` if `null` (default: null)
 
 **Example**:
 ```dart
-logger.warning("API response took longer than expected");
-logger.warning("Critical warning", isOn: true);
+logger.warning("API response took longer than expected"); // Uses Config.loggerOn
+logger.warning("Critical warning", isOn: true); // Always logs
 ```
 
-#### `void error(String message, {Object? error, StackTrace? stackTrace, bool isOn = false})`
+#### `void error(String message, {Object? error, StackTrace? stackTrace, bool? isOn})`
 Logs an error message with optional error details.
 
 **Parameters**:
 - `message` (String): Error message to log
 - `error` (Object?): Error object (optional)
 - `stackTrace` (StackTrace?): Stack trace (optional)
-- `isOn` (bool): Force logging regardless of configuration (default: false)
+- `isOn` (bool?): Force logging if `true`, skip if `false`, use `Config.loggerOn` if `null` (default: null)
 
 **Example**:
 ```dart
 try {
   // Some operation
 } catch (e, stackTrace) {
-  logger.error("Operation failed", error: e, stackTrace: stackTrace);
-  logger.error("Critical error", error: e, isOn: true);
+  logger.error("Operation failed", error: e, stackTrace: stackTrace); // Uses Config.loggerOn
+  logger.error("Critical error", error: e, isOn: true); // Always logs
 }
 ```
 
 ### Advanced Logging Methods
 
-#### `void log(String message, {String name = 'AppLogger', Object? error, StackTrace? stackTrace, int level = 0, bool isOn = false})`
+#### `void log(String message, {String name = 'AppLogger', Object? error, StackTrace? stackTrace, int level = 0, bool? isOn})`
 General log method that respects configuration.
 
 **Parameters**:
@@ -127,7 +136,7 @@ General log method that respects configuration.
 - `error` (Object?): Error object (optional)
 - `stackTrace` (StackTrace?): Stack trace (optional)
 - `level` (int): Log level (default: 0)
-- `isOn` (bool): Force logging regardless of configuration (default: false)
+- `isOn` (bool?): Force logging if `true`, skip if `false`, use `Config.loggerOn` if `null` (default: null)
 
 **Example**:
 ```dart
@@ -223,54 +232,107 @@ String _getLevelString(int level) {
 }
 ```
 
-## Remote Logging
+## File Logging via Launch Scripts
 
-### HTTP-Based Remote Logging
+### How It Works
 
-The system supports sending logs to a remote server via HTTP POST requests:
+The Logger class prints formatted logs to stdout/stderr. Launch scripts capture this output and write it to `server.log`:
 
-```dart
-void _sendToServer({required int level, required String message, Object? error, StackTrace? stack}) {
-  try {
-    final payload = <String, dynamic>{
-      'message': message,
-      'level': _getLevelString(level),
-      'source': 'frontend',
-      'platform': Config.platform,
-      'buildMode': Config.buildMode,
-      'timestamp': DateTime.now().toIso8601String(),
-      if (error != null) 'error': error.toString(),
-      if (stack != null) 'stack': stack.toString(),
-    };
+1. **Logger prints to stdout**: `[timestamp] [LEVEL] [AppLogger] message`
+2. **Launch script captures output**: Scripts pipe Flutter output through `filter_logs()` function
+3. **Script writes to file**: Formatted logs are appended to `python_base_04/tools/logger/server.log`
 
-    // Send to server log endpoint - fire and forget
-    _sendHttpLog(payload).catchError((e) {
-      // Silently fail - don't want logging errors to break the app
-    });
-  } catch (e) {
-    // Don't log errors from logging to avoid infinite loops
-  }
-}
+### Launch Scripts
+
+#### Chrome Web (`playbooks/frontend/launch_chrome.sh`)
+- Captures Flutter web output
+- Filters logs matching pattern: `[.*] [.*] [AppLogger]`
+- Writes to `server.log` without filtering (all logs included)
+- Displays colored output in terminal
+
+#### Android Device (`playbooks/frontend/launch_oneplus.sh`)
+- Captures Flutter Android output via ADB
+- Same filtering and writing logic as Chrome script
+- Supports local and VPS backend configurations
+
+### Log Format
+
+The launch scripts expect logs in this format:
+```
+[timestamp] [LEVEL] [AppLogger] message
 ```
 
-### Remote Logging Payload
+Example:
+```
+[2026-01-22T12:54:31.562] [INFO] [AppLogger] 🎬 DutchGameStateUpdater: Handler callback invoked with keys: [messages]
+```
 
-```json
-{
-  "message": "User logged in successfully",
-  "level": "INFO",
-  "source": "frontend",
-  "platform": "android",
-  "buildMode": "debug",
-  "timestamp": "2024-01-01T12:00:00.000Z",
-  "error": "Optional error details",
-  "stack": "Optional stack trace"
-}
+The scripts extract:
+- **Timestamp**: First bracket group
+- **Level**: Second bracket group (DEBUG, INFO, WARNING, ERROR)
+- **Message**: Everything after `[AppLogger] `
+
+And write to `server.log` as:
+```
+[timestamp] [LEVEL] message
+```
+
+### Viewing Logs
+
+```bash
+# View all logs
+tail -f python_base_04/tools/logger/server.log
+
+# Filter specific logs
+tail -f python_base_04/tools/logger/server.log | grep "DutchGameStateUpdater"
+
+# View last 100 lines
+tail -n 100 python_base_04/tools/logger/server.log
 ```
 
 ## Usage Patterns
 
-### Basic Usage
+### Recommended Pattern: `if (LOGGING_SWITCH)`
+
+The current codebase uses a pattern where modules define a `LOGGING_SWITCH` constant and wrap log calls:
+
+```dart
+class MyModule extends ModuleBase {
+  static final Logger _logger = Logger();
+  static const bool LOGGING_SWITCH = true; // Enable/disable logging for this module
+  
+  @override
+  void initialize(BuildContext context, ModuleManager moduleManager) {
+    if (LOGGING_SWITCH) {
+      _logger.info("Module initialized");
+    }
+  }
+  
+  void performOperation() {
+    try {
+      if (LOGGING_SWITCH) {
+        _logger.debug("Starting operation");
+      }
+      // Perform operation
+      if (LOGGING_SWITCH) {
+        _logger.info("Operation completed successfully");
+      }
+    } catch (e, stackTrace) {
+      if (LOGGING_SWITCH) {
+        _logger.error("Operation failed", error: e, stackTrace: stackTrace);
+      }
+    }
+  }
+}
+```
+
+**Benefits**:
+- Module-level control over logging
+- Easy to enable/disable logging for specific modules
+- No need to pass `isOn` parameter to every log call
+- Compile-time optimization (dead code elimination)
+
+### Basic Usage (Alternative)
 
 ```dart
 class MyModule extends ModuleBase {
@@ -278,16 +340,16 @@ class MyModule extends ModuleBase {
   
   @override
   void initialize(BuildContext context, ModuleManager moduleManager) {
-    _log.info("Module initialized");
+    _logger.info("Module initialized"); // Uses Config.loggerOn
   }
   
   void performOperation() {
     try {
-      _log.debug("Starting operation");
+      _logger.debug("Starting operation");
       // Perform operation
-      _log.info("Operation completed successfully");
+      _logger.info("Operation completed successfully");
     } catch (e, stackTrace) {
-      _log.error("Operation failed", error: e, stackTrace: stackTrace);
+      _logger.error("Operation failed", error: e, stackTrace: stackTrace);
     }
   }
 }
@@ -324,13 +386,19 @@ class StateAwareWidget extends StatelessWidget {
 ```dart
 class CriticalSystem {
   static final Logger _logger = Logger();
+  static const bool LOGGING_SWITCH = true;
   
   void handleCriticalEvent() {
-    // This will log even if Config.loggerOn is false
-    _log.info("Critical system event occurred", isOn: true);
+    // Using LOGGING_SWITCH pattern
+    if (LOGGING_SWITCH) {
+      _logger.info("Critical system event occurred");
+    }
     
-    // This will always log regardless of configuration
-    _log.forceLog("System shutdown initiated", level: 1000);
+    // Force log regardless of configuration
+    _logger.forceLog("System shutdown initiated", level: 1000);
+    
+    // Or use isOn parameter
+    _logger.info("Critical event", isOn: true); // Always logs
   }
 }
 ```
@@ -500,12 +568,12 @@ class SharedPrefManager extends ServicesBase {
 - Allow runtime configuration changes where appropriate
 - Document all configuration options
 
-### 5. Remote Logging
+### 5. File Logging
 
-- Use remote logging for production environments
-- Implement proper error handling for network failures
-- Consider log volume and storage costs
-- Use structured logging for better analysis
+- Logs are written to `server.log` via launch scripts
+- Ensure launch scripts are running to capture logs
+- Use `LOGGING_SWITCH` pattern for module-level control
+- All logs appear in `server.log` when using launch scripts
 
 ## Troubleshooting
 
@@ -516,16 +584,17 @@ class SharedPrefManager extends ServicesBase {
    - Verify logger initialization
    - Check for configuration overrides
 
-2. **Remote logging not working**
-   - Verify `Config.enableRemoteLogging` is true
-   - Check API URL configuration
-   - Verify network connectivity
-   - Check server endpoint availability
+2. **Logs not appearing in server.log**
+   - Ensure you're using a launch script (`launch_chrome.sh` or `launch_oneplus.sh`)
+   - Check that `LOGGING_SWITCH` is `true` in the module
+   - Verify `Config.loggerOn` is `true` (if not using `isOn` parameter)
+   - Check that logs match the expected format: `[timestamp] [LEVEL] [AppLogger] message`
+   - Verify `server.log` file path is correct: `python_base_04/tools/logger/server.log`
 
 3. **Performance issues**
-   - Reduce log volume
+   - Reduce log volume by setting `LOGGING_SWITCH = false` in modules
    - Use appropriate log levels
-   - Consider disabling remote logging in development
+   - Use `if (LOGGING_SWITCH)` pattern for compile-time optimization
    - Optimize log message content
 
 ### Debug Tools
@@ -550,24 +619,31 @@ logger.info("Force test message", isOn: true);
 - Implement log filtering for production environments
 - Consider data retention policies
 
-### Remote Logging Security
+### File Logging Security
 
-- Use HTTPS for remote logging endpoints
-- Implement proper authentication
-- Consider log encryption
-- Monitor for security vulnerabilities
+- `server.log` contains application logs - protect file permissions
+- Consider log rotation to prevent large files
+- Be aware that logs may contain sensitive information
+- Review log content before sharing or committing
 
 ## Conclusion
 
-The Flutter Base 05 logging system provides a comprehensive, configurable, and efficient logging solution for the application. It supports multiple log levels, remote logging capabilities, and granular control over when logging occurs.
+The Flutter Base 05 logging system provides a comprehensive, configurable, and efficient logging solution for the application. It supports multiple log levels, console output, and centralized file logging via launch scripts.
 
 Key benefits:
 
 - **Structured Logging**: Consistent log format across the application
-- **Configurable**: Environment-based configuration
-- **Performance**: Efficient logging that doesn't impact app performance
-- **Remote Support**: Optional remote logging for production environments
-- **Force Override**: Ability to force critical logs regardless of configuration
+- **Configurable**: Environment-based configuration and module-level `LOGGING_SWITCH` constants
+- **Performance**: Efficient logging with compile-time optimization via `if (LOGGING_SWITCH)` pattern
+- **File Logging**: Centralized log file writing via launch scripts
+- **Force Override**: Ability to force critical logs using `isOn: true` or `forceLog()`
 - **Integration**: Seamless integration with all application components
+
+### Current Architecture Summary
+
+1. **Logger Class**: Prints formatted logs to stdout/stderr
+2. **Launch Scripts**: Capture stdout, filter, and write to `server.log`
+3. **Module Pattern**: Use `LOGGING_SWITCH` constant with `if (LOGGING_SWITCH)` before log calls
+4. **Log Format**: `[timestamp] [LEVEL] [AppLogger] message`
 
 For additional information about specific components or usage patterns, refer to the individual documentation files or the source code comments.

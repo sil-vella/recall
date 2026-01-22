@@ -93,10 +93,9 @@ filter_logs() {
             esac
             
             # Write clean formatted log to Python server log file
-            # Filter out DutchGameStateUpdater debug/validation logs to reduce noise
-            if ! echo "$message" | grep -qE "(DutchGameStateUpdater|Validating field|validation successful|Rebuilding slice)"; then
-                echo "[$timestamp] [$level] $message" >> "$SERVER_LOG_FILE"
-            fi
+            # Note: DutchGameStateUpdater logs are now written directly by the Logger class
+            # This script-based logging is a fallback for logs that don't use direct file writing
+            echo "[$timestamp] [$level] $message" >> "$SERVER_LOG_FILE"
             
             # Display to console with color coding
             echo -e "${color}[$timestamp] [$level] $message\033[0m"

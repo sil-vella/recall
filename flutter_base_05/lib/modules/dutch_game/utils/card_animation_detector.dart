@@ -4,7 +4,7 @@ import '../../../../tools/logging/logger.dart';
 import '../screens/game_play/widgets/card_animation_manager.dart';
 import '../managers/dutch_event_handler_callbacks.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 /// Animation types for different card movements
 enum AnimationType {

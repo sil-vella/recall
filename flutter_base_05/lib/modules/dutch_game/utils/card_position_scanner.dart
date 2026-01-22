@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for testing and debugging
+const bool LOGGING_SWITCH = true; // Enabled for testing and debugging
 
 /// Represents a card's position and metadata on screen
 class CardPosition {

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../../tools/logging/logger.dart';
 
-const bool LOGGING_SWITCH = false; // Enabled for animation system debugging
+const bool LOGGING_SWITCH = true; // Enabled for animation system debugging
 
 /// Animation item structure for the queue
 class AnimationItem {

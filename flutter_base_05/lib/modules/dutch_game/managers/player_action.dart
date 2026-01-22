@@ -71,11 +71,13 @@ class PlayerAction {
   /// Execute the player action with validation and state management
   Future<void> execute() async {
     try {
-      _logger.info('PlayerAction.execute: Executing action: ${actionType.name}, eventName: $eventName, payload: $payload', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('PlayerAction.execute: Executing action: ${actionType.name}, eventName: $eventName, payload: $payload');
+      }
       
       // Special logging for leave_room events
-      if (eventName == 'leave_room') {
-        _logger.info('PlayerAction.execute: LEAVE_ROOM event - gameId: ${payload['game_id']}', isOn: LOGGING_SWITCH);
+      if (eventName == 'leave_room' && LOGGING_SWITCH) {
+        _logger.info('PlayerAction.execute: LEAVE_ROOM event - gameId: ${payload['game_id']}');
       }
       
       // Special handling for Jack swap - build complete payload from selections
@@ -83,7 +85,9 @@ class PlayerAction {
         // Validate both cards are selected
         if (_firstSelectedCardId == null || _secondSelectedCardId == null ||
             _firstSelectedPlayerId == null || _secondSelectedPlayerId == null) {
-          _logger.error('Jack swap validation failed - missing card or player IDs', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.error('Jack swap validation failed - missing card or player IDs');
+          }
           throw Exception('Both cards must be selected for Jack swap');
         }
         
@@ -93,28 +97,34 @@ class PlayerAction {
         payload['second_card_id'] = _secondSelectedCardId;
         payload['second_player_id'] = _secondSelectedPlayerId;
         
-        _logger.info('Jack swap payload built with both card selections', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.info('Jack swap payload built with both card selections');
+        }
       }
       
       // Special handling for Queen peek - execute immediately with single card selection
-      if (actionType == PlayerActionType.queenPeek) {
-        _logger.info('Queen peek action executed - peeking at card: ${payload['card_id']}', isOn: LOGGING_SWITCH);
+      if (actionType == PlayerActionType.queenPeek && LOGGING_SWITCH) {
+        _logger.info('Queen peek action executed - peeking at card: ${payload['card_id']}');
         // Queen peek executes immediately, no special handling needed
       }
       
       // Note: Removed _setPlayerStatusToWaiting() call
       // Rapid-click prevention is now handled by local widget state (_isProcessingAction flag)
       // This prevents the frontend from overriding backend status updates
-      _logger.info('Skipping optimistic status update - backend will control player status', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Skipping optimistic status update - backend will control player status');
+        _logger.info('Sending event to backend: $eventName with data: $payload');
+      }
       
       // Use event emitter for both practice and multiplayer games
       // The event emitter will route to practice bridge if transport mode is practice
-      _logger.info('Sending event to backend: $eventName with data: $payload', isOn: LOGGING_SWITCH);
       await _eventEmitter.emit(
         eventType: eventName,
         data: payload,
       );
-      _logger.info('Event successfully sent to backend', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('Event successfully sent to backend');
+      }
       
       // Clear Jack swap selections after successful WebSocket emission
       if (actionType == PlayerActionType.jackSwap) {
@@ -122,7 +132,9 @@ class PlayerAction {
       }
 
     } catch (e) {
-      _logger.error('Error executing action ${actionType.name}: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Error executing action ${actionType.name}: $e');
+      }
       rethrow;
     }
   }
@@ -214,18 +226,24 @@ class PlayerAction {
   static void _setPlayerStatusToWaiting() {
     try {
       final logger = Logger();
-      logger.info('Setting player status to waiting', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        logger.info('Setting player status to waiting');
+      }
       
       // Use the dedicated state updater to properly update the player status
       _stateUpdater.updateState({
         'playerStatus': 'waiting',
       });
       
-      logger.info('Player status successfully set to waiting', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        logger.info('Player status successfully set to waiting');
+      }
       
     } catch (e) {
       final logger = Logger();
-      logger.error('Error setting player status to waiting: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        logger.error('Error setting player status to waiting: $e');
+      }
       // Don't rethrow - this is not critical for the main action execution
     }
   }
@@ -322,13 +340,17 @@ class PlayerAction {
   }) async {
     try {
       final logger = Logger();
-      logger.info('Jack swap card selection attempt - Card: $cardId, Player: $playerId, Game: $gameId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        logger.info('Jack swap card selection attempt - Card: $cardId, Player: $playerId, Game: $gameId');
+      }
       
       // If this is the first card selection
       if (_firstSelectedCardId == null) {
         _firstSelectedCardId = cardId;
         _firstSelectedPlayerId = playerId;
-        logger.info('Jack swap: First card selected - Card: $cardId, Player: $playerId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          logger.info('Jack swap: First card selected - Card: $cardId, Player: $playerId');
+        }
         return; // Wait for second card
       }
       
@@ -336,19 +358,25 @@ class PlayerAction {
       if (_secondSelectedCardId == null) {
         _secondSelectedCardId = cardId;
         _secondSelectedPlayerId = playerId;
-        logger.info('Jack swap: Second card selected - Card: $cardId, Player: $playerId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          logger.info('Jack swap: Second card selected - Card: $cardId, Player: $playerId');
+          logger.info('Both cards selected, executing Jack swap');
+        }
         
         // Both cards selected, execute the swap through normal execute() flow
-        logger.info('Both cards selected, executing Jack swap', isOn: LOGGING_SWITCH);
         final jackSwapAction = PlayerAction.jackSwap(gameId: gameId);
         await jackSwapAction.execute();
       } else {
-        logger.warning('Jack swap: Attempted to select third card - already have two cards selected', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          logger.warning('Jack swap: Attempted to select third card - already have two cards selected');
+        }
       }
       
     } catch (e) {
       final logger = Logger();
-      logger.error('Error in selectCardForJackSwap: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        logger.error('Error in selectCardForJackSwap: $e');
+      }
       rethrow;
     }
   }
@@ -369,7 +397,9 @@ class PlayerAction {
   /// Reset Jack swap selections (call this when Jack swap is cancelled)
   static void resetJackSwapSelections() {
     final logger = Logger();
-    logger.info('Resetting Jack swap selections', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      logger.info('Resetting Jack swap selections');
+    }
     _clearJackSwapSelections();
   }
 
@@ -388,7 +418,9 @@ class PlayerAction {
     if (_secondSelectedCardId != null) count++;
     
     final logger = Logger();
-    logger.info('Jack swap selection count: $count', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      logger.info('Jack swap selection count: $count');
+    }
     return count;
   }
 

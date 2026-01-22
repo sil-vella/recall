@@ -327,12 +327,18 @@ class DutchGameModule {
             }
             
             final accountType = profileResult['account_type'] as String? ?? 'unknown';
-            _logger.info('✅ Fetched user profile: name=$playerName, username=$usernameFromProfile, account_type=$accountType, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.info('✅ Fetched user profile: name=$playerName, username=$usernameFromProfile, account_type=$accountType, hasPicture=${profilePicture != null && profilePicture.isNotEmpty}');
+            }
           } else {
-            _logger.warning('⚠️ Failed to fetch user profile: ${profileResult['error']}', isOn: LOGGING_SWITCH);
+            if (LOGGING_SWITCH) {
+              _logger.warning('⚠️ Failed to fetch user profile: ${profileResult['error']}');
+            }
           }
         } catch (e) {
-          _logger.warning('⚠️ Error fetching user profile: $e', isOn: LOGGING_SWITCH);
+          if (LOGGING_SWITCH) {
+            _logger.warning('⚠️ Error fetching user profile: $e');
+          }
           // Continue with default name
         }
       }
@@ -458,9 +464,13 @@ class DutchGameModule {
         'timestamp': DateTime.now().toIso8601String(),
       });
       
-      _logger.info('✅ Broadcasted game_state_updated to all players in room $roomId after player $sessionId left', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ Broadcasted game_state_updated to all players in room $roomId after player $sessionId left');
+      }
     } catch (e) {
-      _logger.error('❌ Error in _onLeaveRoom: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error in _onLeaveRoom: $e');
+      }
     }
   }
 
@@ -472,11 +482,15 @@ class DutchGameModule {
       final reason = data['reason'] as String? ?? 'unknown';
 
       if (roomId == null) {
-        _logger.warning('🎣 room_closed: missing roomId', isOn: LOGGING_SWITCH);
+        if (LOGGING_SWITCH) {
+          _logger.warning('🎣 room_closed: missing roomId');
+        }
         return;
       }
 
-      _logger.info('🎣 room_closed: Cleaning up game for room $roomId (reason: $reason)', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('🎣 room_closed: Cleaning up game for room $roomId (reason: $reason)');
+      }
 
       // Dispose GameRound instance
       GameRegistry.instance.dispose(roomId);
@@ -484,9 +498,13 @@ class DutchGameModule {
       // Clear game state
       GameStateStore.instance.clear(roomId);
 
-      _logger.info('✅ Game cleanup complete for room $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('✅ Game cleanup complete for room $roomId');
+      }
     } catch (e) {
-      _logger.error('❌ Error in _onRoomClosed: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error in _onRoomClosed: $e');
+      }
     }
   }
 
@@ -508,9 +526,13 @@ class DutchGameModule {
         'timestamp': DateTime.now().toIso8601String(),
       });
 
-      _logger.info('📤 Sent game snapshot to session $sessionId for room $roomId', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.info('📤 Sent game snapshot to session $sessionId for room $roomId');
+      }
     } catch (e) {
-      _logger.error('❌ Error sending snapshot: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('❌ Error sending snapshot: $e');
+      }
     }
   }
 }

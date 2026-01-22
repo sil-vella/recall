@@ -1826,7 +1826,9 @@ When anyone has played a card with the **same rank** as your **collection card**
       }
     }
 
-    _logger.info("updates: $updates", isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info("updates: $updates");
+    }
     // Apply UI updates if any
     if (updates.isNotEmpty) {
       _updateGameInMap(gameId, updates);

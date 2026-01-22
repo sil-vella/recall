@@ -37,7 +37,9 @@ class DutchGameEventEmitter {
   /// Set the transport mode
   void setTransportMode(EventTransportMode mode) {
     _transportMode = mode;
-    _logger.info('DutchGameEventEmitter: Transport mode set to $mode', isOn: LOGGING_SWITCH);
+    if (LOGGING_SWITCH) {
+      _logger.info('DutchGameEventEmitter: Transport mode set to $mode');
+    }
   }
   
   /// Get the current transport mode

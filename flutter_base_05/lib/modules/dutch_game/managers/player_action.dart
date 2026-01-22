@@ -217,7 +217,9 @@ class PlayerAction {
       // todo ... link to practice mode logic (dart bkend replica)
       
     } catch (e) {
-      _logger.error('Error triggering dutch event: $e', isOn: LOGGING_SWITCH);
+      if (LOGGING_SWITCH) {
+        _logger.error('Error triggering dutch event: $e');
+      }
     }
   }
 
